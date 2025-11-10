@@ -13,7 +13,7 @@ import threading
 from collections import defaultdict
 from pathlib import Path
 from collections.abc import Iterator, Mapping, Sequence
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Tuple
 
 # Initialize logger early for setup-time logging
 logger = logging.getLogger(__name__)
@@ -316,7 +316,7 @@ def reset_missing_food_counter() -> None:
         _MISSING_FOOD_COUNTER.clear()
 
 
-def get_aliases() -> Dict[str, List[str]]:
+def get_aliases() -> dict[str, list[str]]:
     """Return merged alias mapping (defaults + CSV), loading lazily on first use."""
     global _ALIASES_CACHE
     if _ALIASES_CACHE is None:
@@ -327,7 +327,7 @@ def get_aliases() -> Dict[str, List[str]]:
     return _ALIASES_CACHE
 
 
-def expand_query(q: str) -> List[str]:
+def expand_query(q: str) -> list[str]:
     """Expand a query using alias mappings; returns unique lowercase terms."""
     ql = (q or "").strip().lower()
     if not ql:
@@ -381,12 +381,12 @@ def _validate_pagination_params(limit: int | str, offset: int | str) -> tuple[in
     return limit, offset
 
 
-def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> List[Dict[str, Any]]:
+def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> list[dict[str, Any]]:
     """Search foods via FTS; parameters are safely bound using placeholders."""
     # Validate and normalize pagination parameters
     limit, offset = _validate_pagination_params(limit, offset)
     terms = expand_query(query) if query else []
-    params: List[Any] = []
+    params: list[Any] = []
     if terms:
         # Query uses parameter placeholders for all user inputs;
         # only the number of placeholders is constructed dynamically.
@@ -416,14 +416,14 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
     return [dict(r) for r in rows]
 
 
-def get_food(food_id: str) -> Optional[Dict[str, Any]]:
+def get_food(food_id: str) -> dict[str, Any] | None:
     """Return a single food by id or None if not found."""
     with _connect() as con:
         row = con.execute("SELECT * FROM foods WHERE id = ?", (food_id,)).fetchone()
     return dict(row) if row else None
 
 
-def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Optional[Tuple[str, float]]:
+def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Tuple[str, float] | None:
     """
     Validate ingredient mapping and extract food_id and grams.
 
@@ -499,7 +499,7 @@ def _safe_per_g(per_g_raw: Any, food_id: str) -> float:
     return per_g
 
 
-def nutrients_for(ings: Sequence[Mapping[str, Any]]) -> Dict[str, float]:
+def nutrients_for(ings: Sequence[Mapping[str, Any]]) -> dict[str, float]:
     """
     RU: Наивный сумматор нутриентов с валидацией входных данных.
 

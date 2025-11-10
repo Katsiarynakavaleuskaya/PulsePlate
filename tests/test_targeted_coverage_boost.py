@@ -2,7 +2,6 @@
 Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 """
 
-import asyncio
 import logging
 import os
 import sys
@@ -173,18 +172,16 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_unified_db_py_line_165(self):
+    @pytest.mark.asyncio
+    async def test_unified_db_py_line_165(self):
         """Test line 165 in unified_db.py (get_food_by_id with invalid ID)."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
         db = UnifiedFoodDatabase()
         # Test with async function properly
-        import asyncio
-
         try:
-            _ = asyncio.run(
-                db.get_food_by_id("usda", "invalid_id")
-            )  # Use _ to indicate we're not using the variable
+            _ = await db.get_food_by_id("usda", "invalid_id")
+            # Use _ to indicate we're not using the variable
             # Should handle invalid ID gracefully
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
@@ -207,7 +204,8 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_update_manager_py_lines_264_296(self):
+    @pytest.mark.asyncio
+    async def test_update_manager_py_lines_264_296(self):
         """Test lines 264-296 in update_manager.py (_validate_food_data)."""
         from core.food_apis.unified_db import UnifiedFoodItem
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -227,40 +225,31 @@ class TestTargetedCoverageBoost:
             )
         }
 
-        # Add the synchronous wrapper method for testing
-        import asyncio
+        errors = await manager._validate_food_data(foods)
+        # Validate that errors are detected for invalid data (empty name, negative protein)
+        assert isinstance(errors, list), "errors should be a list"
+        assert len(errors) > 0, "validation should detect errors for invalid food data"
+        # Verify that errors contain meaningful messages
+        assert any(
+            isinstance(err, (str, dict)) for err in errors
+        ), "errors should contain validation messages"
 
-        loop = asyncio.new_event_loop()
-        try:
-            asyncio.set_event_loop(loop)
-            errors = loop.run_until_complete(manager._validate_food_data(foods))
-            assert len(errors) >= 0  # Should not crash
-        except Exception as e:
-            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
-            # Exception is expected, but the code should handle it gracefully
-        finally:
-            loop.close()
-
-    def test_update_manager_py_line_394(self):
+    @pytest.mark.asyncio
+    async def test_update_manager_py_line_394(self):
         """Test line 394 in update_manager.py (_cleanup_old_backups exception)."""
-        loop = asyncio.new_event_loop()
-        try:
-            asyncio.set_event_loop(loop)
-            with patch(
-                "core.food_apis.update_manager.Path.glob",
-                side_effect=Exception("Test error"),
-            ):
-                from core.food_apis.update_manager import DatabaseUpdateManager
+        with patch(
+            "core.food_apis.update_manager.Path.glob",
+            side_effect=Exception("Test error"),
+        ):
+            from core.food_apis.update_manager import DatabaseUpdateManager
 
-                manager = DatabaseUpdateManager()
-                loop.run_until_complete(
-                    manager._cleanup_old_backups("usda")
-                )  # Should not crash, just log error
-        except Exception as e:
-            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
-            # Exception is expected, but the code should handle it gracefully
-        finally:
-            loop.close()
+            manager = DatabaseUpdateManager()
+            try:
+                await manager._cleanup_old_backups("usda")
+                # Should not crash, just log error
+            except Exception as e:
+                logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
+                # Exception is expected, but the code should handle it gracefully
 
     def test_update_manager_py_line_497(self):
         """Test line 497 in update_manager.py (get_database_status)."""

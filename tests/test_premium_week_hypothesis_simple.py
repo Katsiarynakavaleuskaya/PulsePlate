@@ -14,15 +14,16 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import app as app_mod
+from typing import Optional
 
 # Deadline constant for Hypothesis tests (None disables per-test deadline)
-DEADLINE_MS = None
+DEADLINE_MS: Optional[int] = None
 
 # Performance thresholds for meal plan generation (in seconds)
 # RU: Увеличили порог до 3 секунд, чтобы снизить флаки из-за сетевых обращений.
 # EN: Increased timeout to 3 seconds to avoid flaky failures caused by network retries.
-MEAL_PLAN_GENERATION_TIMEOUT = 3.0
-MEAL_PLAN_GENERATION_WARNING = 1.5
+MEAL_PLAN_GENERATION_TIMEOUT: float = 3.0
+MEAL_PLAN_GENERATION_WARNING: float = 1.5
 
 
 class TestPremiumWeekHypothesisSimple:
@@ -33,7 +34,7 @@ class TestPremiumWeekHypothesisSimple:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app_mod.app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """RU/EN: Close TestClient to avoid lingering event loops."""
         self.client.close()
         os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)

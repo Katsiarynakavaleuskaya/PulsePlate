@@ -73,6 +73,8 @@
   ],
   "coderabbit.agentType": "Native",
   "coderabbit.autoReviewMode": "auto",
+  // Note: cursorpyright does not inherit from python.analysis.extraPaths, so both entries are required.
+  // python.analysis.extraPaths (line 15) is for Pylance, cursorpyright.analysis.extraPaths is for Cursor's Pyright.
   "cursorpyright.analysis.extraPaths": [
     "app",
     "core",

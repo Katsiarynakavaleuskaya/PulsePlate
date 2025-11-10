@@ -121,10 +121,24 @@ class ProductFinder:
 
         return missing_products
 
-    def _similar_names(self, name1: str, name2: str) -> bool:
+    def similar_names(self, name1: str, name2: str) -> bool:
         """
         RU: Проверить, похожи ли названия продуктов.
         EN: Check if product names are similar.
+
+        Args:
+            name1: Первое название
+            name2: Второе название
+
+        Returns:
+            True, если названия похожи
+        """
+        return self._similar_names(name1, name2)
+
+    def _similar_names(self, name1: str, name2: str) -> bool:
+        """
+        RU: Проверить, похожи ли названия продуктов (внутренняя реализация).
+        EN: Check if product names are similar (internal implementation).
 
         Args:
             name1: Первое название

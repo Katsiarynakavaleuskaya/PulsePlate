@@ -6,12 +6,9 @@ import logging
 import os
 import sys
 import tempfile
-from typing import Any, Dict, Optional, Set
-from unittest import mock
 
 import pytest
 
-import core.weekly_plan
 from core import recipe_db, shoplist, weekly_plan
 from core.recommendations import build_nutrition_targets
 from core.targets import NutritionTargets, UserProfile

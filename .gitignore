@@ -180,6 +180,8 @@ test_execution_history.json
 # Coverage reports
 coverage_report_detailed.txt
 coverage.xml
+coverage.json
+coverage/*.json
 htmlcov/
 coverage_html/
 cov_html/

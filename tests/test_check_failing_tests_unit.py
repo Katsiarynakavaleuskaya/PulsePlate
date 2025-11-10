@@ -69,15 +69,19 @@ def test_main_mixed_pass_fail_timeout(
     """Main prints a correct summary and returns 2 (1 failure + 1 timeout)."""
 
     # Limit discovered files to a controlled set
-    monkeypatch.setattr(
-        cft.glob,
-        "glob",
-        lambda pattern: [
-            "tests/t_ok.py",
-            "tests/t_fail.py",
-            "tests/t_to.py",
-        ],
-    )
+    # Patch Path.glob to return controlled test files
+    original_glob = Path.glob
+
+    def mock_glob(self: Path, pattern: str):
+        if pattern == "test_*.py" and str(self) == "tests":
+            return [
+                Path("tests/t_ok.py"),
+                Path("tests/t_fail.py"),
+                Path("tests/t_to.py"),
+            ]
+        return original_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "glob", mock_glob)
 
     # Make Path.is_file always True for these paths
     monkeypatch.setattr(Path, "is_file", lambda self: True)
@@ -125,14 +129,18 @@ def test_main_all_passing(
 ) -> None:
     """Main returns 0 and summary shows all passing when no failures/timeouts."""
 
-    monkeypatch.setattr(
-        cft.glob,
-        "glob",
-        lambda pattern: [
-            "tests/t_ok1.py",
-            "tests/t_ok2.py",
-        ],
-    )
+    # Patch Path.glob to return controlled test files
+    original_glob = Path.glob
+
+    def mock_glob(self: Path, pattern: str):
+        if pattern == "test_*.py" and str(self) == "tests":
+            return [
+                Path("tests/t_ok1.py"),
+                Path("tests/t_ok2.py"),
+            ]
+        return original_glob(self, pattern)
+
+    monkeypatch.setattr(Path, "glob", mock_glob)
     monkeypatch.setattr(Path, "is_file", lambda self: True)
 
     def fake_run(cmd, capture_output, text, timeout):  # noqa: ARG001

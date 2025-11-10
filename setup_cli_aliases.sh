@@ -44,6 +44,9 @@ fi
 _QUIET_MODE=false
 [ "$AUTO_LOAD" = "true" ] && _QUIET_MODE=true
 
+# Counter for created aliases and functions (for summary output)
+_alias_count=0
+
 validate_command() {
     # Validate a command string before creating an alias.
     # Args:
@@ -123,7 +126,7 @@ create_alias() {
         # Skip creating alias if validation fails
         return 1
     else
-        [ "$_QUIET_MODE" = "false" ] && echo "✅ Алиас '$alias_name' создан"
+        _alias_count=$((_alias_count + 1))
     fi
     # shellcheck disable=SC2139
     # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
@@ -149,9 +152,7 @@ pptest-method() {
   cd "$PROJECT_ROOT" && python -m pytest "tests/$1::$2::$3" -v
 }
 # Оптимизация: используем предвычисленную переменную
-[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pptest-file' создана"
-[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pptest-class' создана"
-[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pptest-method' создана"
+_alias_count=$((_alias_count + 3))
 
 # Покрытие кода
 create_alias "ppcov" "cd $PROJECT_ROOT && python -m pytest tests/ --cov=. --cov-report=term-missing --cov-report=xml"
@@ -172,7 +173,7 @@ ppcov-html() {
     echo 'Откройте htmlcov/index.html в браузере'
   fi
 }
-[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'ppcov-html' создана"
+_alias_count=$((_alias_count + 1))
 
 # Линтинг и форматирование
 create_alias "pplint" "cd $PROJECT_ROOT && flake8 ."
@@ -216,8 +217,7 @@ pppull() {
   fi
   git pull origin "$BRANCH"
 }
-[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pppush' создана"
-[ "$_QUIET_MODE" = "false" ] && echo "✅ Функция 'pppull' создана"
+_alias_count=$((_alias_count + 2))
 
 # Безопасные команды
 create_alias "ppsafe-push" "cd $PROJECT_ROOT && make safe-push"
@@ -243,6 +243,8 @@ create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
 
 # Выводим информацию только в интерактивном режиме
 if [ "$AUTO_LOAD" != "true" ]; then
+    echo ""
+    echo "✅ Created $_alias_count aliases and functions"
     echo ""
     echo "🎯 CLI алиасы настроены!"
     echo ""

@@ -161,8 +161,14 @@ if [[ $- == *i* ]]; then
 fi
 EOF
 
-sed -i.tmp "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" "$TEMP_NEW_CONFIG"
-rm -f "${TEMP_NEW_CONFIG}.tmp"
+# Portable sed in-place edit: write to temp file then move over original
+TEMP_SED_OUTPUT=$(mktemp "${TEMP_NEW_CONFIG}.tmp.XXXXXX")
+sed "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" "$TEMP_NEW_CONFIG" > "$TEMP_SED_OUTPUT" || {
+    rm -f "$TEMP_SED_OUTPUT"
+    echo "❌ Error: sed command failed" >&2
+    exit 1
+}
+mv "$TEMP_SED_OUTPUT" "$TEMP_NEW_CONFIG"
 
 # Wrap snippet with markers
 BLOCK_START="# BEGIN PULSEPLATE OPTIMIZED BLOCK"
@@ -172,6 +178,12 @@ BLOCK_END="# END PULSEPLATE OPTIMIZED BLOCK"
     cat "$TEMP_NEW_CONFIG"
     printf "%s\n" "$BLOCK_END"
 } > "$TEMP_BLOCK"
+
+# Pre-flight check: verify python3 exists
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "❌ Error: python3 is required for this script" >&2
+    exit 1
+fi
 
 # Compute safe-merge preview
 python3 - <<'PY' "$ZSHRC_FILE" "$TEMP_BLOCK" "$MERGED_PREVIEW" "$BLOCK_START" "$BLOCK_END"
@@ -222,8 +234,9 @@ if [ "$FORCE" = true ]; then
     echo ""
     echo "⚠️  FORCE MODE: полный перезапись $ZSHRC_FILE из $OPTIMIZED_FILE."
     read -p "Type 'OVERWRITE' to confirm full replacement: " -r
+    REPLY_TRIMMED=$(echo "$REPLY" | xargs)
     echo ""
-    if [[ "$REPLY" != "OVERWRITE" ]]; then
+    if [[ "$REPLY_TRIMMED" != "OVERWRITE" ]]; then
         echo "❌ Полная замена отменена. Исходный файл не изменён."
         exit 0
     fi

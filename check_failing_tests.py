@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Find and summarize failing tests quickly."""
 
-import glob
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 
 def extract_error_line(output: str) -> Optional[str]:
@@ -50,12 +49,13 @@ def extract_error_line(output: str) -> Optional[str]:
     return None
 
 
-def run_test_file(test_file: str) -> Tuple[bool, str]:
+def run_test_file(test_file: Union[Path, str]) -> Tuple[bool, str]:
     """Run a single test file and return (status_ok, output)."""
+    test_file_str = str(test_file)
     try:
         # Use the running interpreter for safety and portability (Bandit: B607)
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", test_file, "--tb=short", "--maxfail=1"],
+            [sys.executable, "-m", "pytest", test_file_str, "--tb=short", "--maxfail=1"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -66,7 +66,7 @@ def run_test_file(test_file: str) -> Tuple[bool, str]:
         else:
             return False, result.stdout + result.stderr
     except subprocess.TimeoutExpired:
-        return False, f"TIMEOUT: Test {test_file} timed out"
+        return False, f"TIMEOUT: Test {test_file_str} timed out"
     except Exception as e:
         return False, f"ERROR: {e}"
 
@@ -74,11 +74,14 @@ def run_test_file(test_file: str) -> Tuple[bool, str]:
 def main() -> int:
     """Execute quick pass over tests/test_*.py and print a compact summary."""
     # Get all test files (restrict to repo tests dir, avoid traversal)
-    test_files = [
-        str(p)
-        for p in map(Path, sorted(glob.glob("tests/test_*.py")))
-        if p.is_file() and p.resolve().is_relative_to(Path("tests").resolve())
-    ]
+    tests_dir = Path("tests").resolve()
+    test_files = sorted(
+        [
+            p
+            for p in Path("tests").glob("test_*.py")
+            if p.is_file() and p.resolve().is_relative_to(tests_dir)
+        ]
+    )
     failing_tests = []
     timeout_tests = []
 
@@ -93,10 +96,10 @@ def main() -> int:
             print("✅ PASS")
         elif output.startswith("TIMEOUT"):
             print("⏰ TIMEOUT")
-            timeout_tests.append(test_file)
+            timeout_tests.append(str(test_file))
         else:
             print("❌ FAIL")
-            failing_tests.append((test_file, output))
+            failing_tests.append((str(test_file), output))
 
     print("\n📊 Summary:")
     print(f"✅ Passing: {len(test_files) - len(failing_tests) - len(timeout_tests)}")

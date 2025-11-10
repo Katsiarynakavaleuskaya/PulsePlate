@@ -3,10 +3,13 @@ Target missing lines in main.py with realistic tests.
 Based on coverage analysis: 65-68, 118-119, 123-124, etc.
 """
 
+import concurrent.futures
 import os
 import sys
+from contextlib import suppress
 from unittest.mock import patch
 
+import pytest
 from faker import Faker
 from fastapi.testclient import TestClient
 
@@ -116,28 +119,24 @@ class TestAppMissingLinesTargeted:
         response = self.client.post("/bmi", json=test_data)
         assert response.status_code in [200, 400, 422]
 
-    def test_extreme_numeric_values_edge_cases(self):
-        # sourcery skip: use-contextlib-suppress
-        """Test extreme numeric values that might trigger different paths"""
-        extreme_cases = [
+    @pytest.mark.parametrize(
+        "case",
+        [
             {"weight": 0.1, "height": 50, "age": 1},  # Very small
             {"weight": 500, "height": 300, "age": 150},  # Very large
             {"weight": float("inf"), "height": 175, "age": 30},  # Infinity
-        ]
-
-        # sourcery skip: no-loop-in-tests
-        for case in extreme_cases:
-            case.update({"sex": "M", "lang": "en"})
-            try:
-                response = self.client.post("/bmi", json=case)
-                assert response.status_code in [200, 400, 422, 500]
-            except Exception:
-                # Some cases might cause JSON serialization errors, which is expected
-                pass
+        ],
+    )
+    def test_extreme_numeric_values_edge_cases(self, case):
+        """Test extreme numeric values that might trigger different paths"""
+        case_with_defaults = {**case, "sex": "M", "lang": "en"}
+        with suppress(Exception):
+            # Some cases might cause JSON serialization errors, which is expected
+            response = self.client.post("/bmi", json=case_with_defaults)
+            assert response.status_code in [200, 400, 422, 500]
 
     def test_concurrent_mixed_requests(self):
         """Test concurrent requests to different endpoints"""
-        import concurrent.futures
 
         def make_bmi_request():
             return self.client.post(
@@ -257,25 +256,23 @@ class TestAppErrorHandlingPaths:
         )
         assert response.status_code == 200  # BMI is public now
 
-    def test_various_content_types(self):
-        """Test various content types"""
-        test_data = '{"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": "en"}'
-
-        # Test with different content types
-        content_types = [
+    @pytest.mark.parametrize(
+        "content_type",
+        [
             "application/json",
             "application/json; charset=utf-8",
             "text/plain",
             "application/xml",
-        ]
-
-        # sourcery skip: no-loop-in-tests
-        for content_type in content_types:
-            response = self.client.post(
-                "/bmi", content=test_data, headers={"Content-Type": content_type}
-            )
-            # Should handle appropriately
-            assert response.status_code in [200, 400, 415, 422]  # 415 = Unsupported Media Type
+        ],
+    )
+    def test_various_content_types(self, content_type):
+        """Test various content types"""
+        test_data = '{"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": "en"}'
+        response = self.client.post(
+            "/bmi", content=test_data, headers={"Content-Type": content_type}
+        )
+        # Should handle appropriately
+        assert response.status_code in [200, 400, 415, 422]  # 415 = Unsupported Media Type
 
 
 class TestAppSpecificMissingBlocks:
@@ -293,7 +290,8 @@ class TestAppSpecificMissingBlocks:
         # Might not exist, but test the path
         assert response.status_code in [200, 404, 405, 422, 500]
 
-    def test_premium_endpoints_without_auth(self):
+    @pytest.mark.parametrize("endpoint", ["/premium_bmr", "/premium_targets"])
+    def test_premium_endpoints_without_auth(self, endpoint):
         """Test premium endpoints without authentication"""
         premium_data = {
             "weight": 70,
@@ -303,15 +301,9 @@ class TestAppSpecificMissingBlocks:
             "activity": "moderate",
             "lang": "en",
         }
-
-        # Test various premium endpoints
-        endpoints = ["/premium_bmr", "/premium_targets"]
-
-        # sourcery skip: no-loop-in-tests
-        for endpoint in endpoints:
-            response = self.client.post(endpoint, json=premium_data)
-            # Should work or return appropriate error
-            assert response.status_code in [200, 400, 401, 403, 422, 500]
+        response = self.client.post(endpoint, json=premium_data)
+        # Should work or return appropriate error
+        assert response.status_code in [200, 400, 401, 403, 422, 500]
 
     def test_admin_endpoints_without_auth(self):
         """Test admin endpoints without authentication"""
@@ -341,11 +333,9 @@ class TestAppSpecificMissingBlocks:
         response = self.client.post("/bmi", json=complex_bmi_data)
         assert response.status_code in [200, 400, 422]
 
-    def test_edge_case_language_handling(self):
-        # sourcery skip: use-contextlib-suppress
-        """Test edge cases in language handling"""
-        # Test with various language formats
-        language_variants = [
+    @pytest.mark.parametrize(
+        "lang",
+        [
             "en",
             "en-US",
             "en_US",
@@ -364,14 +354,12 @@ class TestAppSpecificMissingBlocks:
             "invalid",
             "123",
             "zh-CN",
-        ]
-
-        for lang in language_variants:
-            test_data = {"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": lang}
-
-            try:
-                response = self.client.post("/bmi", json=test_data)
-                assert response.status_code in [200, 400, 422]
-            except Exception:
-                # Some language values might cause JSON errors
-                pass
+        ],
+    )
+    def test_edge_case_language_handling(self, lang):
+        """Test edge cases in language handling"""
+        test_data = {"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": lang}
+        with suppress(Exception):
+            # Some language values might cause JSON errors
+            response = self.client.post("/bmi", json=test_data)
+            assert response.status_code in [200, 400, 422]

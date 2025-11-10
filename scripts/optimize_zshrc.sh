@@ -8,6 +8,13 @@ ZSHRC_FILE="$HOME/.zshrc"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ALIASES_SCRIPT="$PROJECT_ROOT/setup_cli_aliases.sh"
 
+# Validate PROJECT_ROOT points to a valid project
+if [ ! -f "$PROJECT_ROOT/setup_cli_aliases.sh" ]; then
+    echo "❌ Error: PROJECT_ROOT ($PROJECT_ROOT) does not point to a valid project"
+    echo "   Expected file not found: $PROJECT_ROOT/setup_cli_aliases.sh"
+    exit 1
+fi
+
 echo "🔧 Оптимизация .zshrc для быстрой загрузки..."
 echo ""
 
@@ -95,9 +102,6 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     # Добавляем канонический двухстрочный блок загрузки
     echo "SETUP_ALIASES_QUIET=true" >> "$TEMP_FILE"
     echo "source \"\$ALIASES_SCRIPT\"" >> "$TEMP_FILE"
-
-    # Создаем резервную копию перед атомарной заменой
-    cp "$ZSHRC_FILE" "${ZSHRC_FILE}.bak"
 
     # Атомарно заменяем оригинальный файл
     mv "$TEMP_FILE" "$ZSHRC_FILE"

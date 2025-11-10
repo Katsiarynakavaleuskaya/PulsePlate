@@ -295,4 +295,5 @@ def get_all_symptom_keys() -> List[str]:
     Returns:
         List of all symptom keys.
     """
-    return [key for key in RECOMMENDATIONS[DEFAULT_LANGUAGE].keys() if key.startswith("symptom.")]
+    lang_dict = RECOMMENDATIONS.get(DEFAULT_LANGUAGE, RECOMMENDATIONS.get("ru", {}))
+    return [key for key in lang_dict.keys() if key.startswith("symptom.")]

@@ -17,23 +17,23 @@ class TestFoodAPIBasic:
         """Set up test client."""
         self.client = TestClient(app_module.app)
 
-    def test_search_foods_smoke(self):
+    def test_search_foods_smoke(self) -> None:
         """Test basic food search functionality."""
-        r = self.client.get("/api/v1/foods", params={"limit": 5})
-        assert r.status_code == 200
-        data = r.json()
+        response = self.client.get("/api/v1/foods", params={"limit": 5})
+        assert response.status_code == 200
+        data = response.json()
         assert isinstance(data, list)
 
-    def test_food_card_404(self):
+    def test_food_card_404(self) -> None:
         """Test food card 404 error handling."""
-        r = self.client.get("/api/v1/foods/__nope__")
-        assert r.status_code == 404
+        response = self.client.get("/api/v1/foods/__nope__")
+        assert response.status_code == 404
 
 
 class TestFoodDatabaseBasic:
     """Basic food database tests."""
 
-    def test_parse_food_db(self):
+    def test_parse_food_db(self) -> None:
         """Test that food database is parsed correctly."""
         # Parse the food database
         food_db = parse_food_db()
@@ -62,7 +62,7 @@ class TestFoodDatabaseBasic:
         assert hasattr(sample_item, "price_per_unit")
         assert hasattr(sample_item, "flags")
 
-    def test_pick_booster_for(self):
+    def test_pick_booster_for(self) -> None:
         """Test booster food selection."""
         # Parse the food database
         food_db = parse_food_db()
@@ -88,7 +88,7 @@ class TestFoodDatabaseBasic:
         assert hasattr(veg_booster, "Fe_mg")
         assert veg_booster.Fe_mg > 0
 
-    def test_aggregate_shopping(self):
+    def test_aggregate_shopping(self) -> None:
         """Test shopping list aggregation."""
         # Create mock daily plans
         days = [

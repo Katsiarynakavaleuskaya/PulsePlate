@@ -5,6 +5,7 @@
 import os
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -85,20 +86,21 @@ class TestConftestEnvironmentCoverage:
         response = isolated_test_client.get("/health")
         assert response.status_code == 200
 
-    def test_conftest_environment_variables_coverage(self):
-        """Тест покрытия conftest.py environment variables"""
-        # Тестируем, что все необходимые переменные окружения установлены
-        required_vars = [
+    @pytest.mark.parametrize(
+        "var",
+        [
             "FEATURE_PREMIUM_NUTRITION",
             # "API_KEY",  # Not set by default to enable lenient mode
             "VIP_MODULE_ENABLED",
             "APP_ENV",
             "ALLOW_DEV_API_KEY",
             "PYTHONPATH",
-        ]
-
-        for var in required_vars:  # sourcery skip: no-loop-in-tests
-            assert var in os.environ, f"Environment variable {var} not set"
+        ],
+    )
+    def test_conftest_environment_variables_coverage(self, var: str) -> None:
+        """Тест покрытия conftest.py environment variables"""
+        # Тестируем, что все необходимые переменные окружения установлены
+        assert var in os.environ, f"Environment variable {var} not set"
 
     def test_conftest_environment_values_coverage(self):
         """Тест покрытия conftest.py environment values"""
@@ -111,17 +113,18 @@ class TestConftestEnvironmentCoverage:
         assert os.environ.get("APP_ENV") in ["test", "ci"]
         assert os.environ.get("ALLOW_DEV_API_KEY") == "true"
 
+    @pytest.mark.parametrize("dir_name", ["core", "app", "tests"])
+    def test_conftest_pythonpath_directories_coverage(self, dir_name: str) -> None:
+        """Тест покрытия conftest.py PYTHONPATH directories"""
         # PYTHONPATH can be relative (.:core:app:tests) or absolute (CI)
         pythonpath = os.environ.get("PYTHONPATH", "")
         # Check that required directories are present (either as relative or absolute paths)
         assert pythonpath, "PYTHONPATH must be set"
         # Verify that key directories are included
-        required_dirs = ["core", "app", "tests"]
         path_segments = pythonpath.split(os.pathsep)
-        for dir_name in required_dirs:  # sourcery skip: no-loop-in-tests
-            assert any(
-                dir_name in segment for segment in path_segments
-            ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
+        assert any(
+            dir_name in segment for segment in path_segments
+        ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
 
     def test_conftest_sys_modules_coverage(self):
         """Тест покрытия conftest.py sys.modules"""
@@ -150,39 +153,39 @@ class TestConftestEnvironmentCoverage:
         # Это проверяется тем, что переменные окружения установлены
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_scope_coverage(self, test_environment):
+    def test_conftest_fixture_scope_coverage(self, test_environment) -> None:
         """Тест покрытия conftest.py fixture scope"""
         # Тестируем, что фикстуры имеют правильный scope
         # Большинство фикстур должны иметь scope="function"
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_dependencies_coverage(self, test_environment, test_client):
+    def test_conftest_fixture_dependencies_coverage(self, test_environment, test_client) -> None:
         """Тест покрытия conftest.py fixture dependencies"""
         # Тестируем, что фикстуры могут зависеть друг от друга
         assert os.environ.get("APP_ENV") == "test"
         assert isinstance(test_client, TestClient)
 
-    def test_conftest_fixture_parameters_coverage(self, test_environment):
+    def test_conftest_fixture_parameters_coverage(self, test_environment) -> None:
         """Тест покрытия conftest.py fixture parameters"""
         # Тестируем, что фикстуры могут принимать параметры
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_return_values_coverage(self, test_environment):
+    def test_conftest_fixture_return_values_coverage(self, test_environment) -> None:
         """Тест покрытия conftest.py fixture return values"""
         # Тестируем, что фикстуры возвращают правильные значения
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_exceptions_coverage(self, test_environment):
+    def test_conftest_fixture_exceptions_coverage(self, test_environment) -> None:
         """Тест покрытия conftest.py fixture exceptions"""
         # Тестируем, что фикстуры правильно обрабатывают исключения
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_teardown_coverage(self, test_environment):
+    def test_conftest_fixture_teardown_coverage(self, test_environment) -> None:
         """Тест покрытия conftest.py fixture teardown"""
         # Тестируем, что фикстуры правильно выполняют teardown
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_setup_coverage(self, test_environment):
+    def test_conftest_fixture_setup_coverage(self, test_environment) -> None:
         """Тест покрытия conftest.py fixture setup"""
         # Тестируем, что фикстуры правильно выполняют setup
         assert os.environ.get("APP_ENV") == "test"

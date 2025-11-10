@@ -2,7 +2,6 @@
 Критичные тесты для main.py - финальный пуш к 97%
 """
 
-import contextlib
 from typing import cast
 from unittest.mock import patch
 
@@ -10,19 +9,21 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+import app
+
 # (Removed duplicate class definition for TestAppCriticalLines97)
 
 
 class TestAppCriticalLines97:
-    def test_invalid_json_malformed_request(self, client):
-        """Тест малформированного JSON - линии обработки ошибок"""
+    def test_invalid_json_malformed_request_returns_422(self, client):
+        """Тест малформированного JSON - должен возвращать 422 (validation error)"""
         # Отправляем невалидный JSON на существующий endpoint
         response = client.post(
             "/api/v1/bmi",
             data="{'invalid': json}",  # Невалидный JSON
             headers={"Content-Type": "application/json", "X-API-Key": "test-key"},
         )
-        assert response.status_code in [422, 400, 500]
+        assert response.status_code == 422
 
     def test_vip_endpoints_without_vip_module_health(self, client):
         """Тест VIP endpoints когда VIP модуль отключен (health endpoint)"""
@@ -38,11 +39,13 @@ class TestAppCriticalLines97:
 
     def test_error_handling_bmi_paths(self, client):
         """Тест различных error handling путей для BMI"""
-        # Тест с пустым телом запроса на реальном endpoint
+        # Тест с пустым телом запроса на реальном endpoint - должен возвращать 422 (missing required fields)
         response = client.post(
             "/api/v1/bmi", headers={"Content-Type": "application/json", "X-API-Key": "test-key"}
         )
-        assert response.status_code in [422, 400]  # BMI is public now, no 403
+        assert (
+            response.status_code == 422
+        )  # BMI is public now, no 403; FastAPI returns 422 for missing required fields
 
         # BMI endpoint теперь публичный - работает без API ключа
         response = client.post(
@@ -72,28 +75,28 @@ class TestAppCriticalLines97:
                     or "not found" in response_data["detail"].lower()
                 )
 
-    def test_admin_endpoints_missing_scheduler(self, client):
-        """Тест admin endpoints когда scheduler недоступен"""
+    def test_admin_endpoints_missing_scheduler_returns_503(self, client):
+        """Тест admin endpoints когда scheduler недоступен - должен возвращать 503 (service unavailable)"""
         with patch("app.get_update_scheduler", return_value=None):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
-            # Should return 503 when scheduler is unavailable (or 403 if API key check happens first)
-            assert response.status_code in [403, 503]
+            # Should return 503 when scheduler is unavailable
+            assert response.status_code == 503
             response_data = response.json()
             assert "detail" in response_data
 
     def test_error_handling_edge_paths(self, client):
         """Тест различных error handling путей"""
-        # Тест с пустым телом запроса
+        # Тест с пустым телом запроса - должен возвращать 422 (missing required fields)
         response = client.post(
             "/api/v1/bmi/calculate", headers={"Content-Type": "application/json"}
         )
-        assert response.status_code in [422, 400, 403]
+        assert response.status_code == 422
 
-        # Тест с неправильным Content-Type
+        # Тест с неправильным Content-Type - должен возвращать 422 (FastAPI validates JSON content type)
         response = client.post(
             "/api/v1/bmi/calculate", data="test data", headers={"Content-Type": "text/plain"}
         )
-        assert response.status_code in [422, 415]
+        assert response.status_code == 422
 
     def test_missing_dependencies_import_paths(self):
         """Тест путей когда зависимости недоступны"""
@@ -108,15 +111,15 @@ class TestAppCriticalLines97:
                 # Expected when dependencies are missing - graceful degradation working
                 pass
 
-    def test_premium_endpoints_error_paths(self, client):
-        """Тест error paths в premium endpoints"""
+    def test_premium_endpoints_error_paths_returns_422(self, client):
+        """Тест error paths в premium endpoints - должен возвращать 422 (validation error)"""
         # Тест с невалидными параметрами
         response = client.post(
             "/api/v1/premium/targets",
             json={"sex": "invalid", "age": -1},
             headers={"X-API-Key": "test-key"},
         )
-        assert response.status_code in [422, 400, 403]
+        assert response.status_code == 422  # Pydantic validation errors return 422
 
     def test_recipes_endpoints_error_handling(self, client):
         """Тест error handling в recipes endpoints"""
@@ -126,17 +129,21 @@ class TestAppCriticalLines97:
         response_data = response.json()
         assert isinstance(response_data, (list, dict))
 
-    def test_foods_endpoints_error_handling(self, client):
-        """Тест error handling в foods endpoints"""
+    def test_foods_endpoints_error_handling_returns_200(self, client):
+        """Тест error handling в foods endpoints - пустой query должен возвращать 200 (успешный запрос с пустым результатом)"""
         # Тест с невалидными параметрами поиска
         response = client.get("/api/v1/foods/search?query=")
-        assert response.status_code in [422, 400, 200]  # Может быть успешным с пустым результатом
+        assert (
+            response.status_code == 200
+        )  # Endpoint accepts empty query and returns empty results successfully
 
-    def test_export_endpoints_error_handling(self, client):
-        """Тест error handling в export endpoints"""
+    def test_export_endpoints_error_handling_returns_400(self, client):
+        """Тест error handling в export endpoints - пустой payload должен возвращать 400 (bad request)"""
         # Тест экспорта без данных
         response = client.post("/api/v1/export/pdf", json={})
-        assert response.status_code in [422, 400, 500]
+        assert (
+            response.status_code == 400
+        )  # Endpoint explicitly checks for empty dict and returns 400
 
     def test_middleware_error_paths(self):
         """Тест middleware error paths"""
@@ -183,15 +190,16 @@ class TestAppCriticalLines97:
         assert hasattr(app, "router")
 
         # Имитируем startup/shutdown
-        with contextlib.suppress(Exception):
-            # Вызываем startup events если есть
-            if app is not None and hasattr(app, "startup"):
+        # Вызываем startup events если есть
+        if app is not None and hasattr(app, "startup"):
+            try:
                 app.startup()
+            except (AttributeError, TypeError):
+                # Expected: startup() may not exist or may not be callable
+                pass
 
 
 @pytest.fixture
 def client() -> TestClient:
     """Создает тестового клиента"""
-    import app
-
     return TestClient(cast(ASGIApp, app.app))

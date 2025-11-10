@@ -40,14 +40,11 @@ class TestAppDatabaseFallback:
                 # This should trigger fallback logic
                 # We need to test the lifespan startup code
                 # Since lifespan is async, we test via TestClient which triggers it
-                try:
-                    client = TestClient(app.app)
+                # Use context manager to exercise startup/shutdown
+                with TestClient(app.app) as client:
                     # If we get here, fallback worked
                     response = client.get("/health")
                     assert response.status_code == 200
-                except Exception:
-                    # Fallback might not work in all cases, but we've tested the code path
-                    pass
 
     def test_database_fallback_oserror_handling(self, test_environment):
         """Test database fallback handles OSError specifically (line 152)"""
@@ -59,12 +56,10 @@ class TestAppDatabaseFallback:
                 # Test that suppress(OSError, IOError) is triggered
                 with suppress(OSError, IOError):
                     # This should be caught by suppress in the fallback logic
-                    try:
-                        client = TestClient(app.app)
+                    # Use context manager to exercise startup/shutdown
+                    with TestClient(app.app) as client:
                         response = client.get("/health")
                         assert response.status_code in [200, 503]  # May fail gracefully
-                    except Exception:
-                        pass
 
     def test_database_fallback_ioerror_handling(self, test_environment):
         """Test database fallback handles IOError specifically (line 152)"""
@@ -97,15 +92,12 @@ class TestAppDatabaseFallback:
                 # This tests line 163: if fallback didn't work, raise
                 # TestClient might catch exceptions, so we test the code path directly
                 # by checking that the fallback logic is executed
-                try:
-                    client = TestClient(app.app)
+                # Use context manager to exercise startup/shutdown
+                with TestClient(app.app) as client:
                     # TestClient may handle exceptions internally, but we've tested the code path
                     response = client.get("/health")
                     # Response may be 503 or 200 depending on error handling
                     assert response.status_code in [200, 503]
-                except Exception:
-                    # Expected - exception may propagate when fallback fails
-                    pass
 
 
 class TestAppTestRouterImport:
@@ -128,9 +120,9 @@ class TestAppTestRouterImport:
         with patch("builtins.__import__", side_effect=mock_import):
             # App should still work without test router
             # The ImportError is caught and logged (line 357-358)
-            client = TestClient(app.app)
-            response = client.get("/health")
-            assert response.status_code == 200
+            with TestClient(app.app) as client:
+                response = client.get("/health")
+                assert response.status_code == 200
 
 
 class TestAppDynamicPatching:
@@ -350,48 +342,40 @@ class TestAppPremiumPlate:
     async def test_premium_plate_non_callable_aggregate(self, test_environment):
         """Test premium_plate handles non-callable _aggregate_day_micronutrients (lines 2292, 2296)"""
         import app
+        import os
 
-        # Mock _aggregate_day_micronutrients to be non-callable (string)
-        with patch("app._aggregate_day_micronutrients", "not_callable"):
-            with patch("app.resolve_attr", return_value="not_callable"):
-                # Call api_premium_plate
-                plate_data = {
-                    "meals": [],
-                    "kcal": 2000,
-                    "protein_g": 100,
-                    "fat_g": 50,
-                    "carbs_g": 200,
-                }
-
-                # Should handle non-callable gracefully
-                try:
-                    response = await app.api_premium_plate(plate_data)
-                    # Should still return response, just with empty micros
-                    assert isinstance(response, dict)
-                except Exception:
-                    # May raise exception, but we've tested the warning path
-                    pass
+        with patch.dict(os.environ, {"FEATURE_PREMIUM_NUTRITION": "true"}):
+            # Make aggregator non-callable
+            with patch("app._aggregate_day_micronutrients", "not_callable"):
+                with patch("app.resolve_attr", return_value="not_callable"):
+                    req = app.PlateRequest(
+                        sex="male",
+                        age=30,
+                        height_cm=175,
+                        weight_kg=70,
+                        activity="moderate",
+                        goal="maintain",
+                    )
+                    resp = await app.api_premium_plate(req)
+                    # Empty micros when aggregator is not callable
+                    assert isinstance(resp, app.PlateResponse)
+                    assert resp.day_micros == {}
 
     @pytest.mark.asyncio
     async def test_premium_plate_targets_exception(self, test_environment):
         """Test premium_plate handles targets exception (lines 2344-2345, 2348)"""
         import app
+        import os
 
-        # Mock build_nutrition_targets to raise exception
-        with patch("app.build_nutrition_targets", side_effect=Exception("Targets failed")):
-            plate_data = {
-                "meals": [],
-                "kcal": 2000,
-                "protein_g": 100,
-                "fat_g": 50,
-                "carbs_g": 200,
-            }
-
-            # Should handle exception gracefully and use heuristic
-            try:
-                response = await app.api_premium_plate(plate_data)
-                # Should still return response using heuristic fallback
-                assert isinstance(response, dict)
-            except Exception:
-                # May raise exception, but we've tested the warning path
-                pass
+        with patch.dict(os.environ, {"FEATURE_PREMIUM_NUTRITION": "true"}):
+            with patch("app.build_nutrition_targets", side_effect=Exception("Targets failed")):
+                req = app.PlateRequest(
+                    sex="female",
+                    age=28,
+                    height_cm=168,
+                    weight_kg=62,
+                    activity="moderate",
+                    goal="maintain",
+                )
+                resp = await app.api_premium_plate(req)
+                assert isinstance(resp, app.PlateResponse)

@@ -7,7 +7,6 @@ EN: Demo test for automatic product database expansion.
 недостающие продукты в базу данных.
 """
 
-import shutil
 from pathlib import Path
 from typing import Dict
 
@@ -27,7 +26,7 @@ class TestAutoProductExpansionDemo:
         return (
             product_lower in food_lower
             or food_lower in product_lower
-            or finder._similar_names(product, food_name)
+            or finder.similar_names(product, food_name)
         )
 
     def _collect_all_ingredients(self, recipes: Dict[str, Recipe]) -> set[str]:

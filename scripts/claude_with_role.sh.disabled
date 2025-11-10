@@ -1,7 +1,10 @@
 #!/bin/bash
-# 🎯 Claude Code с автоматической загрузкой роли PulsePlate
+# 🎯 Claude Code with automatic PulsePlate role loading
+# Claude Code с автоматической загрузкой роли PulsePlate
 # DISABLED: Account banned - GPU usage disabled
 
+echo "⚠️  Claude CLI temporarily disabled (account banned)"
 echo "⚠️  Claude CLI временно отключен (аккаунт в бане)"
+echo "Script claude_with_role.sh has been deactivated"
 echo "Скрипт claude_with_role.sh деактивирован"
 exit 1

@@ -12,8 +12,6 @@ Tests cover:
 - Error handling and edge cases
 """
 
-import os
-import sys
 from typing import Generator, cast
 
 import pytest
@@ -358,8 +356,8 @@ class TestEnhancedPlateAPI:
 
         # Test without API key
         response = client.post("/api/v1/premium/plate", json=payload)
-        # Behavior depends on whether API_KEY is set in environment
-        assert response.status_code in [200, 403]
+        # Fixture sets API_KEY ⇒ strict header required
+        assert response.status_code == 403
 
     def test_plate_meal_suggestions_structure(self, client):
         """Test meal suggestions have proper structure."""
@@ -431,7 +429,3 @@ class TestEnhancedPlateAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["kcal"] > 3000  # Should be very high calories
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

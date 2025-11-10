@@ -34,16 +34,16 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем shutdown события
-        client = TestClient(cast(ASGIApp, app.app))
+        # Use context manager to ensure shutdown runs
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Shutdown события выполняются при выходе из контекста
+            # Проверяем, что приложение работает до shutdown
+            response = client.get("/health")
+            assert response.status_code == 200
 
-        # Shutdown события выполняются при закрытии TestClient
-        # Проверяем, что приложение работает до shutdown
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что shutdown события не вызывают ошибок
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
+            # Проверяем, что shutdown события не вызывают ошибок
+            response = client.get("/openapi.json")
+            assert response.status_code == 200
 
     def test_app_lifespan_context_manager_coverage(self, test_environment):
         """Тест покрытия app.py lifespan context manager (строки 1505→exit, 1508→exit)"""
@@ -60,27 +60,25 @@ class TestAppLifespanCoverage:
         response = client.get("/metrics")
         assert response.status_code == 200
 
-    def test_app_lifespan_startup_with_mocks_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan startup с моками"""
+    def test_app_lifespan_startup_coverage(self, test_environment):
+        """Тест покрытия app.py lifespan startup"""
         import app
 
-        # Тестируем startup события без моков (так как они не существуют в app.py)
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что startup события вызываются
-        response = client.get("/health")
-        assert response.status_code == 200
+        # Тестируем startup события
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Проверяем, что startup события вызываются
+            response = client.get("/health")
+            assert response.status_code == 200
 
     def test_app_lifespan_shutdown_with_mocks_coverage(self, test_environment):
         """Тест покрытия app.py lifespan shutdown с моками"""
         import app
 
         # Тестируем shutdown события без моков (так как они не существуют в app.py)
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что shutdown события вызываются
-        response = client.get("/health")
-        assert response.status_code == 200
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Проверяем, что shutdown события вызываются
+            response = client.get("/health")
+            assert response.status_code == 200
 
     def test_app_lifespan_error_handling_coverage(self, test_environment):
         """Тест покрытия app.py lifespan error handling"""
@@ -102,15 +100,14 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем async context в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Проверяем, что async context работает корректно
+            response = client.get("/health")
+            assert response.status_code == 200
 
-        # Проверяем, что async context работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что async context не вызывает ошибок
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
+            # Проверяем, что async context не вызывает ошибок
+            response = client.get("/openapi.json")
+            assert response.status_code == 200
 
     def test_app_lifespan_resource_cleanup_coverage(self, test_environment):
         """Тест покрытия app.py lifespan resource cleanup"""
@@ -332,7 +329,7 @@ class TestAppInitErrorHandling:
     def test_propagate_app_patches_exception(self):
         """Test _propagate_app_patches exception handling (lines 1250-1251)."""
         import app
-        from unittest.mock import MagicMock, PropertyMock
+        from unittest.mock import MagicMock
 
         source = MagicMock()
 

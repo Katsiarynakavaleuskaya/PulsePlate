@@ -68,13 +68,13 @@ class TestMenuEngineCoverage97:
                 )
                 # Should return a list of daily menus
                 assert isinstance(result, list)
-            except Exception as exc:  # pragma: no cover
+            except TypeError as exc:  # pragma: no cover
                 logger.warning("make_weekly_menu raised during optional path test: %s", exc)
 
     def test_make_weekly_menu_error_handling_coverage_lines_250_253(self):
         """Test make_weekly_menu error handling coverage for lines 250-253."""
         # Test with invalid parameters to trigger error handling
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=-1,  # Invalid weight
                 height_cm=175,
@@ -86,7 +86,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_255_256(self):
         """Test make_weekly_menu error handling coverage for lines 255-256."""
         # Test with invalid parameters to trigger error handling
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=70,
                 height_cm=-1,  # Invalid height
@@ -116,7 +116,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_525_524(self):
         """Test make_weekly_menu error handling coverage for lines 525-524."""
         # Test with invalid age
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=70,
                 height_cm=175,
@@ -128,7 +128,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_627_633(self):
         """Test make_weekly_menu error handling coverage for lines 627-633."""
         # Test with extreme values
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=1000,  # Extreme weight
                 height_cm=175,
@@ -140,7 +140,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_702_701(self):
         """Test make_weekly_menu error handling coverage for lines 702-701."""
         # Test with extreme height
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=70,
                 height_cm=300,  # Extreme height
@@ -152,7 +152,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_lines_706_710(self):
         """Test make_weekly_menu error handling coverage for lines 706-710."""
         # Test with extreme age
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=70,
                 height_cm=175,
@@ -164,7 +164,7 @@ class TestMenuEngineCoverage97:
     def test_make_weekly_menu_error_handling_coverage_line_739(self):
         """Test make_weekly_menu error handling coverage for line 739."""
         # Test with missing required parameters
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=70,
                 height_cm=175,

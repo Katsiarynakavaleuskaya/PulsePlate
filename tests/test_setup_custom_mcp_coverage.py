@@ -7,6 +7,7 @@ import os
 import tempfile
 from contextlib import suppress
 from pathlib import Path
+from typing import Tuple
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -14,35 +15,63 @@ import pytest
 import setup_custom_mcp
 
 
+@pytest.fixture
+def mcp_setup_mocks() -> Tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]:
+    """Fixture that patches pathlib and builtin functions for setup_custom_mcp tests.
+
+    Yields:
+        Tuple containing mocks in order:
+        - mock_home: Path.home mock
+        - mock_mkdir: Path.mkdir mock
+        - mock_file: builtins.open mock
+        - mock_json_dump: json.dump mock
+        - mock_print: builtins.print mock
+        - mock_cwd: Path.cwd mock
+    """
+    with patch("pathlib.Path.home") as mock_home:
+        with patch("pathlib.Path.mkdir") as mock_mkdir:
+            with patch("builtins.open", mock_open()) as mock_file:
+                with patch("json.dump") as mock_json_dump:
+                    with patch("builtins.print") as mock_print:
+                        with patch("pathlib.Path.cwd") as mock_cwd:
+                            # Configure mocks
+                            mock_home.return_value = Path("/fake/home")
+                            mock_cwd.return_value = Path("/fake/cwd")
+
+                            yield (
+                                mock_home,
+                                mock_mkdir,
+                                mock_file,
+                                mock_json_dump,
+                                mock_print,
+                                mock_cwd,
+                            )
+
+
 class TestSetupCustomMcpCoverage:
     """Test class to cover setup_custom_mcp.py"""
 
-    def test_setup_custom_mcp_function(self):
+    def test_setup_custom_mcp_function(
+        self,
+        mcp_setup_mocks: Tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock, MagicMock],
+    ) -> None:
         """Test setup_custom_mcp function"""
-        with patch("pathlib.Path.home") as mock_home:
-            with patch("pathlib.Path.mkdir") as mock_mkdir:
-                with patch("builtins.open", mock_open()) as mock_file:
-                    with patch("json.dump") as mock_json_dump:
-                        with patch("builtins.print") as mock_print:
-                            # Mock home directory
-                            mock_home.return_value = Path("/fake/home")
+        mock_home, mock_mkdir, mock_file, mock_json_dump, mock_print, mock_cwd = mcp_setup_mocks
 
-                            # Mock Path.cwd()
-                            with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                # Pass empty argv to avoid pytest argument conflicts
-                                setup_custom_mcp.setup_custom_mcp(argv=[])
+        # Pass empty argv to avoid pytest argument conflicts
+        setup_custom_mcp.setup_custom_mcp(argv=[])
 
-                                # Verify directory creation
-                                mock_mkdir.assert_called_with(exist_ok=True)
+        # Verify directory creation
+        mock_mkdir.assert_called_with(exist_ok=True)
 
-                                # Verify file operations
-                                assert mock_file.call_count >= 3  # mcp.json, .env, settings.json
+        # Verify file operations
+        assert mock_file.call_count >= 3  # mcp.json, .env, settings.json
 
-                                # Verify JSON dump calls
-                                assert mock_json_dump.call_count >= 2  # mcp.json and settings.json
+        # Verify JSON dump calls
+        assert mock_json_dump.call_count >= 2  # mcp.json and settings.json
 
-                                # Verify print statements
-                                assert mock_print.call_count >= 4
+        # Verify print statements
+        assert mock_print.call_count >= 4
 
     def test_setup_custom_mcp_with_real_paths(self):
         """Test setup_custom_mcp with real path operations"""
@@ -53,7 +82,7 @@ class TestSetupCustomMcpCoverage:
                 with patch("pathlib.Path.cwd", return_value=temp_path):
                     self._run_setup_and_verify_files(temp_path)
 
-    def _run_setup_and_verify_files(self, temp_path):
+    def _run_setup_and_verify_files(self, temp_path: Path) -> None:
         setup_custom_mcp.setup_custom_mcp(argv=[])
 
         # Check that files were created
@@ -147,7 +176,7 @@ class TestSetupCustomMcpCoverage:
         assert result is not None
         return result
 
-    def test_main_execution(self):
+    def test_main_execution(self) -> None:
         """Test main execution when script is run directly"""
         # Test that the function exists and is callable
         assert callable(setup_custom_mcp.setup_custom_mcp)
@@ -164,7 +193,7 @@ class TestSetupCustomMcpCoverage:
             # Re-raise to ensure we catch unexpected issues
             raise
 
-    def test_file_creation_sequence(self):
+    def test_file_creation_sequence(self) -> None:
         """Test that files are created in the correct sequence"""
         with patch("pathlib.Path.home") as mock_home:
             with patch("pathlib.Path.mkdir"):
@@ -179,7 +208,7 @@ class TestSetupCustomMcpCoverage:
                                 # Verify that open was called multiple times
                                 assert mock_file.call_count >= 3
 
-    def test_error_handling(self):
+    def test_error_handling(self) -> None:
         """Test error handling scenarios"""
         with patch("pathlib.Path.home") as mock_home:
             with patch("pathlib.Path.mkdir", side_effect=OSError("Permission denied")):
@@ -191,7 +220,7 @@ class TestSetupCustomMcpCoverage:
                         with pytest.raises(OSError):
                             setup_custom_mcp.setup_custom_mcp(argv=[])
 
-    def test_path_operations(self):
+    def test_path_operations(self) -> None:
         """Test path operations"""
         with patch("pathlib.Path.home") as mock_home:
             with patch("pathlib.Path.mkdir"):
@@ -210,7 +239,7 @@ class TestSetupCustomMcpCoverage:
                                 # Verify current working directory was accessed
                                 mock_cwd.assert_called_once()
 
-    def test_json_serialization(self):
+    def test_json_serialization(self) -> None:
         """Test JSON serialization of configurations"""
         with patch("pathlib.Path.home") as mock_home:
             with patch("pathlib.Path.mkdir"):

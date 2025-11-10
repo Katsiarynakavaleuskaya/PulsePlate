@@ -147,20 +147,23 @@ async def lifespan(app: FastAPI):
             logger.info("Database schema initialized")
         except Exception as db_err:
             logger.error(f"Failed to initialize database: {db_err}")
-            # FALLBACK SAFETY: Only attempt in-memory SQLite fallback, never mask failures
-            # If fallback fails or we're not in CI/test environment, exception propagates
-            with suppress(OSError, IOError):
-                # Try fallback to in-memory SQLite for disk I/O errors
+            # Allow fallback only for dev-like envs or explicit override
+            allow_fallback = env_name in {"local", "dev", "development"} or os.getenv(
+                "ALLOW_DB_INMEMORY_FALLBACK"
+            ) in {"1", "true", "yes", "on"}
+            if not allow_fallback:
+                raise
+            fallback_ok = False
+            try:
                 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
                 init_db()
+                fallback_ok = True
                 logger.warning(
-                    "Database initialized with in-memory SQLite fallback due to init failure. "
-                    "This is acceptable in test/CI environments but indicates a problem in production."
+                    "Database initialized with in-memory SQLite fallback (non-prod only)"
                 )
-            # CRITICAL: Re-raise exception if fallback didn't work
-            # This ensures production database failures are never masked
-            if os.environ.get("DATABASE_URL") != "sqlite:///:memory:":
-                logger.error("Database fallback failed, propagating original exception")
+            except Exception as fallback_err:
+                logger.error("In-memory fallback init_db() failed: %s", fallback_err)
+            if not fallback_ok:
                 raise
 
     try:
@@ -202,7 +205,9 @@ async def lifespan(app: FastAPI):
                             await _task
                 except Exception as e:
                     logger.error(f"Failed to start background updates (async): {e}")
-        logger.info("Started background database updates")
+        # Log only when start succeeded to reduce noise
+        if _task is None or not _task.done() or _task.exception() is None:
+            logger.info("Started background database updates")
     except Exception as e:
         logger.error(f"Failed to start background updates: {e}")
 
@@ -363,10 +368,11 @@ with suppress(Exception):
     import types as _types
 
     # Try to import plan_export module through the package path
+    _plan_mod: Any = None
     try:
         _plan_mod = _importlib.import_module("app.routers.plan_export")
-    except Exception:
-        _plan_mod = None
+    except Exception:  # nosec B110
+        pass
     # Expose a lightweight 'routers' attribute on this module for direct access
     if not hasattr(sys.modules[__name__], "routers"):
         setattr(sys.modules[__name__], "routers", _types.SimpleNamespace())
@@ -415,10 +421,10 @@ async def csp_nonce_middleware(request: Request, call_next):
 async def log_requests(request: Request, call_next):
     start_time_req = time.time()
     client_host = request.client.host if request.client else "unknown"
-    logger.info(f"Request: {request.method} {request.url} from {client_host}")
+    logger.info("Request: %s %s from %s", request.method, request.url.path, client_host)
     response = await call_next(request)
     process_time = time.time() - start_time_req
-    logger.info(f"Response: {response.status_code} in {process_time:.4f}s")
+    logger.info("Response: %s in %.4fs", response.status_code, process_time)
     return response
 
 
@@ -1402,7 +1408,7 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
         if build_targets_primary is None:
             return None
         if callable(build_targets_primary):
-            return build_targets_primary
+            return build_targets_primary  # type: ignore[return-value]
 
     for candidate in (
         _sys.modules.get("app_module"),
@@ -2304,7 +2310,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         targets_are_disabled = _targets_runtime_disabled or _targets_disabled()
         _build_targets = None if targets_are_disabled else _resolve_build_targets_callable()
 
-        logger.info(
+        logger.debug(
             "premium_plate alignment: targets_disabled=%s build_targets=%s",
             targets_are_disabled,
             _build_targets,
@@ -2312,7 +2318,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
         if _build_targets is not None and callable(_build_targets) and not targets_are_disabled:
             try:
-                logger.info(
+                logger.debug(
                     "premium_plate alignment: using build_targets from %s",
                     getattr(_build_targets, "__module__", "unknown"),
                 )
@@ -2356,12 +2362,19 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
         if targets_are_disabled or _build_targets is None:
             logger.debug("premium_plate alignment: using heuristic fallback")
-            # Heuristic fallback if WHO targets backend is unavailable
-            # Use final kcal (not plate_data kcal) to match test expectations
+            # Heuristic macronutrient fallback: used only when targets are disabled
+            # to ensure predictable behavior. Ratios based on WHO/IOM guidance:
+            # - Protein: 1.6 g/kg (upper end of recommended range for active adults,
+            #   IOM DRI: 0.8-1.6 g/kg, WHO: 0.83-1.2 g/kg)
+            # - Fat: 0.9 g/kg (minimum essential fat intake, IOM AMDR: 20-35% kcal)
+            # - Carbs: computed as calorie remainder (final_kcal - prot*4 - fat*9) / 4
+            #   to match test expectations and ensure total calories align
+            # Reference: IOM Dietary Reference Intakes (2005), WHO Technical Report 916 (2003)
+            # https://www.ncbi.nlm.nih.gov/books/NBK56068/ (IOM DRI)
             prot_ref = int(round(1.6 * req.weight_kg))
             fat_ref = int(round(0.9 * req.weight_kg))
             carbs_ref = max(1, int(round((final_kcal_value - prot_ref * 4 - fat_ref * 9) / 4)))
-            logger.info(
+            logger.debug(
                 "premium_plate heuristic: weight=%s prot=%s fat=%s final_kcal=%s carbs=%s",
                 req.weight_kg,
                 prot_ref,
@@ -2841,7 +2854,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
             water_ml = int(req.weight_kg * 35)
 
-            priority_micros: dict[str, float] = {
+            exc_fallback_priority_micros: dict[str, float] = {
                 "iron_mg": 8.0 if req.sex == "male" else 18.0,
                 "calcium_mg": 1000.0,
                 "vitamin_c_mg": 90.0 if req.sex == "male" else 75.0,
@@ -2851,7 +2864,7 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "potassium_mg": 3500.0,
                 "b12_ug": 2.4,
             }
-            priority_micros = _alias_micros(priority_micros)
+            exc_fallback_priority_micros = _alias_micros(exc_fallback_priority_micros)
 
             activity_weekly = {
                 "moderate_aerobic_min": 150,
@@ -2859,9 +2872,9 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 "steps_daily": 8000,
             }
 
-            warnings: list[dict[str, str]] = []
+            exc_fallback_warnings: list[dict[str, str]] = []
             if req.life_stage in ("pregnant", "lactating"):
-                warnings.append(
+                exc_fallback_warnings.append(
                     {
                         "code": "life_stage",
                         "message": "Special nutrition considerations apply",
@@ -2877,10 +2890,10 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     "fiber_g": fiber_g,
                 },
                 water_ml=water_ml,
-                priority_micros=priority_micros,
+                priority_micros=exc_fallback_priority_micros,
                 activity_weekly=activity_weekly,
                 calculation_date=time.strftime("%Y-%m-%d"),
-                warnings=warnings,
+                warnings=exc_fallback_warnings,
             )
 
         # Generate life stage warnings

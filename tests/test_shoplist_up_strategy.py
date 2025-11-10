@@ -19,7 +19,7 @@ def test_up_strategy_minimizes_overage_across_candidates() -> None:
     shopping_list: list[ShoppingItem] = gen.round_to_packages(aggregated, rules=custom_rules)
 
     assert len(shopping_list) == 1
-    item = shopping_list[0]
+    item: ShoppingItem = shopping_list[0]
     # Should pick 120g with 2 packs (minimal overage: 40g vs 70g for 90g)
     assert item.package_size == 120
     assert item.packages_needed == 2

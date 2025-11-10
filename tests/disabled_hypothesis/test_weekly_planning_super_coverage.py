@@ -7,6 +7,7 @@
 """
 
 import os
+from typing import Any, Callable, Union
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -145,12 +146,12 @@ class TestWeeklyPlanningBlocks:
         # Патчинг getattr для нахождения make_weekly_menu
         original_getattr = getattr
 
-        def mock_getattr(obj: object, name: str, *args) -> object:
+        def mock_getattr(obj: Any, name: str, *args: Any) -> Union[Any, Callable[..., Any]]:
             if name != "make_weekly_menu":
                 return original_getattr(obj, name, *args)
 
             # Возвращаем мокнутую функцию
-            def mock_make_weekly_menu(_profile: object) -> MagicMock:
+            def mock_make_weekly_menu(_profile: Any) -> MagicMock:
                 mock_result = MagicMock()
                 mock_result.week_start = "2025-01-01"
                 mock_result.total_cost = 140.0

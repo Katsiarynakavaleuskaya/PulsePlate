@@ -73,10 +73,6 @@ def test_is_in_transaction_exception_handling(monkeypatch: pytest.MonkeyPatch) -
     """Cover lines 203-206: exception handling in in_transaction check."""
     from unittest.mock import Mock
 
-    from sqlalchemy import create_engine
-
-    from core.db import EngineCompat
-
     engine = EngineCompat(create_engine("sqlite:///:memory:", future=True))
 
     # Create a connection with in_transaction that raises
@@ -95,10 +91,6 @@ def test_is_in_transaction_exception_handling(monkeypatch: pytest.MonkeyPatch) -
 
 def test_is_in_transaction_fallback_to_false(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover line 209: return False when no transaction methods available."""
-    from sqlalchemy import create_engine
-
-    from core.db import EngineCompat
-
     engine = EngineCompat(create_engine("sqlite:///:memory:", future=True))
 
     with engine.connect() as conn:
@@ -114,10 +106,6 @@ def test_is_in_transaction_fallback_to_false(monkeypatch: pytest.MonkeyPatch) ->
 def test_finalize_transaction_debug_logging(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover line 253: debug logging in commit failure."""
     import logging
-
-    from sqlalchemy import create_engine
-
-    from core.db import EngineCompat
 
     engine = EngineCompat(create_engine("sqlite:///:memory:", future=True))
 
@@ -244,10 +232,6 @@ def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> N
 def test_finalize_transaction_debug_logging_production(monkeypatch: pytest.MonkeyPatch) -> None:
     """Cover line 253: debug logging path in commit failure (non-production)."""
     import logging
-
-    from sqlalchemy import create_engine
-
-    from core.db import EngineCompat
 
     engine = EngineCompat(create_engine("sqlite:///:memory:", future=True))
 

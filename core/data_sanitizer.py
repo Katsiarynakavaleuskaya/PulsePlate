@@ -15,7 +15,7 @@ import logging
 import math
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from core.nutrition_constants import (
     CARBS_G_MAX,
@@ -74,7 +74,7 @@ class NutritionData(BaseModel):
 
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g")
     @classmethod
-    def clamp_to_safe_ranges(cls, value: int, info) -> int:
+    def clamp_to_safe_ranges(cls, value: int, info: ValidationInfo) -> int:
         """Clamp nutrition values to safe maximum ranges.
 
         RU: Ограничить значения нутриентов безопасными максимумами (минимум = 0).
@@ -83,6 +83,8 @@ class NutritionData(BaseModel):
         Note: Minimum is always 0 to preserve "no data" state.
         """
         field_name = info.field_name
+        if field_name is None:
+            return value
 
         # Define max ranges for each field (min is always 0)
         max_ranges = {
@@ -158,7 +160,7 @@ def sanitize_nutrition_dict(data: dict[str, Any]) -> dict[str, int]:
             "protein_g": 100,
             "fat_g": 70,
             "carbs_g": 250,
-            "fiber_g": 25,
+            "fiber_g": FIBER_G_MIN,
         }
 
 
@@ -179,7 +181,7 @@ def sanitize_macros_dict(macros: dict[str, Any]) -> dict[str, int]:
         "protein_g": macros.get("protein_g", 0),
         "fat_g": macros.get("fat_g", 0),
         "carbs_g": macros.get("carbs_g", 0),
-        "fiber_g": macros.get("fiber_g", 25),
+        "fiber_g": macros.get("fiber_g", FIBER_G_MIN),
     }
     sanitized = sanitize_nutrition_dict(full_data)
     # Return all essential macro keys
@@ -309,7 +311,12 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
             macros = sanitize_macros_dict(macros)
         else:
             logger.warning("Invalid macros type: %s, using defaults", type(macros))
-            macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 25}
+            macros = {
+                "protein_g": 100,
+                "fat_g": 70,
+                "carbs_g": 250,
+                "fiber_g": FIBER_G_MIN,
+            }
 
         # Sanitize meals
         meals = plate_data.get("meals", [])

@@ -1,7 +1,7 @@
 import inspect
 import logging
 import os
-from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
+from typing import Any, Callable, Dict, Literal, Optional, Tuple, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -17,6 +17,7 @@ from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImport
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.recipe_synth import RecipeSynthesizer
+from core.targets import MicronutrientTargets, UserProfile
 from core.utils import resolve_attr
 
 # -*- coding: utf-8 -*-
@@ -107,11 +108,11 @@ router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def _is_production_environment() -> tuple[bool, str]:
+def _is_production_environment() -> Tuple[bool, str]:
     """Determine if we're in production mode and return environment info.
 
     Returns:
-        tuple[bool, str]: (is_production, app_env)
+        Tuple[bool, str]: (is_production, app_env)
     """
     app_env = os.getenv("APP_ENV", "local").lower()
     debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")
@@ -357,8 +358,6 @@ def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     """Create UserProfile from dictionary data with validation."""
-    from core.targets import UserProfile
-
     # Use default values for missing fields instead of validation
     # Convert diet_flags to set if it's a list
     diet_flags = profile_data.get("diet_flags", [])
@@ -627,8 +626,6 @@ async def weekly_menu_plan_alias(
 
     try:
         # Create UserProfile from request
-        from core.targets import UserProfile
-
         # Type-safe conversion from WeeklyPlanRequest to UserProfile
         # The WeeklyPlanRequest and UserProfile use identical Literal types,
         # Validate required fields are present
@@ -1292,8 +1289,6 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         targets_data = request.get("targets", {})
         strategy_name = request.get("strategy", "balanced")
         user_preferences = request.get("user_preferences", {})
-        from core.targets import MicronutrientTargets
-
         targets = MicronutrientTargets(**targets_data)
         strategy = RepairStrategy(strategy_name) if RepairStrategy is not None else None
         engine = get_auto_repair_engine() if callable(get_auto_repair_engine) else None
