@@ -1,8 +1,8 @@
 import logging
 import os
 
+from core import recipe_synth
 from core.recipe_synth import RecipeSynthesizer
-from core.recipe_synth import get_recipe_synthesizer as get_synth
 
 # Read environment variable once at module load
 TEMPLATE_DIR: str = os.getenv("RECIPE_TEMPLATES_DIR", "data/recipe_templates")
@@ -60,4 +60,4 @@ def get_recipe_synthesizer() -> RecipeSynthesizer:
         If parameters are added in the future, they should include explicit
         type hints to maintain consistency with project type annotation guidelines.
     """
-    return get_synth(templates_dir=TEMPLATE_DIR)
+    return recipe_synth.get_recipe_synthesizer(templates_dir=TEMPLATE_DIR)

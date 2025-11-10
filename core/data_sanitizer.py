@@ -19,15 +19,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from core.nutrition_constants import (
     CARBS_G_MAX,
-    CARBS_G_MIN,
     FAT_G_MAX,
-    FAT_G_MIN,
     FIBER_MAX_G,
     FIBER_MIN_G,
     KCAL_MAX_SAFE,
     KCAL_MIN_SUPERVISED,
     PROTEIN_G_MAX,
-    PROTEIN_G_MIN,
 )
 
 logger = logging.getLogger(__name__)

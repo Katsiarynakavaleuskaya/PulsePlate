@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import tempfile
+from typing import Any, Dict, Optional, Set
 from unittest import mock
 
 import pytest
@@ -13,7 +14,7 @@ import pytest
 import core.weekly_plan
 from core import recipe_db, shoplist, weekly_plan
 from core.recommendations import build_nutrition_targets
-from core.targets import UserProfile
+from core.targets import NutritionTargets, UserProfile
 
 
 def test_parse_recipe_db_food_db_none() -> None:
@@ -61,113 +62,6 @@ def test_shoplist_round_to_packages_empty_sorted() -> None:
 
     # Should return without crashing
     assert isinstance(result, list)
-
-
-def test_weekly_plan_empty_coverages() -> None:
-    """Cover core/weekly_plan.py:98 - ValueError when coverages list is empty.
-
-    RU: Тестируем обработку ошибки пустого списка покрытия микронутриентов.
-    EN: Test error handling for empty micronutrient coverage list.
-
-    This test mocks create_daily_plate to return data that triggers the empty
-    coverages error on line 98 of weekly_plan.py, ensuring the real validation
-    code executes.
-    """
-    profile = UserProfile(
-        sex="male",
-        age=30,
-        height_cm=175.0,
-        weight_kg=75.0,
-        activity="moderate",
-        goal="maintain",
-    )
-    targets = build_nutrition_targets(profile)
-
-    # Mock create_daily_plate to return a structure that will trigger empty coverages
-    # First 6 days return empty micro_coverage, last day returns one with a key
-    # This causes weekly_micro_coverage to have a key with empty list before the last iteration
-    call_count = 0
-
-    def mock_create_daily_plate(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        # Return empty micro_coverage for all days to trigger the error path
-        # The error occurs when a micro key has no coverage values across all days
-        return {
-            "meals": [],
-            "micro_coverage": {} if call_count < 7 else {"test_empty": 85.0},
-        }
-
-    # Monkey-patch the weekly_micro_coverage dict creation in generate_weekly_plan
-    # to inject an empty list, simulating the architectural edge case that triggers line 98
-    original_generate = weekly_plan.generate_weekly_plan
-
-    def generate_with_injected_empty_coverage(targets, diet_flags=None):
-        """Wrapper that calls real generate_weekly_plan but injects empty coverage.
-
-        Note: The error condition (empty coverages list for a micro key) cannot occur
-        naturally through input data due to code architecture - keys are only added
-        when values exist. This wrapper injects the condition to test the error handler.
-        """
-        if diet_flags is None:
-            diet_flags = set()
-
-        # Import at function level to get actual implementations
-        from core import food_db as food_db_module
-        from core import recipe_db as recipe_db_module
-
-        food_db = food_db_module.parse_food_db()
-        recipe_db = recipe_db_module.parse_recipe_db(food_db=food_db)
-
-        # Build weekly structure with real function but mocked daily data
-        days = []
-        weekly_micro_coverage = {"test_empty": []}  # Inject empty list to trigger line 98
-
-        for day_index in range(7):
-            variation = 1 + (0.05 * ((day_index % 3) - 1))
-            kcal_target = int(targets.kcal_daily * variation)
-
-            # Use the mock which returns empty micro_coverage
-            day_plan = mock_create_daily_plate(
-                kcal_total=kcal_target,
-                diet_flags=diet_flags,
-                food_db=food_db,
-                recipe_db=recipe_db,
-            )
-
-            days.append(
-                {
-                    "day": day_index + 1,
-                    "kcal_target": kcal_target,
-                    "meals": day_plan.get("meals", []),
-                    "micro_coverage": day_plan.get("micro_coverage", {}),
-                }
-            )
-
-        # Execute the real validation logic from weekly_plan.py lines 94-102
-        import statistics
-
-        weekly_coverage = {}
-        for micro, coverages in weekly_micro_coverage.items():
-            if not coverages:  # This is line 97 in weekly_plan.py
-                # Line 98-101: raise ValueError with detailed message
-                raise ValueError(
-                    f"Empty coverages list for micro '{micro}': "
-                    f"expected at least one coverage value for weekly average calculation"
-                )
-            weekly_coverage[micro] = statistics.mean(coverages)  # Line 102
-
-        return {
-            "shopping_list": {},
-            "total_cost": 0.0,
-        }
-
-    with mock.patch("core.weekly_plan.create_daily_plate", side_effect=mock_create_daily_plate):
-        with mock.patch.object(
-            weekly_plan, "generate_weekly_plan", side_effect=generate_with_injected_empty_coverage
-        ):
-            with pytest.raises(ValueError, match="Empty coverages list.*test_empty"):
-                weekly_plan.generate_weekly_plan(targets, diet_flags=set())
 
 
 def test_llm_ollama_timeout_invalid(

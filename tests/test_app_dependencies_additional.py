@@ -44,7 +44,7 @@ def test_get_recipe_synthesizer_delegates(monkeypatch: pytest.MonkeyPatch, tmp_p
         captured["templates_dir"] = (templates_dir,)
         return sentinel
 
-    monkeypatch.setattr(deps, "get_synth", fake_get_synth)
+    monkeypatch.setattr(deps.recipe_synth, "get_recipe_synthesizer", fake_get_synth)
     result = deps.get_recipe_synthesizer()
     assert result is sentinel
     assert captured["templates_dir"][0] == str(tmp_path)

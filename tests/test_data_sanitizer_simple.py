@@ -12,28 +12,27 @@ import pytest
 
 from core.data_sanitizer import (
     CARBS_G_MAX,
-    CARBS_G_MIN,
     FAT_G_MAX,
-    FAT_G_MIN,
     FIBER_G_MAX,
     FIBER_G_MIN,
     KCAL_MAX,
     KCAL_MIN,
     PROTEIN_G_MAX,
-    PROTEIN_G_MIN,
+    MealData,
     NutritionData,
     sanitize_macros_dict,
     sanitize_meal_list,
     sanitize_nutrition_dict,
     sanity_filter_plate_data,
 )
+from core.nutrition_constants import CARBS_G_MIN, FAT_G_MIN, PROTEIN_G_MIN
 
 
 class TestNutritionData:
     """Unit tests for NutritionData model."""
 
     def test_nutrition_data_handles_none_values(self) -> None:
-        """Verify NaN values are converted to 0."""
+        """Verify None values are converted to 0."""
         data = {
             "kcal": None,
             "protein_g": None,
@@ -139,6 +138,55 @@ class TestNutritionData:
         assert result.carbs_g == 0  # "abc" → 0
         assert result.fiber_g == 25  # "25" → 25
 
+    def test_nutrition_data_validate_macro_sum_success(self) -> None:
+        """Verify validate_macro_sum returns True for valid macros."""
+        data = {
+            "kcal": 500,
+            "protein_g": 30,
+            "fat_g": 20,
+            "carbs_g": 50,
+            "fiber_g": 10,
+        }
+        result = NutritionData.model_validate(data)
+        # Calculate expected kcal: 30*4 + 20*9 + 50*4 = 120 + 180 + 200 = 500
+        assert result.validate_macro_sum() is True
+
+
+class TestMealData:
+    """Unit tests for MealData model."""
+
+    def test_meal_data_sanitize_title_empty_string(self) -> None:
+        """Verify empty title is replaced with 'Unnamed Meal'."""
+        data = {"title": "", "kcal": 500}
+        result = MealData.model_validate(data)
+        assert result.title == "Unnamed Meal"
+
+    def test_meal_data_sanitize_title_non_string(self) -> None:
+        """Verify non-string title is replaced with 'Unnamed Meal'."""
+        data = {"title": None, "kcal": 500}
+        result = MealData.model_validate(data)
+        assert result.title == "Unnamed Meal"
+
+    def test_meal_data_sanitize_title_whitespace_only(self) -> None:
+        """Verify whitespace-only title is replaced with 'Unnamed Meal'."""
+        data = {"title": "   ", "kcal": 500}
+        result = MealData.model_validate(data)
+        assert result.title == "Unnamed Meal"
+
+    def test_meal_data_sanitize_macros_non_dict(self) -> None:
+        """Verify non-dict macros is replaced with empty dict."""
+        data = {"title": "Meal", "kcal": 500, "macros": "invalid"}
+        result = MealData.model_validate(data)
+        assert isinstance(result.macros, dict)
+
+    def test_meal_data_sanitize_macros_valid_dict(self) -> None:
+        """Verify valid dict macros is sanitized properly."""
+        data = {"title": "Meal", "kcal": 500, "macros": {"protein_g": 30, "fat_g": 20}}
+        result = MealData.model_validate(data)
+        assert isinstance(result.macros, dict)
+        assert "protein_g" in result.macros
+        assert "fat_g" in result.macros
+
 
 class TestSanitizeFunctions:
     """Unit tests for sanitization functions."""
@@ -164,6 +212,24 @@ class TestSanitizeFunctions:
         assert "fat_g" in result
         assert "carbs_g" in result
         assert "fiber_g" in result
+
+    def test_sanitize_nutrition_dict_handles_exception(self) -> None:
+        """Verify exception in validation returns safe defaults."""
+        # Pass something that will cause validation to fail completely
+        # Using a non-dict object should trigger the exception path
+        import unittest.mock as mock
+
+        with mock.patch(
+            "core.data_sanitizer.NutritionData.model_validate", side_effect=ValueError("Test error")
+        ):
+            result = sanitize_nutrition_dict({"kcal": 2000})
+
+        # Should return safe defaults when exception occurs
+        assert result["kcal"] == 2000
+        assert result["protein_g"] == 100
+        assert result["fat_g"] == 70
+        assert result["carbs_g"] == 250
+        assert result["fiber_g"] == 25
 
     def test_sanitize_macros_dict_returns_essential_keys(self) -> None:
         """Verify sanitize_macros_dict returns all essential macro keys."""
@@ -205,11 +271,49 @@ class TestSanitizeFunctions:
             assert "title" in meal
             assert isinstance(meal["title"], str)
 
+    def test_sanitize_meal_list_handles_non_list_input(self) -> None:
+        """Verify non-list input returns empty list (lines 248-249)."""
+        result = sanitize_meal_list("not a list")  # type: ignore
+        assert isinstance(result, list)
+        assert len(result) == 0
+
     def test_sanitize_meal_list_handles_empty_list(self) -> None:
         """Verify empty list returns empty list."""
         result = sanitize_meal_list([])
         assert isinstance(result, list)
         assert len(result) == 0
+
+    def test_sanitize_meal_list_handles_meal_with_invalid_title(self) -> None:
+        """Verify meal with invalid title gets sanitized."""
+        meals = [{"title": 123, "kcal": 500, "macros": {"protein_g": 30}}]
+        result = sanitize_meal_list(meals)
+        assert len(result) == 1
+        assert isinstance(result[0]["title"], str)
+
+    def test_sanitize_meal_list_handles_meal_with_invalid_kcal(self) -> None:
+        """Verify meal with invalid kcal gets sanitized."""
+        meals = [{"title": "Meal", "kcal": "invalid", "macros": {"protein_g": 30}}]
+        result = sanitize_meal_list(meals)
+        assert len(result) == 1
+        # kcal should be kept original or handled gracefully
+
+    def test_sanitize_meal_list_handles_exception_in_meal(self) -> None:
+        """Verify exception during meal sanitization keeps original meal (lines 277-279)."""
+        import unittest.mock as mock
+
+        # Create a meal that will pass isinstance check but fail during dict() or sanitize
+        meals = [{"title": "Meal", "kcal": 500, "macros": {"protein_g": 30}}]
+
+        # Mock sanitize_macros_dict to raise an exception
+        with mock.patch(
+            "core.data_sanitizer.sanitize_macros_dict", side_effect=RuntimeError("Test error")
+        ):
+            result = sanitize_meal_list(meals)
+
+        # Original meal should be kept when exception occurs
+        assert len(result) == 1
+        assert result[0]["title"] == "Meal"
+        assert result[0]["macros"]["protein_g"] == 30
 
     def test_sanity_filter_plate_data_handles_empty_dict(self) -> None:
         """Verify empty dict returns safe defaults."""
@@ -258,3 +362,25 @@ class TestSanitizeFunctions:
         assert "fat_g" in result["macros"]
         assert "carbs_g" in result["macros"]
         assert "fiber_g" in result["macros"]
+
+    def test_sanity_filter_plate_data_handles_exception(self) -> None:
+        """Verify exception returns safe defaults."""
+        import unittest.mock as mock
+
+        # Mock sanitize_nutrition_dict to raise an exception
+        with mock.patch(
+            "core.data_sanitizer.sanitize_nutrition_dict", side_effect=RuntimeError("Test error")
+        ):
+            result = sanity_filter_plate_data({"kcal": 2000})
+
+        # Should return safe defaults when exception occurs
+        assert isinstance(result, dict)
+        assert result["kcal"] == 2000
+        assert result["macros"]["protein_g"] == 100
+        assert result["macros"]["fat_g"] == 70
+        assert result["macros"]["carbs_g"] == 250
+        assert result["macros"]["fiber_g"] == 25
+        assert result["meals"] == []
+        assert result["portions"] == {}
+        assert result["layout"] == []
+        assert result["meals_per_day"] == 3

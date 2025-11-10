@@ -284,9 +284,8 @@ def get_all_error_type_keys() -> List[str]:
     Returns:
         List of all error type keys.
     """
-    return [
-        key for key in RECOMMENDATIONS[DEFAULT_LANGUAGE].keys() if key.startswith("error_type.")
-    ]
+    lang_dict = RECOMMENDATIONS.get(DEFAULT_LANGUAGE, RECOMMENDATIONS.get("ru", {}))
+    return [key for key in lang_dict.keys() if key.startswith("error_type.")]
 
 
 def get_all_symptom_keys() -> List[str]:

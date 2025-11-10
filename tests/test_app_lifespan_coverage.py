@@ -5,6 +5,7 @@
 
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -305,3 +306,56 @@ class TestAppLifespanCoverage:
         # Проверяем, что caching setup не вызывает ошибок
         response = client.get("/openapi.json")
         assert response.status_code == 200
+
+
+class TestAppInitErrorHandling:
+    """Test error handling in app initialization."""
+
+    def test_propagate_app_patches_none_source(self):
+        """Test _propagate_app_patches with None source (line 1244)."""
+        import app
+        from unittest.mock import MagicMock
+
+        # Call with None source should return early
+        result = app._propagate_app_patches(None, MagicMock())
+        assert result is None
+
+    def test_propagate_app_patches_none_target(self):
+        """Test _propagate_app_patches with None target (line 1244)."""
+        import app
+        from unittest.mock import MagicMock
+
+        # Call with None target should return early
+        result = app._propagate_app_patches(MagicMock(), None)
+        assert result is None
+
+    def test_propagate_app_patches_exception(self):
+        """Test _propagate_app_patches exception handling (lines 1250-1251)."""
+        import app
+        from unittest.mock import MagicMock, PropertyMock
+
+        source = MagicMock()
+
+        # Create a target object that raises exception when setting attributes
+        class FailingTarget:
+            def __setattr__(self, name, value):
+                raise AttributeError("Cannot set attribute")
+
+        target = FailingTarget()
+
+        # Should not raise exception, just continue
+        # The function catches Exception and continues
+        try:
+            app._propagate_app_patches(source, target)
+        except Exception:
+            # Should not reach here
+            pytest.fail("_propagate_app_patches should not raise exception")
+
+    def test_sync_app_attr_sources_none_alias_module(self):
+        """Test _sync_app_attr_sources with None alias_module (line 1260)."""
+        import app
+        from unittest.mock import MagicMock
+
+        # Call with None alias_module should return early
+        result = app._sync_app_attr_sources(None, (MagicMock(),))
+        assert result is None

@@ -198,7 +198,7 @@ class ComprehensiveBayesianAnalyzer:
         # Health First policy: critical nutrition issues force failure
         # Check for critical nutrition issues (very low calories, dangerous BMI, etc.)
         # RU: Проверка критических проблем питания через централизованный метод
-        has_critical_nutrition_issues = self._has_critical_nutrition_issues(critical_issues)
+        has_critical_nutrition_issues = self._has_critical_nutrition_issues(nutrition_issues)
 
         # Apply heavy penalty for critical nutrition issues
         # Note: This sets overall_score to 0.0, which will fail the threshold check below

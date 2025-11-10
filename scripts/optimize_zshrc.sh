@@ -43,73 +43,21 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     trap 'rm -f "$TEMP_FILE"' EXIT INT TERM
 
     # Обрабатываем файл построчно, исключая строки с setup_cli_aliases.sh
-    # Паттерн допускает: пробелы, комментарии, различные формы кавычек и путей
-    # Также отслеживаем, определены ли уже PROJECT_ROOT или ALIASES_SCRIPT
+    # SIMPLIFIED: Use basic heuristics instead of complex quote/escape parsing
+    # We remove lines that look like source/. commands for setup_cli_aliases.sh
+    # This is safe because:
+    # 1. These lines are typically uncommented and at start of line
+    # 2. False positives (commented lines) won't break functionality - they'll be preserved
+    # 3. Edge cases with quotes/escapes in comments are rare and not critical for this use case
     has_project_root=false
     has_aliases_script=false
 
-    # Helper function to extract unquoted portion of line (before comment)
-    # This avoids mis-detecting # inside quoted strings as comment start
-    parse_unquoted_part() {
-        local line="$1"
-        local in_single_quote=false
-        local in_double_quote=false
-        local unquoted_text=""
-        local i=0
-        local len=${#line}
-        local prev_char=""
-
-        while [ $i -lt $len ]; do
-            local char="${line:$i:1}"
-
-            # Skip escaped characters
-            if [ "$prev_char" = "\\" ]; then
-                if [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
-                    unquoted_text="${unquoted_text}${char}"
-                fi
-                prev_char=""
-                i=$((i+1))
-                continue
-            fi
-
-            # Track quote state transitions
-            # State: toggle single quote if not in double quote
-            if [ "$char" = "'" ] && [ "$in_double_quote" = false ]; then
-                if [ "$in_single_quote" = true ]; then
-                    in_single_quote=false
-                else
-                    in_single_quote=true
-                fi
-            # State: toggle double quote if not in single quote
-            elif [ "$char" = '"' ] && [ "$in_single_quote" = false ]; then
-                if [ "$in_double_quote" = true ]; then
-                    in_double_quote=false
-                else
-                    in_double_quote=true
-                fi
-            fi
-
-            # Edge case: # is comment start only when outside all quotes
-            if [ "$char" = "#" ] && [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
-                break
-            fi
-
-            # Collect unquoted characters for pattern matching
-            if [ "$in_single_quote" = false ] && [ "$in_double_quote" = false ]; then
-                unquoted_text="${unquoted_text}${char}"
-            fi
-
-            prev_char="$char"
-            i=$((i+1))
-        done
-
-        # Return trimmed unquoted portion
-        echo "$unquoted_text" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//'
-    }
-
     while IFS= read -r line || [ -n "$line" ]; do
-        # Extract unquoted portion using helper function
-        cleaned_line=$(parse_unquoted_part "$line")
+        # Simple approach: Remove shell comments (# to end of line)
+        # NOTE: This may incorrectly strip # inside strings, but since we're only
+        # checking for variable definitions and source commands (which shouldn't
+        # appear in comments), this trade-off is acceptable for simplicity
+        cleaned_line=$(echo "$line" | sed 's/#.*//')
 
         # Отслеживаем наличие определений переменных ПЕРЕД фильтрацией
         if echo "$cleaned_line" | grep -qiE "^[[:space:]]*PROJECT_ROOT[[:space:]]*="; then
@@ -120,12 +68,12 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
         fi
 
         # Пропускаем строки, которые являются командами source/. для setup_cli_aliases.sh
-        # Проверяем только unquoted portion (source/. invocation should be in unquoted part)
+        # After removing comments, check if line contains source/. command
         if echo "$cleaned_line" | grep -qiE "(source|\.)\s+.*setup_cli_aliases\.sh"; then
             continue
         fi
 
-        # Сохраняем все остальные строки (включая определения переменных)
+        # Сохраняем все остальные строки (включая оригинальные с комментариями)
         echo "$line" >> "$TEMP_FILE"
     done < "$ZSHRC_FILE"
 

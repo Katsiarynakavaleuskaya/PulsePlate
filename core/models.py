@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     func,
 )
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -76,9 +77,15 @@ class Recipe(Base):
 
     # Recipe metadata
     servings: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    ingredients: Mapped[dict] = mapped_column(JSON, nullable=False)  # {food_id: grams}
-    tags: Mapped[list] = mapped_column(JSON, nullable=False)  # App-layer default: []
-    allergens: Mapped[list] = mapped_column(JSON, nullable=False)  # App-layer default: []
+    ingredients: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSON), nullable=False
+    )  # {food_id: grams}
+    tags: Mapped[list] = mapped_column(
+        MutableList.as_mutable(JSON), nullable=False
+    )  # App-layer default: []
+    allergens: Mapped[list] = mapped_column(
+        MutableList.as_mutable(JSON), nullable=False
+    )  # App-layer default: []
 
     # Source tracking
     source: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -131,8 +138,12 @@ class Meal(Base):
     fiber_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     # Ingredient details
-    grams_data: Mapped[dict] = mapped_column(JSON, nullable=False)  # {food_id: grams}
-    micros_data: Mapped[dict] = mapped_column(JSON, nullable=True)  # Micronutrients
+    grams_data: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSON), nullable=False
+    )  # {food_id: grams}
+    micros_data: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSON), nullable=True
+    )  # Micronutrients
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -175,10 +186,12 @@ class FoodItem(Base):
     fiber_g_per_100g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     # Micronutrients
-    micros_data: Mapped[dict] = mapped_column(JSON, nullable=True)
+    micros_data: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON), nullable=True)
 
     # Metadata (app-layer defaults via Pydantic, not DB-level)
-    flags: Mapped[list] = mapped_column(JSON, nullable=False)  # VEG, GF, etc.
+    flags: Mapped[list] = mapped_column(
+        MutableList.as_mutable(JSON), nullable=False
+    )  # VEG, GF, etc.
     brand: Mapped[str] = mapped_column(String(255), nullable=True)
 
     # Source tracking

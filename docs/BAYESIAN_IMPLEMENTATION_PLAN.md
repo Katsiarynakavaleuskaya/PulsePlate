@@ -699,7 +699,7 @@ async def validate_meal_data(
     request: Request,
     meal_request: MealValidationRequest,
     current_user: User = Depends(get_current_user),  # Требуется аутентификация
-):
+) -> dict[str, Any]:
     """
     Валидация данных о приеме пищи перед сохранением.
 
@@ -772,7 +772,6 @@ async def validate_meal_data(
         "warnings": result.issues,
         "suggestions": result.suggestions
     }
-```
 
 **Зависимости**:
 

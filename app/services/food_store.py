@@ -12,7 +12,8 @@ import sqlite3
 import threading
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Any, Dict, List, Optional, Tuple
 
 # Initialize logger early for setup-time logging
 logger = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ ALIASES_CSV_PATH: Path = Path(os.getenv("FOOD_ALIASES_CSV", "data/food_aliases.c
 MAX_LIMIT: int = 100
 DEFAULT_PER_G: float = 100.0
 
-DEFAULT_ALIASES: Dict[str, List[str]] = {
+DEFAULT_ALIASES: dict[str, list[str]] = {
     # RU/EN/ES базовые соответствия; расширяй из своего alias CSV
     "йогурт": ["yogurt", "yoghurt"],
     "масло оливковое": ["olive oil", "aceite de oliva"],
@@ -189,7 +190,7 @@ def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, 
     return canonical_to_aliases
 
 
-def _load_aliases_csv(csv_path: Path, is_production: Optional[bool] = None) -> Dict[str, List[str]]:
+def _load_aliases_csv(csv_path: Path, is_production: bool | None = None) -> dict[str, list[str]]:
     """
     Load aliases from CSV file with support for two schemas.
 
@@ -204,13 +205,13 @@ def _load_aliases_csv(csv_path: Path, is_production: Optional[bool] = None) -> D
             are logged and an empty dict is returned instead of raising exceptions.
 
     Returns:
-        Dict[str, List[str]] mapping canonical/primary (lowercased) to list of aliases.
+        dict[str, list[str]] mapping canonical/primary (lowercased) to list of aliases.
         Returns empty dict on missing file or parse errors in production mode.
 
     RU: Загружает алиасы из CSV с автоматическим определением схемы заголовков.
     Поддерживает оба формата: alias/canonical и primary/aliases.
     """
-    canonical_to_aliases: Dict[str, List[str]] = {}
+    canonical_to_aliases: dict[str, list[str]] = {}
     if is_production is None:
         is_production = os.getenv("ENVIRONMENT", "").lower() == "production"
 
@@ -256,11 +257,11 @@ def _load_aliases_csv(csv_path: Path, is_production: Optional[bool] = None) -> D
 
 
 # Lazy alias cache to avoid file I/O at import time
-_ALIASES_CACHE: Optional[Dict[str, List[str]]] = None
+_ALIASES_CACHE: dict[str, list[str]] | None = None
 _ALIASES_LOCK = threading.Lock()
 
 # Missing food counter/collector for periodic summary logging
-_MISSING_FOOD_COUNTER: Dict[str, int] = defaultdict(int)
+_MISSING_FOOD_COUNTER: dict[str, int] = defaultdict(int)
 _MISSING_FOOD_LOCK = threading.Lock()
 _MISSING_FOOD_REPORT_THRESHOLD = int(os.getenv("MISSING_FOOD_REPORT_THRESHOLD", "100"))
 

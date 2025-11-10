@@ -15,19 +15,19 @@ from update_api_key import DEFAULT_PROFILE, update_api_key  # noqa: E402
 
 
 def _read_api_key() -> str:
-    """Read API key from stdin or API_KEY env var. / Читает API-ключ из stdin или переменной окружения API_KEY."""
-    env_key = os.environ.get("API_KEY", "").strip()
+    """Read API key from stdin or OPENAI_API_KEY env var. / Читает API-ключ из stdin или переменной окружения OPENAI_API_KEY."""
+    env_key: str = os.environ.get("OPENAI_API_KEY", "").strip()
     if env_key:
-        os.environ.pop("API_KEY", None)
+        os.environ.pop("OPENAI_API_KEY", None)
         return env_key
 
-    stdin_data = sys.stdin.read().strip()
+    stdin_data: str = sys.stdin.read().strip()
     if stdin_data:
         return stdin_data
 
     raise RuntimeError(
-        "API key not provided via stdin or API_KEY environment variable."
-        " / API-ключ не передан через stdin или переменную окружения API_KEY."
+        "API key not provided via stdin or OPENAI_API_KEY environment variable."
+        " / API-ключ не передан через stdin или переменную окружения OPENAI_API_KEY."
     )
 
 

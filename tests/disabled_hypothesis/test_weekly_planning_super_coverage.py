@@ -7,19 +7,17 @@
 """
 
 import os
-from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 
 @pytest.fixture
-def client(dynamic_app) -> TestClient:
+def client(dynamic_app: FastAPI) -> TestClient:
     """Test client fixture using conftest's dynamic_app"""
-    return TestClient(cast(ASGIApp, dynamic_app))
+    return TestClient(dynamic_app)
 
 
 class TestWeeklyPlanningBlocks:

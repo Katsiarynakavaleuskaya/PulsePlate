@@ -41,7 +41,7 @@ Buildables
 Bxxxxxxx
 CARB
 CCPA
-CSpell: Files checked: 1052, Issues found: 827 in 155 files.
+
 Caddyfile
 Cadera
 Calcular

@@ -82,7 +82,7 @@ validate_command() {
         # Expand variables for syntax check (but don't execute)
         local expanded_command="${command//\$PROJECT_ROOT/$project_root}"
 
-        if ! zsh -n -c "$expanded_command" >/dev/null 2>&1; then
+        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
             echo "syntax error in shell command"
             return 1
         fi
@@ -120,11 +120,11 @@ create_alias() {
         if [ "$_QUIET_MODE" = "false" ]; then
             echo "⚠️  Алиас '$alias_name' создан, но валидация не прошла: $validation_error"
         fi
-        # Still create alias for non-critical failures (allows user to fix issues later)
+        # Skip creating alias if validation fails
+        return 1
     else
         [ "$_QUIET_MODE" = "false" ] && echo "✅ Алиас '$alias_name' создан"
     fi
-
     # shellcheck disable=SC2139
     # SC2139 is acknowledged: $PROJECT_ROOT expands at definition time (acceptable)
     # Note: Command substitutions in aliases also freeze at definition time
@@ -237,7 +237,9 @@ create_alias "ppdocker-run" "cd $PROJECT_ROOT && make docker-run"
 create_alias "ppdocker-stop" "cd $PROJECT_ROOT && make docker-stop"
 
 # Claude Code с ролью PulsePlate
-create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh" "$PROJECT_ROOT/scripts/claude_with_role.sh"
+# DISABLED: Account banned - GPU usage disabled
+# create_alias "ppclaude" "$PROJECT_ROOT/scripts/claude_with_role.sh" "$PROJECT_ROOT/scripts/claude_with_role.sh"
+# To re-enable: uncomment above line after account restoration
 
 # Выводим информацию только в интерактивном режиме
 if [ "$AUTO_LOAD" != "true" ]; then
@@ -269,8 +271,8 @@ if [ "$AUTO_LOAD" != "true" ]; then
     echo "  pp && ppcheck && ppauto-push"
     echo ""
     echo "🤖 Claude Code команды:"
-    echo "  ppclaude              - Claude Code с автоматической загрузкой роли PulsePlate"
-    echo "  claude                - Обычный Claude Code (без роли)"
+    echo "  ⚠️  ppclaude временно отключен (аккаунт в бане)"
+    echo "  claude                - Обычный Claude Code (без роли) - также отключен"
     echo ""
     echo "✅ Готово! Все алиасы активны в текущей сессии."
     echo ""

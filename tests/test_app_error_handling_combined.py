@@ -68,7 +68,8 @@ class TestAppCriticalLines97:
     def test_exception_handling_paths(self, client: TestClient) -> None:
         """Test exception handling paths"""
         # Test with very large JSON payload to reliably test size limits
-        large_data = {"data": "x" * 100000}  # Increased from 10k to 100k for more reliable testing
+        # Increased from 10k to 100k for more reliable testing
+        large_data = {"data": "x" * 100000}
         response = client.post("/api/v1/bmi", json=large_data)
         assert response.status_code in [422, 400, 413]
 

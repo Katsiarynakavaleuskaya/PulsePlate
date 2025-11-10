@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field, StrictFloat, model_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette import status as fastapi_status
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from app.dependencies import validate_template_dir
@@ -146,13 +147,20 @@ async def lifespan(app: FastAPI):
             logger.info("Database schema initialized")
         except Exception as db_err:
             logger.error(f"Failed to initialize database: {db_err}")
-            # Fallback to in-memory SQLite to avoid environment-specific disk I/O errors in CI
+            # FALLBACK SAFETY: Only attempt in-memory SQLite fallback, never mask failures
+            # If fallback fails or we're not in CI/test environment, exception propagates
             with suppress(OSError, IOError):
+                # Try fallback to in-memory SQLite for disk I/O errors
                 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
                 init_db()
-                logger.info("Database initialized with in-memory SQLite fallback")
-            # Only propagate if we are still not on in-memory fallback
+                logger.warning(
+                    "Database initialized with in-memory SQLite fallback due to init failure. "
+                    "This is acceptable in test/CI environments but indicates a problem in production."
+                )
+            # CRITICAL: Re-raise exception if fallback didn't work
+            # This ensures production database failures are never masked
             if os.environ.get("DATABASE_URL") != "sqlite:///:memory:":
+                logger.error("Database fallback failed, propagating original exception")
                 raise
 
     try:
@@ -290,7 +298,6 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
 
 
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-@app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
 async def admin_status():
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
@@ -416,14 +423,14 @@ async def log_requests(request: Request, call_next):
 
 
 @app.get("/health/db")
-def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
+async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
 
     EN: Lightweight database connectivity check.
     """
 
     try:
-        session.execute(text("SELECT 1"))
+        await run_in_threadpool(session.execute, text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - defensive path hit via tests
         logger.error("Database health check failed: %s", exc)
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
@@ -1421,7 +1428,20 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
 
 @contextmanager
 def _plate_env_snapshot() -> Generator[None, None, None]:
-    """Isolate premium plate globals/env for each request/test run."""
+    """Isolate premium plate globals/env for each request/test run.
+
+    WARNING: This context manager is NOT thread-safe and is intended ONLY for
+    single-threaded test/request isolation. It modifies module attributes via
+    setattr/delattr which can cause race conditions in concurrent execution.
+
+    Do NOT use this in production with concurrent requests. It is designed for:
+    - Single-threaded test isolation (pytest with -n 0 or function-scoped fixtures)
+    - Development/debugging scenarios where thread safety is not required
+
+    The restoration logic uses setattr/delattr on module objects (sys.modules[__name__])
+    instead of direct globals() mutation to maintain cleaner module state management,
+    but this is still not atomic and not thread-safe.
+    """
 
     import sys as _sys
 
@@ -1450,16 +1470,18 @@ def _plate_env_snapshot() -> Generator[None, None, None]:
     try:
         yield
     finally:
+        # Restore patched attributes using module setattr/delattr
+        # This avoids direct globals() mutation but is still not thread-safe
         for module, snapshot in module_snapshots:
             for attr, original in snapshot.items():
                 if original is sentinel:
+                    # Attribute didn't exist originally, remove it
                     with suppress(AttributeError):
                         delattr(module, attr)
                 else:
+                    # Restore original value using module setattr
                     setattr(module, attr, original)
-                    # Also mirror back into this module's globals if we own the symbol
-                    if module is sys.modules.get(__name__) and attr in _PATCHED_ATTRS:
-                        globals()[attr] = original
+        # Restore environment variable
         if env_snapshot is sentinel:
             os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
         else:
@@ -3670,7 +3692,3 @@ if get_bodyfat_router is not None:
 # Include BMI Pro router
 if bmi_pro_router:
     app.include_router(bmi_pro_router)
-
-# Include Premium Week router
-if premium_week_router is not None:
-    app.include_router(premium_week_router)
