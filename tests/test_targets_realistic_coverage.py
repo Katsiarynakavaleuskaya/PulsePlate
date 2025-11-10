@@ -4,6 +4,7 @@ Target 93% coverage improvement with realistic nutrition target scenarios.
 """
 
 import logging
+
 from faker import Faker
 from faker.providers import BaseProvider
 

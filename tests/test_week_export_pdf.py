@@ -15,14 +15,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app from app.py file
 import importlib.util
 
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
+spec = importlib.util.spec_from_file_location("app", "app.py")
 if spec is None or spec.loader is None:
     raise ImportError("Cannot load app.py")
 
 app_module = importlib.util.module_from_spec(spec)
+# Register module BEFORE exec_module to allow proper reload in fixtures
+# Use 'app_module' alias to avoid conflicts with 'app' package
+sys.modules["app_module"] = app_module
 spec.loader.exec_module(app_module)
+if hasattr(app_module, "routers") and hasattr(app_module.routers, "plan_export"):
+    sys.modules["app.routers.plan_export"] = app_module.routers.plan_export
+    plan = app_module.routers.plan_export
+else:
+    # Fallback if routers not available
+    from app.routers import plan_export as plan
 app = app_module.app
-from app.routers import plan_export as plan
 
 client = TestClient(app)
 
@@ -208,7 +216,14 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
     import importlib
 
     global plan
-    plan = importlib.reload(plan)
+    # Ensure module is in sys.modules before reload
+    # Use getattr to get the current module reference, which is more robust in parallel tests
+    current_plan = sys.modules.get("app.routers.plan_export", plan)
+    if current_plan is not None:
+        plan = importlib.reload(current_plan)
+    else:
+        sys.modules["app.routers.plan_export"] = plan
+        plan = importlib.reload(plan)
 
     captured_story: List[Any] = []
 

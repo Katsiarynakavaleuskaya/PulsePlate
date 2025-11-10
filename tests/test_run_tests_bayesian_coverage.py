@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-# sourcery skip: extract-duplicate-code
-
 import subprocess
 import sys
 from pathlib import Path
@@ -12,15 +10,13 @@ from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
 
+# sourcery skip: extract-duplicate-code
+
+
 # Add scripts to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.run_tests_bayesian import (
-    analyze_failed_tests,
-    clean_cache,
-    main,
-    run_tests_fast,
-)
+from scripts.run_tests_bayesian import analyze_failed_tests, clean_cache, main, run_tests_fast
 
 
 class TestCleanCache:

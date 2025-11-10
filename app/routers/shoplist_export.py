@@ -8,8 +8,8 @@ integration with the richer generator pipeline.
 from __future__ import annotations
 
 import csv
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List
 from fastapi import APIRouter, Response
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont, TTFError
+from reportlab.pdfbase.ttfonts import TTFError, TTFont
 from reportlab.pdfgen import canvas
 
 logger = logging.getLogger(__name__)

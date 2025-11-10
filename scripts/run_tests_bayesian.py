@@ -4,12 +4,12 @@
 Исключает кеш-файлы из покрытия для ускорения.
 """
 
-import sys
-import subprocess
-import shutil
 import logging
+import shutil
+import subprocess
+import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Package should be installed in editable mode (pip install -e .)
 # or PYTHONPATH should be set in the environment

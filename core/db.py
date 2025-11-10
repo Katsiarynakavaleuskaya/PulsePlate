@@ -25,10 +25,11 @@ import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator, Optional
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy import exc as sa_exc
+from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only

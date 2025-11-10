@@ -7,11 +7,12 @@ EN: Combined tests for app error handling: critical lines coverage and exception
 These tests cover critical uncovered lines in main.py and exception handler coverage.
 """
 
-import pytest
-from unittest.mock import patch
-import httpx
-from fastapi.testclient import TestClient
 from typing import NoReturn
+from unittest.mock import patch
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
 
 import app
 

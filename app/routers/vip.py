@@ -1,6 +1,6 @@
+import inspect
 import logging
 import os
-import inspect
 from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
@@ -14,10 +14,10 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
-from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
-from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
+from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.recipe_synth import RecipeSynthesizer
+from core.utils import resolve_attr
 
 # -*- coding: utf-8 -*-
 """

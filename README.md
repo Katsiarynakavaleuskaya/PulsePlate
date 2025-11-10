@@ -56,24 +56,25 @@ pre-commit run --all-files
 
 ### Python Version
 
-- Закреплена версия Python: 3.13.5 (`.python-version`, `.tool-versions`).
-- Рекомендуемая установка через `pyenv` или `asdf`.
+- **Поддерживаемые версии**: Python 3.11, 3.12, 3.13
+- **Закреплена версия для разработки**: 3.12.7 (`.python-version`, `.tool-versions`)
+- Рекомендуемая установка через `pyenv` или `asdf`
 
 Setup (pyenv):
 
 ```bash
-pyenv install 3.13.5 -s
-pyenv local 3.13.5
-python -V  # Python 3.13.5
+pyenv install 3.12.7 -s
+pyenv local 3.12.7
+python -V  # Python 3.12.7
 ```
 
 Setup (asdf):
 
 ```bash
 asdf plugin add python || true
-asdf install python 3.13.5
-asdf local python 3.13.5
-python -V  # Python 3.13.5
+asdf install python 3.12.7
+asdf local python 3.12.7
+python -V  # Python 3.12.7
 ```
 
 Create venv and install deps:

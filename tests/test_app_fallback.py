@@ -10,8 +10,6 @@ sys.modules entries are missing (rare reload scenarios).
 from __future__ import annotations
 
 import sys
-import types
-
 from typing import Any, cast
 
 import pytest
@@ -43,15 +41,29 @@ def test_resolve_build_targets_callable_none(monkeypatch: pytest.MonkeyPatch) ->
 
     import app
 
-    for module_name in ("app", "app_module", "_app_top_module"):
-        module_obj = sys.modules.get(module_name)
-        if module_obj is not None:
-            monkeypatch.setattr(
-                cast(Any, module_obj), "build_nutrition_targets", None, raising=False
-            )
+    # Save original value for restoration
+    original_build_targets = getattr(app, "build_nutrition_targets", None)
 
-    assert getattr(app, "build_nutrition_targets") is None
+    try:
+        # Use direct assignment for reliability in CI environments (e.g., with pytest-xdist)
+        app.build_nutrition_targets = None
 
-    resolved = app._resolve_build_targets_callable()
+        # Also patch sys.modules entries
+        for module_name in ("app", "app_module", "_app_top_module"):
+            module_obj = sys.modules.get(module_name)
+            if module_obj is not None:
+                monkeypatch.setattr(
+                    cast(Any, module_obj), "build_nutrition_targets", None, raising=False
+                )
 
-    assert resolved is None
+        # Verify it's actually None before proceeding
+        current_value = getattr(app, "build_nutrition_targets", "NOT_SET")
+        assert current_value is None, f"Expected None but got {current_value!r}"
+
+        resolved = app._resolve_build_targets_callable()
+
+        assert resolved is None
+    finally:
+        # Restore original value
+        if original_build_targets is not None:
+            app.build_nutrition_targets = original_build_targets

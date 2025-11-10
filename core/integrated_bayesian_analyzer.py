@@ -4,19 +4,15 @@ Integrated Bayesian analyzer combining technical and business aspects.
 Analyzes tests from the perspectives of code, nutrition, safety, and system philosophy.
 """
 
-from typing import Dict, List, Any, Set
-import re
 import ast
+import re
 from dataclasses import dataclass
 from enum import Enum
-
-from core.bayesian_test_analyzer import BayesianTestAnalyzer
-from core.nutrition_bayesian_analyzer import (
-    NutritionBayesianAnalyzer,
-    NutritionTestResult,
-)
+from typing import Any, Dict, List, Set
 
 from core.bayesian_technical_utils import analyze_technical_aspects_common
+from core.bayesian_test_analyzer import BayesianTestAnalyzer
+from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer, NutritionTestResult
 
 
 class NormalizedIssueType(Enum):

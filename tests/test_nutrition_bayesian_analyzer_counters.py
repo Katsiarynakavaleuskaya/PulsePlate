@@ -6,10 +6,8 @@ are properly incremented and used in the safety score calculation.
 """
 
 import pytest
-from core.nutrition_bayesian_analyzer import (
-    NutritionBayesianAnalyzer,
-    NutritionErrorType,
-)
+
+from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer, NutritionErrorType
 
 
 def test_counters_increment_on_successful_analysis() -> None:

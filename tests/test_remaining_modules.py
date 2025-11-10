@@ -56,11 +56,7 @@ class TestShoplistModule:
     def test_shoplist_functions(self):
         """Test shoplist utility functions."""
         try:
-            from core.shoplist import (
-                create_shopping_list,
-                group_by_category,
-                optimize_packaging,
-            )
+            from core.shoplist import create_shopping_list, group_by_category, optimize_packaging
 
             # Test with mock meal plan
             meal_plan = {
@@ -179,11 +175,7 @@ class TestUtilsModule:
     def test_utils_comprehensive(self):
         """Test utils functions comprehensively."""
         try:
-            from core.utils import (
-                safe_float,
-                safe_int,
-                slugify,
-            )
+            from core.utils import safe_float, safe_int, slugify
 
             # Test safe_float with various inputs
             assert safe_float("123.45") == 123.45 or safe_float("123.45") is None
@@ -220,12 +212,7 @@ class TestUtilsModule:
     def test_additional_utils(self):
         """Test additional utility functions."""
         try:
-            from core.utils import (
-                format_number,
-                generate_id,
-                sanitize_html,
-                validate_email,
-            )
+            from core.utils import format_number, generate_id, sanitize_html, validate_email
 
             # Test email validation
             assert (

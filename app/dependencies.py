@@ -1,7 +1,8 @@
 import logging
 import os
 
-from core.recipe_synth import RecipeSynthesizer, get_recipe_synthesizer as get_synth
+from core.recipe_synth import RecipeSynthesizer
+from core.recipe_synth import get_recipe_synthesizer as get_synth
 
 # Read environment variable once at module load
 TEMPLATE_DIR: str = os.getenv("RECIPE_TEMPLATES_DIR", "data/recipe_templates")

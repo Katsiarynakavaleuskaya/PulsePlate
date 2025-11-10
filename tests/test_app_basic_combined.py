@@ -3,10 +3,11 @@ Combined basic app tests: import, VIP integration, and package spec.
 """
 
 import sys
+
+import pytest
 from fastapi import FastAPI
 
 import app
-import pytest
 
 
 class TestAppImport:

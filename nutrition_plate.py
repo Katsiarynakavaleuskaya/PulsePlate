@@ -9,12 +9,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from nutrition_core import (
-    ActivityLevel,
-    Sex,
-    calculate_all_bmr,
-    calculate_all_tdee,
-)
+from nutrition_core import ActivityLevel, Sex, calculate_all_bmr, calculate_all_tdee
 
 
 class MacroDistribution(BaseModel):

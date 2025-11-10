@@ -19,16 +19,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont, TTFError
+from reportlab.pdfbase.ttfonts import TTFError, TTFont
 from reportlab.pdfgen.canvas import Canvas
-from reportlab.platypus import (
-    Image,
-    PageBreak,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    TableStyle,
-)
+from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 from reportlab.platypus.tables import Table as RLTable
 
 from settings import EXPORT_TOKEN_SECRET, EXPORT_TOKEN_TTL_SECONDS, PRIVATE_EXPORTS_ENABLED

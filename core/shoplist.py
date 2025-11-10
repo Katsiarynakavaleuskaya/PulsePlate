@@ -7,13 +7,12 @@ EN: Module for creating shopping lists from weekly meal plans.
 Sprint 2: Shoplist с округлением до упаковок.
 """
 
-import math
-
 import csv
+import logging
+import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union, Tuple
-import logging
+from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
 
 LOGGER = logging.getLogger(__name__)
 

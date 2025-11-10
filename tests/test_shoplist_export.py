@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import List
 
 import pytest
+from reportlab.pdfbase.ttfonts import TTFError
 
 from app.routers import shoplist_export as export
-from reportlab.pdfbase.ttfonts import TTFError
 
 
 def test_shoplist_json_structure(client):

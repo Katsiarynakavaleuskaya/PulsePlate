@@ -23,11 +23,7 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-from core.bayesian_test_analyzer import (
-    BayesianTestAnalyzer,
-    TestStatus,
-    ErrorType,
-)
+from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType, TestStatus
 
 
 def calculate_confidence_from_priors(priors: Dict[str, float]) -> float:

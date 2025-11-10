@@ -1,6 +1,7 @@
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
-import subprocess
 
 import pytest
 
@@ -31,7 +32,7 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(run_calls) == 1
     cmd_args, cmd_kwargs = run_calls[0]
     command = cmd_args[0]
-    assert "python" in Path(command[0]).name
+    assert Path(command[0]).resolve() == Path(sys.executable).resolve()
     assert command[2] == "pytest"
     assert "tests/" in command
     assert "--cov=core" in command

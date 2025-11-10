@@ -72,13 +72,7 @@ def to_pdf_day(plate: dict, path: Path) -> None:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
         from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import (
-            Paragraph,
-            SimpleDocTemplate,
-            Spacer,
-            Table,
-            TableStyle,
-        )
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
         story = []
         doc = SimpleDocTemplate(str(path), pagesize=A4)

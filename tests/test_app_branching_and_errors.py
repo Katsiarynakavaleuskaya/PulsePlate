@@ -70,8 +70,9 @@ def test_export_pdf_no_reportlab_with_key(
         # Expected when optional modules are missing - app.py should handle this gracefully
         pass
     # Recreate TestClient from reloaded app to ensure it uses the updated app state
-    from fastapi.testclient import TestClient
     from typing import cast
+
+    from fastapi.testclient import TestClient
 
     assert app_module.app is not None, "app must be initialized"
     reloaded_client = TestClient(cast(FastAPI, app_module.app))

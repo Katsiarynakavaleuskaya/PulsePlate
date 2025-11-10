@@ -24,6 +24,8 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     """Configure and initialize a per-worker SQLite database for the test session."""
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
+    # Enable premium features by default in tests (individual tests can override)
+    os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
 
     worker_info = getattr(request.config, "workerinput", {}) or {}
     worker_id = worker_info.get("workerid", "master")

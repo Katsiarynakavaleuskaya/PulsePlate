@@ -11,9 +11,8 @@ Tests cover:
 - Gender-specific calculations
 """
 
-from fastapi.testclient import TestClient
-
 import pytest
+from fastapi.testclient import TestClient
 
 
 class TestBodyfatv1API:

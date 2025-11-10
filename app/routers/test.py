@@ -6,9 +6,9 @@ Should NOT be included in production builds.
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any, Dict
 
-from fastapi import APIRouter, Response, Request
+from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/v1/test", tags=["test"])

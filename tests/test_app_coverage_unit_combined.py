@@ -64,12 +64,7 @@ class TestAppUnitTests:
 
     def test_bmi_core_functions(self) -> None:
         """Test BMI core functions for coverage."""
-        from bmi_core import (
-            bmi_value,
-            healthy_bmi_range,
-            interpret_group,
-            estimate_level,
-        )
+        from bmi_core import bmi_value, estimate_level, healthy_bmi_range, interpret_group
 
         # Test bmi_value function
         bmi = bmi_value(70.0, 1.75)

@@ -10,8 +10,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from core.bayesian_test_analyzer import ErrorType, TestCategory
 from pytest_bayesian_plugin import BayesianPytestPlugin
-from core.bayesian_test_analyzer import TestCategory, ErrorType
 
 
 class _FakeMarker:

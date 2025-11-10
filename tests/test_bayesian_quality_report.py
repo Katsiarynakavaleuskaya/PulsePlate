@@ -8,16 +8,11 @@
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.bayesian_test_analyzer import (
-    BayesianTestAnalyzer,
-    TestStatus,
-    ErrorType,
-    TestCategory,
-)
+from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType, TestCategory, TestStatus
 
 
 class TestBayesianQualityReport:
@@ -129,9 +124,10 @@ class TestBayesianQualityReport:
 
     def test_main_with_history(self, tmp_path: Path) -> None:
         """Тест main() с историей выполнения тестов."""
-        from scripts.bayesian_quality_report import main
-        from core.bayesian_test_analyzer import TestRecord
         from datetime import datetime, timezone
+
+        from core.bayesian_test_analyzer import TestRecord
+        from scripts.bayesian_quality_report import main
 
         # Create test records
         test_records = [

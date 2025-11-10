@@ -14,10 +14,10 @@ import requests  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field, field_validator
 from tenacity import (
     retry,
+    retry_if_exception,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception,
 )
 
 from app.schemas.bmr import BMRResponse

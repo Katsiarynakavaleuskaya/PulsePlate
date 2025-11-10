@@ -4,14 +4,15 @@ Tests for scripts/ensure_database_versions.py
 Tests the ensure_database_versions script including error paths for 97% coverage.
 """
 
+import importlib.util
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
 import pytest
-import importlib.util
-import sys
 
 # Import the module under test using importlib
 spec = importlib.util.spec_from_file_location(

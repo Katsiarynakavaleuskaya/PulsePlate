@@ -6,9 +6,9 @@
 """
 
 import re
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class NutritionCategory(Enum):

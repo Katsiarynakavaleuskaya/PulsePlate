@@ -9,8 +9,8 @@ from typing import Dict
 
 import pytest
 
-from core.food_apis.update_manager import DatabaseUpdateManager
 from core.food_apis.unified_db import UnifiedFoodItem
+from core.food_apis.update_manager import DatabaseUpdateManager
 
 
 @pytest.fixture

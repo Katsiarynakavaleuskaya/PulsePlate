@@ -6,13 +6,13 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
 
 import csv
-import sqlite3
-from pathlib import Path
 import logging
 import os
-from typing import Any, Dict, Iterator, List, Optional, Mapping, Sequence, Tuple
+import sqlite3
 import threading
 from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 # Initialize logger early for setup-time logging
 logger = logging.getLogger(__name__)

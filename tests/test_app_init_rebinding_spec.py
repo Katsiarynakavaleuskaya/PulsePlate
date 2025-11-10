@@ -3,6 +3,7 @@ Tests for _RebindingModuleSpec class in app/__init__.py
 """
 
 import sys
+
 import pytest
 
 
@@ -37,8 +38,9 @@ class TestRebindingModuleSpec:
 
     def test_rebinding_spec_submodule_search_locations(self):
         """Test that submodule_search_locations is set correctly."""
-        import app
         import os
+
+        import app
 
         spec = getattr(app, "__spec__")
         if spec is not None and hasattr(spec, "submodule_search_locations"):
@@ -137,8 +139,9 @@ class TestRebindingModuleSpec:
 
     def test_app_module_spec_from_loader_coverage(self):
         """Test coverage for spec creation logic."""
-        import app
         import importlib.util
+
+        import app
 
         # Test that we can create a spec from loader (this covers the base_spec creation)
         test_spec = importlib.util.spec_from_loader("test_module", loader=None)

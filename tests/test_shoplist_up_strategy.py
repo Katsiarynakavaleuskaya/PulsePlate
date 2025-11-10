@@ -1,4 +1,4 @@
-from core.shoplist import ShoplistGenerator, PackagingRule, ShoppingItem
+from core.shoplist import PackagingRule, ShoplistGenerator, ShoppingItem
 
 
 def test_up_strategy_minimizes_overage_across_candidates() -> None:

@@ -9,12 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from core.bayesian_test_analyzer import (
-    BayesianDiagnosis,
-    ErrorType,
-    TestCategory,
-    TestStatus,
-)
+from core.bayesian_test_analyzer import BayesianDiagnosis, ErrorType, TestCategory, TestStatus
 from pytest_bayesian_plugin import (
     BayesianPytestPlugin,
     pytest_configure,

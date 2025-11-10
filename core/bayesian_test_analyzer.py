@@ -9,23 +9,23 @@
 """
 
 import json
-import os
 import logging
-from dataclasses import dataclass, asdict, field
+import math
+import os
+from collections import Counter, defaultdict
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any, Set
-from collections import defaultdict, Counter
-import math
-from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from core.bayesian_technical_utils import analyze_technical_aspects_common
 from core.bayesian_recommendations import (
-    get_recommendations,
-    get_error_type_key,
-    get_symptom_key,
     DEFAULT_LANGUAGE,
+    get_error_type_key,
+    get_recommendations,
+    get_symptom_key,
 )
+from core.bayesian_technical_utils import analyze_technical_aspects_common
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +89,7 @@ class TestRecord:
     line_number: Optional[int] = None
 
     def __post_init__(self):
-        if self.timestamp is None:
-            self.timestamp = datetime.now(timezone.utc)
-        if self.dependencies is None:
-            self.dependencies = []
+        pass
 
 
 @dataclass

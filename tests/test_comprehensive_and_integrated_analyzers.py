@@ -14,14 +14,10 @@ from typing import Any, List, cast
 
 import pytest
 
-from core.business_bayesian_analyzer import (
-    BusinessCategory,
-    BusinessErrorType,
-    BusinessTestResult,
-)
+from core.business_bayesian_analyzer import BusinessCategory, BusinessErrorType, BusinessTestResult
 from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, NormalizedIssueType
-from core.nutrition_bayesian_analyzer import NutritionTestResult, NutritionCategory
+from core.nutrition_bayesian_analyzer import NutritionCategory, NutritionTestResult
 
 
 def _make_nutrition_result(message: str, success: bool = False) -> NutritionTestResult:

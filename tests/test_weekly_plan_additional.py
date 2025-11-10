@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 import pytest
 

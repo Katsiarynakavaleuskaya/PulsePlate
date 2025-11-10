@@ -1,13 +1,13 @@
-import pytest
 from types import TracebackType
 from typing import Any
 
+import pytest
 from sqlalchemy import exc as sa_exc
 
 from core.db import (
     EngineCompat,
-    _ResultWithConnectionCleanup,
     _derive_async_url,
+    _ResultWithConnectionCleanup,
     create_async_engine,
 )
 

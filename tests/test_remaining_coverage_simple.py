@@ -62,9 +62,10 @@ def test_shoplist_round_to_packages_empty_sorted() -> None:
 def test_weekly_plan_empty_coverages() -> None:
     """Cover core/weekly_plan.py:98 - ValueError when coverages list is empty."""
     import unittest.mock as mock
+
+    import core.weekly_plan
     from core.recommendations import build_nutrition_targets
     from core.targets import UserProfile
-    import core.weekly_plan
 
     profile = UserProfile(
         sex="male",

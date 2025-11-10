@@ -9,11 +9,10 @@ higher coverage and edge-case confidence.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List
-
-import json
 
 import pytest
 
@@ -92,8 +91,7 @@ def test_test_record_defaults_fill_timestamp_and_dependencies() -> None:
         test_name="tests.sample::test_case",
         category=TestCategory.UNIT,
         result=TestStatus.PASSED,
-        timestamp=None,  # type: ignore[arg-type]
-        dependencies=None,  # type: ignore[arg-type]
+        # Don't pass timestamp/dependencies - let default_factory initialize them
     )
     assert record.timestamp.tzinfo is not None
     assert record.dependencies == []

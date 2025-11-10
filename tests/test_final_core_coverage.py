@@ -104,12 +104,7 @@ class TestFinalCoreCoverage:
     def test_config_management_coverage(self):
         """Test configuration management."""
         try:
-            from core.config import (
-                get_config_value,
-                load_config,
-                set_config_value,
-                validate_config,
-            )
+            from core.config import get_config_value, load_config, set_config_value, validate_config
 
             # Test config loading
             config = load_config()

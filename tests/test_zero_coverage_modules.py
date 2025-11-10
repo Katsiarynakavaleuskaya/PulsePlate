@@ -7,6 +7,7 @@ EN: Tests for modules with zero coverage
 """
 
 import logging
+
 import pytest
 
 

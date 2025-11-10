@@ -3,12 +3,12 @@ Target missing lines in main.py with realistic tests.
 Based on coverage analysis: 65-68, 118-119, 123-124, etc.
 """
 
-from faker import Faker
-from fastapi.testclient import TestClient
+import os
+import sys
 from unittest.mock import patch
 
-import sys
-import os
+from faker import Faker
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

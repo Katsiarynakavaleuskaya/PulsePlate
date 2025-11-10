@@ -1,5 +1,5 @@
-from pytest_bayesian_plugin import BayesianPytestPlugin
 from core.bayesian_test_analyzer import TestCategory
+from pytest_bayesian_plugin import BayesianPytestPlugin
 from tests.conftest import DummyItem
 
 

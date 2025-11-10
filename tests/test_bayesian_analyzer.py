@@ -2,27 +2,28 @@
 Тесты для байесовской системы анализа тестов.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
 from typing import Iterator
 
-from core.bayesian_test_analyzer import (
-    BayesianTestAnalyzer,
-    TestRecord,
-    TestStatus,
-    ErrorType,
-    TestCategory,
-    BayesianDiagnosis,
-    diagnose_test_failure,
-    record_test_execution,
-)
+import pytest
+
 from core.bayesian_recommendations import (
-    get_recommendations,
-    get_error_type_key,
-    get_symptom_key,
     get_all_error_type_keys,
     get_all_symptom_keys,
+    get_error_type_key,
+    get_recommendations,
+    get_symptom_key,
+)
+from core.bayesian_test_analyzer import (
+    BayesianDiagnosis,
+    BayesianTestAnalyzer,
+    ErrorType,
+    TestCategory,
+    TestRecord,
+    TestStatus,
+    diagnose_test_failure,
+    record_test_execution,
 )
 
 
@@ -361,6 +362,7 @@ class TestConvenienceFunctions:
 
         # Мокаем глобальный bayesian_analyzer, чтобы использовать наш изолированный fixture
         from unittest.mock import patch
+
         from core import bayesian_test_analyzer
 
         with patch.object(bayesian_test_analyzer, "bayesian_analyzer", analyzer):

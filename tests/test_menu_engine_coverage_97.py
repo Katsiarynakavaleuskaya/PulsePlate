@@ -1,9 +1,9 @@
 """Tests to boost coverage for core/menu_engine.py to 97%."""
 
 import logging
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 
 from core.menu_engine import _get_default_food_db, _get_default_recipe_db, make_weekly_menu
 

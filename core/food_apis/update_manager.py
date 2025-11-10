@@ -11,8 +11,8 @@ information becomes available, with version tracking, validation, and rollback.
 from __future__ import annotations
 
 import asyncio
-import inspect
 import hashlib
+import inspect
 import json
 import logging
 import re
@@ -33,10 +33,10 @@ from typing import (
     Union,
 )
 
+from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 from .openfoodfacts_client import OFF_AVAILABLE, OFFClient
 from .unified_db import UnifiedFoodDatabase, UnifiedFoodItem
 from .usda_client import USDAClient
-from ..time_utils import isoformat_utc, now_utc, parse_iso8601
 
 logger = logging.getLogger(__name__)
 

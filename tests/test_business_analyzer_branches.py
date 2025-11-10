@@ -115,3 +115,35 @@ def test_price_thresholds_default_nutrition() -> None:
     analyzer = BusinessBayesianAnalyzer()
     assert analyzer.low_price_threshold == 5.0
     assert analyzer.high_price_threshold == 50.0
+
+
+def test_cost_optimization_ast_detects_nested_heavy_loops() -> None:
+    """AST branch should detect nested loops with heavy operations."""
+    analyzer = BusinessBayesianAnalyzer()
+    code = """
+for user in users:
+    for attempt in retries:
+        api.post(attempt)
+"""
+    results = analyzer._analyze_cost_optimization(code, "cost_nested_ast")
+    assert any(
+        r.business_category == BusinessCategory.COST_OPTIMIZATION
+        and r.error_type == BusinessErrorType.OPERATIONAL_WASTE
+        for r in results
+    )
+
+
+def test_cost_optimization_regex_handles_broken_code() -> None:
+    """Regex fallback should emit result when AST parsing fails."""
+    analyzer = BusinessBayesianAnalyzer()
+    code = """
+for order in orders::
+    for item in items:
+        request(item)
+"""
+    results = analyzer._analyze_cost_optimization(code, "cost_nested_regex")
+    assert any(
+        r.business_category == BusinessCategory.COST_OPTIMIZATION
+        and r.error_type == BusinessErrorType.OPERATIONAL_WASTE
+        for r in results
+    )

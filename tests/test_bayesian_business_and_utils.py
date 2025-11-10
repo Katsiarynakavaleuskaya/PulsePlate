@@ -49,9 +49,9 @@ from core.business_bayesian_analyzer import (
 )
 from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer
-from pytest_bayesian_plugin import BayesianPytestPlugin, TestCategory as PluginCategory
+from pytest_bayesian_plugin import BayesianPytestPlugin
+from pytest_bayesian_plugin import TestCategory as PluginCategory
 from scripts import run_tests_bayesian
-
 
 # ---------------------------------------------------------------------------
 # Helpers

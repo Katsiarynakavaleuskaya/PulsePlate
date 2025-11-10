@@ -10,10 +10,11 @@ These are "easy coverage" tests that cover basic monitoring endpoints and app pa
 
 import os
 import sys
+
+import pytest
 from fastapi.testclient import TestClient
 
 import app as apppkg
-import pytest
 
 
 class TestHealthAndMonitoringEndpoints:

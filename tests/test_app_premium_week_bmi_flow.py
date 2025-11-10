@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict
-
-from typing import Generator
+from typing import Dict, Generator
 
 import pytest
 from fastapi import status

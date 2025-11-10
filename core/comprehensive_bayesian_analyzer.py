@@ -8,13 +8,13 @@
 - Экономия средств
 """
 
-from typing import Dict, List, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict, List
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
-from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
+from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer
 
 
 class ComprehensiveCategory(Enum):

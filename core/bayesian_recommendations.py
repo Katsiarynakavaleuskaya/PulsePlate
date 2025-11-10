@@ -6,8 +6,8 @@ and symptoms. Supports multiple languages with fallback to default (Russian).
 """
 
 import os
-from typing import Dict, List, Optional
 from enum import Enum
+from typing import Dict, List, Optional
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
 _default_lang = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru")

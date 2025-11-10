@@ -17,12 +17,7 @@ class TestCoreDatabaseCoverage:
     def test_database_models_coverage(self):
         """Test database models functionality."""
         try:
-            from core.db import (
-                create_tables,
-                get_session,
-                get_unified_food_db,
-                init_database,
-            )
+            from core.db import create_tables, get_session, get_unified_food_db, init_database
 
             # Test session functions
             session = get_session()

@@ -7,7 +7,7 @@ name = "pulseplate"
 version = "0.1.0"
 description = "Comprehensive health and nutrition application with BMI calculations, body fat analysis, and personalized nutrition recommendations"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 license = {text = "Proprietary"}
 authors = [
     {name = "PulsePlate Team", email = "lexakm532@gmail.com"}
@@ -15,6 +15,8 @@ authors = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Healthcare Industry",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [

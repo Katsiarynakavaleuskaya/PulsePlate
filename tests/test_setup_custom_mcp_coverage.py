@@ -2,13 +2,15 @@
 Test coverage for setup_custom_mcp.py
 """
 
-import pytest
-import tempfile
 import json
 import os
-from unittest.mock import patch, mock_open, MagicMock
-from pathlib import Path
+import tempfile
 from contextlib import suppress
+from pathlib import Path
+from unittest.mock import MagicMock, mock_open, patch
+
+import pytest
+
 import setup_custom_mcp
 
 

@@ -4,22 +4,22 @@ Pytest plugin для интеграции с байесовской систем
 Автоматически записывает результаты тестов и предоставляет диагностику ошибок.
 """
 
-import asyncio
-from typing import Dict, Any, Optional, Tuple
-import time
-import os
 import ast
-
-# Import modules via proper packaging/pytest configuration (no sys.path mutations)
+import asyncio
+import os
+import time
+from typing import Any, Dict, Optional, Tuple
 
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
-    TestStatus,
     ErrorType,
     TestCategory,
-    record_test_execution,
+    TestStatus,
     diagnose_test_failure,
+    record_test_execution,
 )
+
+# Import modules via proper packaging/pytest configuration (no sys.path mutations)
 
 
 class BayesianPytestPlugin:

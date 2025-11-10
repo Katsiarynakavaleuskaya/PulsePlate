@@ -3,12 +3,10 @@ Combined basic food tests.
 Includes API smoke tests and basic food database tests.
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
-import pytest
-
 import app as app_module
-
 from core.food_db import aggregate_shopping, parse_food_db, pick_booster_for
 
 

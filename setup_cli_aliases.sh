@@ -82,7 +82,7 @@ validate_command() {
         # Expand variables for syntax check (but don't execute)
         local expanded_command="${command//\$PROJECT_ROOT/$project_root}"
 
-        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
+        if ! zsh -n -c "$expanded_command" >/dev/null 2>&1; then
             echo "syntax error in shell command"
             return 1
         fi

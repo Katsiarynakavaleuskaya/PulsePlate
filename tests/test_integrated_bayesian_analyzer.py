@@ -6,10 +6,11 @@
 """
 
 import pytest
+
 from core.integrated_bayesian_analyzer import (
     IntegratedBayesianAnalyzer,
-    SystemPhilosophy,
     IntegratedTestResult,
+    SystemPhilosophy,
 )
 
 

@@ -9,6 +9,7 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+
 from tests.test_helpers import skip_if_no_plate_micros
 
 try:

@@ -4,13 +4,14 @@
 Анализирует тесты с точки зрения бизнес-модели, доходности и оптимизации затрат.
 """
 
+import ast
+import math
 import re
 import tokenize
-from io import StringIO
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
-import math
+from io import StringIO
+from typing import Any, Dict, List, Optional
 
 
 class BusinessCategory(Enum):
@@ -381,32 +382,61 @@ class BusinessBayesianAnalyzer:
         """Анализирует возможности оптимизации затрат."""
         results = []
 
-        # 1. Nested loops: require loop variable names and check for break/return
-        # Pattern matches: for <var1> in ...: ... for <var2> in ...:
-        nested_loop_pattern = (
-            r"for\s+(\w+)\s+in\s+[^:]+:\s*(?:[^\n]*\n)*?\s*for\s+(\w+)\s+in\s+[^:]+:"
-        )
-        nested_matches = re.finditer(nested_loop_pattern, code, re.MULTILINE)
-        for match in nested_matches:
-            # Extract loop body (between second ':' and next dedent or end)
-            loop_start = match.end()
-            # Find the body of the inner loop (next 20 lines or until dedent)
-            lines_after = code[loop_start:].split("\n")[:20]
-            loop_body = "\n".join(lines_after)
-            # Check if there's a break or return in the loop body
-            if not re.search(r"\b(break|return)\b", loop_body):
-                # Check for heavy operations in body (indicator of potential inefficiency)
-                heavy_indicators = [
-                    r"\.append\(",
-                    r"\.extend\(",
-                    r"\.insert\(",
-                    r"database",
-                    r"query",
-                    r"api",
-                    r"request",
-                ]
-                if any(
-                    re.search(indicator, loop_body, re.IGNORECASE) for indicator in heavy_indicators
+        # 1. Nested loops: Use AST for accurate detection, fallback to regex for broken code
+        # Heavy operation indicators (used by both AST and regex paths)
+        heavy_indicators = [
+            r"\.append\(",
+            r"\.extend\(",
+            r"\.insert\(",
+            r"database",
+            r"query",
+            r"api",
+            r"request",
+        ]
+
+        # Try AST-based detection first (accurate indentation-aware)
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            tree = None
+
+        if tree is not None:
+            # AST-based detection: check for real nested For loops
+            for node in ast.walk(tree):
+                if isinstance(node, ast.For):
+                    # Check if this for loop contains nested for loops in its body
+                    nested_loops = [child for child in node.body if isinstance(child, ast.For)]
+                    for inner in nested_loops:
+                        # Extract source of inner loop
+                        loop_body_src = ast.get_source_segment(code, inner) or ""
+                        # Check if inner loop lacks break/return and has heavy operations
+                        if not re.search(r"\b(break|return)\b", loop_body_src) and any(
+                            re.search(pattern, loop_body_src, re.IGNORECASE)
+                            for pattern in heavy_indicators
+                        ):
+                            results.append(
+                                BusinessTestResult(
+                                    test_name=test_name,
+                                    success=False,
+                                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                                    error_message="Вложенные циклы без break/return",
+                                    cost_impact="Повышенное потребление ресурсов",
+                                    optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
+                                )
+                            )
+        else:
+            # Fallback to regex for broken code (keeps existing behavior)
+            nested_loop_pattern = (
+                r"for\s+(\w+)\s+in\s+[^:]+:\s*(?:[^\n]*\n)*?\s*for\s+(\w+)\s+in\s+[^:]+:"
+            )
+            nested_matches = re.finditer(nested_loop_pattern, code, re.MULTILINE)
+            for match in nested_matches:
+                loop_start = match.end()
+                lines_after = code[loop_start:].split("\n")[:20]
+                loop_body = "\n".join(lines_after)
+                if not re.search(r"\b(break|return)\b", loop_body) and any(
+                    re.search(pattern, loop_body, re.IGNORECASE) for pattern in heavy_indicators
                 ):
                     results.append(
                         BusinessTestResult(
@@ -414,7 +444,7 @@ class BusinessBayesianAnalyzer:
                             success=False,
                             business_category=BusinessCategory.COST_OPTIMIZATION,
                             error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                            error_message=f"Вложенные циклы без break/return: {match.group(1)} и {match.group(2)}",
+                            error_message="Вложенные циклы без break/return",
                             cost_impact="Повышенное потребление ресурсов",
                             optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
                         )

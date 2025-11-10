@@ -40,7 +40,7 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
 
     # Создаем временный файл для безопасного редактирования
     TEMP_FILE=$(mktemp "${ZSHRC_FILE}.tmp.XXXXXX")
-    trap "rm -f '$TEMP_FILE'" EXIT INT TERM
+    trap 'rm -f "$TEMP_FILE"' EXIT INT TERM
 
     # Обрабатываем файл построчно, исключая строки с setup_cli_aliases.sh
     # Паттерн допускает: пробелы, комментарии, различные формы кавычек и путей

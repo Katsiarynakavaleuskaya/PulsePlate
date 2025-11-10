@@ -5,8 +5,8 @@
 # shell=False (default), sys.executable (not user-controlled), no user input,
 # args passed as list
 import subprocess  # nosec B404
-import time
 import sys
+import time
 
 
 def run_coverage_check() -> bool:

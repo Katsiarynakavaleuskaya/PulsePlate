@@ -10,11 +10,7 @@ from core.menu_engine_new import DayPlan, build_plate_day
 from core.plate import macros_by_rules
 from core.rag import simple_rag as RAG
 from core.recipe_db import Recipe as OldRecipe
-from core.recipe_db import (
-    calculate_recipe_nutrients,
-    parse_recipe_db,
-    scale_recipe_to_kcal,
-)
+from core.recipe_db import calculate_recipe_nutrients, parse_recipe_db, scale_recipe_to_kcal
 from core.recipe_db_new import Meal
 from core.recipe_db_new import RecipeDB as RecipeDBNew
 
@@ -358,11 +354,7 @@ def test_product_finder_error_paths_and_csv(tmp_path: Path, monkeypatch: pytest.
 
 def test_menu_engine_default_strategy_and_boosters_branch():
     from core.menu_engine import FoodItem as MEFood
-    from core.menu_engine import (
-        WeekMenu,
-        _apply_repair_strategy,
-        _find_booster_foods,
-    )
+    from core.menu_engine import WeekMenu, _apply_repair_strategy, _find_booster_foods
 
     # Default strategy falls back to boosters_first (returns plan unchanged)
     plan = WeekMenu(

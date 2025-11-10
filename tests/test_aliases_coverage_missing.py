@@ -1,8 +1,8 @@
 """Tests for missing coverage lines in core/aliases.py."""
 
 import csv
-import types
 import os
+import types
 from pathlib import Path
 from typing import Any
 

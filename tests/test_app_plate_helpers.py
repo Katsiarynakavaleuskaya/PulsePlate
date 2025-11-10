@@ -1,7 +1,6 @@
+import sys
 from types import SimpleNamespace
 from typing import Any
-
-import sys
 
 import pytest
 
@@ -212,6 +211,28 @@ async def test_api_premium_plate_fallback_macro_values(
     assert 0 < response.macros["fat_g"] < 300, "Fat should be in reasonable range"
     assert 0 <= response.macros["carbs_g"] < 1000, "Carbs should be in reasonable range"
     assert 0 < response.macros["fiber_g"] < 100, "Fiber should be in reasonable range"
+
+
+@pytest.mark.asyncio
+async def test_api_premium_plate_fallback_handles_non_callable_global_builder(
+    premium_plate_fallback_setup: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure fallback path executes when global build_nutrition_targets holds a sentinel."""
+
+    setup = premium_plate_fallback_setup
+    request = setup["request"]
+
+    marker = object()
+    monkeypatch.setattr(app, "build_nutrition_targets", marker, raising=False)
+    if getattr(app, "app_module", None) is not None:
+        monkeypatch.setattr(app.app_module, "build_nutrition_targets", marker, raising=False)
+
+    monkeypatch.setattr(app, "_targets_disabled", lambda: False, raising=False)
+    monkeypatch.setattr(app, "_targets_runtime_disabled", False, raising=False)
+
+    response = await app.api_premium_plate(request)
+
+    assert isinstance(response, app.PlateResponse)
 
 
 @pytest.mark.asyncio
