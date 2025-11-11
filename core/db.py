@@ -89,7 +89,7 @@ def _build_engine_url() -> str:
             os.makedirs(db_dir, exist_ok=True)
 
     # Use file-based SQLite by default so the data survives across runs.
-    return database_url
+    return str(database_url)
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:

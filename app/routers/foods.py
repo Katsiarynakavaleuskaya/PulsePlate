@@ -34,7 +34,8 @@ def list_foods(
 def list_foods_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[FoodHit]:
-    return list_foods(query=query, limit=limit, offset=offset)
+    result: List[FoodHit] = list_foods(query=query, limit=limit, offset=offset)
+    return result
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
