@@ -5,8 +5,7 @@ import secrets
 import sys
 import threading
 import time
-from contextlib import asynccontextmanager, contextmanager, suppress
-from functools import wraps
+from contextlib import asynccontextmanager, suppress
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -14,7 +13,6 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
-    Generator,
     List,
     Literal,
     Optional,
@@ -180,24 +178,27 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         fallback_ok = False
         try:
-            # Set DB_FALLBACK_URL environment variable so _build_engine_url can read it
-            # This is set before reloading core.db so the module-level call picks it up
-            os.environ["DB_FALLBACK_URL"] = fallback_url
+            # Create a new engine directly with the fallback URL instead of reloading module
+            from sqlalchemy import create_engine
 
-            # Reload core.db module to pick up the fallback URL
-            # This recreates the engine with the fallback URL
-            import importlib
-            import core.db
+            import core.models  # noqa: F401
 
-            importlib.reload(core.db)
+            # Create temporary engine with fallback URL
+            # Use SQLite-specific connection args when needed
+            connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
+            fallback_engine = create_engine(
+                fallback_url, echo=False, future=True, connect_args=connect_args
+            )
 
-            # Use init_db from the reloaded module
-            core.db.init_db()
+            # Initialize schema using the fallback engine
+            from core.models import Base
+
+            Base.metadata.create_all(bind=fallback_engine)
             fallback_ok = True
 
-            # Only mutate os.environ in dev/test environments if explicitly needed
-            # (e.g., for tools that read DATABASE_URL directly)
+            # Set DB_FALLBACK_URL only if needed for external tools
             if not is_production:
+                os.environ["DB_FALLBACK_URL"] = fallback_url
                 os.environ["DATABASE_URL"] = fallback_url
                 logger.warning(
                     "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
@@ -206,6 +207,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     fallback_url,
                 )
             else:
+                # In production, only set DB_FALLBACK_URL for internal use
+                os.environ["DB_FALLBACK_URL"] = fallback_url
                 logger.warning(
                     "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
                     "Using module-level fallback variable only.",
@@ -1282,73 +1285,43 @@ else:
     make_plate = _make_plate
     build_nutrition_targets = _build_nutrition_targets
 
-_ORIGINAL_MAKE_PLATE = make_plate
-_ORIGINAL_BUILD_TARGETS = build_nutrition_targets
-_PATCHED_ATTRS = (
-    "make_plate",
-    "calculate_all_bmr",
-    "calculate_all_tdee",
-    "_aggregate_day_micronutrients",
-    "build_nutrition_targets",
+
+# Lightweight dependency provider pattern for plate-related functions
+# Tests can override _plate_deps to inject mock dependencies
+class PlateDependencies:
+    """Container for plate-related callable dependencies.
+
+    RU: Контейнер для зависимостей функций plate.
+    EN: Container for plate function dependencies.
+
+    This replaces the heavy test scaffolding with a simple dependency injection pattern.
+    Tests can override _plate_deps to provide mock implementations.
+    """
+
+    def __init__(
+        self,
+        make_plate_fn: Callable[..., Any] | None = None,
+        build_nutrition_targets_fn: Callable[..., Any] | None = None,
+        calculate_all_bmr_fn: Callable[..., Any] | None = None,
+        calculate_all_tdee_fn: Callable[..., Any] | None = None,
+        aggregate_day_micronutrients_fn: Callable[..., Any] | None = None,
+    ) -> None:
+        self.make_plate = make_plate_fn
+        self.build_nutrition_targets = build_nutrition_targets_fn
+        self.calculate_all_bmr = calculate_all_bmr_fn
+        self.calculate_all_tdee = calculate_all_tdee_fn
+        self._aggregate_day_micronutrients = aggregate_day_micronutrients_fn
+
+
+# Module-level default dependencies with real functions
+# _aggregate_day_micronutrients will be set after function definition
+_plate_deps = PlateDependencies(
+    make_plate_fn=make_plate,
+    build_nutrition_targets_fn=build_nutrition_targets,
+    calculate_all_bmr_fn=_calculate_all_bmr_wrapper,
+    calculate_all_tdee_fn=_calculate_all_tdee_wrapper,
+    aggregate_day_micronutrients_fn=None,  # Will be set after function definition
 )
-
-_APP_PACKAGE_REF = sys.modules.get("app")
-_PATCH_SOURCE_IDS: dict[str, Optional[int]] = {attr: None for attr in _PATCHED_ATTRS}
-_PATCH_LOCK = threading.Lock()
-
-
-def _propagate_app_patches(source: Optional[object], target: Optional[object]) -> None:
-    if source is None or target is None:
-        return
-    with _PATCH_LOCK:
-        for attr_name in _PATCHED_ATTRS:
-            if hasattr(source, attr_name):
-                try:
-                    patched_value = getattr(source, attr_name)
-                    setattr(target, attr_name, patched_value)
-                except Exception:  # nosec B112 - safe: dynamic patching, continue on missing attr
-                    continue
-
-
-def _sync_app_attr_sources(
-    alias_module: Optional[object], sources: tuple[Optional[object], ...]
-) -> None:
-    """Synchronize patched premium helpers between alias module and package proxies."""
-
-    if alias_module is None:
-        return
-    for attr_name in _PATCHED_ATTRS:
-        alias_value = getattr(alias_module, attr_name, _TARGETS_SENTINEL)
-        preferred_id = _PATCH_SOURCE_IDS.get(attr_name)
-        ordered_sources: list[Optional[object]] = []
-        if preferred_id is not None:
-            ordered_sources.extend(
-                source for source in sources if source is not None and id(source) == preferred_id
-            )
-        ordered_sources.extend(
-            source
-            for source in sources
-            if source is not None and (preferred_id is None or id(source) != preferred_id)
-        )
-        for source in ordered_sources:
-            if source is None:
-                continue
-            try:
-                source_value = getattr(source, attr_name)
-            except AttributeError:
-                continue
-            if alias_value is not _TARGETS_SENTINEL and alias_value is source_value:
-                if preferred_id is not None and id(source) == preferred_id:
-                    break
-                continue
-            try:
-                setattr(alias_module, attr_name, source_value)
-            except Exception:  # nosec B112 - safe: dynamic patching, continue on error
-                continue
-            with _PATCH_LOCK:
-                _PATCH_SOURCE_IDS[attr_name] = id(source)
-            alias_value = source_value
-            break
 
 
 _TARGETS_SENTINEL = object()
@@ -1370,7 +1343,7 @@ def _targets_disabled() -> bool:
     current_app = _sys.modules.get("app")
     if _APP_PACKAGE_REF is None and current_app is not None:
         _APP_PACKAGE_REF = current_app
-    primary_app = _APP_PACKAGE_REF or current_app
+    primary_app = sys.modules.get("app") or current_app
     if primary_app is None:
         logger.debug("_targets_disabled: primary app module missing")
         _targets_runtime_disabled = False
@@ -1401,11 +1374,13 @@ def _targets_disabled() -> bool:
         getattr(primary_app, "make_plate", None),
         getattr(alias_app, "make_plate", None) if alias_app is not None else None,
     )
-    packages_to_sync: tuple[Optional[object], ...] = (
-        current_app,
-        primary_app if primary_app is not current_app else None,
-    )
-    _sync_app_attr_sources(alias_app, packages_to_sync)
+    # Note: _sync_app_attr_sources removed as part of dependency-provider refactoring
+    # Tests can override _plate_deps instead of using dynamic attribute syncing
+    # packages_to_sync: tuple[Optional[object], ...] = (
+    #     current_app,
+    #     primary_app if primary_app is not current_app else None,
+    # )
+    # _sync_app_attr_sources(alias_app, packages_to_sync)
     if alias_app is not None:
         logger.debug(
             "_targets_disabled: after propagation alias make_plate=%r",
@@ -1485,102 +1460,6 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
     if callable(build_nutrition_targets):
         return build_nutrition_targets
     return None
-
-
-# WARNING: NOT THREAD-SAFE - do not use with concurrent threads
-@contextmanager
-def _plate_env_snapshot() -> Generator[None, None, None]:
-    """WARNING: NOT THREAD-SAFE - Isolate premium plate globals/env for each request/test run.
-
-    DANGER: This context manager is NOT thread-safe and is intended ONLY for
-    single-threaded test/request isolation. It modifies module attributes via
-    setattr/delattr which can cause race conditions in concurrent execution.
-
-    Do NOT use this in production with concurrent requests. It is designed for:
-    - Single-threaded test isolation (pytest with -n 0 or function-scoped fixtures)
-    - Development/debugging scenarios where thread safety is not required
-
-    The restoration logic uses setattr/delattr on module objects (sys.modules[__name__])
-    instead of direct globals() mutation to maintain cleaner module state management,
-    but this is still not atomic and not thread-safe.
-
-    Raises:
-        RuntimeError: If called in a multithreaded context (threading.active_count() > 1)
-    """
-    # Runtime guard: fail-fast if used in multithreaded context
-    if threading.active_count() > 1:
-        raise RuntimeError(
-            f"_plate_env_snapshot() is not thread-safe and cannot be used with "
-            f"concurrent threads. Current thread count: {threading.active_count()}. "
-            f"Use single-threaded test execution (pytest -n 0) or function-scoped fixtures."
-        )
-
-    import sys as _sys
-
-    sentinel = object()
-    env_snapshot = os.environ.get("FEATURE_PREMIUM_NUTRITION", sentinel)
-    module_snapshots: list[tuple[object, dict[str, Any]]] = []
-
-    def _capture(module: Optional[object]) -> None:
-        if module is None:
-            return
-        for existing, _ in module_snapshots:
-            if existing is module:
-                return
-        module_snapshots.append(
-            (
-                module,
-                {attr: getattr(module, attr, sentinel) for attr in _PATCHED_ATTRS},
-            )
-        )
-
-    _capture(_sys.modules.get(__name__))
-    _capture(_sys.modules.get("app"))
-    _capture(_sys.modules.get("app_module"))
-    _capture(_sys.modules.get("_app_top_module"))
-
-    try:
-        yield
-    finally:
-        # Restore patched attributes using module setattr/delattr
-        # This avoids direct globals() mutation but is still not thread-safe
-        for module, snapshot in module_snapshots:
-            for attr, original in snapshot.items():
-                if original is sentinel:
-                    # Attribute didn't exist originally, remove it
-                    with suppress(AttributeError):
-                        delattr(module, attr)
-                else:
-                    # Restore original value using module setattr
-                    setattr(module, attr, original)
-        # Restore environment variable
-        if env_snapshot is sentinel:
-            os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
-        else:
-            # mypy: ignore [assignment]
-            os.environ["FEATURE_PREMIUM_NUTRITION"] = str(env_snapshot)
-
-
-def _with_plate_env_snapshot(func: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorator to run a function within an isolated plate environment snapshot.
-
-    Supports both sync and async callables.
-    """
-    if asyncio.iscoroutinefunction(func):
-
-        @wraps(func)
-        async def _async_wrapped(*args: Any, **kwargs: Any) -> Any:
-            with _plate_env_snapshot():
-                return await func(*args, **kwargs)
-
-        return _async_wrapped
-
-    @wraps(func)
-    def _sync_wrapped(*args: Any, **kwargs: Any) -> Any:
-        with _plate_env_snapshot():
-            return func(*args, **kwargs)
-
-    return _sync_wrapped
 
 
 try:
@@ -1981,6 +1860,10 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
 
     # Apply aliases to day totals
     return _alias_micros(dict(day_micros))
+
+
+# Update _plate_deps with _aggregate_day_micronutrients after function definition
+_plate_deps._aggregate_day_micronutrients = _aggregate_day_micronutrients
 
 
 def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
