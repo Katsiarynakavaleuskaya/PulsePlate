@@ -1341,9 +1341,7 @@ def _targets_disabled() -> bool:
         return True
 
     current_app = _sys.modules.get("app")
-    if _APP_PACKAGE_REF is None and current_app is not None:
-        _APP_PACKAGE_REF = current_app
-    primary_app = sys.modules.get("app") or current_app
+    primary_app = current_app
     if primary_app is None:
         logger.debug("_targets_disabled: primary app module missing")
         _targets_runtime_disabled = False
