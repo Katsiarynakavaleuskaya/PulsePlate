@@ -2923,6 +2923,8 @@ async def rollback_database(source: str, target_version: str):
                 detail=f"Rollback failed for {source} to version {target_version}",
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rollback operation failed: {str(e)}") from e
 
