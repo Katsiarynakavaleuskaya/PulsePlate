@@ -1330,7 +1330,7 @@ _targets_runtime_disabled = False
 
 def _targets_disabled() -> bool:
     """Return True when build_nutrition_targets was explicitly disabled on the app module."""
-    global _APP_PACKAGE_REF, _targets_runtime_disabled
+    global _targets_runtime_disabled
 
     import sys as _sys
 
