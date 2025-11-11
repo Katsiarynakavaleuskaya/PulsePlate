@@ -737,7 +737,7 @@ class BayesianTestAnalyzer:
             )
 
         # Explicit handling of most common error to avoid confusion about None vs tuple
-        most_common_error: tuple[ErrorType, int] | None = None
+        most_common_error: Optional[Tuple[ErrorType, int]] = None
         if error_stats:
             most_common_list = error_stats.most_common(1)
             if most_common_list:

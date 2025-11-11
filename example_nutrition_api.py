@@ -353,23 +353,32 @@ def handle_request_errors(
         }
         exc_messages = detailed_messages.get(exc_key, detailed_messages["unexpected"])
         detailed_msg = exc_messages.get(lang, exc_messages["en"])
+        # logger.log with exc_info=True already includes full traceback, so no need for separate logger.info
         logger.log(log_level, detailed_msg, exc_info=True)
-        logger.info("Details: %s", exception)
 
     else:  # STANDARD format
         # Standard format with localized messages
         logger.log(log_level, base_message, exception, exc_info=True)
 
-        # Additional info for STANDARD format (only for English, matching original behavior)
-        if lang == "en":
-            if exc_key == "timeout":
-                logger.info(
-                    "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness."
-                )
-            elif exc_key == "http_error":
-                logger.info("The API returned an error status code. Check server logs.")
-            elif exc_key == "connection_error":
-                logger.info("Make sure the API server is running on localhost:8000 and reachable.")
+        # Additional info for STANDARD format (localized for both English and Russian)
+        standard_guidance = {
+            "timeout": {
+                "en": "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness.",
+                "ru": "Попробуйте увеличить таймаут (например, timeout=10.0) и убедитесь в отзывчивости сервера.",
+            },
+            "http_error": {
+                "en": "The API returned an error status code. Check server logs.",
+                "ru": "API вернул код ошибки. Проверьте логи сервера.",
+            },
+            "connection_error": {
+                "en": "Make sure the API server is running on localhost:8000 and reachable.",
+                "ru": "Убедитесь, что API сервер запущен на localhost:8000 и доступен.",
+            },
+        }
+        guidance_msg = standard_guidance.get(exc_key)
+        if guidance_msg:
+            localized_msg = guidance_msg.get(lang, guidance_msg["en"])
+            logger.info(localized_msg)
 
 
 def main() -> None:

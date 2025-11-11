@@ -334,8 +334,10 @@ class TestAppInitErrorHandling:
         source = MagicMock()
 
         # Create a target object that raises exception when setting attributes
+        from typing import Any
+
         class FailingTarget:
-            def __setattr__(self, name, value):
+            def __setattr__(self, name: str, value: Any) -> None:
                 raise AttributeError("Cannot set attribute")
 
         target = FailingTarget()

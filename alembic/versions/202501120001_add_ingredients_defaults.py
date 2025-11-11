@@ -23,13 +23,28 @@ depends_on = None
 def upgrade() -> None:
     """RU: Добавить server_default для колонки ingredients в таблице recipes.
     EN: Add server_default for ingredients column in recipes table."""
+    # Determine database type for proper JSON default syntax
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name
+
+    # Use database-specific JSON default syntax
+    if dialect_name == "postgresql":
+        # PostgreSQL requires explicit JSON/JSONB cast
+        json_default = text("'{}'::jsonb")
+    elif dialect_name == "mysql":
+        # MySQL 8.0.13+ supports JSON literals directly
+        json_default = text("('{}')")
+    else:
+        # SQLite and others: use text literal (SQLite treats JSON as TEXT)
+        json_default = text("'{}'")
+
     # Alter the ingredients column to add server_default
     op.alter_column(
         "recipes",
         "ingredients",
         existing_type=sa.JSON(),
         nullable=False,
-        server_default=text("'{}'"),
+        server_default=json_default,
     )
 
 

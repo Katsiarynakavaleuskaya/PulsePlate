@@ -1,7 +1,8 @@
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any
 
 import pytest
 
@@ -11,8 +12,8 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     # Import inside to ensure test discovery works even if path changes
     from scripts import run_tests_bayesian as runner
 
-    run_calls: List[Tuple[Sequence[str], Dict[str, Any]]] = []
-    clean_calls: List[bool] = []
+    run_calls: list[tuple[Sequence[str], dict[str, Any]]] = []
+    clean_calls: list[bool] = []
 
     def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         # Use subprocess.CompletedProcess directly instead of Mock
@@ -28,7 +29,7 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
-    result: Dict[str, Any] = runner.run_tests_fast()
+    result: dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert len(run_calls) == 1
     command, cmd_kwargs = run_calls[0]
@@ -50,8 +51,8 @@ def test_run_tests_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test failure path with returncode=1."""
     from scripts import run_tests_bayesian as runner
 
-    run_calls: List[Tuple[Sequence[str], Dict[str, Any]]] = []
-    clean_calls: List[bool] = []
+    run_calls: list[tuple[Sequence[str], dict[str, Any]]] = []
+    clean_calls: list[bool] = []
 
     def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         command_list: Sequence[str] = args[0] if args and isinstance(args[0], (list, tuple)) else []
@@ -66,7 +67,7 @@ def test_run_tests_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
-    result: Dict[str, Any] = runner.run_tests_fast()
+    result: dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert len(run_calls) == 1
     command, cmd_kwargs = run_calls[0]
@@ -83,7 +84,7 @@ def test_run_tests_fast_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test exception handling path."""
     from scripts import run_tests_bayesian as runner
 
-    clean_calls: List[bool] = []
+    clean_calls: list[bool] = []
 
     def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         raise FileNotFoundError("pytest command not found")
@@ -91,7 +92,7 @@ def test_run_tests_fast_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
-    result: Dict[str, Any] = runner.run_tests_fast()
+    result: dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert result["success"] is False
     # Check for error indication in output (can be in Russian or English)
@@ -103,7 +104,7 @@ def test_run_tests_fast_empty_output(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test edge case with empty stdout/stderr."""
     from scripts import run_tests_bayesian as runner
 
-    clean_calls: List[bool] = []
+    clean_calls: list[bool] = []
 
     def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(
@@ -116,7 +117,7 @@ def test_run_tests_fast_empty_output(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
-    result: Dict[str, Any] = runner.run_tests_fast()
+    result: dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert result["success"] is True
     assert result["returncode"] == 0

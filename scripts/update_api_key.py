@@ -75,7 +75,7 @@ def _read_api_key(
     if not api_key.startswith(prefix):
         raise RuntimeError(
             f"Invalid API key from {key_source}: key does not start with '{prefix}'. "
-            f"Received key starts with: '{api_key[:min(5, len(api_key))]}...' (first 5 characters shown). "
+            f"API key length: {len(api_key)} characters. "
             f"API keys must start with '{prefix}' prefix."
         )
 

@@ -224,13 +224,24 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
 
 
 @pytest.fixture
-def _test_environment(test_environment: Generator[None, None, None]) -> Generator[None, None, None]:
+def _test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Backward-compatible alias for legacy tests expecting `_test_environment`.
 
     Some historical tests still request the underscored fixture name.
     Reuse the standard `test_environment` setup to keep behaviour consistent.
     """
-    yield from test_environment
+    # Set consistent environment for deterministic testing (same as test_environment)
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("METRICS_ENABLED", "true")
+    yield
+    # Cleanup is automatic with monkeypatch
 
 
 # Test doubles for pytest plugin tests

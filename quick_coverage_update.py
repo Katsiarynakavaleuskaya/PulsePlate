@@ -16,7 +16,13 @@ from defusedxml import ElementTree as ET
 
 def fallback_tests_from_stdout(result: subprocess.CompletedProcess[str]) -> None:
     """Print test results fallback from stdout when JUnit XML parsing fails."""
-    print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+    passed = result.stdout.count(" PASSED")
+    failed = result.stdout.count(" FAILED")
+    errors = result.stdout.count(" ERROR")
+    skipped = result.stdout.count(" SKIPPED")
+    print(
+        f"✅ Tests: {passed} passed, {failed} failed, {errors} errors, {skipped} skipped (fallback)"
+    )
 
 
 def fallback_coverage_from_stdout(result: subprocess.CompletedProcess[str]) -> None:

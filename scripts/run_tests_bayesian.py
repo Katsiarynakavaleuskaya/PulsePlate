@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # Package should be installed in editable mode (pip install -e .)
 # or PYTHONPATH should be set in the environment
@@ -45,7 +45,7 @@ def clean_cache() -> None:
     print("✅ Кеш очищен")
 
 
-def run_tests_fast() -> Dict[str, Any]:
+def run_tests_fast() -> dict[str, Any]:
     """Запускает тесты быстро с исключением кеш-файлов."""
     print("⚡ Быстрый запуск тестов (без кеш-файлов)...")
     print("=" * 60)
@@ -137,7 +137,7 @@ def run_tests_fast() -> Dict[str, Any]:
         }
 
 
-def analyze_failed_tests(failed_tests: List[Dict[str, Any]]) -> None:
+def analyze_failed_tests(failed_tests: list[dict[str, Any]]) -> None:
     """Анализирует упавшие тесты через байесовский метод."""
     if not failed_tests:
         return
