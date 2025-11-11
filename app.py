@@ -1180,17 +1180,17 @@ async def favicon() -> Response:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/api/v1/health")
-async def health_v1() -> dict[str, str]:
+async def health_v1() -> Dict[str, str]:
     return {"status": "ok"}
 
 
 @app.get("/metrics")
-async def metrics() -> dict[str, str]:
+async def metrics() -> Dict[str, str]:
     """Prometheus metrics endpoint."""
     # if generate_latest:
     #     return Response(generate_latest(), media_type="text/plain")
@@ -1198,7 +1198,7 @@ async def metrics() -> dict[str, str]:
 
 
 @app.get("/privacy")
-async def privacy() -> dict[str, str]:
+async def privacy() -> Dict[str, str]:
     """Privacy policy endpoint."""
     return {
         "privacy_policy": (

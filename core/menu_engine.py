@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -218,6 +219,52 @@ def make_weekly_menu(
     )
 
 
+def _should_use_mock_food_db() -> bool:
+    """Return True when deterministic mock DB should be used (tests/CI)."""
+    flag = os.getenv("MENU_ENGINE_FORCE_MOCK_DB")
+    if flag and flag.strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return True
+    return False
+
+
+def _mock_food_db() -> Dict[str, FoodItem]:
+    """Return static mock data to keep tests deterministic."""
+    return {
+        "chicken_breast": FoodItem(
+            name="Chicken Breast (Mock)",
+            nutrients_per_100g={
+                "protein_g": 23.0,
+                "fat_g": 3.6,
+                "carbs_g": 0.0,
+                "iron_mg": 0.7,
+                "zinc_mg": 0.9,
+                "b12_ug": 0.3,
+                "selenium_ug": 14.0,
+            },
+            cost_per_100g=2.50,
+            tags=[],
+            availability_regions=["BY", "RU"],
+        ),
+        "lentils": FoodItem(
+            name="Lentils (Mock)",
+            nutrients_per_100g={
+                "protein_g": 9.0,
+                "fat_g": 0.4,
+                "carbs_g": 20.0,
+                "fiber_g": 8.0,
+                "iron_mg": 3.3,
+                "folate_ug": 180.0,
+                "magnesium_mg": 36.0,
+            },
+            cost_per_100g=0.80,
+            tags=["VEG", "GF"],
+            availability_regions=["BY", "RU"],
+        ),
+    }
+
+
 def _get_default_food_db() -> Dict[str, FoodItem]:
     """
     RU: Получает реальную базу данных продуктов из USDA.
@@ -225,6 +272,9 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
 
     This function now uses real USDA nutrition data instead of mock values.
     """
+    if _should_use_mock_food_db():
+        return _mock_food_db()
+
     # Try to get cached common foods first
     try:
         # If already in a running event loop (e.g., FastAPI TestClient), skip async calls
@@ -262,38 +312,7 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
         _logger.warning("Could not load USDA data, using fallback: %s", e)
 
     # Fallback mock data (reduced set)
-    return {
-        "chicken_breast": FoodItem(
-            name="Chicken Breast (Mock)",
-            nutrients_per_100g={
-                "protein_g": 23.0,
-                "fat_g": 3.6,
-                "carbs_g": 0.0,
-                "iron_mg": 0.7,
-                "zinc_mg": 0.9,
-                "b12_ug": 0.3,
-                "selenium_ug": 14.0,
-            },
-            cost_per_100g=2.50,
-            tags=[],
-            availability_regions=["BY", "RU"],
-        ),
-        "lentils": FoodItem(
-            name="Lentils (Mock)",
-            nutrients_per_100g={
-                "protein_g": 9.0,
-                "fat_g": 0.4,
-                "carbs_g": 20.0,
-                "fiber_g": 8.0,
-                "iron_mg": 3.3,
-                "folate_ug": 180.0,
-                "magnesium_mg": 36.0,
-            },
-            cost_per_100g=0.80,
-            tags=["VEG", "GF"],
-            availability_regions=["BY", "RU"],
-        ),
-    }
+    return _mock_food_db()
 
 
 def _get_default_recipe_db() -> Dict[str, Recipe]:

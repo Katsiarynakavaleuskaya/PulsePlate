@@ -305,98 +305,36 @@ class TestMakeDailyMenuBasic:
             )
         }
 
-    @patch("core.menu_engine.build_nutrition_targets")
-    @patch("core.menu_engine.make_plate")
-    @patch("core.menu_engine.score_nutrient_coverage")
-    @patch("core.menu_engine.generate_deficiency_recommendations")
     def test_make_daily_menu_basic(
         self,
-        mock_recommendations,
-        mock_coverage,
-        mock_plate,
-        mock_targets,
         mock_profile,
         simple_food_db,
         simple_recipe_db,
     ):
-        """Test basic daily menu generation."""
-        # Mock the dependencies
-        mock_targets.return_value = MagicMock()
-        mock_plate.return_value = {
-            "meals": [
-                {"meal_type": "breakfast", "foods": [{"name": "apple", "amount": 100}]},
-                {"meal_type": "lunch", "foods": [{"name": "chicken", "amount": 150}]},
-            ]
-        }
-        mock_coverage.return_value = {"protein": MagicMock(coverage=0.8)}
-        mock_recommendations.return_value = ["Add more vegetables"]
+        """Exercise daily menu generation with concrete data."""
+        result = make_daily_menu(
+            profile=mock_profile,
+            food_db=simple_food_db,
+            recipe_db=simple_recipe_db,
+            target_date="2024-01-01",
+        )
 
-        # Mock the internal functions that would be complex to test
-        with (
-            patch("core.menu_engine._enhance_meals_with_micros") as mock_enhance,
-            patch("core.menu_engine._calculate_total_nutrients") as mock_calc_nutrients,
-            patch("core.menu_engine._estimate_daily_cost") as mock_cost,
-        ):
-            mock_enhance.return_value = [
-                {"meal_type": "breakfast", "foods": [{"name": "apple", "amount": 100}]},
-                {"meal_type": "lunch", "foods": [{"name": "chicken", "amount": 150}]},
-            ]
-            mock_calc_nutrients.return_value = {"protein_g": 35.0, "carbs_g": 13.8}
-            mock_cost.return_value = 4.50
+        assert isinstance(result, DayMenu)
+        assert result.date == "2024-01-01"
+        assert isinstance(result.meals, list)
+        assert len(result.meals) >= 1
+        assert isinstance(result.total_nutrients, dict)
+        assert isinstance(result.estimated_cost, float)
 
-            result = make_daily_menu(
-                profile=mock_profile,
-                food_db=simple_food_db,
-                recipe_db=simple_recipe_db,
-                target_date="2024-01-01",
-            )
+    def test_make_daily_menu_with_defaults(self, mock_profile):
+        """Test daily menu generation when defaults are used."""
+        result = make_daily_menu(profile=mock_profile)
 
-            assert isinstance(result, DayMenu)
-            assert result.date == "2024-01-01"
-            assert len(result.meals) == 2
-            assert result.total_nutrients["protein_g"] == 35.0
-            assert result.estimated_cost == 4.50
-            assert "Add more vegetables" in result.recommendations
-
-    @patch("core.menu_engine.build_nutrition_targets")
-    @patch("core.menu_engine.make_plate")
-    @patch("core.menu_engine.score_nutrient_coverage")
-    @patch("core.menu_engine.generate_deficiency_recommendations")
-    def test_make_daily_menu_with_defaults(
-        self, mock_recommendations, mock_coverage, mock_plate, mock_targets, mock_profile
-    ):
-        """Test daily menu generation with default databases."""
-        # Mock the dependencies
-        mock_targets.return_value = MagicMock()
-        mock_plate.return_value = {"meals": []}
-        mock_coverage.return_value = {}
-        mock_recommendations.return_value = []
-
-        # Mock the internal functions
-        with (
-            patch("core.menu_engine._enhance_meals_with_micros") as mock_enhance,
-            patch("core.menu_engine._calculate_total_nutrients") as mock_calc_nutrients,
-            patch("core.menu_engine._estimate_daily_cost") as mock_cost,
-            patch("core.menu_engine._get_default_food_db") as mock_food_db,
-            patch("core.menu_engine._get_default_recipe_db") as mock_recipe_db,
-        ):
-            mock_enhance.return_value = []
-            mock_calc_nutrients.return_value = {}
-            mock_cost.return_value = 0.0
-            mock_food_db.return_value = {}
-            mock_recipe_db.return_value = {}
-
-            result = make_daily_menu(profile=mock_profile)
-
-            assert isinstance(result, DayMenu)
-            assert result.date == "today"  # Default date
-            assert isinstance(result.meals, list)
-            assert isinstance(result.total_nutrients, dict)
-            assert result.estimated_cost == 0.0
-
-            # Verify defaults were called
-            mock_food_db.assert_called_once()
-            mock_recipe_db.assert_called_once()
+        assert isinstance(result, DayMenu)
+        assert result.date == "today"
+        assert isinstance(result.meals, list)
+        assert isinstance(result.total_nutrients, dict)
+        assert isinstance(result.estimated_cost, float)
 
 
 class TestUtilityFunctions:

@@ -176,10 +176,13 @@ def app(app_module: ModuleType) -> FastAPI:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
 
-    if hasattr(app_module.app, "dependency_overrides") and hasattr(app_module, "get_api_key"):
-        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
+    app_instance = getattr(app_module, "app", None)
+    if not isinstance(app_instance, FastAPI):
+        raise RuntimeError("app_module.app is not initialised")
+    if hasattr(app_module, "get_api_key"):
+        app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
-    return cast(FastAPI, app_module.app)
+    return cast(FastAPI, app_instance)
 
 
 @pytest.fixture

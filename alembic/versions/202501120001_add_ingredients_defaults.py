@@ -21,8 +21,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """RU: Добавить server_default для колонки ingredients в таблице recipes.
-    EN: Add server_default for ingredients column in recipes table."""
+    """RU: Обновить server_default для колонки ingredients для совместимости диалектов.
+    EN: Update ingredients column server_default for dialect compatibility."""
     # Determine database type for proper JSON default syntax
     bind = op.get_bind()
     dialect_name = bind.dialect.name
