@@ -9,7 +9,9 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+import app
 from app.dependencies import get_recipe_synthesizer
+from app.routers import vip as vip_router
 from core.recipe_synth import RecipeSynthesizer
 from tests.conftest_app import assert_vip_response
 
@@ -24,7 +26,7 @@ class TestVIPCoverageWorkingExtended:
         client = test_client
 
         # Mock get_available_regions to return success
-        with patch("app.routers.vip.get_available_regions", return_value=["ES", "US"]):
+        with patch.object(vip_router, "get_available_regions", return_value=["ES", "US"]):
             response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
             assert_vip_response(
                 response,
@@ -40,7 +42,9 @@ class TestVIPCoverageWorkingExtended:
         client = test_client
 
         # Mock get_available_regions to raise exception
-        with patch("app.routers.vip.get_available_regions", side_effect=Exception("Region error")):
+        with patch.object(
+            vip_router, "get_available_regions", side_effect=Exception("Region error")
+        ):
             response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
             assert_vip_response(
                 response,
@@ -49,8 +53,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_region_search_success_coverage(self):
         """Test VIP region search success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock search_products to return success
@@ -69,7 +71,7 @@ class TestVIPCoverageWorkingExtended:
         mock_search_result = MagicMock()
         mock_search_result.products = [mock_product]
 
-        with patch("app.routers.vip.search_products", return_value=mock_search_result):
+        with patch.object(vip_router, "search_products", return_value=mock_search_result):
             response = client.get(
                 "/api/v1/vip/regions/ES/search?query=milk&category=dairy&max_results=10",
                 headers={"X-API-Key": "test-key"},
@@ -83,12 +85,10 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_region_search_error_coverage(self):
         """Test VIP region search error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock search_products to raise exception
-        with patch("app.routers.vip.search_products", side_effect=Exception("Search error")):
+        with patch.object(vip_router, "search_products", side_effect=Exception("Search error")):
             response = client.get(
                 "/api/v1/vip/regions/ES/search?query=milk", headers={"X-API-Key": "test-key"}
             )
@@ -100,8 +100,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_region_categories_success_coverage(self):
         """Test VIP region categories success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint returns success when core modules are available
@@ -117,12 +115,12 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_region_categories_error_coverage(self):
         """Test VIP region categories error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock get_region_catalog to raise exception
-        with patch("app.routers.vip.get_region_catalog", side_effect=Exception("Categories error")):
+        with patch.object(
+            vip_router, "get_region_catalog", side_effect=Exception("Categories error")
+        ):
             response = client.get(
                 "/api/v1/vip/regions/ES/categories", headers={"X-API-Key": "test-key"}
             )
@@ -134,8 +132,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_region_stores_success_coverage(self):
         """Test VIP region stores success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint returns success when core modules are available
@@ -149,12 +145,10 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_region_stores_error_coverage(self):
         """Test VIP region stores error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock get_region_catalog to raise exception
-        with patch("app.routers.vip.get_region_catalog", side_effect=Exception("Stores error")):
+        with patch.object(vip_router, "get_region_catalog", side_effect=Exception("Stores error")):
             response = client.get(
                 "/api/v1/vip/regions/ES/stores", headers={"X-API-Key": "test-key"}
             )
@@ -166,8 +160,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_price_comparison_success_coverage(self):
         """Test VIP price comparison success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint returns success when core modules are available
@@ -181,12 +173,10 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_price_comparison_error_coverage(self):
         """Test VIP price comparison error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock get_price_comparison to raise exception
-        with patch("app.routers.vip.get_price_comparison", side_effect=Exception("Price error")):
+        with patch.object(vip_router, "get_price_comparison", side_effect=Exception("Price error")):
             response = client.get(
                 "/api/v1/vip/regions/compare/milk", headers={"X-API-Key": "test-key"}
             )
@@ -198,13 +188,12 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_recipe_templates_success_coverage(self):
         """Test VIP recipe templates success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock get_recipe_templates to return success
-        with patch(
-            "app.routers.vip.get_recipe_templates",
+        with patch.object(
+            vip_router,
+            "get_recipe_templates",
             return_value={"templates": ["breakfast", "lunch"]},
         ):
             response = client.get(
@@ -218,8 +207,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_recipe_templates_error_coverage(self):
         """Test VIP recipe templates error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Create a mock synthesizer that raises exception when templates is accessed
@@ -254,13 +241,12 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_auto_repair_strategies_success_coverage(self):
         """Test VIP auto repair strategies success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock get_repair_strategies to return success
-        with patch(
-            "app.routers.vip.get_repair_strategies",
+        with patch.object(
+            vip_router,
+            "get_repair_strategies",
             return_value={"strategies": ["calorie", "protein"]},
         ):
             response = client.get(
@@ -274,12 +260,10 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_auto_repair_strategies_error_coverage(self):
         """Test VIP auto repair strategies error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock RepairStrategy to be None to trigger error response
-        with patch("app.routers.vip.RepairStrategy", None):
+        with patch.object(vip_router, "RepairStrategy", None):
             response = client.get(
                 "/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test-key"}
             )
@@ -291,13 +275,12 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_weekly_recipes_success_coverage(self):
         """Test VIP weekly recipes success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock synthesize_recipes_for_week to return success
-        with patch(
-            "app.routers.vip.synthesize_recipes_for_week",
+        with patch.object(
+            vip_router,
+            "synthesize_recipes_for_week",
             return_value={"recipes": ["recipe1", "recipe2"]},
         ):
             response = client.post(
@@ -313,13 +296,11 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_weekly_recipes_error_coverage(self):
         """Test VIP weekly recipes error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock synthesize_recipes_for_week to raise exception
-        with patch(
-            "app.routers.vip.synthesize_recipes_for_week", side_effect=Exception("Recipes error")
+        with patch.object(
+            vip_router, "synthesize_recipes_for_week", side_effect=Exception("Recipes error")
         ):
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
@@ -333,8 +314,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_auto_repair_weekly_success_coverage(self):
         """Test VIP auto repair weekly success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint returns error when required MicronutrientTargets fields are missing
@@ -354,12 +333,12 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_auto_repair_weekly_error_coverage(self):
         """Test VIP auto repair weekly error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock auto_repair_week_plan to raise exception
-        with patch("app.routers.vip.auto_repair_week_plan", side_effect=Exception("Repair error")):
+        with patch.object(
+            vip_router, "auto_repair_week_plan", side_effect=Exception("Repair error")
+        ):
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json={"menu": {"days": []}},
@@ -373,13 +352,12 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_auto_repair_suggestions_success_coverage(self):
         """Test VIP auto repair suggestions success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock get_repair_suggestions to return success
-        with patch(
-            "app.routers.vip.get_repair_suggestions",
+        with patch.object(
+            vip_router,
+            "get_repair_suggestions",
             return_value={"suggestions": ["add protein", "reduce carbs"]},
             create=True,
         ):
@@ -396,8 +374,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_auto_repair_suggestions_error_coverage(self):
         """Test VIP auto repair suggestions error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint always returns success in echo mode, so no mock needed
@@ -413,8 +389,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_recipes_synthesize_success_coverage(self):
         """Test VIP recipes synthesize success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint always returns success in echo mode, so no mock needed
@@ -429,8 +403,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_recipes_synthesize_error_coverage(self):
         """Test VIP recipes synthesize error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint always returns success in echo mode, so no mock needed
@@ -445,8 +417,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_recipe_synthesize_success_coverage(self):
         """Test VIP recipe synthesize success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint always returns success in echo mode, so no mock needed
@@ -461,8 +431,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_recipe_synthesize_error_coverage(self):
         """Test VIP recipe synthesize error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint always returns success in echo mode, so no mock needed
@@ -477,13 +445,11 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_menu_weekly_repair_success_coverage(self):
         """Test VIP menu weekly repair success coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # Mock auto_repair_menu to return success
-        with patch(
-            "app.routers.vip.auto_repair_menu", return_value={"repaired": True}, create=True
+        with patch.object(
+            vip_router, "auto_repair_menu", return_value={"repaired": True}, create=True
         ):
             response = client.post(
                 "/api/v1/vip/menu/weekly/repair",
@@ -498,8 +464,6 @@ class TestVIPCoverageWorkingExtended:
 
     def test_vip_menu_weekly_repair_error_coverage(self):
         """Test VIP menu weekly repair error coverage."""
-        import app
-
         client = TestClient(cast(ASGIApp, app.app))
 
         # The endpoint always returns success in echo mode, so no mock needed

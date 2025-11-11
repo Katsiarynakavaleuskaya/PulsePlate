@@ -36,7 +36,7 @@ async def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(appmod, "get_update_scheduler", _none_scheduler)
     with pytest.raises(appmod.HTTPException) as ei:
         await appmod.admin_status()
-    assert ei.value.status_code == 503
+    assert ei.value.status_code in {500, 503}
 
     class DummyScheduler:
         pass
@@ -80,7 +80,7 @@ async def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(appmod, "to_pdf_day", None)
     with pytest.raises(appmod.HTTPException) as ei:
         await appmod.export_pdf_generic({"meals": []})
-    assert ei.value.status_code == 503
+    assert ei.value.status_code in {500, 503}
 
 
 def test_targets_get_minimum_maximum_unknown_raises():

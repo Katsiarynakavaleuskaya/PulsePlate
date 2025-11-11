@@ -372,21 +372,39 @@ def pytest_configure(config: Config) -> None:
     """Конфигурация pytest plugin."""
     if not hasattr(config, "bayesian_plugin"):
         config.bayesian_plugin = BayesianPytestPlugin()
+    if getattr(config, "_bayesian_plugin_registered", False):
+        return
+    try:
+        config.pluginmanager.register(config.bayesian_plugin, name="bayesian_pytest_plugin")
+    except ValueError:
+        # Already registered elsewhere - mark as registered to avoid duplicate hook calls
+        setattr(config, "_bayesian_plugin_registered", True)
+    except Exception:
+        # Ignore other registration failures; fall back to module-level hooks
+        return
+    else:
+        setattr(config, "_bayesian_plugin_registered", True)
 
 
 def pytest_runtest_setup(item: Item) -> None:
     """Хук для настройки теста."""
-    if hasattr(item.config, "bayesian_plugin"):
+    if hasattr(item.config, "bayesian_plugin") and not getattr(
+        item.config, "_bayesian_plugin_registered", False
+    ):
         item.config.bayesian_plugin.pytest_runtest_setup(item)
 
 
 def pytest_runtest_teardown(item: Item, nextitem: Optional[Item]) -> None:
     """Хук для завершения теста."""
-    if hasattr(item.config, "bayesian_plugin"):
+    if hasattr(item.config, "bayesian_plugin") and not getattr(
+        item.config, "_bayesian_plugin_registered", False
+    ):
         item.config.bayesian_plugin.pytest_runtest_teardown(item, nextitem)
 
 
 def pytest_runtest_logreport(report: Any) -> None:
     """Хук для отчета о тесте."""
-    if hasattr(report.config, "bayesian_plugin"):
+    if hasattr(report.config, "bayesian_plugin") and not getattr(
+        report.config, "_bayesian_plugin_registered", False
+    ):
         report.config.bayesian_plugin.pytest_runtest_logreport(report)

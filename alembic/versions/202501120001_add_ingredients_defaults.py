@@ -29,8 +29,8 @@ def upgrade() -> None:
 
     # Use database-specific JSON default syntax
     if dialect_name == "postgresql":
-        # PostgreSQL requires explicit JSON/JSONB cast
-        json_default = text("'{}'::jsonb")
+        # PostgreSQL requires explicit JSON cast for JSON columns
+        json_default = text("'{}'::json")
     elif dialect_name == "mysql":
         # MySQL 8.0.13+ supports JSON literals directly
         json_default = text("('{}')")

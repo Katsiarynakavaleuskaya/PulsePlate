@@ -7,6 +7,7 @@ EN: Combined tests for app error handling: critical lines coverage and exception
 These tests cover critical uncovered lines in main.py and exception handler coverage.
 """
 
+import sys
 from typing import NoReturn
 from unittest.mock import patch
 
@@ -135,37 +136,62 @@ class TestAppExceptionHandlersCoverage:
         if app.app is None:
             pytest.skip("app.app is None - cannot run integration test")
 
-        with patch.dict(
-            app.app.dependency_overrides, {app.get_api_key: _fail_api_key}, clear=False
-        ):
-            response = client.post(
-                "/api/v1/insight",
-                json={"text": "test"},
-                headers={"X-API-Key": "test_key"},
-            )
+        dependency = None
+        for route in client.app.routes:
+            endpoint = getattr(route, "endpoint", None)
+            if endpoint is not None and endpoint.__name__ == "insight_v1":
+                for dep in getattr(route, "dependant", object()).dependencies:  # type: ignore[arg-type]
+                    if getattr(dep.call, "__name__", "") == "_get_api_key_dynamic":
+                        dependency = dep.call
+                        break
+            if dependency is not None:
+                break
+        if dependency is None:
+            dependency = app._get_api_key_dynamic
+
+        client.app.dependency_overrides[dependency] = _fail_api_key
+        try:
+            with TestClient(client.app, raise_server_exceptions=False) as error_client:
+                response = error_client.post(
+                    "/api/v1/insight",
+                    json={"text": "test"},
+                    headers={"X-API-Key": "test_key"},
+                )
+        finally:
+            client.app.dependency_overrides.pop(dependency, None)
         # Runtime error can result in either 500 (internal error) or 503 (service unavailable)
         assert response.status_code in [500, 503]
 
     def test_connection_error_handler(self, client: TestClient) -> None:
-        """Test connection error handler coverage"""
-        # Test with insight endpoint that makes external LLM calls
-        with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectError("Connection failed")):
+        """Test connection error handler coverage."""
+
+        class FailingProvider:
+            name = "test"
+
+            async def generate(self, _: str) -> str:  # pragma: no cover - invoked in test
+                raise httpx.ConnectError("Connection failed")
+
+        with patch("llm.get_provider", return_value=FailingProvider()):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
                 headers={"X-API-Key": "test_key"},
             )
-            # Should handle connection error gracefully
             assert response.status_code in [500, 503, 502]
 
     def test_timeout_error_handler(self, client: TestClient) -> None:
-        """Test timeout error handler coverage"""
-        # Test with insight endpoint that makes external LLM calls
-        with patch("httpx.AsyncClient.post", side_effect=httpx.ReadTimeout("Request timeout")):
+        """Test timeout error handler coverage."""
+
+        class SlowProvider:
+            name = "test"
+
+            async def generate(self, _: str) -> str:  # pragma: no cover - invoked in test
+                raise httpx.ReadTimeout("Request timeout")
+
+        with patch("llm.get_provider", return_value=SlowProvider()):
             response = client.post(
                 "/api/v1/insight",
                 json={"text": "test"},
                 headers={"X-API-Key": "test_key"},
             )
-            # Should handle timeout error gracefully - expect 503 Service Unavailable
             assert response.status_code == 503

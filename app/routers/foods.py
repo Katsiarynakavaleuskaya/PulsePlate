@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
@@ -10,12 +11,12 @@ router = APIRouter(tags=["foods"])
 
 
 @router.get("/api/v1/foods", response_model=List[FoodHit])
-def list_foods(
+async def list_foods(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[FoodHit]:
     if limit > 100 or limit < 1:
         raise HTTPException(422, "limit must be in [1,100]")
-    rows = food_store.search_foods(query, limit, offset)
+    rows = await asyncio.to_thread(food_store.search_foods, query, limit, offset)
     return [
         FoodHit(
             id=r["id"],
@@ -31,16 +32,17 @@ def list_foods(
 
 # Backward-compatible alias for tests expecting /api/v1/foods/search
 @router.get("/api/v1/foods/search", response_model=List[FoodHit])
-def list_foods_search(
+async def list_foods_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[FoodHit]:
-    result: List[FoodHit] = list_foods(query=query, limit=limit, offset=offset)
-    return result
+    # Explicitly call list_foods to ensure type inference
+    foods: List[FoodHit] = await list_foods(query=query, limit=limit, offset=offset)
+    return foods
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
-def get_food(food_id: str) -> FoodItem:
-    row = food_store.get_food(food_id)
+async def get_food(food_id: str) -> FoodItem:
+    row = await asyncio.to_thread(food_store.get_food, food_id)
     if not row:
         raise HTTPException(status_code=404, detail="Food not found")
     return FoodItem(**row)

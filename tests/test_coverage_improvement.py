@@ -109,7 +109,8 @@ class TestCoverageImprovement:
             patch("llm.get_provider", return_value=None),
         ):
             response = self.client.post("/insight", json={"text": "test"})
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.json()["provider"] == "stub"
 
     def test_scheduler_uncovered_lines(self):
         """Test uncovered lines in scheduler.py."""

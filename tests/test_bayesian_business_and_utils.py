@@ -291,6 +291,20 @@ def test_has_explicit_return_or_yield_false() -> None:
     assert _has_explicit_return_or_yield(func_node) is False
 
 
+def test_has_explicit_return_or_yield_multiline_return() -> None:
+    """Ensure helper detects return with value when using line continuation."""
+
+    func_node = ast.parse("def helper():\n    return \\\n        1\n").body[0]
+    assert _has_explicit_return_or_yield(func_node) is True
+
+
+def test_has_explicit_return_or_yield_comment_return() -> None:
+    """Ensure helper ignores return statements followed by inline comments."""
+
+    func_node = ast.parse("def helper():\n    return  # comment\n").body[0]
+    assert _has_explicit_return_or_yield(func_node) is False
+
+
 def test_analyze_technical_aspects_ast() -> None:
     """RU/EN: Cover AST path of analyze_technical_aspects_common."""
 

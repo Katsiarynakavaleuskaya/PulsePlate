@@ -17,20 +17,10 @@ from app import app
 
 
 @pytest.fixture(autouse=True)
-def setup_test_env() -> Generator[None, None, None]:
+def setup_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Autouse fixture that sets up test environment variables."""
-    os.environ["API_KEY"] = "test_key"
-    os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-    yield
-    # Cleanup
-    os.environ.pop("API_KEY", None)
-    os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
-
-
-@pytest.fixture
-def client() -> TestClient:
-    """Fixture that creates TestClient for test classes."""
-    return TestClient(cast(ASGIApp, app))
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
 @pytest.mark.slow
@@ -305,8 +295,10 @@ class TestInsightEndpoints:
             patch("llm.get_provider", return_value=None),
         ):
             response = self.client.post("/insight", json={"text": "test"})
-            assert response.status_code == 503
-            assert "No LLM provider configured" in response.json()["detail"]
+            assert response.status_code == 200
+            data = response.json()
+            assert data["provider"] == "stub"
+            assert "LLM provider not configured" in data["insight"]
 
     def test_insight_endpoint_provider_unavailable(self):
         """Test insight endpoint with provider unavailable."""
@@ -323,7 +315,7 @@ class TestInsightEndpoints:
 
     def test_insight_endpoint_success(self):
         """Test successful insight endpoint."""
-        mock_provider = Mock()
+        mock_provider = AsyncMock()
         mock_provider.generate.return_value = "Generated insight"
         mock_provider.name = "test_provider"
 
@@ -332,11 +324,12 @@ class TestInsightEndpoints:
             patch("llm.get_provider", return_value=mock_provider),
         ):
             response = self.client.post("/insight", json={"text": "test query"})
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.json()["insight"] == "Generated insight"
 
     def test_api_v1_insight_success(self):
         """Test API v1 insight endpoint with API key."""
-        mock_provider = Mock()
+        mock_provider = AsyncMock()
         mock_provider.generate.return_value = "Generated insight"
         mock_provider.name = "test_provider"
 
@@ -348,7 +341,8 @@ class TestInsightEndpoints:
             response = self.client.post(
                 "/api/v1/insight", json={"text": "test query"}, headers=headers
             )
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.json()["insight"] == "Generated insight"
 
     def test_api_v1_insight_no_llm_module(self):
         """Test API v1 insight when LLM module not available."""
@@ -361,7 +355,7 @@ class TestInsightEndpoints:
                 "/api/v1/insight", json={"text": "test query"}, headers=headers
             )
             assert response.status_code == 503
-            assert "FEATURE_INSIGHT is disabled" in response.json()["detail"]
+            assert "LLM module is not available" in response.json()["detail"]
 
 
 class TestPremiumEndpoints:

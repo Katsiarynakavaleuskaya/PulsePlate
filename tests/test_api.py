@@ -285,9 +285,10 @@ def test_api_insight_provider_none(mock_get_provider, client):
     response = client.post(
         "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
-    assert response.status_code == 503
+    assert response.status_code == 200
     data = response.json()
-    assert "No LLM provider configured" in data["detail"]
+    assert data["provider"] == "stub"
+    assert "LLM provider not configured" in data["insight"]
 
     # Восстанавливаем переменные окружения
     if original_feature is not None:

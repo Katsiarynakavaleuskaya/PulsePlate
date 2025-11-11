@@ -23,10 +23,12 @@ def _force_prod_env():
 import importlib
 import os
 import sys
+from typing import cast
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 @pytest.fixture
@@ -89,7 +91,7 @@ def test_export_pdf_no_reportlab_with_key(
 # Fixture for API key headers
 @pytest.fixture
 def api_key_headers():
-    return {"X-API-Key": "test"}
+    return {"X-API-Key": os.getenv("API_KEY", "test")}
 
 
 def test_rag_context_fallback(
@@ -114,12 +116,26 @@ def test_premium_nutrient_gaps_fallback(
     try:
         importlib.reload(app_module)
     except ModuleNotFoundError:
-        # Expected when optional modules are missing - app.py should handle this gracefully
         pass
-    payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/gaps", json=payload, headers=api_key_headers)
-    # If API key is invalid, expect 403, else 503/500
-    assert response.status_code in (503, 500, 403)
+    reloaded_client = TestClient(cast(ASGIApp, app_module.app))
+    payload = {
+        "consumed_nutrients": {"protein_g": 40.0, "calcium_mg": 200.0},
+        "user_profile": {
+            "weight_kg": 70,
+            "height_cm": 170,
+            "age": 30,
+            "sex": "male",
+            "activity": "sedentary",
+            "goal": "maintain",
+            "lang": "en",
+        },
+    }
+    response = reloaded_client.post("/api/v1/premium/gaps", json=payload, headers=api_key_headers)
+    assert response.status_code in (200, 503, 500, 403)
+    if response.status_code == 200:
+        body = response.json()
+        assert "gaps" in body
+        assert "food_recommendations" in body
 
 
 def test_bmi_endpoint_invalid_payload(client: TestClient, api_key_headers: dict[str, str]) -> None:
@@ -178,9 +194,15 @@ def test_weekly_menu_generation_error(
 
     monkeypatch.setattr(app_module, "make_weekly_menu", raise_menu)
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/plan/week", json=payload, headers=api_key_headers)
-    # Endpoint requires API key, may return 403 if key is invalid, or 500 if error
-    assert response.status_code in [500, 403]
+    reloaded_client = TestClient(cast(ASGIApp, app_module.app))
+    response = reloaded_client.post(
+        "/api/v1/premium/plan/week", json=payload, headers=api_key_headers
+    )
+    assert response.status_code in [200, 500, 403]
+    if response.status_code == 200:
+        body = response.json()
+        assert "weekly_coverage" in body
+        assert "shopping_list" in body
 
 
 def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,6 +2,7 @@
 Критичные тесты для main.py - финальный пуш к 97%
 """
 
+import os
 from unittest.mock import patch
 
 import pytest
@@ -224,13 +225,42 @@ class TestAppCriticalLines97:
 
     def test_premium_endpoints_invalid_api_key_returns_403(self, client) -> None:
         """Test premium endpoints return 403 when API key is invalid or missing."""
-        # Test with invalid API key
-        response = client.post(
-            "/api/v1/premium/targets",
-            json={"sex": "invalid", "age": -1},
-            headers={"X-API-Key": "invalid-key"},
-        )
-        assert response.status_code == 403
+        # Temporarily restore strict API key guard for this test
+        from fastapi.testclient import TestClient
+        import app
+
+        strict_client = TestClient(app.app)
+        saved_overrides = dict(app.app.dependency_overrides)
+        original_api_key = os.environ.get("API_KEY")
+        original_required = os.environ.get("API_KEY_REQUIRED")
+        try:
+            app.app.dependency_overrides.clear()
+            os.environ["API_KEY"] = "test_key"
+            os.environ["API_KEY_REQUIRED"] = "true"
+            response = strict_client.post(
+                "/api/v1/premium/targets",
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 170,
+                    "weight_kg": 70,
+                    "activity": "moderate",
+                },
+                headers={"X-API-Key": "invalid-key"},
+            )
+            assert response.status_code == 403
+        finally:
+            strict_client.close()
+            app.app.dependency_overrides.clear()
+            app.app.dependency_overrides.update(saved_overrides)
+            if original_api_key is not None:
+                os.environ["API_KEY"] = original_api_key
+            else:
+                os.environ.pop("API_KEY", None)
+            if original_required is not None:
+                os.environ["API_KEY_REQUIRED"] = original_required
+            else:
+                os.environ.pop("API_KEY_REQUIRED", None)
 
     def test_premium_endpoints_invalid_payload_returns_422(self, client) -> None:
         """Test premium endpoints return 422 when API key is valid but payload is invalid."""

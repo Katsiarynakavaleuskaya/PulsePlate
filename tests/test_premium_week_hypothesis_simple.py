@@ -11,7 +11,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from starlette.testclient import TestResponse
+from requests import Response as RequestsResponse
 
 import app as app_mod
 
@@ -39,7 +39,7 @@ class TestPremiumWeekHypothesisSimple:
 
     def _measure_response_time(
         self, url: str, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[TestResponse, float]:
+    ) -> Tuple[RequestsResponse, float]:
         """
         Measure API request execution time.
 

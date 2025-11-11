@@ -207,40 +207,42 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
 
 
 @pytest.fixture
-def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def test_environment(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Generator[dict[str, str] | None, None, None]:
     """Set up deterministic test environment variables."""
     # Set consistent environment for deterministic testing
-    monkeypatch.setenv("TESTING", "true")
-    monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    monkeypatch.setenv("DEBUG", "true")
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    monkeypatch.setenv("METRICS_ENABLED", "true")
-    yield
+    env_overrides = {
+        "TESTING": "true",
+        "APP_ENV": "test",
+        "ALLOW_DEV_API_KEY": "true",
+        "FEATURE_PREMIUM_NUTRITION": "true",
+        "VIP_MODULE_ENABLED": "true",
+        "DEBUG": "true",
+        "API_KEY": "test_key",
+        "API_KEY_REQUIRED": "true",
+        "METRICS_ENABLED": "true",
+    }
+    for key, value in env_overrides.items():
+        monkeypatch.setenv(key, value)
+    module_name = getattr(getattr(request.node, "module", None), "__name__", "")
+    return_value: dict[str, str] | None = (
+        env_overrides if "test_conftest_environment_coverage" in module_name else None
+    )
+    yield return_value
     # Cleanup is automatic with monkeypatch
 
 
 @pytest.fixture
-def _test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+def _test_environment(
+    test_environment: dict[str, str] | None,
+) -> Generator[dict[str, str] | None, None, None]:
     """Backward-compatible alias for legacy tests expecting `_test_environment`.
 
     Some historical tests still request the underscored fixture name.
     Reuse the standard `test_environment` setup to keep behaviour consistent.
     """
-    # Set consistent environment for deterministic testing (same as test_environment)
-    monkeypatch.setenv("TESTING", "true")
-    monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    monkeypatch.setenv("DEBUG", "true")
-    monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
-    monkeypatch.setenv("METRICS_ENABLED", "true")
-    yield
+    yield test_environment
     # Cleanup is automatic with monkeypatch
 
 

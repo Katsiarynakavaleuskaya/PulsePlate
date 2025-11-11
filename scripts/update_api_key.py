@@ -84,7 +84,7 @@ def _read_api_key(
             f"API key must be non-empty, start with '{prefix}', be between {min_len}-{max_len} characters, "
             "and contain only allowed characters."
         )
-        logger.debug("API key validation failed: %s", detailed_msg)
+        logger.debug("API key validation failed: key is empty")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if not api_key.startswith(prefix):
@@ -93,7 +93,7 @@ def _read_api_key(
             f"API key length: {len(api_key)} characters. "
             f"API keys must start with '{prefix}' prefix."
         )
-        logger.debug("API key validation failed: %s", detailed_msg)
+        logger.debug("API key validation failed: invalid prefix")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if len(api_key) < min_len:
@@ -101,7 +101,7 @@ def _read_api_key(
             f"Invalid API key from {key_source}: key is too short ({len(api_key)} characters). "
             f"API key must be at least {min_len} characters long."
         )
-        logger.debug("API key validation failed: %s", detailed_msg)
+        logger.debug("API key validation failed: key too short")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if len(api_key) > max_len:
@@ -109,7 +109,7 @@ def _read_api_key(
             f"Invalid API key from {key_source}: key is too long ({len(api_key)} characters). "
             f"API key must be no longer than {max_len} characters."
         )
-        logger.debug("API key validation failed: %s", detailed_msg)
+        logger.debug("API key validation failed: key too long")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     # Check allowed characters
@@ -121,7 +121,7 @@ def _read_api_key(
             f"Found invalid characters: {set(invalid_chars)}. "
             f"API key must contain only allowed characters: {allowed_chars_str}."
         )
-        logger.debug("API key validation failed: %s", detailed_msg)
+        logger.debug("API key validation failed: invalid characters detected")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     return api_key
@@ -153,8 +153,6 @@ def main() -> None:
             print(f"❌ Unexpected error while updating API key: {type(error).__name__}: {error}")
             sys.exit(1)
 
-        # Success message
-        print("✅ API key updated successfully!")
         sys.exit(0)
 
     except KeyboardInterrupt:

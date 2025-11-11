@@ -509,6 +509,7 @@ class TestPytestHooks:
         config = Mock()
         plugin = Mock(spec=BayesianPytestPlugin)
         config.bayesian_plugin = plugin
+        config._bayesian_plugin_registered = False
 
         item = Mock()
         item.config = config
@@ -532,6 +533,7 @@ class TestPytestHooks:
         config = Mock()
         plugin = Mock(spec=BayesianPytestPlugin)
         config.bayesian_plugin = plugin
+        config._bayesian_plugin_registered = False
 
         item = Mock()
         item.config = config
@@ -557,6 +559,7 @@ class TestPytestHooks:
         config = Mock()
         plugin = Mock(spec=BayesianPytestPlugin)
         config.bayesian_plugin = plugin
+        config._bayesian_plugin_registered = False
 
         report = Mock()
         report.config = config

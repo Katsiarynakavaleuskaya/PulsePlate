@@ -37,6 +37,8 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
         False otherwise (including bare "return" statements)
     """
 
+    root_node = node
+
     def _check_node(n: ast.AST) -> bool:
         """Recursively check node and its children, skipping nested function definitions."""
         # Check for return with value (not just "return" alone)
@@ -47,7 +49,7 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
             return True
 
         # Skip nested function definitions - don't recurse into their bodies
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n is not root_node:
             return False
 
         # Recursively check child nodes
