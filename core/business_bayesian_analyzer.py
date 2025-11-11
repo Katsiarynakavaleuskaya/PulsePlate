@@ -175,7 +175,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml  # type: ignore[import-untyped]
+                    import yaml
 
                     yaml_available = True
                 except ImportError:
@@ -183,7 +183,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment]
+                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment, name-defined]
                         return loaded
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error (file not found, parse error, etc.)
@@ -229,7 +229,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml  # type: ignore[import-untyped]
+                    import yaml
 
                     yaml_available = True
                 except ImportError:
@@ -237,7 +237,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment]
+                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment, name-defined]
                         return loaded
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
@@ -278,7 +278,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml  # type: ignore[import-untyped]
+                    import yaml
 
                     yaml_available = True
                 except ImportError:
@@ -286,7 +286,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment]
+                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment, name-defined]
                         return loaded
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
