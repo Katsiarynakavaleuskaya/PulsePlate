@@ -224,11 +224,11 @@ class BusinessBayesianAnalyzer:
         RU: Загружает стратегии монетизации из конфигурационного файла или возвращает значения по умолчанию.
         EN: Loads monetization strategies from config/monetization_strategies.yaml or returns hardcoded defaults.
         """
-        config_path = Path(__file__).parent.parent / "config" / "monetization_strategies.yaml"
+        config_path = Path(__file__).parent.parent / "config" / "cost_optimization_rules.yaml"
         if config_path.exists():
             try:
                 try:
-                    import yaml  # type: ignore[import-untyped]
+                    import yaml
 
                     yaml_available = True
                 except ImportError:
@@ -236,7 +236,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
+                        return yaml.safe_load(f) or {}  # type: ignore[no-untyped-call]
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
                 pass
