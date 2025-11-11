@@ -5,13 +5,13 @@ Uses property-based testing to maximize coverage without complex mocking.
 
 import os
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
-import requests
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from starlette.testclient import TestResponse
 
 import app as app_mod
 
@@ -39,7 +39,7 @@ class TestPremiumWeekHypothesisSimple:
 
     def _measure_response_time(
         self, url: str, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[requests.Response, float]:
+    ) -> tuple[TestResponse, float]:
         """
         Measure API request execution time.
 

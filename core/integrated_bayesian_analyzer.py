@@ -679,29 +679,23 @@ class IntegratedBayesianAnalyzer:
         """Генерирует системные рекомендации."""
         recommendations = []
 
-        # Анализируем общие паттерны проблем
-        all_technical = []
-        all_nutrition = []
-        all_safety = []
-        all_philosophy = []
-
-        for result in self.integrated_results:
-            all_technical.extend(result.technical_issues)
-            all_nutrition.extend(result.nutrition_issues)
-            all_safety.extend(result.safety_issues)
-            all_philosophy.extend(result.philosophy_violations)
+        # Count test records with at least one issue of each type
+        num_technical_tests = sum(1 for r in self.integrated_results if r.technical_issues)
+        num_nutrition_tests = sum(1 for r in self.integrated_results if r.nutrition_issues)
+        num_safety_tests = sum(1 for r in self.integrated_results if r.safety_issues)
+        num_philosophy_tests = sum(1 for r in self.integrated_results if r.philosophy_violations)
 
         # Рекомендации на основе частых проблем
-        if len(all_technical) > len(self.integrated_results) * self.TECHNICAL_THRESHOLD:
+        if num_technical_tests > len(self.integrated_results) * self.TECHNICAL_THRESHOLD:
             recommendations.append("Провести технический рефакторинг тестов")
 
-        if len(all_nutrition) > len(self.integrated_results) * self.NUTRITION_THRESHOLD:
+        if num_nutrition_tests > len(self.integrated_results) * self.NUTRITION_THRESHOLD:
             recommendations.append("Усилить проверки безопасности питания")
 
-        if len(all_safety) > len(self.integrated_results) * self.SAFETY_THRESHOLD:
+        if num_safety_tests > len(self.integrated_results) * self.SAFETY_THRESHOLD:
             recommendations.append("Провести аудит безопасности данных")
 
-        if len(all_philosophy) > len(self.integrated_results) * self.PHILOSOPHY_THRESHOLD:
+        if num_philosophy_tests > len(self.integrated_results) * self.PHILOSOPHY_THRESHOLD:
             recommendations.append("Обновить тесты в соответствии с философией системы")
 
         return recommendations

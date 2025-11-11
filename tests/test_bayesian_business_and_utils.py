@@ -15,7 +15,6 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -85,9 +84,9 @@ class DummyItem:
         self,
         name: str,
         path: str,
-        markers: List[str] | None = None,
+        markers: list[str] | None = None,
         is_async: bool = False,
-        fixturenames: List[str] | None = None,
+        fixturenames: list[str] | None = None,
         source: str = "",
     ) -> None:
         self.name = name
@@ -723,7 +722,7 @@ def test_integrated_bayesian_analyzer_custom_assessment(monkeypatch: pytest.Monk
         ],
     )
 
-    def fake_analyze_safety(code: str, name: str) -> List[str]:
+    def fake_analyze_safety(code: str, name: str) -> list[str]:
         return ["Logging sensitive data", "open without context"]
 
     monkeypatch.setattr(analyzer, "_analyze_safety_aspects", fake_analyze_safety)

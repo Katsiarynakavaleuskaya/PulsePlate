@@ -78,4 +78,4 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
     # api_premium_plate recalculates kcal from goal-adjusted TDEE (goal=loss with 15% deficit
     # from TDEE=2000 → ~1700-1900) rather than relying on the mocked plate.kcal
     # The exact value depends on the plate algorithm, so we check it's in a reasonable range
-    assert 1700 <= response.kcal <= 2100
+    assert 1700 <= response.kcal <= 1900

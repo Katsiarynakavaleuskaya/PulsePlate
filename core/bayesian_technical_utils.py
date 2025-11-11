@@ -57,6 +57,8 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
                 if _check_node(stmt):
                     return True
         # Also check other statement lists like orelse, finalbody, etc.
+        # Note: orelse and finalbody contain statements (ast.stmt), while handlers
+        # contains exception handlers (ast.excepthandler), not expressions
         for attr_name in ["orelse", "finalbody", "handlers"]:
             if hasattr(n, attr_name):
                 attr_value = getattr(n, attr_name)
@@ -64,9 +66,8 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
                     for stmt in attr_value:
                         if _check_node(stmt):
                             return True
-                elif isinstance(attr_value, ast.expr):
-                    if _check_node(attr_value):
-                        return True
+                # These attributes contain statements or handlers, not expressions
+                # The ast.expr branch was incorrect and is removed
 
         # For other nodes, check all children (but nested functions are already skipped above)
         for child in ast.iter_child_nodes(n):

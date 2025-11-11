@@ -18,6 +18,7 @@ from typing import (
     Literal,
     Optional,
     Union,
+    cast,
 )
 
 import dotenv
@@ -109,7 +110,7 @@ def _calculate_all_bmr_wrapper(
     """Wrapper for calculate_all_bmr to support mocking in tests"""
     if calculate_all_bmr is None:
         raise ImportError("nutrition_core module not available")
-    return calculate_all_bmr(weight_kg, height_cm, age, sex, bodyfat)
+    return calculate_all_bmr(weight_kg, height_cm, age, sex, bodyfat)  # type: ignore[arg-type]
 
 
 def _calculate_all_tdee_wrapper(
@@ -118,7 +119,7 @@ def _calculate_all_tdee_wrapper(
     """Wrapper for calculate_all_tdee to support mocking in tests"""
     if calculate_all_tdee is None:
         raise ImportError("nutrition_core module not available")
-    return calculate_all_tdee(bmr_results, activity)
+    return calculate_all_tdee(bmr_results, activity)  # type: ignore[arg-type]
 
 
 async def get_update_scheduler() -> Any:
@@ -138,9 +139,6 @@ logger = logging.getLogger(__name__)
 _MAX_SAFETY_FAILURES = int(os.getenv("MAX_SAFETY_FAILURES", "10"))
 _safety_failure_count = 0
 _safety_failure_lock = threading.Lock()
-
-# Module-level fallback database URL (set during startup fallback, avoids mutating os.environ)
-_fallback_database_url: Optional[str] = None
 
 
 # Lifespan event handler
@@ -179,9 +177,9 @@ async def lifespan(app: FastAPI):
 
         fallback_ok = False
         try:
-            # Set module-level fallback variable instead of mutating os.environ
-            global _fallback_database_url
-            _fallback_database_url = fallback_url
+            # Set DB_FALLBACK_URL environment variable so _build_engine_url can read it
+            # This is set before reloading core.db so the module-level call picks it up
+            os.environ["DB_FALLBACK_URL"] = fallback_url
 
             # Reload core.db module to pick up the fallback URL
             # This recreates the engine with the fallback URL
@@ -213,7 +211,8 @@ async def lifespan(app: FastAPI):
                 )
         except Exception as fallback_err:
             logger.error("In-memory fallback init_db() failed: %s", fallback_err)
-            _fallback_database_url = None  # Reset fallback on failure
+            # Reset fallback URL on failure
+            os.environ.pop("DB_FALLBACK_URL", None)
         if not fallback_ok:
             raise
 
@@ -293,7 +292,7 @@ def _is_truthy(value: Optional[str]) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def get_api_key(api_key: str = Depends(api_key_header)):
+def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     """API key guard with optional strict mode.
 
     - If API_KEY is set: strict equality check.
@@ -1386,7 +1385,8 @@ def _targets_disabled() -> bool:
         return False
     value = getattr(primary_app, "build_nutrition_targets", _TARGETS_SENTINEL)
     logger.debug(
-        "_targets_disabled: module_value_present=%s primary_attr_is_none=%s primary_id=%s primary_value=%r",
+        "_targets_disabled: module_value_present=%s primary_attr_is_none=%s "
+        "primary_id=%s primary_value=%r",
         module_value is not _TARGETS_SENTINEL,
         value is None,
         id(primary_app),
@@ -1460,7 +1460,7 @@ def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
         if build_targets_primary is None:
             return None
         if callable(build_targets_primary):
-            return build_targets_primary
+            return cast(Callable[..., Any], build_targets_primary)
 
     for candidate in (
         _sys.modules.get("app_module"),
@@ -1704,7 +1704,9 @@ DB_TO_ALIAS_NUTRIENT_MAP: Dict[str, str] = {
 
 
 def _convert_db_nutrients_to_alias_format(db_nutrients: Dict[str, float]) -> Dict[str, float]:
-    """Convert nutrient keys from DB format (Fe_mg, Ca_mg, etc.) to alias format (iron_mg, calcium_mg, etc.).
+    """Convert nutrient keys from DB format (Fe_mg, Ca_mg, etc.) to alias format.
+
+    Converts to alias format (iron_mg, calcium_mg, etc.).
 
     RU: Конвертирует ключи нутриентов из формата БД в формат алиасов.
     EN: Converts nutrient keys from DB format to alias format.
@@ -1734,7 +1736,8 @@ def _convert_db_nutrients_to_alias_format(db_nutrients: Dict[str, float]) -> Dic
             converted_value = float(value)
         except (ValueError, TypeError) as e:
             logger.warning(
-                "Failed to convert nutrient value for key '%s': db_key=%s, value=%r, type=%s, error=%s",
+                "Failed to convert nutrient value for key '%s': db_key=%s, "
+                "value=%r, type=%s, error=%s",
                 alias_key or db_key,
                 db_key,
                 value,
@@ -1787,13 +1790,15 @@ async def _aggregate_meal_micronutrients(
             grams = float(grams_raw) if grams_raw is not None else 0.0
         except (TypeError, ValueError):
             logger.debug(
-                f"Skipping ingredient '{food_id}' with invalid grams value '{grams_raw}' in meal '{meal_title}'"
+                f"Skipping ingredient '{food_id}' with invalid grams value "
+                f"'{grams_raw}' in meal '{meal_title}'"
             )
             continue
 
         if grams <= 0:
             logger.debug(
-                f"Skipping ingredient '{food_id}' with non-positive grams ({grams}) in meal '{meal_title}'"
+                f"Skipping ingredient '{food_id}' with non-positive grams ({grams}) "
+                f"in meal '{meal_title}'"
             )
             continue
 
@@ -1812,13 +1817,15 @@ async def _aggregate_meal_micronutrients(
                 per_g = float(per_g_raw) if per_g_raw is not None else DEFAULT_PER_G
             except (TypeError, ValueError):
                 logger.warning(
-                    f"Invalid per_g value '{per_g_raw}' for food '{food_id}' in meal '{meal_title}', using default {DEFAULT_PER_G}"
+                    f"Invalid per_g value '{per_g_raw}' for food '{food_id}' "
+                    f"in meal '{meal_title}', using default {DEFAULT_PER_G}"
                 )
                 per_g = DEFAULT_PER_G
 
             if per_g <= 0:
                 logger.warning(
-                    f"Non-positive per_g ({per_g}) for food '{food_id}' in meal '{meal_title}', using default {DEFAULT_PER_G}"
+                    f"Non-positive per_g ({per_g}) for food '{food_id}' "
+                    f"in meal '{meal_title}', using default {DEFAULT_PER_G}"
                 )
                 per_g = DEFAULT_PER_G
 
@@ -1903,7 +1910,8 @@ def _get_recipe_ingredients_for_meal(meal_title: str) -> List[Dict[str, Any]]:
         normalized_ingredients = []
         for ing in ingredients:
             if isinstance(ing, dict):
-                # Check for both possible formats: {"food_id": ..., "grams": ...} or {"id": ..., "grams": ...}
+                # Check for both possible formats:
+                # {"food_id": ..., "grams": ...} or {"id": ..., "grams": ...}
                 food_id = ing.get("food_id") or ing.get("id")
                 grams = ing.get("grams")
                 if food_id and grams is not None:
@@ -1926,7 +1934,8 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
     EN: Aggregates micronutrients from all meals for a day.
 
     Args:
-        meals: List of meal dictionaries, each potentially containing "micros", "ingredients", and "title".
+        meals: List of meal dictionaries, each potentially containing "micros",
+            "ingredients", and "title".
 
     Returns:
         Dictionary of aggregated micronutrients in alias format (iron_mg, calcium_mg, etc.)
@@ -2350,7 +2359,8 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             _candidates,
         )
         if callable(_aggregate_func):
-            day_micros = await _aggregate_func(plate_data["meals"])
+            # _aggregate_func is resolved dynamically and may be async
+            day_micros = await _aggregate_func(plate_data["meals"])  # type: ignore[awaitable-is-coroutine]
         else:
             logger.warning(
                 "premium_plate: _aggregate_day_micronutrients not callable (%s), using empty micros",
@@ -2654,12 +2664,17 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             notes.append(t(req.lang, "bmr_katch_note"))
 
         # Calculate recommended intake (using Mifflin as primary)
-        primary_tdee = tdee_results.get("mifflin", list(tdee_results.values())[0])
+        primary_tdee_value_raw: Any = tdee_results.get("mifflin", list(tdee_results.values())[0])
+        primary_tdee_value: int = (
+            int(primary_tdee_value_raw)
+            if isinstance(primary_tdee_value_raw, (int, float))
+            else 2000
+        )
 
         recommended_intake = {
-            "maintenance": primary_tdee,
-            "weight_loss": primary_tdee * 0.8,  # 20% deficit
-            "weight_gain": primary_tdee * 1.2,  # 20% surplus
+            "maintenance": primary_tdee_value,
+            "weight_loss": primary_tdee_value * 0.8,  # 20% deficit
+            "weight_gain": primary_tdee_value * 1.2,  # 20% surplus
         }
 
         return BMRResponse(

@@ -36,7 +36,7 @@ class TestCoreDB:
     def test_build_engine_url_default(self):
         """Test _build_engine_url with default SQLite path."""
         with patch.dict(os.environ, {}, clear=True):
-            url = _build_engine_url()
+            url = _build_engine_url(fallback_url=None)
             assert url.startswith("sqlite:///")
             assert "cache/app.db" in url
 
@@ -44,7 +44,7 @@ class TestCoreDB:
         """Test _build_engine_url with custom DATABASE_URL."""
         custom_url = "postgresql://user:pass@localhost/testdb"
         with patch.dict(os.environ, {"DATABASE_URL": custom_url}):
-            url = _build_engine_url()
+            url = _build_engine_url(fallback_url=None)
             assert url == custom_url
 
     def test_sqlite_connect_args_sqlite(self):
@@ -167,8 +167,24 @@ class TestCoreDB:
 
         for test_url in test_urls:
             with patch.dict(os.environ, {"DATABASE_URL": test_url}):
-                url = _build_engine_url()
+                url = _build_engine_url(fallback_url=None)
                 assert url == test_url
+
+    def test_build_engine_url_with_explicit_fallback(self):
+        """Test _build_engine_url with explicit fallback_url parameter."""
+        fallback = "sqlite:///:memory:"
+        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://localhost/test"}):
+            url = _build_engine_url(fallback_url=fallback)
+            assert url == fallback
+
+    def test_build_engine_url_with_env_fallback(self):
+        """Test _build_engine_url reading fallback from DB_FALLBACK_URL env var."""
+        fallback = "sqlite:///:memory:"
+        with patch.dict(
+            os.environ, {"DB_FALLBACK_URL": fallback, "DATABASE_URL": "postgresql://localhost/test"}
+        ):
+            url = _build_engine_url(fallback_url=None)
+            assert url == fallback
 
     def test_sqlite_file_path_creation(self):
         """Test SQLite file path handling."""

@@ -162,18 +162,24 @@ EOF
             # Use curl with timeout flags and separate status code capture
             # Write body to a temporary variable and status code separately
             temp_body=$(mktemp)
-            # Install trap to ensure temp file is cleaned up on exit or signals
-            trap 'rm -f "$temp_body"' EXIT INT TERM
+            temp_config=$(mktemp)
+            # Set restrictive permissions on config file (600 = owner read/write only)
+            chmod 600 "$temp_config"
+            # Write Authorization header to config file instead of command line
+            echo "header = \"Authorization: Bearer $api_key\"" > "$temp_config"
+            echo "header = \"Content-Type: application/json\"" >> "$temp_config"
+            # Install trap to ensure temp files are cleaned up on exit or signals
+            trap 'rm -f "$temp_body" "$temp_config"' EXIT INT TERM
             http_code=$(curl -s -w "%{http_code}" \
                 --max-time 10 \
                 --connect-timeout 5 \
-                -H "Authorization: Bearer $api_key" \
-                -H "Content-Type: application/json" \
+                --config "$temp_config" \
                 -o "$temp_body" \
                 https://api.openai.com/v1/models 2>&1) || http_code="000"
 
             body=$(cat "$temp_body" 2>/dev/null || echo "")
-            rm -f "$temp_body"
+            # Securely delete temp files immediately after use
+            rm -f "$temp_body" "$temp_config"
             # Clear trap after manual cleanup to avoid double deletion
             trap - EXIT INT TERM
 

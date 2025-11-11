@@ -7,15 +7,47 @@ import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from update_api_key import DEFAULT_PROFILE, update_api_key  # noqa: E402
 
+# API Key validation constants (can be overridden via environment variables)
+# Константы валидации API-ключа (можно переопределить через переменные окружения)
+API_KEY_PREFIX: str = os.environ.get("API_KEY_PREFIX", "sk-")
+API_KEY_MIN_LENGTH: int = int(os.environ.get("API_KEY_MIN_LENGTH", "20"))
+API_KEY_MAX_LENGTH: int = int(os.environ.get("API_KEY_MAX_LENGTH", "256"))
+API_KEY_ALLOWED_CHARS: str = os.environ.get(
+    "API_KEY_ALLOWED_CHARS", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
+)
 
-def _read_api_key() -> str:
-    """Read API key from stdin or OPENAI_API_KEY env var. / Читает API-ключ из stdin или переменной окружения OPENAI_API_KEY."""
+
+def _read_api_key(
+    api_key_prefix: str | None = None,
+    api_key_min_length: int | None = None,
+    api_key_max_length: int | None = None,
+    api_key_allowed_chars: str | None = None,
+) -> str:
+    """Read API key from stdin or OPENAI_API_KEY env var. / Читает API-ключ из stdin или переменной окружения OPENAI_API_KEY.
+
+    Args:
+        api_key_prefix: API key prefix to validate against (defaults to API_KEY_PREFIX constant).
+        api_key_min_length: Minimum API key length (defaults to API_KEY_MIN_LENGTH constant).
+        api_key_max_length: Maximum API key length (defaults to API_KEY_MAX_LENGTH constant).
+        api_key_allowed_chars: String of allowed characters (defaults to API_KEY_ALLOWED_CHARS constant).
+
+    Returns:
+        Validated API key string.
+    """
+    # Use provided parameters or fall back to module constants
+    prefix = api_key_prefix if api_key_prefix is not None else API_KEY_PREFIX
+    min_len = api_key_min_length if api_key_min_length is not None else API_KEY_MIN_LENGTH
+    max_len = api_key_max_length if api_key_max_length is not None else API_KEY_MAX_LENGTH
+    allowed_chars_str = (
+        api_key_allowed_chars if api_key_allowed_chars is not None else API_KEY_ALLOWED_CHARS
+    )
+
     env_key: str = os.environ.get("OPENAI_API_KEY", "").strip()
     key_source = "OPENAI_API_KEY environment variable"
     if env_key:
@@ -36,37 +68,37 @@ def _read_api_key() -> str:
     if not api_key:
         raise RuntimeError(
             f"Invalid API key from {key_source}: key is empty. "
-            "API key must be non-empty, start with 'sk-', be between 20-256 characters, "
-            "and contain only alphanumeric characters, hyphens, and underscores."
+            f"API key must be non-empty, start with '{prefix}', be between {min_len}-{max_len} characters, "
+            "and contain only allowed characters."
         )
 
-    if not api_key.startswith("sk-"):
+    if not api_key.startswith(prefix):
         raise RuntimeError(
-            f"Invalid API key from {key_source}: key does not start with 'sk-'. "
-            f"Received key starts with: '{api_key[:5]}...' (first 5 characters shown). "
-            "OpenAI API keys must start with 'sk-' prefix."
+            f"Invalid API key from {key_source}: key does not start with '{prefix}'. "
+            f"Received key starts with: '{api_key[:min(5, len(api_key))]}...' (first 5 characters shown). "
+            f"API keys must start with '{prefix}' prefix."
         )
 
-    if len(api_key) < 20:
+    if len(api_key) < min_len:
         raise RuntimeError(
             f"Invalid API key from {key_source}: key is too short ({len(api_key)} characters). "
-            "API key must be at least 20 characters long."
+            f"API key must be at least {min_len} characters long."
         )
 
-    if len(api_key) > 256:
+    if len(api_key) > max_len:
         raise RuntimeError(
             f"Invalid API key from {key_source}: key is too long ({len(api_key)} characters). "
-            "API key must be no longer than 256 characters."
+            f"API key must be no longer than {max_len} characters."
         )
 
-    # Check allowed characters: alphanumeric, hyphens, underscores, dots
-    allowed_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+    # Check allowed characters
+    allowed_chars = set(allowed_chars_str)
     invalid_chars = [c for c in api_key if c not in allowed_chars]
     if invalid_chars:
         raise RuntimeError(
             f"Invalid API key from {key_source}: contains invalid characters. "
             f"Found invalid characters: {set(invalid_chars)}. "
-            "API key must contain only alphanumeric characters, hyphens, underscores, and dots."
+            f"API key must contain only allowed characters: {allowed_chars_str}."
         )
 
     return api_key

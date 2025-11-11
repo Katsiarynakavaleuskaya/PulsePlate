@@ -49,7 +49,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
                 setattr(self, key, value)
 
     # Patch core.targets symbols used by api_premium_plate
-    import core.targets as real_targets  # type: ignore[C0415]
+    import core.targets as real_targets
 
     monkeypatch.setattr(real_targets, "UserProfile", DummyProfile)
     monkeypatch.setattr(real_targets, "FIBER_MIN_G", 25.0)
@@ -61,7 +61,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
         return DummyTargets()
 
     # Patch resolve_attr to force fallback path for premium helpers
-    import core.utils as utils  # type: ignore[C0415]
+    import core.utils as utils
 
     original_resolve = utils.resolve_attr
 
@@ -233,6 +233,28 @@ async def test_api_premium_plate_fallback_handles_non_callable_global_builder(
     response = await app.api_premium_plate(request)
 
     assert isinstance(response, app.PlateResponse)
+    # Verify fallback output matches expected computed values when build_nutrition_targets is non-callable
+    # These values should match the fallback calculations used in test_api_premium_plate_fallback_handles_target_error
+    assert response.kcal == 2976, (
+        f"Expected kcal=2976 from fallback calculation, got {response.kcal}. "
+        "When build_nutrition_targets is non-callable, fallback should compute kcal from TDEE."
+    )
+    assert response.macros["protein_g"] == 128, (
+        f"Expected protein_g=128 from fallback calculation, got {response.macros['protein_g']}. "
+        "Fallback should compute protein based on weight (1.6g/kg for 80kg)."
+    )
+    assert response.macros["fat_g"] == 72, (
+        f"Expected fat_g=72 from fallback calculation, got {response.macros['fat_g']}. "
+        "Fallback should compute fat based on weight (0.9g/kg for 80kg)."
+    )
+    assert response.macros["carbs_g"] == 454, (
+        f"Expected carbs_g=454 from fallback calculation, got {response.macros['carbs_g']}. "
+        "Fallback should compute carbs to fill remaining calories."
+    )
+    assert response.macros["fiber_g"] == 25, (
+        f"Expected fiber_g=25 from fallback calculation (FIBER_MIN_G), got {response.macros['fiber_g']}. "
+        "Fallback should use minimum fiber requirement."
+    )
 
 
 @pytest.mark.asyncio

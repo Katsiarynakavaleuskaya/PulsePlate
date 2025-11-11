@@ -23,13 +23,13 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 422
 
-    def test_vip_endpoints_without_vip_module_health(self, client) -> None:
+    def test_vip_endpoints_without_vip_module_health(self, client: TestClient) -> None:
         """Тест VIP endpoints когда VIP модуль отключен (health endpoint)"""
         with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
             response = client.get("/health")  # Проверяем что app работает
             assert response.status_code == 200
 
-    def test_admin_endpoints_missing_scheduler_health(self, client) -> None:
+    def test_admin_endpoints_missing_scheduler_health(self, client: TestClient) -> None:
         """Тест admin endpoints когда scheduler недоступен (health endpoint)"""
         # Используем существующий endpoint
         response = client.get("/health")

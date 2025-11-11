@@ -170,6 +170,8 @@ class BusinessBayesianAnalyzer:
 
         RU: Загружает базу знаний о бизнесе из конфигурационного файла или возвращает значения по умолчанию.
         EN: Loads business knowledge base from config/business_knowledge.yaml or returns hardcoded defaults.
+
+        Note: Return type annotation already present (-> dict[str, Any]).
         """
         config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():

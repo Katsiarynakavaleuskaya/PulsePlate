@@ -562,7 +562,7 @@ class TestCorePlateLogic:
 class TestDietFlagAdjustments:
     """Test diet flag macro adjustments."""
 
-    def test_no_diet_flags_returns_original(self):
+    def test_no_diet_flags_returns_original(self) -> None:
         """Test that no diet flags leaves macros unchanged."""
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
@@ -570,7 +570,7 @@ class TestDietFlagAdjustments:
 
         assert result == macros
 
-    def test_empty_diet_flags_returns_original(self):
+    def test_empty_diet_flags_returns_original(self) -> None:
         """Test that empty diet flags set leaves macros unchanged."""
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
@@ -578,7 +578,7 @@ class TestDietFlagAdjustments:
 
         assert result == macros
 
-    def test_high_protein_flag_increases_protein(self):
+    def test_high_protein_flag_increases_protein(self) -> None:
         """Test HIGH_PROTEIN flag increases protein to at least 2.0g/kg."""
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
@@ -590,7 +590,7 @@ class TestDietFlagAdjustments:
         assert result["protein_g"] >= 140
         assert result["protein_g"] > macros["protein_g"]  # Should be increased
 
-    def test_high_protein_flag_preserves_if_already_high(self):
+    def test_high_protein_flag_preserves_if_already_high(self) -> None:
         """Test HIGH_PROTEIN flag doesn't decrease already high protein."""
         macros = {"protein_g": 200, "fat_g": 70, "carbs_g": 200, "fiber_g": 25}
 
@@ -601,7 +601,7 @@ class TestDietFlagAdjustments:
         # Should preserve existing high protein (200 > 140 required)
         assert result["protein_g"] == 200
 
-    def test_low_carb_flag_limits_carbs(self):
+    def test_low_carb_flag_limits_carbs(self) -> None:
         """Test LOW_CARB flag limits carbs to maximum values."""
         # Test with high carb intake
         macros = {"protein_g": 100, "fat_g": 70, "carbs_g": 300, "fiber_g": 25}
@@ -614,7 +614,7 @@ class TestDietFlagAdjustments:
         expected_cap = max(40, (2000 * 0.25) / 4)
         assert result["carbs_g"] <= expected_cap
 
-    def test_mediterranean_flag_adjusts_ratios(self):
+    def test_mediterranean_flag_adjusts_ratios(self) -> None:
         """Test MEDITERRANEAN flag adjusts macro ratios."""
         macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 250, "fiber_g": 25}
 
@@ -627,7 +627,7 @@ class TestDietFlagAdjustments:
         assert result["fat_g"] >= expected_fat
         assert result["fiber_g"] >= 30
 
-    def test_multiple_diet_flags_combined(self):
+    def test_multiple_diet_flags_combined(self) -> None:
         """Test multiple diet flags work together."""
         macros = {"protein_g": 80, "fat_g": 50, "carbs_g": 300, "fiber_g": 25}
 
@@ -640,7 +640,7 @@ class TestDietFlagAdjustments:
         expected_cap = max(40, (2000 * 0.25) / 4)
         assert result["carbs_g"] <= expected_cap  # LOW_CARB effect
 
-    def test_mediterranean_with_high_protein(self):
+    def test_mediterranean_with_high_protein(self) -> None:
         """Mediterranean combined with High-Protein keeps both targets."""
         macros = {"protein_g": 110, "fat_g": 60, "carbs_g": 220, "fiber_g": 25}
 
@@ -653,7 +653,7 @@ class TestDietFlagAdjustments:
         assert result["fiber_g"] >= 30
 
     @pytest.mark.parametrize("weight_kg", [50, 70, 90, 100])
-    def test_high_protein_scales_with_weight(self, weight_kg):
+    def test_high_protein_scales_with_weight(self, weight_kg: int) -> None:
         """Test HIGH_PROTEIN adjustment scales with body weight."""
         macros = {"protein_g": 50, "fat_g": 50, "carbs_g": 200, "fiber_g": 25}
 
@@ -665,7 +665,7 @@ class TestDietFlagAdjustments:
         expected_min = weight_kg * 2.0
         assert result["protein_g"] >= expected_min
 
-    def test_diet_adjustments_with_kcal_overflow(self):
+    def test_diet_adjustments_with_kcal_overflow(self) -> None:
         """Test that diet adjustments handle kcal overflow by reducing macros."""
         # Create a scenario where HIGH_PROTEIN + MEDITERRANEAN would exceed kcal
         macros = {"protein_g": 50, "fat_g": 50, "carbs_g": 150, "fiber_g": 25}
@@ -681,7 +681,7 @@ class TestDietFlagAdjustments:
         # Should maintain protein minimum, but fat may be reduced to meet kcal constraints
         # Note: Mediterranean keeps fat ≥ 1.2× protein; protein may be reduced next if still over kcal
 
-    def test_high_protein_trims_fat_to_meet_calorie_target(self):
+    def test_high_protein_trims_fat_to_meet_calorie_target(self) -> None:
         """HIGH_PROTEIN should shave excess fat to stay within calorie budget."""
         macros = {"protein_g": 100, "fat_g": 200, "carbs_g": 50, "fiber_g": 25}
         weight_kg = 70
@@ -697,7 +697,7 @@ class TestDietFlagAdjustments:
         # Calories are fully consumed, so carbs drop to the default floor of 30 g.
         assert result["carbs_g"] == 30
 
-    def test_mediterranean_reduces_protein_when_calories_exceeded(self):
+    def test_mediterranean_reduces_protein_when_calories_exceeded(self) -> None:
         """Mediterranean adjustments should dial protein back if fat increase breaks the budget."""
         macros = {"protein_g": 180, "fat_g": 150, "carbs_g": 50, "fiber_g": 25}
         weight_kg = 70
@@ -712,7 +712,7 @@ class TestDietFlagAdjustments:
         assert result["carbs_g"] == 30  # Carb floor applies when calories are exhausted.
         assert result["fiber_g"] == 30  # Mediterranean raises fiber minimum.
 
-    def test_diet_adjustments_kcal_underflow(self):
+    def test_diet_adjustments_kcal_underflow(self) -> None:
         """Test diet adjustments handle extreme macro increases."""
         # Very high protein that would make carbs negative
         macros = {"protein_g": 300, "fat_g": 100, "carbs_g": 50, "fiber_g": 25}

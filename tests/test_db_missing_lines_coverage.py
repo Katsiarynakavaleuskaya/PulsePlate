@@ -387,7 +387,7 @@ class TestDbMissingLinesCoverage:
 
             for test_url in test_urls:
                 with patch.dict(os.environ, {"DATABASE_URL": test_url}):
-                    result = _build_engine_url()
+                    result = _build_engine_url(fallback_url=None)
                     assert result == test_url
 
             # Test SQLite connection args

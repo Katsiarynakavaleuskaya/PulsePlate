@@ -230,7 +230,7 @@ def _test_environment(test_environment: Generator[None, None, None]) -> Generato
     Some historical tests still request the underscored fixture name.
     Reuse the standard `test_environment` setup to keep behaviour consistent.
     """
-    yield test_environment
+    yield from test_environment
 
 
 # Test doubles for pytest plugin tests

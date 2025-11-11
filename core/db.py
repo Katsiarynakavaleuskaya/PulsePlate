@@ -57,22 +57,20 @@ logger = logging.getLogger(__name__)
 ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").lower()
 
 
-def _build_engine_url() -> str:
+def _build_engine_url(fallback_url: Optional[str] = None) -> str:
     """Return the database URL from env or fall back to local SQLite.
 
-    Checks for a fallback database URL from app module if available,
-    otherwise uses DATABASE_URL from environment.
-    """
-    # Check for fallback URL from app module (set during startup fallback)
-    fallback_url = None
-    try:
-        import sys
+    Args:
+        fallback_url: Optional fallback database URL. If None, reads from
+            DB_FALLBACK_URL environment variable. If still None, uses
+            DATABASE_URL from environment or defaults to local SQLite.
 
-        app_module = sys.modules.get("app")
-        if app_module and hasattr(app_module, "_fallback_database_url"):
-            fallback_url = getattr(app_module, "_fallback_database_url")
-    except (ImportError, AttributeError):
-        pass
+    Returns:
+        Database URL string.
+    """
+    # Use explicit fallback_url parameter if provided, otherwise check env var
+    if fallback_url is None:
+        fallback_url = os.getenv("DB_FALLBACK_URL")
 
     if fallback_url:
         database_url = fallback_url

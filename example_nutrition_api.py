@@ -8,7 +8,8 @@ for calculating BMR and TDEE using multiple formulas.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from enum import Enum
+from typing import Any, Dict, Optional, Tuple
 
 import requests  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field, field_validator
@@ -23,6 +24,14 @@ from tenacity import (
 from app.schemas.bmr import BMRResponse
 
 logger = logging.getLogger(__name__)
+
+
+class ErrorFormatType(Enum):
+    """Format types for error handling."""
+
+    STANDARD = "standard"
+    DETAILED = "detailed"
+    INLINE = "inline"
 
 
 class BMRParams(BaseModel):
@@ -174,7 +183,10 @@ def call_premium_bmr_api(
         activity: Activity level ("sedentary", "light", "moderate", "active", "very_active")
         bodyfat: Optional body fat percentage (for Katch-McArdle formula)
         lang: Response language ("en" or "ru")
-        api_key: API key for authentication
+        api_key: API key for authentication. **WARNING**: The default value "test_key" is for
+            example/demo purposes only and must NEVER be used in production. For production use,
+            obtain a real API key and set it via environment variables (e.g., `os.getenv("API_KEY")`)
+            or secure secret management systems (e.g., AWS Secrets Manager, HashiCorp Vault).
         base_url: Base URL of the API server
         timeout: Request timeout in seconds per attempt
 
@@ -215,90 +227,149 @@ def call_premium_bmr_api(
     return BMRResponse.model_validate(response.json())
 
 
-def handle_request_errors(exception: Exception, lang: str = "en") -> None:
+def _get_exception_info(exception: Exception) -> Tuple[str, int, Dict[str, str]]:
+    """
+    Centralized mapping of exception types to base messages and log levels.
+
+    Args:
+        exception: The exception to analyze
+
+    Returns:
+        Tuple of (exception_type_key, log_level, messages_dict)
+        - exception_type_key: String identifier for the exception type
+        - log_level: Logging level (logging.ERROR, logging.WARNING, etc.)
+        - messages_dict: Dictionary with 'en' and 'ru' message templates
+    """
+    # Centralized exception type mapping
+    exception_mappings: Dict[type, Tuple[str, int, Dict[str, str]]] = {
+        requests.exceptions.Timeout: (
+            "timeout",
+            logging.ERROR,
+            {
+                "en": "⏱️ Timeout: %s",
+                "ru": "⏱️ Таймаут: %s",
+            },
+        ),
+        requests.exceptions.HTTPError: (
+            "http_error",
+            logging.ERROR,
+            {
+                "en": "❌ HTTP error: %s",
+                "ru": "❌ HTTP-ошибка: %s",
+            },
+        ),
+        requests.exceptions.ConnectionError: (
+            "connection_error",
+            logging.ERROR,
+            {
+                "en": "🔌 Connection error: %s",
+                "ru": "🔌 Ошибка соединения: %s",
+            },
+        ),
+        requests.exceptions.RequestException: (
+            "request_error",
+            logging.WARNING,
+            {
+                "en": "⚠️ Request error: %s",
+                "ru": "⚠️ Ошибка запроса: %s",
+            },
+        ),
+    }
+
+    # Find matching exception type
+    default_result = (
+        "unexpected",
+        logging.ERROR,
+        {
+            "en": "❌ Unexpected error: %s",
+            "ru": "❌ Непредвиденная ошибка: %s",
+        },
+    )
+    return next(
+        (
+            (key, level, messages)
+            for exc_type, (key, level, messages) in exception_mappings.items()
+            if isinstance(exception, exc_type)
+        ),
+        default_result,
+    )
+
+
+def handle_request_errors(
+    exception: Exception,
+    format_type: ErrorFormatType = ErrorFormatType.STANDARD,
+    lang: str = "en",
+    activity: Optional[str] = None,
+) -> None:
     """
     Handle and log error messages for API request exceptions.
 
+    Consolidated function that handles all error formatting types:
+    - STANDARD: Localized messages with optional additional info
+    - DETAILED: Detailed error messages with extra context
+    - INLINE: Compact inline format with activity prefix
+
     Args:
         exception: The exception that was raised
+        format_type: Format type for error output (STANDARD/DETAILED/INLINE)
         lang: Language for error messages ("en" or "ru")
+        activity: Activity level string for INLINE format (required for INLINE)
     """
-    if isinstance(exception, requests.exceptions.Timeout):
-        if lang == "ru":
-            logger.error("⏱️ Таймаут: %s", exception, exc_info=True)
-        else:
-            logger.error("⏱️ Timeout: %s", exception, exc_info=True)
-            logger.info(
-                "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness."
-            )
-    elif isinstance(exception, requests.exceptions.HTTPError):
-        if lang == "ru":
-            logger.error("❌ HTTP-ошибка: %s", exception, exc_info=True)
-        else:
-            logger.error("❌ HTTP error: %s", exception, exc_info=True)
-            logger.info("The API returned an error status code. Check server logs.")
-    elif isinstance(exception, requests.exceptions.ConnectionError):
-        if lang == "ru":
-            logger.error("🔌 Ошибка соединения: %s", exception, exc_info=True)
-        else:
-            logger.error("🔌 Connection error: %s", exception, exc_info=True)
-            logger.info("Make sure the API server is running on localhost:8000 and reachable.")
-    elif isinstance(exception, requests.exceptions.RequestException):
-        if lang == "ru":
-            logger.warning("⚠️ Ошибка запроса: %s", exception, exc_info=True)
-        else:
-            logger.warning("⚠️ Request error: %s", exception, exc_info=True)
-    else:
-        if lang == "ru":
-            logger.error("❌ Непредвиденная ошибка: %s", exception, exc_info=True)
-        else:
-            logger.error("❌ Unexpected error: %s", exception, exc_info=True)
+    # Get centralized exception info
+    exc_key, log_level, messages = _get_exception_info(exception)
+    base_message = messages.get(lang, messages["en"])
 
+    # Branch on format_type to emit appropriate log text
+    if format_type == ErrorFormatType.INLINE:
+        if activity is None:
+            activity = "unknown"
+        activity_prefix = f"{activity:<15}"
+        # Inline format: activity prefix | message with exception
+        logger.log(log_level, f"{activity_prefix} | {base_message}", exception, exc_info=True)
 
-def handle_request_errors_detailed(exception: Exception) -> None:
-    """
-    Handle and log detailed error messages for API request exceptions.
-
-    Args:
-        exception: The exception that was raised
-    """
-    if isinstance(exception, requests.exceptions.Timeout):
-        logger.error(
-            "⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).", exc_info=True
-        )
-        logger.info("Details: %s", exception)
-    elif isinstance(exception, requests.exceptions.HTTPError):
-        logger.error("❌ HTTP error occurred. Check server response status.", exc_info=True)
-        logger.info("Details: %s", exception)
-    elif isinstance(exception, requests.exceptions.ConnectionError):
-        logger.error("🔌 Connection error. Is the server running and reachable?", exc_info=True)
-        logger.info("Details: %s", exception)
-    elif isinstance(exception, requests.exceptions.RequestException):
-        logger.warning("⚠️ Request error occurred.", exc_info=True)
-        logger.info("Details: %s", exception)
-    else:
-        logger.error("❌ Unexpected error.", exc_info=True)
+    elif format_type == ErrorFormatType.DETAILED:
+        # Detailed format with extra info
+        detailed_messages = {
+            "timeout": {
+                "en": "⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).",
+                "ru": "⏱️ Запрос превысил время ожидания. Попробуйте увеличить таймаут.",
+            },
+            "http_error": {
+                "en": "❌ HTTP error occurred. Check server response status.",
+                "ru": "❌ Произошла HTTP-ошибка. Проверьте статус ответа сервера.",
+            },
+            "connection_error": {
+                "en": "🔌 Connection error. Is the server running and reachable?",
+                "ru": "🔌 Ошибка соединения. Запущен ли сервер и доступен ли он?",
+            },
+            "request_error": {
+                "en": "⚠️ Request error occurred.",
+                "ru": "⚠️ Произошла ошибка запроса.",
+            },
+            "unexpected": {
+                "en": "❌ Unexpected error.",
+                "ru": "❌ Непредвиденная ошибка.",
+            },
+        }
+        exc_messages = detailed_messages.get(exc_key, detailed_messages["unexpected"])
+        detailed_msg = exc_messages.get(lang, exc_messages["en"])
+        logger.log(log_level, detailed_msg, exc_info=True)
         logger.info("Details: %s", exception)
 
+    else:  # STANDARD format
+        # Standard format with localized messages
+        logger.log(log_level, base_message, exception, exc_info=True)
 
-def handle_request_errors_inline(exception: Exception, activity: str) -> None:
-    """
-    Handle and log inline error messages for API request exceptions.
-
-    Args:
-        exception: The exception that was raised
-        activity: Activity level string for display
-    """
-    if isinstance(exception, requests.exceptions.Timeout):
-        logger.error("%s | Timeout: %s", f"{activity:<15}", exception, exc_info=True)
-    elif isinstance(exception, requests.exceptions.HTTPError):
-        logger.error("%s | HTTP error: %s", f"{activity:<15}", exception, exc_info=True)
-    elif isinstance(exception, requests.exceptions.ConnectionError):
-        logger.error("%s | Connection error: %s", f"{activity:<15}", exception, exc_info=True)
-    elif isinstance(exception, requests.exceptions.RequestException):
-        logger.warning("%s | Request error: %s", f"{activity:<15}", exception, exc_info=True)
-    else:
-        logger.error("%s | Unexpected error: %s", f"{activity:<15}", exception, exc_info=True)
+        # Additional info for STANDARD format (only for English, matching original behavior)
+        if lang == "en":
+            if exc_key == "timeout":
+                logger.info(
+                    "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness."
+                )
+            elif exc_key == "http_error":
+                logger.info("The API returned an error status code. Check server logs.")
+            elif exc_key == "connection_error":
+                logger.info("Make sure the API server is running on localhost:8000 and reachable.")
 
 
 def main() -> None:
@@ -403,7 +474,7 @@ def main() -> None:
     except Exception as e:
         # EN: Friendly timeout/error message so users see how to handle it
         # RU: Дружелюбное сообщение при таймауте/ошибке, чтобы показать обработку
-        handle_request_errors_detailed(e)
+        handle_request_errors(e, format_type=ErrorFormatType.DETAILED)
 
     # Example 5: Compare all activity levels
     print("📊 Example 5: Activity level comparison")
@@ -439,7 +510,7 @@ def main() -> None:
             tdee = result.tdee["mifflin"]
             print(f"{activity:<15} | {tdee} kcal/day")
         except Exception as e:
-            handle_request_errors_inline(e, activity)
+            handle_request_errors(e, format_type=ErrorFormatType.INLINE, activity=activity)
 
     print("\n✨ Premium BMR/TDEE API provides comprehensive metabolic calculations!")
     print("💡 Use different formulas for different populations:")

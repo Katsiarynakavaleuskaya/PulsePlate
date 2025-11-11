@@ -17,8 +17,8 @@ from core.nutrition_constants import (
     CARBS_MIN_PERCENT,
     FAT_MAX_PERCENT,
     FAT_MIN_PERCENT,
-    KCAL_DANGEROUS_HIGH,
-    KCAL_DANGEROUS_LOW,
+    KCAL_MAX_SAFE,
+    KCAL_MIN_SAFE,
     PROTEIN_MAX_PERCENT,
     PROTEIN_MIN_PERCENT,
     is_meal_level_value,
@@ -163,8 +163,8 @@ class NutritionBayesianAnalyzer:
         return {
             "bmi_dangerous_low": BMI_DANGEROUS_LOW,  # From nutrition_constants
             "bmi_dangerous_high": BMI_DANGEROUS_HIGH,  # From nutrition_constants
-            "calorie_dangerous_low": KCAL_DANGEROUS_LOW,  # From nutrition_constants
-            "calorie_dangerous_high": KCAL_DANGEROUS_HIGH,  # From nutrition_constants
+            "calorie_dangerous_low": KCAL_MIN_SAFE,  # From nutrition_constants
+            "calorie_dangerous_high": KCAL_MAX_SAFE,  # From nutrition_constants
             "nutrient_imbalance_threshold": 0.3,
             "allergen_risk_threshold": 0.8,
         }

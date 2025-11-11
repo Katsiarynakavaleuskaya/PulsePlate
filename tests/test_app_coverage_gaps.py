@@ -278,6 +278,7 @@ class TestAppCallableCheck:
         non_callable = "not a function"
         result = app.resolve_attr("test_attr", non_callable)
         # Should handle non-callable gracefully
+        assert result == non_callable
 
 
 class TestAppAttributeDeletion:

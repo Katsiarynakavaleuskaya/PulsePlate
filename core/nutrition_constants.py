@@ -32,10 +32,6 @@ KCAL_MAX_TYPICAL = 3000  # Upper bound for most adults
 # Absolute maximum - above this is unusual/unsafe
 KCAL_MAX_SAFE = 6000  # Elite athletes/special populations only
 
-# Danger thresholds for red flags
-KCAL_DANGEROUS_LOW = 1200  # Daily total - triggers safety warnings
-KCAL_DANGEROUS_HIGH = 6000  # Daily total - triggers safety warnings
-
 # Meal-level detection threshold (kcal)
 # Values ≤ this threshold are considered single meals rather than daily totals
 # Typical meals range 200-600 kcal; 300 is a conservative threshold for small meals/snacks
@@ -133,8 +129,6 @@ __all__ = [
     "KCAL_MIN_TYPICAL",
     "KCAL_MAX_TYPICAL",
     "KCAL_MAX_SAFE",
-    "KCAL_DANGEROUS_LOW",
-    "KCAL_DANGEROUS_HIGH",
     "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
     "BMI_DANGEROUS_HIGH",

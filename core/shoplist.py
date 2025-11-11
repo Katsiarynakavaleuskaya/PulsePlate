@@ -11,15 +11,16 @@ import csv
 import io
 import logging
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
 # Module-level constant for ingredient categorization keywords
-# Используем Tuple для неизменяемости значений
-CATEGORY_KEYWORDS: Mapping[str, Tuple[str, ...]] = {
+# Используем tuple для неизменяемости значений
+CATEGORY_KEYWORDS: Mapping[str, tuple[str, ...]] = {
     "meat": (
         "мясо",
         "говядина",
@@ -110,7 +111,7 @@ class PackagingRule:
 
     category: str
     unit: str  # 'g', 'ml', 'pcs', 'kg', 'l'
-    typical_packages: List[float]  # [100, 250, 500, 1000] для граммов
+    typical_packages: list[float]  # [100, 250, 500, 1000] для граммов
     rounding_strategy: str  # 'up', 'down', 'nearest'
 
 
@@ -122,9 +123,9 @@ class ShoppingItem:
     quantity: float
     unit: str
     category: str
-    package_size: Optional[float] = None
-    packages_needed: Optional[int] = None
-    total_weight: Optional[float] = None
+    package_size: float | None = None
+    packages_needed: int | None = None
+    total_weight: float | None = None
 
 
 class ShoplistGenerator:
@@ -139,7 +140,7 @@ class ShoplistGenerator:
         self.packaging_rules_file = packaging_rules_file
         self.packaging_rules = self._load_packaging_rules()
 
-    def _load_packaging_rules(self) -> Dict[str, PackagingRule]:
+    def _load_packaging_rules(self) -> dict[str, PackagingRule]:
         """Загружает правила упаковки из CSV файла."""
         rules = {}
 
@@ -194,7 +195,7 @@ class ShoplistGenerator:
 
         return rules
 
-    def aggregate_ingredients(self, week_plan: Dict) -> Dict[str, float]:
+    def aggregate_ingredients(self, week_plan: dict) -> dict[str, float]:
         """Агрегирует ингредиенты из недельного плана.
 
         Args:
@@ -203,7 +204,7 @@ class ShoplistGenerator:
         Returns:
             Словарь вида {ingredient_name: total_grams}.
         """
-        aggregated: Dict[str, float] = {}
+        aggregated: dict[str, float] = {}
 
         # Если week_plan содержит дни
         if "days" in week_plan:
@@ -275,10 +276,10 @@ class ShoplistGenerator:
 
     def round_to_packages(
         self,
-        aggregated: Dict[str, float],
-        packaging_db: Optional[Dict[str, Any]] = None,
-        rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
-    ) -> List[ShoppingItem]:
+        aggregated: dict[str, float],
+        packaging_db: dict[str, Any] | None = None,
+        rules: Mapping[str, PackagingRule | Any] | None = None,
+    ) -> list[ShoppingItem]:
         """Округляет агрегированные ингредиенты до упаковок.
 
         Args:
@@ -340,8 +341,8 @@ class ShoplistGenerator:
         return "default"
 
     def _find_best_package(
-        self, total_amount: float, typical_packages: List[float], strategy: str
-    ) -> Tuple[float, int]:
+        self, total_amount: float, typical_packages: list[float], strategy: str
+    ) -> tuple[float, int]:
         """Находит оптимальный размер упаковки и количество."""
         if not typical_packages:
             return total_amount, 1
@@ -357,7 +358,7 @@ class ShoplistGenerator:
             # Округляем вверх - берем упаковку с минимальным перерасходом
             # RU: При одинаковом перерасходе предпочитаем меньшее количество упаковок
             # EN: On equal overage, prefer fewer packages
-            up_best_choice: Optional[Tuple[float, int]] = None
+            up_best_choice: tuple[float, int] | None = None
             best_overage = float("inf")
             for package_size in sorted_packages:
                 packages_needed = math.ceil(total_amount / package_size)
@@ -380,7 +381,7 @@ class ShoplistGenerator:
                     return package_size, packages_needed
         else:  # 'nearest'
             # Ближайшее округление: оцениваем и floor, и ceil для каждой упаковки
-            best_choice: Optional[Tuple[float, int]] = None
+            best_choice: tuple[float, int] | None = None
             best_error = float("inf")
             for package_size in sorted_packages:
                 if package_size <= 0:
@@ -390,7 +391,7 @@ class ShoplistGenerator:
                 # Вариант округления вверх (хотя бы 1 упаковка)
                 n_ceil = max(1, math.ceil(total_amount / package_size))
 
-                candidates: List[Tuple[int, float]] = []
+                candidates: list[tuple[int, float]] = []
                 if n_floor >= 1:
                     candidates.append((n_floor, abs(total_amount - n_floor * package_size)))
                 candidates.append((n_ceil, abs(total_amount - n_ceil * package_size)))
@@ -413,10 +414,10 @@ class ShoplistGenerator:
 
     def format_export(
         self,
-        shopping_list: List[ShoppingItem],
+        shopping_list: list[ShoppingItem],
         locale: str = "ru",
         format_type: str = "json",
-    ) -> Union[str, Dict]:
+    ) -> str | dict:
         """Форматирует список покупок для экспорта.
 
         Args:
@@ -533,34 +534,34 @@ def _get_generator() -> ShoplistGenerator:
 
 
 # Функции для удобного использования
-def aggregate_ingredients(week_plan: Dict) -> Dict[str, float]:
+def aggregate_ingredients(week_plan: dict) -> dict[str, float]:
     """Агрегирует ингредиенты из недельного плана."""
     return _get_generator().aggregate_ingredients(week_plan)
 
 
 def round_to_packages(
-    aggregated: Dict[str, float],
-    packaging_db: Optional[Dict[str, Any]] = None,
-    rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
-) -> List[ShoppingItem]:
+    aggregated: dict[str, float],
+    packaging_db: dict[str, Any] | None = None,
+    rules: Mapping[str, PackagingRule | Any] | None = None,
+) -> list[ShoppingItem]:
     """Округляет агрегированные ингредиенты до упаковок."""
     return _get_generator().round_to_packages(aggregated, packaging_db, rules)
 
 
 def format_export(
-    shopping_list: List[ShoppingItem], locale: str = "ru", format_type: str = "json"
-) -> Union[str, Dict]:
+    shopping_list: list[ShoppingItem], locale: str = "ru", format_type: str = "json"
+) -> str | dict:
     """Форматирует список покупок для экспорта."""
     return _get_generator().format_export(shopping_list, locale, format_type)
 
 
 def get_shoplist(
-    week_plan: Dict,
+    week_plan: dict,
     format_type: str = "json",
     locale: str = "ru",
-    packaging_db: Optional[Dict[str, Any]] = None,
-    rules: Optional[Mapping[str, Union[PackagingRule, Any]]] = None,
-) -> Union[str, Dict]:
+    packaging_db: dict[str, Any] | None = None,
+    rules: Mapping[str, PackagingRule | Any] | None = None,
+) -> str | dict:
     """Собирает и форматирует список покупок из недельного плана.
 
     Backward-compatible wrapper expected by the application.

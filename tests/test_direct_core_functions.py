@@ -334,7 +334,7 @@ class TestDirectCoreFunctions:
             )
 
             # Test engine URL building
-            url = _build_engine_url()
+            url = _build_engine_url(fallback_url=None)
             assert isinstance(url, (str, type(None)))
 
             # Test SQLite connection args
