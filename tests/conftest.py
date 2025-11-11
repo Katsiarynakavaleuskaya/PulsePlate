@@ -179,10 +179,11 @@ def app(app_module: ModuleType) -> FastAPI:
     app_instance = getattr(app_module, "app", None)
     if not isinstance(app_instance, FastAPI):
         raise RuntimeError("app_module.app is not initialised")
+    assert isinstance(app_instance, FastAPI)  # Type narrowing for mypy
     if hasattr(app_module, "get_api_key"):
         app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
-    return cast(FastAPI, app_instance)
+    return app_instance
 
 
 @pytest.fixture
@@ -212,8 +213,11 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
 @pytest.fixture
 def test_environment(
     monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
-) -> Generator[dict[str, str] | None, None, None]:
-    """Set up deterministic test environment variables."""
+) -> Generator[dict[str, str], None, None]:
+    """Set up deterministic test environment variables.
+
+    Always returns the env_overrides dict for deterministic testing.
+    """
     # Set consistent environment for deterministic testing
     env_overrides = {
         "TESTING": "true",
@@ -228,18 +232,14 @@ def test_environment(
     }
     for key, value in env_overrides.items():
         monkeypatch.setenv(key, value)
-    module_name = getattr(getattr(request.node, "module", None), "__name__", "")
-    return_value: dict[str, str] | None = (
-        env_overrides if "test_conftest_environment_coverage" in module_name else None
-    )
-    yield return_value
+    yield env_overrides
     # Cleanup is automatic with monkeypatch
 
 
 @pytest.fixture
 def _test_environment(
-    test_environment: dict[str, str] | None,
-) -> Generator[dict[str, str] | None, None, None]:
+    test_environment: dict[str, str],
+) -> Generator[dict[str, str], None, None]:
     """Backward-compatible alias for legacy tests expecting `_test_environment`.
 
     Some historical tests still request the underscored fixture name.

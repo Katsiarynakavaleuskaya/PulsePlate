@@ -1,4 +1,4 @@
-"""Add default and server_default to recipes.ingredients column
+"""Update server_default for recipes.ingredients column to be dialect-compatible
 
 Revision ID: 202501120001
 Revises: 202501120000

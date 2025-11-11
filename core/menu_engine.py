@@ -223,8 +223,10 @@ def _should_use_mock_food_db() -> bool:
     """Return True when deterministic mock DB should be used (tests/CI)."""
     flag = os.getenv("MENU_ENGINE_FORCE_MOCK_DB")
     if flag and flag.strip().lower() in {"1", "true", "yes", "on"}:
+        _logger.debug("Using mock food DB: MENU_ENGINE_FORCE_MOCK_DB=%s", flag)
         return True
     if os.getenv("PYTEST_CURRENT_TEST"):
+        _logger.debug("Using mock food DB: detected pytest environment")
         return True
     return False
 

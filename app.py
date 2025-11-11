@@ -1498,18 +1498,31 @@ _plate_deps = PlateDependencies(
 
 _TARGETS_SENTINEL = object()
 _targets_runtime_disabled = False
+_targets_disabled_cache: Optional[bool] = None
+_targets_disabled_cache_time: float = 0.0
+_TARGETS_DISABLED_CACHE_TTL_SEC = 1.0  # Short cache to allow tests to patch quickly
 
 
 def _targets_disabled() -> bool:
     """Return True when build_nutrition_targets was explicitly disabled on the app module."""
-    global _targets_runtime_disabled
+    global _targets_runtime_disabled, _targets_disabled_cache, _targets_disabled_cache_time
 
     import sys as _sys
+
+    # Use cached result if still valid (avoids expensive sys.modules scan)
+    now = time.time()
+    if (
+        _targets_disabled_cache is not None
+        and (now - _targets_disabled_cache_time) < _TARGETS_DISABLED_CACHE_TTL_SEC
+    ):
+        return _targets_disabled_cache
 
     module_value = globals().get("build_nutrition_targets", _TARGETS_SENTINEL)
     if module_value is None:
         logger.debug("_targets_disabled: globals override detected (explicit None)")
         _targets_runtime_disabled = True
+        _targets_disabled_cache = True
+        _targets_disabled_cache_time = now
         return True
 
     current_app = _sys.modules.get("app")
@@ -1527,7 +1540,11 @@ def _targets_disabled() -> bool:
             )
             if alias_value is None:
                 _targets_runtime_disabled = True
+                _targets_disabled_cache = True
+                _targets_disabled_cache_time = now
                 return True
+        _targets_disabled_cache = False
+        _targets_disabled_cache_time = now
         return False
     value = getattr(primary_app, "build_nutrition_targets", _TARGETS_SENTINEL)
     logger.debug(
@@ -1558,6 +1575,8 @@ def _targets_disabled() -> bool:
         )
     if value is None:
         _targets_runtime_disabled = True
+        _targets_disabled_cache = True
+        _targets_disabled_cache_time = now
         return True
 
     if alias_app is not None:
@@ -1571,10 +1590,17 @@ def _targets_disabled() -> bool:
         )
         if alias_value is None:
             _targets_runtime_disabled = True
+            _targets_disabled_cache = True
+            _targets_disabled_cache_time = now
             return True
 
+    # Only scan known test modules instead of all sys.modules
+    test_module_patterns = ("test_", "tests.", "conftest")
     for module_name, module in list(_sys.modules.items()):
         if module is None or module is primary_app or module is alias_app:
+            continue
+        # Skip non-test modules to reduce scan overhead
+        if not any(pattern in module_name for pattern in test_module_patterns):
             continue
         try:
             module_value_candidate = getattr(module, "build_nutrition_targets", _TARGETS_SENTINEL)
@@ -1583,9 +1609,13 @@ def _targets_disabled() -> bool:
         if module_value_candidate is None:
             logger.debug("_targets_disabled: detected external disable on module %s", module_name)
             _targets_runtime_disabled = True
+            _targets_disabled_cache = True
+            _targets_disabled_cache_time = now
             return True
 
     _targets_runtime_disabled = False
+    _targets_disabled_cache = False
+    _targets_disabled_cache_time = now
     return False
 
 
@@ -2190,6 +2220,34 @@ class WeeklyPlanFlexibleRequest(BaseModel):
     lang: Optional[str] = "en"
 
 
+def _calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, int, int]:
+    """Calculate heuristic macronutrient targets when WHO targets unavailable.
+
+    Ratios based on WHO/IOM guidance:
+    - Protein: 1.6 g/kg (upper end of recommended range for active adults,
+      IOM DRI: 0.8-1.6 g/kg, WHO: 0.83-1.2 g/kg)
+    - Fat: 0.9 g/kg (minimum essential fat intake, IOM AMDR: 20-35% kcal)
+    - Carbs: computed as calorie remainder (final_kcal - prot*4 - fat*9) / 4
+      to match test expectations and ensure total calories align
+
+    References:
+    - IOM Dietary Reference Intakes (2005)
+    - WHO Technical Report 916 (2003)
+    - https://www.ncbi.nlm.nih.gov/books/NBK56068/
+
+    Args:
+        final_kcal: Target daily calorie intake
+        weight_kg: Body weight in kilograms
+
+    Returns:
+        Tuple of (protein_g, fat_g, carbs_g) in grams
+    """
+    prot = int(round(1.6 * weight_kg))
+    fat = int(round(0.9 * weight_kg))
+    carbs = max(1, int(round((final_kcal - prot * 4 - fat * 9) / 4)))
+    return prot, fat, carbs
+
+
 @app.post(
     "/api/v1/premium/plate",
     dependencies=[Depends(_get_api_key_dynamic)],
@@ -2492,18 +2550,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         # Only apply heuristic fallback if alignment did not succeed
         if (targets_are_disabled or _build_targets is None) and not alignment_succeeded:
             logger.debug("premium_plate alignment: using heuristic fallback")
-            # Heuristic macronutrient fallback: used only when targets are disabled
-            # to ensure predictable behavior. Ratios based on WHO/IOM guidance:
-            # - Protein: 1.6 g/kg (upper end of recommended range for active adults,
-            #   IOM DRI: 0.8-1.6 g/kg, WHO: 0.83-1.2 g/kg)
-            # - Fat: 0.9 g/kg (minimum essential fat intake, IOM AMDR: 20-35% kcal)
-            # - Carbs: computed as calorie remainder (final_kcal - prot*4 - fat*9) / 4
-            #   to match test expectations and ensure total calories align
-            # Reference: IOM Dietary Reference Intakes (2005), WHO Technical Report 916 (2003)
-            # https://www.ncbi.nlm.nih.gov/books/NBK56068/ (IOM DRI)
-            prot_ref = int(round(1.6 * req.weight_kg))
-            fat_ref = int(round(0.9 * req.weight_kg))
-            carbs_ref = max(1, int(round((final_kcal_value - prot_ref * 4 - fat_ref * 9) / 4)))
+            prot_ref, fat_ref, carbs_ref = _calculate_heuristic_macros(
+                final_kcal_value, req.weight_kg
+            )
             logger.debug(
                 "premium_plate heuristic: weight=%s prot=%s fat=%s final_kcal=%s carbs=%s",
                 req.weight_kg,
@@ -3051,17 +3100,11 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 
 @app.post(
     "/api/v1/premium/targets",
+    dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WHOTargetsResponse,
 )
-async def api_who_targets(
-    request: Request, payload: Dict[str, Any] = Body(...)
-) -> WHOTargetsResponse:
+async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
     """Calculate WHO-aligned nutrition targets for premium clients."""
-    import sys as _sys
-
-    _guard = getattr(_sys.modules.get("app"), "get_api_key", get_api_key)
-    _guard(request.headers.get("x-api-key", ""))
-
     try:
         req = WHOTargetsRequest.model_validate(payload)
     except ValidationError as exc:
@@ -3524,7 +3567,7 @@ async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
         )
         if _to_pdf_day is None or not callable(_to_pdf_day):
             raise HTTPException(
-                status_code=500,
+                status_code=503,
                 detail="PDF export not available - PDF function missing or not callable",
             )
 
