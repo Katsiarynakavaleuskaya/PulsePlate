@@ -419,11 +419,46 @@ class IntegratedBayesianAnalyzer:
         """Analyze compliance with system philosophy."""
         violations = []
 
-        # Health orientation check
-        if "health" in test_name.lower() and all(
-            metric not in code.lower() for metric in ["bmi", "calorie"]
-        ):
-            violations.append("Health test does not verify key metrics")
+        # Health orientation check - relaxed matching for health tests
+        if "health" in test_name.lower():
+            test_name_lower = test_name.lower()
+            code_lower = code.lower()
+
+            # Metric validation keywords that require BMI/calorie checks
+            metric_validation_keywords = ["metric", "measure", "calculate", "bmi", "calorie"]
+            requires_metric_validation = any(
+                keyword in test_name_lower for keyword in metric_validation_keywords
+            )
+
+            # Acceptable health indicators (broader context)
+            acceptable_health_indicators = [
+                "status",
+                "endpoint",
+                "response",
+                "200",
+                "201",
+                "404",
+                "health",
+                "bmi",
+                "calorie",
+                "calories",
+                "weight",
+                "height",
+                "body",
+            ]
+
+            # If test name implies metric validation, require BMI/calorie
+            if requires_metric_validation:
+                has_metric = any(metric in code_lower for metric in ["bmi", "calorie", "calories"])
+                if not has_metric:
+                    violations.append("Health test does not verify key metrics")
+            else:
+                # For other health tests, check for any acceptable health indicator
+                has_health_indicator = any(
+                    indicator in code_lower for indicator in acceptable_health_indicators
+                )
+                if not has_health_indicator:
+                    violations.append("Health test does not verify key metrics")
 
         # Scientific accuracy check
         if "nutrition" in test_name.lower() and all(

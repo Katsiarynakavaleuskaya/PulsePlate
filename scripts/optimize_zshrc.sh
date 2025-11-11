@@ -86,6 +86,14 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     has_aliases_script=false
 
     while IFS= read -r line || [ -n "$line" ]; do
+        # Check if the original line is a comment BEFORE any processing
+        # This prevents commented-out source lines from being removed
+        if echo "$line" | grep -qE '^[[:space:]]*#'; then
+            # Preserve commented lines as-is
+            echo "$line" >> "$TEMP_FILE"
+            continue
+        fi
+
         # Simple approach: Remove shell comments (# to end of line)
         # NOTE: This may incorrectly strip # inside strings, but since we're only
         # checking for variable definitions and source commands (which shouldn't

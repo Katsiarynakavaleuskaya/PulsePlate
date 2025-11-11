@@ -83,19 +83,19 @@ class Recipe(Base):
     ingredients: Mapped[dict] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
-        default=dict,
+        default=lambda: {},
         server_default=text("'{}'"),
     )  # {food_id: grams}
     tags: Mapped[list] = mapped_column(
         MutableList.as_mutable(JSON),
         nullable=False,
-        default=list,
+        default=lambda: [],
         server_default=text("'[]'"),
     )  # App-layer default: []
     allergens: Mapped[list] = mapped_column(
         MutableList.as_mutable(JSON),
         nullable=False,
-        default=list,
+        default=lambda: [],
         server_default=text("'[]'"),
     )  # App-layer default: []
 
@@ -208,7 +208,7 @@ class FoodItem(Base):
     flags: Mapped[list] = mapped_column(
         MutableList.as_mutable(JSON),
         nullable=False,
-        default=list,
+        default=lambda: [],
         server_default=text("'[]'"),
     )  # VEG, GF, etc.
     brand: Mapped[str] = mapped_column(String(255), nullable=True)

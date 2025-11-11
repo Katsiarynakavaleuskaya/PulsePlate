@@ -9,8 +9,9 @@ import subprocess  # nosec B404
 import sys
 import tempfile
 import time
-import xml.etree.ElementTree as ET  # nosec B405
 from pathlib import Path
+
+from defusedxml import ElementTree as ET
 
 
 def run_coverage_check() -> bool:
@@ -60,7 +61,7 @@ def run_coverage_check() -> bool:
 
         # Parse JUnit XML for test results
         try:
-            tree = ET.parse(junit_path)  # nosec B314
+            tree = ET.parse(junit_path)
             root = tree.getroot()
 
             # Extract test counts from testsuite element

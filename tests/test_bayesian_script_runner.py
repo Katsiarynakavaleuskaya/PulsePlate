@@ -1,7 +1,7 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import pytest
 
@@ -11,12 +11,13 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     # Import inside to ensure test discovery works even if path changes
     from scripts import run_tests_bayesian as runner
 
-    run_calls: List[Tuple[Tuple[Any, ...], Dict[str, Any]]] = []
+    run_calls: List[Tuple[Sequence[str], Dict[str, Any]]] = []
     clean_calls: List[bool] = []
 
     def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         # Use subprocess.CompletedProcess directly instead of Mock
-        run_calls.append((args, kwargs))
+        command_list: Sequence[str] = args[0] if args and isinstance(args[0], (list, tuple)) else []
+        run_calls.append((command_list, kwargs))
         return subprocess.CompletedProcess(
             args=args[0] if args else [],
             returncode=0,
@@ -30,8 +31,7 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     result: Dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert len(run_calls) == 1
-    cmd_args, cmd_kwargs = run_calls[0]
-    command = cmd_args[0]
+    command, cmd_kwargs = run_calls[0]
     assert Path(command[0]).resolve() == Path(sys.executable).resolve()
     assert command[2] == "pytest"
     assert "tests/" in command
@@ -50,11 +50,12 @@ def test_run_tests_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test failure path with returncode=1."""
     from scripts import run_tests_bayesian as runner
 
-    run_calls: List[Tuple[Tuple[Any, ...], Dict[str, Any]]] = []
+    run_calls: List[Tuple[Sequence[str], Dict[str, Any]]] = []
     clean_calls: List[bool] = []
 
     def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        run_calls.append((args, kwargs))
+        command_list: Sequence[str] = args[0] if args and isinstance(args[0], (list, tuple)) else []
+        run_calls.append((command_list, kwargs))
         return subprocess.CompletedProcess(
             args=args[0] if args else [],
             returncode=1,
@@ -68,8 +69,7 @@ def test_run_tests_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     result: Dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert len(run_calls) == 1
-    cmd_args, cmd_kwargs = run_calls[0]
-    command = cmd_args[0]
+    command, cmd_kwargs = run_calls[0]
     assert "pytest" in command
     assert cmd_kwargs["cwd"] == runner.project_root
     assert result["success"] is False

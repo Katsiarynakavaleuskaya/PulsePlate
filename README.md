@@ -56,9 +56,9 @@ pre-commit run --all-files
 
 ### Python Version
 
-- **Поддерживаемые версии**: Python 3.11, 3.12, 3.13
-- **Закреплена версия для разработки**: Python 3.13.5 (или новее) (`.python-version`, `.tool-versions`)
-- Рекомендуемая установка через `pyenv` или `asdf`
+- **Supported versions**: Python 3.11, 3.12, 3.13
+- **Pinned dev version**: Python 3.13.5 (or newer) (`.python-version`, `.tool-versions`)
+- We recommend installing via `pyenv` or `asdf`
 
 Setup (pyenv):
 

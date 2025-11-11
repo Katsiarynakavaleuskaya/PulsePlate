@@ -36,6 +36,11 @@ KCAL_MAX_SAFE = 6000  # Elite athletes/special populations only
 KCAL_DANGEROUS_LOW = 1200  # Daily total - triggers safety warnings
 KCAL_DANGEROUS_HIGH = 6000  # Daily total - triggers safety warnings
 
+# Meal-level detection threshold (kcal)
+# Values ≤ this threshold are considered single meals rather than daily totals
+# Typical meals range 200-600 kcal; 300 is a conservative threshold for small meals/snacks
+MEAL_KCAL_THRESHOLD = 300
+
 # BMI Safety Thresholds
 # Based on WHO classification and medical supervision requirements
 BMI_DANGEROUS_LOW = 16.0  # Below this requires immediate medical attention
@@ -85,7 +90,7 @@ def is_meal_level_value(kcal: float, context: str = "") -> bool:
     Heuristics (require explicit cues, default to daily):
     - Explicit daily keywords → daily total
     - Explicit meal keywords → meal
-    - Very small portions (≤ 300 kcal) → meal
+    - Very small portions (≤ MEAL_KCAL_THRESHOLD kcal) → meal
     - Otherwise → daily total (conservative: flag potential issues)
 
     Raises:
@@ -115,7 +120,7 @@ def is_meal_level_value(kcal: float, context: str = "") -> bool:
         return True
 
     # Only tiny portions default to meal without context
-    if kcal <= 300:
+    if kcal <= MEAL_KCAL_THRESHOLD:
         return True
 
     # Ambiguous - assume daily to avoid missing real issues
@@ -130,6 +135,7 @@ __all__ = [
     "KCAL_MAX_SAFE",
     "KCAL_DANGEROUS_LOW",
     "KCAL_DANGEROUS_HIGH",
+    "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
     "BMI_DANGEROUS_HIGH",
     "PROTEIN_MIN_PERCENT",

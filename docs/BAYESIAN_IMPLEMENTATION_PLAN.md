@@ -214,7 +214,7 @@ class BayesianMetrics:
 **Файл**: `core/bayesian/nutrition_data_validator.py`
 
 ```python
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Final
 from dataclasses import dataclass
 import numpy as np
 from .base_analyzer import BaseBayesianAnalyzer, BayesianPrediction
@@ -274,7 +274,7 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
 
     # Feature flag: Medical alerts/enforcements are disabled by default until approved
     # Set MEDICAL_ALERTS_ENABLED = true in config/medical_safety.yaml after approval workflow
-    MEDICAL_ALERTS_ENABLED: bool = False  # Loaded from config/medical_safety.yaml
+    MEDICAL_ALERTS_ENABLED: Final[bool] = False  # Loaded from config/medical_safety.yaml
 
     def __init__(self):
         super().__init__("nutrition_validator")

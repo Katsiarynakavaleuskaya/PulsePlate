@@ -69,7 +69,7 @@ async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPa
 
     assert response.kcal_daily == expected
     warning_codes = {w.get("code") for w in response.warnings}
-    assert warning_codes & {"life_stage", "pregnant"}
+    assert warning_codes == {"life_stage", "pregnant"}
 
 
 @pytest.mark.asyncio

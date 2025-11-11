@@ -139,25 +139,36 @@ _MAX_SAFETY_FAILURES = int(os.getenv("MAX_SAFETY_FAILURES", "10"))
 _safety_failure_count = 0
 _safety_failure_lock = threading.Lock()
 
+# Module-level fallback database URL (set during startup fallback, avoids mutating os.environ)
+_fallback_database_url: Optional[str] = None
+
 
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    # Detect environment first (before any DB operations)
     env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
+    is_production = env_name not in {"", "local", "dev", "development", "staging", "test", "ci"}
     truthy = {"1", "true", "yes", "on"}
+
     try:
         init_db()
         logger.info("Database schema initialized")
     except Exception as db_err:
         # Determine whether we should attempt a fallback database initialization.
-        allowed_env = env_name in {"", "local", "dev", "development", "staging", "test", "ci"}
+        # Only allow fallback in non-production environments unless explicitly overridden.
+        allowed_env = not is_production
         explicit_override = (
             os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""
         ).strip().lower() in truthy
         fallback_exception = isinstance(db_err, (OSError, IOError))
+
         if not (allowed_env or explicit_override or fallback_exception):
             raise
+
+        # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
+        fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
 
         logger.warning(
             "Database initialization failed (%s env: %s), attempting fallback SQLite: %s",
@@ -165,17 +176,44 @@ async def lifespan(app: FastAPI):
             env_name or "local",
             db_err,
         )
+
         fallback_ok = False
         try:
-            os.environ["DATABASE_URL"] = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
-            init_db()
+            # Set module-level fallback variable instead of mutating os.environ
+            global _fallback_database_url
+            _fallback_database_url = fallback_url
+
+            # Reload core.db module to pick up the fallback URL
+            # This recreates the engine with the fallback URL
+            import importlib
+            import core.db
+
+            importlib.reload(core.db)
+
+            # Use init_db from the reloaded module
+            core.db.init_db()
             fallback_ok = True
-            logger.warning(
-                "Database initialized with fallback SQLite (env=%s)",
-                env_name or "local",
-            )
+
+            # Only mutate os.environ in dev/test environments if explicitly needed
+            # (e.g., for tools that read DATABASE_URL directly)
+            if not is_production:
+                os.environ["DATABASE_URL"] = fallback_url
+                logger.warning(
+                    "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
+                    "os.environ['DATABASE_URL'] updated for compatibility.",
+                    env_name or "local",
+                    fallback_url,
+                )
+            else:
+                logger.warning(
+                    "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
+                    "Using module-level fallback variable only.",
+                    env_name or "local",
+                    fallback_url,
+                )
         except Exception as fallback_err:
             logger.error("In-memory fallback init_db() failed: %s", fallback_err)
+            _fallback_database_url = None  # Reset fallback on failure
         if not fallback_ok:
             raise
 
@@ -1260,13 +1298,14 @@ _PATCH_LOCK = threading.Lock()
 def _propagate_app_patches(source: Optional[object], target: Optional[object]) -> None:
     if source is None or target is None:
         return
-    for attr_name in _PATCHED_ATTRS:
-        if hasattr(source, attr_name):
-            try:
-                patched_value = getattr(source, attr_name)
-                setattr(target, attr_name, patched_value)
-            except Exception:  # nosec B112 - safe: dynamic patching, continue on missing attr
-                continue
+    with _PATCH_LOCK:
+        for attr_name in _PATCHED_ATTRS:
+            if hasattr(source, attr_name):
+                try:
+                    patched_value = getattr(source, attr_name)
+                    setattr(target, attr_name, patched_value)
+                except Exception:  # nosec B112 - safe: dynamic patching, continue on missing attr
+                    continue
 
 
 def _sync_app_attr_sources(

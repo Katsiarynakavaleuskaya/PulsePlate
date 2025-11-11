@@ -10,7 +10,7 @@ echo ""
 # Проверка процессов Cursor
 echo "📊 Процессы Cursor:"
 if command -v ps >/dev/null 2>&1; then
-    ps aux | grep -i "cursor\|claude" | grep -v grep | awk '{printf "  PID: %-6s CPU: %5s%% MEM: %6s%% %s\n", $2, $3, $4, $11}' | head -10 || echo "⚠️  ps command failed"
+    ps aux | grep -i "[c]ursor\|[c]laude" | awk '{printf "  PID: %-6s CPU: %5s%% MEM: %6s%% %s\n", $2, $3, $4, $11}' | head -10 || echo "⚠️  ps command failed"
 else
     echo "⚠️  ps command not available"
 fi
@@ -58,7 +58,7 @@ for file in ~/.zshrc ~/.zprofile ~/.zshenv; do
     if [ -f "$file" ]; then
         lines=$(wc -l < "$file" 2>/dev/null || echo "0")
         size=$(wc -c < "$file" 2>/dev/null || echo "0")
-        echo "  $(basename $file): $lines строк, $size байт"
+        echo "  $(basename "$file"): $lines строк, $size байт"
     fi
 done
 echo ""

@@ -2,6 +2,7 @@
 Global test configuration and fixtures for the project.
 """
 
+import importlib
 import importlib.util
 import os
 import sys
@@ -305,8 +306,6 @@ def test_client():
 @pytest.fixture
 def isolated_test_client():
     """Fixture for creating isolated TestClient instances with clean app state."""
-    import importlib
-
     import app
 
     # Reload app module to get fresh state

@@ -106,7 +106,23 @@ class TestAppCoveragePatchBoost:
         """Test _calculate_all_bmr_wrapper normal execution."""
         # Test normal execution path
         result = app._calculate_all_bmr_wrapper(70, 175, 30, "male", None)
+
+        # Verify result structure and types
         assert result is not None
+        assert isinstance(result, dict), "Result should be a dictionary"
+
+        # Verify required fields exist
+        assert "mifflin" in result, "Result should contain 'mifflin' BMR value"
+        assert "harris" in result, "Result should contain 'harris' BMR value"
+
+        # Verify field types and values
+        assert isinstance(result["mifflin"], (int, float)), "'mifflin' should be numeric"
+        assert isinstance(result["harris"], (int, float)), "'harris' should be numeric"
+        assert result["mifflin"] > 0, "'mifflin' should be a positive value"
+        assert result["harris"] > 0, "'harris' should be a positive value"
+
+        # Verify katch is not present when bodyfat is None
+        assert "katch" not in result, "'katch' should not be present when bodyfat is None"
 
     def test_calculate_all_tdee_wrapper_normal(self, client: TestClient) -> None:
         """Test _calculate_all_tdee_wrapper normal execution."""
@@ -131,19 +147,48 @@ class TestAppCoveragePatchBoost:
         finally:
             app._scheduler_getter = original_getter
 
-    def test_get_update_scheduler_without_getter(self, client: TestClient) -> None:
-        """Test get_update_scheduler when _scheduler_getter is None."""
+    def test_get_update_scheduler_without_getter_returns_scheduler(
+        self, client: TestClient
+    ) -> None:
+        """Test get_update_scheduler when _scheduler_getter is None and scheduler is available."""
         original_getter = app._scheduler_getter
         try:
             app._scheduler_getter = None
             import asyncio
 
-            # Should fall back to late import
-            scheduler = asyncio.run(app.get_update_scheduler())
-            # May return None or scheduler instance depending on availability
-            assert scheduler is None or (
-                hasattr(scheduler, "create_task") and hasattr(scheduler, "call_soon")
-            )
+            # Mock scheduler with required methods
+            mock_scheduler = MagicMock()
+            mock_scheduler.create_task = MagicMock()
+            mock_scheduler.call_soon = MagicMock()
+
+            # Patch the late import to return our mock scheduler
+            async def mock_getter() -> MagicMock:
+                return mock_scheduler
+
+            with patch("core.food_apis.scheduler.get_update_scheduler", side_effect=mock_getter):
+                scheduler = asyncio.run(app.get_update_scheduler())
+                # Assert scheduler is returned and has required methods
+                assert scheduler is not None
+                assert hasattr(scheduler, "create_task")
+                assert hasattr(scheduler, "call_soon")
+        finally:
+            app._scheduler_getter = original_getter
+
+    def test_get_update_scheduler_without_getter_returns_none(self, client: TestClient) -> None:
+        """Test get_update_scheduler when _scheduler_getter is None and scheduler is unavailable."""
+        original_getter = app._scheduler_getter
+        try:
+            app._scheduler_getter = None
+            import asyncio
+
+            # Patch the late import to return None (simulating scheduler unavailability)
+            async def mock_getter() -> None:
+                return None
+
+            with patch("core.food_apis.scheduler.get_update_scheduler", side_effect=mock_getter):
+                scheduler = asyncio.run(app.get_update_scheduler())
+                # Assert None is returned when scheduler is unavailable
+                assert scheduler is None
         finally:
             app._scheduler_getter = original_getter
 
@@ -205,14 +250,36 @@ class TestAppCoveragePatchBoost:
         assert response.json() == {"status": "ok"}
 
     def test_legacy_category_label_edge_cases(self, client: TestClient) -> None:
-        """Test legacy_category_label with edge cases."""
-        # Test exception handling in lang parsing
-        result = app.legacy_category_label("Normal weight", None)
-        assert result == "Normal weight" or result == "Healthy weight"
+        """Test legacy_category_label with explicit language values and fallback behavior."""
+        # Test with explicit English language - should map "Normal weight" to "Healthy weight"
+        result = app.legacy_category_label("Normal weight", "en")
+        assert (
+            result == "Healthy weight"
+        ), f"Expected 'Healthy weight' for lang='en', got '{result}'"
 
-        # Test with invalid lang
+        # Test with explicit Russian language - should map "Избыточная масса" to "Избыточный вес"
+        result = app.legacy_category_label("Избыточная масса", "ru")
+        assert (
+            result == "Избыточный вес"
+        ), f"Expected 'Избыточный вес' for lang='ru', got '{result}'"
+
+        # Test with Spanish language (unsupported mapping) - should return category unchanged
+        result = app.legacy_category_label("Normal weight", "es")
+        assert result == "Normal weight", f"Expected 'Normal weight' for lang='es', got '{result}'"
+
+        # Test with None language - defaults to "ru", so "Normal weight" stays unchanged
+        # (no mapping exists for "Normal weight" in Russian context)
+        result = app.legacy_category_label("Normal weight", None)
+        assert (
+            result == "Normal weight"
+        ), f"Expected 'Normal weight' for lang=None (fallback to 'ru'), got '{result}'"
+
+        # Test with invalid lang type (int) - exception caught, defaults to "ru"
+        # Should return category unchanged as fallback behavior
         result = app.legacy_category_label("Normal weight", 123)  # type: ignore
-        assert result in ["Normal weight", "Healthy weight"]
+        assert (
+            result == "Normal weight"
+        ), f"Expected 'Normal weight' for invalid lang (fallback to 'ru'), got '{result}'"
 
     def test_add_visualization_if_requested_not_requested(self, client: TestClient) -> None:
         """Test add_visualization_if_requested when not requested."""

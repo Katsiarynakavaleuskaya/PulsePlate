@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import List, cast
+from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -34,7 +34,7 @@ def list_foods(
 def list_foods_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[FoodHit]:
-    return cast(List[FoodHit], list_foods(query=query, limit=limit, offset=offset))
+    return list_foods(query=query, limit=limit, offset=offset)
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)

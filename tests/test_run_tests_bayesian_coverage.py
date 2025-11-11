@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -441,9 +442,9 @@ class TestMain:
 
         captured = capsys.readouterr()
         # Count test entries (should be max 10)
-        test_lines = [
-            line for line in captured.out.split("\n") if line.strip() and line.strip()[0].isdigit()
-        ]
+        # Match lines like "1)", " 2)", "10)" etc. (optional whitespace, digits, closing parenthesis)
+        test_entry_pattern = re.compile(r"^\s*\d+\)")
+        test_lines = [line for line in captured.out.split("\n") if test_entry_pattern.match(line)]
         assert len(test_lines) <= 10
 
 

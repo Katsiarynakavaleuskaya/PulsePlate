@@ -156,7 +156,7 @@ class TestWeeklyPlanningBlocks:
                 mock_result.week_start = "2025-01-01"
                 mock_result.total_cost = 140.0
                 mock_result.daily_menus = [
-                    MagicMock(date=f"2025-01-0{i}", meals={}, cost=20.0) for i in range(1, 8)
+                    MagicMock(date=f"2025-01-{i:02d}", meals={}, cost=20.0) for i in range(1, 8)
                 ]
                 mock_result.shopping_list = {"test": "item"}
                 mock_result.weekly_coverage = {"protein": 90}

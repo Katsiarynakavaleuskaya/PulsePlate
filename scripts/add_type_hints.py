@@ -139,7 +139,7 @@ def main() -> int:
     parser.add_argument(
         "--exclude",
         nargs="*",
-        default=["tests", "__pycache__", ".pytest_cache", "cache"],
+        default=["__pycache__", ".pytest_cache", "cache"],
         help="Directories to exclude",
     )
 

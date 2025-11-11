@@ -120,17 +120,12 @@ def main() -> int:
     try:
         analyzer = BayesianTestAnalyzer()
         report = generate_report(analyzer)
-
-        try:
-            out = Path("bayesian_quality_report.json")
-            out.write_text(json.dumps(report, indent=2, ensure_ascii=False))
-            print(f"Wrote {out} with {report['history_size']} records")
-            return 0
-        except Exception as e:
-            print(f"Error writing report: {e}", file=sys.stderr)
-            return 1
+        out = Path("bayesian_quality_report.json")
+        out.write_text(json.dumps(report, indent=2, ensure_ascii=False))
+        print(f"Wrote {out} with {report['history_size']} records")
+        return 0
     except Exception as e:
-        print(f"Error initializing BayesianTestAnalyzer: {e}", file=sys.stderr)
+        print(f"Error generating or writing report: {e}", file=sys.stderr)
         return 1
 
 

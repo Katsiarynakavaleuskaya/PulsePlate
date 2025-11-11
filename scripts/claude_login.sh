@@ -200,10 +200,11 @@ EOF
         elif [[ "$api_key" == claude-* ]] || [[ "$api_key" == sk-ant-* ]]; then
             echo "⚠️  Anthropic API key detected (claude-* or sk-ant-*)"
             echo "   This OpenAI connectivity check does not support Anthropic keys"
-            echo "   Use Anthropic's API testing tools instead"
+            echo "   For testing Anthropic connectivity, see: https://docs.anthropic.com/claude/reference/getting-started-with-the-api"
+            echo "   Consider filing an enhancement request to add built-in Anthropic checks to this script"
         else
             echo "⚠️  API key format not recognized (expected sk-...)"
-            echo "   This might be an Anthropic key or invalid format"
+            echo "   This might be an Anthropic key (claude-* or sk-ant-*) or invalid format"
         fi
         ;;
 

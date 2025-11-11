@@ -143,7 +143,7 @@ def test_bmi_endpoint_value_error(client: TestClient, api_key_headers: dict[str,
     assert response.status_code in (400, 422, 403)
 
 
-def test_premium_bmr_403_if_feature_flag(
+def test_premium_bmr_503_if_feature_disabled(
     client: TestClient, api_key_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Checks 503 Service Unavailable if FEATURE_PREMIUM_NUTRITION=0."""

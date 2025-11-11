@@ -284,28 +284,51 @@ def test_personalization():
         )
 
     def test_assess_business_impact_no_issues(self) -> None:
-        """Тест оценки бизнес-воздействия без проблем."""
+        """
+        Тест оценки бизнес-воздействия без проблем.
+
+        Threshold: total_issues == 0
+        Expected impact: "No business impact"
+        """
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact([], [], [], [])
 
         assert impact == "No business impact"
 
     def test_assess_business_impact_minimal(self) -> None:
-        """Тест оценки минимального бизнес-воздействия."""
+        """
+        Тест оценки минимального бизнес-воздействия.
+
+        Threshold: total_issues <= 2 (implementation: total_issues <= 2)
+        Expected impact: "Minimal impact on user experience"
+        Test case: 2 issues total (1 technical + 1 philosophy)
+        """
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(["issue1"], [], [], ["issue2"])
 
         assert impact == "Minimal impact on user experience"
 
     def test_assess_business_impact_moderate(self) -> None:
-        """Тест оценки умеренного бизнес-воздействия."""
+        """
+        Тест оценки умеренного бизнес-воздействия.
+
+        Threshold: total_issues <= 5 (implementation: total_issues <= 5)
+        Expected impact: "Moderate impact on product quality"
+        Test case: 5 issues total (2 technical + 1 nutrition + 1 safety + 1 philosophy)
+        """
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(["i1", "i2"], ["i3"], ["i4"], ["i5"])
 
         assert impact == "Moderate impact on product quality"
 
     def test_assess_business_impact_high(self) -> None:
-        """Тест оценки высокого бизнес-воздействия."""
+        """
+        Тест оценки высокого бизнес-воздействия.
+
+        Threshold: total_issues <= 10 (implementation: total_issues <= 10)
+        Expected impact: "High impact on reputation and safety"
+        Test case: 8 issues total (3 technical + 2 nutrition + 1 safety + 2 philosophy)
+        """
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(
             ["i1", "i2", "i3"], ["i4", "i5"], ["i6"], ["i7", "i8"]
@@ -314,7 +337,13 @@ def test_personalization():
         assert impact == "High impact on reputation and safety"
 
     def test_assess_business_impact_critical(self) -> None:
-        """Тест оценки критического бизнес-воздействия."""
+        """
+        Тест оценки критического бизнес-воздействия.
+
+        Threshold: total_issues > 10 (implementation: total_issues > 10)
+        Expected impact: "Critical impact on business operations"
+        Test case: 12 issues total (4 technical + 3 nutrition + 2 safety + 3 philosophy)
+        """
         analyzer = IntegratedBayesianAnalyzer()
         impact = analyzer._assess_business_impact(
             ["i1", "i2", "i3", "i4"], ["i5", "i6", "i7"], ["i8", "i9"], ["i10", "i11", "i12"]

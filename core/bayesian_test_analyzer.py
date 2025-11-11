@@ -421,7 +421,7 @@ class BayesianTestAnalyzer:
                 else:
                     similarity = len(symptoms.intersection(case_symptoms)) / union_size
 
-                if similarity > 0.3:  # Порог схожести
+                if similarity > self.SYMPTOM_SIMILARITY_THRESHOLD:
                     similar_cases.append(execution)
 
         return similar_cases

@@ -50,6 +50,13 @@ is_numeric() {
     fi
 }
 
+# Function to log debug messages when VERBOSE is enabled
+debug_log() {
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "Debug: $*"
+    fi
+}
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -93,18 +100,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Debug: Show parsed arguments
-if [[ "$VERBOSE" == "true" ]]; then
-    echo "Debug: Parsed arguments:"
-    echo "  GRACE_PERIOD=$GRACE_PERIOD"
-    echo "  REOPEN_DELAY=$REOPEN_DELAY"
-    echo "  VERBOSE=$VERBOSE"
-fi
+debug_log "Parsed arguments:"
+debug_log "  GRACE_PERIOD=$GRACE_PERIOD"
+debug_log "  REOPEN_DELAY=$REOPEN_DELAY"
+debug_log "  VERBOSE=$VERBOSE"
 
 # Check if running on macOS
-if [[ "$VERBOSE" == "true" ]]; then
-    echo "Debug: Checking OS..."
-    echo "Debug: Detected OS: $(uname -s)"
-fi
+debug_log "Checking OS..."
+debug_log "Detected OS: $(uname -s)"
 if [ "$(uname -s)" != "Darwin" ]; then
     echo "❌ Error: This script is macOS-only"
     echo "   Detected OS: $(uname -s)"
@@ -115,65 +118,43 @@ fi
 echo "🔄 Restarting Cursor..."
 
 # Check if Cursor is running
-if [[ "$VERBOSE" == "true" ]]; then
-    echo "Debug: Checking if Cursor is running..."
-fi
+debug_log "Checking if Cursor is running..."
 if pgrep -x "Cursor" > /dev/null; then
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo "Debug: Cursor process found via pgrep"
-    fi
+    debug_log "Cursor process found via pgrep"
     echo "📋 Closing Cursor..."
     # Try graceful quit first (saves files)
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo "Debug: Attempting graceful quit via osascript..."
-    fi
+    debug_log "Attempting graceful quit via osascript..."
     osascript -e 'tell application "Cursor" to quit' 2>/dev/null || true
 
     # Wait a bit for graceful shutdown
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo "Debug: Waiting $GRACE_PERIOD seconds for graceful shutdown..."
-    fi
+    debug_log "Waiting $GRACE_PERIOD seconds for graceful shutdown..."
     sleep "$GRACE_PERIOD"
 
     # Force kill if still running
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo "Debug: Checking if Cursor is still running..."
-    fi
+    debug_log "Checking if Cursor is still running..."
     if pgrep -x "Cursor" > /dev/null; then
-        if [[ "$VERBOSE" == "true" ]]; then
-            echo "Debug: Cursor still running, force killing..."
-        fi
+        debug_log "Cursor still running, force killing..."
         echo "⚠️  Force closing Cursor..."
         killall "Cursor" 2>/dev/null || true
-        if [[ "$VERBOSE" == "true" ]]; then
-            echo "Debug: Waiting $GRACE_PERIOD seconds after force kill..."
-        fi
+        debug_log "Waiting $GRACE_PERIOD seconds after force kill..."
         sleep "$GRACE_PERIOD"
     else
-        if [[ "$VERBOSE" == "true" ]]; then
-            echo "Debug: Cursor closed gracefully"
-        fi
+        debug_log "Cursor closed gracefully"
     fi
 
     echo "✅ Cursor closed"
 else
-    if [[ "$VERBOSE" == "true" ]]; then
-        echo "Debug: Cursor process not found via pgrep"
-    fi
+    debug_log "Cursor process not found via pgrep"
     echo "ℹ️  Cursor is not running"
 fi
 
 # Wait a moment before reopening
-if [[ "$VERBOSE" == "true" ]]; then
-    echo "Debug: Waiting $REOPEN_DELAY seconds before reopening..."
-fi
+debug_log "Waiting $REOPEN_DELAY seconds before reopening..."
 sleep "$REOPEN_DELAY"
 
 # Open Cursor
 echo "🚀 Opening Cursor..."
-if [[ "$VERBOSE" == "true" ]]; then
-    echo "Debug: Executing 'open -a Cursor'..."
-fi
+debug_log "Executing 'open -a Cursor'..."
 open -a "Cursor" 2>/dev/null || {
     echo "❌ Error: Could not open Cursor"
     echo "   Please open Cursor manually from Applications"

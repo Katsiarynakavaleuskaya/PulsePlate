@@ -97,31 +97,150 @@ class TestAppCriticalLines97:
         assert response.status_code == 422
 
     def test_missing_dependencies_import_paths(self) -> None:
-        """Тест путей когда зависимости недоступны"""
-        # Имитируем отсутствие модулей
-        with patch.dict("sys.modules", {"core.auto_repair": None}):
-            try:
+        """Тест путей когда зависимости недоступны - проверяем fallback stubs и работу endpoints"""
+        import importlib
+        import sys
+
+        # Сохраняем оригинальные функции импорта
+        orig_import = __import__
+        orig_import_module = importlib.import_module
+
+        def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
+            """Патчим __import__ чтобы вызывать ImportError для определенных модулей"""
+            if name == "core.auto_repair" or (
+                name == "core" and fromlist and "auto_repair" in fromlist
+            ):
+                raise ImportError("core.auto_repair module unavailable for test")
+            if name == "core.menu_engine" or (
+                name == "core" and fromlist and "menu_engine" in fromlist
+            ):
+                raise ImportError("core.menu_engine module unavailable for test")
+            return orig_import(name, globals, locals, fromlist, level)
+
+        def import_module_side_effect(name, *args, **kwargs):
+            """Патчим importlib.import_module чтобы вызывать ImportError для определенных модулей"""
+            if name == "core.auto_repair" or name.endswith(".auto_repair"):
+                raise ImportError("core.auto_repair module unavailable for test")
+            if name == "core.menu_engine" or name.endswith(".menu_engine"):
+                raise ImportError("core.menu_engine module unavailable for test")
+            return orig_import_module(name, *args, **kwargs)
+
+        # Сохраняем оригинальные модули для восстановления
+        original_modules = {}
+        modules_to_reload = ["app.routers.vip", "app.routers", "app"]
+        modules_to_remove = ["core.auto_repair", "core.menu_engine"]
+
+        for mod_name in modules_to_reload + modules_to_remove:
+            if mod_name in sys.modules:
+                original_modules[mod_name] = sys.modules[mod_name]
+
+        try:
+            # Удаляем core модули из sys.modules чтобы они точно не были доступны
+            for mod_name in modules_to_remove:
+                if mod_name in sys.modules:
+                    del sys.modules[mod_name]
+
+            # Удаляем модули из sys.modules чтобы перезагрузить их с патчем
+            # Важно удалять в правильном порядке (дочерние модули сначала)
+            for mod_name in reversed(modules_to_reload):
+                if mod_name in sys.modules:
+                    del sys.modules[mod_name]
+
+            # Применяем патчи для имитации отсутствия зависимостей
+            with (
+                patch("builtins.__import__", side_effect=import_side_effect),
+                patch("importlib.import_module", side_effect=import_module_side_effect),
+            ):
+                # Импортируем app после патча - должен использовать fallback stubs
                 import app
 
-                # Проверяем что app загружается с заглушками
+                # Проверяем что app загрузился
                 assert app is not None
-            except ImportError:
-                # Expected when dependencies are missing - graceful degradation working
-                pass
+                assert hasattr(app, "app")
 
-    def test_premium_endpoints_error_paths_returns_422(self, client) -> None:
-        """Тест error paths в premium endpoints - должен возвращать 422 (validation error)"""
-        # Тест с невалидными параметрами
-        # Note: API key validation happens before Pydantic validation, so 403 is expected
-        # To test 422, we need valid API key but invalid request body
+                # Проверяем что VIP router использует fallback stubs
+                from app.routers import vip
+
+                # Проверяем что fallback атрибуты установлены (None означает fallback активен)
+                assert (
+                    getattr(vip, "get_auto_repair_engine", None) is None
+                ), "get_auto_repair_engine should be None when core.auto_repair is missing"
+                assert (
+                    getattr(vip, "auto_repair_week_plan", None) is None
+                ), "auto_repair_week_plan should be None when core.auto_repair is missing"
+                assert (
+                    getattr(vip, "make_weekly_menu", None) is None
+                ), "make_weekly_menu should be None when core.menu_engine is missing"
+
+                # Проверяем что app.py также использует fallback для menu_engine функций
+                assert (
+                    getattr(app, "make_weekly_menu", None) is None
+                ), "make_weekly_menu should be None when core.menu_engine is missing"
+                assert (
+                    getattr(app, "analyze_nutrient_gaps", None) is None
+                ), "analyze_nutrient_gaps should be None when core.menu_engine is missing"
+
+                # Создаем TestClient для проверки endpoints
+                client = TestClient(app.app)
+
+                # Тестируем критичный endpoint - должен работать даже с отсутствующими зависимостями
+                # Health endpoint должен всегда работать
+                response = client.get("/health")
+                assert response.status_code == 200, (
+                    f"Health endpoint should return 200 even with missing dependencies, "
+                    f"got {response.status_code}"
+                )
+                response_data = response.json()
+                assert (
+                    "status" in response_data or "health" in response_data.lower()
+                ), "Health endpoint should return valid health status"
+
+                # Тестируем публичный BMI endpoint - должен работать с fallback
+                response = client.post(
+                    "/api/v1/bmi",
+                    json={"sex": "male", "age": 30, "height_cm": 175, "weight_kg": 70},
+                )
+                assert response.status_code == 200, (
+                    f"BMI endpoint should return 200 even with missing dependencies, "
+                    f"got {response.status_code}"
+                )
+                bmi_data = response.json()
+                assert (
+                    "bmi" in bmi_data or "category" in bmi_data
+                ), "BMI endpoint should return valid BMI data"
+
+        finally:
+            # Восстанавливаем оригинальные модули
+            for mod_name, mod_value in original_modules.items():
+                if mod_name not in sys.modules:
+                    sys.modules[mod_name] = mod_value
+                else:
+                    # Перезагружаем модули для следующих тестов
+                    try:
+                        importlib.reload(sys.modules[mod_name])
+                    except Exception:
+                        # Если перезагрузка не удалась, просто восстанавливаем
+                        sys.modules[mod_name] = mod_value
+
+    def test_premium_endpoints_invalid_api_key_returns_403(self, client) -> None:
+        """Test premium endpoints return 403 when API key is invalid or missing."""
+        # Test with invalid API key
         response = client.post(
             "/api/v1/premium/targets",
             json={"sex": "invalid", "age": -1},
-            headers={"X-API-Key": "test-key"},
+            headers={"X-API-Key": "invalid-key"},
         )
-        # API key validation happens first, so 403 is expected if key is invalid
-        # If key is valid, then 422 for validation errors
-        assert response.status_code in [403, 422]
+        assert response.status_code == 403
+
+    def test_premium_endpoints_invalid_payload_returns_422(self, client) -> None:
+        """Test premium endpoints return 422 when API key is valid but payload is invalid."""
+        # Test with valid API key but invalid payload
+        response = client.post(
+            "/api/v1/premium/targets",
+            json={"sex": "invalid", "age": -1},
+            headers={"X-API-Key": "test"},
+        )
+        assert response.status_code == 422
 
     def test_recipes_endpoints_error_handling(self, client) -> None:
         """Тест error handling в recipes endpoints"""

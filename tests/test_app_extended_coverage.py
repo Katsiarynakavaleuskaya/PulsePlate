@@ -17,7 +17,7 @@ from app import app
 
 
 @pytest.fixture(autouse=True)
-def setup_test_env():
+def setup_test_env() -> Generator[None, None, None]:
     """Autouse fixture that sets up test environment variables."""
     os.environ["API_KEY"] = "test_key"
     os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
@@ -109,7 +109,9 @@ class TestLifespanEvents:
 class TestAPIEndpoints:
     """Test API endpoints for coverage."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_root_endpoint_html_content(self):
@@ -163,7 +165,9 @@ class TestAPIEndpoints:
 class TestBMIEndpoints:
     """Test BMI calculation endpoints."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_bmi_endpoint_pregnancy(self):
@@ -282,7 +286,9 @@ class TestBMIEndpoints:
 class TestInsightEndpoints:
     """Test insight endpoints."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_insight_endpoint_disabled_explicitly(self):
@@ -361,7 +367,9 @@ class TestInsightEndpoints:
 class TestPremiumEndpoints:
     """Test premium API endpoints."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_api_v1_bmi_success(self):
@@ -493,7 +501,9 @@ class TestPremiumEndpoints:
 class TestDatabaseAdminEndpoints:
     """Test database admin endpoints."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_database_status_error(self):
@@ -546,7 +556,9 @@ class TestDatabaseAdminEndpoints:
 class TestDebugEndpoint:
     """Test debug environment endpoint."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_debug_env_endpoint(self):
@@ -571,7 +583,9 @@ class TestDebugEndpoint:
 class TestVisualizationEndpoint:
     """Test BMI visualization endpoint."""
 
-    def setup_method(self, client: TestClient) -> None:
+    @pytest.fixture(autouse=True)
+    def _setup_client(self, client: TestClient) -> None:
+        """Set up client for test methods."""
         self.client = client
 
     def test_bmi_visualize_unavailable_module(self):

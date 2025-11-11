@@ -183,7 +183,8 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
+                        loaded = yaml.safe_load(f)  # type: ignore[name-defined]
+                        return loaded or {}
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error (file not found, parse error, etc.)
                 pass
@@ -236,7 +237,8 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
+                        loaded = yaml.safe_load(f)  # type: ignore[name-defined]
+                        return loaded or {}
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
                 pass
@@ -284,7 +286,8 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
+                        loaded = yaml.safe_load(f)  # type: ignore[name-defined]
+                        return loaded or {}
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
                 pass

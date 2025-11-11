@@ -36,14 +36,46 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
         True if function contains return with value or yield/yield from,
         False otherwise (including bare "return" statements)
     """
-    for child in ast.walk(node):
+
+    def _check_node(n: ast.AST) -> bool:
+        """Recursively check node and its children, skipping nested function definitions."""
         # Check for return with value (not just "return" alone)
-        if isinstance(child, ast.Return) and child.value is not None:
+        if isinstance(n, ast.Return) and n.value is not None:
             return True
         # Check for yield or yield from
-        if isinstance(child, (ast.Yield, ast.YieldFrom)):
+        if isinstance(n, (ast.Yield, ast.YieldFrom)):
             return True
-    return False
+
+        # Skip nested function definitions - don't recurse into their bodies
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return False
+
+        # Recursively check child nodes
+        # For nodes with body attributes (like FunctionDef, Module, ClassDef, If, For, While, etc.)
+        if hasattr(n, "body") and isinstance(n.body, list):
+            for stmt in n.body:
+                if _check_node(stmt):
+                    return True
+        # Also check other statement lists like orelse, finalbody, etc.
+        for attr_name in ["orelse", "finalbody", "handlers"]:
+            if hasattr(n, attr_name):
+                attr_value = getattr(n, attr_name)
+                if isinstance(attr_value, list):
+                    for stmt in attr_value:
+                        if _check_node(stmt):
+                            return True
+                elif isinstance(attr_value, ast.expr):
+                    if _check_node(attr_value):
+                        return True
+
+        # For other nodes, check all children (but nested functions are already skipped above)
+        for child in ast.iter_child_nodes(n):
+            if _check_node(child):
+                return True
+        return False
+
+    # Start checking from the function node
+    return _check_node(node)
 
 
 def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[str]:

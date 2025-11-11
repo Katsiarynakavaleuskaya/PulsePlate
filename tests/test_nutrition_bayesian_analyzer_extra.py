@@ -138,6 +138,14 @@ total_kcal = 6000
     results = analyzer.analyze_nutrition_safety(code, "suite::daily_macros")
     messages = {res.error_message for res in results}
     # Should detect protein too high and carbs too low
+    # Check error types explicitly
+    assert any(
+        result.error_type == NutritionErrorType.PROTEIN_TOO_HIGH for result in results
+    ), "Expected PROTEIN_TOO_HIGH error type not found"
+    assert any(
+        result.error_type == NutritionErrorType.CARB_TOO_LOW for result in results
+    ), "Expected CARB_TOO_LOW error type not found"
+    # Keep existing message assertions for backward compatibility
     assert any("белка" in msg or "protein" in msg.lower() for msg in messages)
     assert any("углеводов" in msg or "carb" in msg.lower() for msg in messages)
 

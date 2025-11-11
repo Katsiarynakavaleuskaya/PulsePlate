@@ -85,20 +85,31 @@ def run_tests_fast() -> Dict[str, Any]:
             lines = output.split("\n")
             for i, line in enumerate(lines):
                 if ("FAILED" in line or "ERROR" in line) and "::" in line:
-                    # Extract test name with simple error handling
+                    # Extract test name with proper error handling
+                    extraction_error = False
                     try:
                         test_name = line.split("::")[-1].strip()
+                        # Validate that we got a meaningful test name
+                        if not test_name or test_name == line.strip():
+                            # If extraction didn't produce a distinct name, mark as error
+                            extraction_error = True
+                            test_name = "<unknown_test_name>"
                     except (AttributeError, IndexError) as e:
-                        # Fallback to stripped line if extraction fails
-                        test_name = line.strip() if line else ""
+                        # Mark extraction as failed and use placeholder
+                        extraction_error = True
+                        test_name = "<unknown_test_name>"
                         logging.warning(
-                            f"Failed to extract test name from line {i}: {e}, "
-                            f"using fallback: {test_name[:50]}"
+                            f"Failed to extract test name from line {i}: {e}. "
+                            f"Raw line: {line[:100] if line else '(empty)'}"
                         )
+
+                    # Add entry with extraction error flag for callers to filter if needed
                     failed_tests.append(
                         {
                             "name": test_name,
                             "line": line,
+                            "raw_line": line,  # Preserve original for debugging
+                            "extraction_error": extraction_error,
                             "context": "\n".join(lines[max(0, i - 3) : i + 10]),
                         }
                     )

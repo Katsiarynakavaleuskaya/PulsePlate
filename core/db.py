@@ -58,9 +58,27 @@ ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production")
 
 
 def _build_engine_url() -> str:
-    """Return the database URL from env or fall back to local SQLite."""
-    default_path = os.path.join("cache", "app.db")
-    database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+    """Return the database URL from env or fall back to local SQLite.
+
+    Checks for a fallback database URL from app module if available,
+    otherwise uses DATABASE_URL from environment.
+    """
+    # Check for fallback URL from app module (set during startup fallback)
+    fallback_url = None
+    try:
+        import sys
+
+        app_module = sys.modules.get("app")
+        if app_module and hasattr(app_module, "_fallback_database_url"):
+            fallback_url = getattr(app_module, "_fallback_database_url")
+    except (ImportError, AttributeError):
+        pass
+
+    if fallback_url:
+        database_url = fallback_url
+    else:
+        default_path = os.path.join("cache", "app.db")
+        database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
     # Only create directory for file-based SQLite databases
     if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):

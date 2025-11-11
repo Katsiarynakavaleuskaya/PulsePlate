@@ -286,35 +286,29 @@ def test_get_test_health_score_variants(tmp_path: Path) -> None:
 
 
 def test_get_test_health_score_handles_zero_average_time(tmp_path: Path) -> None:
-    """RU/EN: Time stability should default to 1.0 when average time is non-positive."""
+    """RU/EN: Time stability should default to 1.0 when average time is zero.
 
-    class TinyTime(float):
-        """Float subclass that compares greater than zero but sums to zero."""
-
-        def __new__(cls) -> "TinyTime":
-            return float.__new__(cls, 0.0)
-
-        def __gt__(self, other: float) -> bool:
-            return True
+    RU: Проверяем граничный случай, когда среднее время выполнения равно нулю.
+    EN: Exercises edge case where average execution time is zero.
+    """
 
     analyzer = BayesianTestAnalyzer(data_file=tmp_path / "history.json")
-    tiny_time = TinyTime()
     analyzer.execution_history = [
         _make_record(
-            test_name="suite::tiny_time",
+            test_name="suite::zero_time",
             result=TestStatus.PASSED,
             coverage=80.0,
-            execution_time=tiny_time,
+            execution_time=0.0,
         ),
         _make_record(
-            test_name="suite::tiny_time",
+            test_name="suite::zero_time",
             result=TestStatus.PASSED,
             coverage=85.0,
-            execution_time=tiny_time,
+            execution_time=0.0,
         ),
     ]
 
-    score = analyzer.get_test_health_score("suite::tiny_time")
+    score = analyzer.get_test_health_score("suite::zero_time")
     assert 0.0 <= score <= 1.0
 
 

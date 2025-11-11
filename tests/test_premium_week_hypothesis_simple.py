@@ -8,6 +8,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import patch
 
+import requests
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -39,7 +40,7 @@ class TestPremiumWeekHypothesisSimple:
 
     def _measure_response_time(
         self, url: str, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[Any, float]:
+    ) -> Tuple[requests.Response, float]:
         """
         Measure API request execution time.
 

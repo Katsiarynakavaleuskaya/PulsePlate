@@ -105,6 +105,9 @@ def main() -> int:
     """Execute quick pass over tests/test_*.py and print a compact summary."""
     # Get all test files (restrict to repo tests dir, avoid traversal)
     tests_dir = Path(TESTS_DIR_NAME).resolve()
+    if not tests_dir.exists() or not tests_dir.is_dir():
+        print(f"❌ Error: Tests directory not found: {tests_dir}", file=sys.stderr)
+        return 1
     test_files = sorted(
         [
             p

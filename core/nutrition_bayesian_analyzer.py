@@ -86,12 +86,26 @@ class NutritionBayesianAnalyzer:
     # Macronutrient validation tolerance
     # RU: Допустимое отклонение суммы процентов макронутриентов от 100%
     # EN: Tolerance for macronutrient percentage sum validation
+    # Rationale for 0.01 (1%) tolerance:
+    # - Rounding of input percentages: Nutrition labels and user inputs often round
+    #   values, causing small deviations from exact 100% sums
+    # - Measurement imprecision: Laboratory measurements and food composition databases
+    #   have inherent precision limits that accumulate in percentage calculations
+    # - Fiber caloric difference: Dietary fiber contributes ~2 kcal/g vs 4 kcal/g for
+    #   other carbohydrates, which can skew percentage sums when fiber is included
+    # - Nutrient labeling conventions: Different labeling standards (e.g., EU vs US)
+    #   may handle certain nutrients differently, affecting total percentages
+    # - Missing micronutrients: Some nutrient databases may omit trace components,
+    #   leading to sums slightly below 100%
+    # This value is conservative and configurable; callers can increase tolerance
+    # if they expect larger deviations from their data sources.
     MACRO_SUM_TOLERANCE = 0.01  # Default tolerance 1% (0.01)
 
     # Safety score penalty constants
     # RU: Константы штрафов для балла безопасности
     # EN: Penalty values for safety score calculation
     DANGEROUS_PENALTY = 0.05  # Per-issue penalty for dangerous safety findings
+    MAX_TOTAL_PENALTY = 0.5  # Maximum cumulative penalty to prevent over-penalization
 
     def __init__(self) -> None:
         self.test_results: List[NutritionTestResult] = []
@@ -593,11 +607,16 @@ class NutritionBayesianAnalyzer:
 
         base_score = (self._total_analyses - self._failed_analyses) / self._total_analyses
 
-        # Smaller per-issue penalty to avoid over-penalizing when many findings are logged
-        critical_penalty = sum(
+        # Compute total dangerous penalty by summing per-issue penalties
+        total_dangerous_penalty = sum(
             self.DANGEROUS_PENALTY
             for result in self.test_results
             if not result.success and result.safety_level == "dangerous"
         )
 
-        return max(0.0, min(1.0, base_score - critical_penalty))
+        # Cap the cumulative penalty to prevent over-penalization
+        # This ensures we never drive the score below zero even with many findings
+        capped_penalty = min(total_dangerous_penalty, self.MAX_TOTAL_PENALTY)
+
+        # Subtract capped penalty from base_score and clamp to [0, 1]
+        return max(0.0, min(1.0, base_score - capped_penalty))

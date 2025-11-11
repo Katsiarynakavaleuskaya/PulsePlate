@@ -87,9 +87,9 @@ validate_command() {
 
         # Check if bash is available before syntax validation
         if command -v bash >/dev/null 2>&1; then
-        if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
-            echo "syntax error in shell command"
-            return 1
+            if ! bash -n -c "$expanded_command" >/dev/null 2>&1; then
+                echo "syntax error in shell command"
+                return 1
             fi
         else
             # bash -n not available; skip syntax check (non-fatal)

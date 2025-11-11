@@ -7,23 +7,31 @@ import os
 import tempfile
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Generator, Tuple
+from typing import Generator, NamedTuple
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
 import setup_custom_mcp
 
-# Type alias for long Tuple annotation to keep lines under 100 characters
-MockTuple = Tuple[MagicMock, MagicMock, MagicMock, MagicMock, MagicMock, MagicMock]
+
+class McpMocks(NamedTuple):
+    """Named tuple for MCP setup test mocks with named fields for clarity and type-safety."""
+
+    mock_home: MagicMock
+    mock_mkdir: MagicMock
+    mock_file: MagicMock
+    mock_json_dump: MagicMock
+    mock_print: MagicMock
+    mock_cwd: MagicMock
 
 
 @pytest.fixture
-def mcp_setup_mocks() -> Generator[MockTuple, None, None]:
+def mcp_setup_mocks() -> Generator[McpMocks, None, None]:
     """Fixture that patches pathlib and builtin functions for setup_custom_mcp tests.
 
     Yields:
-        Tuple containing mocks in order:
+        McpMocks containing mocks with named fields:
         - mock_home: Path.home mock
         - mock_mkdir: Path.mkdir mock
         - mock_file: builtins.open mock
@@ -43,13 +51,13 @@ def mcp_setup_mocks() -> Generator[MockTuple, None, None]:
         mock_home.return_value = Path("/fake/home")
         mock_cwd.return_value = Path("/fake/cwd")
 
-        yield (
-            mock_home,
-            mock_mkdir,
-            mock_file,
-            mock_json_dump,
-            mock_print,
-            mock_cwd,
+        yield McpMocks(
+            mock_home=mock_home,
+            mock_mkdir=mock_mkdir,
+            mock_file=mock_file,
+            mock_json_dump=mock_json_dump,
+            mock_print=mock_print,
+            mock_cwd=mock_cwd,
         )
 
 
@@ -58,10 +66,15 @@ class TestSetupCustomMcpCoverage:
 
     def test_setup_custom_mcp_function(
         self,
-        mcp_setup_mocks: MockTuple,
+        mcp_setup_mocks: McpMocks,
     ) -> None:
         """Test setup_custom_mcp function"""
-        mock_home, mock_mkdir, mock_file, mock_json_dump, mock_print, mock_cwd = mcp_setup_mocks
+        mock_home = mcp_setup_mocks.mock_home
+        mock_mkdir = mcp_setup_mocks.mock_mkdir
+        mock_file = mcp_setup_mocks.mock_file
+        mock_json_dump = mcp_setup_mocks.mock_json_dump
+        mock_print = mcp_setup_mocks.mock_print
+        mock_cwd = mcp_setup_mocks.mock_cwd
 
         # Pass empty argv to avoid pytest argument conflicts
         setup_custom_mcp.setup_custom_mcp(argv=[])

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class TestMenuEngineCoverage97:
     """Test class for menu_engine.py coverage boost."""
 
-    def test_get_default_food_db_coverage_line_183(self):
+    def test_get_default_food_db_coverage_line_183(self) -> None:
         """Test _get_default_food_db coverage for line 183."""
         # Test that _get_default_food_db exists and is callable
         assert hasattr(_get_default_food_db, "__call__")
@@ -29,7 +29,7 @@ class TestMenuEngineCoverage97:
         ) as exc:  # pragma: no cover - depends on environment
             logger.warning("_get_default_food_db raised during test: %s", exc)
 
-    def test_get_default_recipe_db_coverage_line_184(self):
+    def test_get_default_recipe_db_coverage_line_184(self) -> None:
         """Test _get_default_recipe_db coverage for line 184."""
         # Test that _get_default_recipe_db exists and is callable
         assert hasattr(_get_default_recipe_db, "__call__")
@@ -45,7 +45,7 @@ class TestMenuEngineCoverage97:
         ) as exc:  # pragma: no cover - depends on environment
             logger.warning("_get_default_recipe_db raised during test: %s", exc)
 
-    def test_make_weekly_menu_with_none_databases_coverage_lines_183_184(self):
+    def test_make_weekly_menu_with_none_databases_coverage_lines_183_184(self) -> None:
         """Test make_weekly_menu with None databases to cover lines 183-184."""
         # Mock the function to avoid actual database calls
         with (
@@ -71,7 +71,7 @@ class TestMenuEngineCoverage97:
             except TypeError as exc:  # pragma: no cover
                 logger.warning("make_weekly_menu raised during optional path test: %s", exc)
 
-    def test_make_weekly_menu_error_handling_coverage_lines_250_253(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_250_253(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 250-253."""
         # Test with invalid parameters to trigger error handling
         with pytest.raises(TypeError):
@@ -83,7 +83,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
 
-    def test_make_weekly_menu_error_handling_coverage_lines_255_256(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_255_256(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 255-256."""
         # Test with invalid parameters to trigger error handling
         with pytest.raises(TypeError):
@@ -95,7 +95,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
 
-    def test_make_weekly_menu_error_handling_coverage_lines_383_393(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_383_393(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 383-393."""
         from core.targets import UserProfile
 
@@ -113,7 +113,7 @@ class TestMenuEngineCoverage97:
 
     # Removed obsolete skipped test for lines 472-471 in menu_engine.py
 
-    def test_make_weekly_menu_error_handling_coverage_lines_525_524(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_525_524(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 525-524."""
         # Test with invalid age
         with pytest.raises(TypeError):
@@ -125,7 +125,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",  # Invalid age
             )
 
-    def test_make_weekly_menu_error_handling_coverage_lines_627_633(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_627_633(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 627-633."""
         # Test with extreme values
         with pytest.raises(TypeError):
@@ -137,7 +137,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
 
-    def test_make_weekly_menu_error_handling_coverage_lines_702_701(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_702_701(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 702-701."""
         # Test with extreme height
         with pytest.raises(TypeError):
@@ -149,7 +149,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",
             )
 
-    def test_make_weekly_menu_error_handling_coverage_lines_706_710(self):
+    def test_make_weekly_menu_error_handling_coverage_lines_706_710(self) -> None:
         """Test make_weekly_menu error handling coverage for lines 706-710."""
         # Test with extreme age
         with pytest.raises(TypeError):
@@ -161,7 +161,7 @@ class TestMenuEngineCoverage97:
                 activity="moderate",  # Extreme age
             )
 
-    def test_make_weekly_menu_error_handling_coverage_line_739(self):
+    def test_make_weekly_menu_error_handling_coverage_line_739(self) -> None:
         """Test make_weekly_menu error handling coverage for line 739."""
         # Test with missing activity parameter
         with pytest.raises(TypeError):
