@@ -7,6 +7,7 @@ EN: Simple unit tests for data sanitizer without Hypothesis.
 from __future__ import annotations
 
 import math
+import unittest.mock as mock
 
 import pytest
 
@@ -217,8 +218,6 @@ class TestSanitizeFunctions:
         """Verify exception in validation returns safe defaults."""
         # Pass something that will cause validation to fail completely
         # Using a non-dict object should trigger the exception path
-        import unittest.mock as mock
-
         with mock.patch(
             "core.data_sanitizer.NutritionData.model_validate", side_effect=ValueError("Test error")
         ):
@@ -299,8 +298,6 @@ class TestSanitizeFunctions:
 
     def test_sanitize_meal_list_handles_exception_in_meal(self) -> None:
         """Verify exception during meal sanitization keeps original meal (lines 277-279)."""
-        import unittest.mock as mock
-
         # Create a meal that will pass isinstance check but fail during dict() or sanitize
         meals = [{"title": "Meal", "kcal": 500, "macros": {"protein_g": 30}}]
 
@@ -365,8 +362,6 @@ class TestSanitizeFunctions:
 
     def test_sanity_filter_plate_data_handles_exception(self) -> None:
         """Verify exception returns safe defaults."""
-        import unittest.mock as mock
-
         # Mock sanitize_nutrition_dict to raise an exception
         with mock.patch(
             "core.data_sanitizer.sanitize_nutrition_dict", side_effect=RuntimeError("Test error")

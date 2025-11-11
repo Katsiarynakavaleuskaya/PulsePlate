@@ -22,6 +22,7 @@ else:  # pragma: no cover - runtime fallback when pytest types unavailable
     TestReport = Any
 
 from core.bayesian_test_analyzer import (
+    BayesianDiagnosis,
     BayesianTestAnalyzer,
     ErrorType,
     TestCategory,
@@ -70,7 +71,7 @@ class BayesianPytestPlugin:
         # Allow custom markers, fallback to default
         self.category_markers = category_markers or self.DEFAULT_CATEGORY_MARKERS
 
-    def pytest_runtest_setup(self, item) -> None:
+    def pytest_runtest_setup(self, item: Item) -> None:
         """Вызывается перед выполнением теста."""
         test_name = item.nodeid
         self.test_start_times[test_name] = time.time()
@@ -334,7 +335,7 @@ class BayesianPytestPlugin:
 
         return error_type, error_message
 
-    def _print_diagnosis(self, diagnosis: Any) -> None:
+    def _print_diagnosis(self, diagnosis: BayesianDiagnosis) -> None:
         """Вывести диагностику в консоль.
 
         Controlled by env BAYESIAN_DIAG_VERBOSE. Accepted truthy values:

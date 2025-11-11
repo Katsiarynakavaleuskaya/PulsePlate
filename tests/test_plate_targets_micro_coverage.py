@@ -23,12 +23,12 @@ client = TestClient(app_mod.app)  # type: ignore
 class TestPlateTargetsMicroCoverage:
     """Tests for micronutrient coverage between Plate and Targets endpoints"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_plate_targets_micro_consistency(self):
+    def test_plate_targets_micro_consistency(self) -> None:
         """Test that plate and targets endpoints return consistent micronutrient data"""
         payload = {
             "sex": "female",
@@ -80,7 +80,7 @@ class TestPlateTargetsMicroCoverage:
                 f"got: {day_micros_raw}"
             )
 
-    def test_plate_micros_meet_minimum_thresholds(self):
+    def test_plate_micros_meet_minimum_thresholds(self) -> None:
         """Test that plate micronutrients meet minimum thresholds from targets"""
         payload = {
             "sex": "female",

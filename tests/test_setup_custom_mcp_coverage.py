@@ -147,7 +147,7 @@ class TestSetupCustomMcpCoverage:
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
                                 self._assert_mcp_server_config_is_valid(mock_json_dump)
 
-    def _assert_mcp_server_config_is_valid(self, mock_json_dump):
+    def _assert_mcp_server_config_is_valid(self, mock_json_dump: MagicMock) -> None:
         mcp_call = self._extract_json_config_containing_key(mock_json_dump, "mcpServers")
         assert "mcpServers" in mcp_call
         assert "pulseplate-chatgpt" in mcp_call["mcpServers"]
@@ -170,7 +170,7 @@ class TestSetupCustomMcpCoverage:
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
                                 self._assert_cursor_settings_are_valid(mock_json_dump)
 
-    def _assert_cursor_settings_are_valid(self, mock_json_dump):
+    def _assert_cursor_settings_are_valid(self, mock_json_dump: MagicMock) -> None:
         settings_call = self._extract_json_config_containing_key(
             mock_json_dump, "cursor.ai.enabled"
         )

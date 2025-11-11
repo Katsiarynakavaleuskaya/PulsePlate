@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class BusinessCategory(Enum):
@@ -66,7 +66,7 @@ class BusinessTestResult:
     test_name: str
     success: bool
     business_category: BusinessCategory
-    error_type: Optional[BusinessErrorType] = None
+    error_type: BusinessErrorType | None = None
     error_message: str = ""
     execution_time: float = 0.0
     file_path: str = ""
@@ -105,12 +105,12 @@ class BusinessBayesianAnalyzer:
 
     def __init__(
         self,
-        low_price_threshold: Optional[float] = None,
-        high_price_threshold: Optional[float] = None,
+        low_price_threshold: float | None = None,
+        high_price_threshold: float | None = None,
         domain: str = "nutrition",
-        business_knowledge: Optional[Dict[str, Any]] = None,
-        monetization_strategies: Optional[Dict[str, Any]] = None,
-        cost_optimization_rules: Optional[Dict[str, Any]] = None,
+        business_knowledge: dict[str, Any] | None = None,
+        monetization_strategies: dict[str, Any] | None = None,
+        cost_optimization_rules: dict[str, Any] | None = None,
     ) -> None:
         """
         Initialize business logic analyzer.
@@ -126,7 +126,7 @@ class BusinessBayesianAnalyzer:
             monetization_strategies: Optional injected monetization strategies dict (overrides file loading)
             cost_optimization_rules: Optional injected cost optimization rules dict (overrides file loading)
         """
-        self.test_results: List[BusinessTestResult] = []
+        self.test_results: list[BusinessTestResult] = []
         # Load business knowledge: injected config takes priority over file loading
         self.business_knowledge_base = (
             business_knowledge
@@ -159,13 +159,13 @@ class BusinessBayesianAnalyzer:
         else:
             self.high_price_threshold = self.DEFAULT_HIGH_PRICE_THRESHOLD
 
-    def analyze(self, test_code: str, test_name: str) -> List[BusinessTestResult]:
+    def analyze(self, test_code: str, test_name: str) -> list[BusinessTestResult]:
         """Public entry point for business logic analysis.
         Публичная точка входа для анализа бизнес-логики.
         """
         return self.analyze_business_logic(test_code, test_name)
 
-    def _load_business_knowledge(self) -> Dict[str, Any]:
+    def _load_business_knowledge(self) -> dict[str, Any]:
         """Load business knowledge base from config file or return defaults.
 
         RU: Загружает базу знаний о бизнесе из конфигурационного файла или возвращает значения по умолчанию.
@@ -175,7 +175,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]
 
                     yaml_available = True
                 except ImportError:
@@ -183,8 +183,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment, name-defined]
-                        return loaded
+                        return yaml.safe_load(f) or {}
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error (file not found, parse error, etc.)
                 pass
@@ -219,7 +218,7 @@ class BusinessBayesianAnalyzer:
             },
         }
 
-    def _load_monetization_strategies(self) -> Dict[str, Any]:
+    def _load_monetization_strategies(self) -> dict[str, Any]:
         """Load monetization strategies from config file or return defaults.
 
         RU: Загружает стратегии монетизации из конфигурационного файла или возвращает значения по умолчанию.
@@ -229,7 +228,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]
 
                     yaml_available = True
                 except ImportError:
@@ -237,8 +236,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment, name-defined]
-                        return loaded
+                        return yaml.safe_load(f) or {}
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
                 pass
@@ -268,7 +266,7 @@ class BusinessBayesianAnalyzer:
             },
         }
 
-    def _load_cost_optimization_rules(self) -> Dict[str, Any]:
+    def _load_cost_optimization_rules(self) -> dict[str, Any]:
         """Load cost optimization rules from config file or return defaults.
 
         RU: Загружает правила оптимизации затрат из конфигурационного файла или возвращает значения по умолчанию.
@@ -278,7 +276,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]
 
                     yaml_available = True
                 except ImportError:
@@ -286,8 +284,7 @@ class BusinessBayesianAnalyzer:
                     yaml_available = False
                 if yaml_available:
                     with open(config_path, "r", encoding="utf-8") as f:
-                        loaded: dict = yaml.safe_load(f) or {}  # type: ignore[assignment, name-defined]
-                        return loaded
+                        return yaml.safe_load(f) or {}
             except Exception:  # nosec B110 - intentional fallback to defaults
                 # Fallback to defaults on any error
                 pass
@@ -317,9 +314,9 @@ class BusinessBayesianAnalyzer:
             },
         }
 
-    def analyze_business_logic(self, test_code: str, test_name: str) -> List[BusinessTestResult]:
+    def analyze_business_logic(self, test_code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует бизнес-логику в тестах."""
-        results: List[BusinessTestResult] = []
+        results: list[BusinessTestResult] = []
 
         # Анализ монетизации
         monetization_issues = self._analyze_monetization(test_code, test_name)
@@ -360,7 +357,7 @@ class BusinessBayesianAnalyzer:
             # Only strip comments that start a line or are preceded by whitespace
             return re.sub(r"(^|\s)#.*", r"\1", code, flags=re.MULTILINE)
 
-    def _analyze_monetization(self, code: str, test_name: str) -> List[BusinessTestResult]:
+    def _analyze_monetization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует стратегии монетизации."""
         results = []
         # Ignore inline comments when scanning for strategy keywords to avoid false negatives
@@ -445,7 +442,7 @@ class BusinessBayesianAnalyzer:
 
         return results
 
-    def _analyze_customer_acquisition(self, code: str, test_name: str) -> List[BusinessTestResult]:
+    def _analyze_customer_acquisition(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует привлечение клиентов."""
         results = []
 
@@ -488,7 +485,7 @@ class BusinessBayesianAnalyzer:
 
         return results
 
-    def _analyze_cost_optimization(self, code: str, test_name: str) -> List[BusinessTestResult]:
+    def _analyze_cost_optimization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует возможности оптимизации затрат."""
         results = []
 
@@ -645,7 +642,7 @@ class BusinessBayesianAnalyzer:
 
         return results
 
-    def _analyze_revenue_growth(self, code: str, test_name: str) -> List[BusinessTestResult]:
+    def _analyze_revenue_growth(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует возможности роста доходов."""
         results = []
 
@@ -691,7 +688,7 @@ class BusinessBayesianAnalyzer:
 
         return results
 
-    def _analyze_customer_retention(self, code: str, test_name: str) -> List[BusinessTestResult]:
+    def _analyze_customer_retention(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует удержание клиентов."""
         results = []
 
@@ -732,7 +729,7 @@ class BusinessBayesianAnalyzer:
 
         return results
 
-    def generate_cost_savings_recommendations(self) -> List[str]:
+    def generate_cost_savings_recommendations(self) -> list[str]:
         """Генерирует рекомендации по экономии средств."""
         recommendations = []
 
@@ -772,7 +769,7 @@ class BusinessBayesianAnalyzer:
 
         return recommendations
 
-    def generate_revenue_optimization_recommendations(self) -> List[str]:
+    def generate_revenue_optimization_recommendations(self) -> list[str]:
         """Генерирует рекомендации по оптимизации доходов."""
         recommendations = []
 
@@ -811,13 +808,13 @@ class BusinessBayesianAnalyzer:
 
         return recommendations
 
-    def diagnose_business_issues(self) -> Dict[BusinessCategory, float]:
+    def diagnose_business_issues(self) -> dict[BusinessCategory, float]:
         """Диагностирует бизнес-проблемы."""
         if not self.test_results:
             return {}
 
         # Подсчитываем проблемы по категориям
-        category_counts: Dict[BusinessCategory, int] = {}
+        category_counts: dict[BusinessCategory, int] = {}
         total_issues = 0
 
         for result in self.test_results:
@@ -833,15 +830,15 @@ class BusinessBayesianAnalyzer:
 
         return probabilities
 
-    def calculate_roi_potential(self) -> List[ROIEstimate]:
+    def calculate_roi_potential(self) -> list[ROIEstimate]:
         """
         Вычисляет потенциал ROI для различных оптимизаций с использованием байесовского подхода.
 
         Returns:
-            List[ROIEstimate]: Список байесовских оценок ROI для каждой категории оптимизации.
+            list[ROIEstimate]: Список байесовских оценок ROI для каждой категории оптимизации.
         """
         issues = self.diagnose_business_issues()
-        roi_estimates: List[ROIEstimate] = []
+        roi_estimates: list[ROIEstimate] = []
 
         # Собираем данные из результатов тестов для обновления априорных распределений
         category_data = self._collect_category_data()
@@ -893,14 +890,14 @@ class BusinessBayesianAnalyzer:
 
         return roi_estimates
 
-    def _collect_category_data(self) -> Dict[str, List[float]]:
+    def _collect_category_data(self) -> dict[str, list[float]]:
         """
         Собирает исторические данные по категориям из результатов тестов.
 
         Returns:
-            Dict[str, List[float]]: Данные по категориям (benefit/cost ratios).
+            dict[str, list[float]]: Данные по категориям (benefit/cost ratios).
         """
-        category_data: Dict[str, List[float]] = {}
+        category_data: dict[str, list[float]] = {}
 
         # Извлекаем информацию из результатов тестов
         # В реальном сценарии здесь можно использовать исторические данные проекта
@@ -921,7 +918,7 @@ class BusinessBayesianAnalyzer:
         category: str,
         prior_mean: float,
         prior_std: float,
-        data: List[float],
+        data: list[float],
         time_horizon_months: int,
         assumptions: str,
     ) -> ROIEstimate:

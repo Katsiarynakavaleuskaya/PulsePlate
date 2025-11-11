@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.Column("carbs_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("servings", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("ingredients", sa.JSON(), nullable=False),
+        sa.Column("ingredients", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
         sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("allergens", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("source", sa.String(length=255), nullable=False),
@@ -88,7 +88,7 @@ def upgrade() -> None:
         sa.Column("fat_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("carbs_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("grams_data", sa.JSON(), nullable=False),
+        sa.Column("grams_data", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
         sa.Column("micros_data", sa.JSON(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False

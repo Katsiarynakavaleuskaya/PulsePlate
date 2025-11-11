@@ -155,7 +155,10 @@ class Meal(Base):
 
     # Ingredient details
     grams_data: Mapped[dict] = mapped_column(
-        MutableDict.as_mutable(JSON), nullable=False
+        MutableDict.as_mutable(JSON),
+        nullable=False,
+        default=lambda: {},
+        server_default=text("'{}'"),
     )  # {food_id: grams}
     micros_data: Mapped[dict] = mapped_column(
         MutableDict.as_mutable(JSON), nullable=True

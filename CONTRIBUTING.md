@@ -41,10 +41,40 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
 
 - Follow existing style. Keep changes minimal and scoped.
 - Prefer tests that isolate external services by mocking.
-- Don’t lower coverage thresholds; add tests instead.
+- Don't lower coverage thresholds; add tests instead.
 - **Premium endpoints policy / Политика премиальных эндпойнтов**:
   - Every new premium/admin FastAPI route **must** include the shared API key guard (e.g. `Depends(_get_api_key_dynamic)` or `require_premium_key`).
   - Перед добавлением нового платного эндпойнта убедитесь, что он подключает dependency для проверки ключа и что есть тест, подтверждающий 403/401 без ключа.
+
+### Docstring Convention / Конвенция документации
+
+The project uses bilingual docstrings (Russian and English) for better accessibility:
+
+- **Format**: Start with a brief English summary, then add `RU:` and `EN:` sections
+- **Pattern**:
+  ```python
+  """Brief English summary.
+
+  RU: Краткое описание на русском языке.
+  EN: More detailed English explanation (not just repeating the summary).
+  """
+  ```
+- **Guidelines**:
+  - First line: Concise English summary
+  - `RU:` section: Russian explanation (can be more detailed)
+  - `EN:` section: Detailed English explanation (should add value beyond the summary, not duplicate it)
+  - Avoid duplication between the summary line and the `EN:` section
+- **Example**:
+  ```python
+  def _atomic_write_json(target_path: Path, data: Mapping[str, Any]) -> None:
+      """Atomically write JSON to target_path.
+
+      RU: Атомарная запись JSON в файл: во временный файл в той же директории,
+      затем os.replace(). Гарантирует целостность при сбоях.
+      EN: Writes JSON data atomically by first writing to a temporary file in the same
+      directory, then using os.replace() to ensure atomicity and data integrity on failures.
+      """
+  ```
 
 ## Commit Messages
 

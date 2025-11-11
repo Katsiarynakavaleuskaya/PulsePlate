@@ -183,7 +183,8 @@ def _atomic_write_json(target_path: Path, data: Mapping[str, Any]) -> None:
 
     RU: Атомарная запись JSON в файл: во временный файл в той же директории,
     затем os.replace(). Гарантирует целостность при сбоях.
-    EN: Atomic JSON write using temp file in same directory followed by os.replace().
+    EN: Writes JSON data atomically by first writing to a temporary file in the same
+    directory, then using os.replace() to ensure atomicity and data integrity on failures.
     """
     target_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_file = None

@@ -365,8 +365,8 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
         if self.MEDICAL_ALERTS_ENABLED:
             daily_calories = self._estimate_daily_calories(user_id, entry)
             # Load thresholds from config/medical_safety.yaml (not hardcoded constants)
-            min_threshold = self._load_medical_threshold("MIN_SAFE_DAILY_CALORIES", self.MIN_SAFE_DAILY_CALORIES)
-            max_threshold = self._load_medical_threshold("MAX_SAFE_DAILY_CALORIES", self.MAX_SAFE_DAILY_CALORIES)
+            min_threshold = self.MIN_SAFE_DAILY_CALORIES
+            max_threshold = self.MAX_SAFE_DAILY_CALORIES
             if daily_calories < min_threshold:
                 issues.append(
                     f"MEDICAL SAFETY ALERT: Estimated daily intake ({daily_calories:.0f} kcal) "

@@ -22,7 +22,6 @@ DEADLINE_MS: Optional[int] = None
 # RU: Конфигурируемый таймаут через переменную окружения, по умолчанию 5 секунд для CI.
 # EN: Configurable timeout via environment variable, default 5 seconds for CI stability.
 MEAL_PLAN_GENERATION_TIMEOUT: float = float(os.getenv("MEAL_PLAN_GENERATION_TIMEOUT", "5.0"))
-MEAL_PLAN_GENERATION_WARNING: float = 1.5
 
 
 class TestPremiumWeekHypothesisSimple:

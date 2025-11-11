@@ -14,17 +14,33 @@ from pathlib import Path
 from defusedxml import ElementTree as ET
 
 
+def fallback_tests_from_stdout(result: subprocess.CompletedProcess[str]) -> None:
+    """Print test results fallback from stdout when JUnit XML parsing fails."""
+    print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+
+
+def fallback_coverage_from_stdout(result: subprocess.CompletedProcess[str]) -> None:
+    """Print coverage results fallback from stdout when JSON parsing fails."""
+    for line in result.stdout.split("\n"):
+        if "TOTAL" in line and "%" in line:
+            print(f"📊 Coverage result: {line} (fallback)")
+            break
+
+
 def run_coverage_check() -> bool:
     """Run coverage on our new test files specifically."""
     print("🔍 Checking coverage progress...")
     start_time = time.perf_counter()
+
+    # Initialize paths before with block to avoid NameError in finally
+    junit_path: str | None = None
+    cov_json_path: str | None = None
 
     # Create temporary files for structured reports
     with (
         tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as junit_file,
         tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as cov_json_file,
     ):
-
         junit_path = junit_file.name
         cov_json_path = cov_json_file.name
 
@@ -85,15 +101,15 @@ def run_coverage_check() -> bool:
         except ET.ParseError as xml_error:
             print(f"⚠️  Error parsing JUnit XML (malformed XML): {xml_error}")
             # Fallback to stdout parsing
-            print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+            fallback_tests_from_stdout(result)
         except (FileNotFoundError, PermissionError) as file_error:
             print(f"⚠️  Error accessing JUnit XML file: {file_error}")
             # Fallback to stdout parsing
-            print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+            fallback_tests_from_stdout(result)
         except Exception as e:
             print(f"⚠️  Unexpected error parsing JUnit XML: {e}")
             # Fallback to stdout parsing
-            print(f"✅ Tests passed: {result.stdout.count(' PASSED')} (fallback)")
+            fallback_tests_from_stdout(result)
 
         # Parse JSON coverage report
         try:
@@ -116,49 +132,31 @@ def run_coverage_check() -> bool:
         except FileNotFoundError:
             print(f"⚠️  Coverage JSON file not found: {cov_json_path}")
             # Fallback to stdout parsing
-            for line in result.stdout.split("\n"):
-                if "TOTAL" in line and "%" in line:
-                    print(f"📊 Coverage result: {line} (fallback)")
-                    break
+            fallback_coverage_from_stdout(result)
         except PermissionError as perm_error:
             print(f"⚠️  Permission denied accessing coverage JSON file: {perm_error}")
             # Fallback to stdout parsing
-            for line in result.stdout.split("\n"):
-                if "TOTAL" in line and "%" in line:
-                    print(f"📊 Coverage result: {line} (fallback)")
-                    break
+            fallback_coverage_from_stdout(result)
         except json.JSONDecodeError as json_decode_error:
             print(
                 f"⚠️  Invalid JSON in coverage report (line {json_decode_error.lineno}, col {json_decode_error.colno}): {json_decode_error.msg}"
             )
             # Fallback to stdout parsing
-            for line in result.stdout.split("\n"):
-                if "TOTAL" in line and "%" in line:
-                    print(f"📊 Coverage result: {line} (fallback)")
-                    break
+            fallback_coverage_from_stdout(result)
         except UnicodeDecodeError as unicode_error:
             print(f"⚠️  Unicode decode error in coverage JSON file: {unicode_error}")
             # Fallback to stdout parsing
-            for line in result.stdout.split("\n"):
-                if "TOTAL" in line and "%" in line:
-                    print(f"📊 Coverage result: {line} (fallback)")
-                    break
+            fallback_coverage_from_stdout(result)
         except (KeyError, TypeError) as data_error:
             print(f"⚠️  Unexpected JSON structure in coverage report: {data_error}")
             # Fallback to stdout parsing
-            for line in result.stdout.split("\n"):
-                if "TOTAL" in line and "%" in line:
-                    print(f"📊 Coverage result: {line} (fallback)")
-                    break
+            fallback_coverage_from_stdout(result)
         except Exception as json_error:
             print(
                 f"⚠️  Unexpected error parsing coverage JSON: {type(json_error).__name__}: {json_error}"
             )
             # Fallback to stdout parsing
-            for line in result.stdout.split("\n"):
-                if "TOTAL" in line and "%" in line:
-                    print(f"📊 Coverage result: {line} (fallback)")
-                    break
+            fallback_coverage_from_stdout(result)
 
         if result.returncode != 0:
             print("🔎 pytest stdout (failure):")
@@ -177,10 +175,11 @@ def run_coverage_check() -> bool:
     finally:
         # Clean up temporary files
         for path_str in [junit_path, cov_json_path]:
-            try:
-                Path(path_str).unlink(missing_ok=True)
-            except Exception:  # nosec B110
-                pass  # Ignore cleanup errors
+            if path_str is not None:
+                try:
+                    Path(path_str).unlink(missing_ok=True)
+                except Exception:  # nosec B110
+                    pass  # Ignore cleanup errors
 
 
 if __name__ == "__main__":
