@@ -122,8 +122,10 @@ class BusinessBayesianAnalyzer:
             low_price_threshold: Lower price threshold (if None, uses domain-specific config)
             high_price_threshold: Upper price threshold (if None, uses domain-specific config)
             domain: Application domain ("nutrition", "health", or "generic")
-            business_knowledge: Optional injected business knowledge dict (overrides file loading)
-            monetization_strategies: Optional injected monetization strategies dict (overrides file loading)
+            business_knowledge: Optional injected business knowledge dict
+                (overrides file loading)
+            monetization_strategies: Optional injected monetization strategies dict
+                (overrides file loading)
             cost_optimization_rules: Optional injected cost optimization rules dict (overrides file loading)
         """
         self.test_results: list[BusinessTestResult] = []
@@ -177,7 +179,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]
 
                     yaml_available = True
                 except ImportError:
