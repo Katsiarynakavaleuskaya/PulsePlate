@@ -20,6 +20,8 @@ if spec is None or spec.loader is None:
 
 app_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_module)
+# Register module in sys.modules for mock.patch to work
+sys.modules["app_module"] = app_module
 app = app_module.app
 
 
@@ -175,38 +177,48 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_success(self):
         """Test rollback endpoint success case."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
-            mock_get_scheduler.return_value = mock_scheduler
+        mock_scheduler = AsyncMock()
+        mock_update_manager = AsyncMock()
+        mock_update_manager.rollback_database = AsyncMock(return_value=True)
+        mock_scheduler.update_manager = mock_update_manager
+        mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
+        with patch("app_module.get_update_scheduler", new=mock_get_scheduler):
             response = self.client.post(
                 "/api/v1/admin/rollback",
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code == 500
+            # On successful rollback, endpoint should always return 200
+            assert response.status_code == 200
             data = response.json()
-            assert "detail" in data
+            assert "message" in data
+            assert data["success"] is True
+            assert "Successfully rolled back usda to version 1.0" in data["message"]
 
     def test_rollback_endpoint_failure(self):
         """Test rollback endpoint failure case."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
-            mock_get_scheduler.return_value = mock_scheduler
+        mock_scheduler = AsyncMock()
+        mock_update_manager = AsyncMock()
+        mock_update_manager.rollback_database = AsyncMock(return_value=False)
+        mock_scheduler.update_manager = mock_update_manager
+        mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
+        with patch("app_module.get_update_scheduler", new=mock_get_scheduler):
             response = self.client.post(
                 "/api/v1/admin/rollback",
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            # The app raises an HTTPException(400) which gets caught and re-raised as 500
-            assert response.status_code == 500
+            # HTTPException(400) is now preserved, not re-wrapped as 500
+            assert response.status_code == 400
+            data = response.json()
+            assert "detail" in data
+            assert "Rollback failed" in data["detail"]
 
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+        with patch("app_module.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.post(

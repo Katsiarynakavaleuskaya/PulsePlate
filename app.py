@@ -3274,8 +3274,30 @@ async def rollback_database(source: str, target_version: str):
         Success status and rollback details
     """
     try:
-        scheduler = await get_update_scheduler()
-        success = await scheduler.update_manager.rollback_database(source, target_version)
+        # Resolve getter dynamically (consistent with other admin endpoints)
+        import sys as _sys
+
+        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        logger.debug(f"rollback_database using getter: {_getter!r}")
+        scheduler = await _getter()
+
+        if scheduler is None:
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Scheduler unavailable",
+            )
+
+        # Ensure update_manager and rollback_database exist and are callable
+        update_manager = getattr(scheduler, "update_manager", None)
+        rollback_callable = getattr(update_manager, "rollback_database", None)
+
+        if update_manager is None or not callable(rollback_callable):
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Rollback operation not supported by scheduler",
+            )
+
+        success = await rollback_callable(source, target_version)
 
         if success:
             return JSONResponse(
@@ -3285,11 +3307,14 @@ async def rollback_database(source: str, target_version: str):
                 }
             )
         else:
+            # Preserve previous behavior for failed rollback attempts
             raise HTTPException(
                 status_code=400,
                 detail=f"Rollback failed for {source} to version {target_version}",
             )
 
+    except HTTPException:
+        raise  # Preserve original status code
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rollback operation failed: {str(e)}") from e
 
