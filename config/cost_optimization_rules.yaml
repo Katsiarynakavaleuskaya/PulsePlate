@@ -1,0 +1,24 @@
+# Cost Optimization Rules Configuration
+# RU: Правила оптимизации затрат
+# EN: Cost optimization rules for infrastructure, development, and operations
+
+infrastructure:
+  auto_scaling: "Автоматическое масштабирование ресурсов / Automatic resource scaling"
+  spot_instances: "Использование spot-инстансов для некритичных задач / Use spot instances for non-critical tasks"
+  reserved_instances: "Резервирование инстансов для долгосрочного использования / Reserved instances for long-term use"
+  cdn_optimization: "Оптимизация CDN для снижения трафика / CDN optimization to reduce traffic"
+  caching: "Кэширование для снижения нагрузки на БД / Caching to reduce database load"
+
+development:
+  code_reuse: "Переиспользование кода / Code reuse"
+  automation: "Автоматизация процессов / Process automation"
+  testing: "Эффективное тестирование / Efficient testing"
+  monitoring: "Проактивный мониторинг / Proactive monitoring"
+  documentation: "Хорошая документация / Good documentation"
+
+operations:
+  process_automation: "Автоматизация операционных процессов / Operations process automation"
+  outsourcing: "Аутсорсинг некритичных функций / Outsourcing non-critical functions"
+  lean_operations: "Бережливые операции / Lean operations"
+  vendor_negotiation: "Переговоры с поставщиками / Vendor negotiations"
+  resource_sharing: "Совместное использование ресурсов / Resource sharing"

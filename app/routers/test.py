@@ -6,7 +6,7 @@ Should NOT be included in production builds.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
@@ -68,7 +68,7 @@ async def test_health(response: Response) -> TestResponse:
 
 
 @router.post("/echo")
-async def test_echo(data: Dict[str, Any], response: Response) -> Dict[str, Any]:
+async def test_echo(data: dict[str, Any], response: Response) -> dict[str, Any]:
     """
     Echo endpoint that returns the received data.
 
@@ -78,7 +78,7 @@ async def test_echo(data: Dict[str, Any], response: Response) -> Dict[str, Any]:
         data: Any JSON data to echo back
 
     Returns:
-        Dict containing the echoed data and metadata
+        dict containing the echoed data and metadata
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     response.headers["X-Test-Timestamp"] = timestamp

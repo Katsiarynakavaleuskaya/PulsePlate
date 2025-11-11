@@ -943,8 +943,15 @@ class Limits:
 class PersonalizedSafetyLimits:
     # RU: Значения-заглушки, NFR — требуется утверждение клинико‑нутриционного совета.
     # EN: Placeholder guardrails — obtain approval via the Medical Safety Workflow (§ Medical Safety Approval Workflow).
-    MIN_SAFE_FLOOR_KCAL: Final[float] = 1000.0
-    MAX_SAFE_CEILING_KCAL: Final[float] = 4500.0
+    # NOTE: These constants are now loaded from config/medical_safety.yaml at runtime.
+    # The hardcoded values below are fallbacks and should NOT be used in production.
+    # See CONTRIBUTING.md § Medical Safety Approval Workflow for approval requirements.
+    MIN_SAFE_FLOOR_KCAL: Final[float] = 1000.0  # Fallback only - use config/medical_safety.yaml
+    MAX_SAFE_CEILING_KCAL: Final[float] = 4500.0  # Fallback only - use config/medical_safety.yaml
+
+    # Feature flag: Medical alerts/enforcements are disabled by default until approved
+    # Set featureFlags.medicalSafetyApproved = true in config after approval workflow
+    _medical_safety_approved: bool = False  # Loaded from config/medical_safety.yaml
 
     def get_calorie_limits(self, user_id: int) -> Limits:
         """Расчёт персональных безопасных границ по истории пользователя."""

@@ -161,14 +161,14 @@ if [[ $- == *i* ]]; then
 fi
 EOF
 
-# Portable sed in-place edit: write to temp file then move over original
-TEMP_SED_OUTPUT=$(mktemp "${TEMP_NEW_CONFIG}.tmp.XXXXXX")
-sed "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" "$TEMP_NEW_CONFIG" > "$TEMP_SED_OUTPUT" || {
-    rm -f "$TEMP_SED_OUTPUT"
+# Replace placeholder with actual project root using sed
+# More portable approach: use sed with output redirection
+sed "s|__PROJECT_ROOT__|${PROJECT_ROOT}|g" "$TEMP_NEW_CONFIG" > "${TEMP_NEW_CONFIG}.tmp" || {
+    rm -f "${TEMP_NEW_CONFIG}.tmp"
     echo "❌ Error: sed command failed" >&2
     exit 1
 }
-mv "$TEMP_SED_OUTPUT" "$TEMP_NEW_CONFIG"
+mv "${TEMP_NEW_CONFIG}.tmp" "$TEMP_NEW_CONFIG"
 
 # Wrap snippet with markers
 BLOCK_START="# BEGIN PULSEPLATE OPTIMIZED BLOCK"

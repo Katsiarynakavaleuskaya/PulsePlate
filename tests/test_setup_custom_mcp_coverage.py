@@ -5,7 +5,7 @@ Test coverage for setup_custom_mcp.py
 import json
 import os
 import tempfile
-from contextlib import ExitStack, suppress
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Generator, Tuple
 from unittest.mock import MagicMock, mock_open, patch
@@ -78,7 +78,7 @@ class TestSetupCustomMcpCoverage:
         # Verify print statements
         assert mock_print.call_count >= 4
 
-    def test_setup_custom_mcp_with_real_paths(self):
+    def test_setup_custom_mcp_with_real_paths(self) -> None:
         """Test setup_custom_mcp with real path operations"""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -132,11 +132,10 @@ class TestSetupCustomMcpCoverage:
                             mock_home.return_value = Path("/fake/home")
 
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                self._verify_mcp_config_structure(mock_json_dump)
+                                self._assert_mcp_server_config_is_valid(mock_json_dump)
 
-    # TODO Rename this here and in `test_mcp_configuration_structure`
-    def _verify_mcp_config_structure(self, mock_json_dump):
-        mcp_call = self._get_json_dump_config_with_key(mock_json_dump, "mcpServers")
+    def _assert_mcp_server_config_is_valid(self, mock_json_dump):
+        mcp_call = self._extract_json_config_containing_key(mock_json_dump, "mcpServers")
         assert "mcpServers" in mcp_call
         assert "pulseplate-chatgpt" in mcp_call["mcpServers"]
 
@@ -156,19 +155,19 @@ class TestSetupCustomMcpCoverage:
                             mock_home.return_value = Path("/fake/home")
 
                             with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                self._verify_cursor_settings_structure(mock_json_dump)
+                                self._assert_cursor_settings_are_valid(mock_json_dump)
 
-    # TODO Rename this here and in `test_cursor_settings_structure`
-    def _verify_cursor_settings_structure(self, mock_json_dump):
-        settings_call = self._get_json_dump_config_with_key(mock_json_dump, "cursor.ai.enabled")
+    def _assert_cursor_settings_are_valid(self, mock_json_dump):
+        settings_call = self._extract_json_config_containing_key(
+            mock_json_dump, "cursor.ai.enabled"
+        )
         assert settings_call["cursor.ai.enabled"] is True
         assert settings_call["cursor.ai.primaryModel"] == "gpt-4"
         assert settings_call["cursor.ai.secondaryModel"] == "gpt-3.5-turbo"
         assert settings_call["mcp.enabled"] is True
         assert "pulseplate-chatgpt" in settings_call["mcp.servers"]
 
-    # TODO Rename this here and in `_extracted_from_test_mcp_configuration_structure_11` and `_extracted_from_test_cursor_settings_structure_11`
-    def _get_json_dump_config_with_key(self, mock_json_dump, config_key):
+    def _extract_json_config_containing_key(self, mock_json_dump, config_key):
         setup_custom_mcp.setup_custom_mcp(argv=[])
         result = next(
             (

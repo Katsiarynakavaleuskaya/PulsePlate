@@ -433,14 +433,20 @@ def test_personalization():
 
     def test_system_philosophy_enum(self) -> None:
         """Тест enum SystemPhilosophy."""
-        assert SystemPhilosophy.HEALTH_FIRST.value == "health_first"
-        assert SystemPhilosophy.USER_SAFETY.value == "user_safety"
-        assert SystemPhilosophy.DATA_PRIVACY.value == "data_privacy"
-        assert SystemPhilosophy.SCIENTIFIC_ACCURACY.value == "scientific_accuracy"
-        assert SystemPhilosophy.ACCESSIBILITY.value == "accessibility"
-        assert SystemPhilosophy.SUSTAINABILITY.value == "sustainability"
-        assert SystemPhilosophy.PERSONALIZATION.value == "personalization"
-        assert SystemPhilosophy.TRANSPARENCY.value == "transparency"
+        expected_mappings = {
+            SystemPhilosophy.HEALTH_FIRST: "health_first",
+            SystemPhilosophy.USER_SAFETY: "user_safety",
+            SystemPhilosophy.DATA_PRIVACY: "data_privacy",
+            SystemPhilosophy.SCIENTIFIC_ACCURACY: "scientific_accuracy",
+            SystemPhilosophy.ACCESSIBILITY: "accessibility",
+            SystemPhilosophy.SUSTAINABILITY: "sustainability",
+            SystemPhilosophy.PERSONALIZATION: "personalization",
+            SystemPhilosophy.TRANSPARENCY: "transparency",
+        }
+        for enum_member, expected_value in expected_mappings.items():
+            assert (
+                enum_member.value == expected_value
+            ), f"{enum_member.name} should have value '{expected_value}'"
 
     def test_integrated_test_result_dataclass(self) -> None:
         """Тест dataclass IntegratedTestResult."""

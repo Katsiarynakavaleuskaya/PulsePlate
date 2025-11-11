@@ -26,36 +26,67 @@ class TypeHintAdder(ast.NodeTransformer):
         self.modified = False
         self.changes: list[str] = []
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+    def _check_returns_in_body(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> tuple[bool, bool]:
+        """Check for return/yield statements only in the function's own body, not nested functions."""
+        has_return_value = False
+        has_yield = False
+
+        def visit_node(n: ast.AST) -> None:
+            """Recursively visit nodes but skip nested function/class definitions."""
+            nonlocal has_return_value, has_yield
+
+            # Check for return statements with values
+            if isinstance(n, ast.Return) and n.value is not None:
+                has_return_value = True
+
+            # Check for yield statements
+            if isinstance(n, (ast.Yield, ast.YieldFrom)):
+                has_yield = True
+
+            # Continue traversal for child nodes, but skip nested definitions
+            for child in ast.iter_child_nodes(n):
+                # Skip nested function/class/lambda definitions entirely
+                if isinstance(
+                    child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+                ):
+                    continue  # Don't traverse into nested definitions
+                visit_node(child)
+
+        # Visit only the function's body statements, skipping nested definitions
+        for stmt in node.body:
+            # Skip nested function/class definitions at top level
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue  # Skip nested definitions completely
+            visit_node(stmt)
+
+        return has_return_value, has_yield
+
+    def _add_return_type_if_needed(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, is_async: bool = False
+    ) -> None:
         """Add return type hint if missing and function doesn't return anything."""
         if node.returns is None:
-            # Check if function has explicit return with value
-            has_return_value = any(
-                isinstance(stmt, ast.Return) and stmt.value is not None for stmt in ast.walk(node)
-            )
-            has_yield = any(isinstance(stmt, ast.Yield) for stmt in ast.walk(node))
+            # Check only direct statements, not nested functions
+            has_return_value, has_yield = self._check_returns_in_body(node)
 
             # Only add -> None if function doesn't return a value
             if not has_return_value and not has_yield:
                 if not self.dry_run:
                     node.returns = ast.Constant(value=None)
                     self.modified = True
-                self.changes.append(f"  Added -> None to {node.name}()")
+                func_type = "async " if is_async else ""
+                self.changes.append(f"  Added -> None to {func_type}{node.name}()")
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+        """Add return type hint if missing and function doesn't return anything."""
+        self._add_return_type_if_needed(node, is_async=False)
         return cast(ast.FunctionDef, self.generic_visit(node))
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> ast.AsyncFunctionDef:
         """Add return type hint if missing and async function doesn't return anything."""
-        if node.returns is None:
-            has_return_value = any(
-                isinstance(stmt, ast.Return) and stmt.value is not None for stmt in ast.walk(node)
-            )
-            has_yield = any(isinstance(stmt, ast.Yield) for stmt in ast.walk(node))
-
-            if not has_return_value and not has_yield:
-                if not self.dry_run:
-                    node.returns = ast.Constant(value=None)
-                    self.modified = True
-                self.changes.append(f"  Added -> None to async {node.name}()")
+        self._add_return_type_if_needed(node, is_async=True)
         return cast(ast.AsyncFunctionDef, self.generic_visit(node))
 
 

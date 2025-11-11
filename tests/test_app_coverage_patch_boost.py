@@ -39,16 +39,65 @@ def client() -> TestClient:
 class TestAppCoveragePatchBoost:
     """Tests to boost patch coverage for app.py."""
 
-    def test_start_background_updates_coverage(self, client: TestClient) -> None:
-        """Test start_background_updates function coverage."""
-        # Function is a pass-through, but we can verify it exists and is callable
+    @pytest.mark.asyncio
+    async def test_start_background_updates_coverage(self, client: TestClient) -> None:
+        """Test start_background_updates function coverage with scheduler interaction."""
+        # Create a mock scheduler to spy on interactions
+        mock_scheduler = MagicMock()
+        mock_scheduler.is_running = False
+        mock_scheduler.start = AsyncMock()
+
+        # Patch get_update_scheduler to return our mock (async function)
+        async def mock_get_scheduler() -> MagicMock:
+            return mock_scheduler
+
+        with patch("core.food_apis.scheduler.get_update_scheduler", side_effect=mock_get_scheduler):
+            # Import the real implementation from scheduler module
+            from core.food_apis.scheduler import start_background_updates
+
+            # Call with a known interval
+            await start_background_updates(update_interval_hours=12)
+
+            # Assert scheduler.start() was called (interaction check)
+            mock_scheduler.start.assert_called_once()
+
+        # Verify the app.py wrapper function exists and is callable
         assert callable(app.start_background_updates)
         result = app.start_background_updates(update_interval_hours=12)
         assert result is None
 
-    def test_stop_background_updates_coverage(self, client: TestClient) -> None:
-        """Test stop_background_updates function coverage."""
-        # Function is a pass-through, but we can verify it exists and is callable
+    @pytest.mark.asyncio
+    async def test_stop_background_updates_coverage(self, client: TestClient) -> None:
+        """Test stop_background_updates function coverage with scheduler interaction."""
+        # Create a mock scheduler to spy on interactions
+        mock_scheduler = MagicMock()
+        mock_scheduler.is_running = True
+        mock_scheduler.stop = AsyncMock()
+
+        # Patch the scheduler instance to use our mock
+        original_instance = None
+        try:
+            from core.food_apis import scheduler as scheduler_module
+
+            original_instance = getattr(scheduler_module, "_scheduler_instance", None)
+            scheduler_module._scheduler_instance = mock_scheduler
+
+            # Import the real implementation from scheduler module
+            from core.food_apis.scheduler import stop_background_updates
+
+            # Call stop function
+            await stop_background_updates()
+
+            # Assert scheduler.stop() was called (interaction check)
+            mock_scheduler.stop.assert_called_once()
+        finally:
+            # Restore original instance
+            if original_instance is not None:
+                scheduler_module._scheduler_instance = original_instance
+            elif hasattr(scheduler_module, "_scheduler_instance"):
+                delattr(scheduler_module, "_scheduler_instance")
+
+        # Verify the app.py wrapper function exists and is callable
         assert callable(app.stop_background_updates)
         result = app.stop_background_updates()
         assert result is None

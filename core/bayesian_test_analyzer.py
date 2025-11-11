@@ -90,9 +90,6 @@ class TestRecord:
     file_path: str = ""
     line_number: Optional[int] = None
 
-    def __post_init__(self):
-        pass
-
 
 @dataclass
 class BayesianDiagnosis:
@@ -113,6 +110,29 @@ class BayesianTestAnalyzer:
     Использует теорему Байеса для:
     P(причина|симптомы) = P(симптомы|причина) * P(причина) / P(симптомы)
     """
+
+    # Laplace smoothing parameter for likelihood calculation
+    # RU: Параметр сглаживания Лапласа для расчета правдоподобия
+    # EN: Laplace smoothing parameter to avoid extreme probabilities (0/1)
+    LAPLACE_ALPHA = 1.0
+
+    # Symptom similarity threshold for matching cases
+    # RU: Порог схожести симптомов для сопоставления случаев
+    # EN: Minimum Jaccard similarity (0-1) to consider symptoms matching
+    SYMPTOM_SIMILARITY_THRESHOLD = 0.3
+
+    # Health score calculation weights (must sum to 1.0)
+    # RU: Веса для расчета балла здоровья теста (сумма должна быть 1.0)
+    # EN: Weights for test health score calculation (sum must equal 1.0)
+    HEALTH_WEIGHT_SUCCESS = 0.5  # Weight for success rate
+    HEALTH_WEIGHT_COVERAGE = 0.3  # Weight for coverage stability
+    HEALTH_WEIGHT_TIME = 0.2  # Weight for execution time stability
+
+    # Test report generation thresholds
+    # RU: Пороги для генерации отчетов о тестах
+    # EN: Thresholds for test report generation and recommendations
+    FAILURE_RATE_THRESHOLD = 0.1  # Minimum failure rate to trigger recommendation
+    COMMON_ERROR_FREQ_THRESHOLD = 0.05  # Minimum error frequency to flag as common
 
     def __init__(self, data_file: Optional[Path] = None, language: Optional[str] = None) -> None:
         """
@@ -415,7 +435,7 @@ class BayesianTestAnalyzer:
             return 0.1
 
         # Параметры сглаживания и давности
-        alpha = 1.0  # Laplace smoothing
+        # Use class constant for Laplace smoothing (configurable via LAPLACE_ALPHA)
         half_life_hours = 24 * 7  # полураспад 1 неделя
 
         # Все случаи данного типа
@@ -423,7 +443,7 @@ class BayesianTestAnalyzer:
         if not type_all:
             return 0.1
 
-        # Совпадение симптомов считаем близостью (Jaccard) > 0.3
+        # Совпадение симптомов считаем близостью (Jaccard) > SYMPTOM_SIMILARITY_THRESHOLD
         def symptoms_similarity(msg: str) -> float:
             case_sy = self._extract_symptoms(msg or "", {})
             if not case_sy and not symptoms:
@@ -439,11 +459,12 @@ class BayesianTestAnalyzer:
         for case in type_all:
             w = self._calculate_recency_weight(case.timestamp, half_life_hours)
             sim = symptoms_similarity(case.error_message or "")
-            weighted_num += w * (1.0 if sim >= 0.3 else 0.0)
+            weighted_num += w * (1.0 if sim >= self.SYMPTOM_SIMILARITY_THRESHOLD else 0.0)
             weighted_den += w
 
         # Laplace smoothing — избегаем крайностей 0/1
-        prob = (weighted_num + alpha) / (weighted_den + 2 * alpha)
+        # Uses class constant LAPLACE_ALPHA for configurability
+        prob = (weighted_num + self.LAPLACE_ALPHA) / (weighted_den + 2 * self.LAPLACE_ALPHA)
         return float(max(0.01, min(0.99, prob)))
 
     def _calculate_evidence(self, symptoms: Set[str], similar_cases: List[TestRecord]) -> float:
@@ -677,7 +698,12 @@ class BayesianTestAnalyzer:
             time_stability = 1.0
 
         # Взвешенная оценка
-        health_score = success_rate * 0.5 + coverage_stability * 0.3 + time_stability * 0.2
+        # Uses class constants for weights (sum = 1.0: HEALTH_WEIGHT_SUCCESS + HEALTH_WEIGHT_COVERAGE + HEALTH_WEIGHT_TIME)
+        health_score = (
+            success_rate * self.HEALTH_WEIGHT_SUCCESS
+            + coverage_stability * self.HEALTH_WEIGHT_COVERAGE
+            + time_stability * self.HEALTH_WEIGHT_TIME
+        )
 
         return max(0.0, min(1.0, health_score))
 
@@ -704,7 +730,8 @@ class BayesianTestAnalyzer:
         # Рекомендации по улучшению
         recommendations = []
 
-        if failed_tests / total_tests > 0.1:
+        # Use class constant FAILURE_RATE_THRESHOLD for configurability
+        if failed_tests / total_tests > self.FAILURE_RATE_THRESHOLD:
             recommendations.append(
                 "Высокий процент падающих тестов - пересмотрите стратегию тестирования"
             )
@@ -718,7 +745,8 @@ class BayesianTestAnalyzer:
 
         if most_common_error is not None:
             error, count = most_common_error
-            if count > total_tests * 0.05:
+            # Use class constant COMMON_ERROR_FREQ_THRESHOLD for configurability
+            if count > total_tests * self.COMMON_ERROR_FREQ_THRESHOLD:
                 recommendations.append(f"Частая ошибка {error.value} - создайте общее решение")
 
         return {

@@ -13,13 +13,12 @@ from starlette.types import ASGIApp
 class TestVIPIntegration97Ultimate:
     """Ультимативные интеграционные тесты для VIP endpoints"""
 
-    def test_vip_weekly_menu_integration_ultimate_scenarios(self, test_environment):
-        """Ультимативные интеграционные тесты VIP weekly menu endpoint"""
+    def test_vip_weekly_menu_full_scenarios(self, test_environment) -> None:
+        """Тест VIP weekly menu endpoint с полными данными пользователя"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест 1: Полные данные пользователя с различными комбинациями
         full_scenarios = [
             {
                 "sex": "male",
@@ -84,7 +83,12 @@ class TestVIPIntegration97Ultimate:
                 assert "echo" in data
                 assert "menu" in data
 
-        # Тест 2: Минимальные данные с различными комбинациями
+    def test_vip_weekly_menu_minimal_scenarios(self, test_environment) -> None:
+        """Тест VIP weekly menu endpoint с минимальными данными"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         minimal_scenarios = [
             {
                 "sex": "female",
@@ -122,7 +126,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] == "success"
 
-        # Тест 3: Альтернативные поля с различными комбинациями
+    def test_vip_weekly_menu_alternative_scenarios(self, test_environment) -> None:
+        """Тест VIP weekly menu endpoint с альтернативными полями"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         alternative_scenarios = [
             {
                 "calories": 2000,
@@ -160,7 +169,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] in ["success", "error"]
 
-        # Тест 4: Различные комбинации активности и целей
+    def test_vip_weekly_menu_activity_goals_scenarios(self, test_environment) -> None:
+        """Тест VIP weekly menu endpoint с различными комбинациями активности и целей"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         activity_goals = [
             ("sedentary", "maintain"),
             ("light", "loss"),
@@ -188,13 +202,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_recipes_integration_ultimate_scenarios(self, test_environment):
-        """Ультимативные интеграционные тесты VIP recipes endpoint"""
+    def test_vip_recipes_complex_scenarios(self, test_environment) -> None:
+        """Тест VIP recipes endpoint с полным week_plan с множественными днями и приемами пищи"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест 1: Полный week_plan с множественными днями и приемами пищи
         complex_scenarios = [
             {
                 "week_plan": {
@@ -291,7 +304,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] == "success"
 
-        # Тест 2: Простой week_plan с различными продуктами
+    def test_vip_recipes_simple_scenarios(self, test_environment) -> None:
+        """Тест VIP recipes endpoint с простым week_plan с различными продуктами"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         simple_scenarios = [
             {
                 "week_plan": {
@@ -352,7 +370,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] == "success"
 
-        # Тест 3: Week_plan с различными единицами измерения
+    def test_vip_recipes_units_scenarios(self, test_environment) -> None:
+        """Тест VIP recipes endpoint с week_plan с различными единицами измерения"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         units_scenarios = [
             {
                 "week_plan": {
@@ -405,13 +428,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_auto_repair_integration_ultimate_scenarios(self, test_environment):
-        """Ультимативные интеграционные тесты VIP auto repair endpoint"""
+    def test_vip_auto_repair_problems_scenarios(self, test_environment) -> None:
+        """Тест VIP auto repair endpoint с проблемным week_plan с множественными проблемами"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест 1: Проблемный week_plan с множественными проблемами
         problems_scenarios = [
             {
                 "week_plan": {
@@ -476,7 +498,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] in ["success", "error"]
 
-        # Тест 2: Простой проблемный week_plan
+    def test_vip_auto_repair_simple_problems_scenarios(self, test_environment) -> None:
+        """Тест VIP auto repair endpoint с простым проблемным week_plan"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         simple_problems_scenarios = [
             {
                 "week_plan": {
@@ -530,7 +557,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] in ["success", "error"]
 
-        # Тест 3: Week_plan без проблем
+    def test_vip_auto_repair_no_problems_scenarios(self, test_environment) -> None:
+        """Тест VIP auto repair endpoint с week_plan без проблем"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         no_problems_scenarios = [
             {
                 "week_plan": {
@@ -592,13 +624,12 @@ class TestVIPIntegration97Ultimate:
             data = response.json()
             assert data["status"] in ["success", "error"]
 
-    def test_vip_shoplist_integration_ultimate_scenarios(self, test_environment):
-        """Ультимативные интеграционные тесты VIP shoplist endpoint"""
+    def test_vip_shoplist_full_scenarios(self, test_environment) -> None:
+        """Тест VIP shoplist endpoint с полным week_plan для генерации списка покупок"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест 1: Полный week_plan для генерации списка покупок
         full_shoplist_scenarios = [
             {
                 "week_plan": {
@@ -686,7 +717,12 @@ class TestVIPIntegration97Ultimate:
                 data = response.json()
                 assert data["status"] == "success"
 
-        # Тест 2: Простой week_plan
+    def test_vip_shoplist_simple_scenarios(self, test_environment) -> None:
+        """Тест VIP shoplist endpoint с простым week_plan"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         simple_shoplist_scenarios = [
             {
                 "week_plan": {
@@ -738,7 +774,12 @@ class TestVIPIntegration97Ultimate:
             )
             assert response.status_code in [200, 404]
 
-        # Тест 3: Week_plan с различными регионами
+    def test_vip_shoplist_regions_scenarios(self, test_environment) -> None:
+        """Тест VIP shoplist endpoint с week_plan с различными регионами"""
+        import app
+
+        client = TestClient(cast(ASGIApp, app.app))
+
         regions = ["BY", "US", "ES", "DE", "FR", "IT", "PL"]
 
         for region in regions:

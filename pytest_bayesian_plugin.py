@@ -4,11 +4,22 @@ Pytest plugin для интеграции с байесовской систем
 Автоматически записывает результаты тестов и предоставляет диагностику ошибок.
 """
 
+from __future__ import annotations
+
 import ast
 import asyncio
 import os
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+
+if TYPE_CHECKING:
+    from _pytest.config import Config
+    from _pytest.nodes import Item
+    from _pytest.reports import TestReport
+else:  # pragma: no cover - runtime fallback when pytest types unavailable
+    Config = Any
+    Item = Any
+    TestReport = Any
 
 from core.bayesian_test_analyzer import (
     BayesianTestAnalyzer,
@@ -71,7 +82,7 @@ class BayesianPytestPlugin:
         context = self._gather_test_context(item)
         self.test_contexts[test_name] = {"category": category, "context": context}
 
-    def pytest_runtest_teardown(self, item, nextitem) -> None:
+    def pytest_runtest_teardown(self, item: Item, nextitem: Optional[Item]) -> None:
         """Вызывается после выполнения теста."""
         test_name = item.nodeid
 
@@ -79,7 +90,7 @@ class BayesianPytestPlugin:
         self.test_start_times.pop(test_name, None)
         self.test_contexts.pop(test_name, None)
 
-    def pytest_runtest_logreport(self, report) -> None:
+    def pytest_runtest_logreport(self, report: TestReport) -> None:
         """Вызывается при получении отчета о тесте."""
         if report.when != "call":  # Только для основного выполнения
             return
@@ -119,7 +130,7 @@ class BayesianPytestPlugin:
             line_number=getattr(report, "lineno", None),
         )
 
-    def _determine_test_category(self, item) -> TestCategory:
+    def _determine_test_category(self, item: Item) -> TestCategory:
         """Определяет категорию теста на основе маркеров с поддержкой настроек.
 
         Сначала проверяются настраиваемые маркеры, затем известные категории,
@@ -159,7 +170,7 @@ class BayesianPytestPlugin:
             return TestCategory.BAYESIAN
         return TestCategory.UNIT
 
-    def _gather_test_context(self, item) -> Dict[str, Any]:
+    def _gather_test_context(self, item: Item) -> Dict[str, Any]:
         """Собрать контекст теста."""
         context = {}
 
@@ -180,7 +191,7 @@ class BayesianPytestPlugin:
 
         return context
 
-    def _get_test_code(self, item) -> str:
+    def _get_test_code(self, item: Item) -> str:
         """Получить код теста."""
         try:
             if hasattr(item, "function") and hasattr(item.function, "__code__"):
@@ -278,7 +289,7 @@ class BayesianPytestPlugin:
         detector.visit(tree)
         return detector.has_mocks
 
-    def _analyze_failure(self, report) -> Tuple[Optional[ErrorType], Optional[str]]:
+    def _analyze_failure(self, report: TestReport) -> Tuple[Optional[ErrorType], Optional[str]]:
         """Анализировать падение теста и определить тип ошибки и сообщение.
 
         Returns a tuple (error_type, error_message) where values may be None
@@ -352,25 +363,25 @@ class BayesianPytestPlugin:
         print("=" * 60 + "\n")
 
 
-def pytest_configure(config) -> None:
+def pytest_configure(config: Config) -> None:
     """Конфигурация pytest plugin."""
     if not hasattr(config, "bayesian_plugin"):
         config.bayesian_plugin = BayesianPytestPlugin()
 
 
-def pytest_runtest_setup(item) -> None:
+def pytest_runtest_setup(item: Item) -> None:
     """Хук для настройки теста."""
     if hasattr(item.config, "bayesian_plugin"):
         item.config.bayesian_plugin.pytest_runtest_setup(item)
 
 
-def pytest_runtest_teardown(item, nextitem) -> None:
+def pytest_runtest_teardown(item: Item, nextitem: Optional[Item]) -> None:
     """Хук для завершения теста."""
     if hasattr(item.config, "bayesian_plugin"):
         item.config.bayesian_plugin.pytest_runtest_teardown(item, nextitem)
 
 
-def pytest_runtest_logreport(report) -> None:
+def pytest_runtest_logreport(report: Any) -> None:
     """Хук для отчета о тесте."""
     if hasattr(report.config, "bayesian_plugin"):
         report.config.bayesian_plugin.pytest_runtest_logreport(report)

@@ -53,13 +53,11 @@ class TestAppDatabaseFallback:
 
         with patch("core.db.init_db", side_effect=OSError("Disk I/O error")):
             with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test_fallback.db"}):
-                # Test that suppress(OSError, IOError) is triggered
-                with suppress(OSError, IOError):
-                    # This should be caught by suppress in the fallback logic
-                    # Use context manager to exercise startup/shutdown
-                    with TestClient(app.app) as client:
-                        response = client.get("/health")
-                        assert response.status_code in [200, 503]  # May fail gracefully
+                # This should be caught by suppress in the fallback logic
+                # Use context manager to exercise startup/shutdown
+                with TestClient(app.app) as client:
+                    response = client.get("/health")
+                    assert response.status_code in [200, 503]  # May fail gracefully
 
     def test_database_fallback_ioerror_handling(self, _test_environment) -> None:
         """Test database fallback handles IOError specifically (line 152)"""
@@ -68,14 +66,9 @@ class TestAppDatabaseFallback:
 
         with patch("core.db.init_db", side_effect=IOError("I/O error")):
             with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test_fallback.db"}):
-                # Test that suppress(OSError, IOError) is triggered
-                with suppress(OSError, IOError):
-                    try:
-                        client = TestClient(app.app)
-                        response = client.get("/health")
-                        assert response.status_code in [200, 503]
-                    except Exception:
-                        pass
+                with TestClient(app.app) as client:
+                    response = client.get("/health")
+                    assert response.status_code in [200, 503]
 
     def test_database_fallback_failure_propagation(self, _test_environment) -> None:
         """Test that database fallback failure propagates exception (line 163)"""
@@ -301,6 +294,7 @@ class TestAppAttributeDeletion:
         sys.modules["test_module_for_deletion"] = mock_module
 
         # Add attribute that will be deleted
+        original_attrs = app._PATCHED_ATTRS
         app._PATCHED_ATTRS = ["test_attr"]
 
         try:
@@ -312,6 +306,7 @@ class TestAppAttributeDeletion:
                     delattr(mock_module, "test_attr")
                 # Attribute deletion is tested in finally block (lines 1479-1480)
         finally:
+            app._PATCHED_ATTRS = original_attrs
             # Cleanup
             if "test_module_for_deletion" in sys.modules:
                 del sys.modules["test_module_for_deletion"]

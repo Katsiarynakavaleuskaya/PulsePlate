@@ -5,6 +5,7 @@ Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 import logging
 import os
 import sys
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -37,6 +38,8 @@ class TestTargetedCoverageBoost:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+            del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_app_py_line_49(self):
         """Test line 49 in main.py (dotenv loading condition)."""
@@ -166,7 +169,6 @@ class TestTargetedCoverageBoost:
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
             # Exception is expected, but the code should handle it gracefully
-            pass
 
     @pytest.mark.asyncio
     async def test_unified_db_py_line_165(self) -> None:
@@ -174,14 +176,9 @@ class TestTargetedCoverageBoost:
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
         db: UnifiedFoodDatabase = UnifiedFoodDatabase()
-        # Test with async function properly
-        try:
-            _ = await db.get_food_by_id("usda", "invalid_id")
-            # Should handle invalid ID gracefully
-        except Exception as e:
-            logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
-            # Exception is expected, but the code should handle it gracefully
-            pass
+        # get_food_by_id returns None for invalid IDs, does not raise exceptions
+        result = await db.get_food_by_id("usda", "invalid_id")
+        assert result is None
 
     def test_unified_db_py_lines_171_175(self):
         """Test lines 171-175 in unified_db.py (_get_cache_file exception)."""
@@ -197,7 +194,6 @@ class TestTargetedCoverageBoost:
         except Exception as e:
             logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
             # Exception is expected, but the code should handle it gracefully
-            pass
 
     @pytest.mark.asyncio
     async def test_update_manager_py_lines_264_296(self) -> None:
@@ -262,12 +258,7 @@ class TestTargetedCoverageBoost:
             side_effect=Exception("Test error"),
         ):
             manager: DatabaseUpdateManager = DatabaseUpdateManager()
-            try:
-                await manager._cleanup_old_backups("usda")
-                # Should not crash, just log error
-            except Exception as e:
-                logging.exception("Unexpected exception in tests: test_targeted_coverage_boost.py")
-                # Exception is expected, but the code should handle it gracefully
+            await manager._cleanup_old_backups("usda")
 
     def test_update_manager_py_line_497(self):
         """Test line 497 in update_manager.py (get_database_status)."""
@@ -316,9 +307,9 @@ class TestTargetedCoverageBoost:
         """Test line 425 in menu_engine.py (_enhance_meals_with_micros)."""
         from core.menu_engine import _enhance_meals_with_micros
 
-        meals = [{"title": "Test Meal"}]  # Fix the key name
-        food_db = {}
-        recipe_db = {}
+        meals: list[dict[str, Any]] = [{"title": "Test Meal"}]  # Fix the key name
+        food_db: dict[str, Any] = {}
+        recipe_db: dict[str, Any] = {}
         result = _enhance_meals_with_micros(
             meals, food_db, recipe_db, set()
         )  # Changed None to set()
@@ -328,8 +319,8 @@ class TestTargetedCoverageBoost:
         """Test line 467 in menu_engine.py (_calculate_total_nutrients)."""
         from core.menu_engine import _calculate_total_nutrients
 
-        meals = []
-        food_db = {}
+        meals: list[dict[str, Any]] = []
+        food_db: dict[str, Any] = {}
         result = _calculate_total_nutrients(meals, food_db)
         assert isinstance(result, dict)
 
@@ -337,8 +328,8 @@ class TestTargetedCoverageBoost:
         """Test line 490 in menu_engine.py (_estimate_daily_cost)."""
         from core.menu_engine import _estimate_daily_cost
 
-        meals = []
-        food_db = {}
+        meals: list[dict[str, Any]] = []
+        food_db: dict[str, Any] = {}
         result = _estimate_daily_cost(meals, food_db)
         assert isinstance(result, (int, float))
 

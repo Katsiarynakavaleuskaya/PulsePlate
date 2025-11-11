@@ -49,7 +49,7 @@ case $choice in
             exit 1
         fi
 
-        # Use Python script to update API key securely / Используем Python-скрипт для безопасного обновления API-ключа
+        # Use Python script to update API key securely
         if ! python3 scripts/update_api_key.py <<EOF
 $api_key
 EOF

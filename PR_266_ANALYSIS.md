@@ -46,7 +46,7 @@ CI падает из-за проверки покрытия 97% в двух ме
 
 Следующие файлы были изменены и могут требовать дополнительного покрытия:
 
-```
+```text
 alembic/versions/202501110001_add_nutrition_tables.py
 app.py
 app/dependencies.py
@@ -121,9 +121,9 @@ core/models.py
 
 ## 🔗 Ссылки на CI
 
-- **PR Coverage Guard:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/19244111549
-- **PR Tests (Fast):** https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/19244111586
-- **CI (test-pr):** https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/19244111557
+- **PR Coverage Guard:** [actions run 19244111549](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/19244111549)
+- **PR Tests (Fast):** [actions run 19244111586](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/19244111586)
+- **CI (test-pr):** [actions run 19244111557](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/19244111557)
 
 ## 📝 Следующие шаги
 

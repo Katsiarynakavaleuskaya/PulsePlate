@@ -67,7 +67,9 @@ class Recipe(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     recipe_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
-    locale: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
+    locale: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="en", server_default=text("'en'")
+    )
 
     # Nutritional data (per serving, validated by CHECK constraints)
     kcal_per_serving: Mapped[float] = mapped_column(Float, nullable=False)
@@ -79,7 +81,10 @@ class Recipe(Base):
     # Recipe metadata
     servings: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     ingredients: Mapped[dict] = mapped_column(
-        MutableDict.as_mutable(JSON), nullable=False
+        MutableDict.as_mutable(JSON),
+        nullable=False,
+        default=dict,
+        server_default=text("'{}'"),
     )  # {food_id: grams}
     tags: Mapped[list] = mapped_column(
         MutableList.as_mutable(JSON),
@@ -131,8 +136,12 @@ class Meal(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
-    recipe_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("recipes.id"), nullable=True)
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    recipe_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("recipes.id", ondelete="SET NULL"), nullable=True
+    )
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     title_translated: Mapped[str] = mapped_column(String(500), nullable=True)
@@ -176,7 +185,7 @@ class FoodItem(Base):
         CheckConstraint("carbs_g_per_100g <= 100", name="ck_food_carbs_max"),
         CheckConstraint("fiber_g_per_100g >= 0", name="ck_food_fiber_positive"),
         CheckConstraint("fiber_g_per_100g <= 100", name="ck_food_fiber_max"),
-        # Note: ix_food_items_food_id index removed - food_id column already has unique=True constraint
+        # Note: Explicit index on food_id for optimization (unique constraint also creates implicit index)
         Index("ix_food_items_canonical_name", "canonical_name"),
     )
 
@@ -217,4 +226,4 @@ class FoodItem(Base):
     )
 
 
-__all__ = ["User", "Recipe", "Meal", "FoodItem"]
+__all__: list[str] = ["User", "Recipe", "Meal", "FoodItem"]

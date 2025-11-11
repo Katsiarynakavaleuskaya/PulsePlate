@@ -11,6 +11,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from core.nutrition_constants import (
+    BMI_DANGEROUS_HIGH,
+    BMI_DANGEROUS_LOW,
     CARBS_MAX_PERCENT,
     CARBS_MIN_PERCENT,
     FAT_MAX_PERCENT,
@@ -81,6 +83,16 @@ class NutritionTestResult:
 class NutritionBayesianAnalyzer:
     """Байесовский анализатор для питания и здоровья."""
 
+    # Macronutrient validation tolerance
+    # RU: Допустимое отклонение суммы процентов макронутриентов от 100%
+    # EN: Tolerance for macronutrient percentage sum validation
+    MACRO_SUM_TOLERANCE = 0.01  # Default tolerance 1% (0.01)
+
+    # Safety score penalty constants
+    # RU: Константы штрафов для балла безопасности
+    # EN: Penalty values for safety score calculation
+    DANGEROUS_PENALTY = 0.05  # Per-issue penalty for dangerous safety findings
+
     def __init__(self) -> None:
         self.test_results: List[NutritionTestResult] = []
         self.nutrition_knowledge_base = self._load_nutrition_knowledge()
@@ -135,8 +147,8 @@ class NutritionBayesianAnalyzer:
         EN: Uses centralized constants from core.nutrition_constants.
         """
         return {
-            "bmi_dangerous_low": 16.0,
-            "bmi_dangerous_high": 30.0,
+            "bmi_dangerous_low": BMI_DANGEROUS_LOW,  # From nutrition_constants
+            "bmi_dangerous_high": BMI_DANGEROUS_HIGH,  # From nutrition_constants
             "calorie_dangerous_low": KCAL_DANGEROUS_LOW,  # From nutrition_constants
             "calorie_dangerous_high": KCAL_DANGEROUS_HIGH,  # From nutrition_constants
             "nutrient_imbalance_threshold": 0.3,
@@ -407,10 +419,9 @@ class NutritionBayesianAnalyzer:
                 carb_pct = carb_cals / total_calories
 
                 # Validate that macronutrient percentages sum to approximately 100%
-                # Tolerance is configurable, default 0.01 (1%)
-                MACRO_SUM_TOLERANCE = 0.01
+                # Tolerance is configurable via class constant
                 total_pct = protein_pct + fat_pct + carb_pct
-                if abs(total_pct - 1.0) > MACRO_SUM_TOLERANCE:
+                if abs(total_pct - 1.0) > self.MACRO_SUM_TOLERANCE:
                     results.append(
                         NutritionTestResult(
                             test_name=test_name,
@@ -584,7 +595,7 @@ class NutritionBayesianAnalyzer:
 
         # Smaller per-issue penalty to avoid over-penalizing when many findings are logged
         critical_penalty = sum(
-            0.05
+            self.DANGEROUS_PENALTY
             for result in self.test_results
             if not result.success and result.safety_level == "dangerous"
         )

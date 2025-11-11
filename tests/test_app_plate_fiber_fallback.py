@@ -75,6 +75,7 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
     response = await app.api_premium_plate(request)
 
     assert response.macros["fiber_g"] == app.FIBER_MIN_G
-    # kcal is computed from real make_plate (goal=loss with 15% deficit from TDEE=2000 → ~1700-1900)
+    # api_premium_plate recalculates kcal from goal-adjusted TDEE (goal=loss with 15% deficit
+    # from TDEE=2000 → ~1700-1900) rather than relying on the mocked plate.kcal
     # The exact value depends on the plate algorithm, so we check it's in a reasonable range
     assert 1700 <= response.kcal <= 2100

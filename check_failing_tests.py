@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
+# Directory name for test files
+TESTS_DIR_NAME = "tests"
+
 
 def extract_error_line(output: str) -> Optional[str]:
     """Extract the first error line from test output.
@@ -50,7 +53,34 @@ def extract_error_line(output: str) -> Optional[str]:
 
 
 def run_test_file(test_file: Union[Path, str]) -> Tuple[bool, str]:
-    """Run a single test file and return (status_ok, output)."""
+    """Run a single test file using pytest via subprocess and return status and output.
+
+    Executes pytest on the specified test file using subprocess.run() with the current
+    Python interpreter (sys.executable) for safety and portability. Captures both stdout
+    and stderr, and applies a 60-second timeout to prevent hanging tests.
+
+    Args:
+        test_file: Path to the test file (Path or str). Converted to string for subprocess.
+
+    Returns:
+        Tuple containing:
+            - bool: True if test passed (returncode == 0), False otherwise
+            - str: Combined stdout and stderr on success/failure, or error message string
+                  on exception. On timeout, returns "TIMEOUT: Test {file} timed out".
+                  On other exceptions, returns "ERROR: {exception_message}".
+
+    Exceptions:
+        Handles subprocess.TimeoutExpired by returning (False, "TIMEOUT: ...").
+        Handles other exceptions by returning (False, "ERROR: ...").
+
+    Note:
+        Uses subprocess.run() with:
+        - sys.executable: Current Python interpreter (for security and portability)
+        - pytest command: "-m pytest {test_file} --tb=short --maxfail=1"
+        - capture_output=True: Captures both stdout and stderr
+        - text=True: Returns output as string (not bytes)
+        - timeout=60: 60-second timeout per test file
+    """
     test_file_str = str(test_file)
     try:
         # Use the running interpreter for safety and portability (Bandit: B607)
@@ -74,11 +104,11 @@ def run_test_file(test_file: Union[Path, str]) -> Tuple[bool, str]:
 def main() -> int:
     """Execute quick pass over tests/test_*.py and print a compact summary."""
     # Get all test files (restrict to repo tests dir, avoid traversal)
-    tests_dir = Path("tests").resolve()
+    tests_dir = Path(TESTS_DIR_NAME).resolve()
     test_files = sorted(
         [
             p
-            for p in Path("tests").glob("test_*.py")
+            for p in Path(TESTS_DIR_NAME).glob("test_*.py")
             if p.is_file() and p.resolve().is_relative_to(tests_dir)
         ]
     )

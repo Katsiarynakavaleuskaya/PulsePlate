@@ -5,6 +5,7 @@
 """
 
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -130,13 +131,51 @@ def analyze_failed_tests(failed_tests: List[Dict[str, Any]]) -> None:
     if not failed_tests:
         return
 
+    # Configurable limits via environment variables
+    max_analysis = int(os.getenv("MAX_BAYESIAN_ANALYSIS", "5"))
+    summary_mode = os.getenv("SUMMARY_MODE", "").lower() in ("1", "true", "yes")
+    score_threshold = float(os.getenv("BAYESIAN_SCORE_THRESHOLD", "0.7"))
+
     print("\n" + "=" * 60)
     print("🔍 Байесовский анализ упавших тестов...")
     print("=" * 60)
 
     analyzer = ComprehensiveBayesianAnalyzer()
 
-    for test_info in failed_tests[:10]:  # Анализируем первые 10
+    # Slice failed_tests to configurable limit
+    tests_to_analyze = failed_tests[:max_analysis]
+
+    if summary_mode:
+        # Summary mode: only print counts
+        print(f"\n📊 Анализ {len(tests_to_analyze)} из {len(failed_tests)} упавших тестов...")
+        critical_count = 0
+        optimization_count = 0
+        low_score_count = 0
+
+        for test_info in tests_to_analyze:
+            test_context = test_info.get("context", "")
+            try:
+                result = analyzer.analyze_comprehensively(
+                    test_context,
+                    f"failed_test_{test_info['name']}",
+                    f"tests/{test_info['name']}",
+                )
+                if result.critical_issues:
+                    critical_count += len(result.critical_issues)
+                if result.optimization_opportunities:
+                    optimization_count += len(result.optimization_opportunities)
+                if result.overall_score < score_threshold:
+                    low_score_count += 1
+            except Exception:
+                pass  # Skip errors in summary mode
+
+        print(f"  ❌ Критические проблемы: {critical_count}")
+        print(f"  💡 Возможности оптимизации: {optimization_count}")
+        print(f"  ⚠️ Низкий балл (<{score_threshold:.2f}): {low_score_count}")
+        return
+
+    # Detailed mode: print limited details per test
+    for test_info in tests_to_analyze:
         test_name = test_info["name"]
         test_context = test_info.get("context", "")
 
@@ -150,17 +189,20 @@ def analyze_failed_tests(failed_tests: List[Dict[str, Any]]) -> None:
                 f"tests/{test_name}",
             )
 
+            # Top 2 critical issues only
             if result.critical_issues:
                 print(f"  ❌ Критические проблемы: {len(result.critical_issues)}")
-                for issue in result.critical_issues[:3]:
+                for issue in result.critical_issues[:2]:
                     print(f"     - {issue}")
 
+            # Top 1 optimization only
             if result.optimization_opportunities:
                 print("  💡 Возможности оптимизации:")
-                for opt in result.optimization_opportunities[:2]:
+                for opt in result.optimization_opportunities[:1]:
                     print(f"     - {opt}")
 
-            if result.overall_score < 0.7:
+            # Only print low score when below threshold
+            if result.overall_score < score_threshold:
                 print(f"  ⚠️ Низкий балл: {result.overall_score:.2f}")
 
         except Exception as e:

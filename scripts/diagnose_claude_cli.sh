@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # 🔍 Диагностика Claude Code CLI
 
 echo "🔍 Диагностика Claude Code CLI..."
@@ -26,8 +27,8 @@ echo ""
 echo "=== 3. Проверка файла роли ==="
 if [ -f ".claude/role.md" ]; then
     echo "✅ Файл роли найден"
-    echo "   Размер: $(( $(wc -c < .claude/role.md) )) байт"
-    echo "   Строк: $(( $(wc -l < .claude/role.md) ))"
+    echo "   Размер: $(wc -c < .claude/role.md) байт"
+    echo "   Строк: $(wc -l < .claude/role.md)"
 else
     echo "❌ Файл роли не найден"
 fi

@@ -266,8 +266,15 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
     CALORIES_PER_GRAM_FAT = 9.0      # Atwater: 9 kcal/g
 
     # Medical safety thresholds (kcal per day)
-    MIN_SAFE_DAILY_CALORIES = 500   # Below this may indicate medical emergency
-    MAX_SAFE_DAILY_CALORIES = 5000  # Above this may indicate medical emergency
+    # NOTE: These constants are now loaded from config/medical_safety.yaml at runtime.
+    # The hardcoded values below are fallbacks and should NOT be used in production.
+    # See CONTRIBUTING.md § Medical Safety Approval Workflow for approval requirements.
+    MIN_SAFE_DAILY_CALORIES = 500   # Fallback only - use config/medical_safety.yaml
+    MAX_SAFE_DAILY_CALORIES = 5000  # Fallback only - use config/medical_safety.yaml
+
+    # Feature flag: Medical alerts/enforcements are disabled by default until approved
+    # Set MEDICAL_ALERTS_ENABLED = true in config/medical_safety.yaml after approval workflow
+    MEDICAL_ALERTS_ENABLED: bool = False  # Loaded from config/medical_safety.yaml
 
     def __init__(self):
         super().__init__("nutrition_validator")
@@ -284,7 +291,9 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
         Priority:
         1. USDA National Health and Nutrition Examination Survey (NHANES) data
         2. Validated local fixture file (data/population_nutrition_stats.json)
-        3. Fallback defaults based on published research
+           See data/population_nutrition_stats.json for validated NHANES-derived values
+        3. Fallback defaults based on published research (NHANES 2017-2020)
+           Source: https://www.cdc.gov/nchs/nhanes/wweia.htm
         """
         # Try loading from USDA data source or local fixture
         try:
@@ -299,6 +308,15 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
             pass
 
         # Fallback defaults (based on NHANES 2017-2020 meal pattern analysis)
+        # Source: NHANES 2017-2020 Dietary Data - What We Eat in America (WWEIA)
+        # Dataset: https://www.cdc.gov/nchs/nhanes/wweia.htm
+        # Data Release: NHANES 2017-2020 Public Use Data Files
+        # Analysis: Mean and standard deviation of daily calorie intake by meal type
+        # (breakfast, lunch, dinner, snack) calculated from 24-hour dietary recall data
+        # Preprocessing: Aggregated across age groups 20+ years, weighted by survey weights
+        # Local fixture: See data/population_nutrition_stats.json for validated values
+        # To reproduce: Download NHANES WWEIA data files, extract meal timing variables,
+        # calculate weighted means/std by meal type, and save to data/population_nutrition_stats.json
         return {
             "breakfast": {"mean_calories": 400, "std_calories": 150},
             "lunch": {"mean_calories": 600, "std_calories": 200},
@@ -311,9 +329,19 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
         Load population stats from USDA API or validated local fixture.
 
         Returns None if unavailable (triggers fallback).
+
+        Local fixture path: data/population_nutrition_stats.json
+        Expected format: JSON dict with meal_type keys ("breakfast", "lunch", "dinner", "snack")
+        Each meal_type contains "mean_calories" and "std_calories" float values.
+        See NHANES 2017-2020 documentation for data source and preprocessing steps.
         """
         # TODO: Implement USDA FoodData Central API integration
         # TODO: Implement local fixture loader (data/population_nutrition_stats.json)
+        # Local fixture should be generated from NHANES 2017-2020 WWEIA data:
+        # 1. Download NHANES dietary recall data files from https://www.cdc.gov/nchs/nhanes/wweia.htm
+        # 2. Extract meal timing variables (DR1MEX, DR2MEX for meal type)
+        # 3. Calculate weighted means and standard deviations by meal type using survey weights
+        # 4. Save results to data/population_nutrition_stats.json
         # For now, return None to use fallback defaults
         return None
 
@@ -333,20 +361,24 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
         """
         issues = []
 
-        # 0. Medical safety check - flag extreme values
-        daily_calories = self._estimate_daily_calories(user_id, entry)
-        if daily_calories < self.MIN_SAFE_DAILY_CALORIES:
-            issues.append(
-                f"MEDICAL SAFETY ALERT: Estimated daily intake ({daily_calories:.0f} kcal) "
-                f"below safe minimum ({self.MIN_SAFE_DAILY_CALORIES} kcal). "
-                f"Possible medical emergency - please consult healthcare provider."
-            )
-        elif daily_calories > self.MAX_SAFE_DAILY_CALORIES:
-            issues.append(
-                f"MEDICAL SAFETY ALERT: Estimated daily intake ({daily_calories:.0f} kcal) "
-                f"exceeds safe maximum ({self.MAX_SAFE_DAILY_CALORIES} kcal). "
-                f"Possible medical emergency - please consult healthcare provider."
-            )
+        # 0. Medical safety check - flag extreme values (only if feature flag enabled)
+        if self.MEDICAL_ALERTS_ENABLED:
+            daily_calories = self._estimate_daily_calories(user_id, entry)
+            # Load thresholds from config/medical_safety.yaml (not hardcoded constants)
+            min_threshold = self._load_medical_threshold("MIN_SAFE_DAILY_CALORIES", self.MIN_SAFE_DAILY_CALORIES)
+            max_threshold = self._load_medical_threshold("MAX_SAFE_DAILY_CALORIES", self.MAX_SAFE_DAILY_CALORIES)
+            if daily_calories < min_threshold:
+                issues.append(
+                    f"MEDICAL SAFETY ALERT: Estimated daily intake ({daily_calories:.0f} kcal) "
+                    f"below safe minimum ({min_threshold} kcal). "
+                    f"Possible medical emergency - please consult healthcare provider."
+                )
+            elif daily_calories > max_threshold:
+                issues.append(
+                    f"MEDICAL SAFETY ALERT: Estimated daily intake ({daily_calories:.0f} kcal) "
+                    f"exceeds safe maximum ({max_threshold} kcal). "
+                    f"Possible medical emergency - please consult healthcare provider."
+                )
 
         # 1. Проверка физических ограничений
         if not self._check_physical_constraints(entry):
@@ -543,7 +575,7 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
 **Критерии готовности**:
 
 - ✅ Валидатор создан и протестирован
-- ✅ Покрытие тестами > 80%
+- ✅ Покрытие тестами ≥ 97%
 - ✅ Ложных срабатываний < 5%
 
 ---
@@ -1018,7 +1050,7 @@ class AdaptiveRecommendationEngine:
 Перед созданием PR убедитесь:
 
 - [ ] Все тесты проходят
-- [ ] Покрытие тестами > 85%
+- [ ] Покрытие тестами ≥ 97%
 - [ ] Документация обновлена
 - [ ] Метрики добавлены в мониторинг
 - [ ] Code review пройден

@@ -12,8 +12,6 @@ import pytest
 
 from core import recipe_db, shoplist, weekly_plan
 
-# (remaining imports from the original file, with the two specified imports removed)
-
 
 def test_parse_recipe_db_food_db_none() -> None:
     """Cover core/recipe_db.py:50 - food_db = {} when None."""

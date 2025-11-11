@@ -36,9 +36,11 @@ def upgrade() -> None:
         sa.Column("carbs_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("servings", sa.Integer(), nullable=False, server_default="1"),
+        sa.Column("servings", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("ingredients", sa.JSON(), nullable=False),
-        sa.Column("tags", sa.JSON(), nullable=False),
-        sa.Column("allergens", sa.JSON(), nullable=False),
+        sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column("allergens", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("version_date", sa.String(length=20), nullable=False),
         sa.Column(
@@ -70,8 +72,15 @@ def upgrade() -> None:
     op.create_table(
         "meals",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("user_id", sa.Integer(), nullable=True),
-        sa.Column("recipe_id", sa.Integer(), nullable=True),
+        sa.Column(
+            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
+        sa.Column(
+            "recipe_id",
+            sa.Integer(),
+            sa.ForeignKey("recipes.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("title", sa.String(length=500), nullable=False),
         sa.Column("title_translated", sa.String(length=500), nullable=True),
         sa.Column(
@@ -140,7 +149,6 @@ def upgrade() -> None:
         sa.CheckConstraint("fiber_g_per_100g >= 0", name="ck_food_fiber_positive"),
         sa.CheckConstraint("fiber_g_per_100g <= 100", name="ck_food_fiber_max"),
     )
-    op.create_index("ix_food_items_food_id", "food_items", ["food_id"])
     op.create_index("ix_food_items_canonical_name", "food_items", ["canonical_name"])
 
 
@@ -149,7 +157,6 @@ def downgrade() -> None:
     EN: Revert migration (drop tables)."""
 
     op.drop_index("ix_food_items_canonical_name", table_name="food_items")
-    op.drop_index("ix_food_items_food_id", table_name="food_items")
     op.drop_table("food_items")
 
     op.drop_index("ix_meals_created_at", table_name="meals")

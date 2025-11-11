@@ -55,6 +55,66 @@ class ComprehensiveTestResult:
 class ComprehensiveBayesianAnalyzer:
     """Комплексный байесовский анализатор для всех аспектов системы."""
 
+    # Technical score penalty constants
+    # RU: Константы штрафов для технического балла
+    # EN: Penalty values for technical score calculation
+    CRITICAL_PENALTY = 0.3  # Penalty for critical technical issues (AsyncMock, exceptions)
+    MAJOR_PENALTY = 0.2  # Penalty for major technical issues (typing, await)
+    MINOR_PENALTY = 0.1  # Penalty for minor technical issues
+
+    # Business score penalty constants
+    # RU: Константы штрафов для бизнес-балла
+    # EN: Penalty values for business score calculation
+    BUSINESS_PENALTY_CRITICAL = 0.4  # Penalty for critical business issues (revenue)
+    BUSINESS_PENALTY_IMPORTANT = 0.3  # Penalty for important business issues (customer)
+    BUSINESS_PENALTY_NORMAL = 0.2  # Penalty for normal business issues
+
+    # Scoring thresholds
+    # RU: Пороги для оценки успешности тестов
+    # EN: Thresholds for test success scoring
+    SUCCESS_SCORE_THRESHOLD = 0.8  # Minimum overall score for test success
+    NUTRITION_MIN_CONTRIBUTION = 0.3  # Minimum nutrition score contribution to overall score
+
+    # Risk level calculation thresholds
+    # RU: Пороги для расчета уровня риска
+    # EN: Thresholds for risk level calculation
+    CRITICAL_ISSUE_COUNT_THRESHOLD = 5  # Number of critical issues for critical risk level
+    HIGH_ISSUE_COUNT_THRESHOLD = 3  # Number of critical issues for high risk level
+    MEDIUM_ISSUE_COUNT_THRESHOLD = 1  # Number of critical issues for medium risk level
+    CRITICAL_SCORE_THRESHOLD = 0.3  # Score threshold for critical risk level
+    HIGH_SCORE_THRESHOLD = 0.5  # Score threshold for high risk level
+    MEDIUM_SCORE_THRESHOLD = 0.7  # Score threshold for medium risk level
+
+    # System health calculation thresholds
+    # RU: Пороги для расчета здоровья системы
+    # EN: Thresholds for system health calculation
+    EXCELLENT_SCORE_THRESHOLD = 0.9  # Score threshold for excellent system health
+    GOOD_SCORE_THRESHOLD = 0.8  # Score threshold for good system health
+    FAIR_SCORE_THRESHOLD = 0.6  # Score threshold for fair system health
+    EXCELLENT_HIGH_RISK_COUNT_THRESHOLD = 1  # Maximum high-risk count for excellent health
+    GOOD_HIGH_RISK_COUNT_THRESHOLD = 3  # Maximum high-risk count for good health
+    FAIR_CRITICAL_RISK_COUNT_THRESHOLD = 1  # Maximum critical-risk count for fair health
+
+    # Action plan limits
+    # RU: Лимиты для плана действий
+    # EN: Limits for action plan recommendations
+    ACTION_PLAN_RECOMMENDATION_LIMIT = 5  # Maximum number of recommendations per category
+    ACTION_PLAN_CRITICAL_TESTS_DISPLAY_LIMIT = (
+        3  # Maximum number of critical tests to display in immediate actions
+    )
+
+    # Impact assessment thresholds
+    # RU: Пороги для оценки влияния на различные аспекты
+    # EN: Thresholds for impact assessment (revenue, cost, customer, health)
+    MINIMAL_IMPACT_THRESHOLD = 2  # Maximum issue count for minimal impact
+    MEDIUM_IMPACT_THRESHOLD = 5  # Maximum issue count for medium impact
+
+    # Priority calculation thresholds
+    # RU: Пороги для расчета приоритета
+    # EN: Thresholds for priority calculation
+    URGENT_PRIORITY_ISSUE_COUNT = 3  # Minimum critical issues for urgent priority
+    HIGH_PRIORITY_ISSUE_COUNT = 1  # Minimum critical issues for high priority
+
     # Configurable keywords for critical nutrition issues detection
     # RU: Ключевые слова для обнаружения критических проблем питания
     CRITICAL_NUTRITION_KEYWORDS = (
@@ -187,9 +247,11 @@ class ComprehensiveBayesianAnalyzer:
 
         # Общий балл
         # Health First policy: nutrition issues should appropriately reduce overall score
-        # Use a minimal floor (0.3) to prevent division by zero, but allow nutrition failures
-        # to significantly impact the overall score
-        nutrition_effective = max(nutrition_score, 0.3)
+        # Use a minimal floor to cap minimum contribution from nutrition so nutrition
+        # failures still reduce the overall score while preventing it from contributing zero.
+        # This ensures nutrition always contributes at least NUTRITION_MIN_CONTRIBUTION
+        # when computing the average of technical, nutrition, and business scores.
+        nutrition_effective = max(nutrition_score, self.NUTRITION_MIN_CONTRIBUTION)
         overall_score = (technical_score + nutrition_effective + business_score) / 3
 
         # Критические проблемы
@@ -233,7 +295,7 @@ class ComprehensiveBayesianAnalyzer:
         # RU: при наличии критических проблем питания overall_score принудительно устанавливается в 0.0,
         # поэтому проверка порога достаточна. Критические бизнес-проблемы обрабатываются
         # через расчет overall_score и проверку порога.
-        success = overall_score >= 0.8
+        success = overall_score >= self.SUCCESS_SCORE_THRESHOLD
 
         result = ComprehensiveTestResult(
             test_name=test_name,
@@ -264,11 +326,11 @@ class ComprehensiveBayesianAnalyzer:
         penalty = 0.0
         for issue in issues:
             if "AsyncMock" in issue or "исключение" in issue:
-                penalty += 0.3  # Критические проблемы
+                penalty += self.CRITICAL_PENALTY  # Критические проблемы
             elif "типизация" in issue or "await" in issue:
-                penalty += 0.2  # Важные проблемы
+                penalty += self.MAJOR_PENALTY  # Важные проблемы
             else:
-                penalty += 0.1  # Обычные проблемы
+                penalty += self.MINOR_PENALTY  # Обычные проблемы
 
         return max(0.0, 1.0 - penalty)
 
@@ -280,11 +342,11 @@ class ComprehensiveBayesianAnalyzer:
         penalty = 0.0
         for issue in issues:
             if "доход" in issue.lower() or "revenue" in issue.lower():
-                penalty += 0.4  # Критические бизнес-проблемы
+                penalty += self.BUSINESS_PENALTY_CRITICAL  # Критические бизнес-проблемы
             elif "клиент" in issue.lower() or "customer" in issue.lower():
-                penalty += 0.3  # Важные проблемы
+                penalty += self.BUSINESS_PENALTY_IMPORTANT  # Важные проблемы
             else:
-                penalty += 0.2  # Обычные проблемы
+                penalty += self.BUSINESS_PENALTY_NORMAL  # Обычные проблемы
 
         return max(0.0, 1.0 - penalty)
 
@@ -363,9 +425,9 @@ class ComprehensiveBayesianAnalyzer:
 
         if revenue_issues == 0:
             return "Нет влияния на доходы"
-        elif revenue_issues <= 2:
+        elif revenue_issues <= self.MINIMAL_IMPACT_THRESHOLD:
             return "Минимальное влияние на доходы"
-        elif revenue_issues <= 5:
+        elif revenue_issues <= self.MEDIUM_IMPACT_THRESHOLD:
             return "Среднее влияние на доходы"
         else:
             return "Критическое влияние на доходы"
@@ -386,9 +448,9 @@ class ComprehensiveBayesianAnalyzer:
 
         if cost_issues == 0:
             return "Нет влияния на затраты"
-        elif cost_issues <= 2:
+        elif cost_issues <= self.MINIMAL_IMPACT_THRESHOLD:
             return "Минимальное влияние на затраты"
-        elif cost_issues <= 5:
+        elif cost_issues <= self.MEDIUM_IMPACT_THRESHOLD:
             return "Среднее влияние на затраты"
         else:
             return "Критическое влияние на затраты"
@@ -412,9 +474,9 @@ class ComprehensiveBayesianAnalyzer:
 
         if customer_issues == 0:
             return "Нет влияния на клиентов"
-        elif customer_issues <= 2:
+        elif customer_issues <= self.MINIMAL_IMPACT_THRESHOLD:
             return "Минимальное влияние на клиентов"
-        elif customer_issues <= 5:
+        elif customer_issues <= self.MEDIUM_IMPACT_THRESHOLD:
             return "Среднее влияние на клиентов"
         else:
             return "Критическое влияние на клиентов"
@@ -427,20 +489,29 @@ class ComprehensiveBayesianAnalyzer:
 
         if health_issues == 0:
             return "Нет влияния на здоровье"
-        elif health_issues <= 2:
+        elif health_issues <= self.MINIMAL_IMPACT_THRESHOLD:
             return "Минимальное влияние на здоровье"
-        elif health_issues <= 5:
+        elif health_issues <= self.MEDIUM_IMPACT_THRESHOLD:
             return "Среднее влияние на здоровье"
         else:
             return "Критическое влияние на здоровье"
 
     def _calculate_risk_level(self, critical_issues: List[str], overall_score: float) -> str:
         """Вычисляет уровень риска."""
-        if len(critical_issues) >= 5 or overall_score < 0.3:
+        if (
+            len(critical_issues) >= self.CRITICAL_ISSUE_COUNT_THRESHOLD
+            or overall_score < self.CRITICAL_SCORE_THRESHOLD
+        ):
             return "critical"
-        elif len(critical_issues) >= 3 or overall_score < 0.5:
+        elif (
+            len(critical_issues) >= self.HIGH_ISSUE_COUNT_THRESHOLD
+            or overall_score < self.HIGH_SCORE_THRESHOLD
+        ):
             return "high"
-        elif len(critical_issues) >= 1 or overall_score < 0.7:
+        elif (
+            len(critical_issues) >= self.MEDIUM_ISSUE_COUNT_THRESHOLD
+            or overall_score < self.MEDIUM_SCORE_THRESHOLD
+        ):
             return "medium"
         else:
             return "low"
@@ -449,9 +520,15 @@ class ComprehensiveBayesianAnalyzer:
         self, critical_issues: List[str], revenue_impact: str, health_impact: str
     ) -> str:
         """Вычисляет приоритет."""
-        if len(critical_issues) >= 3 or "критическое" in health_impact.lower():
+        if (
+            len(critical_issues) >= self.URGENT_PRIORITY_ISSUE_COUNT
+            or "критическое" in health_impact.lower()
+        ):
             return "urgent"
-        elif len(critical_issues) >= 1 or "критическое" in revenue_impact.lower():
+        elif (
+            len(critical_issues) >= self.HIGH_PRIORITY_ISSUE_COUNT
+            or "критическое" in revenue_impact.lower()
+        ):
             return "high"
         elif "среднее" in revenue_impact.lower() or "среднее" in health_impact.lower():
             return "medium"
@@ -523,11 +600,22 @@ class ComprehensiveBayesianAnalyzer:
         critical_count = risk_distribution.get("critical", 0)
         high_count = risk_distribution.get("high", 0)
 
-        if overall_score >= 0.9 and critical_count == 0 and high_count <= 1:
+        if (
+            overall_score >= self.EXCELLENT_SCORE_THRESHOLD
+            and critical_count == 0
+            and high_count <= self.EXCELLENT_HIGH_RISK_COUNT_THRESHOLD
+        ):
             return "excellent"
-        elif overall_score >= 0.8 and critical_count == 0 and high_count <= 3:
+        elif (
+            overall_score >= self.GOOD_SCORE_THRESHOLD
+            and critical_count == 0
+            and high_count <= self.GOOD_HIGH_RISK_COUNT_THRESHOLD
+        ):
             return "good"
-        elif overall_score >= 0.6 and critical_count <= 1:
+        elif (
+            overall_score >= self.FAIR_SCORE_THRESHOLD
+            and critical_count <= self.FAIR_CRITICAL_RISK_COUNT_THRESHOLD
+        ):
             return "fair"
         else:
             return "poor"
@@ -558,14 +646,14 @@ class ComprehensiveBayesianAnalyzer:
         if diagnosis["critical_tests"]:
             action_plan["immediate_actions"].extend(
                 [
-                    f"Исправить критические тесты: {', '.join(diagnosis['critical_tests'][:3])}",
+                    f"Исправить критические тесты: {', '.join(diagnosis['critical_tests'][:self.ACTION_PLAN_CRITICAL_TESTS_DISPLAY_LIMIT])}",
                     "Провести экстренный аудит безопасности",
                     "Временно отключить проблемные функции",
                 ]
             )
 
         # Краткосрочные действия
-        if diagnosis["average_scores"]["overall"] < 0.8:
+        if diagnosis["average_scores"]["overall"] < self.SUCCESS_SCORE_THRESHOLD:
             action_plan["short_term_actions"].extend(
                 [
                     "Повысить общий балл системы до 80%+",
@@ -584,9 +672,13 @@ class ComprehensiveBayesianAnalyzer:
         )
 
         # Оптимизация затрат
-        action_plan["cost_optimization"] = diagnosis["cost_savings_recommendations"][:5]
+        action_plan["cost_optimization"] = diagnosis["cost_savings_recommendations"][
+            : self.ACTION_PLAN_RECOMMENDATION_LIMIT
+        ]
 
         # Рост доходов
-        action_plan["revenue_growth"] = diagnosis["revenue_optimization_recommendations"][:5]
+        action_plan["revenue_growth"] = diagnosis["revenue_optimization_recommendations"][
+            : self.ACTION_PLAN_RECOMMENDATION_LIMIT
+        ]
 
         return action_plan

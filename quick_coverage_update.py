@@ -16,7 +16,7 @@ from pathlib import Path
 def run_coverage_check() -> bool:
     """Run coverage on our new test files specifically."""
     print("🔍 Checking coverage progress...")
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     # Create temporary files for structured reports
     with (
@@ -54,7 +54,7 @@ def run_coverage_check() -> bool:
         result = subprocess.run(  # nosec B603
             cmd, capture_output=True, text=True, timeout=600, cwd=Path(__file__).parent
         )
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
 
         print(f"⏱️  Execution time: {elapsed:.1f}s")
 
@@ -112,14 +112,59 @@ def run_coverage_check() -> bool:
                 )
             else:
                 print("❌ Could not extract coverage percentage from JSON")
+        except FileNotFoundError:
+            print(f"⚠️  Coverage JSON file not found: {cov_json_path}")
+            # Fallback to stdout parsing
+            for line in result.stdout.split("\n"):
+                if "TOTAL" in line and "%" in line:
+                    print(f"📊 Coverage result: {line} (fallback)")
+                    break
+        except PermissionError as perm_error:
+            print(f"⚠️  Permission denied accessing coverage JSON file: {perm_error}")
+            # Fallback to stdout parsing
+            for line in result.stdout.split("\n"):
+                if "TOTAL" in line and "%" in line:
+                    print(f"📊 Coverage result: {line} (fallback)")
+                    break
+        except json.JSONDecodeError as json_decode_error:
+            print(
+                f"⚠️  Invalid JSON in coverage report (line {json_decode_error.lineno}, col {json_decode_error.colno}): {json_decode_error.msg}"
+            )
+            # Fallback to stdout parsing
+            for line in result.stdout.split("\n"):
+                if "TOTAL" in line and "%" in line:
+                    print(f"📊 Coverage result: {line} (fallback)")
+                    break
+        except UnicodeDecodeError as unicode_error:
+            print(f"⚠️  Unicode decode error in coverage JSON file: {unicode_error}")
+            # Fallback to stdout parsing
+            for line in result.stdout.split("\n"):
+                if "TOTAL" in line and "%" in line:
+                    print(f"📊 Coverage result: {line} (fallback)")
+                    break
+        except (KeyError, TypeError) as data_error:
+            print(f"⚠️  Unexpected JSON structure in coverage report: {data_error}")
+            # Fallback to stdout parsing
+            for line in result.stdout.split("\n"):
+                if "TOTAL" in line and "%" in line:
+                    print(f"📊 Coverage result: {line} (fallback)")
+                    break
         except Exception as json_error:
-            print(f"⚠️  Error parsing coverage JSON: {json_error}")
+            print(
+                f"⚠️  Unexpected error parsing coverage JSON: {type(json_error).__name__}: {json_error}"
+            )
             # Fallback to stdout parsing
             for line in result.stdout.split("\n"):
                 if "TOTAL" in line and "%" in line:
                     print(f"📊 Coverage result: {line} (fallback)")
                     break
 
+        if result.returncode != 0:
+            print("🔎 pytest stdout (failure):")
+            print(result.stdout)
+            if result.stderr:
+                print("⚠️  pytest stderr (failure):")
+                print(result.stderr)
         return result.returncode == 0
 
     except subprocess.TimeoutExpired:

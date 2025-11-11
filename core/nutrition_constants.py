@@ -36,6 +36,11 @@ KCAL_MAX_SAFE = 6000  # Elite athletes/special populations only
 KCAL_DANGEROUS_LOW = 1200  # Daily total - triggers safety warnings
 KCAL_DANGEROUS_HIGH = 6000  # Daily total - triggers safety warnings
 
+# BMI Safety Thresholds
+# Based on WHO classification and medical supervision requirements
+BMI_DANGEROUS_LOW = 16.0  # Below this requires immediate medical attention
+BMI_DANGEROUS_HIGH = 30.0  # Above this indicates obesity (class I+)
+
 # Macronutrient Percentage Ranges (% of total calories)
 # Based on USDA Dietary Guidelines 2020-2025 and WHO recommendations
 
@@ -125,6 +130,8 @@ __all__ = [
     "KCAL_MAX_SAFE",
     "KCAL_DANGEROUS_LOW",
     "KCAL_DANGEROUS_HIGH",
+    "BMI_DANGEROUS_LOW",
+    "BMI_DANGEROUS_HIGH",
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",
     "FAT_MIN_PERCENT",

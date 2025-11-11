@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app from app.py file
 import importlib.util
 
-spec = importlib.util.spec_from_file_location("app", "app.py")
+spec = importlib.util.spec_from_file_location("app_module", "app.py")
 if spec is None or spec.loader is None:
     raise ImportError("Cannot load app.py")
 
@@ -24,9 +24,12 @@ app_module = importlib.util.module_from_spec(spec)
 # Use 'app_module' alias to avoid conflicts with 'app' package
 sys.modules["app_module"] = app_module
 spec.loader.exec_module(app_module)
-if hasattr(app_module, "routers") and hasattr(app_module.routers, "plan_export"):
-    sys.modules["app.routers.plan_export"] = app_module.routers.plan_export
-    plan = app_module.routers.plan_export
+# Prefer plan_export from app_module if present, otherwise fall back to importing
+# app.routers.plan_export only when the real installed package exists
+plan = getattr(app_module, "routers", None)
+if plan is not None and hasattr(plan, "plan_export"):
+    sys.modules["app.routers.plan_export"] = plan.plan_export
+    plan = plan.plan_export
 else:
     # Fallback if routers not available
     from app.routers import plan_export as plan
@@ -55,7 +58,7 @@ def _signed_pdf_url(client: TestClient, lang: str = "en") -> str:
     if lang:
         separator = "&" if "?" in url else "?"
         url = f"{url}{separator}lang={lang}"
-    return str(url)
+    return url
 
 
 def test_week_export_pdf_ok(export_client: TestClient) -> None:

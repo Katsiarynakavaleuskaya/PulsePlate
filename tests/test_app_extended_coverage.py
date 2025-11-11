@@ -4,34 +4,38 @@ Additional comprehensive tests for main.py to achieve 97% coverage.
 Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
-# Import the FastAPI app from app.py file
-import importlib.util
 import os
-import sys
-from typing import cast
+from typing import Generator, cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
+# Direct import of app module - app.py is available as a regular Python module
+from app import app
 
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+
+@pytest.fixture(autouse=True)
+def setup_test_env():
+    """Autouse fixture that sets up test environment variables."""
+    os.environ["API_KEY"] = "test_key"
+    os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    yield
+    # Cleanup
+    os.environ.pop("API_KEY", None)
+    os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
+
+
+@pytest.fixture
+def client() -> TestClient:
+    """Fixture that creates TestClient for test classes."""
+    return TestClient(cast(ASGIApp, app))
 
 
 @pytest.mark.slow
 class TestLifespanEvents:
     """Test lifespan event handlers."""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @pytest.mark.asyncio
     async def test_lifespan_startup_success(self):
@@ -105,10 +109,8 @@ class TestLifespanEvents:
 class TestAPIEndpoints:
     """Test API endpoints for coverage."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_root_endpoint_html_content(self):
         """Test root endpoint returns proper HTML."""
@@ -161,10 +163,8 @@ class TestAPIEndpoints:
 class TestBMIEndpoints:
     """Test BMI calculation endpoints."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_bmi_endpoint_pregnancy(self):
         """Test BMI endpoint with pregnancy."""
@@ -282,10 +282,8 @@ class TestBMIEndpoints:
 class TestInsightEndpoints:
     """Test insight endpoints."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_insight_endpoint_disabled_explicitly(self):
         """Test insight endpoint when explicitly disabled."""
@@ -363,10 +361,8 @@ class TestInsightEndpoints:
 class TestPremiumEndpoints:
     """Test premium API endpoints."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_api_v1_bmi_success(self):
         """Test API v1 BMI endpoint."""
@@ -497,10 +493,8 @@ class TestPremiumEndpoints:
 class TestDatabaseAdminEndpoints:
     """Test database admin endpoints."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_database_status_error(self):
         """Test database status endpoint with error."""
@@ -552,10 +546,8 @@ class TestDatabaseAdminEndpoints:
 class TestDebugEndpoint:
     """Test debug environment endpoint."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_debug_env_endpoint(self):
         """Test debug environment endpoint."""
@@ -579,10 +571,8 @@ class TestDebugEndpoint:
 class TestVisualizationEndpoint:
     """Test BMI visualization endpoint."""
 
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+    def setup_method(self, client: TestClient) -> None:
+        self.client = client
 
     def test_bmi_visualize_unavailable_module(self):
         """Test BMI visualization when module not available."""

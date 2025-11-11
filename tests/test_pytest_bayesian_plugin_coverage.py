@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import textwrap
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -249,11 +250,13 @@ class TestBayesianPytestPluginContext:
         from unittest.mock import Mock, patch
 
         # Test code with Mock() call that should be detected
-        test_code_with_mock = """def test_with_mock():
+        test_code_with_mock = textwrap.dedent(
+            """def test_with_mock():
     from unittest.mock import Mock
     test_mock = Mock()
     test_mock.foo()
     return test_mock"""
+        )
 
         def test_with_mock():
             """Test function that uses proper mocking."""

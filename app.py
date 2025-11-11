@@ -103,14 +103,18 @@ if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRE
 
 
 # Create wrapper functions for easier mocking in tests
-def _calculate_all_bmr_wrapper(weight_kg, height_cm, age, sex, bodyfat=None):
+def _calculate_all_bmr_wrapper(
+    weight_kg: float, height_cm: float, age: int, sex: str, bodyfat: float | None = None
+) -> dict[str, float]:
     """Wrapper for calculate_all_bmr to support mocking in tests"""
     if calculate_all_bmr is None:
         raise ImportError("nutrition_core module not available")
     return calculate_all_bmr(weight_kg, height_cm, age, sex, bodyfat)
 
 
-def _calculate_all_tdee_wrapper(bmr_results, activity):
+def _calculate_all_tdee_wrapper(
+    bmr_results: dict[str, float], activity: str
+) -> dict[str, int | float]:
     """Wrapper for calculate_all_tdee to support mocking in tests"""
     if calculate_all_tdee is None:
         raise ImportError("nutrition_core module not available")
@@ -141,30 +145,39 @@ _safety_failure_lock = threading.Lock()
 async def lifespan(app: FastAPI):
     # Startup
     env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
-    if env_name not in {"test", "ci"}:
+    truthy = {"1", "true", "yes", "on"}
+    try:
+        init_db()
+        logger.info("Database schema initialized")
+    except Exception as db_err:
+        # Determine whether we should attempt a fallback database initialization.
+        allowed_env = env_name in {"", "local", "dev", "development", "staging", "test", "ci"}
+        explicit_override = (
+            os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""
+        ).strip().lower() in truthy
+        fallback_exception = isinstance(db_err, (OSError, IOError))
+        if not (allowed_env or explicit_override or fallback_exception):
+            raise
+
+        logger.warning(
+            "Database initialization failed (%s env: %s), attempting fallback SQLite: %s",
+            type(db_err).__name__,
+            env_name or "local",
+            db_err,
+        )
+        fallback_ok = False
         try:
+            os.environ["DATABASE_URL"] = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
             init_db()
-            logger.info("Database schema initialized")
-        except Exception as db_err:
-            logger.error("Failed to initialize database: %s", db_err)
-            # Allow fallback only for dev-like envs or explicit override
-            allow_fallback = env_name in {"local", "dev", "development"} or os.getenv(
-                "ALLOW_DB_INMEMORY_FALLBACK"
-            ) in {"1", "true", "yes", "on"}
-            if not allow_fallback:
-                raise
-            fallback_ok = False
-            try:
-                os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-                init_db()
-                fallback_ok = True
-                logger.warning(
-                    "Database initialized with in-memory SQLite fallback (non-prod only)"
-                )
-            except Exception as fallback_err:
-                logger.error("In-memory fallback init_db() failed: %s", fallback_err)
-            if not fallback_ok:
-                raise
+            fallback_ok = True
+            logger.warning(
+                "Database initialized with fallback SQLite (env=%s)",
+                env_name or "local",
+            )
+        except Exception as fallback_err:
+            logger.error("In-memory fallback init_db() failed: %s", fallback_err)
+        if not fallback_ok:
+            raise
 
     try:
         validate_template_dir()
@@ -285,7 +298,7 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 
 
 # Dependency wrapper that resolves get_api_key dynamically at runtime so tests can patch it
-def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
+def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
     import sys as _sys
 
     _pkg = _sys.modules.get("app")
@@ -303,7 +316,7 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)):
 
 
 @app.get("/api/v1/admin/status", dependencies=[Depends(_get_api_key_dynamic)])
-async def admin_status():
+async def admin_status() -> Dict[str, str]:
     """Admin status endpoint: returns 200 if scheduler is available, 503 if not.
 
     Uses dynamic resolution for get_update_scheduler so tests can patch it easily.
@@ -379,8 +392,6 @@ with suppress(Exception):
     if _plan_mod is not None:
         setattr(sys.modules[__name__].routers, "plan_export", _plan_mod)
         sys.modules.setdefault("app.routers.plan_export", _plan_mod)
-
-start_time = time.time()
 
 # Legacy event handlers - replaced with lifespan
 # @app.on_event("startup")
@@ -921,7 +932,7 @@ async def root(request: Request):
                     athlete: document.getElementById('athlete').value,
                     waist_cm: document.getElementById('waist').value ?
                               parseFloat(document.getElementById('waist').value) : null,
-                    lang: 'en'
+                    lang: lang
                 };
 
                 try {
@@ -1243,6 +1254,7 @@ _PATCHED_ATTRS = (
 
 _APP_PACKAGE_REF = sys.modules.get("app")
 _PATCH_SOURCE_IDS: dict[str, Optional[int]] = {attr: None for attr in _PATCHED_ATTRS}
+_PATCH_LOCK = threading.Lock()
 
 
 def _propagate_app_patches(source: Optional[object], target: Optional[object]) -> None:
@@ -1292,7 +1304,8 @@ def _sync_app_attr_sources(
                 setattr(alias_module, attr_name, source_value)
             except Exception:  # nosec B112 - safe: dynamic patching, continue on error
                 continue
-            _PATCH_SOURCE_IDS[attr_name] = id(source)
+            with _PATCH_LOCK:
+                _PATCH_SOURCE_IDS[attr_name] = id(source)
             alias_value = source_value
             break
 
@@ -2143,19 +2156,11 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             fiber_g = 25
 
             # Align with WHO targets if backend is available to keep macro deviation low
-            # Prefer runtime-patched build_nutrition_targets on the app module (tests often monkeypatch it)
-            module_build_targets = globals().get("build_nutrition_targets")
-            if callable(module_build_targets):
-                _build_targets_resolved = module_build_targets
-            else:
-                targets_disabled = _targets_runtime_disabled or _targets_disabled()
-                _build_targets_resolved = None if targets_disabled else _build_targets
-                if not callable(_build_targets_resolved):
-                    _build_targets_resolved = (
-                        None
-                        if (_targets_runtime_disabled or _targets_disabled())
-                        else _resolve_build_targets_callable()
-                    )
+            # Use centralized helper to resolve build_nutrition_targets callable
+            targets_disabled = _targets_runtime_disabled or _targets_disabled()
+            _build_targets_resolved = (
+                None if targets_disabled else _resolve_build_targets_callable()
+            )
             # If we have a callable targets builder, call it and prefer its macros/kcal
             if callable(_build_targets_resolved):
                 try:
@@ -2798,11 +2803,25 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
             }
 
             warnings: list[dict[str, str]] = []
+            special_life_stage = (req.life_stage or "").lower() in {
+                "pregnant",
+                "lactating",
+                "teen",
+                "child",
+                "elderly",
+            }
             if req.life_stage in ("pregnant", "lactating"):
                 warnings.append(
                     {
                         "code": "life_stage",
                         "message": "Special nutrition considerations apply",
+                    }
+                )
+            if special_life_stage:
+                warnings.append(
+                    {
+                        "code": "life_stage",
+                        "message": "WHO targets fallback used because the calculation backend is unavailable.",
                     }
                 )
 
@@ -2890,12 +2909,26 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
             }
 
             exc_fallback_warnings: list[dict[str, str]] = []
+            special_life_stage = (req.life_stage or "").lower() in {
+                "pregnant",
+                "lactating",
+                "teen",
+                "child",
+                "elderly",
+            }
             if req.life_stage in ("pregnant", "lactating"):
                 # Use proper warning codes from _life_stage_warnings (already imported above)
                 fallback_warnings = _life_stage_warnings(
                     age=req.age, life_stage=req.life_stage, lang=req.lang
                 )
                 exc_fallback_warnings.extend(fallback_warnings)
+            if special_life_stage:
+                exc_fallback_warnings.append(
+                    {
+                        "code": "life_stage",
+                        "message": "WHO targets fallback used because profile validation failed.",
+                    }
+                )
 
             return WHOTargetsResponse(
                 kcal_daily=int(kcal_daily),

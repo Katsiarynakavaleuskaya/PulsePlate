@@ -1,7 +1,7 @@
 import inspect
 import logging
 import os
-from typing import Any, Callable, Dict, Literal, Optional, Tuple, Type, Union, cast
+from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -108,11 +108,11 @@ router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def _is_production_environment() -> Tuple[bool, str]:
+def _is_production_environment() -> tuple[bool, str]:
     """Determine if we're in production mode and return environment info.
 
     Returns:
-        Tuple[bool, str]: (is_production, app_env)
+        tuple[bool, str]: (is_production, app_env)
     """
     app_env = os.getenv("APP_ENV", "local").lower()
     debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")

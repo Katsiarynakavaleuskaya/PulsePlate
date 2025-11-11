@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -9,7 +9,7 @@ import core.weekly_plan as wp
 from core.weekly_plan import WeeklyPlanResult
 
 
-def _make_fake_day(index: int, kcal: int) -> Dict[str, Any]:
+def _make_fake_day(index: int, kcal: int) -> dict[str, Any]:
     return {
         "meals": [
             {
@@ -31,7 +31,7 @@ def test_generate_weekly_plan_success(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(wp, "parse_food_db", lambda: food_db)
     monkeypatch.setattr(wp, "parse_recipe_db", lambda **kwargs: {"dummy": {}})
 
-    def fake_create_daily_plate(**kwargs: Any) -> Dict[str, Any]:
+    def fake_create_daily_plate(**kwargs: Any) -> dict[str, Any]:
         idx = fake_create_daily_plate.counter
         fake_create_daily_plate.counter += 1
         return _make_fake_day(idx, kwargs["kcal_total"])

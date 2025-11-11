@@ -6,357 +6,230 @@ RU: Тесты для модулей с нулевым покрытием
 EN: Tests for modules with zero coverage
 """
 
+from __future__ import annotations
+
 import logging
+from pathlib import Path
+from typing import Any, Dict, List
 
 import pytest
+
+from core.disclaimers import (
+    get_comprehensive_disclaimer,
+    get_disclaimer_text,
+    get_professional_referral,
+)
+from core.exports import to_csv_day as exports_to_csv_day, to_csv_week as exports_to_csv_week
+from core.exports import to_pdf_day as exports_to_pdf_day, to_pdf_week as exports_to_pdf_week
+from core.exports_simple import (
+    to_csv_day as simple_to_csv_day,
+    to_csv_week as simple_to_csv_week,
+    to_pdf_day as simple_to_pdf_day,
+    to_pdf_week as simple_to_pdf_week,
+)
+from core.lifestage_nutrition import get_lifestage_recommendations
+from core.product_finder import ProductFinder
+from core.product_varieties import ProductVariety
+from core.recipe_synth import RecipeSynthesizer
+from core.sports_nutrition import (
+    SPORT_MAPPING,
+    SportsNutritionCalculator,
+    SportsNutritionTargets,
+    SportCategory,
+    TrainingPhase,
+    get_sport_recommendations,
+)
+from core.targets import UserProfile
 
 
 class TestZeroCoverageModules:
     """Test modules that currently have 0% coverage."""
 
-    def test_sports_nutrition_module(self):
-        """Test core.sports_nutrition module."""
+    def test_sports_nutrition_module(self) -> None:
+        """Test core.sports_nutrition module using the public calculator APIs."""
+        profile = UserProfile(
+            sex="female",
+            age=28,
+            height_cm=165,
+            weight_kg=62,
+            activity="active",
+            goal="maintain",
+        )
+
+        targets = SportsNutritionCalculator.calculate_sports_targets(
+            profile=profile,
+            sport=SportCategory.ENDURANCE,
+            training_phase=TrainingPhase.IN_SEASON,
+            training_hours_per_week=8.0,
+        )
+        assert isinstance(targets, SportsNutritionTargets)
+        assert targets.protein_g_per_kg > 0
+        assert targets.fluid_ml_per_hour_training > 0
+
+        recommendations = get_sport_recommendations(
+            profile=profile,
+            sport=SportCategory.ENDURANCE,
+            training_phase=TrainingPhase.PEAK,
+            training_hours_per_week=10.0,
+        )
+        assert recommendations["daily_targets"]["protein_g"] > 0
+        assert recommendations["hydration"]["training_fluid_ml_per_hour"] >= 0
+        assert SPORT_MAPPING["running"] is SportCategory.ENDURANCE
+
+    def test_exports_module(self, tmp_path: Path) -> None:
+        """Test core.exports module CSV/PDF helpers."""
+        meal_plan: Dict[str, Any] = {
+            "meals": [
+                {"name": "breakfast", "food_item": "oatmeal", "kcal": 320, "protein_g": 12},
+                {"name": "lunch", "food_item": "salad", "kcal": 450, "protein_g": 18},
+            ],
+            "total_kcal": 770,
+            "total_protein": 30,
+            "total_carbs": 90,
+            "total_fat": 25,
+        }
+        weekly_plan: Dict[str, Any] = {
+            "daily_menus": [
+                {"date": "2024-01-01", "meals": meal_plan["meals"]},
+            ],
+            "shopping_list": {"apples": 6, "spinach": 1},
+            "total_cost": 42.5,
+            "adherence_score": 0.9,
+        }
+
+        csv_day = exports_to_csv_day(meal_plan)
+        csv_week = exports_to_csv_week(weekly_plan)
+        assert isinstance(csv_day, bytes)
+        assert isinstance(csv_week, bytes)
+        assert b"Meal" in csv_day
+        assert b"Shopping List" in csv_week
+
+        # PDF helpers require reportlab; skip gracefully if unavailable.
         try:
-            from core.sports_nutrition import (
-                adjust_for_training,
-                calculate_sports_targets,
-                get_athlete_nutrition,
-                hydration_needs,
-            )
-
-            # Test sports targets calculation
-            result = calculate_sports_targets(
-                sport="running", training_intensity="high", duration_minutes=90, weight_kg=70
-            )
-            assert isinstance(result, (dict, type(None)))
-
-            # Test athlete nutrition
-            nutrition = get_athlete_nutrition("endurance")
-            assert isinstance(nutrition, (dict, type(None)))
-
-            # Test training adjustments
-            adjusted = adjust_for_training(base_calories=2000, training_type="cardio", duration=60)
-            assert isinstance(adjusted, (dict, int, float, type(None)))
-
-            # Test hydration needs
-            hydration = hydration_needs(weight_kg=70, duration_minutes=90, temperature_celsius=25)
-            assert isinstance(hydration, (float, int, type(None)))
-
+            day_pdf_bytes = exports_to_pdf_day(meal_plan)
+            week_pdf_bytes = exports_to_pdf_week(weekly_plan)
         except ImportError:
-            pytest.skip("sports_nutrition module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_sports_nutrition_module")
+            pytest.skip("ReportLab not installed; skipping PDF export checks")
+        else:
+            assert isinstance(day_pdf_bytes, bytes) and len(day_pdf_bytes) > 0
+            assert isinstance(week_pdf_bytes, bytes) and len(week_pdf_bytes) > 0
 
-    def test_exports_module(self):
-        """Test core.exports module."""
-        try:
-            from core.exports import (
-                export_meal_plan,
-                export_nutrition_report,
-                export_shopping_list,
-                export_to_csv,
-                generate_pdf_report,
-            )
+    def test_recipe_synth_module(self) -> None:
+        """Test core.recipe_synth module via RecipeSynthesizer."""
+        synthesizer = RecipeSynthesizer()
+        ingredients: List[Dict[str, Any]] = [
+            {"name": "chicken breast", "amount": 200, "unit": "g"},
+            {"name": "brown rice", "amount": 120, "unit": "g"},
+            {"name": "broccoli", "amount": 80, "unit": "g"},
+        ]
 
-            # Test meal plan export
-            meal_plan = {
-                "breakfast": [{"name": "oatmeal", "calories": 150}],
-                "lunch": [{"name": "salad", "calories": 300}],
-                "dinner": [{"name": "chicken", "calories": 400}],
-            }
+        recipe = synthesizer.synthesize_recipe_from_ingredients(
+            ingredients=ingredients,
+            cuisine_preference="international",
+            difficulty_preference="easy",
+            servings=2,
+        )
 
-            result = export_meal_plan(meal_plan, format="json")
-            assert isinstance(result, (str, dict, bytes, type(None)))
+        assert recipe.title
+        assert recipe.nutrition_per_serving["calories"] > 0
+        assert len(recipe.steps) >= 1
 
-            # Test nutrition report
-            nutrition_data = {"calories": 2000, "protein": 150, "carbs": 250, "fat": 70}
+    def test_product_finder_module(self) -> None:
+        """Test core.product_finder module public methods that avoid network calls."""
+        finder = ProductFinder(min_confidence_threshold=0.2)
+        missing = finder.find_missing_products(
+            ["dragonfruit smoothie", "custom protein powder", "spinach"]
+        )
+        assert isinstance(missing, list)
+        assert "dragonfruit smoothie" in missing
 
-            report = export_nutrition_report(nutrition_data)
-            assert isinstance(report, (str, dict, bytes, type(None)))
+        assert finder.similar_names("Greek Yogurt", "yogurt greek") is True
 
-            # Test PDF generation
-            pdf = generate_pdf_report(nutrition_data)
-            assert isinstance(pdf, (bytes, str, type(None)))
+    def test_product_varieties_module(self) -> None:
+        """Test core.product_varieties module using the ProductVariety dataclass."""
+        variety = ProductVariety(
+            name="yogurt",
+            variety="greek",
+            brand="Test Brand",
+            protein_g=23.0,
+            fat_g=2.0,
+            carbs_g=8.0,
+            fiber_g=0.0,
+            sugar_g=4.0,
+            Fe_mg=0.4,
+            Ca_mg=200.0,
+            VitD_IU=80.0,
+            B12_ug=1.2,
+            Folate_ug=15.0,
+            Iodine_ug=50.0,
+            K_mg=280.0,
+            Mg_mg=30.0,
+            flags={"high_protein"},
+            notes="Test variety",
+        )
 
-            # Test CSV export
-            csv_data = export_to_csv([meal_plan])
-            assert isinstance(csv_data, (str, bytes, type(None)))
+        food_item = variety.to_food_item()
+        assert food_item.name.startswith("yogurt")
+        assert variety.is_high_protein()
+        assert variety.is_low_sugar()
 
-            # Test shopping list export
-            shopping = export_shopping_list(meal_plan)
-            assert isinstance(shopping, (str, list, dict, type(None)))
-
-        except ImportError:
-            pytest.skip("exports module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_exports_module")
-
-    def test_recipe_synth_module(self):
-        """Test core.recipe_synth module."""
-        try:
-            from core.recipe_synth import (
-                create_recipe_variations,
-                generate_recipe,
-                optimize_recipe_nutrition,
-                suggest_substitutions,
-                synthesize_meal,
-            )
-
-            # Test recipe generation
-            ingredients = [
-                {"name": "chicken", "amount": 200, "unit": "g"},
-                {"name": "rice", "amount": 150, "unit": "g"},
-                {"name": "vegetables", "amount": 100, "unit": "g"},
+    def test_exports_simple_module(self, tmp_path: Path) -> None:
+        """Test core.exports_simple helpers."""
+        plate = {
+            "kcal": 1800,
+            "macros": {"protein_g": 120, "fat_g": 50, "carbs_g": 210, "fiber_g": 30},
+            "meals": [
+                {"title": "Breakfast", "kcal": 500, "protein_g": 30, "fat_g": 15, "carbs_g": 60},
+                {"title": "Lunch", "kcal": 650, "protein_g": 40, "fat_g": 20, "carbs_g": 70},
+            ],
+        }
+        week = {
+            "days": [
+                {"kcal": 1800, "macros": plate["macros"]},
+                {"kcal": 1900, "macros": plate["macros"]},
             ]
+        }
 
-            recipe = generate_recipe(
-                ingredients=ingredients, cuisine="mediterranean", dietary_restrictions=[]
-            )
-            assert isinstance(recipe, (dict, type(None)))
+        day_csv = simple_to_csv_day(plate)
+        week_csv = simple_to_csv_week(week)
+        assert "meal_title" in day_csv
+        assert "day" in week_csv
 
-            # Test meal synthesis
-            meal = synthesize_meal(
-                target_calories=600, target_protein=30, available_ingredients=ingredients
-            )
-            assert isinstance(meal, (dict, type(None)))
+        day_pdf = tmp_path / "simple_day.pdf"
+        week_pdf = tmp_path / "simple_week.pdf"
+        simple_to_pdf_day(plate, day_pdf)
+        simple_to_pdf_week(week, week_pdf)
+        assert day_pdf.exists()
+        assert week_pdf.exists()
 
-            # Test recipe variations
-            variations = create_recipe_variations(
-                base_recipe={"name": "chicken_rice", "ingredients": ingredients}, variation_count=3
-            )
-            assert isinstance(variations, (list, type(None)))
+    def test_lifestage_nutrition_module(self) -> None:
+        """Test core.lifestage_nutrition module recommendations."""
+        profile = UserProfile(
+            sex="female",
+            age=32,
+            height_cm=168,
+            weight_kg=64,
+            activity="moderate",
+            goal="maintain",
+        )
+        recommendations = get_lifestage_recommendations(profile, is_pregnant=True, trimester=2)
+        assert recommendations["life_stage"].startswith("pregnant")
+        assert recommendations["macronutrients"]["protein_g"] > 0
 
-            # Test nutrition optimization
-            optimized = optimize_recipe_nutrition(
-                recipe={"ingredients": ingredients},
-                target_nutrition={"protein": 40, "calories": 500},
-            )
-            assert isinstance(optimized, (dict, type(None)))
+    def test_disclaimers_module(self) -> None:
+        """Test core.disclaimers module public helpers."""
+        medical = get_disclaimer_text("medical", language="en")
+        assert "medical" in medical.lower()
 
-            # Test substitutions
-            substitutions = suggest_substitutions(
-                ingredient="chicken", dietary_restriction="vegetarian"
-            )
-            assert isinstance(substitutions, (list, type(None)))
+        comprehensive = get_comprehensive_disclaimer(
+            special_populations=["pregnancy"], language="en"
+        )
+        assert "pregnancy" in comprehensive.lower()
 
-        except ImportError:
-            pytest.skip("recipe_synth module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_recipe_synth_module")
+        referral = get_professional_referral("sports_nutrition", language="en")
+        assert "dietitian" in referral.lower()
 
-    def test_product_finder_module(self):
-        """Test core.product_finder module."""
-        try:
-            from core.product_finder import (
-                compare_products,
-                filter_by_criteria,
-                find_products,
-                get_product_info,
-                search_by_nutrition,
-            )
-
-            # Test product finding
-            products = find_products(query="protein powder", category="supplements", max_results=10)
-            assert isinstance(products, (list, type(None)))
-
-            # Test nutrition-based search
-            nutrition_criteria = {"protein_min": 20, "calories_max": 200, "sugar_max": 5}
-
-            products = search_by_nutrition(nutrition_criteria)
-            assert isinstance(products, (list, type(None)))
-
-            # Test filtering
-            all_products = [
-                {"name": "product1", "protein": 25, "calories": 150},
-                {"name": "product2", "protein": 15, "calories": 250},
-            ]
-
-            filtered = filter_by_criteria(products=all_products, criteria={"protein_min": 20})
-            assert isinstance(filtered, (list, type(None)))
-
-            # Test product info
-            info = get_product_info("product_id_123")
-            assert isinstance(info, (dict, type(None)))
-
-            # Test product comparison
-            comparison = compare_products(
-                product_ids=["product1", "product2"], criteria=["protein", "calories", "price"]
-            )
-            assert isinstance(comparison, (dict, list, type(None)))
-
-        except ImportError:
-            pytest.skip("product_finder module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_product_finder_module")
-
-    def test_product_varieties_module(self):
-        """Test core.product_varieties module."""
-        try:
-            from core.product_varieties import (
-                analyze_variety_nutrition,
-                find_alternatives,
-                get_varieties,
-                group_by_category,
-                suggest_similar,
-            )
-
-            # Test getting varieties
-            varieties = get_varieties("apple")
-            assert isinstance(varieties, (list, type(None)))
-
-            # Test finding alternatives
-            alternatives = find_alternatives(
-                product="dairy_milk", criteria=["lactose_free", "plant_based"]
-            )
-            assert isinstance(alternatives, (list, type(None)))
-
-            # Test grouping by category
-            products = [
-                {"name": "apple", "category": "fruit"},
-                {"name": "banana", "category": "fruit"},
-                {"name": "carrot", "category": "vegetable"},
-            ]
-
-            grouped = group_by_category(products)
-            assert isinstance(grouped, (dict, type(None)))
-
-            # Test similar suggestions
-            similar = suggest_similar(
-                product="greek_yogurt", similarity_criteria=["protein_content", "texture"]
-            )
-            assert isinstance(similar, (list, type(None)))
-
-            # Test variety nutrition analysis
-            nutrition_analysis = analyze_variety_nutrition(
-                base_product="milk", varieties=["whole", "2%", "skim", "almond", "oat"]
-            )
-            assert isinstance(nutrition_analysis, (dict, type(None)))
-
-        except ImportError:
-            pytest.skip("product_varieties module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_product_varieties_module")
-
-    def test_exports_simple_module(self):
-        """Test core.exports_simple module."""
-        try:
-            from core.exports_simple import (
-                quick_meal_export,
-                simple_csv_export,
-                simple_json_export,
-                simple_text_export,
-            )
-
-            # Test simple CSV export
-            data = [{"name": "apple", "calories": 95}, {"name": "banana", "calories": 105}]
-
-            csv_result = simple_csv_export(data)
-            assert isinstance(csv_result, (str, type(None)))
-
-            # Test simple JSON export
-            json_result = simple_json_export(data)
-            assert isinstance(json_result, (str, type(None)))
-
-            # Test simple text export
-            text_result = simple_text_export(data)
-            assert isinstance(text_result, (str, type(None)))
-
-            # Test quick meal export
-            meal = {"breakfast": "oatmeal", "lunch": "salad", "dinner": "chicken and rice"}
-
-            meal_export = quick_meal_export(meal)
-            assert isinstance(meal_export, (str, type(None)))
-
-        except ImportError:
-            pytest.skip("exports_simple module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_exports_simple_module")
-
-    def test_lifestage_nutrition_module(self):
-        """Test core.lifestage_nutrition module."""
-        try:
-            from core.lifestage_nutrition import (
-                adjust_for_age,
-                child_nutrition,
-                elderly_nutrition,
-                get_lifestage_requirements,
-                pregnancy_nutrition,
-            )
-
-            # Test lifestage requirements
-            requirements = get_lifestage_requirements(age=30, gender="F", lifestage="adult")
-            assert isinstance(requirements, (dict, type(None)))
-
-            # Test age adjustments
-            base_nutrition = {"calories": 2000, "protein": 150}
-            adjusted = adjust_for_age(base_nutrition, age=65)
-            assert isinstance(adjusted, (dict, type(None)))
-
-            # Test pregnancy nutrition
-            pregnancy = pregnancy_nutrition(trimester=2, pre_pregnancy_weight=60, current_weight=65)
-            assert isinstance(pregnancy, (dict, type(None)))
-
-            # Test elderly nutrition
-            elderly = elderly_nutrition(age=75, health_conditions=["osteoporosis", "diabetes"])
-            assert isinstance(elderly, (dict, type(None)))
-
-            # Test child nutrition
-            child = child_nutrition(age_years=8, weight_kg=25, height_cm=130)
-            assert isinstance(child, (dict, type(None)))
-
-        except ImportError:
-            pytest.skip("lifestage_nutrition module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_lifestage_nutrition_module")
-
-    def test_disclaimers_module(self):
-        """Test core.disclaimers module."""
-        try:
-            from core.disclaimers import (
-                get_disclaimer,
-                get_liability_disclaimer,
-                get_medical_disclaimer,
-                get_nutrition_disclaimer,
-            )
-
-            # Test general disclaimer
-            disclaimer = get_disclaimer("general")
-            assert isinstance(disclaimer, (str, type(None)))
-
-            # Test medical disclaimer
-            medical = get_medical_disclaimer("nutrition_advice")
-            assert isinstance(medical, (str, type(None)))
-
-            # Test nutrition disclaimer
-            nutrition = get_nutrition_disclaimer("meal_planning")
-            assert isinstance(nutrition, (str, type(None)))
-
-            # Test liability disclaimer
-            liability = get_liability_disclaimer("app_usage")
-            assert isinstance(liability, (str, type(None)))
-
-        except ImportError:
-            pytest.skip("disclaimers module not available")
-        # Broad except is intentional: zero-coverage modules may have broken implementations
-        # We log the error but don't fail the test to allow coverage collection
-        except Exception:
-            logging.exception("Unexpected exception in test_disclaimers_module")
-
-    def test_comprehensive_import_coverage(self):
+    def test_comprehensive_import_coverage(self) -> None:
         """Test importing all core modules to increase import coverage."""
         modules_to_import = [
             "core.sports_nutrition",
@@ -389,10 +262,11 @@ class TestZeroCoverageModules:
                 import_count += 1
             except ImportError:
                 pass  # Module not available
-            # Broad except is intentional: zero-coverage modules may have broken implementations
-            # We log the error but don't fail the test to allow coverage collection
-            except Exception:
-                logging.exception(f"Unexpected exception importing {module_name}")
+            except Exception as e:
+                # Known broken implementations in zero-coverage modules
+                logging.warning(f"Failed to import {module_name}: {e}")
+                # Continue to next module instead of failing
 
-        # Just test that we can import some modules
-        assert import_count >= 0
+        # Assert that at least some critical modules were imported successfully
+        # Minimum threshold: at least 5 modules should import successfully
+        assert import_count >= 5, f"Expected at least 5 successful imports, got {import_count}"

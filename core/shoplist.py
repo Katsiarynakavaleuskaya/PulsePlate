@@ -8,6 +8,7 @@ Sprint 2: Shoplist с округлением до упаковок.
 """
 
 import csv
+import io
 import logging
 import math
 from dataclasses import dataclass
@@ -445,7 +446,6 @@ class ShoplistGenerator:
             }
 
         elif format_type == "csv":
-            import io
 
             output = io.StringIO()
             writer = csv.writer(output)

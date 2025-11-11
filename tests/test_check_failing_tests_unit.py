@@ -75,14 +75,11 @@ def test_main_mixed_pass_fail_timeout(
 
     def mock_glob(self: Path, pattern: str) -> Iterator[Path]:
         if pattern == "test_*.py" and str(self) == "tests":
-            return iter(
-                [
-                    Path("tests/t_ok.py"),
-                    Path("tests/t_fail.py"),
-                    Path("tests/t_to.py"),
-                ]
-            )
-        return original_glob(self, pattern)
+            yield Path("tests/t_ok.py")
+            yield Path("tests/t_fail.py")
+            yield Path("tests/t_to.py")
+            return
+        yield from original_glob(self, pattern)
 
     monkeypatch.setattr(Path, "glob", mock_glob)
 
@@ -135,13 +132,12 @@ def test_main_all_passing(
     # Patch Path.glob to return controlled test files
     original_glob = Path.glob
 
-    def mock_glob(self: Path, pattern: str) -> list[Path]:
+    def mock_glob(self: Path, pattern: str) -> Iterator[Path]:
         if pattern == "test_*.py" and str(self) == "tests":
-            return [
-                Path("tests/t_ok1.py"),
-                Path("tests/t_ok2.py"),
-            ]
-        return list(original_glob(self, pattern))
+            yield Path("tests/t_ok1.py")
+            yield Path("tests/t_ok2.py")
+            return
+        yield from original_glob(self, pattern)
 
     monkeypatch.setattr(Path, "glob", mock_glob)
     monkeypatch.setattr(Path, "is_file", lambda self: True)

@@ -81,6 +81,76 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
     - The repo policy currently has `ignore = []` (no ignored findings). Update via PR if a temporary waiver is justified.
     - Keep CI and local checks aligned by always using the same `safety-policy.toml` and severity filter.
 
+## Medical Safety Approval Workflow
+
+Medical safety thresholds and alerting features require explicit approval before production enablement.
+
+### Overview
+
+Medical safety constants (e.g., `MIN_SAFE_FLOOR_KCAL`, `MAX_SAFE_CEILING_KCAL`, `MIN_SAFE_DAILY_CALORIES`, `MAX_SAFE_DAILY_CALORIES`) must not be hardcoded in production code. They must be:
+
+1. **Moved to configuration**: Stored in `config/medical_safety.yaml` (or environment-backed config module)
+2. **Feature-flagged**: Gated by `featureFlags.medicalSafetyApproved` (or `MEDICAL_ALERTS_ENABLED`) that defaults to `false`
+3. **Approved via workflow**: Require sign-offs from clinical/nutrition committee, legal, and product teams
+
+### Required Sign-offs
+
+Before enabling medical safety alerts/enforcements in production, the following approvals are required:
+
+- **Clinical/Nutrition Committee**: Review and approve threshold values based on medical evidence
+- **Legal**: Review compliance with Apple/Google guidelines and local regulations (e.g., HIPAA, GDPR)
+- **Product**: Confirm product strategy and user experience implications
+
+### Configuration Structure
+
+Medical safety configuration should be stored in `config/medical_safety.yaml`:
+
+```yaml
+# Medical Safety Configuration
+# DO NOT modify these values without approval from clinical/nutrition committee
+
+featureFlags:
+  medicalSafetyApproved: false  # Set to true only after approval workflow
+
+thresholds:
+  MIN_SAFE_FLOOR_KCAL: 1000.0
+  MAX_SAFE_CEILING_KCAL: 4500.0
+  MIN_SAFE_DAILY_CALORIES: 500
+  MAX_SAFE_DAILY_CALORIES: 5000
+```
+
+### Implementation Requirements
+
+1. **Runtime Configuration Loading**: Values must be loaded from `config/medical_safety.yaml` at runtime, not hardcoded
+2. **Feature Flag Gating**: All medical alerting/enforcement logic must check `featureFlags.medicalSafetyApproved` before executing
+3. **Fallback Behavior**: When feature flag is `false`, no alerts/enforcements should be triggered
+4. **Unit Tests**: Add tests that verify:
+   - Alerts only trigger when feature flag is enabled
+   - Config values are read from configuration source (not hardcoded)
+   - Behavior when flag is false (no alerts/enforcements)
+
+### Approval Checklist
+
+- [ ] Clinical/nutrition committee review completed
+- [ ] Legal review completed
+- [ ] Product review completed
+- [ ] Configuration file (`config/medical_safety.yaml`) created with approved values
+- [ ] Feature flag implementation completed
+- [ ] Unit tests added and passing
+- [ ] Integration tests verify flag gating behavior
+- [ ] Documentation updated (this section, code comments)
+
+### Testing Requirements
+
+Unit tests must assert:
+
+1. **Flag disabled**: No alerts/enforcements when `featureFlags.medicalSafetyApproved = false`
+2. **Flag enabled**: Alerts/enforcements trigger when `featureFlags.medicalSafetyApproved = true`
+3. **Config loading**: Values are read from `config/medical_safety.yaml`, not hardcoded constants
+4. **Threshold application**: Approved config values are correctly applied when flag is enabled
+
+See `docs/BAYESIAN_EXPANSION_STRATEGY.md` lines 1042-1047 and `docs/BAYESIAN_IMPLEMENTATION_PLAN.md` for recommended test scenarios.
+
 ## Getting Help
 
 - Open a Draft PR early for feedback.

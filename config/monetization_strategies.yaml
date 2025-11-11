@@ -1,0 +1,24 @@
+# Monetization Strategies Configuration
+# RU: Стратегии монетизации
+# EN: Monetization strategies including pricing models, conversion tactics, and retention strategies
+
+pricing_models:
+  tiered: "Многоуровневая модель с разными функциями / Tiered model with different feature levels"
+  freemium: "Бесплатный базовый + платный премиум / Free basic tier + paid premium"
+  usage_based: "Оплата по использованию / Pay-per-use pricing"
+  subscription: "Подписочная модель / Subscription model"
+  one_time: "Единоразовая покупка / One-time purchase"
+
+conversion_tactics:
+  trial_period: "Бесплатный пробный период / Free trial period"
+  discount_codes: "Скидочные коды / Discount codes"
+  referral_program: "Реферальная программа / Referral program"
+  bundling: "Пакетные предложения / Bundled offerings"
+  upselling: "Продажа дополнительных услуг / Upselling additional services"
+
+retention_strategies:
+  onboarding: "Улучшенная адаптация новых пользователей / Improved new user onboarding"
+  feature_usage: "Анализ использования функций / Feature usage analytics"
+  engagement: "Повышение вовлеченности / Increased user engagement"
+  support: "Качественная поддержка / Quality customer support"
+  feedback: "Обратная связь с пользователями / User feedback loops"

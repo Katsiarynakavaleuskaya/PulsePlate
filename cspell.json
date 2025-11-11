@@ -62,6 +62,12 @@
       "addWords": true
     },
     {
+      "name": "workspace-acronyms",
+      "path": "./cspell-acronyms.txt",
+      "description": "Technical acronyms and abbreviations",
+      "addWords": true
+    },
+    {
       "name": "ru_ru",
       "path": "./node_modules/@cspell/dict-ru_ru/cspell-ext.json",
       "description": "Russian dictionary from cspell"
@@ -84,6 +90,7 @@
   ],
   "dictionaries": [
     "workspace-terms",
+    "workspace-acronyms",
     "ru_ru",
     "es_es",
     "python",

@@ -163,7 +163,7 @@ class TestMenuEngineCoverage97:
 
     def test_make_weekly_menu_error_handling_coverage_line_739(self):
         """Test make_weekly_menu error handling coverage for line 739."""
-        # Test with missing required parameters
+        # Test with missing activity parameter
         with pytest.raises(TypeError):
             make_weekly_menu(
                 weight_kg=70,

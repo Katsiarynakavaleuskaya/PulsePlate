@@ -21,7 +21,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType, TestStatus
 
@@ -79,33 +79,52 @@ def normalize(d: Dict[ErrorType, float]) -> Dict[str, float]:
     return {k.value: float(v) / denominator for k, v in d.items()}
 
 
+def generate_report(analyzer: BayesianTestAnalyzer) -> Dict[str, Any]:
+    """Generate quality report from Bayesian test analyzer.
+
+    Performs history traversal, builds error type counts, normalizes priors,
+    and computes average confidence estimate.
+
+    Args:
+        analyzer: Initialized BayesianTestAnalyzer instance.
+
+    Returns:
+        Dictionary containing:
+        - history_size: Number of records in execution history
+        - prior_probabilities: Normalized prior probabilities (Dict[str, float])
+        - error_type_counts: Weighted error type counts (Dict[str, float])
+        - avg_confidence_estimate: Confidence estimate from priors entropy (float)
+    """
+    history = analyzer.execution_history
+
+    # Weighted error counts (simple counts as proxy)
+    counts: Dict[ErrorType, float] = {et: 0.0 for et in ErrorType}
+    for rec in history:
+        if rec.result == TestStatus.FAILED and rec.error_type is not None:
+            counts[rec.error_type] += 1.0
+
+    priors_norm = normalize(analyzer.prior_probabilities)
+
+    # Estimate avg confidence from priors entropy proxy
+    avg_confidence_estimate = calculate_confidence_from_priors(priors_norm)
+
+    return {
+        "history_size": len(history),
+        "prior_probabilities": priors_norm,
+        "error_type_counts": {k.value: v for k, v in counts.items()},
+        "avg_confidence_estimate": avg_confidence_estimate,
+    }
+
+
 def main() -> int:
     try:
         analyzer = BayesianTestAnalyzer()
-        history = analyzer.execution_history
-
-        # Weighted error counts (simple counts as proxy)
-        counts: Dict[ErrorType, float] = {et: 0.0 for et in ErrorType}
-        for rec in history:
-            if rec.result == TestStatus.FAILED and rec.error_type is not None:
-                counts[rec.error_type] += 1.0
-
-        priors_norm = normalize(analyzer.prior_probabilities)
-
-        # Estimate avg confidence from priors entropy proxy
-        avg_confidence_estimate = calculate_confidence_from_priors(priors_norm)
-
-        report = {
-            "history_size": len(history),
-            "prior_probabilities": priors_norm,
-            "error_type_counts": {k.value: v for k, v in counts.items()},
-            "avg_confidence_estimate": avg_confidence_estimate,
-        }
+        report = generate_report(analyzer)
 
         try:
             out = Path("bayesian_quality_report.json")
             out.write_text(json.dumps(report, indent=2, ensure_ascii=False))
-            print(f"Wrote {out} with {len(history)} records")
+            print(f"Wrote {out} with {report['history_size']} records")
             return 0
         except Exception as e:
             print(f"Error writing report: {e}", file=sys.stderr)

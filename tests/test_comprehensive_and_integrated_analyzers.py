@@ -19,15 +19,15 @@ from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, NormalizedIssueType
 from core.nutrition_bayesian_analyzer import NutritionCategory, NutritionTestResult
 
-# Test threshold constants for risk and health assessment
-# RU: Константы порогов для оценки рисков и здоровья
-MEDIUM_SCORE_THRESHOLD = 0.6  # Score threshold for medium-severity issues
-HIGH_SCORE_THRESHOLD = 0.95  # Score threshold for high-quality systems
-EXCELLENT_HEALTH_THRESHOLD = 0.85  # Score for excellent system health
-GOOD_HEALTH_THRESHOLD = 0.65  # Score for good/fair system health
-CRITICAL_ISSUES_COUNT = 3  # Number of critical issues triggering urgent priority
-HIGH_ISSUES_COUNT = 2  # Number of issues for high-quality threshold
-LOW_ISSUES_COUNT = 1  # Minimum issue count for fair health status
+from tests.bayesian_test_constants import (
+    CRITICAL_ISSUES_COUNT,
+    EXCELLENT_HEALTH_THRESHOLD,
+    GOOD_HEALTH_THRESHOLD,
+    HIGH_ISSUES_COUNT,
+    HIGH_SCORE_THRESHOLD,
+    LOW_ISSUES_COUNT,
+    MEDIUM_SCORE_THRESHOLD,
+)
 
 
 def _make_nutrition_result(message: str, success: bool = False) -> NutritionTestResult:

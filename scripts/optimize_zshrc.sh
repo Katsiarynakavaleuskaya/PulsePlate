@@ -49,6 +49,32 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     TEMP_FILE=$(mktemp "${ZSHRC_FILE}.tmp.XXXXXX")
     trap 'rm -f "$TEMP_FILE"' EXIT INT TERM
 
+    # KNOWN LIMITATION: Comment-stripping approach
+    # ==============================================
+    # The sed 's/#.*//' command removes everything from # to end of line, which can
+    # incorrectly strip # characters inside quoted strings (e.g., URLs with #fragment,
+    # hashtag values, or other uses of # within quotes).
+    #
+    # Problematic examples:
+    #   - URL="https://example.com/page#section"  → becomes URL="https://example.com/page"
+    #   - TAG="#hashtag"  → becomes TAG=""
+    #   - COMMENT='Line with # symbol'  → becomes COMMENT='Line with '
+    #
+    # This limitation is acceptable for this script because:
+    # 1. We only check for variable definitions and source commands (which typically
+    #    don't contain # in their values)
+    # 2. False positives in comments won't break functionality - they'll be preserved
+    # 3. Edge cases with quotes/escapes are rare and not critical for this use case
+    #
+    # For production use, consider using a proper shell parser or more sophisticated
+    # quote-aware comment removal.
+
+    echo "⚠️  WARNING: A backup will be created at: $BACKUP_FILE"
+    echo "   Please review the modified file before using it."
+    echo "   The script uses simple comment-stripping which may incorrectly handle"
+    echo "   # characters inside quoted strings (see script header for details)."
+    echo ""
+
     # Обрабатываем файл построчно, исключая строки с setup_cli_aliases.sh
     # SIMPLIFIED: Use basic heuristics instead of complex quote/escape parsing
     # We remove lines that look like source/. commands for setup_cli_aliases.sh
@@ -102,6 +128,17 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     # Добавляем канонический двухстрочный блок загрузки
     echo "SETUP_ALIASES_QUIET=true" >> "$TEMP_FILE"
     echo "source \"\$ALIASES_SCRIPT\"" >> "$TEMP_FILE"
+
+    # Validation: Check syntax before replacing original file
+    if ! zsh -n "$TEMP_FILE" 2>/dev/null; then
+        echo "❌ ERROR: Syntax validation failed for modified file"
+        echo "   The modified file has syntax errors. Restoring from backup."
+        echo "   Backup location: $BACKUP_FILE"
+        cp "$BACKUP_FILE" "$ZSHRC_FILE"
+        rm -f "$TEMP_FILE"
+        trap - EXIT INT TERM
+        exit 1
+    fi
 
     # Атомарно заменяем оригинальный файл
     mv "$TEMP_FILE" "$ZSHRC_FILE"

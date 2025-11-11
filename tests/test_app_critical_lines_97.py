@@ -13,7 +13,7 @@ import app
 
 
 class TestAppCriticalLines97:
-    def test_invalid_json_malformed_request_returns_422(self, client):
+    def test_invalid_json_malformed_request_returns_422(self, client) -> None:
         """Тест малформированного JSON - должен возвращать 422 (validation error)"""
         # Отправляем невалидный JSON на существующий endpoint
         response = client.post(
@@ -23,19 +23,19 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 422
 
-    def test_vip_endpoints_without_vip_module_health(self, client):
+    def test_vip_endpoints_without_vip_module_health(self, client) -> None:
         """Тест VIP endpoints когда VIP модуль отключен (health endpoint)"""
         with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
             response = client.get("/health")  # Проверяем что app работает
             assert response.status_code == 200
 
-    def test_admin_endpoints_missing_scheduler_health(self, client):
+    def test_admin_endpoints_missing_scheduler_health(self, client) -> None:
         """Тест admin endpoints когда scheduler недоступен (health endpoint)"""
         # Используем существующий endpoint
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_error_handling_bmi_paths(self, client):
+    def test_error_handling_bmi_paths(self, client) -> None:
         """Тест различных error handling путей для BMI"""
         # Тест с пустым телом запроса на реальном endpoint - должен возвращать 422 (missing required fields)
         response = client.post(
@@ -51,7 +51,7 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 200  # BMI is public, valid payload returns 200
 
-    def test_vip_endpoints_without_vip_module(self, client):
+    def test_vip_endpoints_without_vip_module(self, client) -> None:
         """Тест VIP endpoints когда VIP модуль отключен"""
         with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
             # Перезагружаем app
@@ -73,7 +73,7 @@ class TestAppCriticalLines97:
                     or "not found" in response_data["detail"].lower()
                 )
 
-    def test_admin_endpoints_missing_scheduler_returns_503(self, client):
+    def test_admin_endpoints_missing_scheduler_returns_503(self, client) -> None:
         """Тест admin endpoints когда scheduler недоступен - должен возвращать 503 (service unavailable)"""
         with patch("app.get_update_scheduler", return_value=None):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
@@ -82,7 +82,7 @@ class TestAppCriticalLines97:
             response_data = response.json()
             assert "detail" in response_data
 
-    def test_error_handling_edge_paths(self, client):
+    def test_error_handling_edge_paths(self, client) -> None:
         """Тест различных error handling путей"""
         # Тест с пустым телом запроса - должен возвращать 422 (missing required fields)
         response = client.post(
@@ -96,7 +96,7 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 422
 
-    def test_missing_dependencies_import_paths(self):
+    def test_missing_dependencies_import_paths(self) -> None:
         """Тест путей когда зависимости недоступны"""
         # Имитируем отсутствие модулей
         with patch.dict("sys.modules", {"core.auto_repair": None}):
@@ -109,7 +109,7 @@ class TestAppCriticalLines97:
                 # Expected when dependencies are missing - graceful degradation working
                 pass
 
-    def test_premium_endpoints_error_paths_returns_422(self, client):
+    def test_premium_endpoints_error_paths_returns_422(self, client) -> None:
         """Тест error paths в premium endpoints - должен возвращать 422 (validation error)"""
         # Тест с невалидными параметрами
         # Note: API key validation happens before Pydantic validation, so 403 is expected
@@ -123,7 +123,7 @@ class TestAppCriticalLines97:
         # If key is valid, then 422 for validation errors
         assert response.status_code in [403, 422]
 
-    def test_recipes_endpoints_error_handling(self, client):
+    def test_recipes_endpoints_error_handling(self, client) -> None:
         """Тест error handling в recipes endpoints"""
         # Тест с пустым запросом - должен возвращать пустой результат
         response = client.get("/api/v1/recipes/search?query=")
@@ -131,7 +131,7 @@ class TestAppCriticalLines97:
         response_data = response.json()
         assert isinstance(response_data, (list, dict))
 
-    def test_foods_endpoints_error_handling_returns_200(self, client):
+    def test_foods_endpoints_error_handling_returns_200(self, client) -> None:
         """Тест error handling в foods endpoints - пустой query должен возвращать 200 (успешный запрос с пустым результатом)"""
         # Тест с невалидными параметрами поиска
         response = client.get("/api/v1/foods/search?query=")
@@ -139,7 +139,7 @@ class TestAppCriticalLines97:
             response.status_code == 200
         )  # Endpoint accepts empty query and returns empty results successfully
 
-    def test_export_endpoints_error_handling_returns_400(self, client):
+    def test_export_endpoints_error_handling_returns_400(self, client) -> None:
         """Тест error handling в export endpoints - пустой payload должен возвращать 400 (bad request)"""
         # Тест экспорта без данных
         response = client.post("/api/v1/export/pdf", json={})
@@ -147,7 +147,7 @@ class TestAppCriticalLines97:
             response.status_code == 400
         )  # Endpoint explicitly checks for empty dict and returns 400
 
-    def test_middleware_error_paths(self):
+    def test_middleware_error_paths(self) -> None:
         """Тест middleware error paths"""
         import os
         import sys
@@ -170,7 +170,7 @@ class TestAppCriticalLines97:
             client = TestClient(app.app)
             assert client is not None
 
-    def test_startup_shutdown_events(self):
+    def test_startup_shutdown_events(self) -> None:
         """Тест startup/shutdown events"""
         import os
         import sys

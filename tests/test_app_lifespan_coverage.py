@@ -17,17 +17,17 @@ class TestAppLifespanCoverage:
         """Тест покрытия app.py lifespan startup событий (строки 1520-1527)"""
         import app
 
-        # Тестируем startup события через TestClient
-        client = TestClient(cast(ASGIApp, app.app))
+        # Тестируем startup события через TestClient с контекстным менеджером
+        # для гарантированного выполнения shutdown событий
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Startup события выполняются при создании TestClient
+            # Проверяем, что приложение работает корректно
+            response = client.get("/health")
+            assert response.status_code == 200
 
-        # Startup события выполняются при создании TestClient
-        # Проверяем, что приложение работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что startup события не вызывают ошибок
-        response = client.get("/docs")
-        assert response.status_code == 200
+            # Проверяем, что startup события не вызывают ошибок
+            response = client.get("/docs")
+            assert response.status_code == 200
 
     def test_app_lifespan_shutdown_events_coverage(self, test_environment):
         """Тест покрытия app.py lifespan shutdown событий (строки 1606, 1657-1660)"""
@@ -308,7 +308,7 @@ class TestAppLifespanCoverage:
 class TestAppInitErrorHandling:
     """Test error handling in app initialization."""
 
-    def test_propagate_app_patches_none_source(self):
+    def test_propagate_app_patches_none_source(self) -> None:
         """Test _propagate_app_patches with None source (line 1244)."""
         import app
         from unittest.mock import MagicMock
@@ -317,7 +317,7 @@ class TestAppInitErrorHandling:
         result = app._propagate_app_patches(None, MagicMock())
         assert result is None
 
-    def test_propagate_app_patches_none_target(self):
+    def test_propagate_app_patches_none_target(self) -> None:
         """Test _propagate_app_patches with None target (line 1244)."""
         import app
         from unittest.mock import MagicMock
@@ -326,7 +326,7 @@ class TestAppInitErrorHandling:
         result = app._propagate_app_patches(MagicMock(), None)
         assert result is None
 
-    def test_propagate_app_patches_exception(self):
+    def test_propagate_app_patches_exception(self) -> None:
         """Test _propagate_app_patches exception handling (lines 1250-1251)."""
         import app
         from unittest.mock import MagicMock
@@ -348,7 +348,7 @@ class TestAppInitErrorHandling:
             # Should not reach here
             pytest.fail("_propagate_app_patches should not raise exception")
 
-    def test_sync_app_attr_sources_none_alias_module(self):
+    def test_sync_app_attr_sources_none_alias_module(self) -> None:
         """Test _sync_app_attr_sources with None alias_module (line 1260)."""
         import app
         from unittest.mock import MagicMock

@@ -94,13 +94,14 @@ class DummyItem:
         self.fspath = Path(path)
         self._markers = markers or []
         self.fixturenames = fixturenames or []
-        self.function = (lambda: None) if not is_async else (lambda: None)
         if is_async:
 
             async def _async_func():
                 return None
 
             self.function = _async_func
+        else:
+            self.function = lambda: None
         self._source = source
         self.nodeid = f"{path}::{name}"
 
@@ -144,7 +145,7 @@ SELECT * FROM revenue_table
 """
 
 
-def test_business_analyzer_detects_multi_category_issues(tmp_path: Path) -> None:
+def test_business_analyzer_detects_multi_category_issues() -> None:
     """RU: Проверка обнаружения бизнес-проблем. EN: Ensure multi-category issues detected."""
 
     analyzer = BusinessBayesianAnalyzer(domain="generic")

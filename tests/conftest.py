@@ -223,6 +223,16 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     # Cleanup is automatic with monkeypatch
 
 
+@pytest.fixture
+def _test_environment(test_environment: Generator[None, None, None]) -> Generator[None, None, None]:
+    """Backward-compatible alias for legacy tests expecting `_test_environment`.
+
+    Some historical tests still request the underscored fixture name.
+    Reuse the standard `test_environment` setup to keep behaviour consistent.
+    """
+    yield test_environment
+
+
 # Test doubles for pytest plugin tests
 class DummyMarker:
     """Mock marker for pytest plugin tests."""

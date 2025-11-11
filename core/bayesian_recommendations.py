@@ -7,13 +7,12 @@ and symptoms. Supports multiple languages with fallback to default (Russian).
 
 import os
 from enum import Enum
-from typing import Dict, List, Optional
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
 DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru") or "ru"
 
 # Recommendation messages organized by language and error type/symptom
-RECOMMENDATIONS: Dict[str, Dict[str, List[str]]] = {
+RECOMMENDATIONS: dict[str, dict[str, list[str]]] = {
     "ru": {
         # Error type recommendations
         "error_type.assertion_error": [
@@ -207,8 +206,8 @@ RECOMMENDATIONS: Dict[str, Dict[str, List[str]]] = {
 
 
 def get_recommendations(
-    key: str, language: Optional[str] = None, fallback: Optional[List[str]] = None
-) -> List[str]:
+    key: str, language: str | None = None, fallback: list[str] | None = None
+) -> list[str]:
     """
     Get recommendations for a given key and language.
 
@@ -227,6 +226,10 @@ def get_recommendations(
         ['Default recommendation']
     """
     if language is None:
+        language = DEFAULT_LANGUAGE
+
+    # Validate language input against supported set
+    if language not in RECOMMENDATIONS:
         language = DEFAULT_LANGUAGE
 
     if fallback is None:
@@ -274,7 +277,7 @@ def get_symptom_key(symptom: str) -> str:
     return f"symptom.{symptom}"
 
 
-def get_all_error_type_keys() -> List[str]:
+def get_all_error_type_keys() -> list[str]:
     """
     Get all error type recommendation keys.
 
@@ -285,7 +288,7 @@ def get_all_error_type_keys() -> List[str]:
     return [key for key in lang_dict.keys() if key.startswith("error_type.")]
 
 
-def get_all_symptom_keys() -> List[str]:
+def get_all_symptom_keys() -> list[str]:
     """
     Get all symptom recommendation keys.
 

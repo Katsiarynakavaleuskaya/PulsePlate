@@ -58,6 +58,27 @@ class IntegratedTestResult:
 class IntegratedBayesianAnalyzer:
     """Integrated Bayesian analyzer."""
 
+    # Risk level calculation thresholds
+    # RU: Пороги для расчета уровня риска
+    # EN: Thresholds for risk level calculation
+    RISK_THRESHOLD_CRITICAL = 3  # Minimum critical issue types for critical risk level
+    RISK_THRESHOLD_HIGH = 2  # Minimum critical issue types for high risk level
+    RISK_THRESHOLD_MEDIUM = 1  # Minimum critical issue types for medium risk level
+
+    # Recommendation trigger thresholds
+    # RU: Пороги для генерации рекомендаций
+    # EN: Thresholds for generating recommendations based on issue frequency
+    TECHNICAL_THRESHOLD = (
+        0.5  # Minimum fraction of tests with technical issues to trigger recommendation
+    )
+    NUTRITION_THRESHOLD = (
+        0.3  # Minimum fraction of tests with nutrition issues to trigger recommendation
+    )
+    SAFETY_THRESHOLD = 0.2  # Minimum fraction of tests with safety issues to trigger recommendation
+    PHILOSOPHY_THRESHOLD = (
+        0.4  # Minimum fraction of tests with philosophy violations to trigger recommendation
+    )
+
     def __init__(self) -> None:
         self.technical_analyzer = BayesianTestAnalyzer()
         self.nutrition_analyzer = NutritionBayesianAnalyzer()
@@ -550,11 +571,11 @@ class IntegratedBayesianAnalyzer:
         # Count unique critical issue types
         critical_count = len(critical_issue_types)
 
-        if critical_count >= 3:
+        if critical_count >= self.RISK_THRESHOLD_CRITICAL:
             return "critical"
-        elif critical_count >= 2:
+        elif critical_count >= self.RISK_THRESHOLD_HIGH:
             return "high"
-        elif critical_count >= 1:
+        elif critical_count >= self.RISK_THRESHOLD_MEDIUM:
             return "medium"
         else:
             return "low"
@@ -636,16 +657,16 @@ class IntegratedBayesianAnalyzer:
             all_philosophy.extend(result.philosophy_violations)
 
         # Рекомендации на основе частых проблем
-        if len(all_technical) > len(self.integrated_results) * 0.5:
+        if len(all_technical) > len(self.integrated_results) * self.TECHNICAL_THRESHOLD:
             recommendations.append("Провести технический рефакторинг тестов")
 
-        if len(all_nutrition) > len(self.integrated_results) * 0.3:
+        if len(all_nutrition) > len(self.integrated_results) * self.NUTRITION_THRESHOLD:
             recommendations.append("Усилить проверки безопасности питания")
 
-        if len(all_safety) > len(self.integrated_results) * 0.2:
+        if len(all_safety) > len(self.integrated_results) * self.SAFETY_THRESHOLD:
             recommendations.append("Провести аудит безопасности данных")
 
-        if len(all_philosophy) > len(self.integrated_results) * 0.4:
+        if len(all_philosophy) > len(self.integrated_results) * self.PHILOSOPHY_THRESHOLD:
             recommendations.append("Обновить тесты в соответствии с философией системы")
 
         return recommendations

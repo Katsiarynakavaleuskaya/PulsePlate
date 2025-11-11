@@ -1,0 +1,54 @@
+# Business Knowledge Base Configuration
+# RU: База знаний о бизнесе
+# EN: Business knowledge base for revenue streams, customer segments, and cost centers
+
+revenue_streams:
+  subscription:
+    monthly:
+      price_range: [5, 50]
+      conversion_rate: 0.02
+    yearly:
+      price_range: [50, 500]
+      conversion_rate: 0.05
+    lifetime:
+      price_range: [100, 1000]
+      conversion_rate: 0.01
+  freemium:
+    free_tier:
+      conversion_rate: 0.15
+    premium_tier:
+      price_range: [10, 100]
+      conversion_rate: 0.08
+  usage_based:
+    per_request:
+      price_range: [0.01, 1.0]
+      conversion_rate: 0.1
+    per_storage:
+      price_range: [0.1, 10.0]
+      conversion_rate: 0.05
+
+customer_segments:
+  individual:
+    ltv: 200
+    churn_rate: 0.05
+  professional:
+    ltv: 1000
+    churn_rate: 0.02
+  enterprise:
+    ltv: 10000
+    churn_rate: 0.01
+
+cost_centers:
+  infrastructure:
+    aws: 0.3
+    gcp: 0.25
+    azure: 0.2
+  development:
+    salaries: 0.4
+    tools: 0.1
+  marketing:
+    ads: 0.2
+    content: 0.1
+  operations:
+    support: 0.15
+    legal: 0.05

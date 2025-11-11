@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-Байесовский анализатор для бизнес-логики, монетизации и экономии средств.
-Анализирует тесты с точки зрения бизнес-модели, доходности и оптимизации затрат.
+Bayesian analyzer for business logic, monetization, and cost optimization.
+
+RU: Байесовский анализатор для бизнес-логики, монетизации и экономии средств.
+EN: Analyzes tests from the perspective of business model, revenue, and cost optimization.
 """
 
 import ast
@@ -11,11 +13,16 @@ import tokenize
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
 class BusinessCategory(Enum):
-    """Категории бизнес-проблем."""
+    """Business problem categories.
+
+    RU: Категории бизнес-проблем.
+    EN: Categories of business issues and opportunities.
+    """
 
     MONETIZATION = "monetization"
     CUSTOMER_ACQUISITION = "customer_acquisition"
@@ -30,7 +37,11 @@ class BusinessCategory(Enum):
 
 
 class BusinessErrorType(Enum):
-    """Типы бизнес-ошибок."""
+    """Business error types.
+
+    RU: Типы бизнес-ошибок.
+    EN: Types of business errors and inefficiencies.
+    """
 
     REVENUE_LEAK = "revenue_leak"
     COST_OVERSPEND = "cost_overspend"
@@ -46,7 +57,11 @@ class BusinessErrorType(Enum):
 
 @dataclass
 class BusinessTestResult:
-    """Результат теста с точки зрения бизнеса."""
+    """Test result from business perspective.
+
+    RU: Результат теста с точки зрения бизнеса.
+    EN: Result of test analysis from business and monetization perspective.
+    """
 
     test_name: str
     success: bool
@@ -74,7 +89,11 @@ class ROIEstimate:
 
 
 class BusinessBayesianAnalyzer:
-    """Байесовский анализатор для бизнес-логики."""
+    """Bayesian analyzer for business logic.
+
+    RU: Байесовский анализатор для бизнес-логики.
+    EN: Analyzes tests from business, monetization, and cost optimization perspectives.
+    """
 
     # Generic price thresholds (fallback defaults)
     DEFAULT_LOW_PRICE_THRESHOLD: float = 1.0
@@ -89,19 +108,41 @@ class BusinessBayesianAnalyzer:
         low_price_threshold: Optional[float] = None,
         high_price_threshold: Optional[float] = None,
         domain: str = "nutrition",
+        business_knowledge: Optional[Dict[str, Any]] = None,
+        monetization_strategies: Optional[Dict[str, Any]] = None,
+        cost_optimization_rules: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        Инициализирует анализатор бизнес-логики.
+        Initialize business logic analyzer.
+
+        RU: Инициализирует анализатор бизнес-логики.
+        EN: Initializes the business logic analyzer with optional configuration injection.
 
         Args:
-            low_price_threshold: Нижний порог цены (если None, используется доменная конфигурация)
-            high_price_threshold: Верхний порог цены (если None, используется доменная конфигурация)
-            domain: Домен приложения ("nutrition", "health", или "generic")
+            low_price_threshold: Lower price threshold (if None, uses domain-specific config)
+            high_price_threshold: Upper price threshold (if None, uses domain-specific config)
+            domain: Application domain ("nutrition", "health", or "generic")
+            business_knowledge: Optional injected business knowledge dict (overrides file loading)
+            monetization_strategies: Optional injected monetization strategies dict (overrides file loading)
+            cost_optimization_rules: Optional injected cost optimization rules dict (overrides file loading)
         """
         self.test_results: List[BusinessTestResult] = []
-        self.business_knowledge_base = self._load_business_knowledge()
-        self.monetization_strategies = self._load_monetization_strategies()
-        self.cost_optimization_rules = self._load_cost_optimization_rules()
+        # Load business knowledge: injected config takes priority over file loading
+        self.business_knowledge_base = (
+            business_knowledge
+            if business_knowledge is not None
+            else self._load_business_knowledge()
+        )
+        self.monetization_strategies = (
+            monetization_strategies
+            if monetization_strategies is not None
+            else self._load_monetization_strategies()
+        )
+        self.cost_optimization_rules = (
+            cost_optimization_rules
+            if cost_optimization_rules is not None
+            else self._load_cost_optimization_rules()
+        )
 
         # Configure price thresholds
         if low_price_threshold is not None:
@@ -125,21 +166,43 @@ class BusinessBayesianAnalyzer:
         return self.analyze_business_logic(test_code, test_name)
 
     def _load_business_knowledge(self) -> Dict[str, Any]:
-        """Загружает базу знаний о бизнесе."""
+        """Load business knowledge base from config file or return defaults.
+
+        RU: Загружает базу знаний о бизнесе из конфигурационного файла или возвращает значения по умолчанию.
+        EN: Loads business knowledge base from config/business_knowledge.yaml or returns hardcoded defaults.
+        """
+        config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
+        if config_path.exists():
+            try:
+                try:
+                    import yaml  # type: ignore[import-untyped]
+
+                    yaml_available = True
+                except ImportError:
+                    # PyYAML not installed, fallback to defaults
+                    yaml_available = False
+                if yaml_available:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        return yaml.safe_load(f) or {}
+            except Exception:  # nosec B110 - intentional fallback to defaults
+                # Fallback to defaults on any error (file not found, parse error, etc.)
+                pass
+
+        # Fallback defaults (same as original hardcoded values)
         return {
             "revenue_streams": {
                 "subscription": {
-                    "monthly": {"price_range": (5, 50), "conversion_rate": 0.02},
-                    "yearly": {"price_range": (50, 500), "conversion_rate": 0.05},
-                    "lifetime": {"price_range": (100, 1000), "conversion_rate": 0.01},
+                    "monthly": {"price_range": [5, 50], "conversion_rate": 0.02},
+                    "yearly": {"price_range": [50, 500], "conversion_rate": 0.05},
+                    "lifetime": {"price_range": [100, 1000], "conversion_rate": 0.01},
                 },
                 "freemium": {
                     "free_tier": {"conversion_rate": 0.15},
-                    "premium_tier": {"price_range": (10, 100), "conversion_rate": 0.08},
+                    "premium_tier": {"price_range": [10, 100], "conversion_rate": 0.08},
                 },
                 "usage_based": {
-                    "per_request": {"price_range": (0.01, 1.0), "conversion_rate": 0.1},
-                    "per_storage": {"price_range": (0.1, 10.0), "conversion_rate": 0.05},
+                    "per_request": {"price_range": [0.01, 1.0], "conversion_rate": 0.1},
+                    "per_storage": {"price_range": [0.1, 10.0], "conversion_rate": 0.05},
                 },
             },
             "customer_segments": {
@@ -156,7 +219,29 @@ class BusinessBayesianAnalyzer:
         }
 
     def _load_monetization_strategies(self) -> Dict[str, Any]:
-        """Загружает стратегии монетизации."""
+        """Load monetization strategies from config file or return defaults.
+
+        RU: Загружает стратегии монетизации из конфигурационного файла или возвращает значения по умолчанию.
+        EN: Loads monetization strategies from config/monetization_strategies.yaml or returns hardcoded defaults.
+        """
+        config_path = Path(__file__).parent.parent / "config" / "monetization_strategies.yaml"
+        if config_path.exists():
+            try:
+                try:
+                    import yaml  # type: ignore[import-untyped]
+
+                    yaml_available = True
+                except ImportError:
+                    # PyYAML not installed, fallback to defaults
+                    yaml_available = False
+                if yaml_available:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        return yaml.safe_load(f) or {}
+            except Exception:  # nosec B110 - intentional fallback to defaults
+                # Fallback to defaults on any error
+                pass
+
+        # Fallback defaults (same as original hardcoded values)
         return {
             "pricing_models": {
                 "tiered": "Многоуровневая модель с разными функциями",
@@ -182,7 +267,29 @@ class BusinessBayesianAnalyzer:
         }
 
     def _load_cost_optimization_rules(self) -> Dict[str, Any]:
-        """Загружает правила оптимизации затрат."""
+        """Load cost optimization rules from config file or return defaults.
+
+        RU: Загружает правила оптимизации затрат из конфигурационного файла или возвращает значения по умолчанию.
+        EN: Loads cost optimization rules from config/cost_optimization_rules.yaml or returns hardcoded defaults.
+        """
+        config_path = Path(__file__).parent.parent / "config" / "cost_optimization_rules.yaml"
+        if config_path.exists():
+            try:
+                try:
+                    import yaml  # type: ignore[import-untyped]
+
+                    yaml_available = True
+                except ImportError:
+                    # PyYAML not installed, fallback to defaults
+                    yaml_available = False
+                if yaml_available:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        return yaml.safe_load(f) or {}
+            except Exception:  # nosec B110 - intentional fallback to defaults
+                # Fallback to defaults on any error
+                pass
+
+        # Fallback defaults (same as original hardcoded values)
         return {
             "infrastructure": {
                 "auto_scaling": "Автоматическое масштабирование ресурсов",
@@ -820,31 +927,99 @@ class BusinessBayesianAnalyzer:
 
         Args:
             category: Название категории оптимизации
-            prior_mean: Априорное среднее значение ROI
-            prior_std: Априорное стандартное отклонение
-            data: Исторические данные (benefit/cost ratios)
+            prior_mean: Априорное среднее значение ROI (must be > -1, ROI > -100%)
+            prior_std: Априорное стандартное отклонение (must be >= 0)
+            data: Исторические данные (benefit/cost ratios, all values must be > -1)
             time_horizon_months: Горизонт времени в месяцах
             assumptions: Ключевые предположения
 
         Returns:
             ROIEstimate: Байесовская оценка ROI с 95% доверительным интервалом
+
+        Raises:
+            ValueError: If input validation fails (invalid prior_mean, prior_std, or data values)
         """
+        # Input validation: ROI must be > -1 (ROI > -100%)
+        if prior_mean <= -1:
+            raise ValueError(
+                f"Invalid prior_mean for category '{category}': {prior_mean}. "
+                f"ROI must be > -1 (prior_mean > -1) to allow log transformation."
+            )
+        if prior_std < 0:
+            raise ValueError(
+                f"Invalid prior_std for category '{category}': {prior_std}. "
+                f"Standard deviation must be >= 0."
+            )
+
+        # Validate all data values are > -1
+        invalid_data = [x for x in data if x <= -1]
+        if invalid_data:
+            raise ValueError(
+                f"Invalid data values for category '{category}': {invalid_data}. "
+                f"All ROI values must be > -1 (ROI > -100%) to allow log transformation."
+            )
+
+        # Epsilon for guarding against zero/near-zero standard deviations
+        EPSILON = 1e-12
+
         # Преобразуем ROI в log-returns для нормального распределения
         # ROI = (benefit - cost) / cost, поэтому log_return = log(1 + ROI)
-        prior_log_mean = math.log(1 + prior_mean)
-        prior_log_std = prior_std / (1 + prior_mean)  # Приблизительное преобразование
+        try:
+            prior_log_mean = math.log(1 + prior_mean)
+        except ValueError as e:
+            raise ValueError(
+                f"Math domain error computing log(1 + prior_mean) for category '{category}': "
+                f"prior_mean={prior_mean}. This should not occur after validation."
+            ) from e
+
+        # First-order delta-method approximation: prior_log_std ≈ prior_std / (1 + prior_mean)
+        # This is valid only for small relative variance (prior_std << 1 + prior_mean).
+        # For large std, this approximation may be inaccurate. For higher accuracy, consider:
+        # - Exact propagation: var_log ≈ var / (1 + mean)**2 (delta-method variance formula)
+        # - Numerical transformation: transform sample draws to log-space and compute mean/variance
+        prior_log_std = prior_std / (1 + prior_mean)
+        # Guard against zero/near-zero std before computing precision
+        if prior_log_std <= 0:
+            prior_log_std = EPSILON
 
         # Если есть данные, обновляем апостериорное распределение
         if data:
             # Вычисляем выборочное среднее и стандартное отклонение
             sample_mean = sum(data) / len(data) if data else prior_mean
-            sample_log_mean = math.log(1 + sample_mean)
+            try:
+                sample_log_mean = math.log(1 + sample_mean)
+            except ValueError as e:
+                raise ValueError(
+                    f"Math domain error computing log(1 + sample_mean) for category '{category}': "
+                    f"sample_mean={sample_mean}. This should not occur after validation."
+                ) from e
 
             # Calculate sample standard deviation
             if len(data) > 1:
                 sample_variance = sum((x - sample_mean) ** 2 for x in data) / (len(data) - 1)
-                sample_std = math.sqrt(sample_variance)
+                # Ensure sample_variance is non-negative before sqrt
+                if sample_variance < 0:
+                    raise ValueError(
+                        f"Invalid sample_variance for category '{category}': {sample_variance}. "
+                        f"Variance must be non-negative."
+                    )
+                try:
+                    sample_std = math.sqrt(sample_variance)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Math domain error computing sqrt(sample_variance) for category '{category}': "
+                        f"sample_variance={sample_variance}. This should not occur after validation."
+                    ) from e
+
+                # First-order delta-method approximation: sample_log_std ≈ sample_std / (1 + sample_mean)
+                # This is valid only for small relative variance (sample_std << 1 + sample_mean).
+                # For large std, this approximation may be inaccurate. For higher accuracy, consider:
+                # - Exact propagation: var_log ≈ var / (1 + mean)**2 (delta-method variance formula)
+                # - Numerical transformation: transform sample draws to log-space and compute mean/variance
                 sample_log_std = sample_std / (1 + sample_mean)
+                # Guard against zero/near-zero std before computing precision
+                if sample_log_std <= 0:
+                    sample_log_std = EPSILON
             else:
                 sample_log_std = prior_log_std
 
@@ -852,30 +1027,57 @@ class BusinessBayesianAnalyzer:
             # Используем взвешенное среднее априорного и выборочного среднего
             n = len(data)
             # Precision (обратная дисперсия)
-            prior_precision = 1 / (prior_log_std**2) if prior_log_std > 0 else 1.0
-            sample_precision = n / (sample_log_std**2) if sample_log_std > 0 else n
+            # prior_log_std and sample_log_std are already guarded against zero (>= EPSILON)
+            prior_precision = 1 / (prior_log_std**2)
+            sample_precision = n / (sample_log_std**2)
+
+            # Guard against division by zero (should not occur after epsilon guards)
+            total_precision = prior_precision + sample_precision
+            if total_precision <= 0:
+                raise ValueError(
+                    f"Invalid total precision for category '{category}': {total_precision}. "
+                    f"This should not occur after epsilon guards."
+                )
 
             # Апостериорное среднее (взвешенное среднее)
             posterior_log_mean = (
                 prior_precision * prior_log_mean + sample_precision * sample_log_mean
-            ) / (prior_precision + sample_precision)
+            ) / total_precision
             # Апостериорное стандартное отклонение
-            posterior_log_std = math.sqrt(1 / (prior_precision + sample_precision))
+            try:
+                posterior_log_std = math.sqrt(1 / total_precision)
+            except ValueError as e:
+                raise ValueError(
+                    f"Math domain error computing sqrt(1/total_precision) for category '{category}': "
+                    f"total_precision={total_precision}. This should not occur after validation."
+                ) from e
         else:
             # Используем априорное распределение, если данных нет
             posterior_log_mean = prior_log_mean
             posterior_log_std = prior_log_std
 
         # Преобразуем обратно в ROI
-        expected_roi = math.exp(posterior_log_mean) - 1
+        try:
+            expected_roi = math.exp(posterior_log_mean) - 1
+        except OverflowError as e:
+            raise ValueError(
+                f"Overflow error computing exp(posterior_log_mean) for category '{category}': "
+                f"posterior_log_mean={posterior_log_mean}. Value too large."
+            ) from e
 
         # Вычисляем 95% доверительный интервал (2 стандартных отклонения)
         z_score = 1.96  # 95% доверительный интервал
         lower_log = posterior_log_mean - z_score * posterior_log_std
         upper_log = posterior_log_mean + z_score * posterior_log_std
 
-        credible_interval_lower = max(0.0, math.exp(lower_log) - 1)  # ROI не может быть < -100%
-        credible_interval_upper = math.exp(upper_log) - 1
+        try:
+            credible_interval_lower = max(-1.0, math.exp(lower_log) - 1)  # ROI может быть до -100%
+            credible_interval_upper = math.exp(upper_log) - 1
+        except OverflowError as e:
+            raise ValueError(
+                f"Overflow error computing credible interval for category '{category}': "
+                f"lower_log={lower_log}, upper_log={upper_log}. Values too large."
+            ) from e
 
         return ROIEstimate(
             category=category,
