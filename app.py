@@ -2215,8 +2215,8 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             # If we have a callable targets builder, call it and prefer its macros/kcal
             if callable(_build_targets_resolved):
                 try:
-                    # Import UserProfile - tests monkeypatch sys.modules['core.targets'] before calling this
-                    # so the import will use the patched module
+                    # Import UserProfile - tests monkeypatch sys.modules['core.targets']
+                    # before calling this so the import will use the patched module
                     from core.targets import UserProfile  # noqa: PLC0415
 
                     profile = UserProfile(
@@ -2241,7 +2241,8 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                         target_kcal_raw = getattr(_targets, "kcal_daily", None)
                         if target_kcal_raw is not None:
                             target_kcal = int(target_kcal_raw)
-                        # Always read and use target macros if available (don't use fallback to computed values)
+                        # Always read and use target macros if available
+                        # (don't use fallback to computed values)
                         protein_g_raw = getattr(target_macros, "protein_g", None)
                         if protein_g_raw is not None:
                             protein_g = int(protein_g_raw)
@@ -2366,7 +2367,8 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             day_micros = await _aggregate_func(plate_data["meals"])  # type: ignore[awaitable-is-coroutine]
         else:
             logger.warning(
-                "premium_plate: _aggregate_day_micronutrients not callable (%s), using empty micros",
+                "premium_plate: _aggregate_day_micronutrients not callable (%s), "
+                "using empty micros",
                 type(_aggregate_func),
             )
             day_micros = {}
@@ -2878,7 +2880,10 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                 warnings.append(
                     {
                         "code": "life_stage",
-                        "message": "WHO targets fallback used because the calculation backend is unavailable.",
+                        "message": (
+                            "WHO targets fallback used because the calculation backend "
+                            "is unavailable."
+                        ),
                     }
                 )
 
@@ -3033,12 +3038,14 @@ async def api_who_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
                     _safety_failure_count += 1
                     if _safety_failure_count >= _MAX_SAFETY_FAILURES:
                         logger.error(
-                            "Safety validation failed %d consecutive times; module may be unavailable or misconfigured",
+                            "Safety validation failed %d consecutive times; "
+                            "module may be unavailable or misconfigured",
                             _safety_failure_count,
                         )
             except (ValueError, TypeError) as exc:
                 logger.warning(
-                    "Safety validation failed with invalid data; continuing without safety warnings: %s",
+                    "Safety validation failed with invalid data; "
+                    "continuing without safety warnings: %s",
                     exc,
                 )
                 with _safety_failure_lock:
