@@ -108,11 +108,38 @@ def process_file(file_path: Path, dry_run: bool = False) -> bool:
                 # Reconstruct code with type hints
                 try:
                     import astor
+                    import shutil
 
                     new_content = astor.to_source(modified_tree)
-                    file_path.write_text(new_content, encoding="utf-8")
-                    print(f"  ✅ Updated {file_path}")
-                    return True
+
+                    # Create backup before writing
+                    backup_path = file_path.with_suffix(file_path.suffix + ".bak")
+                    try:
+                        shutil.copy2(file_path, backup_path)
+                        print(f"  📦 Backup created: {backup_path}")
+                    except Exception as backup_error:
+                        print(f"  ⚠️  Failed to create backup: {backup_error}")
+                        return False
+
+                    # Write new content
+                    try:
+                        file_path.write_text(new_content, encoding="utf-8")
+                        print(f"  ✅ Updated {file_path}")
+                        # Remove backup only after successful write
+                        try:
+                            backup_path.unlink()
+                        except Exception as cleanup_error:
+                            # Backup removal is non-critical - log but don't fail
+                            print(f"  ⚠️  Could not remove backup file: {cleanup_error}")
+                        return True
+                    except Exception as write_error:
+                        # Restore from backup on write failure
+                        try:
+                            shutil.copy2(backup_path, file_path)
+                            print(f"  ❌ Write failed, restored from backup: {write_error}")
+                        except Exception as restore_error:
+                            print(f"  ❌ CRITICAL: Failed to restore backup: {restore_error}")
+                        return False
                 except ImportError:
                     print("  ⚠️  astor not installed, skipping write")
                     return False

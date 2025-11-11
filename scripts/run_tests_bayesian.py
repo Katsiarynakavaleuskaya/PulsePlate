@@ -177,8 +177,12 @@ def analyze_failed_tests(failed_tests: list[dict[str, Any]]) -> None:
                     optimization_count += len(result.optimization_opportunities)
                 if result.overall_score < score_threshold:
                     low_score_count += 1
-            except Exception:
-                pass  # Skip errors in summary mode
+            except Exception as e:
+                # Log errors even in summary mode for visibility
+                logging.error(
+                    f"Error analyzing test {test_info.get('name', 'unknown')} in summary mode: {e}",
+                    exc_info=True,
+                )
 
         print(f"  ❌ Критические проблемы: {critical_count}")
         print(f"  💡 Возможности оптимизации: {optimization_count}")

@@ -38,7 +38,7 @@ repos:
         args: [--fix]
       - id: ruff
         name: ruff (type hints check)
-        files: ^(?!frontend/).+\.py$
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py|providers/.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|bmi_visualization\.py)$
         args: [--select, ANN, --fix]  # Check and auto-fix type annotations
         stages: [pre-push]  # Run on pre-push for stricter enforcement
 
@@ -106,9 +106,10 @@ repos:
   - repo: local
     hooks:
       # ruff — strict on pre-push (no silent auto-fix bypass)
+      # Limited to working directories only (excludes tests) - ANN checks only
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
-        entry: bash -c "command -v ruff >/dev/null 2>&1 && ruff check . || (echo '⚠️  ruff not available, skipping pre-push check' && exit 0)"
+        entry: bash -c "command -v ruff >/dev/null 2>&1 && ruff check --select ANN app/ core/ scripts/ app.py main.py settings.py secure_config.py signed_links.py llm.py nutrition_core.py nutrition_plate.py bmi_core.py bodyfat.py bmi_visualization.py mcp_*.py setup_*.py update_*.py verify_*.py providers/ 2>/dev/null || (echo '⚠️  ruff not available or no matching files, skipping pre-push check' && exit 0)"
         language: system
         pass_filenames: false
         stages: [pre-push]

@@ -313,7 +313,7 @@ def handle_request_errors(
         exception: The exception that was raised
         format_type: Format type for error output (STANDARD/DETAILED/INLINE)
         lang: Language for error messages ("en" or "ru")
-        activity: Activity level string for INLINE format (required for INLINE)
+        activity: Activity level string for INLINE format (optional for INLINE, defaults to "unknown" when omitted)
     """
     # Get centralized exception info
     exc_key, log_level, messages = _get_exception_info(exception)

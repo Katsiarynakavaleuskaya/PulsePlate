@@ -2,6 +2,10 @@
 Pytest plugin для интеграции с байесовской системой диагностики.
 
 Автоматически записывает результаты тестов и предоставляет диагностику ошибок.
+
+EN: Pytest plugin for integration with Bayesian diagnostic system.
+
+Automatically records test results and provides error diagnosis.
 """
 
 from __future__ import annotations

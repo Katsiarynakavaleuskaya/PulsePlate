@@ -188,21 +188,35 @@ fi
 # Compute safe-merge preview
 python3 - <<'PY' "$ZSHRC_FILE" "$TEMP_BLOCK" "$MERGED_PREVIEW" "$BLOCK_START" "$BLOCK_END"
 import sys
+import traceback
 from pathlib import Path
 
-zshrc_path, block_path, merged_path, block_start, block_end = sys.argv[1:]
-current = Path(zshrc_path).read_text(encoding="utf-8")
-block = Path(block_path).read_text(encoding="utf-8").rstrip() + "\n"
+try:
+    zshrc_path, block_path, merged_path, block_start, block_end = sys.argv[1:]
+    current = Path(zshrc_path).read_text(encoding="utf-8")
+    block = Path(block_path).read_text(encoding="utf-8").rstrip() + "\n"
 
-if block_start in current and block_end in current:
-    pre, _, trailing = current.partition(block_start)
-    _, _, post = trailing.partition(block_end)
-    new_text = pre.rstrip("\n") + "\n" + block + post.lstrip("\n")
-else:
-    suffix = "" if current.endswith("\n") or current == "" else "\n"
-    new_text = current + suffix + "\n" + block
+    if block_start in current and block_end in current:
+        pre, _, trailing = current.partition(block_start)
+        _, _, post = trailing.partition(block_end)
+        new_text = pre.rstrip("\n") + "\n" + block + post.lstrip("\n")
+    else:
+        suffix = "" if current.endswith("\n") or current == "" else "\n"
+        new_text = current + suffix + "\n" + block
 
-Path(merged_path).write_text(new_text, encoding="utf-8")
+    Path(merged_path).write_text(new_text, encoding="utf-8")
+except UnicodeDecodeError as e:
+    print(f"Error: Failed to decode file with UTF-8 encoding: {e}", file=sys.stderr)
+    print("Hint: The file may use a different encoding. Try checking file encoding.", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
+except KeyboardInterrupt:
+    print("Error: Script interrupted by user", file=sys.stderr)
+    sys.exit(130)
+except Exception as e:
+    print(f"Error: Unexpected error during merge preview: {e}", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
 PY
 
 echo ""

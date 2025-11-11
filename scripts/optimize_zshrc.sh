@@ -69,10 +69,40 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     # For production use, consider using a proper shell parser or more sophisticated
     # quote-aware comment removal.
 
-    echo "⚠️  WARNING: A backup will be created at: $BACKUP_FILE"
-    echo "   Please review the modified file before using it."
-    echo "   The script uses simple comment-stripping which may incorrectly handle"
-    echo "   # characters inside quoted strings (see script header for details)."
+    # Pre-check: Scan for # characters inside quoted strings or URLs
+    echo "🔍 Pre-checking for # characters inside quoted strings or URLs..."
+    if grep -E '(https?://[^[:space:]]*#|["'"'"'].*#.*["'"'"'])' "$ZSHRC_FILE" >/dev/null 2>&1; then
+        echo ""
+        echo "⚠️  ⚠️  ⚠️  WARNING: POTENTIAL RISK DETECTED ⚠️  ⚠️  ⚠️" >&2
+        echo "" >&2
+        echo "The target file contains # characters inside quoted strings or URLs." >&2
+        echo "The sed-based comment stripping may incorrectly remove these # characters," >&2
+        echo "potentially corrupting URLs, hashtags, or other quoted content." >&2
+        echo "" >&2
+        echo "Examples found:" >&2
+        grep -E '(https?://[^[:space:]]*#|["'"'"'].*#.*["'"'"'])' "$ZSHRC_FILE" | head -5 | sed 's/^/  /' >&2
+        echo "" >&2
+        echo "Do you want to continue? (yes/no)" >&2
+        read -r user_response
+        if [ "$user_response" != "yes" ]; then
+            echo "Aborted by user." >&2
+            exit 1
+        fi
+        echo ""
+    fi
+
+    # Prominent warning block
+    echo "═══════════════════════════════════════════════════════════════" >&2
+    echo "⚠️  CRITICAL WARNING: COMMENT STRIPPING RISK" >&2
+    echo "═══════════════════════════════════════════════════════════════" >&2
+    echo "" >&2
+    echo "This script uses sed-based comment stripping which may incorrectly" >&2
+    echo "remove # characters inside quoted strings (URLs, hashtags, etc.)." >&2
+    echo "" >&2
+    echo "A backup will be created at: $BACKUP_FILE" >&2
+    echo "Please review the diff preview before confirming changes." >&2
+    echo "" >&2
+    echo "═══════════════════════════════════════════════════════════════" >&2
     echo ""
 
     # Обрабатываем файл построчно, исключая строки с setup_cli_aliases.sh
@@ -136,6 +166,25 @@ if grep -q "setup_cli_aliases.sh" "$ZSHRC_FILE"; then
     # Добавляем канонический двухстрочный блок загрузки
     echo "SETUP_ALIASES_QUIET=true" >> "$TEMP_FILE"
     echo "source \"\$ALIASES_SCRIPT\"" >> "$TEMP_FILE"
+
+    # Show unified diff preview before applying changes
+    echo ""
+    echo "📋 Preview of changes (unified diff):"
+    echo "═══════════════════════════════════════════════════════════════"
+    if diff -u "$ZSHRC_FILE" "$TEMP_FILE" || true; then
+        echo "(No differences found)"
+    fi
+    echo "═══════════════════════════════════════════════════════════════"
+    echo ""
+    echo "Do you want to apply these changes? (yes/no)"
+    read -r apply_response
+    if [ "$apply_response" != "yes" ]; then
+        echo "Changes not applied. Original file preserved."
+        rm -f "$TEMP_FILE"
+        trap - EXIT INT TERM
+        exit 0
+    fi
+    echo ""
 
     # Validation: Check syntax before replacing original file
     if ! zsh -n "$TEMP_FILE" 2>/dev/null; then

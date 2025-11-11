@@ -43,11 +43,12 @@ class TestNutritionData:
         }
         result = NutritionData.model_validate(data)
 
-        assert isinstance(result.kcal, int)
-        assert isinstance(result.protein_g, int)
-        assert isinstance(result.fat_g, int)
-        assert isinstance(result.carbs_g, int)
-        assert isinstance(result.fiber_g, int)
+        # Verify None values are converted to 0
+        assert result.kcal == 0
+        assert result.protein_g == 0
+        assert result.fat_g == 0
+        assert result.carbs_g == 0
+        assert result.fiber_g == 0
 
     def test_nutrition_data_handles_nan_values(self) -> None:
         """Verify NaN values are converted to 0, then clamped to minimum."""
@@ -294,7 +295,13 @@ class TestSanitizeFunctions:
         meals = [{"title": "Meal", "kcal": "invalid", "macros": {"protein_g": 30}}]
         result = sanitize_meal_list(meals)
         assert len(result) == 1
-        # kcal should be kept original or handled gracefully
+        # Verify kcal field behavior: should preserve original string or normalize to None/omit
+        # The sanitizer should handle invalid kcal gracefully
+        assert (
+            result[0]["kcal"] == "invalid"
+            or "kcal" not in result[0]
+            or result[0].get("kcal") is None
+        )
 
     def test_sanitize_meal_list_handles_exception_in_meal(self) -> None:
         """Verify exception during meal sanitization keeps original meal (lines 277-279)."""

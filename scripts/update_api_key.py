@@ -64,42 +64,65 @@ def _read_api_key(
                 " / API-ключ не передан через stdin или переменную окружения OPENAI_API_KEY."
             )
 
+    # Check if verbose errors are enabled (for debugging/development)
+    verbose_errors = os.getenv("API_KEY_VERBOSE_ERRORS", "").lower() in (
+        "1",
+        "true",
+        "on",
+        "yes",
+    ) or os.getenv("DEBUG", "").lower() in ("1", "true", "on", "yes")
+
+    # Import logger for detailed diagnostics
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     # Validate API key format
     if not api_key:
-        raise RuntimeError(
+        detailed_msg = (
             f"Invalid API key from {key_source}: key is empty. "
             f"API key must be non-empty, start with '{prefix}', be between {min_len}-{max_len} characters, "
             "and contain only allowed characters."
         )
+        logger.debug("API key validation failed: %s", detailed_msg)
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if not api_key.startswith(prefix):
-        raise RuntimeError(
+        detailed_msg = (
             f"Invalid API key from {key_source}: key does not start with '{prefix}'. "
             f"API key length: {len(api_key)} characters. "
             f"API keys must start with '{prefix}' prefix."
         )
+        logger.debug("API key validation failed: %s", detailed_msg)
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if len(api_key) < min_len:
-        raise RuntimeError(
+        detailed_msg = (
             f"Invalid API key from {key_source}: key is too short ({len(api_key)} characters). "
             f"API key must be at least {min_len} characters long."
         )
+        logger.debug("API key validation failed: %s", detailed_msg)
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if len(api_key) > max_len:
-        raise RuntimeError(
+        detailed_msg = (
             f"Invalid API key from {key_source}: key is too long ({len(api_key)} characters). "
             f"API key must be no longer than {max_len} characters."
         )
+        logger.debug("API key validation failed: %s", detailed_msg)
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     # Check allowed characters
     allowed_chars = set(allowed_chars_str)
     invalid_chars = [c for c in api_key if c not in allowed_chars]
     if invalid_chars:
-        raise RuntimeError(
+        detailed_msg = (
             f"Invalid API key from {key_source}: contains invalid characters. "
             f"Found invalid characters: {set(invalid_chars)}. "
             f"API key must contain only allowed characters: {allowed_chars_str}."
         )
+        logger.debug("API key validation failed: %s", detailed_msg)
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     return api_key
 
