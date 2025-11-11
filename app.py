@@ -10,6 +10,7 @@ from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Awaitable,
     Callable,
     Dict,
@@ -53,8 +54,10 @@ from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
+    from core.food_apis.scheduler import DatabaseUpdateScheduler
 else:
     LimiterType = Any
+    DatabaseUpdateScheduler = Any
 
 Limiter: Optional[type[LimiterType]]
 try:
@@ -122,7 +125,7 @@ def _calculate_all_tdee_wrapper(
     return calculate_all_tdee(bmr_results, activity)  # type: ignore[arg-type]
 
 
-async def get_update_scheduler() -> Any:
+async def get_update_scheduler() -> DatabaseUpdateScheduler:
     """Return the global update scheduler (wrapper to aid patching in tests)."""
     if _scheduler_getter is None:
         from core.food_apis.scheduler import get_update_scheduler as _late_getter
@@ -143,7 +146,7 @@ _safety_failure_lock = threading.Lock()
 
 # Lifespan event handler
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     # Detect environment first (before any DB operations)
     env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
