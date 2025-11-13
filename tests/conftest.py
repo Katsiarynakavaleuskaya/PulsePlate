@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Generator, Iterator, cast
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
@@ -129,23 +130,24 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_environment():
-    """Set up test environment variables before any tests run.
+def setup_test_environment() -> Generator[None, None, None]:
+    """
+    Set up test environment variables before any tests run.
 
     This fixture runs automatically for the entire session to ensure
     API_KEY is configured before the app module is loaded.
     """
-    # Set API key for the entire test session
     os.environ["API_KEY"] = "test_key"
-    yield
-    # Clean up after all tests
-    if "API_KEY" in os.environ:
-        del os.environ["API_KEY"]
+    try:
+        yield
+    finally:
+        os.environ.pop("API_KEY", None)
 
 
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return the module.
+    """
+    Dynamically load app.py and return the module.
 
     This fixture depends on setup_test_environment to ensure
     API_KEY is set before loading the app.
@@ -169,7 +171,22 @@ def app(app_module: ModuleType) -> FastAPI:
     """Return the FastAPI app instance with API key mock."""
 
     # Apply lenient API key mode
-    def mock_get_api_key(api_key: str = ""):
+    def mock_get_api_key(api_key: str = "") -> str:
+        """
+        Validates the provided API key for test requests.
+
+        This function checks if the API key is present and meets a minimum length requirement.
+        If the key is invalid, it raises an HTTPException with a 403 status code.
+
+        Args:
+            api_key: The API key string to validate.
+
+        Returns:
+            The validated API key string.
+
+        Raises:
+            HTTPException: If the API key is missing or too short.
+        """
         if not api_key or len(api_key.strip()) < 3:
             from fastapi import HTTPException
 
@@ -202,11 +219,15 @@ def inject_client_into_test_class(request: pytest.FixtureRequest, client: TestCl
     """
     # Only inject into test class instances, not standalone test functions
     if hasattr(request, "instance") and request.instance is not None:
-        request.instance.client = client
+        try:
+            setattr(request.instance, "client", client)
+        except AttributeError:
+            # Some legacy classes expose client as a read-only @property; skip injection for them.
+            pass
 
 
 @pytest.fixture
-def api_key():
+def api_key() -> str:
     """Return the test API key value.
 
     The actual environment setup is done by setup_test_environment fixture.
@@ -223,15 +244,7 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
     return client
 
 
-@pytest.fixture
-def test_environment(
-    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
-) -> Generator[dict[str, str], None, None]:
-    """Set up deterministic test environment variables.
-
-    Always returns the env_overrides dict for deterministic testing.
-    """
-    # Set consistent environment for deterministic testing
+def _apply_test_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     env_overrides = {
         "TESTING": "true",
         "APP_ENV": "test",
@@ -245,21 +258,27 @@ def test_environment(
     }
     for key, value in env_overrides.items():
         monkeypatch.setenv(key, value)
-    yield env_overrides
-    # Cleanup is automatic with monkeypatch
+    return env_overrides
+
+
+@pytest.fixture
+def test_environment(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> Generator[None, None, None]:
+    """Set up deterministic test environment variables with no return value."""
+    _apply_test_environment(monkeypatch)
+    yield None
+    # Cleanup handled by monkeypatch
 
 
 @pytest.fixture
 def _test_environment(
-    test_environment: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[dict[str, str], None, None]:
-    """Backward-compatible alias for legacy tests expecting `_test_environment`.
-
-    Some historical tests still request the underscored fixture name.
-    Reuse the standard `test_environment` setup to keep behaviour consistent.
-    """
-    yield test_environment
-    # Cleanup is automatic with monkeypatch
+    """Backward-compatible alias that exposes the env overrides dictionary."""
+    env_overrides = _apply_test_environment(monkeypatch)
+    yield env_overrides
+    # Cleanup handled by monkeypatch
 
 
 # Test doubles for pytest plugin tests
@@ -308,6 +327,8 @@ class DummyItem:
         self.nodeid = f"{path}::{name}"
         self._source = source
 
+        # Initialize function attribute based on async flag
+        self.function: Any
         if is_async:
 
             async def _async_func() -> None:
@@ -315,7 +336,11 @@ class DummyItem:
 
             self.function = _async_func
         else:
-            self.function = lambda: None
+
+            def _sync_func() -> None:
+                return None
+
+            self.function = _sync_func
 
     def iter_markers(self) -> Iterator[DummyMarker]:
         """Return iterator over markers."""
@@ -326,3 +351,120 @@ class DummyItem:
         if name == "__code__":
             raise AttributeError
         raise AttributeError(name)
+
+
+# ============================================================================
+# Fixtures for app module testing with environment isolation
+# ============================================================================
+
+
+@pytest.fixture
+def clean_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Provide clean environment isolation for tests that need to test environment-dependent behavior.
+
+    RU: Предоставляет изолированное окружение для тестов, проверяющих поведение в зависимости от env.
+    EN: Provides clean environment isolation for tests that need to test environment-dependent behavior.
+
+    This fixture safely isolates environment variables using monkeypatch, which automatically
+    restores them after the test. It does NOT clear the entire environment (which is dangerous),
+    but instead allows selective override of specific variables.
+
+    Usage:
+        def test_something(clean_env, monkeypatch):
+            monkeypatch.setenv("API_KEY", "test-key")
+            # Test code here
+            # Environment is automatically restored after test
+    """
+    snapshot = os.environ.copy()
+    yield
+    current_keys = set(os.environ)
+    original_keys = set(snapshot)
+    for key in current_keys - original_keys:
+        monkeypatch.delenv(key, raising=False)
+    for key in original_keys:
+        monkeypatch.setenv(key, snapshot[key])
+
+
+@pytest.fixture
+def fresh_app(monkeypatch: pytest.MonkeyPatch) -> Generator[ModuleType, None, None]:
+    """Safely reload app module for tests that need to test module-level initialization.
+
+    RU: Безопасно перезагружает модуль app для тестов, проверяющих инициализацию на уровне модуля.
+    EN: Safely reload app module for tests that need to test module-level initialization.
+
+    This fixture uses importlib.reload() instead of del sys.modules, which is safer and
+    more predictable. It ensures the app module is reloaded with current environment variables.
+
+    WARNING: Use this fixture sparingly. Most tests should use the regular `app` fixture
+    which provides a stable FastAPI instance. Only use `fresh_app` when you need to test
+    module-level initialization logic that depends on environment variables.
+
+    Usage:
+        def test_module_init(fresh_app, monkeypatch):
+            monkeypatch.setenv("API_KEY", "new-key")
+            importlib.reload(fresh_app)
+            # Test code here
+    """
+    import importlib
+
+    if "app" in sys.modules:
+        module = importlib.reload(sys.modules["app"])
+    else:
+        module = importlib.import_module("app")
+        sys.modules["app"] = module
+
+    yield module
+
+
+@pytest.fixture
+def mock_visualization(monkeypatch: pytest.MonkeyPatch) -> Generator[MagicMock, None, None]:
+    """Provide a mock for BMI visualization function.
+
+    RU: Предоставляет mock для функции визуализации BMI.
+    EN: Provides a mock for BMI visualization function.
+
+    Usage:
+        def test_bmi_with_mock(mock_visualization):
+            mock_visualization.return_value = {"available": False}
+            # Test code
+            mock_visualization.assert_called_once()
+    """
+    from unittest.mock import MagicMock
+
+    mock_viz = MagicMock()
+    monkeypatch.setattr("app.generate_bmi_visualization", mock_viz)
+    yield mock_viz
+
+
+@pytest.fixture
+def disable_matplotlib(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Disable matplotlib for tests that need to test fallback behavior.
+
+    RU: Отключает matplotlib для тестов, проверяющих fallback поведение.
+    EN: Disables matplotlib for tests that need to test fallback behavior.
+
+    Usage:
+        def test_bmi_without_matplotlib(disable_matplotlib):
+            # Test code that should work without matplotlib
+    """
+    monkeypatch.setattr("app.MATPLOTLIB_AVAILABLE", False)
+    yield
+    # Cleanup handled by monkeypatch
+
+
+@pytest.fixture
+def production_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    """Set up production-like environment for tests.
+
+    RU: Настраивает production-подобное окружение для тестов.
+    EN: Set up production-like environment for tests.
+
+    Usage:
+        def test_production_behavior(production_env):
+            # Test code that should behave like production
+    """
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    yield
+    # Cleanup handled by monkeypatch
