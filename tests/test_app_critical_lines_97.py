@@ -2,6 +2,7 @@
 Критичные тесты для main.py - финальный пуш к 97%
 """
 
+import contextlib
 import os
 from unittest.mock import patch
 
@@ -223,20 +224,29 @@ class TestAppCriticalLines97:
                         # Если перезагрузка не удалась, просто восстанавливаем
                         sys.modules[mod_name] = mod_value
 
+    @contextlib.contextmanager
+    def _dependency_overrides_context(self, app_instance):
+        """Context manager to temporarily clear and restore dependency_overrides."""
+        saved_overrides = dict(app_instance.dependency_overrides)
+        try:
+            app_instance.dependency_overrides.clear()
+            yield
+        finally:
+            app_instance.dependency_overrides.clear()
+            app_instance.dependency_overrides.update(saved_overrides)
+
     def test_premium_endpoints_invalid_api_key_returns_403(self, client) -> None:
         """Test premium endpoints return 403 when API key is invalid or missing."""
         # Temporarily restore strict API key guard for this test
-        from fastapi.testclient import TestClient
-        import app
-
-        strict_client = TestClient(app.app)
-        saved_overrides = dict(app.app.dependency_overrides)
-        original_api_key = os.environ.get("API_KEY")
-        original_required = os.environ.get("API_KEY_REQUIRED")
-        try:
-            app.app.dependency_overrides.clear()
-            os.environ["API_KEY"] = "test_key"
-            os.environ["API_KEY_REQUIRED"] = "true"
+        with (
+            patch.dict(
+                os.environ,
+                {"API_KEY": "test_key", "API_KEY_REQUIRED": "true"},
+                clear=False,
+            ),
+            TestClient(app.app) as strict_client,
+            self._dependency_overrides_context(app.app),
+        ):
             response = strict_client.post(
                 "/api/v1/premium/targets",
                 json={
@@ -249,18 +259,6 @@ class TestAppCriticalLines97:
                 headers={"X-API-Key": "invalid-key"},
             )
             assert response.status_code == 403
-        finally:
-            strict_client.close()
-            app.app.dependency_overrides.clear()
-            app.app.dependency_overrides.update(saved_overrides)
-            if original_api_key is not None:
-                os.environ["API_KEY"] = original_api_key
-            else:
-                os.environ.pop("API_KEY", None)
-            if original_required is not None:
-                os.environ["API_KEY_REQUIRED"] = original_required
-            else:
-                os.environ.pop("API_KEY_REQUIRED", None)
 
     def test_premium_endpoints_invalid_payload_returns_422(self, client) -> None:
         """Test premium endpoints return 422 when API key is valid but payload is invalid."""

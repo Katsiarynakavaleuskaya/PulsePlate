@@ -377,13 +377,18 @@ async def test_api_premium_plate_fallback_aligns_targets(
     # - protein_g=120, fat_g=60, carbs_g=180, fiber_g=28, kcal_daily=2200
     # When targets are available, they should override computed values
     # However, if targets are disabled or not applied, fallback calculation (0.9 * 80 = 72) is used
-    assert response.macros["fat_g"] in (
-        60,
-        72,
-    ), (
-        f"Expected fat_g=60 (from DummyTargets.macros) or 72 (fallback: 0.9 * 80), "
-        f"got {response.macros['fat_g']}. Targets should override when available."
-    )
+    targets_were_applied = setup["called"].get("value", False)
+
+    if targets_were_applied:
+        assert response.macros["fat_g"] == 60, (
+            f"Expected fat_g=60 from DummyTargets.macros since build_nutrition_targets was called, "
+            f"got {response.macros['fat_g']}. Targets should override computed values when available."
+        )
+    else:
+        assert response.macros["fat_g"] == 72, (
+            f"Expected fat_g=72 from fallback calculation (0.9 * 80) since build_nutrition_targets "
+            f"was not called, got {response.macros['fat_g']}. Fallback should be used when targets are not applied."
+        )
     assert (
         response.macros["protein_g"] == 120
     ), f"Expected protein_g=120 from DummyTargets.macros, got {response.macros['protein_g']}"

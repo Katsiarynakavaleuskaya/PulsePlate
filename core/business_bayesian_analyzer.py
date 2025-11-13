@@ -7,6 +7,7 @@ EN: Analyzes tests from the perspective of business model, revenue, and cost opt
 """
 
 import ast
+import logging
 import math
 import re
 import tokenize
@@ -15,6 +16,8 @@ from enum import Enum
 from io import StringIO
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class BusinessCategory(Enum):
@@ -111,6 +114,7 @@ class BusinessBayesianAnalyzer:
         business_knowledge: dict[str, Any] | None = None,
         monetization_strategies: dict[str, Any] | None = None,
         cost_optimization_rules: dict[str, Any] | None = None,
+        locale: str | None = None,
     ) -> None:
         """
         Initialize business logic analyzer.
@@ -127,6 +131,8 @@ class BusinessBayesianAnalyzer:
             monetization_strategies: Optional injected monetization strategies dict
                 (overrides file loading)
             cost_optimization_rules: Optional injected cost optimization rules dict (overrides file loading)
+            locale: Optional locale code (e.g., 'en', 'ru', 'es') for loading localized configs.
+                Falls back to 'en' if not provided or invalid.
         """
         self.test_results: list[BusinessTestResult] = []
         # Load business knowledge: injected config takes priority over file loading
@@ -138,7 +144,7 @@ class BusinessBayesianAnalyzer:
         self.monetization_strategies = (
             monetization_strategies
             if monetization_strategies is not None
-            else self._load_monetization_strategies()
+            else self._load_monetization_strategies(locale=locale)
         )
         self.cost_optimization_rules = (
             cost_optimization_rules
@@ -222,51 +228,79 @@ class BusinessBayesianAnalyzer:
             },
         }
 
-    def _load_monetization_strategies(self) -> dict[str, Any]:
-        """Load monetization strategies from config file or return defaults.
+    def _load_monetization_strategies(self, locale: str | None = None) -> dict[str, Any]:
+        """Load monetization strategies from locale-specific config file or return defaults.
 
-        RU: Загружает стратегии монетизации из конфигурационного файла или возвращает значения по умолчанию.
-        EN: Loads monetization strategies from config/monetization_strategies.yaml or returns hardcoded defaults.
+        RU: Загружает стратегии монетизации из локализованного конфигурационного файла или возвращает значения по умолчанию.
+        EN: Loads monetization strategies from config/monetization_strategies.{locale}.yaml with fallback chain.
+            Falls back to: requested locale → 'en' → hardcoded defaults.
+
+        Args:
+            locale: Locale code (e.g., 'en', 'ru', 'es'). If None, defaults to 'en'.
+
+        Returns:
+            Dictionary with monetization strategies or hardcoded defaults.
         """
-        config_path = Path(__file__).parent.parent / "config" / "monetization_strategies.yaml"
-        if config_path.exists():
-            try:
+        # Normalize locale using i18n utility if available
+        try:
+            from core.i18n import normalize_lang
+
+            normalized_locale = normalize_lang(locale) if locale else "en"
+        except ImportError:
+            # Fallback if i18n module not available
+            normalized_locale = locale if locale in ("en", "ru", "es") else "en"
+
+        config_dir = Path(__file__).parent.parent / "config"
+
+        # Fallback chain: requested locale → 'en' → hardcoded defaults
+        locales_to_try = [normalized_locale]
+        if normalized_locale != "en":
+            locales_to_try.append("en")
+
+        for loc in locales_to_try:
+            config_path = config_dir / f"monetization_strategies.{loc}.yaml"
+            if config_path.exists():
                 try:
-                    import yaml
+                    try:
+                        import yaml
 
-                    yaml_available = True
-                except ImportError:
-                    # PyYAML not installed, fallback to defaults
-                    yaml_available = False
-                if yaml_available:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
-            except Exception:  # nosec B110 - intentional fallback to defaults
-                # Fallback to defaults on any error
-                pass
+                        yaml_available = True
+                    except ImportError:
+                        # PyYAML not installed, try next locale or fallback to defaults
+                        yaml_available = False
+                    if yaml_available:
+                        with open(config_path, "r", encoding="utf-8") as f:
+                            loaded = yaml.safe_load(f) or {}
+                            if loaded:  # Only return if we got valid data
+                                return loaded
+                except Exception as e:  # nosec B110, B112 - intentional fallback to defaults
+                    # Try next locale in fallback chain
+                    # Log error for debugging but continue to next locale
+                    logger.debug("Failed to load config for locale %s: %s", loc, e)
+                    continue
 
-        # Fallback defaults (same as original hardcoded values)
+        # Fallback defaults (English text)
         return {
             "pricing_models": {
-                "tiered": "Многоуровневая модель с разными функциями",
-                "freemium": "Бесплатный базовый + платный премиум",
-                "usage_based": "Оплата по использованию",
-                "subscription": "Подписочная модель",
-                "one_time": "Единоразовая покупка",
+                "tiered": "Tiered model with different feature levels",
+                "freemium": "Free basic tier + paid premium",
+                "usage_based": "Pay-per-use pricing",
+                "subscription": "Subscription model",
+                "one_time": "One-time purchase",
             },
             "conversion_tactics": {
-                "trial_period": "Бесплатный пробный период",
-                "discount_codes": "Скидочные коды",
-                "referral_program": "Реферальная программа",
-                "bundling": "Пакетные предложения",
-                "upselling": "Продажа дополнительных услуг",
+                "trial_period": "Free trial period",
+                "discount_codes": "Discount codes",
+                "referral_program": "Referral program",
+                "bundling": "Bundled offerings",
+                "upselling": "Upselling additional services",
             },
             "retention_strategies": {
-                "onboarding": "Улучшенная адаптация новых пользователей",
-                "feature_usage": "Анализ использования функций",
-                "engagement": "Повышение вовлеченности",
-                "support": "Качественная поддержка",
-                "feedback": "Обратная связь с пользователями",
+                "onboarding": "Improved new user onboarding",
+                "feature_usage": "Feature usage analytics",
+                "engagement": "Increased user engagement",
+                "support": "Quality customer support",
+                "feedback": "User feedback loops",
             },
         }
 

@@ -14,7 +14,9 @@ def run_command(cmd, description):
     print(f"Команда: {' '.join(cmd)}")
     print("=" * 60)
 
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, cwd=os.getcwd()
+    )  # nosec B603 - cmd is controlled, not user input
 
     print("STDOUT:")
     print(result.stdout)

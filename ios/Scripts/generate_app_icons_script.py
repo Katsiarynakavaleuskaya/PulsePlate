@@ -7,6 +7,11 @@ App Icon Generator for PulsePlate
 import os
 import sys
 
+# Add script directory to path for imports
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
 try:
     from PIL import Image, ImageDraw
 except ImportError:
@@ -15,7 +20,7 @@ except ImportError:
     print("   or: brew install pillow (on macOS)")
     sys.exit(1)
 
-from icon_constants import IOS_ICON_SIZES
+from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 
 def create_pulseplate_icon(size: int) -> Image.Image:

@@ -6,8 +6,8 @@ echo "🔍 Диагностика Claude Code CLI..."
 echo ""
 
 echo "=== 1. Проверка Claude CLI ==="
-if command -v claude >/dev/null 2>&1; then
-    echo "✅ Claude CLI найден: $(which claude)"
+if claude_path=$(command -v claude); then
+    echo "✅ Claude CLI найден: $claude_path"
     claude --version 2>&1 | head -1
 else
     echo "❌ Claude CLI не найден в PATH"

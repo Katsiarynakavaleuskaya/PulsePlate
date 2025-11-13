@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -48,8 +49,6 @@ def _read_api_key(
     allowed_chars_str = (
         api_key_allowed_chars if api_key_allowed_chars is not None else API_KEY_ALLOWED_CHARS
     )
-
-    import logging
 
     logger = logging.getLogger(__name__)
 

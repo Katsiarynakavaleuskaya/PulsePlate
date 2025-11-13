@@ -1,0 +1,23 @@
+# Monetization Strategies Configuration - English
+# EN: Monetization strategies including pricing models, conversion tactics, and retention strategies
+
+pricing_models:
+  tiered: "Tiered model with different feature levels"
+  freemium: "Free basic tier + paid premium"
+  usage_based: "Pay-per-use pricing"
+  subscription: "Subscription model"
+  one_time: "One-time purchase"
+
+conversion_tactics:
+  trial_period: "Free trial period"
+  discount_codes: "Discount codes"
+  referral_program: "Referral program"
+  bundling: "Bundled offerings"
+  upselling: "Upselling additional services"
+
+retention_strategies:
+  onboarding: "Improved new user onboarding"
+  feature_usage: "Feature usage analytics"
+  engagement: "Increased user engagement"
+  support: "Quality customer support"
+  feedback: "User feedback loops"

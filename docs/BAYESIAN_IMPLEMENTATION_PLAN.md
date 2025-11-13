@@ -795,7 +795,7 @@ async def lifespan(app: FastAPI):
 from fastapi import Depends, HTTPException, status
 from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
-from typing import Literal
+from typing import Literal, List, Dict
 
 # Pydantic модель для валидации входных данных
 class MealValidationRequest(BaseModel):
@@ -820,13 +820,24 @@ class MealValidationRequest(BaseModel):
             raise ValueError("Значение не может быть отрицательным")
         return v
 
-@app.post("/api/validate_meal")
+
+# Pydantic модель для ответа валидации
+class MealValidationResponse(BaseModel):
+    """Модель ответа для валидации приема пищи."""
+    is_valid: bool = Field(..., description="Результат валидации (True если данные правдоподобны)")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Уровень уверенности (0.0-1.0)")
+    anomaly_score: float = Field(..., ge=0.0, description="Оценка аномальности (чем выше, тем более аномально)")
+    warnings: List[str] = Field(default_factory=list, description="Список предупреждений о потенциальных проблемах")
+    suggestions: Dict[str, float] = Field(default_factory=dict, description="Предложения по корректировке значений (ключ: название параметра, значение: рекомендуемое значение)")
+
+
+@app.post("/api/validate_meal", response_model=MealValidationResponse)
 @limiter.limit("100/minute")  # Rate limiting: 100 запросов в минуту
 async def validate_meal_data(
     request: Request,
     meal_request: MealValidationRequest,
     current_user: User = Depends(get_current_user),  # Требуется аутентификация
-) -> dict[str, Any]:
+) -> MealValidationResponse:
     """
     Валидация данных о приеме пищи перед сохранением.
 
@@ -892,13 +903,13 @@ async def validate_meal_data(
         f"is_valid={result.is_plausible}, confidence={result.confidence:.2f}"
     )
 
-    return {
-        "is_valid": result.is_plausible,
-        "confidence": result.confidence,
-        "anomaly_score": result.anomaly_score,
-        "warnings": result.issues,
-        "suggestions": result.suggestions
-    }
+    return MealValidationResponse(
+        is_valid=result.is_plausible,
+        confidence=result.confidence,
+        anomaly_score=result.anomaly_score,
+        warnings=result.issues,
+        suggestions=result.suggestions
+    )
 
 **Зависимости**:
 
@@ -1011,7 +1022,7 @@ class AdaptiveRecommendationEngine:
     - Адаптируется к feedback в реальном времени
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.arms = {
             "high_protein": {"alpha": 1, "beta": 1},
             "balanced": {"alpha": 1, "beta": 1},

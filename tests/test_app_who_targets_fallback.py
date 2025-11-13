@@ -7,6 +7,8 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 import app
 
@@ -71,6 +73,117 @@ async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPa
     assert response.kcal_daily == expected
     warning_codes = {w.get("code") for w in response.warnings}
     assert warning_codes == {"life_stage", "pregnant"}
+
+
+def test_api_who_targets_endpoint_integration(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, app_module, app
+) -> None:
+    """Integration test that exercises the FastAPI endpoint with dependency injection, validation, middleware and serialization."""
+
+    # Set up the same failing builder as the unit test
+    def failing_builder(_profile: object) -> object:
+        raise ValueError("invalid profile")
+
+    # Patch in all module candidates that _resolve_build_targets_callable checks
+    for module_name in ("app", "app_module", "__main__"):
+        if module_name in sys.modules:
+            monkeypatch.setattr(
+                sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False
+            )
+    # Also patch the local app module reference
+    monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
+
+    # Set up dependency overrides for API key validation (if needed)
+    # The app fixture already sets up get_api_key override, but we ensure _get_api_key_dynamic works
+    app_instance = app
+    original_override = None
+    if (
+        isinstance(app_instance, FastAPI)
+        and hasattr(app_instance, "dependency_overrides")
+        and hasattr(app_module, "_get_api_key_dynamic")
+    ):
+        original_override = app_instance.dependency_overrides.get(app_module._get_api_key_dynamic)
+        # Use get_api_key which is already mocked by the app fixture
+        if hasattr(app_module, "get_api_key"):
+            app_instance.dependency_overrides[app_module._get_api_key_dynamic] = (
+                app_module.get_api_key
+            )
+
+    try:
+        # Same request payload as test_api_who_targets_fallback_loss_branch
+        payload = {
+            "sex": "female",
+            "age": 34,
+            "height_cm": 168,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "loss",
+            "life_stage": "pregnant",
+        }
+
+        # POST to the actual FastAPI endpoint
+        response = client.post(
+            "/api/v1/premium/targets",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        # Assert successful response
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
+
+        # Validate JSON response body structure and values
+        data = response.json()
+
+        # Check required fields from WHOTargetsResponse
+        assert "kcal_daily" in data
+        assert "macros" in data
+        assert "water_ml" in data
+        assert "priority_micros" in data
+        assert "activity_weekly" in data
+        assert "calculation_date" in data
+        assert "warnings" in data
+
+        # Validate types
+        assert isinstance(data["kcal_daily"], int)
+        assert isinstance(data["macros"], dict)
+        assert isinstance(data["water_ml"], int)
+        assert isinstance(data["priority_micros"], dict)
+        assert isinstance(data["activity_weekly"], dict)
+        assert isinstance(data["calculation_date"], str)
+        assert isinstance(data["warnings"], list)
+
+        # Validate expected values match the fallback calculation
+        # Use same formula as app.py fallback (pct / 100.0)
+        tdee = int(24 * payload["weight_kg"] * app.get_activity_factor(payload["activity"]))
+        pct = 15.0  # default deficit_pct
+        expected_kcal = max(1200, int(tdee * (1.0 - pct / 100.0)))
+
+        assert data["kcal_daily"] == expected_kcal
+
+        # Validate warnings match expected codes
+        warning_codes = {w.get("code") for w in data["warnings"]}
+        assert warning_codes == {"life_stage", "pregnant"}
+
+        # Validate macros structure
+        assert "protein_g" in data["macros"]
+        assert "fat_g" in data["macros"]
+        assert "carbs_g" in data["macros"]
+        assert all(isinstance(v, int) for v in data["macros"].values())
+    finally:
+        # Restore dependency overrides
+        if (
+            isinstance(app_instance, FastAPI)
+            and hasattr(app_instance, "dependency_overrides")
+            and hasattr(app_module, "_get_api_key_dynamic")
+        ):
+            if original_override is not None:
+                app_instance.dependency_overrides[app_module._get_api_key_dynamic] = (
+                    original_override
+                )
+            else:
+                app_instance.dependency_overrides.pop(app_module._get_api_key_dynamic, None)
 
 
 @pytest.mark.asyncio

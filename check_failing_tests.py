@@ -84,7 +84,7 @@ def run_test_file(test_file: Union[Path, str]) -> Tuple[bool, str]:
     test_file_str = str(test_file)
     try:
         # Use the running interpreter for safety and portability (Bandit: B607)
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - test file path is controlled, not user input
             [sys.executable, "-m", "pytest", test_file_str, "--tb=short", "--maxfail=1"],
             capture_output=True,
             text=True,

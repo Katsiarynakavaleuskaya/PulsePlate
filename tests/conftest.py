@@ -192,6 +192,19 @@ def client(app: FastAPI) -> TestClient:
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def inject_client_into_test_class(request: pytest.FixtureRequest, client: TestClient) -> None:
+    """Autouse fixture that injects TestClient into test class instances.
+
+    This fixture only runs when request.instance exists (i.e., for test class methods),
+    and sets self.client on the test class instance. This eliminates the need for
+    duplicate _setup_client fixtures in individual test classes.
+    """
+    # Only inject into test class instances, not standalone test functions
+    if hasattr(request, "instance") and request.instance is not None:
+        request.instance.client = client
+
+
 @pytest.fixture
 def api_key():
     """Return the test API key value.

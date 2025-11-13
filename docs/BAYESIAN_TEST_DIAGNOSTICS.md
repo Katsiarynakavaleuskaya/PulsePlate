@@ -1,6 +1,6 @@
 # Bayesian Test Diagnostics
 
-The Bayesian analyzer records per-test executions and provides quick, probabilistic hints about failure categories.
+The Bayesian analyzer learns from test execution history to estimate the likelihood of different failure categories (such as flaky tests, environmental issues, or regressions), providing probabilistic hints that help diagnose test failures more efficiently. It records per-test executions and uses this historical data to categorize and prioritize potential failure causes.
 
 ## Enable (env)
 

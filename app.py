@@ -1520,144 +1520,31 @@ _plate_deps = PlateDependencies(
 )
 
 
-_TARGETS_SENTINEL = object()
-_targets_runtime_disabled = False
-_targets_disabled_cache: Optional[bool] = None
-_targets_disabled_cache_time: float = 0.0
-_TARGETS_DISABLED_CACHE_TTL_SEC = 1.0  # Short cache to allow tests to patch quickly
-
-
-def _scan_test_modules_for_disabled_targets(
-    primary_app: Optional[ModuleType],
-    alias_app: Optional[ModuleType],
-    now: float,
-) -> bool:
-    """Scan test modules for disabled build_nutrition_targets.
-
-    Returns True if any test module has build_nutrition_targets set to None,
-    indicating targets should be disabled.
-    """
-    import sys as _sys
-
-    test_module_patterns = ("test_", "tests.", "conftest")
-    for module_name, module in list(_sys.modules.items()):
-        if module is None or module is primary_app or module is alias_app:
-            continue
-        # Skip non-test modules to reduce scan overhead
-        if not any(pattern in module_name for pattern in test_module_patterns):
-            continue
-        try:
-            module_value_candidate = getattr(module, "build_nutrition_targets", _TARGETS_SENTINEL)
-        except Exception:  # nosec B112 - safe: module inspection, continue on error
-            continue
-        if module_value_candidate is None:
-            logger.debug("_targets_disabled: detected external disable on module %s", module_name)
-            global _targets_runtime_disabled, _targets_disabled_cache, _targets_disabled_cache_time
-            _targets_runtime_disabled = True
-            _targets_disabled_cache = True
-            _targets_disabled_cache_time = now
-            return True
-    return False
-
-
 def _targets_disabled() -> bool:
-    """Return True when build_nutrition_targets was explicitly disabled on the app module."""
-    global _targets_runtime_disabled, _targets_disabled_cache, _targets_disabled_cache_time
+    """Return True when build_nutrition_targets is disabled.
 
+    Checks the dependency injection container first (authoritative source).
+    Falls back to app module attribute only if the container is not configured.
+
+    Tests should disable targets by setting _plate_deps.build_nutrition_targets_fn = None
+    rather than patching module attributes.
+    """
+    # Primary check: dependency injection container (authoritative source)
+    if _plate_deps.build_nutrition_targets_fn is None:
+        logger.debug("_targets_disabled: container has build_nutrition_targets_fn=None")
+        return True
+
+    # Fallback: check app module attribute only if container is not configured
+    # This handles edge cases where the container might not be initialized
     import sys as _sys
 
-    # Use cached result if still valid (avoids expensive sys.modules scan)
-    now = time.time()
-    if (
-        _targets_disabled_cache is not None
-        and (now - _targets_disabled_cache_time) < _TARGETS_DISABLED_CACHE_TTL_SEC
-    ):
-        return _targets_disabled_cache
-
-    module_value = globals().get("build_nutrition_targets", _TARGETS_SENTINEL)
-    if module_value is None:
-        logger.debug("_targets_disabled: globals override detected (explicit None)")
-        _targets_runtime_disabled = True
-        _targets_disabled_cache = True
-        _targets_disabled_cache_time = now
-        return True
-
-    current_app = _sys.modules.get("app")
-    primary_app = current_app
-    if primary_app is None:
-        logger.debug("_targets_disabled: primary app module missing")
-        _targets_runtime_disabled = False
-        alias_app = _sys.modules.get("app_module")
-        if alias_app is not None:
-            alias_value = getattr(alias_app, "build_nutrition_targets", _TARGETS_SENTINEL)
-            logger.debug(
-                "_targets_disabled: alias_present=%s alias_attr_is_none=%s",
-                True,
-                alias_value is None,
-            )
-            if alias_value is None:
-                _targets_runtime_disabled = True
-                _targets_disabled_cache = True
-                _targets_disabled_cache_time = now
-                return True
-        _targets_disabled_cache = False
-        _targets_disabled_cache_time = now
-        return False
-    value = getattr(primary_app, "build_nutrition_targets", _TARGETS_SENTINEL)
-    logger.debug(
-        "_targets_disabled: module_value_present=%s primary_attr_is_none=%s "
-        "primary_id=%s primary_value=%r",
-        module_value is not _TARGETS_SENTINEL,
-        value is None,
-        id(primary_app),
-        value,
-    )
-    alias_app = _sys.modules.get("app_module")
-    logger.debug(
-        "_targets_disabled: primary make_plate=%r alias make_plate=%r",
-        getattr(primary_app, "make_plate", None),
-        getattr(alias_app, "make_plate", None) if alias_app is not None else None,
-    )
-    # Note: _sync_app_attr_sources removed as part of dependency-provider refactoring
-    # Tests can override _plate_deps instead of using dynamic attribute syncing
-    # packages_to_sync: tuple[Optional[object], ...] = (
-    #     current_app,
-    #     primary_app if primary_app is not current_app else None,
-    # )
-    # _sync_app_attr_sources(alias_app, packages_to_sync)
-    if alias_app is not None:
-        logger.debug(
-            "_targets_disabled: after propagation alias make_plate=%r",
-            getattr(alias_app, "make_plate", None),
-        )
-    if value is None:
-        _targets_runtime_disabled = True
-        _targets_disabled_cache = True
-        _targets_disabled_cache_time = now
-        return True
-
-    if alias_app is not None:
-        alias_value = getattr(alias_app, "build_nutrition_targets", _TARGETS_SENTINEL)
-        logger.debug(
-            "_targets_disabled: alias_present=%s alias_attr_is_none=%s alias_id=%s alias_value=%r",
-            True,
-            alias_value is None,
-            id(alias_app),
-            alias_value,
-        )
-        if alias_value is None:
-            _targets_runtime_disabled = True
-            _targets_disabled_cache = True
-            _targets_disabled_cache_time = now
+    primary_app = _sys.modules.get("app")
+    if primary_app is not None:
+        module_value = getattr(primary_app, "build_nutrition_targets", None)
+        if module_value is None:
+            logger.debug("_targets_disabled: app module has build_nutrition_targets=None")
             return True
 
-    # Scan test modules for disabled targets
-    if _scan_test_modules_for_disabled_targets(primary_app, alias_app, now):
-        return True
-
-    _targets_runtime_disabled = False
-    _targets_disabled_cache = False
-    _targets_disabled_cache_time = now
     return False
 
 
@@ -2359,7 +2246,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
             # Align with WHO targets if backend is available to keep macro deviation low
             # Use centralized helper to resolve build_nutrition_targets callable
-            targets_disabled = _targets_runtime_disabled or _targets_disabled()
+            targets_disabled = _targets_disabled()
             _build_targets_resolved = (
                 None if targets_disabled else _resolve_build_targets_callable()
             )
@@ -2535,7 +2422,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         alignment_succeeded = False
 
         # Check if targets are disabled
-        targets_are_disabled = _targets_runtime_disabled or _targets_disabled()
+        targets_are_disabled = _targets_disabled()
         _build_targets = None if targets_are_disabled else _resolve_build_targets_callable()
 
         logger.debug(

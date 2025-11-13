@@ -7,12 +7,17 @@
 import os
 import sys
 
+# Add script directory to path for imports
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
 try:
     from PIL import Image
 except ImportError:
     Image = None  # type: ignore
 
-from icon_constants import IOS_ICON_SIZES
+from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 
 def create_icons_from_source(source_path: str) -> bool:

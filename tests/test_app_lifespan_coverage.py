@@ -4,6 +4,7 @@
 """
 
 from typing import cast
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,296 +14,163 @@ from starlette.types import ASGIApp
 class TestAppLifespanCoverage:
     """Тесты для покрытия app.py lifespan событий"""
 
-    def test_app_lifespan_startup_events_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan startup событий (строки 1520-1527)"""
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "/health",
+            "/docs",
+            "/metrics",
+            "/openapi.json",
+        ],
+    )
+    def test_app_lifespan_endpoints_accessible(self, test_environment, endpoint: str) -> None:
+        """Параметризованный тест доступности endpoints после startup lifespan событий.
+
+        Покрывает базовую проверку, что приложение работает после выполнения
+        startup событий lifespan (строки 1520-1527).
+        """
         import app
 
-        # Тестируем startup события через TestClient с контекстным менеджером
-        # для гарантированного выполнения shutdown событий
+        # Используем context manager для гарантированного выполнения shutdown
         with TestClient(cast(ASGIApp, app.app)) as client:
-            # Startup события выполняются при создании TestClient
-            # Проверяем, что приложение работает корректно
-            response = client.get("/health")
-            assert response.status_code == 200
+            response = client.get(endpoint)
+            assert (
+                response.status_code == 200
+            ), f"Endpoint {endpoint} должен возвращать 200 после startup"
 
-            # Проверяем, что startup события не вызывают ошибок
-            response = client.get("/docs")
-            assert response.status_code == 200
+    def test_app_lifespan_startup_calls_init_db(self, test_environment) -> None:
+        """Тест, что lifespan startup вызывает init_db().
 
-    def test_app_lifespan_shutdown_events_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan shutdown событий (строки 1606, 1657-1660)"""
+        Покрывает строки 391-395: вызов init_db() при startup.
+        """
         import app
 
-        # Тестируем shutdown события
-        # Use context manager to ensure shutdown runs
-        with TestClient(cast(ASGIApp, app.app)) as client:
-            # Shutdown события выполняются при выходе из контекста
-            # Проверяем, что приложение работает до shutdown
-            response = client.get("/health")
-            assert response.status_code == 200
+        with patch("core.db.init_db") as mock_init_db:
+            # TestClient автоматически запускает lifespan startup
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                # Проверяем, что init_db был вызван при startup
+                mock_init_db.assert_called_once()
+                # Проверяем, что приложение работает
+                response = client.get("/health")
+                assert response.status_code == 200
 
-            # Проверяем, что shutdown события не вызывают ошибок
-            response = client.get("/openapi.json")
-            assert response.status_code == 200
+    def test_app_lifespan_startup_calls_validate_template_dir(self, test_environment) -> None:
+        """Тест, что lifespan startup вызывает validate_template_dir().
 
-    def test_app_lifespan_context_manager_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan context manager (строки 1505→exit, 1508→exit)"""
+        Покрывает строки 397-404: вызов validate_template_dir() при startup.
+        """
         import app
 
-        # Тестируем lifespan context manager
-        client = TestClient(cast(ASGIApp, app.app))
+        with patch("app.dependencies.validate_template_dir") as mock_validate:
+            # TestClient автоматически запускает lifespan startup
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                # Проверяем, что validate_template_dir был вызван при startup
+                mock_validate.assert_called_once()
+                # Проверяем, что приложение работает
+                response = client.get("/health")
+                assert response.status_code == 200
 
-        # Context manager должен корректно обрабатывать startup и shutdown
-        response = client.get("/health")
-        assert response.status_code == 200
+    def test_app_lifespan_startup_calls_start_background_updates(self, test_environment) -> None:
+        """Тест, что lifespan startup вызывает start_background_updates().
 
-        # Проверяем, что context manager не вызывает ошибок
-        response = client.get("/metrics")
-        assert response.status_code == 200
-
-    def test_app_lifespan_startup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan startup"""
+        Покрывает строки 406-440: вызов start_background_updates() при startup.
+        """
         import app
 
-        # Тестируем startup события
-        with TestClient(cast(ASGIApp, app.app)) as client:
-            # Проверяем, что startup события вызываются
-            response = client.get("/health")
-            assert response.status_code == 200
+        with patch("app.start_background_updates") as mock_start:
+            # TestClient автоматически запускает lifespan startup
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                # Проверяем, что start_background_updates был вызван при startup
+                mock_start.assert_called_once_with(update_interval_hours=24)
+                # Проверяем, что приложение работает
+                response = client.get("/health")
+                assert response.status_code == 200
 
-    def test_app_lifespan_shutdown_with_mocks_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan shutdown с моками"""
+    def test_app_lifespan_shutdown_calls_stop_background_updates(self, test_environment) -> None:
+        """Тест, что lifespan shutdown вызывает stop_background_updates().
+
+        Покрывает строки 444-462: вызов stop_background_updates() при shutdown.
+        """
         import app
 
-        # Тестируем shutdown события без моков (так как они не существуют в app.py)
-        with TestClient(cast(ASGIApp, app.app)) as client:
-            # Проверяем, что shutdown события вызываются
-            response = client.get("/health")
-            assert response.status_code == 200
+        with patch("app.stop_background_updates") as mock_stop:
+            # TestClient с context manager гарантирует выполнение shutdown
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                # Проверяем, что приложение работает до shutdown
+                response = client.get("/health")
+                assert response.status_code == 200
+                # stop_background_updates ещё не должен быть вызван
+                assert mock_stop.call_count == 0
 
-    def test_app_lifespan_error_handling_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan error handling"""
+            # После выхода из context manager должен быть вызван shutdown
+            mock_stop.assert_called_once()
+
+    def test_app_lifespan_context_manager_cleanup(self, test_environment) -> None:
+        """Тест корректной работы context manager для lifespan.
+
+        Покрывает строки 1505→exit, 1508→exit: корректное завершение
+        lifespan context manager.
+        """
         import app
 
-        # Тестируем error handling в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        startup_called = False
+        shutdown_called = False
 
-        # Проверяем, что ошибки в lifespan не ломают приложение
-        response = client.get("/health")
-        assert response.status_code == 200
+        with (
+            patch("core.db.init_db") as mock_init_db,
+            patch("app.stop_background_updates") as mock_stop,
+        ):
+            # TestClient с context manager гарантирует startup и shutdown
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                # Startup должен быть выполнен
+                assert mock_init_db.called
+                startup_called = True
 
-        # Проверяем, что приложение продолжает работать после ошибок
-        response = client.get("/docs")
-        assert response.status_code == 200
+                # Проверяем, что приложение работает
+                response = client.get("/health")
+                assert response.status_code == 200
 
-    def test_app_lifespan_async_context_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan async context"""
+                # Shutdown ещё не должен быть вызван
+                assert not mock_stop.called
+
+            # После выхода из context manager должен быть вызван shutdown
+            assert mock_stop.called
+            shutdown_called = True
+
+        # Проверяем, что оба события были выполнены
+        assert startup_called
+        assert shutdown_called
+
+    def test_app_lifespan_startup_error_handling(self, test_environment) -> None:
+        """Тест обработки ошибок при startup в lifespan.
+
+        Покрывает строки 391-395, 397-404: обработка ошибок при инициализации.
+        """
         import app
 
-        # Тестируем async context в lifespan
-        with TestClient(cast(ASGIApp, app.app)) as client:
-            # Проверяем, что async context работает корректно
-            response = client.get("/health")
-            assert response.status_code == 200
+        # Тестируем, что ошибка в init_db обрабатывается через fallback
+        with patch("core.db.init_db", side_effect=Exception("DB error")):
+            # В тестовом окружении fallback должен обработать ошибку
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                # Приложение должно продолжать работать
+                response = client.get("/health")
+                assert response.status_code == 200
 
-            # Проверяем, что async context не вызывает ошибок
-            response = client.get("/openapi.json")
-            assert response.status_code == 200
+    def test_app_lifespan_shutdown_error_handling(self, test_environment) -> None:
+        """Тест обработки ошибок при shutdown в lifespan.
 
-    def test_app_lifespan_resource_cleanup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan resource cleanup"""
+        Покрывает строки 461-462: обработка ошибок при shutdown.
+        """
         import app
 
-        # Тестируем resource cleanup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        # Тестируем, что ошибка в stop_background_updates не ломает shutdown
+        with patch("app.stop_background_updates", side_effect=Exception("Stop error")):
+            with TestClient(cast(ASGIApp, app.app)) as client:
+                response = client.get("/health")
+                assert response.status_code == 200
 
-        # Проверяем, что resource cleanup работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что ресурсы корректно очищаются
-        response = client.get("/metrics")
-        assert response.status_code == 200
-
-    def test_app_lifespan_database_connection_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan database connection"""
-        import app
-
-        # Тестируем database connection в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что database connection работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что database connection не вызывает ошибок
-        response = client.get("/docs")
-        assert response.status_code == 200
-
-    def test_app_lifespan_logging_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan logging"""
-        import app
-
-        # Тестируем logging в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что logging работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что logging не вызывает ошибок
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-
-    def test_app_lifespan_configuration_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan configuration"""
-        import app
-
-        # Тестируем configuration в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что configuration работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что configuration не вызывает ошибок
-        response = client.get("/metrics")
-        assert response.status_code == 200
-
-    def test_app_lifespan_middleware_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan middleware setup"""
-        import app
-
-        # Тестируем middleware setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что middleware setup работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что middleware setup не вызывает ошибок
-        response = client.get("/docs")
-        assert response.status_code == 200
-
-    def test_app_lifespan_router_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan router setup"""
-        import app
-
-        # Тестируем router setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что router setup работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что router setup не вызывает ошибок
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-
-    def test_app_lifespan_graceful_shutdown_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan graceful shutdown"""
-        import app
-
-        # Тестируем graceful shutdown в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что graceful shutdown работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что graceful shutdown не вызывает ошибок
-        response = client.get("/metrics")
-        assert response.status_code == 200
-
-    def test_app_lifespan_health_check_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan health check"""
-        import app
-
-        # Тестируем health check в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что health check работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что health check не вызывает ошибок
-        response = client.get("/docs")
-        assert response.status_code == 200
-
-    def test_app_lifespan_metrics_collection_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan metrics collection"""
-        import app
-
-        # Тестируем metrics collection в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что metrics collection работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что metrics collection не вызывает ошибок
-        response = client.get("/metrics")
-        assert response.status_code == 200
-
-    def test_app_lifespan_error_recovery_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan error recovery"""
-        import app
-
-        # Тестируем error recovery в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что error recovery работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что error recovery не вызывает ошибок
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
-
-    def test_app_lifespan_performance_monitoring_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan performance monitoring"""
-        import app
-
-        # Тестируем performance monitoring в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что performance monitoring работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что performance monitoring не вызывает ошибок
-        response = client.get("/docs")
-        assert response.status_code == 200
-
-    def test_app_lifespan_security_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan security setup"""
-        import app
-
-        # Тестируем security setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что security setup работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что security setup не вызывает ошибок
-        response = client.get("/metrics")
-        assert response.status_code == 200
-
-    def test_app_lifespan_caching_setup_coverage(self, test_environment):
-        """Тест покрытия app.py lifespan caching setup"""
-        import app
-
-        # Тестируем caching setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что caching setup работает корректно
-        response = client.get("/health")
-        assert response.status_code == 200
-
-        # Проверяем, что caching setup не вызывает ошибок
-        response = client.get("/openapi.json")
-        assert response.status_code == 200
+            # Shutdown должен завершиться без исключения, несмотря на ошибку
+            # (ошибка логируется, но не пробрасывается)
 
 
 class TestAppInitErrorHandling:

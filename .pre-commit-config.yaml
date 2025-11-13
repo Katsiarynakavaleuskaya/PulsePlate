@@ -38,7 +38,8 @@ repos:
         args: [--fix]
       - id: ruff
         name: ruff (type hints check)
-        files: ^(app/(?!routers/).*\.py|core/(?!db\.py|auto_repair\.py|data_sanitizer\.py|business_bayesian_analyzer\.py).*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py|providers/.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|bmi_visualization\.py)$
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|providers/.*\.py|(mcp_|setup_|update_|verify_).*\.py|(app|main|settings|secure_config|signed_links|llm|nutrition_core|nutrition_plate|bmi_core|bodyfat|bmi_visualization)\.py)$
+        exclude: ^app/routers/|^core/(db|auto_repair|data_sanitizer|business_bayesian_analyzer)\.py$
         args: [--select, ANN, --fix]  # Check and auto-fix type annotations
         stages: [pre-push]  # Run on pre-push for stricter enforcement
 

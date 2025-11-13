@@ -380,7 +380,10 @@ class TestPlateTargetsMicrosHypothesis:
 
                 # Should be reasonably aligned (within 50% for macros, especially fiber)
                 deviation = abs(plate_val - target_val) / target_val
-                # Allow slightly more deviation for edge cases (41% for carbs/protein/fat, 80% for fiber)
+                # Allow 41% tolerance for non-fiber macros (vs 40% baseline) to account for edge cases
+                # encountered in property-based testing: very low-calorie meals where rounding amplifies
+                # percent differences, single-serving integer rounding of grams, and constrained macro
+                # distributions (e.g., therapeutic/medical diets). See PR #266 for context.
                 max_deviation = 0.8 if macro == "fiber_g" else 0.41
                 assert deviation <= max_deviation, (
                     f"{macro} deviation too high: {deviation:.2%} "

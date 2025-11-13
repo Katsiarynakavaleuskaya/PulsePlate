@@ -135,7 +135,7 @@ class TestNutritionData:
 
         # Invalid strings should become 0, valid strings should parse
         assert result.kcal == 0  # "invalid" → 0
-        assert result.protein_g == 100  # "100.5" → 100 (rounded down)
+        assert result.protein_g == 100  # "100.5" → 100 (rounded using round(), round half to even)
         assert result.fat_g == 50  # "50" → 50
         assert result.carbs_g == 0  # "abc" → 0
         assert result.fiber_g == 25  # "25" → 25

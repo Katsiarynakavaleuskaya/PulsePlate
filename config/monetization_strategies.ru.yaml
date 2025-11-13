@@ -1,0 +1,23 @@
+# Monetization Strategies Configuration - Russian
+# RU: Стратегии монетизации
+
+pricing_models:
+  tiered: "Многоуровневая модель с разными функциями"
+  freemium: "Бесплатный базовый + платный премиум"
+  usage_based: "Оплата по использованию"
+  subscription: "Подписочная модель"
+  one_time: "Единоразовая покупка"
+
+conversion_tactics:
+  trial_period: "Бесплатный пробный период"
+  discount_codes: "Скидочные коды"
+  referral_program: "Реферальная программа"
+  bundling: "Пакетные предложения"
+  upselling: "Продажа дополнительных услуг"
+
+retention_strategies:
+  onboarding: "Улучшенная адаптация новых пользователей"
+  feature_usage: "Анализ использования функций"
+  engagement: "Повышение вовлеченности"
+  support: "Качественная поддержка"
+  feedback: "Обратная связь с пользователями"

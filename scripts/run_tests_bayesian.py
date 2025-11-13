@@ -57,7 +57,7 @@ def run_tests_fast() -> dict[str, Any]:
         # Security: Using list form (not shell=True) with static strings only.
         # sys.executable is a Python built-in and not controllable by external actors.
         # This prevents command injection vulnerabilities.
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 - test args are controlled, not user input
             [
                 sys.executable,  # Safe: Python built-in, returns interpreter path
                 "-m",

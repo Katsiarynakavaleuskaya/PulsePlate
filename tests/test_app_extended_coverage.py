@@ -9,7 +9,6 @@ from typing import Generator, cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 # Direct import of app module - app.py is available as a regular Python module
@@ -99,11 +98,6 @@ class TestLifespanEvents:
 class TestAPIEndpoints:
     """Test API endpoints for coverage."""
 
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
-
     def test_root_endpoint_html_content(self):
         """Test root endpoint returns proper HTML."""
         response = self.client.get("/")
@@ -154,11 +148,6 @@ class TestAPIEndpoints:
 
 class TestBMIEndpoints:
     """Test BMI calculation endpoints."""
-
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
 
     def test_bmi_endpoint_pregnancy(self):
         """Test BMI endpoint with pregnancy."""
@@ -276,11 +265,6 @@ class TestBMIEndpoints:
 class TestInsightEndpoints:
     """Test insight endpoints."""
 
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
-
     def test_insight_endpoint_disabled_explicitly(self):
         """Test insight endpoint when explicitly disabled."""
         with patch.dict(os.environ, {"FEATURE_INSIGHT": "false"}):
@@ -360,11 +344,6 @@ class TestInsightEndpoints:
 
 class TestPremiumEndpoints:
     """Test premium API endpoints."""
-
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
 
     def test_api_v1_bmi_success(self):
         """Test API v1 BMI endpoint."""
@@ -495,11 +474,6 @@ class TestPremiumEndpoints:
 class TestDatabaseAdminEndpoints:
     """Test database admin endpoints."""
 
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
-
     def test_database_status_error(self):
         """Test database status endpoint with error."""
         with (
@@ -552,11 +526,6 @@ class TestDatabaseAdminEndpoints:
 class TestDebugEndpoint:
     """Test debug environment endpoint."""
 
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
-
     def test_debug_env_endpoint(self):
         """Test debug environment endpoint."""
         with patch.dict(
@@ -578,11 +547,6 @@ class TestDebugEndpoint:
 
 class TestVisualizationEndpoint:
     """Test BMI visualization endpoint."""
-
-    @pytest.fixture(autouse=True)
-    def _setup_client(self, client: TestClient) -> None:
-        """Set up client for test methods."""
-        self.client = client
 
     def test_bmi_visualize_unavailable_module(self):
         """Test BMI visualization when module not available."""

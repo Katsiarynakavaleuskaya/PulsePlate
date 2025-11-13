@@ -310,7 +310,7 @@ class TestMakeDailyMenuBasic:
         mock_profile,
         simple_food_db,
         simple_recipe_db,
-    ):
+    ) -> None:
         """Exercise daily menu generation with concrete data."""
         result = make_daily_menu(
             profile=mock_profile,
@@ -326,7 +326,7 @@ class TestMakeDailyMenuBasic:
         assert isinstance(result.total_nutrients, dict)
         assert isinstance(result.estimated_cost, float)
 
-    def test_make_daily_menu_with_defaults(self, mock_profile):
+    def test_make_daily_menu_with_defaults(self, mock_profile) -> None:
         """Test daily menu generation when defaults are used."""
         result = make_daily_menu(profile=mock_profile)
 
