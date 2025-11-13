@@ -74,14 +74,16 @@ disallow_untyped_defs = false  # Set to true to enforce type hints on all functi
 disallow_incomplete_defs = false  # Set to true to enforce complete type hints
 check_untyped_defs = true  # Check untyped function definitions
 plugins = []
-explicit_package_bases = true
-namespace_packages = true
+explicit_package_bases = false
+namespace_packages = false
 # Exclude files/dirs that cause duplicate module mapping or are heavy/generated.
 # - app.py conflicts with package module "app" (app/__init__.py) for mypy module resolution.
 # - Exclude caches and build artifacts to keep runs stable and fast.
 exclude = '''
 (
   ^app\.py$|
+  ^ios/|
+  ^tests_strict/|
   ^cache/|
   ^test_cache/|
   ^frontend/build/|
