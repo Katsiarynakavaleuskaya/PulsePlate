@@ -14,7 +14,7 @@ from core.targets import UserProfile
 class TestRepairWeekPlan:
     """Test suite for repair_week_plan functionality."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test data."""
         # Create test user profile
         self.profile = UserProfile(
@@ -95,7 +95,7 @@ class TestRepairWeekPlan:
             adherence_score=0.0,
         )
 
-    def test_repair_week_plan_basic_functionality(self):
+    def test_repair_week_plan_basic_functionality(self) -> None:
         """Test that repair_week_plan runs without errors."""
         # Test basic functionality
         repaired_plan = repair_week_plan(
@@ -108,7 +108,7 @@ class TestRepairWeekPlan:
         assert isinstance(repaired_plan, WeekMenu)
         assert len(repaired_plan.daily_menus) == 7
 
-    def test_repair_week_plan_different_strategies(self):
+    def test_repair_week_plan_different_strategies(self) -> None:
         """Test repair_week_plan with different strategies."""
         strategies = ["boosters_first", "replace_ingredients", "add_snacks"]
 
@@ -123,7 +123,7 @@ class TestRepairWeekPlan:
             assert isinstance(repaired_plan, WeekMenu)
             assert len(repaired_plan.daily_menus) == 7
 
-    def test_repair_week_plan_with_none_food_db(self):
+    def test_repair_week_plan_with_none_food_db(self) -> None:
         """Test repair_week_plan with None food_db (should use default)."""
         repaired_plan = repair_week_plan(
             self.test_plan,
@@ -133,7 +133,7 @@ class TestRepairWeekPlan:
 
         assert isinstance(repaired_plan, WeekMenu)
 
-    def test_repair_week_plan_micronutrient_targets_validation(self):
+    def test_repair_week_plan_micronutrient_targets_validation(self) -> None:
         """Test that micronutrient targets are properly validated."""
         # Test with valid targets
         repaired_plan = repair_week_plan(
@@ -148,7 +148,7 @@ class TestRepairWeekPlan:
         assert hasattr(self.targets, "priority_nutrients")
         assert hasattr(self.targets, "is_deficient")
 
-    def test_repair_week_plan_calcium_vitamin_d_deficiencies(self):
+    def test_repair_week_plan_calcium_vitamin_d_deficiencies(self) -> None:
         """Test repair with specific calcium and vitamin D deficiencies."""
         # Calculate expected deficiencies
         daily_calcium = 50.0 + 100.0 + 80.0  # 230mg total
@@ -172,7 +172,7 @@ class TestRepairWeekPlan:
         # In a full implementation, this would show improved coverage
         assert isinstance(repaired_plan, WeekMenu)
 
-    def test_repair_week_plan_priority_nutrients(self):
+    def test_repair_week_plan_priority_nutrients(self) -> None:
         """Test that priority nutrients are correctly identified."""
         # Get high-priority nutrients
         high_priority = self.targets.get_high_priority_nutrients()
@@ -189,7 +189,7 @@ class TestRepairWeekPlan:
 
         assert isinstance(repaired_plan, WeekMenu)
 
-    def test_repair_week_plan_deficiency_threshold(self):
+    def test_repair_week_plan_deficiency_threshold(self) -> None:
         """Test deficiency threshold calculation."""
         # Test deficiency threshold
         calcium_target = self.targets.get_target("calcium_mg")
@@ -202,7 +202,7 @@ class TestRepairWeekPlan:
         assert self.targets.is_deficient("calcium_mg", low_calcium)
         assert not self.targets.is_deficient("calcium_mg", high_calcium)
 
-    def test_repair_week_plan_edge_cases(self):
+    def test_repair_week_plan_edge_cases(self) -> None:
         """Test edge cases for repair_week_plan."""
         # Test with empty plan (should not crash)
         empty_plan = WeekMenu(
@@ -222,7 +222,7 @@ class TestRepairWeekPlan:
         assert isinstance(repaired_plan, WeekMenu)
         assert len(repaired_plan.daily_menus) == 0
 
-    def test_repair_week_plan_integration_with_existing_functions(self):
+    def test_repair_week_plan_integration_with_existing_functions(self) -> None:
         """Test integration with existing menu generation functions."""
         # This test ensures repair_week_plan works with existing infrastructure
         from core.menu_engine import make_weekly_menu

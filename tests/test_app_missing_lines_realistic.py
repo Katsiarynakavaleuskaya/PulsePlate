@@ -78,8 +78,15 @@ class TestAppMissingLinesTargeted:
 
         # Test BMR endpoint which might use fallback functions
         response = self.client.post("/premium_bmr", json=test_data)
-        # Should work even with fallbacks
-        assert response.status_code in [200, 400, 422, 500]
+        # Should work even with fallbacks - server errors (500) should fail the test
+        assert response.status_code != 500, (
+            f"Server error detected. Status: {response.status_code}, " f"Response: {response.text}"
+        )
+        assert response.status_code in [
+            200,
+            400,
+            422,
+        ], f"Unexpected status code: {response.status_code}, Response: {response.text}"
 
     def test_malformed_requests_edge_cases(self) -> None:
         """Test malformed requests that trigger specific error paths"""
@@ -360,13 +367,18 @@ class TestAppSpecificMissingBlocks:
     )
     def test_edge_case_language_handling(self, lang: str | None) -> None:
         """Test edge cases in language handling"""
-        import json
+        # Handle None and empty string as valid inputs explicitly
+        test_data = {"weight": 70, "height": 175, "age": 30, "sex": "M"}
+        if lang is not None:
+            test_data["lang"] = lang
+        # Empty string is a valid value and should be sent
+        elif lang == "":
+            test_data["lang"] = ""
 
-        test_data = {"weight": 70, "height": 175, "age": 30, "sex": "M", "lang": lang}
-        # Some language values might cause JSON errors
-        try:
-            response = self.client.post("/bmi", json=test_data)
-            assert response.status_code in [200, 400, 422]
-        except (ValueError, TypeError, json.JSONDecodeError):
-            # JSON errors are expected for some edge case language values
-            pass
+        # Make the request - any unexpected exceptions should fail the test
+        response = self.client.post("/bmi", json=test_data)
+        # Assert expected status codes - server errors (500) should fail the test
+        assert response.status_code in [200, 400, 422], (
+            f"Unexpected status code: {response.status_code} for lang={lang!r}, "
+            f"Response: {response.text}"
+        )

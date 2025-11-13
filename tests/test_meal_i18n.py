@@ -65,11 +65,11 @@ class TestTranslateFood:
         assert translate_food("en", "unknown_food") == "unknown_food"
         assert translate_food("es", "unknown_food") == "unknown_food"
 
-    def test_translate_food_unknown_language(self):
+    def test_translate_food_unknown_language(self) -> None:
         """Test food translation with unknown language."""
-        assert translate_food("fr", "chicken_breast") == "chicken_breast"
-        assert translate_food("de", "salmon") == "salmon"
-        assert translate_food("it", "tofu") == "tofu"
+        assert translate_food("fr", "chicken_breast") == "chicken_breast"  # type: ignore[arg-type]
+        assert translate_food("de", "salmon") == "salmon"  # type: ignore[arg-type]
+        assert translate_food("it", "tofu") == "tofu"  # type: ignore[arg-type]
 
 
 class TestTranslateRecipe:
@@ -108,10 +108,10 @@ class TestTranslateRecipe:
         assert translate_recipe("en", "unknown_recipe") == "unknown_recipe"
         assert translate_recipe("es", "unknown_recipe") == "unknown_recipe"
 
-    def test_translate_recipe_unknown_language(self):
+    def test_translate_recipe_unknown_language(self) -> None:
         """Test recipe translation with unknown language."""
-        assert translate_recipe("fr", "oatmeal_breakfast") == "oatmeal_breakfast"
-        assert translate_recipe("de", "chicken_rice_lunch") == "chicken_rice_lunch"
+        assert translate_recipe("fr", "oatmeal_breakfast") == "oatmeal_breakfast"  # type: ignore[arg-type]
+        assert translate_recipe("de", "chicken_rice_lunch") == "chicken_rice_lunch"  # type: ignore[arg-type]
 
 
 class TestTranslateMealType:
@@ -144,10 +144,10 @@ class TestTranslateMealType:
         assert translate_meal_type("en", "unknown_meal") == "unknown_meal"
         assert translate_meal_type("es", "unknown_meal") == "unknown_meal"
 
-    def test_translate_meal_type_unknown_language(self):
+    def test_translate_meal_type_unknown_language(self) -> None:
         """Test meal type translation with unknown language."""
-        assert translate_meal_type("fr", "breakfast") == "breakfast"
-        assert translate_meal_type("de", "lunch") == "lunch"
+        assert translate_meal_type("fr", "breakfast") == "breakfast"  # type: ignore[arg-type]
+        assert translate_meal_type("de", "lunch") == "lunch"  # type: ignore[arg-type]
 
 
 class TestTranslateTip:
@@ -227,10 +227,10 @@ class TestTranslateTip:
         assert translate_tip("en", "unknown_tip", "spinach") == "unknown_tip"
         assert translate_tip("es", "unknown_tip", "spinach") == "unknown_tip"
 
-    def test_translate_tip_unknown_language(self):
+    def test_translate_tip_unknown_language(self) -> None:
         """Test tip translation with unknown language."""
-        assert translate_tip("fr", "low_Fe_mg", "spinach") == "low_Fe_mg"
-        assert translate_tip("de", "low_Ca_mg", "greek_yogurt") == "low_Ca_mg"
+        assert translate_tip("fr", "low_Fe_mg", "spinach") == "low_Fe_mg"  # type: ignore[arg-type]
+        assert translate_tip("de", "low_Ca_mg", "greek_yogurt") == "low_Ca_mg"  # type: ignore[arg-type]
 
     def test_translate_tip_unknown_donor_food(self):
         """Test tip translation with unknown donor food."""

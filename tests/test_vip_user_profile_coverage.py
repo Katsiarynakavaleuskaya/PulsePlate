@@ -291,7 +291,7 @@ class TestVIPUserProfileCoverage:
                     "height_cm": 175.0,
                     "weight_kg": 70.0,
                     "activity": "moderate",
-                    **goal_case,
+                    **goal_case,  # type: ignore[dict-item]
                 },
                 headers={"X-API-Key": "test_key"},
             )

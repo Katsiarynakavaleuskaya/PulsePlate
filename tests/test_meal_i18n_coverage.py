@@ -17,7 +17,7 @@ class TestMealI18nCoverage:
     def test_translate_food_invalid_language(self):
         """Тест translate_food с неподдерживаемым языком"""
         # Проверим fallback для неподдерживаемого языка
-        result = translate_food("fr", "chicken_breast")  # Французский не поддерживается
+        result = translate_food("fr", "chicken_breast")  # type: ignore[arg-type]  # Французский не поддерживается
         assert result == "chicken_breast"  # Должен вернуть оригинальное название
 
     def test_translate_food_missing_key(self):
@@ -28,7 +28,7 @@ class TestMealI18nCoverage:
 
     def test_translate_recipe_invalid_language(self):
         """Тест translate_recipe с неподдерживаемым языком"""
-        result = translate_recipe("de", "oatmeal_breakfast")  # Немецкий не поддерживается
+        result = translate_recipe("de", "oatmeal_breakfast")  # type: ignore[arg-type]  # Немецкий не поддерживается
         assert result == "oatmeal_breakfast"
 
     def test_translate_recipe_missing_key(self):
@@ -38,7 +38,7 @@ class TestMealI18nCoverage:
 
     def test_translate_meal_type_invalid_language(self):
         """Тест translate_meal_type с неподдерживаемым языком"""
-        result = translate_meal_type("pt", "breakfast")  # Португальский не поддерживается
+        result = translate_meal_type("pt", "breakfast")  # type: ignore[arg-type]  # Португальский не поддерживается
         assert result == "breakfast"
 
     def test_translate_meal_type_missing_key(self):
@@ -46,9 +46,9 @@ class TestMealI18nCoverage:
         result = translate_meal_type("ru", "nonexistent_meal")
         assert result == "nonexistent_meal"
 
-    def test_translate_tip_invalid_language(self):
+    def test_translate_tip_invalid_language(self) -> None:
         """Тест translate_tip с неподдерживаемым языком"""
-        result = translate_tip("fr", "low_Fe_mg", "spinach")
+        result = translate_tip("fr", "low_Fe_mg", "spinach")  # type: ignore[arg-type]
         assert result == "low_Fe_mg"  # Должен вернуть исходный ключ
 
     def test_translate_tip_missing_key(self):

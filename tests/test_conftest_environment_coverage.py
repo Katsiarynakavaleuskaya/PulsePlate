@@ -98,8 +98,8 @@ class TestConftestEnvironmentCoverage:
         ],
     )
     def test_conftest_environment_variables_coverage(self, var: str) -> None:
-        """Тест покрытия conftest.py environment variables"""
-        # Тестируем, что все необходимые переменные окружения установлены
+        """Test that required conftest.py environment variables are set."""
+        # Test that all necessary environment variables are set
         assert var in os.environ, f"Environment variable {var} not set"
 
     def test_conftest_environment_values_coverage(self):

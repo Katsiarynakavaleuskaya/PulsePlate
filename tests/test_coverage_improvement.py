@@ -168,25 +168,26 @@ class TestCoverageImprovement:
     def test_update_manager_uncovered_lines(self):
         """Test uncovered lines in update_manager.py."""
         # Test rollback database error handling - fix the class name
-        try:
-            with patch(
-                "core.food_apis.update_manager.DatabaseUpdateManager._load_backup",
-                side_effect=Exception("Test error"),
-            ):
-                with patch("app.get_update_scheduler") as mock_get_scheduler:
-                    mock_scheduler = AsyncMock()
-                    mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
-                    mock_get_scheduler.return_value = mock_scheduler
+        with patch(
+            "core.food_apis.update_manager.DatabaseUpdateManager._load_backup",
+            side_effect=Exception("Test error"),
+        ):
+            with patch("app.get_update_scheduler") as mock_get_scheduler:
+                mock_scheduler = AsyncMock()
+                mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
+                mock_get_scheduler.return_value = mock_scheduler
 
-                    _ = self.client.post(
-                        "/api/v1/admin/rollback",
-                        params={"source": "usda", "target_version": "1.0"},
-                        headers={"X-API-Key": "test_key"},
-                    )
-                    # Should handle gracefully
-        except Exception:
-            # Exception is expected, but the code should handle it gracefully
-            pass
+                response = self.client.post(
+                    "/api/v1/admin/rollback",
+                    params={"source": "usda", "target_version": "1.0"},
+                    headers={"X-API-Key": "test_key"},
+                )
+                # Should handle gracefully - endpoint should not raise unhandled exceptions
+                # Assert status code is less than 500 to ensure error was handled gracefully
+                assert response.status_code < 500, (
+                    f"Endpoint raised unhandled exception. "
+                    f"Status: {response.status_code}, Response: {response.text}"
+                )
 
     def test_menu_engine_uncovered_lines(self):
         """Test uncovered lines in menu_engine.py."""

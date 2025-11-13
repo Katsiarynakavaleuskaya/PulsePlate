@@ -145,6 +145,61 @@ def _should_retry_http_error(exception: BaseException) -> bool:
     return False
 
 
+def _log_retry_attempt(retry_state) -> None:
+    """
+    Log retry attempt details for observability.
+
+    Args:
+        retry_state: Tenacity retry state object containing attempt info
+    """
+    attempt_number = retry_state.attempt_number
+    max_attempts = 3  # Fixed based on stop_after_attempt(3)
+    exception = retry_state.outcome.exception() if retry_state.outcome else None
+
+    # Extract exception details
+    if exception:
+        if isinstance(exception, requests.exceptions.HTTPError) and exception.response:
+            status_code = exception.response.status_code
+            logger.warning(
+                "Retry attempt %d/%d: HTTP error %d - %s. Retrying...",
+                attempt_number,
+                max_attempts,
+                status_code,
+                str(exception),
+            )
+        elif isinstance(exception, requests.exceptions.Timeout):
+            logger.warning(
+                "Retry attempt %d/%d: Timeout error - %s. Retrying...",
+                attempt_number,
+                max_attempts,
+                str(exception),
+            )
+        elif isinstance(exception, requests.exceptions.ConnectionError):
+            logger.warning(
+                "Retry attempt %d/%d: Connection error - %s. Retrying...",
+                attempt_number,
+                max_attempts,
+                str(exception),
+            )
+        else:
+            logger.warning(
+                "Retry attempt %d/%d: %s - %s. Retrying...",
+                attempt_number,
+                max_attempts,
+                type(exception).__name__,
+                str(exception),
+            )
+    else:
+        logger.warning(
+            "Retry attempt %d/%d: Unknown error. Retrying...", attempt_number, max_attempts
+        )
+
+    # Log next backoff delay - calculate from exponential backoff
+    # wait_exponential(multiplier=1, min=1, max=10) means: 1, 2, 4, 8, 10, ...
+    wait_time = min(1 * (2 ** (attempt_number - 1)), 10)
+    logger.info("Next retry in %.2f seconds", wait_time)
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -159,6 +214,7 @@ def _should_retry_http_error(exception: BaseException) -> bool:
         )
         | retry_if_exception(_should_retry_http_error)
     ),
+    before_sleep=_log_retry_attempt,
     reraise=True,
 )
 def _make_post_request(
@@ -171,6 +227,11 @@ def _make_post_request(
     - Timeouts (ConnectionTimeout, ReadTimeout)
     - Connection errors (network failures, DNS issues)
     - HTTP 5xx server errors (transient server failures)
+
+    All retry attempts are logged for observability, including:
+    - Attempt number and exception details
+    - HTTP status codes for server errors
+    - Next backoff delay
 
     Args:
         url: Target URL
@@ -186,10 +247,23 @@ def _make_post_request(
         requests.exceptions.ConnectionError: If all retry attempts fail to connect
         requests.exceptions.HTTPError: If API returns a non-retryable error or all retries exhausted
     """
-    response = requests.post(url, json=payload, headers=headers, timeout=timeout)
-    # raise_for_status will raise HTTPError for 4xx/5xx, which triggers retry logic for 5xx
-    response.raise_for_status()
-    return response
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+        # Log successful request on first attempt
+        if response.status_code < 400:
+            logger.debug("POST request succeeded: %s (status: %d)", url, response.status_code)
+        # raise_for_status will raise HTTPError for 4xx/5xx, which triggers retry logic for 5xx
+        response.raise_for_status()
+        return response
+    except Exception as e:
+        # Log final failure before re-raising
+        logger.error(
+            "POST request failed after retries: %s - %s: %s",
+            url,
+            type(e).__name__,
+            str(e),
+        )
+        raise
 
 
 def call_premium_bmr_api(

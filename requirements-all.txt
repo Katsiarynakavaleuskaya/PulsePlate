@@ -14,4 +14,3 @@ bandit>=1.7
 # safety>=3.2  # Temporarily disabled due to typer compatibility issue
 asgi-lifespan>=2.1
 ruff>=0.13
-# sourcery>=2.0  # Not used locally - using GitHub App instead

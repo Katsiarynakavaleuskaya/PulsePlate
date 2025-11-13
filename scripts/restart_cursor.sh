@@ -8,6 +8,7 @@ set -euo pipefail
 GRACE_PERIOD=2
 REOPEN_DELAY=1
 VERBOSE=false
+DRY_RUN=false
 
 # Function to print usage and exit
 show_help() {
@@ -21,6 +22,7 @@ Options:
     --grace-period SECONDS    Wait time after graceful quit and after force kill (default: 2)
     --reopen-delay SECONDS    Wait time before reopening Cursor (default: 1)
     --verbose, --debug        Enable verbose/debug output
+    --dry-run                 Show what would be executed without actually running commands
     --help                    Show this help message and exit
 
 Examples:
@@ -91,6 +93,10 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         *)
             echo "❌ Error: Unknown option: $1"
             echo "   Use --help for usage information"
@@ -104,6 +110,7 @@ debug_log "Parsed arguments:"
 debug_log "  GRACE_PERIOD=$GRACE_PERIOD"
 debug_log "  REOPEN_DELAY=$REOPEN_DELAY"
 debug_log "  VERBOSE=$VERBOSE"
+debug_log "  DRY_RUN=$DRY_RUN"
 
 # Check if running on macOS
 debug_log "Checking OS..."
@@ -153,18 +160,28 @@ debug_log "Waiting $REOPEN_DELAY seconds before reopening..."
 sleep "$REOPEN_DELAY"
 
 # Open Cursor
-echo "🚀 Opening Cursor..."
-debug_log "Executing 'open -a Cursor'..."
-open -a "Cursor" 2>/dev/null || {
-    echo "❌ Error: Could not open Cursor"
-    echo "   Please open Cursor manually from Applications"
-    exit 1
-}
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo "🚀 [DRY RUN] Would execute: open -a Cursor"
+    echo "✅ [DRY RUN] Cursor restart simulation completed successfully!"
+    echo ""
+    echo "💡 [DRY RUN] Tips:"
+    echo "  - Wait a few seconds for Cursor to fully load"
+    echo "  - Check if your API key is working: Cmd+Shift+P → 'MCP: List Tools'"
+    echo "  - If MCP tools don't appear, verify ~/.cursor/.env has your API key"
+else
+    echo "🚀 Opening Cursor..."
+    debug_log "Executing 'open -a Cursor'..."
+    open -a "Cursor" 2>/dev/null || {
+        echo "❌ Error: Could not open Cursor"
+        echo "   Please open Cursor manually from Applications"
+        exit 1
+    }
 
-echo "✅ Cursor restarted successfully!"
-echo ""
-echo "💡 Tips:"
-echo "  - Wait a few seconds for Cursor to fully load"
-echo "  - Check if your API key is working: Cmd+Shift+P → 'MCP: List Tools'"
-echo "  - If MCP tools don't appear, verify ~/.cursor/.env has your API key"
+    echo "✅ Cursor restarted successfully!"
+    echo ""
+    echo "💡 Tips:"
+    echo "  - Wait a few seconds for Cursor to fully load"
+    echo "  - Check if your API key is working: Cmd+Shift+P → 'MCP: List Tools'"
+    echo "  - If MCP tools don't appear, verify ~/.cursor/.env has your API key"
+fi
 echo ""

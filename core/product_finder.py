@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -21,6 +22,93 @@ from .food_sources.off import OFFAdapter
 from .food_sources.usda import USDAAdapter
 
 logger = logging.getLogger(__name__)
+
+# Try to import fuzzy matching libraries (optional)
+try:
+    from rapidfuzz import fuzz
+
+    _FUZZY_AVAILABLE = True
+except ImportError:
+    try:
+        from fuzzywuzzy import fuzz
+
+        _FUZZY_AVAILABLE = True
+    except ImportError:
+        _FUZZY_AVAILABLE = False
+
+# Try to import NLTK for lemmatization (optional)
+try:
+    from nltk.corpus import stopwords
+    from nltk.stem import WordNetLemmatizer
+    from nltk import download as nltk_download
+
+    _NLTK_AVAILABLE = True
+    try:
+        _stopwords = set(stopwords.words("english"))
+        _lemmatizer = WordNetLemmatizer()
+    except (LookupError, OSError):
+        # NLTK data not downloaded, try to download it
+        try:
+            nltk_download("stopwords", quiet=True)
+            nltk_download("wordnet", quiet=True)
+            nltk_download("omw-1.4", quiet=True)
+            _stopwords = set(stopwords.words("english"))
+            _lemmatizer = WordNetLemmatizer()
+        except Exception:
+            _NLTK_AVAILABLE = False
+            _stopwords = set()
+            _lemmatizer = None
+except ImportError:
+    _NLTK_AVAILABLE = False
+    _stopwords = set()
+    _lemmatizer = None
+
+# Common English stopwords/articles as fallback
+_COMMON_STOPWORDS = {
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "as",
+    "is",
+    "was",
+    "are",
+    "were",
+    "been",
+    "be",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "should",
+    "could",
+    "may",
+    "might",
+    "must",
+    "can",
+    "this",
+    "that",
+    "these",
+    "those",
+}
+
+# Default similarity threshold (0-100)
+_DEFAULT_SIMILARITY_THRESHOLD = 70
 
 
 # Shared CSV schema for food DB rows
@@ -135,32 +223,161 @@ class ProductFinder:
         """
         return self._similar_names(name1, name2)
 
-    def _similar_names(self, name1: str, name2: str) -> bool:
+    def _normalize_name(self, name: str) -> str:
+        """
+        RU: Нормализовать название продукта для сравнения.
+        EN: Normalize product name for comparison.
+
+        Args:
+            name: Исходное название
+
+        Returns:
+            Нормализованное название
+        """
+        if not name:
+            return ""
+
+        # Lowercase
+        normalized = name.lower()
+
+        # Remove punctuation and collapse whitespace
+        normalized = re.sub(r"[^\w\s]", " ", normalized)
+        normalized = re.sub(r"\s+", " ", normalized)
+        normalized = normalized.strip()
+
+        return normalized
+
+    def _remove_stopwords(self, text: str) -> str:
+        """
+        RU: Удалить стоп-слова из текста.
+        EN: Remove stopwords from text.
+
+        Args:
+            text: Исходный текст
+
+        Returns:
+            Текст без стоп-слов
+        """
+        words = text.split()
+        # Use NLTK stopwords if available, otherwise use common stopwords
+        stopword_set = _stopwords if _NLTK_AVAILABLE and _stopwords else _COMMON_STOPWORDS
+        filtered_words = [w for w in words if w not in stopword_set]
+        return " ".join(filtered_words)
+
+    def _lemmatize_text(self, text: str) -> str:
+        """
+        RU: Лемматизировать текст (привести слова к базовой форме).
+        EN: Lemmatize text (convert words to base form).
+
+        Args:
+            text: Исходный текст
+
+        Returns:
+            Лемматизированный текст
+        """
+        if not _NLTK_AVAILABLE or _lemmatizer is None:
+            return text  # Fallback: return as-is
+
+        words = text.split()
+        lemmatized_words = []
+        for word in words:
+            # Try noun first (most common for product names), then verb, adjective, adverb
+            lemmatized = _lemmatizer.lemmatize(word, pos="n")  # Default to noun
+            # If lemmatization changed the word, use it; otherwise try other POS
+            if lemmatized != word:
+                lemmatized_words.append(lemmatized)
+            else:
+                # Try other parts of speech
+                for pos in ["v", "a", "r"]:
+                    lemmatized = _lemmatizer.lemmatize(word, pos=pos)
+                    if lemmatized != word:
+                        lemmatized_words.append(lemmatized)
+                        break
+                else:
+                    # No change with any POS, keep original
+                    lemmatized_words.append(word)
+
+        return " ".join(lemmatized_words)
+
+    def _similar_names(
+        self, name1: str, name2: str, threshold: int = _DEFAULT_SIMILARITY_THRESHOLD
+    ) -> bool:
         """
         RU: Проверить, похожи ли названия продуктов (внутренняя реализация).
         EN: Check if product names are similar (internal implementation).
 
+        Uses fuzzy matching with normalization, stopword removal, and lemmatization.
+        Falls back to substring/word intersection if fuzzy libraries unavailable.
+
         Args:
             name1: Первое название
             name2: Второе название
+            threshold: Порог схожести (0-100), по умолчанию 70
 
         Returns:
             True, если названия похожи
         """
-        # Простая проверка на схожесть названий
-        name1_clean = name1.lower().replace(" ", "").replace("_", "")
-        name2_clean = name2.lower().replace(" ", "").replace("_", "")
+        if not name1 or not name2:
+            return False
 
-        # Проверяем, содержит ли одно название другое
-        if name1_clean in name2_clean or name2_clean in name1_clean:
+        # Normalize names
+        norm1 = self._normalize_name(name1)
+        norm2 = self._normalize_name(name2)
+
+        if not norm1 or not norm2:
+            return False
+
+        # Exact match after normalization
+        if norm1 == norm2:
             return True
 
-        # Проверяем общие слова
-        words1 = set(name1.lower().split())
-        words2 = set(name2.lower().split())
+        # Remove stopwords
+        norm1_no_stop = self._remove_stopwords(norm1)
+        norm2_no_stop = self._remove_stopwords(norm2)
+
+        # Lemmatize
+        norm1_lemma = self._lemmatize_text(norm1_no_stop)
+        norm2_lemma = self._lemmatize_text(norm2_no_stop)
+
+        # Try fuzzy matching if available
+        if _FUZZY_AVAILABLE:
+            try:
+                # Use token_set_ratio for better handling of word order differences
+                similarity = fuzz.token_set_ratio(norm1_lemma, norm2_lemma)
+                if similarity >= threshold:
+                    return True
+
+                # Also try partial_ratio for substring matches
+                partial_similarity = fuzz.partial_ratio(norm1_lemma, norm2_lemma)
+                if partial_similarity >= threshold:
+                    return True
+
+                # Try ratio for overall similarity
+                ratio_similarity = fuzz.ratio(norm1_lemma, norm2_lemma)
+                if ratio_similarity >= threshold:
+                    return True
+            except Exception as e:
+                logger.debug(f"Fuzzy matching failed: {e}, falling back to simple matching")
+
+        # Fallback: lightweight substring/word intersection logic
+        # Check substring containment
+        norm1_clean = norm1_lemma.replace(" ", "").replace("_", "")
+        norm2_clean = norm2_lemma.replace(" ", "").replace("_", "")
+        if norm1_clean in norm2_clean or norm2_clean in norm1_clean:
+            return True
+
+        # Check common words
+        words1 = set(norm1_lemma.split())
+        words2 = set(norm2_lemma.split())
         common_words = words1.intersection(words2)
 
-        return len(common_words) > 0
+        # If significant overlap (at least 50% of shorter name's words), consider similar
+        if common_words:
+            min_len = min(len(words1), len(words2))
+            if min_len > 0 and len(common_words) / min_len >= 0.5:
+                return True
+
+        return False
 
     def search_product(self, product_name: str) -> ProductSearchResult:
         """

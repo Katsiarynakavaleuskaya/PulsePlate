@@ -214,7 +214,9 @@ class DatabaseUpdateManager:
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
 
-    def _find_off_export_file(self, cache_dir: Path, file_types: Sequence[str]) -> Optional[Path]:
+    def _find_off_export_file(
+        self, cache_dir: Union[Path, _PatchablePathWrapper], file_types: Sequence[str]
+    ) -> Optional[Path]:
         """Return a deterministically selected OFF export file for the given types.
 
         Selection strategy:
@@ -594,7 +596,7 @@ class DatabaseUpdateManager:
         """Get the actual record count from the existing database."""
         try:
             # Try to count from cache files
-            cache_dir = Path(self.cache_dir)
+            cache_dir = self.cache_dir
             if source == "openfoodfacts":
                 # Check for SQLite database first
                 sqlite_file = cache_dir / self._OFF_SQLITE_FILENAME
@@ -655,7 +657,7 @@ class DatabaseUpdateManager:
                     finally:
                         conn.close()
 
-                json_export = self._find_off_export_file(Path(str(cache_dir)), ("jsonl",))
+                json_export = self._find_off_export_file(cache_dir, ("jsonl",))
                 if json_export:
                     cache_data = {}
                     with json_export.open("r", encoding="utf-8") as f:
@@ -668,7 +670,7 @@ class DatabaseUpdateManager:
                                 cache_data[data["name"]] = data
                     return cache_data
 
-                csv_export = self._find_off_export_file(Path(str(cache_dir)), ("csv",))
+                csv_export = self._find_off_export_file(cache_dir, ("csv",))
                 if csv_export:
                     cache_data = {}
                     with csv_export.open("r", encoding="utf-8") as f:

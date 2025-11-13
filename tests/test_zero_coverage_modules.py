@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
 
 import pytest
 
@@ -78,7 +78,33 @@ class TestZeroCoverageModules:
 
     def test_exports_module(self, tmp_path: Path) -> None:
         """Test core.exports module CSV/PDF helpers."""
-        meal_plan: Dict[str, Any] = {
+
+        # Define structured types for meal plan and weekly plan
+        class MealEntry(TypedDict):
+            name: str
+            food_item: str
+            kcal: int
+            protein_g: int
+
+        class MealPlan(TypedDict):
+            meals: List[MealEntry]
+            total_kcal: int
+            total_protein: int
+            total_carbs: int
+            total_fat: int
+
+        class DailyMenu(TypedDict):
+            date: str
+            meals: List[MealEntry]
+
+        class WeeklyPlan(TypedDict):
+            daily_menus: List[DailyMenu]
+            shopping_list: Dict[str, int]
+            total_cost: float
+            adherence_score: float
+
+        # Construct typed instances
+        meal_plan: MealPlan = {
             "meals": [
                 {"name": "breakfast", "food_item": "oatmeal", "kcal": 320, "protein_g": 12},
                 {"name": "lunch", "food_item": "salad", "kcal": 450, "protein_g": 18},
@@ -88,7 +114,7 @@ class TestZeroCoverageModules:
             "total_carbs": 90,
             "total_fat": 25,
         }
-        weekly_plan: Dict[str, Any] = {
+        weekly_plan: WeeklyPlan = {
             "daily_menus": [
                 {"date": "2024-01-01", "meals": meal_plan["meals"]},
             ],

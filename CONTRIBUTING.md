@@ -42,6 +42,7 @@ curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify hea
 - Follow existing style. Keep changes minimal and scoped.
 - Prefer tests that isolate external services by mocking.
 - Don't lower coverage thresholds; add tests instead.
+- **Code Quality Tools**: Sourcery code quality checks are handled by a GitHub App integration, so Sourcery is not installed locally via `requirements-all.txt`. Code quality suggestions from Sourcery appear as GitHub PR comments.
 - **Premium endpoints policy / Политика премиальных эндпойнтов**:
   - Every new premium/admin FastAPI route **must** include the shared API key guard (e.g. `Depends(_get_api_key_dynamic)` or `require_premium_key`).
   - Перед добавлением нового платного эндпойнта убедитесь, что он подключает dependency для проверки ключа и что есть тест, подтверждающий 403/401 без ключа.

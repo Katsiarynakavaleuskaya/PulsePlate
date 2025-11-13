@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 
-def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch):
+def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch) -> None:
     import app as appmod
 
     # Strict mode with expected key
@@ -49,7 +49,7 @@ async def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
     assert out["status"] == "ok" and out["scheduler"] == "available"
 
 
-def test_add_visualization_if_requested_fallback(monkeypatch: pytest.MonkeyPatch):
+def test_add_visualization_if_requested_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     import app as appmod
     import bmi_visualization as vizmod
 
@@ -83,7 +83,7 @@ async def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPat
     assert ei.value.status_code in {500, 503}
 
 
-def test_targets_get_minimum_maximum_unknown_raises():
+def test_targets_get_minimum_maximum_unknown_raises() -> None:
     from core.targets import MicronutrientTargets
 
     t = MicronutrientTargets(
