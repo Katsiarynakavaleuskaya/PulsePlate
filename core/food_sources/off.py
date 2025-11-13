@@ -12,7 +12,7 @@ import os
 from datetime import date
 from typing import Dict, Iterable, Optional
 
-from ..aliases import map_to_canonical
+from core.aliases import map_to_canonical
 from .base import BaseAdapter, FoodRecord
 
 

@@ -142,10 +142,29 @@ def analyze_failed_tests(failed_tests: list[dict[str, Any]]) -> None:
     if not failed_tests:
         return
 
-    # Configurable limits via environment variables
-    max_analysis = int(os.getenv("MAX_BAYESIAN_ANALYSIS", "5"))
-    summary_mode = os.getenv("SUMMARY_MODE", "").lower() in ("1", "true", "yes")
-    score_threshold = float(os.getenv("BAYESIAN_SCORE_THRESHOLD", "0.7"))
+    # Configurable limits via environment variables with error handling
+    try:
+        max_analysis = int(os.getenv("MAX_BAYESIAN_ANALYSIS", "5"))
+    except (ValueError, TypeError):
+        max_analysis = 5
+        import warnings
+
+        warnings.warn(f"Invalid MAX_BAYESIAN_ANALYSIS value, using default: {max_analysis}")
+
+    summary_mode_str = os.getenv("SUMMARY_MODE", "").lower()
+    summary_mode = summary_mode_str in ("1", "true", "yes")
+    if summary_mode_str and summary_mode_str not in ("1", "true", "yes", "0", "false", "no", ""):
+        import warnings
+
+        warnings.warn(f"Invalid SUMMARY_MODE value '{summary_mode_str}', using default: False")
+
+    try:
+        score_threshold = float(os.getenv("BAYESIAN_SCORE_THRESHOLD", "0.7"))
+    except (ValueError, TypeError):
+        score_threshold = 0.7
+        import warnings
+
+        warnings.warn(f"Invalid BAYESIAN_SCORE_THRESHOLD value, using default: {score_threshold}")
 
     print("\n" + "=" * 60)
     print("🔍 Байесовский анализ упавших тестов...")

@@ -111,12 +111,12 @@ def main() -> int:
     test_files = sorted(
         [
             p
-            for p in Path(TESTS_DIR_NAME).glob("test_*.py")
+            for p in tests_dir.glob("test_*.py")
             if p.is_file() and p.resolve().is_relative_to(tests_dir)
         ]
     )
-    failing_tests = []
-    timeout_tests = []
+    failing_tests: list[tuple[str, str]] = []
+    timeout_tests: list[str] = []
 
     print(f"🔍 Checking {len(test_files)} test files...")
 
@@ -141,16 +141,16 @@ def main() -> int:
 
     if failing_tests:
         print("\n❌ Failing tests:")
-        for test_file, output in failing_tests:
-            print(f"  - {test_file}")
-            error_line = extract_error_line(output)
+        for test_name, test_output in failing_tests:
+            print(f"  - {test_name}")
+            error_line = extract_error_line(test_output)
             if error_line:
                 print(f"    Error: {error_line}")
 
     if timeout_tests:
         print("\n⏰ Timeout tests:")
-        for test_file in timeout_tests:
-            print(f"  - {test_file}")
+        for test_name in timeout_tests:
+            print(f"  - {test_name}")
 
     return len(failing_tests) + len(timeout_tests)
 

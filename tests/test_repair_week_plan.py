@@ -236,7 +236,7 @@ class TestRepairWeekPlan:
             self.targets,
         )
 
-        # Both should expose WeekMenu structure even if the class was patched elsewhere
-        assert isinstance(normal_plan, WeekMenu) or normal_plan.__class__.__name__ == "WeekMenu"
-        assert isinstance(repaired_plan, WeekMenu) or repaired_plan.__class__.__name__ == "WeekMenu"
+        # Both should be WeekMenu instances (strict type check)
+        assert isinstance(normal_plan, WeekMenu)
+        assert isinstance(repaired_plan, WeekMenu)
         assert len(repaired_plan.daily_menus) == len(normal_plan.daily_menus)

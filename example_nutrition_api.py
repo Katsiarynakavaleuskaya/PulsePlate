@@ -25,6 +25,45 @@ from app.schemas.bmr import BMRResponse
 
 logger = logging.getLogger(__name__)
 
+# Module-level constants for error messages (extracted from handle_request_errors to avoid duplication)
+_DETAILED_MESSAGES: Dict[str, Dict[str, str]] = {
+    "timeout": {
+        "en": "⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).",
+        "ru": "⏱️ Запрос превысил время ожидания. Попробуйте увеличить таймаут.",
+    },
+    "http_error": {
+        "en": "❌ HTTP error occurred. Check server response status.",
+        "ru": "❌ Произошла HTTP-ошибка. Проверьте статус ответа сервера.",
+    },
+    "connection_error": {
+        "en": "🔌 Connection error. Is the server running and reachable?",
+        "ru": "🔌 Ошибка соединения. Запущен ли сервер и доступен ли он?",
+    },
+    "request_error": {
+        "en": "⚠️ Request error occurred.",
+        "ru": "⚠️ Произошла ошибка запроса.",
+    },
+    "unexpected": {
+        "en": "❌ Unexpected error.",
+        "ru": "❌ Непредвиденная ошибка.",
+    },
+}
+
+_STANDARD_GUIDANCE: Dict[str, Dict[str, str]] = {
+    "timeout": {
+        "en": "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness.",
+        "ru": "Попробуйте увеличить таймаут (например, timeout=10.0) и убедитесь в отзывчивости сервера.",
+    },
+    "http_error": {
+        "en": "The API returned an error status code. Check server logs.",
+        "ru": "API вернул код ошибки. Проверьте логи сервера.",
+    },
+    "connection_error": {
+        "en": "Make sure the API server is running on localhost:8000 and reachable.",
+        "ru": "Убедитесь, что API сервер запущен на localhost:8000 и доступен.",
+    },
+}
+
 
 class ErrorFormatType(Enum):
     """Format types for error handling."""
@@ -328,30 +367,8 @@ def handle_request_errors(
         logger.log(log_level, f"{activity_prefix} | {base_message}", exception, exc_info=True)
 
     elif format_type == ErrorFormatType.DETAILED:
-        # Detailed format with extra info
-        detailed_messages = {
-            "timeout": {
-                "en": "⏱️ Request timed out. Try increasing timeout (e.g., timeout=10.0).",
-                "ru": "⏱️ Запрос превысил время ожидания. Попробуйте увеличить таймаут.",
-            },
-            "http_error": {
-                "en": "❌ HTTP error occurred. Check server response status.",
-                "ru": "❌ Произошла HTTP-ошибка. Проверьте статус ответа сервера.",
-            },
-            "connection_error": {
-                "en": "🔌 Connection error. Is the server running and reachable?",
-                "ru": "🔌 Ошибка соединения. Запущен ли сервер и доступен ли он?",
-            },
-            "request_error": {
-                "en": "⚠️ Request error occurred.",
-                "ru": "⚠️ Произошла ошибка запроса.",
-            },
-            "unexpected": {
-                "en": "❌ Unexpected error.",
-                "ru": "❌ Непредвиденная ошибка.",
-            },
-        }
-        exc_messages = detailed_messages.get(exc_key, detailed_messages["unexpected"])
+        # Detailed format with extra info (using centralized module-level constant)
+        exc_messages = _DETAILED_MESSAGES.get(exc_key, _DETAILED_MESSAGES["unexpected"])
         detailed_msg = exc_messages.get(lang, exc_messages["en"])
         # logger.log with exc_info=True already includes full traceback, so no need for separate logger.info
         logger.log(log_level, detailed_msg, exc_info=True)
@@ -360,22 +377,8 @@ def handle_request_errors(
         # Standard format with localized messages
         logger.log(log_level, base_message, exception, exc_info=True)
 
-        # Additional info for STANDARD format (localized for both English and Russian)
-        standard_guidance = {
-            "timeout": {
-                "en": "Try increasing timeout (e.g., timeout=10.0) and ensure server responsiveness.",
-                "ru": "Попробуйте увеличить таймаут (например, timeout=10.0) и убедитесь в отзывчивости сервера.",
-            },
-            "http_error": {
-                "en": "The API returned an error status code. Check server logs.",
-                "ru": "API вернул код ошибки. Проверьте логи сервера.",
-            },
-            "connection_error": {
-                "en": "Make sure the API server is running on localhost:8000 and reachable.",
-                "ru": "Убедитесь, что API сервер запущен на localhost:8000 и доступен.",
-            },
-        }
-        guidance_msg = standard_guidance.get(exc_key)
+        # Additional info for STANDARD format (using centralized module-level constant)
+        guidance_msg = _STANDARD_GUIDANCE.get(exc_key)
         if guidance_msg:
             localized_msg = guidance_msg.get(lang, guidance_msg["en"])
             logger.info(localized_msg)

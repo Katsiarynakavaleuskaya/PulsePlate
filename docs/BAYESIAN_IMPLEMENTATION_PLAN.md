@@ -278,8 +278,103 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
 
     def __init__(self):
         super().__init__("nutrition_validator")
+        # Load medical safety config at startup and validate
+        self._load_medical_safety_config()
         self.population_stats = self._load_population_stats()
         self.user_history: Dict[str, List[NutritionEntry]] = {}
+
+    def _load_medical_safety_config(self) -> None:
+        """
+        Load medical safety configuration from config/medical_safety.yaml at startup.
+
+        Validates that MIN_SAFE_DAILY_CALORIES and MAX_SAFE_DAILY_CALORIES are present,
+        numeric, and MIN < MAX. Validates that MEDICAL_ALERTS_ENABLED is explicitly set
+        (not default) before enabling medical alerts.
+
+        If validation fails, logs a clear error and aborts startup to prevent deployment.
+        """
+        import logging
+        from pathlib import Path
+
+        logger = logging.getLogger(__name__)
+        config_path = Path(__file__).parent.parent / "config" / "medical_safety.yaml"
+
+        if not config_path.exists():
+            logger.error(
+                f"Medical safety config not found: {config_path}. "
+                "Medical alerts will remain disabled. See CONTRIBUTING.md for approval workflow."
+            )
+            return
+
+        try:
+            import yaml
+
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f) or {}
+
+            # Validate thresholds
+            thresholds = config.get("thresholds", {})
+            min_cal = thresholds.get("MIN_SAFE_DAILY_CALORIES")
+            max_cal = thresholds.get("MAX_SAFE_DAILY_CALORIES")
+
+            if min_cal is None or max_cal is None:
+                logger.error(
+                    f"Medical safety config missing required thresholds: {config_path}. "
+                    "MIN_SAFE_DAILY_CALORIES and MAX_SAFE_DAILY_CALORIES must be present."
+                )
+                raise ValueError("Missing required medical safety thresholds")
+
+            try:
+                min_cal = float(min_cal)
+                max_cal = float(max_cal)
+            except (ValueError, TypeError) as e:
+                logger.error(
+                    f"Medical safety config has invalid threshold values: {e}. "
+                    "MIN_SAFE_DAILY_CALORIES and MAX_SAFE_DAILY_CALORIES must be numeric."
+                )
+                raise ValueError("Invalid medical safety threshold values") from e
+
+            if min_cal >= max_cal:
+                logger.error(
+                    f"Medical safety config validation failed: MIN_SAFE_DAILY_CALORIES ({min_cal}) "
+                    f"must be less than MAX_SAFE_DAILY_CALORIES ({max_cal})."
+                )
+                raise ValueError("MIN_SAFE_DAILY_CALORIES must be < MAX_SAFE_DAILY_CALORIES")
+
+            # Override fallback constants with loaded values
+            self.MIN_SAFE_DAILY_CALORIES = min_cal
+            self.MAX_SAFE_DAILY_CALORIES = max_cal
+
+            # Validate and set feature flag
+            feature_flags = config.get("featureFlags", {})
+            alerts_enabled = feature_flags.get("medicalSafetyApproved", False)
+
+            if alerts_enabled:
+                # Verify it's explicitly set (not just default)
+                if "medicalSafetyApproved" not in feature_flags:
+                    logger.warning(
+                        "MEDICAL_ALERTS_ENABLED appears to be default value. "
+                        "Medical alerts will remain disabled until explicitly approved."
+                    )
+                    alerts_enabled = False
+                else:
+                    logger.info("Medical safety alerts enabled via approved configuration.")
+            else:
+                logger.info("Medical safety alerts disabled (not approved).")
+
+            self.MEDICAL_ALERTS_ENABLED = bool(alerts_enabled)
+
+        except ImportError:
+            logger.warning(
+                "PyYAML not installed. Medical safety config cannot be loaded. "
+                "Using fallback constants. Install PyYAML to enable config loading."
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to load medical safety config from {config_path}: {e}. "
+                "Startup aborted to prevent unsafe deployment. Fix config and restart."
+            )
+            raise SystemExit(1) from e
 
     def _load_population_stats(self) -> Dict[str, Dict[str, float]]:
         """
@@ -699,7 +794,7 @@ async def lifespan(app: FastAPI):
 # Новый эндпоинт для валидации
 from fastapi import Depends, HTTPException, status
 from fastapi_limiter.depends import RateLimiter
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from typing import Literal
 
 # Pydantic модель для валидации входных данных
@@ -719,7 +814,7 @@ class MealValidationRequest(BaseModel):
 
     @field_validator("calories", "protein", "fat", "carbs")
     @classmethod
-    def validate_non_negative(cls, v: float) -> float:
+    def validate_non_negative(cls, v: float, info: ValidationInfo) -> float:
         """Проверка неотрицательных значений."""
         if v < 0:
             raise ValueError("Значение не может быть отрицательным")

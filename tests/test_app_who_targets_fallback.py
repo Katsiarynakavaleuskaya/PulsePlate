@@ -16,11 +16,6 @@ class _DummyMicros:
         return {"iron_mg": 12.0}
 
 
-def _make_fake_request() -> SimpleNamespace:
-    """Return a minimal request object with headers for direct API calls."""
-    return SimpleNamespace(headers={"x-api-key": "test_key"})
-
-
 def _build_dummy_targets() -> SimpleNamespace:
     macros = SimpleNamespace(protein_g=120, fat_g=70, carbs_g=230, fiber_g=30)
     activity = SimpleNamespace(

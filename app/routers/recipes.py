@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import asyncio
 import json
 from typing import List
 
@@ -12,12 +13,12 @@ router = APIRouter(tags=["recipes"])
 
 
 @router.get("/api/v1/recipes", response_model=List[RecipeQueryHit])
-def list_recipes(
+async def list_recipes(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[RecipeQueryHit]:
     if limit > 50 or limit < 1:
         raise HTTPException(422, "limit must be in [1,50]")
-    rows = recipe_store.search_recipes(query or "*", limit, offset)
+    rows = await asyncio.to_thread(recipe_store.search_recipes, query or "*", limit, offset)
     out = []
     for r in rows:
         tags = json.loads(r.get("tags_json") or "[]")
@@ -34,10 +35,10 @@ def list_recipes(
 
 # Backward-compatible alias for tests expecting /api/v1/recipes/search
 @router.get("/api/v1/recipes/search", response_model=List[RecipeQueryHit])
-def list_recipes_search(
+async def list_recipes_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[RecipeQueryHit]:
-    result: List[RecipeQueryHit] = list_recipes(query=query, limit=limit, offset=offset)
+    result: List[RecipeQueryHit] = await list_recipes(query=query, limit=limit, offset=offset)
     return result
 
 

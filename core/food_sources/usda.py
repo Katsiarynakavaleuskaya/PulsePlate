@@ -12,8 +12,8 @@ import os
 from datetime import date
 from typing import Any, Dict, Iterable, Optional
 
-from ..aliases import map_to_canonical
-from ..units import iu_vitd_from_ug
+from core.aliases import map_to_canonical
+from core.units import iu_vitd_from_ug
 from .base import BaseAdapter, FoodRecord
 
 

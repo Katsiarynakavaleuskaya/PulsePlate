@@ -170,14 +170,14 @@ class TestCoreDB:
                 url = _build_engine_url(fallback_url=None)
                 assert url == test_url
 
-    def test_build_engine_url_with_explicit_fallback(self):
+    def test_build_engine_url_with_explicit_fallback(self) -> None:
         """Test _build_engine_url with explicit fallback_url parameter."""
         fallback = "sqlite:///:memory:"
         with patch.dict(os.environ, {"DATABASE_URL": "postgresql://localhost/test"}):
             url = _build_engine_url(fallback_url=fallback)
             assert url == fallback
 
-    def test_build_engine_url_with_env_fallback(self):
+    def test_build_engine_url_with_env_fallback(self) -> None:
         """Test _build_engine_url reading fallback from DB_FALLBACK_URL env var."""
         fallback = "sqlite:///:memory:"
         with patch.dict(

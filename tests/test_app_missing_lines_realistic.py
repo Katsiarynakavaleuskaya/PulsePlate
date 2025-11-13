@@ -6,7 +6,6 @@ Based on coverage analysis: 65-68, 118-119, 123-124, etc.
 import concurrent.futures
 import os
 import sys
-from contextlib import suppress
 from unittest.mock import patch
 
 import pytest
@@ -124,18 +123,19 @@ class TestAppMissingLinesTargeted:
         [
             {"weight": 0.1, "height": 50, "age": 1},  # Very small
             {"weight": 500, "height": 300, "age": 150},  # Very large
-            {"weight": float("inf"), "height": 175, "age": 30},  # Infinity
+            {
+                "weight": 1e10,
+                "height": 175,
+                "age": 30,
+            },  # Very large finite number (replaces infinity)
         ],
     )
     def test_extreme_numeric_values_edge_cases(self, case: dict[str, object]) -> None:
         """Test extreme numeric values that might trigger different paths"""
-        import json
-
         case_with_defaults = {**case, "sex": "M", "lang": "en"}
-        with suppress(TypeError, ValueError, json.JSONDecodeError):
-            # Some cases might cause JSON serialization errors, which is expected
-            response = self.client.post("/bmi", json=case_with_defaults)
-            assert response.status_code in [200, 400, 422, 500]
+        # Send request and expect valid response codes (no 500 allowed)
+        response = self.client.post("/bmi", json=case_with_defaults)
+        assert response.status_code in [200, 400, 422]
 
     def test_concurrent_mixed_requests(self) -> None:
         """Test concurrent requests to different endpoints"""
