@@ -463,7 +463,8 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
         logging.error("Failed to import core.recipe_synth.synthesize_recipes_for_week")
         return None
 
-    return synthesize_recipes_for_week(*args, **kwargs)
+    # Type ignore needed because args/kwargs are object but function expects Dict and int
+    return synthesize_recipes_for_week(*args, **kwargs)  # type: ignore[arg-type]
 
 
 def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:
