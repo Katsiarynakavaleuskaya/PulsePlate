@@ -58,7 +58,7 @@ def _resolve_module_candidate(candidate: object) -> object | None:
         return None
 
     if is_string:
-        return sys.modules.get(candidate)  # type: ignore[call-overload]
+        return sys.modules.get(candidate)  # type: ignore[call-overload,no-any-return]
 
     # Return candidate as-is (could be any object type, not just ModuleType)
     return candidate
