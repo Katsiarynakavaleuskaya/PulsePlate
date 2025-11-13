@@ -35,6 +35,10 @@ KCAL_MAX = int(KCAL_MAX_SAFE)
 FIBER_G_MIN = int(FIBER_MIN_G)
 FIBER_G_MAX = int(FIBER_MAX_G)
 
+# Log message constants for numeric conversion warnings
+INVALID_NUMERIC_MSG = "Invalid numeric value (NaN/inf): %s, defaulting to 0"
+CONVERSION_FAILED_MSG = "Could not convert value '%s' to numeric: %s, defaulting to 0"
+
 
 class NutritionData(BaseModel):
     """Sanitized nutrition data with validated ranges.
@@ -65,11 +69,11 @@ class NutritionData(BaseModel):
         try:
             float_val = float(value)
             if math.isnan(float_val) or math.isinf(float_val):
-                logger.warning("Invalid numeric value (NaN/inf): %s, defaulting to 0", value)
+                logger.warning(INVALID_NUMERIC_MSG, value)
                 return 0
             return int(round(float_val))
         except (ValueError, TypeError) as e:
-            logger.warning("Could not convert value '%s' to numeric: %s, defaulting to 0", value, e)
+            logger.warning(CONVERSION_FAILED_MSG, value, e)
             return 0
 
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g")
