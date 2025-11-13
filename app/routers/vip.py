@@ -452,7 +452,7 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
             return None
     else:
         # Direct arguments - pass through
-        return make_weekly_menu(*args, **kwargs)
+        return make_weekly_menu(*args, **kwargs)  # type: ignore[arg-type]
 
 
 def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> object | None:
