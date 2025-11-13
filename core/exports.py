@@ -196,16 +196,16 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
     TableStyle = reportlab_classes["TableStyle"]
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    doc = SimpleDocTemplate(buffer, pagesize=letter)  # type: ignore[operator]
     elements = []
 
     # Get styles
-    styles = getSampleStyleSheet()
+    styles = getSampleStyleSheet()  # type: ignore[operator]
 
     # Title
-    title = Paragraph("Daily Meal Plan", styles["Title"])
+    title = Paragraph("Daily Meal Plan", styles["Title"])  # type: ignore[operator]
     elements.append(title)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 12))  # type: ignore[operator]
 
     # Meal table
     meal_data = [["Meal", "Food Item", "Calories", "Protein (g)", "Carbs (g)", "Fat (g)"]]
@@ -234,18 +234,18 @@ def to_pdf_day(meal_plan: Dict[str, Any], filename: Optional[str] = None) -> byt
         ]
     )
 
-    meal_table = Table(meal_data)
+    meal_table = Table(meal_data)  # type: ignore[operator]
     meal_table.setStyle(
-        TableStyle(
+        TableStyle(  # type: ignore[operator]
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),  # type: ignore[attr-defined]
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),  # type: ignore[attr-defined]
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, 0), 14),
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),  # type: ignore[attr-defined]
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),  # type: ignore[attr-defined]
             ]
         )
     )
@@ -289,16 +289,16 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
     TableStyle = reportlab_classes["TableStyle"]
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    doc = SimpleDocTemplate(buffer, pagesize=letter)  # type: ignore[operator]
     elements = []
 
     # Get styles
-    styles = getSampleStyleSheet()
+    styles = getSampleStyleSheet()  # type: ignore[operator]
 
     # Title
-    title = Paragraph("Weekly Meal Plan", styles["Title"])
+    title = Paragraph("Weekly Meal Plan", styles["Title"])  # type: ignore[operator]
     elements.append(title)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 12))  # type: ignore[operator]
 
     # Daily meals table
     meal_data = [
@@ -330,51 +330,51 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
                 ]
             )
 
-    meal_table = Table(meal_data)
+    meal_table = Table(meal_data)  # type: ignore[operator]
     meal_table.setStyle(
-        TableStyle(
+        TableStyle(  # type: ignore[operator]
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),  # type: ignore[attr-defined]
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),  # type: ignore[attr-defined]
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, 0), 10),
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),  # type: ignore[attr-defined]
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),  # type: ignore[attr-defined]
             ]
         )
     )
 
     elements.append(meal_table)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 12))  # type: ignore[operator]
 
     # Shopping list
-    shopping_title = Paragraph("Shopping List", styles["Heading2"])
+    shopping_title = Paragraph("Shopping List", styles["Heading2"])  # type: ignore[operator]
     elements.append(shopping_title)
 
     shopping_data = [["Item", "Quantity"]]
     for item, quantity in weekly_plan.get("shopping_list", {}).items():
         shopping_data.append([item, str(quantity)])
 
-    shopping_table = Table(shopping_data)
+    shopping_table = Table(shopping_data)  # type: ignore[operator]
     shopping_table.setStyle(
-        TableStyle(
+        TableStyle(  # type: ignore[operator]
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),  # type: ignore[attr-defined]
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),  # type: ignore[attr-defined]
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, 0), 10),
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),  # type: ignore[attr-defined]
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),  # type: ignore[attr-defined]
             ]
         )
     )
 
     elements.append(shopping_table)
-    elements.append(Spacer(1, 12))
+    elements.append(Spacer(1, 12))  # type: ignore[operator]
 
     # Summary
     summary_data = [
@@ -382,18 +382,18 @@ def to_pdf_week(weekly_plan: Dict[str, Any], filename: Optional[str] = None) -> 
         ["Adherence Score", str(weekly_plan.get("adherence_score", 0))],
     ]
 
-    summary_table = Table(summary_data)
+    summary_table = Table(summary_data)  # type: ignore[operator]
     summary_table.setStyle(
-        TableStyle(
+        TableStyle(  # type: ignore[operator]
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),  # type: ignore[attr-defined]
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),  # type: ignore[attr-defined]
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, 0), 10),
                 ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 0), (-1, -1), colors.beige),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.beige),  # type: ignore[attr-defined]
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),  # type: ignore[attr-defined]
             ]
         )
     )

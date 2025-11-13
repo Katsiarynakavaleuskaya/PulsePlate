@@ -58,7 +58,7 @@ def _safe_float(value: FloatConvertible) -> float:
     RU: Безопасное приведение к float; возвращает 0.0 для None/нечисловых значений.
     """
     try:
-        return float(value)
+        return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
 

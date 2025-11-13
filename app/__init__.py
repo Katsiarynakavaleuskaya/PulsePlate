@@ -76,7 +76,7 @@ class _RebindingModuleSpec(ModuleSpec):
             owner_module: The module that owns this spec (default: None)
             **kwargs: Keyword arguments for ModuleSpec
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         self._owner_module: ModuleType | None = owner_module
 
     def __getattribute__(self, name: str) -> object:

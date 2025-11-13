@@ -58,7 +58,7 @@ def _resolve_module_candidate(candidate: object) -> object | None:
         return None
 
     if is_string:
-        return sys.modules.get(candidate)
+        return sys.modules.get(candidate)  # type: ignore[arg-type]
 
     # Return candidate as-is (could be any object type, not just ModuleType)
     return candidate

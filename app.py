@@ -1487,10 +1487,16 @@ class PlateDependencies:
         calculate_all_tdee_fn: Callable[..., Any] | None = None,
         aggregate_day_micronutrients_fn: Callable[..., Any] | None = None,
     ) -> None:
+        # Expose both *_fn and function-style attributes for backwards compatibility
+        self.make_plate_fn = make_plate_fn
         self.make_plate = make_plate_fn
+        self.build_nutrition_targets_fn = build_nutrition_targets_fn
         self.build_nutrition_targets = build_nutrition_targets_fn
+        self.calculate_all_bmr_fn = calculate_all_bmr_fn
         self.calculate_all_bmr = calculate_all_bmr_fn
+        self.calculate_all_tdee_fn = calculate_all_tdee_fn
         self.calculate_all_tdee = calculate_all_tdee_fn
+        self.aggregate_day_micronutrients_fn = aggregate_day_micronutrients_fn
         self._aggregate_day_micronutrients = aggregate_day_micronutrients_fn
 
 
