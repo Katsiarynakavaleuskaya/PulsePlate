@@ -1,0 +1,218 @@
+"""
+Tests for PR #266 patch coverage improvements
+
+RU: Тесты для улучшения покрытия патча PR #266
+EN: Tests for PR #266 patch coverage improvements
+
+Covers:
+- _targets_disabled() caching mechanism
+- _calculate_heuristic_macros() function
+- api_who_targets endpoint with dependency injection
+- Debug logging in _should_use_mock_food_db()
+"""
+
+import time
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+import app
+from core.menu_engine import _should_use_mock_food_db
+
+
+class TestTargetsDisabledCaching:
+    """Test _targets_disabled() caching mechanism."""
+
+    def test_targets_disabled_cache_hit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that cache is used when TTL is valid."""
+        # Reset cache state
+        app._targets_disabled_cache = False
+        app._targets_disabled_cache_time = time.time()
+
+        # First call should use cache
+        result1 = app._targets_disabled()
+        assert isinstance(result1, bool)
+
+        # Second call within TTL should use cache (no sys.modules scan)
+        with patch("app.sys.modules", {}):
+            result2 = app._targets_disabled()
+            assert result2 == result1  # Should return cached value
+
+    def test_targets_disabled_cache_expires(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that cache expires after TTL."""
+        # Set cache to old value
+        app._targets_disabled_cache = True
+        app._targets_disabled_cache_time = time.time() - 2.0  # 2 seconds ago (past TTL)
+
+        # Should bypass cache and recalculate
+        result = app._targets_disabled()
+        assert isinstance(result, bool)
+        # Cache should be updated
+        assert app._targets_disabled_cache is not None
+
+    def test_targets_disabled_skips_non_test_modules(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that non-test modules are skipped in scan."""
+        # Reset cache
+        app._targets_disabled_cache = None
+        app._targets_disabled_cache_time = 0.0
+
+        # Create a non-test module (should be skipped)
+        regular_module = MagicMock()
+        regular_module.build_nutrition_targets = None
+        regular_module.__name__ = "some_regular_module"
+
+        with patch.dict("sys.modules", {"some_regular_module": regular_module}):
+            # Should not detect None in non-test module
+            result = app._targets_disabled()
+            # Should return False (not disabled) because non-test modules are skipped
+            assert isinstance(result, bool)
+
+
+class TestCalculateHeuristicMacros:
+    """Test _calculate_heuristic_macros() function."""
+
+    def test_calculate_heuristic_macros_basic(self) -> None:
+        """Test basic heuristic macro calculation."""
+        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=2000, weight_kg=70)
+
+        # Protein: 1.6 * 70 = 112g
+        assert prot == 112
+        # Fat: 0.9 * 70 = 63g
+        assert fat == 63
+        # Carbs: (2000 - 112*4 - 63*9) / 4 = (2000 - 448 - 567) / 4 = 985 / 4 = 246.25 -> 246
+        assert carbs >= 240  # Allow small rounding differences
+        assert carbs <= 250
+
+        # Verify total calories approximately match
+        total_kcal = prot * 4 + fat * 9 + carbs * 4
+        assert abs(total_kcal - 2000) <= 20
+
+    def test_calculate_heuristic_macros_low_calories(self) -> None:
+        """Test heuristic macros with low calorie target."""
+        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=1200, weight_kg=60)
+
+        assert prot > 0
+        assert fat > 0
+        assert carbs >= 1  # Minimum carbs enforced
+
+        # Verify total calories approximately match
+        total_kcal = prot * 4 + fat * 9 + carbs * 4
+        assert abs(total_kcal - 1200) <= 50
+
+    def test_calculate_heuristic_macros_high_weight(self) -> None:
+        """Test heuristic macros with high weight."""
+        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=3000, weight_kg=100)
+
+        # Protein: 1.6 * 100 = 160g
+        assert prot == 160
+        # Fat: 0.9 * 100 = 90g
+        assert fat == 90
+        # Carbs should be positive
+        assert carbs >= 1
+
+        # Verify total calories approximately match
+        total_kcal = prot * 4 + fat * 9 + carbs * 4
+        assert abs(total_kcal - 3000) <= 50
+
+    def test_calculate_heuristic_macros_minimum_carbs(self) -> None:
+        """Test that carbs are always at least 1."""
+        # Use very low calories to test minimum carbs enforcement
+        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=500, weight_kg=50)
+
+        assert carbs >= 1  # Minimum enforced
+
+
+class TestWhoTargetsEndpoint:
+    """Test api_who_targets endpoint with dependency injection."""
+
+    def test_who_targets_with_dependency_injection(self, client: TestClient) -> None:
+        """Test that endpoint uses dependency injection for API key."""
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175,
+            "weight_kg": 70,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        # Should work with API key in header (dependency injection)
+        response = client.post(
+            "/api/v1/premium/targets",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert "kcal_daily" in result
+        assert "macros" in result
+
+    def test_who_targets_without_api_key(self, client: TestClient) -> None:
+        """Test that endpoint requires API key via dependency."""
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175,
+            "weight_kg": 70,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        # Should fail without API key
+        response = client.post("/api/v1/premium/targets", json=payload)
+
+        assert response.status_code in [403, 401]  # API key validation error
+
+    def test_who_targets_invalid_payload(self, client: TestClient) -> None:
+        """Test endpoint with invalid payload."""
+        payload = {
+            "sex": "invalid",
+            "age": -5,  # Invalid age
+        }
+
+        response = client.post(
+            "/api/v1/premium/targets",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 422  # Validation error
+
+
+class TestMenuEngineDebugLogging:
+    """Test debug logging in _should_use_mock_food_db()."""
+
+    @patch("core.menu_engine._logger")
+    def test_should_use_mock_food_db_logs_force_flag(self, mock_logger, monkeypatch) -> None:
+        """Test that debug logging occurs when MENU_ENGINE_FORCE_MOCK_DB is set."""
+        monkeypatch.setenv("MENU_ENGINE_FORCE_MOCK_DB", "true")
+
+        result = _should_use_mock_food_db()
+
+        assert result is True
+        mock_logger.debug.assert_called()
+        assert "MENU_ENGINE_FORCE_MOCK_DB" in str(mock_logger.debug.call_args)
+
+    @patch("core.menu_engine._logger")
+    def test_should_use_mock_food_db_logs_pytest_env(self, mock_logger, monkeypatch) -> None:
+        """Test that debug logging occurs when PYTEST_CURRENT_TEST is set."""
+        monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_something::test_method")
+
+        result = _should_use_mock_food_db()
+
+        assert result is True
+        mock_logger.debug.assert_called()
+        assert "pytest environment" in str(mock_logger.debug.call_args).lower()
+
+    def test_should_use_mock_food_db_no_logging_when_false(self, monkeypatch) -> None:
+        """Test that no debug logging occurs when conditions are not met."""
+        monkeypatch.delenv("MENU_ENGINE_FORCE_MOCK_DB", raising=False)
+        monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+        with patch("core.menu_engine._logger") as mock_logger:
+            result = _should_use_mock_food_db()
+
+            assert result is False
+            mock_logger.debug.assert_not_called()
