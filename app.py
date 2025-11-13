@@ -2525,13 +2525,31 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 )
                 _targets = _build_targets(profile)
                 target_macros = getattr(_targets, "macros", None)
+                # Support dict-shaped targets (tests sometimes return dicts)
+                if target_macros is None and isinstance(_targets, dict):
+                    target_macros = _targets.get("macros")
+
+                def _read_macro(name: str) -> Any:
+                    """Read macro value from target_macros (supports dict or object)."""
+                    if target_macros is None:
+                        return None
+                    if isinstance(target_macros, dict):
+                        return target_macros.get(name)
+                    # object-like access
+                    return getattr(target_macros, name, None)
+
                 if target_macros is not None:
                     for macro_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
-                        target_val = getattr(target_macros, macro_name, None)
+                        target_val = _read_macro(macro_name)
                         if target_val is not None and macro_name in macros_aligned:
                             macros_aligned[macro_name] = int(target_val)
                             alignment_succeeded = True
-                kcal_override = getattr(_targets, "kcal_daily", None)
+
+                # Read kcal_daily (support dict or object)
+                if isinstance(_targets, dict):
+                    kcal_override = _targets.get("kcal_daily") or _targets.get("kcal")
+                else:
+                    kcal_override = getattr(_targets, "kcal_daily", None)
                 if kcal_override is not None:
                     target_kcal_override = int(kcal_override)
             except Exception as e:
@@ -3103,10 +3121,75 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WHOTargetsResponse,
 )
-async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
-    """Calculate WHO-aligned nutrition targets for premium clients."""
+async def api_who_targets(
+    payload: Dict[str, Any] = Body(...), *args: Any, **kwargs: Any  # noqa: ANN401
+) -> WHOTargetsResponse:
+    """Calculate WHO-aligned nutrition targets for premium clients.
+
+    Accepts both calling conventions:
+    - api_who_targets(payload_dict) - normal FastAPI route usage with Body(...)
+    - api_who_targets(request_obj, payload_dict) - direct test calls
+    """
+    from starlette.requests import Request as _StarletteRequest
+
+    req: Any = payload
+
+    # Normalize when first arg is a Starlette Request and second arg is payload
+    if isinstance(req, _StarletteRequest):
+        payload_val: Any = None
+        if args:
+            payload_val = args[0]
+        elif kwargs:
+            payload_val = kwargs
+        else:
+            try:
+                payload_val = await req.json()
+            except Exception:
+                payload_val = None
+        if payload_val is None:
+            raise ValueError("Missing request body for WHO targets")
+        # Accept dict payload or Pydantic model_dump
+        if isinstance(payload_val, WHOTargetsRequest):
+            req_model = payload_val
+        elif isinstance(payload_val, dict):
+            req_model = (
+                WHOTargetsRequest.model_validate(payload_val)
+                if hasattr(WHOTargetsRequest, "model_validate")
+                else WHOTargetsRequest(**payload_val)
+            )
+        else:
+            # Try to coerce
+            req_model = WHOTargetsRequest(
+                **(dict(payload_val) if hasattr(payload_val, "items") else {})
+            )
+        req = req_model
+    elif isinstance(req, dict):
+        req = (
+            WHOTargetsRequest.model_validate(req)
+            if hasattr(WHOTargetsRequest, "model_validate")
+            else WHOTargetsRequest(**req)
+        )
+    elif not isinstance(req, WHOTargetsRequest):
+        # Try building from kwargs if possible
+        if kwargs:
+            req = (
+                WHOTargetsRequest.model_validate(kwargs)
+                if hasattr(WHOTargetsRequest, "model_validate")
+                else WHOTargetsRequest(**kwargs)
+            )
+        else:
+            # If we end up here, it's better to let the rest of the code raise a clear error
+            raise ValueError(
+                "Invalid input to api_who_targets; expected WHOTargetsRequest or payload dict"
+            )
+
     try:
-        req = WHOTargetsRequest.model_validate(payload)
+        if not isinstance(req, WHOTargetsRequest):
+            req = (
+                WHOTargetsRequest.model_validate(req)
+                if hasattr(WHOTargetsRequest, "model_validate")
+                else WHOTargetsRequest(**req)
+            )
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
 
