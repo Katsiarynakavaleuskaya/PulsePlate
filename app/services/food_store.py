@@ -482,7 +482,7 @@ def _safe_per_g(per_g_raw: FloatConvertible, food_id: str) -> float:
         Parsed per_g value or DEFAULT_PER_G if invalid/zero
     """
     try:
-        per_g = float(per_g_raw)
+        per_g = float(per_g_raw) if per_g_raw is not None else 0.0
     except (TypeError, ValueError):
         logger.warning(
             "nutrients_for: per_g invalid for food_id=%s (value=%r); defaulting to %s",
