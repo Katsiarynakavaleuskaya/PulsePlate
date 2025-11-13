@@ -13,6 +13,8 @@ try:
 except ImportError:
     Image = None  # type: ignore
 
+from icon_constants import IOS_ICON_SIZES
+
 
 def _process_image_for_icon(img, size: int):
     """Обрабатывает изображение для создания иконки"""
@@ -53,31 +55,6 @@ def generate_all_icons_from_source(source_path: str) -> bool:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
 
-    # Размеры для iOS (в пикселях) - соответствует Contents.json
-    icon_sizes: dict[str, int] = {
-        # iPhone
-        "icon_iphone_20pt@2x.png": 40,  # 20x20 @2x
-        "icon_iphone_20pt@3x.png": 60,  # 20x20 @3x
-        "icon_iphone_29pt@2x.png": 58,  # 29x29 @2x
-        "icon_iphone_29pt@3x.png": 87,  # 29x29 @3x
-        "icon_iphone_40pt@2x.png": 80,  # 40x40 @2x
-        "icon_iphone_40pt@3x.png": 120,  # 40x40 @3x
-        "icon_iphone_60pt@2x.png": 120,  # 60x60 @2x
-        "icon_iphone_60pt@3x.png": 180,  # 60x60 @3x
-        # iPad
-        "icon_ipad_20pt.png": 20,  # 20x20 @1x
-        "icon_ipad_20pt@2x.png": 40,  # 20x20 @2x
-        "icon_ipad_29pt.png": 29,  # 29x29 @1x
-        "icon_ipad_29pt@2x.png": 58,  # 29x29 @2x
-        "icon_ipad_40pt.png": 40,  # 40x40 @1x
-        "icon_ipad_40pt@2x.png": 80,  # 40x40 @2x
-        "icon_ipad_76pt.png": 76,  # 76x76 @1x
-        "icon_ipad_76pt@2x.png": 152,  # 76x76 @2x
-        "icon_ipad_83_5pt@2x.png": 167,  # 83.5x83.5 @2x
-        # App Store
-        "icon_marketing_1024.png": 1024,  # 1024x1024
-    }
-
     # Путь к папке с иконками (относительно расположения скрипта)
     script_dir: str = os.path.dirname(os.path.abspath(__file__))
     icons_dir: str = os.path.join(
@@ -96,9 +73,10 @@ def generate_all_icons_from_source(source_path: str) -> bool:
     print(f"🎨 Создаем иконки из {source_path}...")
     print(f"📁 Сохраняем в {icons_dir}")
 
-    total_count = len(icon_sizes)
+    total_count = len(IOS_ICON_SIZES)
     success_count = sum(
-        resize_icon(source_path, icons_dir, filename, size) for filename, size in icon_sizes.items()
+        resize_icon(source_path, icons_dir, filename, size)
+        for filename, size in IOS_ICON_SIZES.items()
     )
 
     print(f"\n🎯 Готово! Создано {success_count}/{total_count} иконок")

@@ -1,6 +1,7 @@
 import csv
+from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -115,8 +116,6 @@ def test_validate_csv_quotes_exception_in_dev(
 
 def test_parse_primary_aliases_schema_empty_row() -> None:
     """Cover line 169: continue when row_values is empty or too short."""
-    from io import StringIO
-
     # CSV with empty row in primary/aliases format
     # Empty row will be parsed as [] by csv.reader, which triggers line 169
     csv_content = "primary,aliases\napple,Apple\n\nbanana,Banana"
@@ -166,7 +165,7 @@ def test_get_aliases_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
 
     calls = {"count": 0}
 
-    def fake_load(_: Path) -> Dict[str, list[str]]:
+    def fake_load(_: Path) -> dict[str, list[str]]:
         calls["count"] += 1
         return {"apple": ["apfel"]}
 

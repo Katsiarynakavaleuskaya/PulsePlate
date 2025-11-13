@@ -220,7 +220,23 @@ class ProductFinder:
 
         Returns:
             True, если названия похожи
+
+        Raises:
+            TypeError: Если name1 или name2 не являются строками
+            ValueError: Если name1 или name2 пустые или содержат только пробелы
         """
+        # Validate input types
+        if not isinstance(name1, str):
+            raise TypeError(f"name1 must be a string, got {type(name1).__name__}")
+        if not isinstance(name2, str):
+            raise TypeError(f"name2 must be a string, got {type(name2).__name__}")
+
+        # Validate input values (not empty or whitespace-only)
+        if not name1 or not name1.strip():
+            raise ValueError("name1 cannot be empty or contain only whitespace")
+        if not name2 or not name2.strip():
+            raise ValueError("name2 cannot be empty or contain only whitespace")
+
         return self._similar_names(name1, name2)
 
     def _normalize_name(self, name: str) -> str:

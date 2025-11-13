@@ -30,7 +30,7 @@ class TestFoodAPIsUpdatePipelineBasic:
         return DatabaseUpdateManager(cache_dir=temp_dir)
 
     def test_update_manager_versions_file_not_exists(self, update_manager):
-        """Test load_versions when versions file doesn't exist (line 146)."""
+        """Test load_versions when versions file doesn't exist."""
         # Ensure versions file doesn't exist
         versions_file = update_manager.versions_file
         if versions_file.exists():
@@ -41,7 +41,7 @@ class TestFoodAPIsUpdatePipelineBasic:
         assert versions == {}
 
     def test_update_manager_versions_file_invalid_json(self, update_manager):
-        """Test load_versions with invalid JSON (lines 159-160)."""
+        """Test load_versions when parsing fails due to invalid JSON."""
         # Create invalid JSON file
         versions_file = update_manager.versions_file
         versions_file.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +55,7 @@ class TestFoodAPIsUpdatePipelineBasic:
             assert "Error loading versions" in str(mock_logger.error.call_args)
 
     def test_update_manager_save_versions_error_mock_path(self, update_manager):
-        """Test save_versions with write error using mock (lines 171-172)."""
+        """Test save_versions when file write operation fails."""
         # Mock open to raise error during write
         with patch("builtins.open", side_effect=OSError("Write error")):
             with patch("core.food_apis.update_manager.logger") as mock_logger:
@@ -65,7 +65,7 @@ class TestFoodAPIsUpdatePipelineBasic:
 
     @pytest.mark.asyncio
     async def test_check_for_updates_usda_error(self, update_manager):
-        """Test check_for_updates with USDA error (lines 194-195)."""
+        """Test check_for_updates when USDA update check raises an exception."""
         # Mock _check_usda_updates to raise exception
         with patch.object(
             update_manager, "_check_usda_updates", side_effect=Exception("USDA API error")
@@ -80,7 +80,7 @@ class TestFoodAPIsUpdatePipelineBasic:
 
     @pytest.mark.asyncio
     async def test_check_for_updates_off_error(self, update_manager):
-        """Test check_for_updates with OFF error (lines 203-204)."""
+        """Test check_for_updates when Open Food Facts update check raises an exception."""
         # Mock OFF_AVAILABLE to True and _check_off_updates to raise exception
         with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
             with patch.object(
@@ -98,7 +98,7 @@ class TestFoodAPIsUpdatePipelineBasic:
 
     @pytest.mark.asyncio
     async def test_check_usda_updates_no_current_version(self, update_manager):
-        """Test _check_usda_updates when no current version exists (line 214)."""
+        """Test _check_usda_updates when no current version exists."""
         # Ensure no current version
         update_manager._load_versions = MagicMock(return_value={})
 
@@ -108,7 +108,7 @@ class TestFoodAPIsUpdatePipelineBasic:
 
     @pytest.mark.asyncio
     async def test_check_off_updates_no_current_version(self, update_manager):
-        """Test _check_off_updates when no current version exists (line 231)."""
+        """Test _check_off_updates when no current version exists."""
         # Ensure no current version
         update_manager._load_versions = MagicMock(return_value={})
 
@@ -167,7 +167,7 @@ class TestFoodAPIsUpdatePipeline:
         return DatabaseUpdateManager(cache_dir=temp_dir)
 
     def test_update_manager_versions_file_not_exists(self, update_manager):
-        """Test load_versions when versions file doesn't exist (line 146)."""
+        """Test load_versions when versions file doesn't exist."""
         # Ensure versions file doesn't exist
         versions_file = update_manager.versions_file
         if versions_file.exists():
@@ -178,7 +178,7 @@ class TestFoodAPIsUpdatePipeline:
         assert versions == {}
 
     def test_update_manager_versions_file_invalid_json(self, update_manager):
-        """Test load_versions with invalid JSON (lines 159-160)."""
+        """Test load_versions when parsing fails due to invalid JSON."""
         # Create invalid JSON file
         versions_file = update_manager.versions_file
         versions_file.parent.mkdir(parents=True, exist_ok=True)
@@ -193,7 +193,7 @@ class TestFoodAPIsUpdatePipeline:
 
     @pytest.mark.asyncio
     async def test_check_for_updates_usda_error(self, update_manager):
-        """Test check_for_updates with USDA error (lines 194-195)."""
+        """Test check_for_updates when USDA update check raises an exception."""
         # Mock _check_usda_updates to raise exception
         with patch.object(
             update_manager, "_check_usda_updates", side_effect=Exception("USDA API error")
@@ -208,7 +208,7 @@ class TestFoodAPIsUpdatePipeline:
 
     @pytest.mark.asyncio
     async def test_check_for_updates_off_error(self, update_manager):
-        """Test check_for_updates with OFF error (lines 203-204)."""
+        """Test check_for_updates when Open Food Facts update check raises an exception."""
         # Mock OFF_AVAILABLE to True and _check_off_updates to raise exception
         with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
             with patch.object(
@@ -226,7 +226,7 @@ class TestFoodAPIsUpdatePipeline:
 
     @pytest.mark.asyncio
     async def test_check_usda_updates_no_current_version(self, update_manager):
-        """Test _check_usda_updates when no current version exists (line 214)."""
+        """Test _check_usda_updates when no current version exists."""
         # Ensure no current version
         update_manager._load_versions = MagicMock(return_value={})
 
@@ -236,7 +236,7 @@ class TestFoodAPIsUpdatePipeline:
 
     @pytest.mark.asyncio
     async def test_check_off_updates_no_current_version(self, update_manager):
-        """Test _check_off_updates when no current version exists (line 231)."""
+        """Test _check_off_updates when no current version exists."""
         # Ensure no current version
         update_manager._load_versions = MagicMock(return_value={})
 
@@ -247,7 +247,7 @@ class TestFoodAPIsUpdatePipeline:
 
     @pytest.mark.asyncio
     async def test_update_database_callback_error(self, update_manager):
-        """Test update_database with callback error (lines 281-282)."""
+        """Test update_database when callback function raises an exception."""
 
         def error_callback(result):
             raise Exception("Callback error")
@@ -274,7 +274,7 @@ class TestFoodAPIsUpdatePipeline:
 
     @pytest.mark.asyncio
     async def test_update_usda_database_no_force_same_checksum(self, update_manager):
-        """Test _update_usda_database with same checksum, no force (line 308)."""
+        """Test _update_usda_database when checksum matches and force is disabled."""
         # Mock current version with same checksum
         current_version = type(
             "Version", (), {"checksum": "same_checksum_123", "timestamp": "2023-01-01T00:00:00Z"}
@@ -302,7 +302,7 @@ class TestFoodAPIsUpdatePipeline:
     )
     @pytest.mark.asyncio
     async def test_update_usda_database_old_data_load_error(self, update_manager):
-        """Test _update_usda_database with old data load error (lines 341-342)."""
+        """Test _update_usda_database when loading old data for comparison fails."""
         # Mock current version
         current_version = type(
             "Version", (), {"checksum": "old_checksum", "timestamp": "2023-01-01T00:00:00Z"}
@@ -330,7 +330,7 @@ class TestFoodAPIsUpdatePipeline:
     )
     @pytest.mark.asyncio
     async def test_update_usda_database_general_error(self, update_manager):
-        """Test _update_usda_database with general error (lines 381-382)."""
+        """Test _update_usda_database when general update error occurs."""
         # Mock USDAClient to raise exception
         with patch(
             "core.food_apis.update_manager.USDAClient",
@@ -350,7 +350,7 @@ class TestFoodAPIsUpdatePipeline:
     )
     @pytest.mark.asyncio
     async def test_update_off_database_error_during_processing(self, update_manager):
-        """Test _update_off_database with processing error (line 430)."""
+        """Test _update_off_database when error occurs during data processing."""
         with patch("core.food_apis.update_manager.OFF_AVAILABLE", True):
             with patch("core.food_apis.update_manager.OFFClient") as mock_off:
                 # Mock OFFClient to return some data
@@ -383,7 +383,7 @@ class TestUnifiedFoodDatabase:
         return UnifiedFoodDatabase(cache_dir=temp_dir)
 
     def test_unified_db_off_not_available(self, temp_dir):
-        """Test UnifiedFoodDatabase when OFF is not available (line 39-40)."""
+        """Test UnifiedFoodDatabase initialization when Open Food Facts is not available."""
         # Mock OFFClient to be None (simulating unavailable OFF)
         with patch("core.food_apis.unified_db.OFFClient", None):
             unified_db = UnifiedFoodDatabase(cache_dir=temp_dir)
@@ -393,7 +393,7 @@ class TestUnifiedFoodDatabase:
     @pytest.mark.skip(reason="Mock doesn't properly prevent exception propagation")
     @pytest.mark.asyncio
     async def test_search_foods_usda_error_fallback(self, unified_db):
-        """Test search_foods with USDA error falling back to cache (line 115-134)."""
+        """Test search_foods when USDA API fails and falls back to cached results."""
         # Mock USDA client to raise exception
         with patch.object(
             unified_db.usda_client, "search_foods", side_effect=Exception("USDA API error")
@@ -413,7 +413,7 @@ class TestUnifiedFoodDatabase:
     @pytest.mark.skip(reason="get_food_by_id method signature issue")
     @pytest.mark.asyncio
     async def test_get_food_by_id_cache_load_error(self, unified_db):
-        """Test get_food_by_id with cache load error (line 190-224)."""
+        """Test get_food_by_id when cache loading fails and falls back to API."""
         # Create invalid cache file
         cache_file = unified_db.cache_dir / "food_cache.json"
         cache_file.parent.mkdir(parents=True, exist_ok=True)

@@ -131,14 +131,11 @@ class TestZeroCoverageModules:
         assert b"Shopping List" in csv_week
 
         # PDF helpers require reportlab; skip gracefully if unavailable.
-        try:
-            day_pdf_bytes = exports_to_pdf_day(meal_plan)
-            week_pdf_bytes = exports_to_pdf_week(weekly_plan)
-        except ImportError:
-            pytest.skip("ReportLab not installed; skipping PDF export checks")
-        else:
-            assert isinstance(day_pdf_bytes, bytes) and len(day_pdf_bytes) > 0
-            assert isinstance(week_pdf_bytes, bytes) and len(week_pdf_bytes) > 0
+        pytest.importorskip("reportlab")
+        day_pdf_bytes = exports_to_pdf_day(meal_plan)
+        week_pdf_bytes = exports_to_pdf_week(weekly_plan)
+        assert isinstance(day_pdf_bytes, bytes) and len(day_pdf_bytes) > 0
+        assert isinstance(week_pdf_bytes, bytes) and len(week_pdf_bytes) > 0
 
     def test_recipe_synth_module(self) -> None:
         """Test core.recipe_synth module via RecipeSynthesizer."""
@@ -227,6 +224,9 @@ class TestZeroCoverageModules:
         simple_to_pdf_week(week, week_pdf)
         assert day_pdf.exists()
         assert week_pdf.exists()
+        # Validate file sizes to ensure PDFs contain content
+        assert day_pdf.stat().st_size > 1024, "Day PDF should be at least 1KB"
+        assert week_pdf.stat().st_size > 1024, "Week PDF should be at least 1KB"
 
     def test_lifestage_nutrition_module(self) -> None:
         """Test core.lifestage_nutrition module recommendations."""

@@ -10,6 +10,9 @@ from faker.providers import BaseProvider
 
 fake = Faker()
 
+# Module-level constant for diagnostic logging
+_DIAGNOSTIC_MSG = "Unexpected exception in tests: test_targets_realistic_coverage.py"
+
 
 class NutritionProvider(BaseProvider):
     """Custom Faker provider for nutrition-related data"""
@@ -88,9 +91,7 @@ class TestTargetsRealisticCoverage:
                         assert isinstance(bmr, (int, float))
                         assert bmr > 0
                     except Exception as e:
-                        logging.exception(
-                            "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                        )
+                        logging.exception(_DIAGNOSTIC_MSG)
                         pass
 
                 # Test formula selection
@@ -98,9 +99,7 @@ class TestTargetsRealisticCoverage:
                     best_formula = get_bmr_formula(user_data)
                     assert best_formula in formulas
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -134,9 +133,7 @@ class TestTargetsRealisticCoverage:
                     assert adjusted >= bmr
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -181,9 +178,7 @@ class TestTargetsRealisticCoverage:
                     assert isinstance(ratios, dict)
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -228,9 +223,7 @@ class TestTargetsRealisticCoverage:
                     assert isinstance(rda, dict)
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -262,9 +255,7 @@ class TestTargetsRealisticCoverage:
                     assert isinstance(deficit_surplus, (int, float))
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -297,9 +288,7 @@ class TestTargetsRealisticCoverage:
                     adjustments = get_elderly_adjustments(**profile)
                     assert isinstance(adjustments, dict)
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
             # Test athlete targets
@@ -319,9 +308,7 @@ class TestTargetsRealisticCoverage:
                     targets = get_athlete_targets(**profile)
                     assert isinstance(targets, dict)
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
             # Test pregnancy targets
@@ -340,9 +327,7 @@ class TestTargetsRealisticCoverage:
                     targets = get_pregnancy_targets(**profile)
                     assert isinstance(targets, dict)
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -374,9 +359,7 @@ class TestTargetsRealisticCoverage:
                     assert isinstance(workout_nutrition, dict)
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -410,9 +393,7 @@ class TestTargetsRealisticCoverage:
                     assert adjusted_hydration >= base_hydration
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:
@@ -446,9 +427,7 @@ class TestTargetsRealisticCoverage:
                     assert isinstance(risk_assessment, dict)
 
                 except Exception as e:
-                    logging.exception(
-                        "Unexpected exception in tests: test_targets_realistic_coverage.py"
-                    )
+                    logging.exception(_DIAGNOSTIC_MSG)
                     pass
 
         except ImportError:

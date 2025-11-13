@@ -8,7 +8,7 @@ These tests cover critical uncovered lines in main.py and exception handler cove
 """
 
 import sys
-from typing import NoReturn
+from typing import Callable, NoReturn, Optional
 from unittest.mock import patch
 
 import httpx
@@ -16,6 +16,33 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app
+from tests.test_utils import FailingProvider, SlowProvider
+
+
+def find_endpoint_dependency(
+    app_instance, endpoint_name: str, dependency_name: str
+) -> Optional[Callable]:
+    """
+    Find a dependency function for a specific endpoint.
+
+    RU: Находит функцию зависимости для конкретного эндпоинта
+    EN: Finds a dependency function for a specific endpoint
+
+    Args:
+        app_instance: FastAPI app instance
+        endpoint_name: Name of the endpoint function (e.g., "insight_v1")
+        dependency_name: Name of the dependency function (e.g., "_get_api_key_dynamic")
+
+    Returns:
+        The dependency callable if found, None otherwise
+    """
+    for route in app_instance.routes:
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is not None and endpoint.__name__ == endpoint_name:
+            for dep in getattr(route, "dependant", object()).dependencies:  # type: ignore[arg-type]
+                if getattr(dep.call, "__name__", "") == dependency_name:
+                    return dep.call
+    return None
 
 
 class TestAppCriticalLines97:
@@ -136,16 +163,7 @@ class TestAppExceptionHandlersCoverage:
         if app.app is None:
             pytest.skip("app.app is None - cannot run integration test")
 
-        dependency = None
-        for route in client.app.routes:
-            endpoint = getattr(route, "endpoint", None)
-            if endpoint is not None and endpoint.__name__ == "insight_v1":
-                for dep in getattr(route, "dependant", object()).dependencies:  # type: ignore[arg-type]
-                    if getattr(dep.call, "__name__", "") == "_get_api_key_dynamic":
-                        dependency = dep.call
-                        break
-            if dependency is not None:
-                break
+        dependency = find_endpoint_dependency(client.app, "insight_v1", "_get_api_key_dynamic")
         if dependency is None:
             dependency = app._get_api_key_dynamic
 
@@ -165,12 +183,6 @@ class TestAppExceptionHandlersCoverage:
     def test_connection_error_handler(self, client: TestClient) -> None:
         """Test connection error handler coverage."""
 
-        class FailingProvider:
-            name = "test"
-
-            async def generate(self, _: str) -> str:  # pragma: no cover - invoked in test
-                raise httpx.ConnectError("Connection failed")
-
         with patch("llm.get_provider", return_value=FailingProvider()):
             response = client.post(
                 "/api/v1/insight",
@@ -181,12 +193,6 @@ class TestAppExceptionHandlersCoverage:
 
     def test_timeout_error_handler(self, client: TestClient) -> None:
         """Test timeout error handler coverage."""
-
-        class SlowProvider:
-            name = "test"
-
-            async def generate(self, _: str) -> str:  # pragma: no cover - invoked in test
-                raise httpx.ReadTimeout("Request timeout")
 
         with patch("llm.get_provider", return_value=SlowProvider()):
             response = client.post(

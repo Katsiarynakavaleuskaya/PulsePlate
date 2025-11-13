@@ -135,17 +135,9 @@ class TestSetupCustomMcpCoverage:
             assert settings["cursor.ai.enabled"] is True
             assert settings["mcp.enabled"] is True
 
-    def test_mcp_configuration_structure(self):
+    def test_mcp_configuration_structure(self, mcp_setup_mocks: McpMocks):
         """Test MCP configuration structure"""
-        with patch("pathlib.Path.home") as mock_home:
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.open", mock_open()):
-                    with patch("json.dump") as mock_json_dump:
-                        with patch("builtins.print"):
-                            mock_home.return_value = Path("/fake/home")
-
-                            with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                self._assert_mcp_server_config_is_valid(mock_json_dump)
+        self._assert_mcp_server_config_is_valid(mcp_setup_mocks.mock_json_dump)
 
     def _assert_mcp_server_config_is_valid(self, mock_json_dump: MagicMock) -> None:
         mcp_call = self._extract_json_config_containing_key(mock_json_dump, "mcpServers")
@@ -158,19 +150,16 @@ class TestSetupCustomMcpCoverage:
         assert "env" in server_config
         assert "OPENAI_API_KEY" in server_config["env"]
 
-    def test_cursor_settings_structure(self):
+    def test_cursor_settings_structure(self, mcp_setup_mocks: McpMocks):
         """Test Cursor settings structure"""
-        with patch("pathlib.Path.home") as mock_home:
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.open", mock_open()):
-                    with patch("json.dump") as mock_json_dump:
-                        with patch("builtins.print"):
-                            mock_home.return_value = Path("/fake/home")
+        # Configure mocks from fixture (already set by fixture, but ensure consistency)
+        mcp_setup_mocks.mock_home.return_value = Path("/fake/home")
+        mcp_setup_mocks.mock_cwd.return_value = Path("/fake/cwd")
 
-                            with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                self._assert_cursor_settings_are_valid(mock_json_dump)
+        self._assert_cursor_settings_are_valid(mcp_setup_mocks.mock_json_dump)
 
     def _assert_cursor_settings_are_valid(self, mock_json_dump: MagicMock) -> None:
+        """Verify cursor.ai and mcp JSON config keys/values are correctly set."""
         settings_call = self._extract_json_config_containing_key(
             mock_json_dump, "cursor.ai.enabled"
         )
@@ -210,20 +199,12 @@ class TestSetupCustomMcpCoverage:
             # Re-raise to ensure we catch unexpected issues
             raise
 
-    def test_file_creation_sequence(self) -> None:
+    def test_file_creation_sequence(self, mcp_setup_mocks: McpMocks) -> None:
         """Test that files are created in the correct sequence"""
-        with patch("pathlib.Path.home") as mock_home:
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.open", mock_open()) as mock_file:
-                    with patch("json.dump"):
-                        with patch("builtins.print"):
-                            mock_home.return_value = Path("/fake/home")
+        setup_custom_mcp.setup_custom_mcp(argv=[])
 
-                            with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                setup_custom_mcp.setup_custom_mcp(argv=[])
-
-                                # Verify that open was called multiple times
-                                assert mock_file.call_count >= 3
+        # Verify that open was called multiple times
+        assert mcp_setup_mocks.mock_file.call_count >= 3
 
     def test_error_handling(self) -> None:
         """Test error handling scenarios"""
@@ -237,44 +218,27 @@ class TestSetupCustomMcpCoverage:
                         with pytest.raises(OSError):
                             setup_custom_mcp.setup_custom_mcp(argv=[])
 
-    def test_path_operations(self) -> None:
+    def test_path_operations(self, mcp_setup_mocks: McpMocks) -> None:
         """Test path operations"""
-        with patch("pathlib.Path.home") as mock_home:
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.open", mock_open()):
-                    with patch("json.dump"):
-                        with patch("builtins.print"):
-                            with patch("pathlib.Path.cwd") as mock_cwd:
-                                mock_home.return_value = Path("/fake/home")
-                                mock_cwd.return_value = Path("/fake/cwd")
+        setup_custom_mcp.setup_custom_mcp(argv=[])
 
-                                setup_custom_mcp.setup_custom_mcp(argv=[])
+        # Verify home directory was accessed
+        mcp_setup_mocks.mock_home.assert_called_once()
 
-                                # Verify home directory was accessed
-                                mock_home.assert_called_once()
+        # Verify current working directory was accessed
+        mcp_setup_mocks.mock_cwd.assert_called_once()
 
-                                # Verify current working directory was accessed
-                                mock_cwd.assert_called_once()
-
-    def test_json_serialization(self) -> None:
+    def test_json_serialization(self, mcp_setup_mocks: McpMocks) -> None:
         """Test JSON serialization of configurations"""
-        with patch("pathlib.Path.home") as mock_home:
-            with patch("pathlib.Path.mkdir"):
-                with patch("builtins.open", mock_open()):
-                    with patch("json.dump") as mock_json_dump:
-                        with patch("builtins.print"):
-                            mock_home.return_value = Path("/fake/home")
+        setup_custom_mcp.setup_custom_mcp(argv=[])
 
-                            with patch("pathlib.Path.cwd", return_value=Path("/fake/cwd")):
-                                setup_custom_mcp.setup_custom_mcp(argv=[])
+        # Verify json.dump was called with proper arguments
+        assert mcp_setup_mocks.mock_json_dump.call_count >= 2
 
-                                # Verify json.dump was called with proper arguments
-                                assert mock_json_dump.call_count >= 2
-
-                                # Check that indent=2 was used for pretty printing
-                                indent_calls = [
-                                    call
-                                    for call in mock_json_dump.call_args_list
-                                    if len(call[1]) > 0 and "indent" in call[1]
-                                ]
-                                assert any(call[1]["indent"] == 2 for call in indent_calls)
+        # Check that indent=2 was used for pretty printing
+        indent_calls = [
+            call
+            for call in mcp_setup_mocks.mock_json_dump.call_args_list
+            if len(call[1]) > 0 and "indent" in call[1]
+        ]
+        assert any(call[1]["indent"] == 2 for call in indent_calls)

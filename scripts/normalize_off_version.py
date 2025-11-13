@@ -227,7 +227,7 @@ def set_version(v: str) -> None:
         meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
         _atomic_write_json(VERS, meta)
     else:
-        meta = json.loads(VERS.read_text(encoding="utf-8"))
+        meta: dict[str, Any] = json.loads(VERS.read_text(encoding="utf-8"))
         # Defensively validate meta: ensure it's a dict
         if not isinstance(meta, dict):
             logger.warning(f"{VERS} contains non-dict data, replacing with default structure")

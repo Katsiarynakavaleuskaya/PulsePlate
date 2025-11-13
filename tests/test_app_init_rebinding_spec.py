@@ -147,8 +147,8 @@ class TestRebindingModuleSpec:
         import importlib.machinery
 
         test_spec = importlib.util.spec_from_loader("test_module", loader=None)
-        # spec_from_loader returns None when loader is None, or a ModuleSpec instance
-        assert test_spec is None or isinstance(test_spec, importlib.machinery.ModuleSpec)
+        # spec_from_loader returns None when loader is None (documented behavior)
+        assert test_spec is None
 
         # Verify app's spec was created successfully
         assert hasattr(app, "__spec__")
