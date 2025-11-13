@@ -14,6 +14,7 @@ import asyncio
 import logging
 import signal
 from datetime import datetime, timedelta
+from types import FrameType
 from typing import Any, Dict, Optional
 
 from ..time_utils import now_utc
@@ -40,7 +41,7 @@ class DatabaseUpdateScheduler:
         update_interval_hours: int = 24,
         retry_interval_minutes: int = 30,
         max_retries: int = 3,
-    ):
+    ) -> None:
         self.update_interval = timedelta(hours=update_interval_hours)
         self.retry_interval = timedelta(minutes=retry_interval_minutes)
         self.max_retries = max_retries
@@ -61,10 +62,10 @@ class DatabaseUpdateScheduler:
         # Setup graceful shutdown
         self._setup_signal_handlers()
 
-    def _setup_signal_handlers(self):
+    def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             asyncio.create_task(self.stop())
 
@@ -75,7 +76,7 @@ class DatabaseUpdateScheduler:
         except Exception as e:
             logger.warning(f"Could not setup signal handlers: {e}")
 
-    async def start(self):
+    async def start(self) -> None:
         """
         RU: Запускает планировщик обновлений.
         EN: Start the update scheduler.
@@ -92,7 +93,7 @@ class DatabaseUpdateScheduler:
 
         logger.info(f"Update scheduler started (interval: {self.update_interval})")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """
         RU: Останавливает планировщик обновлений.
         EN: Stop the update scheduler.
@@ -116,7 +117,7 @@ class DatabaseUpdateScheduler:
 
         logger.info("Database update scheduler stopped")
 
-    async def _update_loop(self):
+    async def _update_loop(self) -> None:
         """Main update loop running in background."""
         while self.is_running:
             try:
@@ -146,7 +147,7 @@ class DatabaseUpdateScheduler:
         time_since_last_check = current_time - self.last_update_check
         return time_since_last_check >= self.update_interval
 
-    async def _run_update_check(self):
+    async def _run_update_check(self) -> None:
         """Check for and run any available updates."""
         try:
             logger.info("Checking for database updates...")
@@ -166,7 +167,7 @@ class DatabaseUpdateScheduler:
         except Exception as e:
             logger.error(f"Error during update check: {e}")
 
-    async def _run_source_update(self, source: str):
+    async def _run_source_update(self, source: str) -> None:
         """Run update for a specific source with retry logic."""
         retry_count = self.retry_counts.get(source, 0)
 
@@ -191,7 +192,7 @@ class DatabaseUpdateScheduler:
             # Handle exception
             self._handle_update_failure(source, [str(e)])
 
-    def _handle_update_failure(self, source: str, errors: list):
+    def _handle_update_failure(self, source: str, errors: list[str]) -> None:
         """Handle update failure with retry logic."""
         self.retry_counts[source] = self.retry_counts.get(source, 0) + 1
 
@@ -205,7 +206,7 @@ class DatabaseUpdateScheduler:
                 f"Will retry. Errors: {errors}"
             )
 
-    def _on_update_complete(self, result: UpdateResult):
+    def _on_update_complete(self, result: UpdateResult) -> None:
         """Callback for when an update completes."""
         if result.success:
             logger.info(
@@ -279,7 +280,7 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
     return _scheduler_instance
 
 
-async def start_background_updates(update_interval_hours: int = 24):
+async def start_background_updates(update_interval_hours: int = 24) -> None:
     """
     RU: Запускает фоновые обновления баз данных.
     EN: Start background database updates.
@@ -290,7 +291,7 @@ async def start_background_updates(update_interval_hours: int = 24):
         logger.info(f"Background database updates started (every {update_interval_hours}h)")
 
 
-async def stop_background_updates():
+async def stop_background_updates() -> None:
     """
     RU: Останавливает фоновые обновления баз данных.
     EN: Stop background database updates.
@@ -302,7 +303,7 @@ async def stop_background_updates():
 
 if __name__ == "__main__":  # pragma: no cover
     # Test the scheduler
-    async def test_scheduler():
+    async def test_scheduler() -> None:
         scheduler = DatabaseUpdateScheduler(
             update_interval_hours=1
         )  # 1 hour for testing (minimum int value)

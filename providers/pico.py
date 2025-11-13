@@ -16,7 +16,7 @@ class PicoProvider(ProviderBase):
         endpoint: str | None = None,
         model: str | None = None,
         api_key: str | None = None,
-    ):
+    ) -> None:
         # Pico заявляет совместимость с Ollama REST; по умолчанию тот же порт
         self.endpoint = endpoint or os.getenv(
             "PICO_ENDPOINT", os.getenv("OLLAMA_ENDPOINT", "http://localhost:11434")

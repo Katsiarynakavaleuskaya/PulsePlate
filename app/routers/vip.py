@@ -356,7 +356,7 @@ def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -
     return _require_api_key(raw_key)
 
 
-def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
+def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
     """Create UserProfile from dictionary data with validation."""
     # Use default values for missing fields instead of validation
     # Convert diet_flags to set if it's a list
@@ -413,7 +413,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     )
 
 
-def _adapter_make_weekly_menu(*args, **kwargs):
+def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
     """Adapter for make_weekly_menu to handle dict input."""
     try:
         from core.menu_engine import make_weekly_menu
@@ -455,7 +455,7 @@ def _adapter_make_weekly_menu(*args, **kwargs):
         return make_weekly_menu(*args, **kwargs)
 
 
-def _adapter_synthesize_recipes_for_week(*args, **kwargs):
+def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> object | None:
     """Adapter for synthesize_recipes_for_week - already has correct signature."""
     try:
         from core.recipe_synth import synthesize_recipes_for_week
@@ -466,7 +466,7 @@ def _adapter_synthesize_recipes_for_week(*args, **kwargs):
     return synthesize_recipes_for_week(*args, **kwargs)
 
 
-def _safe_call_with_adapter(func_name: str, *args, **kwargs):
+def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:
     """Call function with proper adapter and explicit error handling."""
     import logging
 
@@ -1134,7 +1134,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
 
         # Helper function for recipe serialization
 
-        def serialize_recipe(recipe):
+        def serialize_recipe(recipe: object) -> dict[str, object] | str:
             """Serialize a recipe for JSON response.
 
             Returns:

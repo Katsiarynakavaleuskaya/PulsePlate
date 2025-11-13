@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import Any, Mapping
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
@@ -57,7 +57,7 @@ class NutritionData(BaseModel):
 
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g", mode="before")
     @classmethod
-    def sanitize_numeric(cls, value: Any) -> int:
+    def sanitize_numeric(cls, value: NumericLike) -> int:
         """Sanitize numeric values: handle None, NaN, inf, and coerce to int.
 
         RU: Санитизация числовых значений: обработка None, NaN, inf, приведение к int.
@@ -214,7 +214,7 @@ class MealData(BaseModel):
 
     @field_validator("title", mode="before")
     @classmethod
-    def sanitize_title(cls, value: Any) -> str:
+    def sanitize_title(cls, value: object) -> str:
         """Ensure title is a non-empty string.
 
         RU: Убедиться, что заголовок — непустая строка.
@@ -226,7 +226,7 @@ class MealData(BaseModel):
 
     @field_validator("macros", mode="before")
     @classmethod
-    def sanitize_macros(cls, value: Any) -> dict[str, int]:
+    def sanitize_macros(cls, value: Mapping[str, Any] | object) -> dict[str, int]:
         """Sanitize macros dictionary.
 
         RU: Санитизировать словарь макросов.
@@ -352,3 +352,6 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
             "layout": [],
             "meals_per_day": 3,
         }
+
+
+NumericLike = int | float | str | None

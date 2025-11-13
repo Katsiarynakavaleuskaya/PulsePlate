@@ -113,7 +113,7 @@ class ProductVarietiesManager:
     EN: Manager for working with different product varieties.
     """
 
-    def __init__(self, csv_path: str = "external/detailed_products_varieties.csv"):
+    def __init__(self, csv_path: str = "external/detailed_products_varieties.csv") -> None:
         """
         RU: Инициализировать менеджер сортов продуктов.
         EN: Initialize product varieties manager.

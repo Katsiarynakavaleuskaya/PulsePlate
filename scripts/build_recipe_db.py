@@ -32,7 +32,7 @@ KEYS = [
 ]
 
 
-def _connect_food():
+def _connect_food() -> sqlite3.Connection:
     con = sqlite3.connect(FOOD_DB)
     con.row_factory = sqlite3.Row
     return con

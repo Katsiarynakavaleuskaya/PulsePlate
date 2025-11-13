@@ -120,7 +120,7 @@ def get_router() -> APIRouter:
     router = APIRouter()
 
     @router.post("/bodyfat")
-    def calc_bodyfat(req: BodyFatRequest):
+    def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
         lang = (req.language or "en").lower()
         # Use Pydantic v2 API to avoid deprecation warning
         data = req.model_dump(exclude_none=True)

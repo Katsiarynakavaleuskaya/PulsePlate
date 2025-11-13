@@ -61,7 +61,7 @@ class RepairIteration:
 class AutoRepairEngine:
     """Движок авто-ремонта с UX-петлей"""
 
-    def __init__(self, max_iterations: int = 3):
+    def __init__(self, max_iterations: int = 3) -> None:
         self.max_iterations = max_iterations
         self.repair_history: List[RepairIteration] = []
 

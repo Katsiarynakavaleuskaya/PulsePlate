@@ -124,7 +124,7 @@ def estimate_targets_minimal(
 
 
 @router.post("/plan/week-flexible", response_model=WeekPlanResponse)
-async def generate_week_plan(req: WeekPlanRequest):
+async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     # 0) Загрузка БД (можно держать как синглтоны)
     fooddb = FoodDB("data/food_db_new.csv")
     recipedb = RecipeDB("data/recipes_new.csv", fooddb)

@@ -25,7 +25,7 @@ import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Generator, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy import exc as sa_exc
@@ -33,7 +33,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
-    from sqlalchemy.engine import Connection, Result
+    from sqlalchemy.engine import Connection, Engine, Result
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
     from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
@@ -187,14 +187,14 @@ class _ResultWithConnectionCleanup:
                 logger.debug("Connection close failed (likely already closed): %s", close_err)
             self._connection_closed = True
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         """Delegate all attribute access to the wrapped result."""
         attr = getattr(self._result, name)
         # If result is being closed, also close connection
         if name == "close" and callable(attr):
             original_close = attr
 
-            def close_with_connection(*args: Any, **kwargs: Any) -> Any:
+            def close_with_connection(*args: object, **kwargs: object) -> object:
                 try:
                     result = original_close(*args, **kwargs)
                 finally:
@@ -213,16 +213,16 @@ class EngineCompat:
     EN: Adds an ``execute`` method that proxies to a Connection in SQLAlchemy 2.x.
     """
 
-    def __init__(self, engine: Any) -> None:
+    def __init__(self, engine: "Engine") -> None:
         """Wrap a SQLAlchemy Engine to expose a legacy-like execute method."""
         self._engine = engine
 
     # Delegate unknown attributes to the underlying Engine
-    def __getattr__(self, name: str) -> Any:
+    def __getattr__(self, name: str) -> object:
         """Delegate attribute access to the underlying engine instance."""
         return getattr(self._engine, name)
 
-    def _is_in_transaction(self, conn: Any) -> bool:
+    def _is_in_transaction(self, conn: "Connection") -> bool:
         """Return True if the connection is in a transaction.
 
         RU: Определяет, активна ли транзакция для соединения, с безопасными
@@ -241,7 +241,7 @@ class EngineCompat:
                 return False
         return False
 
-    def _safe_rollback(self, conn: Any) -> None:
+    def _safe_rollback(self, conn: "Connection") -> None:
         """Attempt a rollback if supported; log failures at debug level.
 
         RU: Безопасно выполняет rollback, при ошибке логирует на уровне DEBUG.
@@ -255,7 +255,7 @@ class EngineCompat:
             except Exception as rollback_err:  # pragma: no cover - defensive log
                 logger.debug("Rollback after commit failure also failed: %s", rollback_err)
 
-    def _finalize_transaction(self, conn: Any) -> None:
+    def _finalize_transaction(self, conn: "Connection") -> None:
         """Finalize transaction by committing if active, with error handling.
 
         RU: Завершает транзакцию коммитом при необходимости, с обработкой ошибок.
@@ -297,7 +297,12 @@ class EngineCompat:
             # Re-raise unexpected errors to ensure callers are aware
             raise
 
-    def execute(self, statement: Any, *args: Any, **kwargs: Any) -> _ResultWithConnectionCleanup:
+    def execute(
+        self,
+        statement: object,
+        *args: object,
+        **kwargs: object,
+    ) -> _ResultWithConnectionCleanup:
         """Execute a statement using a temporary connection.
 
         - Accepts both SQL strings and SQLAlchemy expressions.
@@ -469,11 +474,11 @@ def init_db() -> None:
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
     class _CreateAllWrapper:
-        def __init__(self, fn):
+        def __init__(self, fn: Callable[..., object]) -> None:
             self._fn = fn
             self._called = False
 
-        def __call__(self, *args, **kwargs):
+        def __call__(self, *args: object, **kwargs: object) -> object:
             self._called = True
             return self._fn(*args, **kwargs)
 

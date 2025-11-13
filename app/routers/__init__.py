@@ -16,7 +16,9 @@ __all__ = [
 ]
 
 
-def __getattr__(name: str):  # lazy import submodules to avoid side-effects at package import
+def __getattr__(
+    name: str,
+) -> object:  # lazy import submodules to avoid side-effects at package import
     if name in __all__:
         from importlib import import_module
 

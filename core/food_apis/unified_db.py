@@ -116,7 +116,7 @@ class UnifiedFoodDatabase:
     EN: Unified food database with caching and multiple source support.
     """
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: Optional[str] = None) -> None:
         self.usda_client = USDAClient()
         # Resolve OFF client at runtime (allows tests to patch resolution)
         # Treat OFFClient==None as unavailable without mutating module-level flags
@@ -146,7 +146,7 @@ class UnifiedFoodDatabase:
         """Get path to cache file."""
         return self.cache_dir / "unified_food_cache.json"
 
-    def _load_cache(self):
+    def _load_cache(self) -> None:
         """Load cached food items from disk."""
         cache_file = self._get_cache_file()
         if cache_file.exists():
@@ -161,7 +161,7 @@ class UnifiedFoodDatabase:
             except Exception as e:
                 logger.error(f"Error loading cache: {e}")
 
-    def _save_cache(self):
+    def _save_cache(self) -> None:
         """Save cached food items to disk."""
         try:
             # Optional throttle via env (milliseconds)
@@ -349,7 +349,7 @@ class UnifiedFoodDatabase:
 
         return foods_db
 
-    async def close(self):
+    async def close(self) -> None:
         """Close all API clients."""
         await self.usda_client.close()
         if self.off_client:
@@ -386,7 +386,7 @@ async def search_foods_unified(query: str, max_results: int = 5) -> List[Dict[st
 
 if __name__ == "__main__":  # pragma: no cover
     # Test the unified database
-    async def test_unified_db():
+    async def test_unified_db() -> None:
         db = UnifiedFoodDatabase()
 
         try:

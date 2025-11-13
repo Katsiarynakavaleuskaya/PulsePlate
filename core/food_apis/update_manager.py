@@ -26,6 +26,7 @@ from typing import (
     Callable,
     ClassVar,
     Dict,
+    Iterable,
     List,
     Optional,
     Sequence,
@@ -57,17 +58,17 @@ class _PatchablePathWrapper:
     the underlying Path instance while remaining patch-friendly.
     """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         self._path = path
 
     # Commonly used methods/ops
-    def glob(self, pattern: str):
+    def glob(self, pattern: str) -> Iterable[Path]:
         return self._path.glob(pattern)
 
-    def __truediv__(self, other):  # support: wrapper / "filename"
+    def __truediv__(self, other: str | Path) -> Path:  # support: wrapper / "filename"
         return self._path / other
 
-    def __fspath__(self):  # support os.fspath
+    def __fspath__(self) -> str:  # support os.fspath
         return self._path.__fspath__()
 
     def __str__(self) -> str:
@@ -76,7 +77,7 @@ class _PatchablePathWrapper:
     def __repr__(self) -> str:
         return f"_PatchablePathWrapper({self._path!r})"
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> object:
         # Delegate any other attribute access to the underlying Path
         return getattr(self._path, name)
 
@@ -158,7 +159,7 @@ class DatabaseUpdateManager:
         cache_dir: str | Path = "cache/food_db",
         update_interval_hours: int = 24,
         max_rollback_versions: int = 5,
-    ):
+    ) -> None:
         real_cache_path = Path(cache_dir)
         real_cache_path.mkdir(parents=True, exist_ok=True)
         # Wrap with a patch-friendly wrapper so tests can monkeypatch methods like .glob
@@ -197,7 +198,7 @@ class DatabaseUpdateManager:
             logger.error("Error loading versions: %s", e)
             return {}
 
-    def _save_versions(self):
+    def _save_versions(self) -> None:
         """Save database version information."""
         try:
             data = {source: asdict(version) for source, version in self.versions.items()}
@@ -795,7 +796,7 @@ class DatabaseUpdateManager:
 
         return errors
 
-    async def _create_backup(self, source: str, version: str):
+    async def _create_backup(self, source: str, version: str) -> None:
         """Create backup of current database version."""
         try:
             current_data = await self.unified_db.get_common_foods_database()
@@ -860,7 +861,7 @@ class DatabaseUpdateManager:
 
         return foods
 
-    def _food_to_dict(self, food: Any) -> Dict[str, Any]:
+    def _food_to_dict(self, food: object) -> Dict[str, Any]:
         """Safely convert a food item to a serializable dict.
 
         - If dataclass: use asdict
@@ -909,7 +910,7 @@ class DatabaseUpdateManager:
             "source_id": getattr(food, "source_id", "unknown"),
         }
 
-    async def _cleanup_old_backups(self, source: str):
+    async def _cleanup_old_backups(self, source: str) -> None:
         """Remove old backup files beyond the retention limit."""
         try:
             backup_pattern = f"{source}_backup_*.json"
@@ -975,7 +976,7 @@ class DatabaseUpdateManager:
 
         return False
 
-    def add_update_callback(self, callback: Callable[[UpdateResult], None]):
+    def add_update_callback(self, callback: Callable[[UpdateResult], None]) -> None:
         """
         RU: Добавляет callback для уведомлений об обновлениях.
         EN: Add callback for update notifications.
@@ -1004,7 +1005,7 @@ class DatabaseUpdateManager:
 
         return status
 
-    async def close(self):
+    async def close(self) -> None:
         """Close all connections."""
         await self.usda_client.close()
         if self.off_client and OFF_AVAILABLE:
@@ -1036,7 +1037,7 @@ async def run_scheduled_update(
 
 if __name__ == "__main__":  # pragma: no cover
     # Test the update manager
-    async def test_update_manager():
+    async def test_update_manager() -> None:
         manager = DatabaseUpdateManager(update_interval_hours=1)  # Short interval for testing
 
         try:

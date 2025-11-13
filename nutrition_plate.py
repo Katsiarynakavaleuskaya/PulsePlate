@@ -5,7 +5,7 @@ This module provides plate composition logic for the Premium Plate feature,
 generating macro-balanced meal recommendations based on TDEE calculations.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -21,12 +21,12 @@ class MacroDistribution(BaseModel):
 
     @field_validator("protein_percent", "carbs_percent", "fat_percent")
     @classmethod
-    def validate_percentages(cls, v):
+    def validate_percentages(cls, v: float) -> float:
         if not 0 <= v <= 100:
             raise ValueError("Percentages must be between 0 and 100")
         return v
 
-    def model_post_init(self, __context) -> None:
+    def model_post_init(self, __context: Mapping[str, object] | None) -> None:
         """Validate that percentages sum to 100."""
         total = self.protein_percent + self.carbs_percent + self.fat_percent
         if abs(total - 100) > 0.1:  # Allow small floating point differences

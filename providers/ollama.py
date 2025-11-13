@@ -24,7 +24,7 @@ class OllamaProvider(ProviderBase):
         endpoint: str = "http://localhost:11434",
         model: str = "llama3.1:8b",
         timeout_s: float | None = None,
-    ):
+    ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         # Короткий таймаут; можно переопределить через OLLAMA_TIMEOUT

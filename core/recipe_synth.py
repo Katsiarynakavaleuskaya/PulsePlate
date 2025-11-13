@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 # RU: Константы для масштабирования ингредиентов, чтобы избежать «магических» чисел.
 # EN: Constants for ingredient scaling to avoid magic numbers.
@@ -91,7 +91,7 @@ class RecipeModel(BaseModel):
 
     @field_validator("total_time_minutes")
     @classmethod
-    def validate_total_time(cls, v: int, info) -> int:
+    def validate_total_time(cls, v: int, info: ValidationInfo) -> int:
         """Ensure total_time >= prep_time + cook_time."""
         prep: int = int(info.data.get("prep_time_minutes", 0))
         cook: int = int(info.data.get("cook_time_minutes", 0))
@@ -150,12 +150,12 @@ class RecipeTemplate:
 class RecipeSynthesizer:
     """Синтезатор рецептов"""
 
-    def __init__(self, templates_dir: str = "data/recipe_templates"):
+    def __init__(self, templates_dir: str = "data/recipe_templates") -> None:
         self.templates_dir = Path(templates_dir)
         self.templates: Dict[str, RecipeTemplate] = {}
         self._load_templates()
 
-    def _load_templates(self):
+    def _load_templates(self) -> None:
         """Загружает шаблоны рецептов"""
         if not self.templates_dir.exists():
             self._create_default_templates()
@@ -178,7 +178,7 @@ class RecipeSynthesizer:
             except Exception as e:
                 print(f"Error loading template {template_file}: {e}")
 
-    def _create_default_templates(self):
+    def _create_default_templates(self) -> None:
         """Создает шаблоны рецептов по умолчанию"""
         default_template_dicts = [
             {

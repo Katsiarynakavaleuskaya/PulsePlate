@@ -16,7 +16,7 @@ import openai
 class PulsePlateMCPServer:
     """MCP Server for PulsePlate project with ChatGPT integration"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import sys
 import types
-from typing import Any, Iterable, Optional
+from typing import Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def get_activity_factor(activity: str) -> float:
     return mapping.get(str(activity), 1.55)
 
 
-def _resolve_module_candidate(candidate: Any) -> Optional[Any]:
+def _resolve_module_candidate(candidate: object) -> object | None:
     """Resolve a candidate to a module/object, handling string names and None values.
 
     Safely converts string module names to actual module objects from sys.modules.
@@ -64,7 +64,7 @@ def _resolve_module_candidate(candidate: Any) -> Optional[Any]:
     return candidate
 
 
-def _is_mock_like(module: Any) -> bool:
+def _is_mock_like(module: object) -> bool:
     """Check if a module/object appears to be a unittest.mock object.
 
     Uses safe attribute access to avoid triggering mock auto-creation.
@@ -89,7 +89,7 @@ def _is_mock_like(module: Any) -> bool:
         return False
 
 
-def _get_attr_from_module(module: Any, name: str) -> tuple[bool, Any]:
+def _get_attr_from_module(module: object, name: str) -> tuple[bool, object | None]:
     """Get attribute from module/object, preferring explicit __dict__ entries.
 
     Prefers explicit attributes in __dict__ to avoid Mock auto-created attributes.
@@ -119,7 +119,11 @@ def _get_attr_from_module(module: Any, name: str) -> tuple[bool, Any]:
     return (False, None)
 
 
-def resolve_attr(name: str, local_default: Any, candidates: Optional[Iterable[Any]] = None) -> Any:
+def resolve_attr(
+    name: str,
+    local_default: object,
+    candidates: Optional[Iterable[object]] = None,
+) -> object:
     """Resolve attribute by searching candidate modules before falling back.
 
     Args:

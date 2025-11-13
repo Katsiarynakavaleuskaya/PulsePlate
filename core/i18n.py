@@ -331,7 +331,7 @@ LANG_ALIASES: dict[str, Lang] = {
 }
 
 
-def t(lang: Language, key: str, **kwargs: Any) -> str:
+def t(lang: Language, key: str, **kwargs: object) -> str:
     """
     Translate a key to the specified language.
 

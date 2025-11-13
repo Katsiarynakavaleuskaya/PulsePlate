@@ -104,8 +104,9 @@ class USDAClient:
         None,
         Sequence[Union[str, int, float, bool, None]],
     ]
+    FdcIdInput = int | str | None
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize USDA client.
 
@@ -249,7 +250,7 @@ class USDAClient:
             logger.error(f"Error getting multiple USDA foods: {e}")
             return []
 
-    def _validate_fdc_id(self, fdc_id_raw: Any) -> Optional[int]:
+    def _validate_fdc_id(self, fdc_id_raw: FdcIdInput) -> Optional[int]:
         """
         RU: Валидирует и нормализует FDC ID.
         EN: Validates and normalizes FDC ID.
@@ -335,7 +336,7 @@ class USDAClient:
             logger.error(f"Error parsing USDA food item: {e}")
             return None
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         await self.client.aclose()
 
@@ -396,7 +397,7 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
 
 if __name__ == "__main__":  # pragma: no cover
     # Test the USDA client
-    async def test_usda_client():
+    async def test_usda_client() -> None:
         client = USDAClient()
 
         try:

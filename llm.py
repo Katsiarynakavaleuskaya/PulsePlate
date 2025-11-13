@@ -88,7 +88,7 @@ class StubProvider(ProviderBase):
         return f"[stub @ {dt}] Insight: {text}"
 
 
-def get_provider():
+def get_provider() -> ProviderBase | None:
     """Возвращает провайдер по переменной окружения LLM_PROVIDER.
 
     Если переменная пустая/неизвестная — возвращает None

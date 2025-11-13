@@ -42,7 +42,7 @@ except ImportError:
     REPORTLAB_AVAILABLE = False
 
 
-def _import_reportlab_modules():
+def _import_reportlab_modules() -> dict[str, object]:
     """Return reportlab modules, importing them if necessary."""
     if not REPORTLAB_AVAILABLE:
         raise ImportError(

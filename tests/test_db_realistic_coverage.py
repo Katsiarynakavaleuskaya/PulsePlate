@@ -49,8 +49,8 @@ class TestDbRealisticCoverage:
 
             # Test with realistic but problematic SQL
             problematic_queries = [
-                f"INSERT INTO users VALUES ('{fake.name()}', '{fake.email()}')",
-                f"SELECT * FROM nonexistent_table WHERE id = {fake.random_int()}",
+                f"INSERT INTO users VALUES ('{fake.name()}', '{fake.email()}')",  # nosec B608 - test code, no user input
+                f"SELECT * FROM nonexistent_table WHERE id = {fake.random_int()}",  # nosec B608 - test code, no user input
                 f"INVALID SQL SYNTAX {fake.sentence()}",
                 "",
                 None,
@@ -171,7 +171,10 @@ class TestDbRealisticCoverage:
             # Test backup to various locations
             backup_paths = [
                 fake.file_path(extension="bak"),
-                "/tmp/" + fake.file_name(extension="backup"),
+                "/tmp/"
+                + fake.file_name(
+                    extension="backup"
+                ),  # nosec B108 - test code, temporary directory for test isolation
                 f"{fake.file_name()}.sql",
             ]
 

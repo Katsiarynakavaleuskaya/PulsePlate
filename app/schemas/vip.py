@@ -7,7 +7,7 @@ EN: Schemas for VIP features - micronutrient goals, auto-repair, regional settin
 """
 
 from enum import Enum
-from typing import List, Literal, Optional, Set
+from typing import List, Literal, Optional, Set, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -208,7 +208,7 @@ class WeeklyPlanRequest(BaseModel):
     constraints: dict = Field(default_factory=dict, description="Dietary constraints")
 
     @model_validator(mode="after")
-    def validate_required_fields(self):
+    def validate_required_fields(self) -> Self:
         """Validate that either all core fields are present OR at least one alternative field is provided."""
         # Core required fields
         core_fields = ["sex", "age", "height_cm", "weight_kg", "activity", "goal"]

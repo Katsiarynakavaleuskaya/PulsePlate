@@ -11,14 +11,14 @@ import sys
 from pathlib import Path
 
 
-def check_python_version():
+def check_python_version() -> bool:
     """Проверить версию Python"""
     print(f"🐍 Python версия: {sys.version}")
     print(f"🐍 Python путь: {sys.executable}")
     return True
 
 
-def check_imports():
+def check_imports() -> bool:
     """Проверить основные импорты"""
     try:
         import fastapi
@@ -47,7 +47,7 @@ def check_imports():
     return True
 
 
-def check_project_structure():
+def check_project_structure() -> bool:
     """Проверить структуру проекта"""
     project_root = Path(__file__).parent
 
@@ -63,7 +63,7 @@ def check_project_structure():
     return True
 
 
-def check_environment_variables():
+def check_environment_variables() -> bool:
     """Проверить переменные окружения"""
     # Store original environment values for restoration
     original_env = {}
@@ -120,7 +120,7 @@ def check_environment_variables():
         sys.path[:] = original_sys_path
 
 
-def check_core_imports():
+def check_core_imports() -> bool:
     """Проверить импорты из core"""
     try:
         from core.shoplist import ShoplistGenerator  # noqa: F401
@@ -141,7 +141,7 @@ def check_core_imports():
     return True
 
 
-def check_app_imports():
+def check_app_imports() -> bool:
     """Проверить импорты из app"""
     try:
         from app import app  # noqa: F401
@@ -154,7 +154,7 @@ def check_app_imports():
     return True
 
 
-def main():
+def main() -> bool:
     """Основная функция"""
     print("🚀 Проверка окружения PulsePlate")
     print("=" * 50)

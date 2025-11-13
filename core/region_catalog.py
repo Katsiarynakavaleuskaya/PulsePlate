@@ -44,12 +44,12 @@ class SearchResult:
 class RegionCatalog:
     """Каталог продуктов по регионам"""
 
-    def __init__(self, data_dir: str = "data/regions"):
+    def __init__(self, data_dir: str = "data/regions") -> None:
         self.data_dir = Path(data_dir)
         self.regions: Dict[str, List[RegionalProduct]] = {}
         self._load_regions()
 
-    def _load_regions(self):
+    def _load_regions(self) -> None:
         """Загружает данные по регионам из CSV файлов"""
         if not self.data_dir.exists():
             return

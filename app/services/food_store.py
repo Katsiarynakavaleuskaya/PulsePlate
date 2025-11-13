@@ -11,6 +11,7 @@ import os
 import sqlite3
 import threading
 from collections import defaultdict
+from decimal import Decimal
 from pathlib import Path
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
@@ -48,8 +49,10 @@ DEFAULT_ALIASES: dict[str, list[str]] = {
     "творог": ["cottage cheese", "queso cottage"],
 }
 
+FloatConvertible = float | int | str | Decimal | None
 
-def _safe_float(value: Any) -> float:
+
+def _safe_float(value: FloatConvertible) -> float:
     """Best-effort float conversion; returns 0.0 on None/non-numeric.
 
     RU: Безопасное приведение к float; возвращает 0.0 для None/нечисловых значений.
@@ -464,7 +467,7 @@ def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> tuple[str, float] | 
     return (food_id, grams)
 
 
-def _safe_per_g(per_g_raw: Any, food_id: str) -> float:
+def _safe_per_g(per_g_raw: FloatConvertible, food_id: str) -> float:
     """
     Safely parse per_g value with fallback to DEFAULT_PER_G.
 

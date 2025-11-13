@@ -55,7 +55,7 @@ class UserProfile:
     life_stage: LifeStage = "adult"
     medical_conditions: Set[str] = field(default_factory=set)  # for future use
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate profile parameters."""
         if self.age < 1 or self.age > 120:
             raise ValueError("Age must be between 1 and 120 years")

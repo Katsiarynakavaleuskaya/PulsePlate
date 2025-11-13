@@ -7,9 +7,10 @@ import re
 from pathlib import Path
 
 
-def update_test_file(file_path):
+def update_test_file(file_path: Path) -> None:
     """Обновить тестовый файл для использования фикстуры test_client"""
-    with open(file_path, "r", encoding="utf-8") as f:
+    path = Path(file_path)
+    with open(path, "r", encoding="utf-8") as f:
         content = f.read()
 
     # Паттерны для замены
@@ -40,13 +41,13 @@ def update_test_file(file_path):
         content = re.sub(r"from fastapi\.testclient import TestClient\n", "", content)
 
     # Записать обновленный файл
-    with open(file_path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
-    print(f"Updated: {file_path}")
+    print(f"Updated: {path}")
 
 
-def main():
+def main() -> None:
     """Основная функция"""
     tests_dir = Path("tests")
 

@@ -9,7 +9,7 @@ import unicodedata
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -67,7 +67,10 @@ def _current_timestamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
-def _safe_add(acc: float, value: Any) -> float:
+NumberLike = float | int | str | None
+
+
+def _safe_add(acc: float, value: NumberLike) -> float:
     if value is None:
         return acc
     try:
@@ -145,7 +148,13 @@ def _find_logo_path() -> Optional[Path]:
     return None
 
 
-def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang: str) -> None:
+def _branded_header(
+    story: List[Any],
+    styles: Mapping[str, ParagraphStyle],
+    font: str,
+    doc_width: float,
+    lang: str,
+) -> None:
     logo_path = _find_logo_path()
     if logo_path is not None:
         try:
@@ -196,7 +205,7 @@ def _branded_header(story: List[Any], styles, font: str, doc_width: float, lang:
 class PageNumCanvas(Canvas):
     """Canvas that injects total page count after building."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: object, **kwargs: object) -> None:
         Canvas.__init__(self, *args, **kwargs)
         self._saved_page_states: List[Dict[str, Any]] = []
         # Ensure the document metadata carries our brand name so text-based
@@ -383,7 +392,11 @@ def _register_font() -> str:
     return "Helvetica"
 
 
-def _build_day_story(day: Dict[str, Any], styles, font: str) -> List[Any]:
+def _build_day_story(
+    day: Dict[str, Any],
+    styles: Mapping[str, ParagraphStyle],
+    font: str,
+) -> List[Any]:
     story: List[Any] = []
     date = day.get("date") or "Day"
     story.append(Paragraph(f"<b>{date}</b>", styles["Heading3"]))

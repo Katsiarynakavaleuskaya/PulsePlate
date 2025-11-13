@@ -65,7 +65,7 @@ class FoodDatabaseBuilder:
     EN: Food database builder with full provenance tracking.
     """
 
-    def __init__(self, project_root: str | Path | None = None):
+    def __init__(self, project_root: str | Path | None = None) -> None:
         """Initialize builder with project paths."""
         if project_root is None:
             project_root = Path(__file__).parent.parent
