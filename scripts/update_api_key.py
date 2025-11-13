@@ -48,9 +48,14 @@ def _read_api_key(
         api_key_allowed_chars if api_key_allowed_chars is not None else API_KEY_ALLOWED_CHARS
     )
 
+    import logging
+
+    logger = logging.getLogger(__name__)
+
     env_key: str = os.environ.get("OPENAI_API_KEY", "").strip()
     key_source = "OPENAI_API_KEY environment variable"
     if env_key:
+        # Security: Remove from environment to prevent accidental leakage
         os.environ.pop("OPENAI_API_KEY", None)
         api_key = env_key
     else:
@@ -70,12 +75,7 @@ def _read_api_key(
         "true",
         "on",
         "yes",
-    ) or os.getenv("DEBUG", "").lower() in ("1", "true", "on", "yes")
-
-    # Import logger for detailed diagnostics
-    import logging
-
-    logger = logging.getLogger(__name__)
+    )
 
     # Validate API key format
     if not api_key:

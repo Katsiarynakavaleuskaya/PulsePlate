@@ -224,7 +224,13 @@ class BayesianTestAnalyzer:
             # Exponential decay: w = 0.5 ** (age / half_life)
             weight: float = 0.5 ** (age_hours / half_life_hours)
             return weight
-        except Exception:
+        except Exception as e:
+            logger.exception(
+                "Failed to calculate recency weight for timestamp=%r, half_life_hours=%s: %s",
+                timestamp,
+                half_life_hours,
+                e,
+            )
             return 1.0
 
     def load_history(self) -> None:

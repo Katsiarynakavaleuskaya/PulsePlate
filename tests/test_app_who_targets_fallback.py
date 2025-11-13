@@ -65,7 +65,8 @@ async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPa
         life_stage="pregnant",
     )
 
-    response = await app.api_who_targets(_make_fake_request(), request.model_dump())
+    # api_who_targets uses dependency injection, so we call _generate_who_targets_response directly
+    response = app._generate_who_targets_response(request)
 
     # Use same formula as app.py fallback (pct / 100.0)
     tdee = int(24 * request.weight_kg * app.get_activity_factor(request.activity))
@@ -103,7 +104,8 @@ async def test_api_who_targets_fallback_gain_branch(monkeypatch: pytest.MonkeyPa
         goal="gain",
     )
 
-    response = await app.api_who_targets(_make_fake_request(), request.model_dump())
+    # api_who_targets uses dependency injection, so we call _generate_who_targets_response directly
+    response = app._generate_who_targets_response(request)
 
     # Use same formula as app.py fallback (pct / 100.0)
     tdee = int(24 * request.weight_kg * app.get_activity_factor(request.activity))
@@ -135,7 +137,8 @@ async def test_api_who_targets_resets_safety_failures(monkeypatch: pytest.Monkey
         goal="maintain",
     )
 
-    response = await app.api_who_targets(_make_fake_request(), request.model_dump())
+    # api_who_targets uses dependency injection, so we call _generate_who_targets_response directly
+    response = app._generate_who_targets_response(request)
 
     assert response.kcal_daily > 0
     # Safety validation succeeded (warnings returned), counter should be reset
@@ -171,7 +174,7 @@ async def test_api_who_targets_logs_import_errors(
     )
 
     with caplog.at_level(logging.DEBUG):
-        await app.api_who_targets(_make_fake_request(), request.model_dump())
+        app._generate_who_targets_response(request)
 
     # Check that debug message was logged (ImportError is logged as DEBUG)
     # When counter reaches threshold, ERROR is also logged
@@ -209,7 +212,7 @@ async def test_api_who_targets_logs_value_errors(
     )
 
     with caplog.at_level("WARNING"):
-        await app.api_who_targets(_make_fake_request(), request.model_dump())
+        app._generate_who_targets_response(request)
 
     # Check that warning was logged (counter may not be accessible in parallel tests)
     assert any(

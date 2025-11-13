@@ -7,7 +7,7 @@ name = "pulseplate"
 version = "0.1.0"
 description = "Comprehensive health and nutrition application with BMI calculations, body fat analysis, and personalized nutrition recommendations"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = {text = "Proprietary"}
 authors = [
     {name = "PulsePlate Team", email = "lexakm532@gmail.com"}

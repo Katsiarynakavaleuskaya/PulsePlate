@@ -11,7 +11,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from requests import Response as RequestsResponse
+from httpx import Response
 
 import app as app_mod
 
@@ -39,7 +39,7 @@ class TestPremiumWeekHypothesisSimple:
 
     def _measure_response_time(
         self, url: str, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[RequestsResponse, float]:
+    ) -> Tuple[Response, float]:
         """
         Measure API request execution time.
 
@@ -68,9 +68,10 @@ class TestPremiumWeekHypothesisSimple:
         Raises:
             AssertionError: If generation time exceeds MEAL_PLAN_GENERATION_TIMEOUT
         """
-        assert (
-            generation_time < MEAL_PLAN_GENERATION_TIMEOUT
-        ), f"Meal plan generation exceeded timeout: {generation_time:.3f}s > {MEAL_PLAN_GENERATION_TIMEOUT}s"
+        assert generation_time < MEAL_PLAN_GENERATION_TIMEOUT, (
+            f"Meal plan generation exceeded timeout: {generation_time:.3f}s "
+            f"> {MEAL_PLAN_GENERATION_TIMEOUT}s"
+        )
 
     @settings(deadline=DEADLINE_MS)
     @given(

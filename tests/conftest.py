@@ -250,6 +250,7 @@ def _test_environment(
 
 
 # Test doubles for pytest plugin tests
+# Consolidated implementation supporting all test file requirements
 class DummyMarker:
     """Mock marker for pytest plugin tests."""
 
@@ -268,15 +269,47 @@ class DummyPath:
 
 
 class DummyItem:
-    """Mock pytest item for plugin tests."""
+    """Comprehensive mock pytest item for plugin tests.
+
+    Supports all features needed by test files:
+    - Basic markers and path
+    - Async function detection
+    - Fixture names
+    - Source code
+    - Node ID
+    """
 
     def __init__(
-        self, markers: list[str], path: str = "tests/test_sample.py", name: str = "test_x"
+        self,
+        markers: list[str],
+        path: str = "tests/test_sample.py",
+        name: str = "test_x",
+        is_async: bool = False,
+        fixturenames: list[str] | None = None,
+        source: str = "",
     ) -> None:
         self._markers = [DummyMarker(m) for m in markers]
         self.fspath = DummyPath(path)
         self.name = name
+        self.fixturenames = fixturenames or []
+        self.nodeid = f"{path}::{name}"
+        self._source = source
+
+        if is_async:
+
+            async def _async_func() -> None:
+                return None
+
+            self.function = _async_func
+        else:
+            self.function = lambda: None
 
     def iter_markers(self) -> Iterator[DummyMarker]:
         """Return iterator over markers."""
         return iter(self._markers)
+
+    def __getattr__(self, name: str) -> Any:
+        """Handle missing attributes for compatibility."""
+        if name == "__code__":
+            raise AttributeError
+        raise AttributeError(name)

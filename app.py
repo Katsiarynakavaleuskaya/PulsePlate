@@ -296,6 +296,90 @@ _safety_failure_lock = threading.Lock()
 
 
 # Lifespan event handler
+def _attempt_db_fallback(
+    env_name: Optional[str], is_production: bool, db_err: Exception, truthy: set[str]
+) -> None:
+    """Attempt to initialize database with fallback SQLite when primary DB fails.
+
+    Only allows fallback in non-production environments unless explicitly overridden
+    via ALLOW_DB_INMEMORY_FALLBACK env var or when the error is OSError/IOError.
+    """
+    # Determine whether we should attempt a fallback database initialization.
+    # Only allow fallback in non-production environments unless explicitly overridden.
+    allowed_env = not is_production
+    explicit_override = (os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or "").strip().lower() in truthy
+    fallback_exception = isinstance(db_err, (OSError, IOError))
+
+    if not (allowed_env or explicit_override or fallback_exception):
+        raise
+
+    # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
+    fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
+
+    logger.warning(
+        "Database initialization failed (%s env: %s), attempting fallback SQLite: %s",
+        type(db_err).__name__,
+        env_name or "local",
+        db_err,
+    )
+
+    fallback_ok = False
+    try:
+        # Create a new engine directly with the fallback URL instead of reloading module
+        from sqlalchemy import create_engine
+
+        import core.models  # noqa: F401
+
+        # Create temporary engine with fallback URL
+        # Use SQLite-specific connection args when needed
+        connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
+        fallback_engine = create_engine(
+            fallback_url, echo=False, future=True, connect_args=connect_args
+        )
+
+        # Initialize schema using the fallback engine
+        from core.models import Base
+        from core import db as core_db
+
+        Base.metadata.create_all(bind=fallback_engine)
+
+        try:
+            core_db.SessionLocal.configure(bind=fallback_engine)
+        except Exception:
+            core_db.SessionLocal = core_db.sessionmaker(  # type: ignore[attr-defined]
+                bind=fallback_engine, autoflush=False, autocommit=False, future=True
+            )
+        core_db._RAW_ENGINE = fallback_engine  # type: ignore[attr-defined]
+        core_db.engine = core_db.EngineCompat(fallback_engine)  # type: ignore[attr-defined]
+        fallback_ok = True
+
+        # Set DB_FALLBACK_URL only if needed for external tools
+        if not is_production:
+            os.environ["DB_FALLBACK_URL"] = fallback_url
+            os.environ["DATABASE_URL"] = fallback_url
+            logger.warning(
+                "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
+                "os.environ['DATABASE_URL'] updated for compatibility.",
+                env_name or "local",
+                fallback_url,
+            )
+        else:
+            # In production, only set DB_FALLBACK_URL for internal use
+            os.environ["DB_FALLBACK_URL"] = fallback_url
+            logger.warning(
+                "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
+                "Using module-level fallback variable only.",
+                env_name or "local",
+                fallback_url,
+            )
+    except Exception as fallback_err:
+        logger.error("In-memory fallback init_db() failed: %s", fallback_err)
+        # Reset fallback URL on failure
+        os.environ.pop("DB_FALLBACK_URL", None)
+    if not fallback_ok:
+        raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
@@ -308,82 +392,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         init_db()
         logger.info("Database schema initialized")
     except Exception as db_err:
-        # Determine whether we should attempt a fallback database initialization.
-        # Only allow fallback in non-production environments unless explicitly overridden.
-        allowed_env = not is_production
-        explicit_override = (
-            os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""
-        ).strip().lower() in truthy
-        fallback_exception = isinstance(db_err, (OSError, IOError))
-
-        if not (allowed_env or explicit_override or fallback_exception):
-            raise
-
-        # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
-        fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
-
-        logger.warning(
-            "Database initialization failed (%s env: %s), attempting fallback SQLite: %s",
-            type(db_err).__name__,
-            env_name or "local",
-            db_err,
-        )
-
-        fallback_ok = False
-        try:
-            # Create a new engine directly with the fallback URL instead of reloading module
-            from sqlalchemy import create_engine
-
-            import core.models  # noqa: F401
-
-            # Create temporary engine with fallback URL
-            # Use SQLite-specific connection args when needed
-            connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
-            fallback_engine = create_engine(
-                fallback_url, echo=False, future=True, connect_args=connect_args
-            )
-
-            # Initialize schema using the fallback engine
-            from core.models import Base
-            from core import db as core_db
-
-            Base.metadata.create_all(bind=fallback_engine)
-
-            try:
-                core_db.SessionLocal.configure(bind=fallback_engine)
-            except Exception:
-                core_db.SessionLocal = core_db.sessionmaker(  # type: ignore[attr-defined]
-                    bind=fallback_engine, autoflush=False, autocommit=False, future=True
-                )
-            core_db._RAW_ENGINE = fallback_engine  # type: ignore[attr-defined]
-            core_db.engine = core_db.EngineCompat(fallback_engine)  # type: ignore[attr-defined]
-            fallback_ok = True
-
-            # Set DB_FALLBACK_URL only if needed for external tools
-            if not is_production:
-                os.environ["DB_FALLBACK_URL"] = fallback_url
-                os.environ["DATABASE_URL"] = fallback_url
-                logger.warning(
-                    "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
-                    "os.environ['DATABASE_URL'] updated for compatibility.",
-                    env_name or "local",
-                    fallback_url,
-                )
-            else:
-                # In production, only set DB_FALLBACK_URL for internal use
-                os.environ["DB_FALLBACK_URL"] = fallback_url
-                logger.warning(
-                    "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
-                    "Using module-level fallback variable only.",
-                    env_name or "local",
-                    fallback_url,
-                )
-        except Exception as fallback_err:
-            logger.error("In-memory fallback init_db() failed: %s", fallback_err)
-            # Reset fallback URL on failure
-            os.environ.pop("DB_FALLBACK_URL", None)
-        if not fallback_ok:
-            raise
+        _attempt_db_fallback(env_name, is_production, db_err, truthy)
 
     try:
         validate_template_dir()
@@ -1485,6 +1494,21 @@ class PlateDependencies:
         self._aggregate_day_micronutrients = aggregate_day_micronutrients_fn
 
 
+"""
+Test infrastructure for module attribute patching.
+
+This module contains infrastructure for test-time patching of module attributes
+across multiple module aliases (app, app_module, etc.). This is primarily
+intended for test environments to allow dynamic mocking of dependencies.
+
+Performance notes:
+- Module scanning and attribute synchronization add overhead
+- Snapshot/restore mechanism uses sys.modules iteration
+- Should not be used in production hot paths
+
+For production code, prefer explicit dependency injection via PlateDependencies.
+"""
+
 # Module-level default dependencies with real functions
 # _aggregate_day_micronutrients will be set after function definition
 _plate_deps = PlateDependencies(
@@ -1501,6 +1525,39 @@ _targets_runtime_disabled = False
 _targets_disabled_cache: Optional[bool] = None
 _targets_disabled_cache_time: float = 0.0
 _TARGETS_DISABLED_CACHE_TTL_SEC = 1.0  # Short cache to allow tests to patch quickly
+
+
+def _scan_test_modules_for_disabled_targets(
+    primary_app: Optional[ModuleType],
+    alias_app: Optional[ModuleType],
+    now: float,
+) -> bool:
+    """Scan test modules for disabled build_nutrition_targets.
+
+    Returns True if any test module has build_nutrition_targets set to None,
+    indicating targets should be disabled.
+    """
+    import sys as _sys
+
+    test_module_patterns = ("test_", "tests.", "conftest")
+    for module_name, module in list(_sys.modules.items()):
+        if module is None or module is primary_app or module is alias_app:
+            continue
+        # Skip non-test modules to reduce scan overhead
+        if not any(pattern in module_name for pattern in test_module_patterns):
+            continue
+        try:
+            module_value_candidate = getattr(module, "build_nutrition_targets", _TARGETS_SENTINEL)
+        except Exception:  # nosec B112 - safe: module inspection, continue on error
+            continue
+        if module_value_candidate is None:
+            logger.debug("_targets_disabled: detected external disable on module %s", module_name)
+            global _targets_runtime_disabled, _targets_disabled_cache, _targets_disabled_cache_time
+            _targets_runtime_disabled = True
+            _targets_disabled_cache = True
+            _targets_disabled_cache_time = now
+            return True
+    return False
 
 
 def _targets_disabled() -> bool:
@@ -1594,24 +1651,9 @@ def _targets_disabled() -> bool:
             _targets_disabled_cache_time = now
             return True
 
-    # Only scan known test modules instead of all sys.modules
-    test_module_patterns = ("test_", "tests.", "conftest")
-    for module_name, module in list(_sys.modules.items()):
-        if module is None or module is primary_app or module is alias_app:
-            continue
-        # Skip non-test modules to reduce scan overhead
-        if not any(pattern in module_name for pattern in test_module_patterns):
-            continue
-        try:
-            module_value_candidate = getattr(module, "build_nutrition_targets", _TARGETS_SENTINEL)
-        except Exception:  # nosec B112 - safe: module inspection, continue on error
-            continue
-        if module_value_candidate is None:
-            logger.debug("_targets_disabled: detected external disable on module %s", module_name)
-            _targets_runtime_disabled = True
-            _targets_disabled_cache = True
-            _targets_disabled_cache_time = now
-            return True
+    # Scan test modules for disabled targets
+    if _scan_test_modules_for_disabled_targets(primary_app, alias_app, now):
+        return True
 
     _targets_runtime_disabled = False
     _targets_disabled_cache = False
@@ -2562,8 +2604,14 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         final_kcal_value = (
             target_kcal_override if target_kcal_override is not None else plate_data["kcal"]
         )
-        with suppress(Exception):
+        try:
             final_kcal_value = int(round(float(final_kcal_value)))
+        except (TypeError, ValueError) as e:
+            logger.warning(
+                "Failed to coerce final_kcal_value=%r to int; using raw value: %s",
+                final_kcal_value,
+                e,
+            )
 
         # Only apply heuristic fallback if alignment did not succeed
         if (targets_are_disabled or _build_targets is None) and not alignment_succeeded:
@@ -3122,74 +3170,15 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     response_model=WHOTargetsResponse,
 )
 async def api_who_targets(
-    payload: Dict[str, Any] = Body(...), *args: Any, **kwargs: Any  # noqa: ANN401
+    request: Request, payload: Dict[str, Any] = Body(...)
 ) -> WHOTargetsResponse:
     """Calculate WHO-aligned nutrition targets for premium clients.
 
-    Accepts both calling conventions:
-    - api_who_targets(payload_dict) - normal FastAPI route usage with Body(...)
-    - api_who_targets(request_obj, payload_dict) - direct test calls
+    Normal FastAPI route usage with Body(...) and dependency injection.
+    For direct test calls, use _generate_who_targets_response directly.
     """
-    from starlette.requests import Request as _StarletteRequest
-
-    req: Any = payload
-
-    # Normalize when first arg is a Starlette Request and second arg is payload
-    if isinstance(req, _StarletteRequest):
-        payload_val: Any = None
-        if args:
-            payload_val = args[0]
-        elif kwargs:
-            payload_val = kwargs
-        else:
-            try:
-                payload_val = await req.json()
-            except Exception:
-                payload_val = None
-        if payload_val is None:
-            raise ValueError("Missing request body for WHO targets")
-        # Accept dict payload or Pydantic model_dump
-        if isinstance(payload_val, WHOTargetsRequest):
-            req_model = payload_val
-        elif isinstance(payload_val, dict):
-            req_model = (
-                WHOTargetsRequest.model_validate(payload_val)
-                if hasattr(WHOTargetsRequest, "model_validate")
-                else WHOTargetsRequest(**payload_val)
-            )
-        else:
-            # Try to coerce
-            req_model = WHOTargetsRequest(
-                **(dict(payload_val) if hasattr(payload_val, "items") else {})
-            )
-        req = req_model
-    elif isinstance(req, dict):
-        req = (
-            WHOTargetsRequest.model_validate(req)
-            if hasattr(WHOTargetsRequest, "model_validate")
-            else WHOTargetsRequest(**req)
-        )
-    elif not isinstance(req, WHOTargetsRequest):
-        # Try building from kwargs if possible
-        if kwargs:
-            req = (
-                WHOTargetsRequest.model_validate(kwargs)
-                if hasattr(WHOTargetsRequest, "model_validate")
-                else WHOTargetsRequest(**kwargs)
-            )
-        else:
-            # If we end up here, it's better to let the rest of the code raise a clear error
-            raise ValueError(
-                "Invalid input to api_who_targets; expected WHOTargetsRequest or payload dict"
-            )
-
     try:
-        if not isinstance(req, WHOTargetsRequest):
-            req = (
-                WHOTargetsRequest.model_validate(req)
-                if hasattr(WHOTargetsRequest, "model_validate")
-                else WHOTargetsRequest(**req)
-            )
+        req = WHOTargetsRequest.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
 
