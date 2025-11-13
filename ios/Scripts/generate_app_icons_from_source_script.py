@@ -21,7 +21,7 @@ except ImportError:
 from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 
-def _process_image_for_icon(img, size: int):
+def _process_image_for_icon(img: "Image.Image", size: int) -> "Image.Image":
     """Обрабатывает изображение для создания иконки"""
 
     # Конвертируем в RGBA если нужно
