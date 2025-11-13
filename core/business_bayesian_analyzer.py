@@ -245,10 +245,10 @@ class BusinessBayesianAnalyzer:
         try:
             from core.i18n import normalize_lang
 
-            normalized_locale = normalize_lang(locale) if locale else "en"
+            normalized_locale: str = normalize_lang(locale) if locale else "en"
         except ImportError:
             # Fallback if i18n module not available
-            normalized_locale = locale if locale in ("en", "ru", "es") else "en"
+            normalized_locale = locale if locale in ("en", "ru", "es") else "en"  # type: ignore[assignment]
 
         config_dir = Path(__file__).parent.parent / "config"
 
