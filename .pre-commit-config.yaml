@@ -51,7 +51,6 @@ repos:
         pass_filenames: false
         stages: [pre-push]
         args:
-          - --explicit-package-bases
           - --pretty
           - --show-error-codes
           - app
