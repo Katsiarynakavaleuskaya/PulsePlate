@@ -2571,7 +2571,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 if target_macros is None and isinstance(_targets, dict):
                     target_macros = _targets.get("macros")
 
-                def _read_macro(name: str) -> Any:
+                def _read_macro(name: str) -> Any:  # noqa: ANN401
                     """Read macro value from target_macros (supports dict or object)."""
                     if target_macros is None:
                         return None
