@@ -14,7 +14,10 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
-from app.dependencies import get_api_key, get_recipe_synthesizer as get_recipe_synth_dep
+from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
+
+# get_api_key is defined in app.py, not app.dependencies
+# We use _require_api_key_strict instead which is already defined in this module
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.recipe_synth import RecipeSynthesizer
 from core.targets import MicronutrientTargets, UserProfile
@@ -612,15 +615,13 @@ async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
         }
 
 
-# Legacy _require_api_key_dev_legacy removed - use get_api_key from app.dependencies instead
-
-
+# Use get_api_key from app module for API key authentication
 @router.post(
     "/weekly-plan",
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="Generate weekly meal plan",
     description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
-    dependencies=[Depends(get_api_key)] if get_api_key else [],
+    dependencies=[Depends(_require_api_key_strict)],
 )
 async def weekly_menu_plan_alias(
     request: WeeklyPlanRequest, x_api_key: str = Header(None)

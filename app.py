@@ -7,8 +7,7 @@ import secrets
 import sys
 import threading
 import time
-from contextlib import asynccontextmanager, contextmanager, suppress
-from functools import wraps
+from contextlib import asynccontextmanager, suppress
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -17,13 +16,9 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
-    Iterable,
-    Iterator,
     List,
     Literal,
     Optional,
-    ParamSpec,
-    TypeVar,
     Union,
     cast,
 )
@@ -79,9 +74,6 @@ slowapi_available = Limiter is not None
 vip_router: Optional[APIRouter]
 _scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
 
-P = ParamSpec("P")
-T = TypeVar("T")
-
 # Safe import for VIP_MODULE_ENABLED to avoid attribute errors
 try:
     from app.routers import vip as _vip_mod
@@ -136,144 +128,6 @@ def _calculate_all_tdee_wrapper(
 
 
 _APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")
-_PATCHED_ATTRS: list[str] = [
-    "build_nutrition_targets",
-    "make_plate",
-    "api_premium_plate",
-    "_aggregate_day_micronutrients",
-]
-_SNAPSHOT_SENTINEL: object = object()
-_PATCH_SOURCE_IDS: dict[str, Optional[int]] = {attr: None for attr in _PATCHED_ATTRS}
-
-
-def _propagate_app_patches(source: object | None, target: object | None) -> object | None:
-    """Copy patched attributes from a source module to the target module."""
-    if source is None or target is None:
-        return None
-
-    for attr in _PATCHED_ATTRS:
-        if not hasattr(source, attr):
-            continue
-        value = getattr(source, attr)
-        try:
-            setattr(target, attr, value)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.debug("_propagate_app_patches failed for %s: %s", attr, exc)
-    return target
-
-
-def _sync_app_attr_sources(alias_module: object, sources: Iterable[object]) -> object | None:
-    """Best-effort synchronization of exported attributes across modules."""
-    if alias_module is None or not sources:
-        return alias_module
-
-    for source in sources:
-        if source is None:
-            continue
-        try:
-            attributes = dir(source)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.debug("_sync_app_attr_sources: dir() failed for %r: %s", source, exc)
-            continue
-
-        for attr_name in attributes:
-            if attr_name.startswith("_") or attr_name not in _PATCHED_ATTRS:
-                continue
-            try:
-                value = getattr(source, attr_name)
-            except AttributeError:
-                continue
-            current_value = getattr(alias_module, attr_name, None)
-            if current_value is value:
-                continue
-            source_id = id(value)
-            if _PATCH_SOURCE_IDS.get(attr_name) == source_id:
-                continue
-            try:
-                setattr(alias_module, attr_name, value)
-                _PATCH_SOURCE_IDS[attr_name] = source_id
-            except Exception as exc:  # pragma: no cover - ignore setattr failures
-                logger.debug(
-                    "_sync_app_attr_sources: setattr failed for alias=%r attr=%s err=%s",
-                    alias_module,
-                    attr_name,
-                    exc,
-                )
-                continue
-    return alias_module
-
-
-@contextmanager
-def _plate_env_snapshot() -> Iterator[None]:
-    """Capture and restore selected module attributes after temporary patching."""
-    snapshot: list[tuple[object, dict[str, object]]] = []
-    try:
-        modules = list(sys.modules.values())
-    except Exception:  # pragma: no cover
-        modules = []
-
-    for module in modules:
-        if module is None or not hasattr(module, "__dict__"):
-            continue
-        stored: dict[str, Any] = {}
-        for attr_name in _PATCHED_ATTRS:
-            if hasattr(module, attr_name):
-                stored[attr_name] = getattr(module, attr_name)
-            else:
-                stored[attr_name] = _SNAPSHOT_SENTINEL
-        if stored:
-            snapshot.append((module, stored))
-
-    env_snapshot = dict(os.environ)
-
-    try:
-        yield
-    finally:
-        # Restore environment variables
-        current_keys = set(os.environ.keys())
-        original_keys = set(env_snapshot.keys())
-        for key in current_keys - original_keys:
-            os.environ.pop(key, None)
-        for key, value in env_snapshot.items():
-            os.environ[key] = value
-
-        for module, attrs in snapshot:
-            for attr_name, original_value in attrs.items():
-                try:
-                    if original_value is _SNAPSHOT_SENTINEL:
-                        if hasattr(module, attr_name):
-                            delattr(module, attr_name)
-                    else:
-                        setattr(module, attr_name, original_value)
-                except Exception as exc:  # pragma: no cover
-                    logger.debug(
-                        "_plate_env_snapshot: failed to restore %s on %r: %s",
-                        attr_name,
-                        module,
-                        exc,
-                    )
-
-
-def _with_plate_env_snapshot(
-    func: Callable[P, Awaitable[T]] | Callable[P, T],
-) -> Callable[P, Awaitable[T]] | Callable[P, T]:
-    """Decorator that wraps execution with _plate_env_snapshot."""
-
-    if asyncio.iscoroutinefunction(func):
-
-        @wraps(func)
-        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            with _plate_env_snapshot():
-                return await cast(Callable[P, Awaitable[T]], func)(*args, **kwargs)
-
-        return async_wrapper
-
-    @wraps(func)
-    def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-        with _plate_env_snapshot():
-            return cast(Callable[P, T], func)(*args, **kwargs)
-
-    return sync_wrapper
 
 
 async def get_update_scheduler() -> DatabaseUpdateScheduler:
@@ -480,8 +334,6 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     """
     if expected := os.getenv("API_KEY"):
         allowed_keys = {expected}
-        if os.getenv("PYTEST_CURRENT_TEST") is not None:
-            allowed_keys.add("test")
         if not api_key or api_key not in allowed_keys:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
@@ -654,8 +506,7 @@ async def csp_nonce_middleware(request: Request, call_next: CallNextHandler) -> 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: CallNextHandler) -> Response:
     start_time_req = time.time()
-    client_host = request.client.host if request.client else "unknown"
-    logger.debug("Request: %s %s from %s", request.method, request.url.path, client_host)
+    logger.debug("Request: %s %s", request.method, request.url.path)
     response = await call_next(request)
     process_time = time.time() - start_time_req
     logger.debug("Response: %s in %.4fs", response.status_code, process_time)
@@ -1364,10 +1215,8 @@ async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
 @app.post("/api/v1/insight", dependencies=[Depends(_get_api_key_dynamic)])
 async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (v1 with API key)."""
-    flag_value = os.getenv("FEATURE_INSIGHT")
-    if flag_value is None:
-        flag_value = "true"
-    if str(flag_value or "").strip().lower() not in {"1", "true", "on", "yes"}:
+    flag_value = os.getenv("FEATURE_INSIGHT", "false")
+    if not _is_truthy(flag_value):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 
     # отложенный импорт, чтобы не падать, если файла нет
@@ -1405,10 +1254,8 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
 @app.post("/insight")
 async def insight(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (legacy path without API key)."""
-    flag_value = os.getenv("FEATURE_INSIGHT")
-    if flag_value is None:
-        flag_value = "true"
-    if str(flag_value or "").strip().lower() not in {"1", "true", "on", "yes"}:
+    flag_value = os.getenv("FEATURE_INSIGHT", "false")
+    if not _is_truthy(flag_value):
         # For legacy path, return 503 if feature disabled
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
 

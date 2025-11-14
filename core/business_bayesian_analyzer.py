@@ -185,7 +185,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml  # type: ignore[import-untyped]
+                    import yaml
 
                     yaml_available = True
                 except ImportError:
