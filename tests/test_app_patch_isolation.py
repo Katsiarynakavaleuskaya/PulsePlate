@@ -6,12 +6,13 @@ from typing import Any, Callable
 import pytest
 
 import app
+from tests.utils import plate_patch
 
 
 def _namespaced_attrs(overrides: dict[str, Any] | None = None) -> SimpleNamespace:
     """Create a namespace that contains all patched attrs used by app helpers."""
 
-    base = {attr: object() for attr in app._PATCHED_ATTRS}
+    base = {attr: object() for attr in plate_patch._PATCHED_ATTRS}
     if overrides:
         base.update(overrides)
     return SimpleNamespace(**base)
@@ -23,9 +24,9 @@ def test_propagate_app_patches_copies_all_known_attrs() -> None:
     source = _namespaced_attrs()
     target = SimpleNamespace()
 
-    app._propagate_app_patches(source, target)
+    plate_patch._propagate_app_patches(source, target)
 
-    for attr in app._PATCHED_ATTRS:
+    for attr in plate_patch._PATCHED_ATTRS:
         assert getattr(target, attr) is getattr(source, attr)
 
 
@@ -48,10 +49,10 @@ def test_sync_app_attr_sources_skips_current_value_before_copy(
     primary = _namespaced_attrs({"make_plate": primary_callable})
     secondary = _namespaced_attrs({"make_plate": secondary_callable})
 
-    state = {name: None for name in app._PATCHED_ATTRS}
-    monkeypatch.setattr(app, "_PATCH_SOURCE_IDS", state, raising=False)
+    state = {name: None for name in plate_patch._PATCHED_ATTRS}
+    monkeypatch.setattr(plate_patch, "_PATCH_SOURCE_IDS", state, raising=False)
 
-    app._sync_app_attr_sources(alias_module, (primary, secondary))
+    plate_patch._sync_app_attr_sources(alias_module, (primary, secondary))
 
     assert alias_module.make_plate is secondary_callable
 
@@ -105,22 +106,22 @@ def test_plate_env_snapshot_restores_env_and_modules(monkeypatch: pytest.MonkeyP
 
     alias_original = sys.modules.get("app_module")
     dummy_alias = SimpleNamespace(
-        **{attr: f"original-{attr}" for attr in app._PATCHED_ATTRS},
+        **{attr: f"original-{attr}" for attr in plate_patch._PATCHED_ATTRS},
     )
     monkeypatch.setitem(sys.modules, "app_module", dummy_alias)
     os.environ["FEATURE_PREMIUM_NUTRITION"] = "test-flag"
 
-    with app._plate_env_snapshot():
-        for attr in app._PATCHED_ATTRS:
+    with plate_patch._plate_env_snapshot():
+        for attr in plate_patch._PATCHED_ATTRS:
             setattr(dummy_alias, attr, f"mutated-{attr}")
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "mutated"
 
-    for attr in app._PATCHED_ATTRS:
+    for attr in plate_patch._PATCHED_ATTRS:
         assert getattr(dummy_alias, attr) == f"original-{attr}"
     assert os.environ["FEATURE_PREMIUM_NUTRITION"] == "test-flag"
 
     os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
-    with app._plate_env_snapshot():
+    with plate_patch._plate_env_snapshot():
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "inside-snapshot"
     assert "FEATURE_PREMIUM_NUTRITION" not in os.environ
 

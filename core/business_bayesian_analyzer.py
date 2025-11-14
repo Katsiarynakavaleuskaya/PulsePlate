@@ -185,7 +185,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml
+                    import yaml  # type: ignore[import-untyped]  # noqa: F401
 
                     yaml_available = True
                 except ImportError:
@@ -262,7 +262,7 @@ class BusinessBayesianAnalyzer:
             if config_path.exists():
                 try:
                     try:
-                        import yaml
+                        import yaml  # noqa: F401
 
                         yaml_available = True
                     except ImportError:
@@ -314,7 +314,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml
+                    import yaml  # noqa: F401
 
                     yaml_available = True
                 except ImportError:

@@ -54,10 +54,19 @@ try:
             nltk_download("omw-1.4", quiet=True)
             _stopwords = set(stopwords.words("english"))
             _lemmatizer = WordNetLemmatizer()
-        except Exception:
+        except (LookupError, OSError) as download_error:
+            logger.warning(
+                "NLTK data unavailable for product finder (%s); disabling NLP helpers",
+                download_error,
+            )
             _NLTK_AVAILABLE = False
             _stopwords = set()
             _lemmatizer = None
+        except Exception as unexpected_error:  # pragma: no cover - defensive logging
+            logger.error(
+                "Unexpected error while initialising NLTK data: %s", unexpected_error, exc_info=True
+            )
+            raise
 except ImportError:
     _NLTK_AVAILABLE = False
     _stopwords = set()

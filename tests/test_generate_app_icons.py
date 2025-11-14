@@ -162,5 +162,6 @@ class TestGenerateAllIcons:
 
         # Should return False due to partial failure
         assert result is False
+        assert call_count == len(test_sizes)
         captured = capsys.readouterr()
-        assert "Ошибка" in captured.out or "error" in captured.out.lower()
+        assert "Simulated I/O error" in captured.out

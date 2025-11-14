@@ -10,6 +10,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests.utils import plate_patch
+
 
 class TestAppLifespanCoverage:
     """Тесты для покрытия app.py lifespan событий"""
@@ -44,11 +46,10 @@ class TestAppLifespanCoverage:
         Покрывает строки 391-395: вызов init_db() при startup.
         """
         import app
-        from unittest.mock import patch
 
-        # Patch core.db.init_db before creating TestClient to catch the startup call
+        # Patch app_module.init_db before creating TestClient to catch the startup call
         # Note: TestClient automatically triggers lifespan startup when entering context
-        with patch("core.db.init_db") as mock_init_db:
+        with patch("app_module.init_db") as mock_init_db:
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Проверяем, что init_db был вызван при startup
                 # Note: init_db is called during lifespan startup, which TestClient triggers
@@ -64,7 +65,7 @@ class TestAppLifespanCoverage:
         """
         import app
 
-        with patch("app.dependencies.validate_template_dir") as mock_validate:
+        with patch("app_module.validate_template_dir") as mock_validate:
             # TestClient автоматически запускает lifespan startup
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Проверяем, что validate_template_dir был вызван при startup
@@ -80,7 +81,7 @@ class TestAppLifespanCoverage:
         """
         import app
 
-        with patch("app.start_background_updates") as mock_start:
+        with patch("app_module.start_background_updates") as mock_start:
             # TestClient автоматически запускает lifespan startup
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Проверяем, что start_background_updates был вызван при startup
@@ -96,7 +97,7 @@ class TestAppLifespanCoverage:
         """
         import app
 
-        with patch("app.stop_background_updates") as mock_stop:
+        with patch("app_module.stop_background_updates") as mock_stop:
             # TestClient с context manager гарантирует выполнение shutdown
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Проверяем, что приложение работает до shutdown
@@ -120,8 +121,8 @@ class TestAppLifespanCoverage:
         shutdown_called = False
 
         with (
-            patch("core.db.init_db") as mock_init_db,
-            patch("app.stop_background_updates") as mock_stop,
+            patch("app_module.init_db") as mock_init_db,
+            patch("app_module.stop_background_updates") as mock_stop,
         ):
             # TestClient с context manager гарантирует startup и shutdown
             with TestClient(cast(ASGIApp, app.app)) as client:
@@ -152,7 +153,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем, что ошибка в init_db обрабатывается через fallback
-        with patch("core.db.init_db", side_effect=Exception("DB error")):
+        with patch("app_module.init_db", side_effect=Exception("DB error")):
             # В тестовом окружении fallback должен обработать ошибку
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Приложение должно продолжать работать
@@ -167,7 +168,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем, что ошибка в stop_background_updates не ломает shutdown
-        with patch("app.stop_background_updates", side_effect=Exception("Stop error")):
+        with patch("app_module.stop_background_updates", side_effect=Exception("Stop error")):
             with TestClient(cast(ASGIApp, app.app)) as client:
                 response = client.get("/health")
                 assert response.status_code == 200
@@ -185,7 +186,7 @@ class TestAppInitErrorHandling:
         from unittest.mock import MagicMock
 
         # Call with None source should return early
-        result = app._propagate_app_patches(None, MagicMock())
+        result = plate_patch._propagate_app_patches(None, MagicMock())
         assert result is None
 
     def test_propagate_app_patches_none_target(self) -> None:
@@ -194,7 +195,7 @@ class TestAppInitErrorHandling:
         from unittest.mock import MagicMock
 
         # Call with None target should return early
-        result = app._propagate_app_patches(MagicMock(), None)
+        result = plate_patch._propagate_app_patches(MagicMock(), None)
         assert result is None
 
     def test_propagate_app_patches_exception(self) -> None:
@@ -216,7 +217,7 @@ class TestAppInitErrorHandling:
         # Should not raise exception, just continue
         # The function catches Exception and continues
         try:
-            app._propagate_app_patches(source, target)
+            plate_patch._propagate_app_patches(source, target)
         except Exception:
             # Should not reach here
             pytest.fail("_propagate_app_patches should not raise exception")
@@ -227,5 +228,5 @@ class TestAppInitErrorHandling:
         from unittest.mock import MagicMock
 
         # Call with None alias_module should return early
-        result = app._sync_app_attr_sources(None, (MagicMock(),))
+        result = plate_patch._sync_app_attr_sources(None, (MagicMock(),))
         assert result is None

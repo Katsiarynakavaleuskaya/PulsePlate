@@ -5,15 +5,7 @@ from typing import Set
 
 import pytest
 
-# Import the constants module
-import sys
-from pathlib import Path
-
-# Add ios/Scripts to path for import
-ios_scripts_dir = Path(__file__).parent.parent / "ios" / "Scripts"
-sys.path.insert(0, str(ios_scripts_dir))
-
-from icon_constants import IOS_ICON_DUPLICATE_ALLOWLIST, IOS_ICON_SIZES  # noqa: E402
+from ios.Scripts.icon_constants import IOS_ICON_DUPLICATE_ALLOWLIST, IOS_ICON_SIZES
 
 
 # Required canonical iOS icon filenames

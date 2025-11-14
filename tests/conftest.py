@@ -193,8 +193,6 @@ def app(app_module: ModuleType) -> FastAPI:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
 
-    from typing import cast
-
     app_instance = getattr(app_module, "app", None)
     if not isinstance(app_instance, FastAPI):
         raise RuntimeError("app_module.app is not initialised")
@@ -252,6 +250,7 @@ def _apply_test_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
         "TESTING": "true",
         "APP_ENV": "test",
         "ALLOW_DEV_API_KEY": "true",
+        "FEATURE_INSIGHT": "true",
         "FEATURE_PREMIUM_NUTRITION": "true",
         "VIP_MODULE_ENABLED": "true",
         "DEBUG": "true",

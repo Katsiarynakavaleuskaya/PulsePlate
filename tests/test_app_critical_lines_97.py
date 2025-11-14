@@ -266,7 +266,7 @@ class TestAppCriticalLines97:
         response = client.post(
             "/api/v1/premium/targets",
             json={"sex": "invalid", "age": -1},
-            headers={"X-API-Key": "test"},
+            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 422
 
@@ -289,7 +289,7 @@ class TestAppCriticalLines97:
     def test_export_endpoints_error_handling_returns_400(self, client) -> None:
         """Тест error handling в export endpoints - пустой payload должен возвращать 400 (bad request)"""
         # Тест экспорта без данных
-        response = client.post("/api/v1/export/pdf", json={})
+        response = client.post("/api/v1/export/pdf", json={}, headers={"X-API-Key": "test_key"})
         assert (
             response.status_code == 400
         )  # Endpoint explicitly checks for empty dict and returns 400

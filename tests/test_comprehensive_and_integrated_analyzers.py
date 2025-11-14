@@ -23,7 +23,7 @@ from tests.bayesian_test_constants import (
     CRITICAL_ISSUES_COUNT,
     EXCELLENT_HEALTH_THRESHOLD,
     GOOD_HEALTH_THRESHOLD,
-    HIGH_ISSUES_COUNT,
+    MAX_ISSUES_FOR_HIGH_QUALITY,
     HIGH_SCORE_THRESHOLD,
     LOW_ISSUES_COUNT,
     MEDIUM_SCORE_THRESHOLD,
@@ -252,12 +252,16 @@ def test_comprehensive_assessment_levels() -> None:
     )
     # System health: high score (0.95) with 2 low-severity issues → excellent
     assert (
-        analyzer._calculate_system_health(HIGH_SCORE_THRESHOLD, {"low": HIGH_ISSUES_COUNT})
+        analyzer._calculate_system_health(
+            HIGH_SCORE_THRESHOLD, {"low": MAX_ISSUES_FOR_HIGH_QUALITY}
+        )
         == "excellent"
     )
     # System health: good score (0.85) with 2 high-severity issues → good
     assert (
-        analyzer._calculate_system_health(EXCELLENT_HEALTH_THRESHOLD, {"high": HIGH_ISSUES_COUNT})
+        analyzer._calculate_system_health(
+            EXCELLENT_HEALTH_THRESHOLD, {"high": MAX_ISSUES_FOR_HIGH_QUALITY}
+        )
         == "good"
     )
     # System health: fair score (0.65) with 1 critical issue → fair

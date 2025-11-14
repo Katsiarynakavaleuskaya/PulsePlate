@@ -21,5 +21,5 @@ GOOD_HEALTH_THRESHOLD: Final[float] = 0.65  # Score for good/fair system health
 # EN: Issue count thresholds for priority determination
 
 CRITICAL_ISSUES_COUNT: Final[int] = 3  # Number of critical issues triggering urgent priority
-HIGH_ISSUES_COUNT: Final[int] = 2  # Number of issues for high-quality threshold
+MAX_ISSUES_FOR_HIGH_QUALITY: Final[int] = 2  # Max issues allowed for high-quality classification
 LOW_ISSUES_COUNT: Final[int] = 1  # Minimum issue count for fair health status

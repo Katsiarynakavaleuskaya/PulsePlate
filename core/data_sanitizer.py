@@ -96,7 +96,7 @@ class NutritionData(BaseModel):
 
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g", mode="before")
     @classmethod
-    def sanitize_numeric(cls, value: NumericLike) -> int:
+    def sanitize_numeric(cls, value: Any) -> int:
         """Sanitize numeric values: handle None, NaN, inf, and coerce to int.
 
         RU: Санитизация числовых значений: обработка None, NaN, inf, приведение к int.
@@ -441,6 +441,3 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
             "layout": [],
             "meals_per_day": 3,
         }
-
-
-NumericLike = int | float | str | None

@@ -5,11 +5,10 @@ Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
 import os
-from typing import Generator, cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from starlette.types import ASGIApp
+from fastapi.testclient import TestClient
 
 # Direct import of app module - app.py is available as a regular Python module
 from app import app
@@ -19,6 +18,7 @@ from app import app
 def setup_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Autouse fixture that sets up test environment variables."""
     monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_INSIGHT", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
 
@@ -509,18 +509,17 @@ class TestDatabaseAdminEndpoints:
         """Test rollback endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch("app_module.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            TestClient(app) as client,
         ):
             mock_scheduler.side_effect = Exception("Rollback error")
 
             headers = {"X-API-Key": "test_key"}
-            response = self.client.post(
+            response = client.post(
                 "/api/v1/admin/rollback?source=test&target_version=1.0", headers=headers
             )
-            # Flexible status code validation to handle mocking variability
-            assert response.status_code in [200, 400, 500]
-            if response.status_code == 500:
-                assert "Rollback operation failed" in response.json()["detail"]
+            assert response.status_code == 500
+            assert response.json()["detail"] == "Rollback operation failed: Rollback error"
 
 
 class TestDebugEndpoint:

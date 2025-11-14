@@ -31,8 +31,6 @@ from sqlalchemy import create_engine
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
-from sqlalchemy.sql import Executable
-from sqlalchemy.sql.elements import ClauseElement
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.engine import Connection, Engine, Result
@@ -301,7 +299,7 @@ class EngineCompat:
 
     def execute(
         self,
-        statement: str | Executable[Any] | ClauseElement[Any],
+        statement: Any,  # str | Executable | ClauseElement - Executable/ClauseElement are not generic types
         *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
     ) -> _ResultWithConnectionCleanup:
@@ -313,7 +311,6 @@ class EngineCompat:
         stmt = text(statement) if isinstance(statement, str) else statement
         # Keep connection open until result is consumed to avoid ResourceClosedError
         conn = self._engine.connect()
-        result: Result[Any] | None = None
         try:
             result = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.

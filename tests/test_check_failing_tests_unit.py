@@ -74,7 +74,7 @@ def test_main_mixed_pass_fail_timeout(
     original_glob = Path.glob
 
     def mock_glob(self: Path, pattern: str) -> Iterator[Path]:
-        if pattern == "test_*.py" and str(self) == "tests":
+        if pattern == "test_*.py" and self.name == "tests":
             yield Path("tests/t_ok.py")
             yield Path("tests/t_fail.py")
             yield Path("tests/t_to.py")
@@ -90,18 +90,15 @@ def test_main_mixed_pass_fail_timeout(
     def fake_run(
         cmd: list[str], capture_output: bool, text: bool, timeout: int | None
     ) -> SimpleNamespace:  # noqa: ARG001
-        # Find test path by searching for element containing expected test filename
-        # Note: cmd may contain full paths, so we check if filename is in any arg
+        # Find test path by exact filename match to avoid substring collisions
         test_path = None
         for arg in cmd:
-            if "t_ok.py" in arg:
-                test_path = "t_ok.py"
-                break
-            elif "t_fail.py" in arg:
-                test_path = "t_fail.py"
-                break
-            elif "t_to.py" in arg:
-                test_path = "t_to.py"
+            if not isinstance(arg, str):
+                continue
+            candidate = Path(arg).name
+            filename = candidate.split("::", 1)[0]
+            if filename in {"t_ok.py", "t_fail.py", "t_to.py"}:
+                test_path = filename
                 break
 
         if test_path is None:
@@ -138,7 +135,7 @@ def test_main_all_passing(
     original_glob = Path.glob
 
     def mock_glob(self: Path, pattern: str) -> Iterator[Path]:
-        if pattern == "test_*.py" and str(self) == "tests":
+        if pattern == "test_*.py" and self.name == "tests":
             yield Path("tests/t_ok1.py")
             yield Path("tests/t_ok2.py")
             return

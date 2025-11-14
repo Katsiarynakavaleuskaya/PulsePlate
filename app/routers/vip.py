@@ -492,8 +492,6 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
 
     # Cast needed: adapter receives object types but synthesize_recipes_for_week expects Dict and int
     # Safe cast because adapter pattern validates input before calling actual function
-    from typing import cast, Dict
-
     if args and len(args) >= 1 and isinstance(args[0], dict):
         week_plan = args[0]
         recipes_per_day = args[1] if len(args) > 1 and isinstance(args[1], int) else 1

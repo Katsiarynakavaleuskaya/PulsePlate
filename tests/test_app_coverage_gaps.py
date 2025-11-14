@@ -18,6 +18,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.utils import plate_patch
+
 
 class TestAppDatabaseFallback:
     """Тесты для database fallback логики в app.py lifespan (строки 145-163)"""
@@ -126,19 +128,16 @@ class TestAppDynamicPatching:
 
     def test_sync_app_attr_sources_none_source_skip(self, _test_environment) -> None:
         """Test _sync_app_attr_sources skips None source (line 1276)"""
-        import app
-
         # Create sources list with None
         sources = [None, MagicMock(), None]
 
         # Should skip None sources without error
-        result = app._sync_app_attr_sources(MagicMock(), sources)
+        result = plate_patch._sync_app_attr_sources(MagicMock(), sources)
         # Function may return None or continue processing
         # Main thing is it doesn't crash on None source
 
     def test_sync_app_attr_sources_attribute_error(self, _test_environment) -> None:
         """Test _sync_app_attr_sources handles AttributeError (lines 1279-1280)"""
-        import app
 
         # Create source that raises AttributeError
         class SourceWithoutAttr:
@@ -149,13 +148,11 @@ class TestAppDynamicPatching:
 
         # Should handle AttributeError gracefully
         sources = [source]
-        result = app._sync_app_attr_sources(alias_module, sources)
+        result = plate_patch._sync_app_attr_sources(alias_module, sources)
         # Should not raise exception
 
     def test_sync_app_attr_sources_setattr_exception(self, _test_environment) -> None:
         """Test _sync_app_attr_sources handles setattr exception (lines 1287-1288)"""
-        import app
-
         # Create source and target where setattr fails
         source = MagicMock()
         source.test_attr = "test_value"
@@ -168,7 +165,7 @@ class TestAppDynamicPatching:
         sources = [source]
 
         # Should handle setattr exception gracefully
-        result = app._sync_app_attr_sources(alias_module, sources)
+        result = plate_patch._sync_app_attr_sources(alias_module, sources)
         # Should not raise exception, just continue
 
 
@@ -298,19 +295,19 @@ class TestAppAttributeDeletion:
         sys.modules["test_module_for_deletion"] = mock_module
 
         # Add attribute that will be deleted
-        original_attrs = app._PATCHED_ATTRS
-        app._PATCHED_ATTRS = ["test_attr"]
+        original_attrs = plate_patch._PATCHED_ATTRS
+        plate_patch._PATCHED_ATTRS = ["test_attr"]
 
         try:
             # Use _plate_env_snapshot context manager
             # This will capture the module state and restore it
-            with app._plate_env_snapshot():
+            with plate_patch._plate_env_snapshot():
                 # Add attribute that didn't exist originally
                 if hasattr(mock_module, "test_attr"):
                     delattr(mock_module, "test_attr")
                 # Attribute deletion is tested in finally block (lines 1479-1480)
         finally:
-            app._PATCHED_ATTRS = original_attrs
+            plate_patch._PATCHED_ATTRS = original_attrs
             # Cleanup
             if "test_module_for_deletion" in sys.modules:
                 del sys.modules["test_module_for_deletion"]
@@ -325,7 +322,7 @@ class TestAppAsyncWrapper:
         import app
 
         # Create async function wrapped with _with_plate_env_snapshot decorator
-        @app._with_plate_env_snapshot
+        @plate_patch._with_plate_env_snapshot
         async def test_async_func():
             return "test_result"
 
