@@ -492,8 +492,8 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
     from typing import cast, Dict
 
     if args and len(args) >= 1 and isinstance(args[0], dict):
-        week_plan = cast(Dict, args[0])
-        recipes_per_day = cast(int, args[1]) if len(args) > 1 and isinstance(args[1], int) else 1
+        week_plan = args[0]  # type: ignore[assignment]
+        recipes_per_day = args[1] if len(args) > 1 and isinstance(args[1], int) else 1  # type: ignore[assignment]
         return synthesize_recipes_for_week(week_plan, recipes_per_day)
     return None
 
