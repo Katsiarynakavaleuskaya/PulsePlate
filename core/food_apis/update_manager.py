@@ -235,7 +235,7 @@ class DatabaseUpdateManager:
                 if matches:
                     # Deterministic selection: newest by modification time
                     matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                    return Path(matches[0]) if matches[0] else None
+                    return matches[0]
         return None
 
     async def check_for_updates(self) -> Dict[str, bool]:

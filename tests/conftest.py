@@ -193,10 +193,13 @@ def app(app_module: ModuleType) -> FastAPI:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
 
+    from typing import cast
+
     app_instance = getattr(app_module, "app", None)
     if not isinstance(app_instance, FastAPI):
         raise RuntimeError("app_module.app is not initialised")
-    assert isinstance(app_instance, FastAPI)  # Type narrowing for mypy
+    assert isinstance(app_instance, FastAPI)
+    app_instance = cast(FastAPI, app_instance)
     if hasattr(app_module, "get_api_key"):
         app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 

@@ -158,6 +158,171 @@ def _read_api_key(
     return api_key
 
 
+# Profile configuration for API key management
+DEFAULT_PROFILE: str = "default"
+
+PROFILE_CONFIG: dict[str, dict[str, str]] = {
+    "default": {
+        "description": "Paid/Premium",
+        "env_key": "OPENAI_API_KEY",
+    },
+    "free": {
+        "description": "Free tier",
+        "env_key": "OPENAI_API_KEY_FREE",
+    },
+}
+
+
+def update_api_key(
+    api_key: str, profile: str = DEFAULT_PROFILE, use_encryption: bool = True
+) -> bool:
+    """Update API key in configuration files.
+
+    RU: Обновить API-ключ в файлах конфигурации.
+    EN: Update API key in configuration files.
+
+    Args:
+        api_key: The API key to store
+        profile: Profile name (default, free, etc.)
+        use_encryption: Whether to encrypt the key (requires cryptography)
+
+    Returns:
+        True if successful, False otherwise
+    """
+    logger = logging.getLogger(__name__)
+
+    # Validate profile
+    if profile not in PROFILE_CONFIG:
+        logger.error(
+            "Invalid profile '%s'. Valid profiles: %s", profile, list(PROFILE_CONFIG.keys())
+        )
+        print(f"❌ Invalid profile '{profile}'. Valid profiles: {', '.join(PROFILE_CONFIG.keys())}")
+        return False
+
+    # Validate encryption availability
+    if use_encryption and not ENCRYPTION_AVAILABLE:
+        logger.error("Encryption requested but cryptography library not installed")
+        print("❌ Encryption not available. Please install 'cryptography' and retry.")
+        return False
+
+    try:
+        from secure_config import encrypt_value
+
+        # Encrypt the key if requested
+        if use_encryption:
+            try:
+                encrypted_key = encrypt_value(api_key)
+                if not encrypted_key.startswith("encrypted:"):
+                    logger.error("Encryption failed: output does not start with 'encrypted:'")
+                    print("❌ Encryption failed: invalid output format")
+                    return False
+                key_value = encrypted_key
+            except RuntimeError as e:
+                logger.error("Encryption failed: %s", e)
+                print(f"❌ Encryption failed: {e}")
+                return False
+        else:
+            key_value = api_key
+
+        # Update MCP configuration
+        mcp_file = Path.home() / ".cursor" / "mcp.json"
+        if mcp_file.exists():
+            import json
+
+            try:
+                with open(mcp_file, "r", encoding="utf-8") as f:
+                    mcp_config = json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to read MCP config: %s", e)
+                mcp_config = {"mcpServers": {}}
+
+            if "mcpServers" not in mcp_config:
+                mcp_config["mcpServers"] = {}
+
+            server_name = "pulseplate-chatgpt"
+            if server_name not in mcp_config["mcpServers"]:
+                mcp_config["mcpServers"][server_name] = {}
+
+            if "env" not in mcp_config["mcpServers"][server_name]:
+                mcp_config["mcpServers"][server_name]["env"] = {}
+
+            env_key_name = PROFILE_CONFIG[profile]["env_key"]
+            mcp_config["mcpServers"][server_name]["env"][env_key_name] = api_key
+
+            try:
+                with open(mcp_file, "w", encoding="utf-8") as f:
+                    json.dump(mcp_config, f, indent=2)
+                logger.info("Updated MCP configuration")
+            except (IOError, OSError) as e:
+                logger.warning("Failed to write MCP config: %s", e)
+
+        # Update .env file if it exists
+        env_file = Path.home() / ".cursor" / ".env"
+        if env_file.exists():
+            try:
+                with open(env_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+            except IOError as e:
+                logger.warning("Failed to read .env file: %s", e)
+                lines = []
+
+            env_key_name = PROFILE_CONFIG[profile]["env_key"]
+            updated = False
+            new_lines = []
+            for line in lines:
+                if line.strip().startswith(f"{env_key_name}="):
+                    new_lines.append(f"{env_key_name}={key_value}\n")
+                    updated = True
+                else:
+                    new_lines.append(line)
+
+            if not updated:
+                new_lines.append(f"{env_key_name}={key_value}\n")
+
+            try:
+                with open(env_file, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+                logger.info("Updated .env file")
+            except (IOError, OSError) as e:
+                logger.warning("Failed to write .env file: %s", e)
+
+        # Update settings.json if it exists
+        settings_file = Path.home() / ".cursor" / "settings.json"
+        if settings_file.exists():
+            import json
+
+            try:
+                with open(settings_file, "r", encoding="utf-8") as f:
+                    settings = json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to read settings.json: %s", e)
+                settings = {}
+
+            settings["cursor.ai.openaiApiKey"] = api_key
+
+            try:
+                with open(settings_file, "w", encoding="utf-8") as f:
+                    json.dump(settings, f, indent=2)
+                logger.info("Updated settings.json")
+            except (IOError, OSError) as e:
+                logger.warning("Failed to write settings.json: %s", e)
+
+        logger.info("API key updated successfully for profile '%s'", profile)
+        return True
+
+    except Exception as e:
+        logger.exception("Unexpected error updating API key: %s", e)
+        print(f"❌ Error: {e}")
+        return False
+
+
+# Check encryption availability
+try:
+    from secure_config import ENCRYPTION_AVAILABLE
+except ImportError:
+    ENCRYPTION_AVAILABLE = False
+
+
 def main() -> None:
     """Entrypoint for secure key update flow. / Точка входа для безопасного обновления ключа."""
     try:

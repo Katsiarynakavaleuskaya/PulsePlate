@@ -67,7 +67,10 @@ class DatabaseUpdateScheduler:
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            asyncio.create_task(self.stop())
+            # Signal handlers execute synchronously; set flag instead of creating task
+            self.is_running = False
+            if self._update_task and not self._update_task.done():
+                self._update_task.cancel()
 
         # Handle common shutdown signals
         try:

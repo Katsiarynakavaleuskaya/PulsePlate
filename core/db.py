@@ -31,6 +31,8 @@ from sqlalchemy import create_engine
 from sqlalchemy import exc as sa_exc
 from sqlalchemy import text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.sql import Executable
+from sqlalchemy.sql.elements import ClauseElement
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
     from sqlalchemy.engine import Connection, Engine, Result
@@ -299,9 +301,9 @@ class EngineCompat:
 
     def execute(
         self,
-        statement: object,
-        *args: object,
-        **kwargs: object,
+        statement: str | Executable[Any] | ClauseElement[Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> _ResultWithConnectionCleanup:
         """Execute a statement using a temporary connection.
 

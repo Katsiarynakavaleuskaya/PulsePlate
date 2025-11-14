@@ -124,6 +124,13 @@ class BayesianPytestPlugin:
             error_message = None
 
         # Записать выполнение теста
+        fspath = getattr(report, "fspath", None)
+        if fspath is not None:
+            # Support older py.path objects with .strpath and newer str/Path values
+            file_path = getattr(fspath, "strpath", None) or str(fspath)
+        else:
+            file_path = ""
+
         record_test_execution(
             test_name=test_name,
             category=category,
@@ -131,7 +138,7 @@ class BayesianPytestPlugin:
             error_type=error_type,
             error_message=error_message,
             execution_time=getattr(report, "duration", 0.0),
-            file_path=report.fspath.strpath if hasattr(report, "fspath") else "",
+            file_path=file_path,
             line_number=getattr(report, "lineno", None),
         )
 
@@ -200,7 +207,8 @@ class BayesianPytestPlugin:
         context["coverage_related"] = "coverage" in str(item.fspath).lower()
 
         # Проверить сложность зависимостей
-        context["complex_dependencies"] = len(item.fixturenames) > 3
+        fixturenames = getattr(item, "fixturenames", ()) or ()
+        context["complex_dependencies"] = len(fixturenames) > 3
 
         return context
 
@@ -378,12 +386,14 @@ class BayesianPytestPlugin:
 
 def pytest_configure(config: Config) -> None:
     """Конфигурация pytest plugin."""
-    if not hasattr(config, "bayesian_plugin"):
-        config.bayesian_plugin = BayesianPytestPlugin()
+    plugin = getattr(config, "bayesian_plugin", None)
+    if plugin is None:
+        plugin = BayesianPytestPlugin()
+        setattr(config, "bayesian_plugin", plugin)
     if getattr(config, "_bayesian_plugin_registered", False):
         return
     try:
-        config.pluginmanager.register(config.bayesian_plugin, name="bayesian_pytest_plugin")
+        config.pluginmanager.register(plugin, name="bayesian_pytest_plugin")
     except ValueError:
         # Already registered elsewhere - mark as registered to avoid duplicate hook calls
         setattr(config, "_bayesian_plugin_registered", True)
@@ -412,7 +422,10 @@ def pytest_runtest_teardown(item: Item, nextitem: Optional[Item]) -> None:
 
 def pytest_runtest_logreport(report: Any) -> None:
     """Хук для отчета о тесте."""
-    if hasattr(report.config, "bayesian_plugin") and not getattr(
-        report.config, "_bayesian_plugin_registered", False
+    report_config = getattr(report, "config", None)
+    if report_config is None:
+        return
+    if hasattr(report_config, "bayesian_plugin") and not getattr(
+        report_config, "_bayesian_plugin_registered", False
     ):
-        report.config.bayesian_plugin.pytest_runtest_logreport(report)
+        report_config.bayesian_plugin.pytest_runtest_logreport(report)
