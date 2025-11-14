@@ -21,9 +21,21 @@ from tenacity import (
     wait_exponential,
 )
 
+try:
+    from tenacity import RetryCallState
+except ImportError:
+    # Fallback for older tenacity versions
+    RetryCallState = Any  # type: ignore[misc,assignment]
+
 from app.schemas.bmr import BMRResponse
 
 logger = logging.getLogger(__name__)
+
+# Module-level constants for retry configuration
+_MAX_RETRY_ATTEMPTS: int = 3
+_RETRY_WAIT_MULTIPLIER: float = 1.0
+_RETRY_WAIT_MIN: float = 1.0
+_RETRY_WAIT_MAX: float = 10.0
 
 # Module-level constants for error messages (extracted from handle_request_errors to avoid duplication)
 _DETAILED_MESSAGES: Dict[str, Dict[str, str]] = {
@@ -145,7 +157,7 @@ def _should_retry_http_error(exception: BaseException) -> bool:
     return False
 
 
-def _log_retry_attempt(retry_state) -> None:
+def _log_retry_attempt(retry_state: RetryCallState) -> None:
     """
     Log retry attempt details for observability.
 
@@ -153,7 +165,7 @@ def _log_retry_attempt(retry_state) -> None:
         retry_state: Tenacity retry state object containing attempt info
     """
     attempt_number = retry_state.attempt_number
-    max_attempts = 3  # Fixed based on stop_after_attempt(3)
+    max_attempts = _MAX_RETRY_ATTEMPTS
     exception = retry_state.outcome.exception() if retry_state.outcome else None
 
     # Extract exception details
@@ -194,15 +206,18 @@ def _log_retry_attempt(retry_state) -> None:
             "Retry attempt %d/%d: Unknown error. Retrying...", attempt_number, max_attempts
         )
 
-    # Log next backoff delay - calculate from exponential backoff
-    # wait_exponential(multiplier=1, min=1, max=10) means: 1, 2, 4, 8, 10, ...
-    wait_time = min(1 * (2 ** (attempt_number - 1)), 10)
+    # Log next backoff delay - calculate from exponential backoff using module-level constants
+    # Formula: min(multiplier * (2 ** (attempt_number - 1)), max)
+    wait_time = min(_RETRY_WAIT_MULTIPLIER * (2 ** (attempt_number - 1)), _RETRY_WAIT_MAX)
+    wait_time = max(wait_time, _RETRY_WAIT_MIN)  # Ensure minimum wait time
     logger.info("Next retry in %.2f seconds", wait_time)
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
+    stop=stop_after_attempt(_MAX_RETRY_ATTEMPTS),
+    wait=wait_exponential(
+        multiplier=_RETRY_WAIT_MULTIPLIER, min=_RETRY_WAIT_MIN, max=_RETRY_WAIT_MAX
+    ),
     retry=(
         retry_if_exception_type(
             (
@@ -247,23 +262,10 @@ def _make_post_request(
         requests.exceptions.ConnectionError: If all retry attempts fail to connect
         requests.exceptions.HTTPError: If API returns a non-retryable error or all retries exhausted
     """
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=timeout)
-        # Log successful request on first attempt
-        if response.status_code < 400:
-            logger.debug("POST request succeeded: %s (status: %d)", url, response.status_code)
-        # raise_for_status will raise HTTPError for 4xx/5xx, which triggers retry logic for 5xx
-        response.raise_for_status()
-        return response
-    except Exception as e:
-        # Log final failure before re-raising
-        logger.error(
-            "POST request failed after retries: %s - %s: %s",
-            url,
-            type(e).__name__,
-            str(e),
-        )
-        raise
+    response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+    # raise_for_status will raise HTTPError for 4xx/5xx, which triggers retry logic for 5xx
+    response.raise_for_status()
+    return response
 
 
 def call_premium_bmr_api(

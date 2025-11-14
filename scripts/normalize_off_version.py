@@ -221,17 +221,21 @@ def set_version(v: str) -> None:
         Creates cache/food_db/database_versions.json if it doesn't exist.
         Updates or creates the openfoodfacts.version field in the JSON file.
     """
+    # Load or create metadata - json.loads returns Any, validated below
+    meta: Any  # Declare once to avoid linter "already defined" error
     if not VERS.exists():
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist
         meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
         _atomic_write_json(VERS, meta)
     else:
-        meta: dict[str, Any] = json.loads(VERS.read_text(encoding="utf-8"))
-        # Defensively validate meta: ensure it's a dict
-        if not isinstance(meta, dict):
+        # json.loads returns Any, will be validated below
+        loaded_data: Any = json.loads(VERS.read_text(encoding="utf-8"))
+        # Defensively validate loaded_data: ensure it's a dict
+        if not isinstance(loaded_data, dict):
             logger.warning(f"{VERS} contains non-dict data, replacing with default structure")
-            meta = copy.deepcopy(DEFAULT_DATABASE_METADATA)
+            loaded_data = copy.deepcopy(DEFAULT_DATABASE_METADATA)
+        meta = loaded_data
 
     # Defensively validate openfoodfacts: ensure it's a dict
     if not isinstance(meta.get("openfoodfacts"), dict):

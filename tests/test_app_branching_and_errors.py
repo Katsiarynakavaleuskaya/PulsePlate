@@ -5,7 +5,7 @@ import pytest
 
 # Autouse fixture for forcing production env and API_KEY
 @pytest.fixture(autouse=True)
-def _force_prod_env():
+def _force_prod_env() -> None:
     old = {k: os.environ.get(k) for k in ("APP_ENV", "ALLOW_DEV_API_KEY", "API_KEY")}
     os.environ["APP_ENV"] = "production"
     os.environ["ALLOW_DEV_API_KEY"] = "false"
@@ -90,8 +90,11 @@ def test_export_pdf_no_reportlab_with_key(
 
 # Fixture for API key headers
 @pytest.fixture
-def api_key_headers():
-    return {"X-API-Key": os.getenv("API_KEY", "test")}
+def api_key_headers() -> dict[str, str]:
+    api_key = os.getenv("API_KEY")
+    if api_key is None:
+        raise ValueError("API_KEY environment variable is not set")
+    return {"X-API-Key": api_key}
 
 
 def test_rag_context_fallback(

@@ -28,8 +28,12 @@ def create_icons_from_source(source_path: str) -> bool:
         print(f"❌ Файл {source_path} не найден!")
         return False
 
-    # Папка для иконок
-    icons_dir = "PulsePlate/Assets.xcassets/AppIcon.appiconset"
+    # Папка для иконок (относительно расположения скрипта)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    icons_dir = os.path.join(
+        script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
+    )
+    icons_dir = os.path.normpath(os.path.abspath(icons_dir))
 
     if not os.path.exists(icons_dir):
         print(f"❌ Папка {icons_dir} не найдена!")

@@ -455,8 +455,8 @@ class NutritionBayesianAnalyzer:
                             safety_level="dangerous",
                         )
                     )
-                    # Skip per-macro threshold checks if sum is invalid
-                    return results
+                    # Continue to per-macro threshold checks even if sum is invalid
+                    # This allows users to see both the sum error and any per-macro imbalance errors
 
                 limits = self.nutrition_knowledge_base["nutrient_limits"]
 

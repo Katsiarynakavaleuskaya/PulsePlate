@@ -143,8 +143,16 @@ class BayesianPytestPlugin:
         """
         try:
             all_markers = {m.name for m in getattr(item, "iter_markers", lambda: [])()}
-        except Exception:
+        except (AttributeError, TypeError):
+            # Handle cases where item doesn't have iter_markers or it raises TypeError
             all_markers = set()
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Failed to get markers from item %s: missing iter_markers or TypeError",
+                getattr(item, "nodeid", str(item)),
+            )
 
         # Настраиваемые маркеры
         for marker in self.category_markers:

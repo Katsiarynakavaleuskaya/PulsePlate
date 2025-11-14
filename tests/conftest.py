@@ -365,9 +365,16 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     RU: Предоставляет изолированное окружение для тестов, проверяющих поведение в зависимости от env.
     EN: Provides clean environment isolation for tests that need to test environment-dependent behavior.
 
-    This fixture safely isolates environment variables using monkeypatch, which automatically
-    restores them after the test. It does NOT clear the entire environment (which is dangerous),
-    but instead allows selective override of specific variables.
+    This fixture safely isolates environment variables by:
+    1. Capturing a mapping of original values for keys that existed before the test
+    2. Removing keys that were newly added during the test
+    3. Restoring original values only for keys that existed originally
+    4. Re-creating keys that were removed during the test by restoring their original value
+
+    WARNING: Potential conflicts when tests use both this fixture and monkeypatch in the same scope.
+    If you use monkeypatch.setenv/delenv in your test, those changes will be tracked by monkeypatch
+    and may conflict with this fixture's restoration logic. Prefer using either this fixture OR
+    monkeypatch directly, not both simultaneously.
 
     Usage:
         def test_something(clean_env, monkeypatch):
@@ -375,14 +382,23 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
             # Test code here
             # Environment is automatically restored after test
     """
-    snapshot = os.environ.copy()
+    # Capture mapping of original values for keys that existed before the test
+    original_env: dict[str, str] = {k: v for k, v in os.environ.items()}
     yield
+    # After test execution, restore environment
     current_keys = set(os.environ)
-    original_keys = set(snapshot)
+    original_keys = set(original_env)
+    # Remove keys that were newly added during the test
     for key in current_keys - original_keys:
         monkeypatch.delenv(key, raising=False)
+    # Restore original values only for keys that existed originally
     for key in original_keys:
-        monkeypatch.setenv(key, snapshot[key])
+        if key in os.environ:
+            # Key still exists, restore original value
+            monkeypatch.setenv(key, original_env[key])
+        else:
+            # Key was removed during test, re-create it with original value
+            monkeypatch.setenv(key, original_env[key])
 
 
 @pytest.fixture

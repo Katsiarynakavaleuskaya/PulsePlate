@@ -150,7 +150,7 @@ def main() -> int:
     if timeout_tests:
         print("\n⏰ Timeout tests:")
         for test_name in timeout_tests:
-            print(f"  - {str(test_name)}")
+            print(f"  - {test_name}")
 
     return len(failing_tests) + len(timeout_tests)
 

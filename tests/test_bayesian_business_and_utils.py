@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Iterator
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -104,7 +105,7 @@ class DummyItem:
         self._source = source
         self.nodeid = f"{path}::{name}"
 
-    def iter_markers(self):
+    def iter_markers(self) -> Iterator[SimpleNamespace]:
         for marker in self._markers:
             yield SimpleNamespace(name=marker)
 
