@@ -302,7 +302,7 @@ class EngineCompat:
     def execute(
         self,
         statement: str | Executable[Any] | ClauseElement[Any],
-        *args: Any,
+        *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
     ) -> _ResultWithConnectionCleanup:
         """Execute a statement using a temporary connection.

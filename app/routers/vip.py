@@ -459,10 +459,6 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
             food_db = kwargs.get("food_db")
             recipe_db = kwargs.get("recipe_db")
 
-            # Enforce typing to match make_weekly_menu signature
-            from typing import Dict
-            from core.menu_engine import FoodItem, Recipe
-
             # Type check for food_db and recipe_db
             if food_db is not None and not isinstance(food_db, dict):
                 food_db = (
