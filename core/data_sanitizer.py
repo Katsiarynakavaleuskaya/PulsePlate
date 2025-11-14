@@ -27,6 +27,8 @@ from core.nutrition_constants import (
     PROTEIN_G_MAX,
 )
 
+NumericLike = int | float | str | None
+
 logger = logging.getLogger(__name__)
 
 # Reuse central thresholds to stay aligned with WHO/USDA data
