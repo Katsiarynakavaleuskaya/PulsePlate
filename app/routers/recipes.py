@@ -43,8 +43,8 @@ async def list_recipes_search(
 
 
 @router.get("/api/v1/recipes/{recipe_id}", response_model=Recipe)
-def get_recipe(recipe_id: str) -> Recipe:
-    r = recipe_store.get_recipe(recipe_id)
+async def get_recipe(recipe_id: str) -> Recipe:
+    r = await asyncio.to_thread(recipe_store.get_recipe, recipe_id)
     if not r:
         raise HTTPException(404, "Recipe not found")
     return Recipe(
@@ -66,11 +66,11 @@ def get_recipe(recipe_id: str) -> Recipe:
 
 
 @router.post("/api/v1/recipes/preview", response_model=RecipePreviewResponse)
-def recipe_preview(req: RecipePreviewRequest) -> RecipePreviewResponse:
+async def recipe_preview(req: RecipePreviewRequest) -> RecipePreviewResponse:
     if req.servings <= 0:
         raise HTTPException(422, "servings must be >= 1")
     total_g = sum(i.grams for i in req.ingredients)
-    total = nutrients_for([i.model_dump() for i in req.ingredients])
+    total = await asyncio.to_thread(nutrients_for, [i.model_dump() for i in req.ingredients])
     per_serv = {k: v / req.servings for k, v in total.items()}
     return RecipePreviewResponse(
         title=req.title, servings=req.servings, total_g=total_g, per_serving=per_serv

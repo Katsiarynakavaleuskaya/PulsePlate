@@ -109,7 +109,7 @@ repos:
       # Limited to working directories only (excludes tests) - ANN checks only
       - id: ruff-pre-push
         name: ruff (pre-push, strict)
-        entry: bash -c "if ! command -v ruff >/dev/null 2>&1; then echo '⚠️  ruff not available, skipping pre-push check' && exit 0; else ruff check --select ANN app/ core/ scripts/ app.py main.py settings.py secure_config.py signed_links.py llm.py nutrition_core.py nutrition_plate.py bmi_core.py bodyfat.py bmi_visualization.py mcp_*.py setup_*.py update_*.py verify_*.py providers/ 2>/dev/null; fi"
+        entry: bash -c "if ! command -v ruff >/dev/null 2>&1; then echo '⚠️  ruff not available, skipping pre-push check' && exit 0; else ruff check --select ANN app/ core/ scripts/ app.py main.py settings.py secure_config.py signed_links.py llm.py nutrition_core.py nutrition_plate.py bmi_core.py bodyfat.py bmi_visualization.py mcp_*.py setup_*.py update_*.py verify_*.py providers/; fi"
         language: system
         pass_filenames: false
         stages: [pre-push]

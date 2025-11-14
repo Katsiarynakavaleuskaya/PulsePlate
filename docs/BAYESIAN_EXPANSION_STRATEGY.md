@@ -943,15 +943,98 @@ class Limits:
 class PersonalizedSafetyLimits:
     # RU: Значения-заглушки, NFR — требуется утверждение клинико‑нутриционного совета.
     # EN: Placeholder guardrails — obtain approval via the Medical Safety Workflow (§ Medical Safety Approval Workflow).
-    # NOTE: These constants are now loaded from config/medical_safety.yaml at runtime.
-    # The hardcoded values below are fallbacks and should NOT be used in production.
+    # NOTE: These constants MUST be loaded from config/medical_safety.yaml at runtime.
+    # Hardcoded defaults are NOT allowed in production - use None/sentinel values instead.
     # See CONTRIBUTING.md § Medical Safety Approval Workflow for approval requirements.
-    MIN_SAFE_FLOOR_KCAL: Final[float] = 1000.0  # Fallback only - use config/medical_safety.yaml
-    MAX_SAFE_CEILING_KCAL: Final[float] = 4500.0  # Fallback only - use config/medical_safety.yaml
+    MIN_SAFE_FLOOR_KCAL: float | None = None  # Must be loaded from config/medical_safety.yaml
+    MAX_SAFE_CEILING_KCAL: float | None = None  # Must be loaded from config/medical_safety.yaml
 
     # Feature flag: Medical alerts/enforcements are disabled by default until approved
     # Set featureFlags.medicalSafetyApproved = true in config after approval workflow
     _medical_safety_approved: bool = False  # Loaded from config/medical_safety.yaml
+
+    def __init__(self):
+        """Initialize with runtime validation of medical safety configuration.
+
+        Raises:
+            RuntimeError: If config values are missing, out of range, or approval flag is false
+                in production environment. This prevents production use of fallback values.
+        """
+        import yaml
+        from pathlib import Path
+        import logging
+        import os
+
+        logger = logging.getLogger(__name__)
+        config_path = Path("config/medical_safety.yaml")
+
+        # Load configuration
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+        except FileNotFoundError:
+            error_msg = f"Medical safety config not found: {config_path}"
+            logger.error(error_msg)
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(error_msg + " - Production requires valid config")
+            return
+        except yaml.YAMLError as e:
+            error_msg = f"Invalid YAML in medical safety config: {e}"
+            logger.error(error_msg)
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(error_msg + " - Production requires valid config")
+            return
+
+        # Validate and load MIN_SAFE_FLOOR_KCAL
+        min_kcal = config.get("MIN_SAFE_FLOOR_KCAL")
+        if min_kcal is None:
+            error_msg = "MIN_SAFE_FLOOR_KCAL missing from config/medical_safety.yaml"
+            logger.error(error_msg)
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(error_msg + " - Production requires valid config")
+            return
+        if not isinstance(min_kcal, (int, float)) or not (800 <= min_kcal <= 2000):
+            error_msg = f"MIN_SAFE_FLOOR_KCAL out of acceptable range [800, 2000]: {min_kcal}"
+            logger.error(error_msg)
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(error_msg + " - Production requires valid config")
+            return
+        self.MIN_SAFE_FLOOR_KCAL = float(min_kcal)
+
+        # Validate and load MAX_SAFE_CEILING_KCAL
+        max_kcal = config.get("MAX_SAFE_CEILING_KCAL")
+        if max_kcal is None:
+            error_msg = "MAX_SAFE_CEILING_KCAL missing from config/medical_safety.yaml"
+            logger.error(error_msg)
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(error_msg + " - Production requires valid config")
+            return
+        if not isinstance(max_kcal, (int, float)) or not (3000 <= max_kcal <= 8000):
+            error_msg = f"MAX_SAFE_CEILING_KCAL out of acceptable range [3000, 8000]: {max_kcal}"
+            logger.error(error_msg)
+            if os.getenv("ENVIRONMENT") == "production":
+                raise RuntimeError(error_msg + " - Production requires valid config")
+            return
+        self.MAX_SAFE_CEILING_KCAL = float(max_kcal)
+
+        # Validate medical safety approval flag
+        feature_flags = config.get("featureFlags", {})
+        self._medical_safety_approved = feature_flags.get("medicalSafetyApproved", False)
+
+        if os.getenv("ENVIRONMENT") == "production" and not self._medical_safety_approved:
+            error_msg = (
+                "featureFlags.medicalSafetyApproved is false in production. "
+                "Medical safety features require approval before production use."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        logger.info(
+            "Medical safety limits loaded: MIN=%s, MAX=%s, Approved=%s",
+            self.MIN_SAFE_FLOOR_KCAL,
+            self.MAX_SAFE_CEILING_KCAL,
+            self._medical_safety_approved,
+        )
 
     def get_calorie_limits(self, user_id: int) -> Limits:
         """Расчёт персональных безопасных границ по истории пользователя."""

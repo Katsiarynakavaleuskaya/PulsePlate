@@ -14,7 +14,7 @@ import ast
 import asyncio
 import os
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from _pytest.config import Config
@@ -68,10 +68,10 @@ class BayesianPytestPlugin:
         (ErrorType.ASYNC_ERROR, ["asyncio", "await", "async"], False),
     ]
 
-    def __init__(self, category_markers: Optional[list] = None) -> None:
+    def __init__(self, category_markers: list | None = None) -> None:
         self.analyzer = BayesianTestAnalyzer()
-        self.test_start_times: Dict[str, float] = {}
-        self.test_contexts: Dict[str, Dict[str, Any]] = {}
+        self.test_start_times: dict[str, float] = {}
+        self.test_contexts: dict[str, dict[str, Any]] = {}
         # Allow custom markers, fallback to default
         self.category_markers = category_markers or self.DEFAULT_CATEGORY_MARKERS
 
@@ -87,7 +87,7 @@ class BayesianPytestPlugin:
         context = self._gather_test_context(item)
         self.test_contexts[test_name] = {"category": category, "context": context}
 
-    def pytest_runtest_teardown(self, item: Item, nextitem: Optional[Item]) -> None:
+    def pytest_runtest_teardown(self, item: Item, nextitem: Item | None) -> None:
         """Вызывается после выполнения теста."""
         test_name = item.nodeid
 
@@ -190,7 +190,7 @@ class BayesianPytestPlugin:
             return TestCategory.BAYESIAN
         return TestCategory.UNIT
 
-    def _gather_test_context(self, item: Item) -> Dict[str, Any]:
+    def _gather_test_context(self, item: Item) -> dict[str, Any]:
         """Собрать контекст теста."""
         context = {}
 
@@ -310,7 +310,7 @@ class BayesianPytestPlugin:
         detector.visit(tree)
         return detector.has_mocks
 
-    def _analyze_failure(self, report: TestReport) -> Tuple[Optional[ErrorType], Optional[str]]:
+    def _analyze_failure(self, report: TestReport) -> tuple[ErrorType | None, str | None]:
         """Анализировать падение теста и определить тип ошибки и сообщение.
 
         Returns a tuple (error_type, error_message) where values may be None
@@ -337,7 +337,7 @@ class BayesianPytestPlugin:
         if error_message is None:
             error_message = error_text
 
-        error_type: Optional[ErrorType] = None
+        error_type: ErrorType | None = None
         error_lower = error_text.lower()
 
         # Iterate over ERROR_PATTERNS to find matching error type
@@ -412,7 +412,7 @@ def pytest_runtest_setup(item: Item) -> None:
         item.config.bayesian_plugin.pytest_runtest_setup(item)
 
 
-def pytest_runtest_teardown(item: Item, nextitem: Optional[Item]) -> None:
+def pytest_runtest_teardown(item: Item, nextitem: Item | None) -> None:
     """Хук для завершения теста."""
     if hasattr(item.config, "bayesian_plugin") and not getattr(
         item.config, "_bayesian_plugin_registered", False

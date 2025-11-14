@@ -580,7 +580,12 @@ app.include_router(shoplist_router, dependencies=[protected_dependency])
 if VIP_MODULE_ENABLED and vip_router is not None:
     app.include_router(vip_router, dependencies=[protected_dependency])
 
-app.include_router(premium_week_router, dependencies=[protected_dependency])
+# Include premium week router (with feature flag)
+FEATURE_PREMIUM_WEEK_ENABLED = (
+    os.getenv("FEATURE_PREMIUM_WEEK_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+) or VIP_MODULE_ENABLED  # Also enable if VIP module is enabled
+if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
+    app.include_router(premium_week_router, dependencies=[protected_dependency])
 
 # Conditionally include test router for non-production environments
 _app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
@@ -3850,6 +3855,12 @@ async def export_weekly_plan_pdf(plan_id: str) -> Response:
 if get_bodyfat_router is not None:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
-# Include BMI Pro router
-if bmi_pro_router:
+# Include BMI Pro router (with feature flag)
+FEATURE_BMI_PRO_ENABLED = os.getenv("FEATURE_BMI_PRO_ENABLED", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
     app.include_router(bmi_pro_router)

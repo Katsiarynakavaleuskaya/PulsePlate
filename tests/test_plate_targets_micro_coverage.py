@@ -129,7 +129,7 @@ class TestPlateTargetsMicroCoverage:
             # plate_micros[nutrient] >= target_micros[nutrient] * 0.8
             # But for now, we just verify the data structure is consistent
 
-    def test_iron_coverage_plate_targets(self):
+    def test_iron_coverage_plate_targets(self) -> None:
         """Test iron (Fe) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -170,7 +170,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_iron, (int, float)), "Target iron should be numeric"
         assert isinstance(plate_iron, (int, float)), "Plate iron should be numeric"
 
-    def test_calcium_coverage_plate_targets(self):
+    def test_calcium_coverage_plate_targets(self) -> None:
         """Test calcium (Ca) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -210,7 +210,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_calcium, (int, float)), "Target calcium should be numeric"
         assert isinstance(plate_calcium, (int, float)), "Plate calcium should be numeric"
 
-    def test_magnesium_coverage_plate_targets(self):
+    def test_magnesium_coverage_plate_targets(self) -> None:
         """Test magnesium (Mg) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -250,7 +250,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_magnesium, (int, float)), "Target magnesium should be numeric"
         assert isinstance(plate_magnesium, (int, float)), "Plate magnesium should be numeric"
 
-    def test_potassium_coverage_plate_targets(self):
+    def test_potassium_coverage_plate_targets(self) -> None:
         """Test potassium (K) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -290,7 +290,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_potassium, (int, float)), "Target potassium should be numeric"
         assert isinstance(plate_potassium, (int, float)), "Plate potassium should be numeric"
 
-    def test_vitamin_d_coverage_plate_targets(self):
+    def test_vitamin_d_coverage_plate_targets(self) -> None:
         """Test vitamin D coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -330,7 +330,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_vitd, (int, float)), "Target vitamin D should be numeric"
         assert isinstance(plate_vitd, (int, float)), "Plate vitamin D should be numeric"
 
-    def test_b12_coverage_plate_targets(self):
+    def test_b12_coverage_plate_targets(self) -> None:
         """Test B12 coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -370,7 +370,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_b12, (int, float)), "Target B12 should be numeric"
         assert isinstance(plate_b12, (int, float)), "Plate B12 should be numeric"
 
-    def test_folate_coverage_plate_targets(self):
+    def test_folate_coverage_plate_targets(self) -> None:
         """Test folate coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -410,7 +410,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_folate, (int, float)), "Target folate should be numeric"
         assert isinstance(plate_folate, (int, float)), "Plate folate should be numeric"
 
-    def test_iodine_coverage_plate_targets(self):
+    def test_iodine_coverage_plate_targets(self) -> None:
         """Test iodine coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -450,7 +450,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_iodine, (int, float)), "Target iodine should be numeric"
         assert isinstance(plate_iodine, (int, float)), "Plate iodine should be numeric"
 
-    def test_micro_coverage_different_profiles(self):
+    def test_micro_coverage_different_profiles(self) -> None:
         """Test micronutrient coverage consistency across different user profiles"""
         profiles = [
             {"sex": "male", "age": 25, "life_stage": "adult"},

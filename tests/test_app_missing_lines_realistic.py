@@ -371,9 +371,6 @@ class TestAppSpecificMissingBlocks:
         test_data = {"weight": 70, "height": 175, "age": 30, "sex": "M"}
         if lang is not None:
             test_data["lang"] = lang
-        # Empty string is a valid value and should be sent
-        elif lang == "":
-            test_data["lang"] = ""
 
         # Make the request - any unexpected exceptions should fail the test
         response = self.client.post("/bmi", json=test_data)

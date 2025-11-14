@@ -37,6 +37,21 @@ _RETRY_WAIT_MULTIPLIER: float = 1.0
 _RETRY_WAIT_MIN: float = 1.0
 _RETRY_WAIT_MAX: float = 10.0
 
+
+def _calculate_backoff_time(attempt_number: int) -> float:
+    """Calculate exponential backoff wait time for retry attempts.
+
+    Args:
+        attempt_number: The current attempt number (1-indexed)
+
+    Returns:
+        Wait time in seconds, clamped between _RETRY_WAIT_MIN and _RETRY_WAIT_MAX
+    """
+    wait_time = min(_RETRY_WAIT_MULTIPLIER * (2 ** (attempt_number - 1)), _RETRY_WAIT_MAX)
+    wait_time = max(wait_time, _RETRY_WAIT_MIN)  # Ensure minimum wait time
+    return wait_time
+
+
 # Module-level constants for error messages (extracted from handle_request_errors to avoid duplication)
 _DETAILED_MESSAGES: Dict[str, Dict[str, str]] = {
     "timeout": {
@@ -71,8 +86,8 @@ _STANDARD_GUIDANCE: Dict[str, Dict[str, str]] = {
         "ru": "API вернул код ошибки. Проверьте логи сервера.",
     },
     "connection_error": {
-        "en": "Make sure the API server is running on localhost:8000 and reachable.",
-        "ru": "Убедитесь, что API сервер запущен на localhost:8000 и доступен.",
+        "en": "Make sure the API server is running and reachable at the configured base URL.",
+        "ru": "Убедитесь, что API сервер запущен и доступен по настроенному базовому URL.",
     },
 }
 
@@ -206,10 +221,8 @@ def _log_retry_attempt(retry_state: RetryCallState) -> None:
             "Retry attempt %d/%d: Unknown error. Retrying...", attempt_number, max_attempts
         )
 
-    # Log next backoff delay - calculate from exponential backoff using module-level constants
-    # Formula: min(multiplier * (2 ** (attempt_number - 1)), max)
-    wait_time = min(_RETRY_WAIT_MULTIPLIER * (2 ** (attempt_number - 1)), _RETRY_WAIT_MAX)
-    wait_time = max(wait_time, _RETRY_WAIT_MIN)  # Ensure minimum wait time
+    # Log next backoff delay using helper function
+    wait_time = _calculate_backoff_time(attempt_number)
     logger.info("Next retry in %.2f seconds", wait_time)
 
 

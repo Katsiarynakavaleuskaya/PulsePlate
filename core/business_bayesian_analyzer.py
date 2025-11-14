@@ -185,7 +185,7 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             try:
                 try:
-                    import yaml  # type: ignore[import-untyped]  # noqa: F401
+                    import yaml  # type: ignore[import-untyped]
 
                     yaml_available = True
                 except ImportError:
@@ -426,7 +426,8 @@ class BusinessBayesianAnalyzer:
                                 error_type=BusinessErrorType.PRICING_INEFFICIENCY,
                                 error_message=(
                                     f"Слишком низкая цена (${price:.2f}) ниже порога "
-                                    f"${self.low_price_threshold:.2f} приводит к потере дохода"
+                                    f"${self.low_price_threshold:.2f} "
+                                    "приводит к потере дохода"
                                 ),
                                 revenue_impact="Потеря потенциального дохода",
                                 cost_impact="Не покрывает операционные расходы",
@@ -606,7 +607,7 @@ class BusinessBayesianAnalyzer:
                         success=False,
                         business_category=BusinessCategory.COST_OPTIMIZATION,
                         error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                        error_message="SELECT * запрос без контекста теста/фикстуры",
+                        error_message=("SELECT * запрос без контекста теста/фикстуры"),
                         cost_impact="Избыточная загрузка данных",
                         optimization_potential="Указать конкретные колонки вместо SELECT *",
                     )
@@ -654,7 +655,10 @@ class BusinessBayesianAnalyzer:
                         success=False,
                         business_category=BusinessCategory.COST_OPTIMIZATION,
                         error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                        error_message=f"Использование sleep() без контекста retry/backoff: {match.group(0)}",
+                        error_message=(
+                            "Использование sleep() без контекста retry/backoff: "
+                            f"{match.group(0)}"
+                        ),
                         cost_impact="Блокирующие задержки",
                         optimization_potential="Использовать асинхронные операции или retry-логику",
                     )

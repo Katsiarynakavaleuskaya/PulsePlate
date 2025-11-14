@@ -104,6 +104,8 @@ def run_coverage_check() -> bool:
                     print(f"⏭️  Tests skipped: {skipped}")
             else:
                 print("⚠️  Could not parse test results from JUnit XML")
+                # Fallback to stdout parsing
+                fallback_tests_from_stdout(result)
         except ET.ParseError as xml_error:
             print(f"⚠️  Error parsing JUnit XML (malformed XML): {xml_error}")
             # Fallback to stdout parsing
@@ -145,7 +147,9 @@ def run_coverage_check() -> bool:
             fallback_coverage_from_stdout(result)
         except json.JSONDecodeError as json_decode_error:
             print(
-                f"⚠️  Invalid JSON in coverage report (line {json_decode_error.lineno}, col {json_decode_error.colno}): {json_decode_error.msg}"
+                f"⚠️  Invalid JSON in coverage report "
+                f"(line {json_decode_error.lineno}, col {json_decode_error.colno}): "
+                f"{json_decode_error.msg}"
             )
             # Fallback to stdout parsing
             fallback_coverage_from_stdout(result)
@@ -159,7 +163,8 @@ def run_coverage_check() -> bool:
             fallback_coverage_from_stdout(result)
         except Exception as json_error:
             print(
-                f"⚠️  Unexpected error parsing coverage JSON: {type(json_error).__name__}: {json_error}"
+                f"⚠️  Unexpected error parsing coverage JSON: "
+                f"{type(json_error).__name__}: {json_error}"
             )
             # Fallback to stdout parsing
             fallback_coverage_from_stdout(result)

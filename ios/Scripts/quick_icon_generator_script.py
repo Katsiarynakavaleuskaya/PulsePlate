@@ -44,30 +44,38 @@ def create_icons_from_source(source_path: str) -> bool:
 
     success = 0
 
-    for filename, size in IOS_ICON_SIZES.items():
-        try:
-            # Загружаем и изменяем размер
-            with Image.open(source_path) as img:
-                if img.mode != "RGBA":
-                    img = img.convert("RGBA")
+    # Open source image once before the loop
+    try:
+        with Image.open(source_path) as source_img:
+            # Convert to RGBA once if needed
+            if source_img.mode != "RGBA":
+                img = source_img.convert("RGBA")
+            else:
+                img = source_img
 
-                resized = img.resize((size, size), Image.Resampling.LANCZOS)
+            for filename, size in IOS_ICON_SIZES.items():
+                try:
+                    # Resize and save for each icon size
+                    resized = img.resize((size, size), Image.Resampling.LANCZOS)
 
-                # Сохраняем
-                output_path = os.path.join(icons_dir, filename)
-                resized.save(output_path, "PNG", optimize=True)
+                    # Сохраняем
+                    output_path = os.path.join(icons_dir, filename)
+                    resized.save(output_path, "PNG", optimize=True)
 
-                print(f"✅ {filename} ({size}x{size})")
-                success += 1
+                    print(f"✅ {filename} ({size}x{size})")
+                    success += 1
 
-        except (OSError, ValueError) as e:
-            print(f"❌ Ошибка {filename}: {e}")
+                except (OSError, ValueError) as e:
+                    print(f"❌ Ошибка {filename}: {e}")
+    except (OSError, ValueError) as e:
+        print(f"❌ Ошибка при открытии исходного изображения: {e}")
+        return False
 
     print(f"\n🎯 Создано {success}/{len(IOS_ICON_SIZES)} иконок")
     return success == len(IOS_ICON_SIZES)
 
 
-# Main guard — remove the redundant Pillow check
+# Main guard — Pillow import check is required; script exits if Pillow is not installed
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Использование: python quick_icon_generator.py path/to/your/icon.png")

@@ -144,7 +144,6 @@ class TestRebindingModuleSpec:
         import app
 
         # Test that we can create a spec from loader (this covers the base_spec creation)
-        import importlib.util
 
         test_spec = importlib.util.spec_from_loader("test_module", loader=None)
         # spec_from_loader may return a spec with loader=None or None depending on Python version

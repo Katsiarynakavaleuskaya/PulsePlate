@@ -14,7 +14,7 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 )
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
-from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
+from app.dependencies import get_api_key, get_recipe_synthesizer as get_recipe_synth_dep
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.recipe_synth import RecipeSynthesizer
 from core.targets import MicronutrientTargets, UserProfile
@@ -542,7 +542,7 @@ def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> 
 
 
 @router.get("/health")
-def vip_health() -> Dict[str, Any]:
+async def vip_health() -> Dict[str, Any]:
     """
     RU: Проверка здоровья VIP модуля
     EN: VIP module health check
@@ -556,7 +556,7 @@ def vip_health() -> Dict[str, Any]:
 
 
 @router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key_strict)])
-def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
+async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
     EN: Weekly menu planning with VIP features
@@ -604,37 +604,19 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
         }
     except Exception as exc:
         logging.error(f"Exception in weekly_menu_plan: {exc}")
+        is_prod, _ = _is_production_environment()
+        msg = (
+            "Weekly menu generation failed" if is_prod else f"Weekly menu generation failed: {exc}"
+        )
         return {
             "status": "error",
             "echo": request.model_dump(),
             "menu": {"mode": "echo"},
-            "message": f"Weekly menu generation failed: {exc}",
+            "message": msg,
         }
 
 
-def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
-    """Dev-friendly variant: allow anonymous in dev/test/local by default for legacy path.
-
-    Honors explicit ALLOW_ANONYMOUS_API_KEYS=false to disable anonymous even in dev.
-    """
-    is_production, app_env = _is_production_environment()
-    if raw_key:
-        # In production validate strictly; in dev/test accept any provided key
-        if is_production:
-            return _require_api_key(raw_key)
-        return str(raw_key)
-    # explicit off
-    _anon_flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
-    _explicit_false = isinstance(_anon_flag, str) and _anon_flag.lower() in {
-        "false",
-        "0",
-        "no",
-        "off",
-    }
-    if not is_production and not _explicit_false:
-        return "anonymous"
-    # fallback to strict logic
-    return _require_api_key(raw_key)
+# Legacy _require_api_key_dev_legacy removed - use get_api_key from app.dependencies instead
 
 
 @router.post(
@@ -642,7 +624,7 @@ def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="Generate weekly meal plan",
     description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
-    dependencies=[Depends(_require_api_key_dev_legacy)],
+    dependencies=[Depends(get_api_key)] if get_api_key else [],
 )
 async def weekly_menu_plan_alias(
     request: WeeklyPlanRequest, x_api_key: str = Header(None)
@@ -718,7 +700,7 @@ async def weekly_menu_plan_alias(
 
 
 @router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key_strict)])
-def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
+async def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного меню на основе дефицитов
     EN: Auto-repair weekly menu based on nutrient gaps
@@ -742,7 +724,7 @@ def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.post("/shoplist/weekly", dependencies=[Depends(_require_api_key_strict)])
-def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
+async def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Создание списка покупок на неделю с округлением до упаковок
     EN: Create weekly shopping list with package rounding
@@ -788,7 +770,7 @@ def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.post("/shoplist/daily", dependencies=[Depends(_require_api_key_strict)])
-def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
+async def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Создание списка покупок на день с округлением до упаковок
     EN: Create daily shopping list with package rounding
@@ -834,7 +816,7 @@ def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/shoplist/formats", dependencies=[Depends(_require_api_key_strict)])
-def available_export_formats() -> Dict[str, Any]:
+async def available_export_formats() -> Dict[str, Any]:
     """
     RU: Получить доступные форматы экспорта списков покупок
     EN: Get available export formats for shopping lists
@@ -851,7 +833,7 @@ def available_export_formats() -> Dict[str, Any]:
 
 
 @router.get("/regions", dependencies=[Depends(_require_api_key_strict)])
-def get_regions() -> Dict[str, Any]:
+async def get_regions() -> Dict[str, Any]:
     """
     RU: Получить список доступных регионов
     EN: Get list of available regions
@@ -886,8 +868,8 @@ def get_regions() -> Dict[str, Any]:
         }
 
 
-@router.get("/regions/{region}/search")
-def search_region_products(
+@router.get("/regions/{region}/search", dependencies=[Depends(_require_api_key_strict)])
+async def search_region_products(
     region: str, query: str, category: str = "", max_results: int = 20
 ) -> Dict[str, Any]:
     """
@@ -950,8 +932,8 @@ def search_region_products(
         }
 
 
-@router.get("/regions/{region}/categories")
-def get_region_categories(region: str) -> Dict[str, Any]:
+@router.get("/regions/{region}/categories", dependencies=[Depends(_require_api_key_strict)])
+async def get_region_categories(region: str) -> Dict[str, Any]:
     """
     RU: Получить категории продуктов в регионе
     EN: Get product categories in region
@@ -989,8 +971,8 @@ def get_region_categories(region: str) -> Dict[str, Any]:
         }
 
 
-@router.get("/regions/{region}/stores")
-def get_region_stores(region: str) -> Dict[str, Any]:
+@router.get("/regions/{region}/stores", dependencies=[Depends(_require_api_key_strict)])
+async def get_region_stores(region: str) -> Dict[str, Any]:
     """
     RU: Получить торговые сети в регионе
     EN: Get store chains in region
@@ -1028,8 +1010,8 @@ def get_region_stores(region: str) -> Dict[str, Any]:
         }
 
 
-@router.get("/regions/compare/{product_name}")
-def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[str, Any]:
+@router.get("/regions/compare/{product_name}", dependencies=[Depends(_require_api_key_strict)])
+async def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[str, Any]:
     """
     RU: Сравнить цены продукта в разных регионах
     EN: Compare product prices across regions
@@ -1089,7 +1071,7 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
 
 
 @router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+async def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепт на основе ингредиентов
     EN: Synthesize recipe based on ingredients
@@ -1116,14 +1098,14 @@ def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
 
 
 @router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
+async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
-    result: Dict[str, Any] = synthesize_recipe(request)
+    result: Dict[str, Any] = await synthesize_recipe(request)
     return result
 
 
 @router.post("/recipes/weekly", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
+async def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепты для недельного плана
     EN: Synthesize recipes for weekly meal plan
@@ -1302,7 +1284,7 @@ async def get_recipe_templates(
 
 
 @router.post("/auto-repair/weekly", dependencies=[Depends(_require_api_key_strict)])
-def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
+async def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного плана с UX-петлей
     EN: Auto-repair weekly plan with UX loop
@@ -1376,7 +1358,7 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.post("/auto-repair/suggestions", dependencies=[Depends(_require_api_key_strict)])
-def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+async def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Получить предложения для ручного ремонта
     EN: Get suggestions for manual repair
@@ -1398,7 +1380,7 @@ def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[s
 
 
 @router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key_strict)])
-def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
+async def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта
     EN: Get available repair strategies

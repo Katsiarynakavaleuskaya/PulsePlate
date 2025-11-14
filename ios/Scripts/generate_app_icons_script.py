@@ -30,7 +30,6 @@ def create_pulseplate_icon(size: int) -> Image.Image:
     для слишком маленьких, отрицательных и нецелочисленных значений.
     """
     # Early validation for size to avoid malformed drawing or ZeroDivision errors
-    # Early validation for size to avoid malformed drawing or ZeroDivision errors
     if not isinstance(size, int):
         raise TypeError(f"size must be an integer (received {type(size).__name__})")
 

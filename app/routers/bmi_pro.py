@@ -43,7 +43,7 @@ class BMIProResponse(BaseModel):
 
 
 @router.post("/pro", response_model=BMIProResponse)
-def bmi_pro(req: BMIProRequest) -> BMIProResponse:
+async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     try:
         # Convert height to meters for calc_bmi(weight, height_m)
         bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)

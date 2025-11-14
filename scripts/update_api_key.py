@@ -247,7 +247,7 @@ def update_api_key(
                 mcp_config["mcpServers"][server_name]["env"] = {}
 
             env_key_name = PROFILE_CONFIG[profile]["env_key"]
-            mcp_config["mcpServers"][server_name]["env"][env_key_name] = api_key
+            mcp_config["mcpServers"][server_name]["env"][env_key_name] = key_value
 
             try:
                 with open(mcp_file, "w", encoding="utf-8") as f:

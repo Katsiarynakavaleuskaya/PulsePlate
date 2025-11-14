@@ -266,11 +266,14 @@ class NutritionDataValidationAnalyzer(BaseBayesianAnalyzer):
     CALORIES_PER_GRAM_FAT = 9.0      # Atwater: 9 kcal/g
 
     # Medical safety thresholds (kcal per day)
-    # NOTE: These constants are now loaded from config/medical_safety.yaml at runtime.
-    # The hardcoded values below are fallbacks and should NOT be used in production.
+    # NOTE: These constants reference the canonical values from core/nutrition_constants.py.
+    # Runtime values are loaded from config/medical_safety.yaml if present, otherwise
+    # the imported defaults (KCAL_MIN_SAFE, KCAL_MAX_SAFE) are used.
     # See CONTRIBUTING.md § Medical Safety Approval Workflow for approval requirements.
-    MIN_SAFE_DAILY_CALORIES = 500   # Fallback only - use config/medical_safety.yaml
-    MAX_SAFE_DAILY_CALORIES = 5000  # Fallback only - use config/medical_safety.yaml
+    # Import from single source of truth:
+    from core.nutrition_constants import KCAL_MIN_SAFE, KCAL_MAX_SAFE
+    MIN_SAFE_DAILY_CALORIES = KCAL_MIN_SAFE   # Default: 1200 kcal/day
+    MAX_SAFE_DAILY_CALORIES = KCAL_MAX_SAFE   # Default: 6000 kcal/day
 
     # Feature flag: Medical alerts/enforcements are disabled by default until approved
     # Set MEDICAL_ALERTS_ENABLED = true in config/medical_safety.yaml after approval workflow
@@ -1142,6 +1145,7 @@ class AdaptiveRecommendationEngine:
 - `numpy` - математические операции
 - `scipy` - статистические распределения
 - `pymc3` (optional) - продвинутые байесовские модели
+- `PyYAML` - YAML parsing для загрузки config/medical_safety.yaml
 
 ### Документация
 
