@@ -10,7 +10,7 @@ from __future__ import annotations
 import csv
 import os
 from datetime import date
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from core.aliases import map_to_canonical
 from .base import BaseAdapter, FoodRecord
@@ -43,7 +43,7 @@ class OFFAdapter(BaseAdapter):
         self.csv_path = csv_path
         self.locale = locale
 
-    def fetch(self) -> Iterable[Dict]:
+    def fetch(self) -> Iterable[Dict[str, Any]]:
         """
         RU: Читаем один CSV или все CSV в директории (чанки) Open Food Facts.
         EN: Read a single CSV or all CSVs in a directory (chunks).
