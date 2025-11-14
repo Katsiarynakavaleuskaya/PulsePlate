@@ -303,7 +303,7 @@ class EngineCompat:
         self,
         statement: str | Executable[Any] | ClauseElement[Any],
         *args: Any,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> _ResultWithConnectionCleanup:
         """Execute a statement using a temporary connection.
 

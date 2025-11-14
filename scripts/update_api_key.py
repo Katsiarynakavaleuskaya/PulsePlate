@@ -334,12 +334,8 @@ def main() -> None:
             sys.exit(1)
 
         # Update API key with error handling
-        # Note: update_api_key and DEFAULT_PROFILE should be imported from secure_config or similar module
-        # For now, using type: ignore to allow the script to work
         try:
-            from secure_config import update_api_key, DEFAULT_PROFILE  # type: ignore[import-untyped]
-
-            success = update_api_key(api_key, profile=DEFAULT_PROFILE, use_encryption=True)  # type: ignore[attr-defined]
+            success = update_api_key(api_key, profile=DEFAULT_PROFILE, use_encryption=True)
             if not success:
                 print("❌ Failed to update API key. Check error messages above for details.")
                 sys.exit(1)
