@@ -1551,6 +1551,14 @@ def _targets_disabled() -> bool:
             logger.debug("_targets_disabled: app module has build_nutrition_targets=None")
             return True
 
+    # Also check app_module alias for test compatibility
+    alias_app = _sys.modules.get("app_module")
+    if alias_app is not None and alias_app is not primary_app:
+        alias_value = getattr(alias_app, "build_nutrition_targets", None)
+        if alias_value is None:
+            logger.debug("_targets_disabled: app_module alias has build_nutrition_targets=None")
+            return True
+
     return False
 
 

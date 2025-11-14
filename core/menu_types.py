@@ -45,7 +45,31 @@ class Recipe:
     instructions: List[str]
 
     def calculate_nutrients_per_serving(self, food_db: Dict[str, "FoodItem"]) -> Dict[str, float]:
-        """Calculate nutrients per serving from ingredients."""
+        """Calculate nutrients per serving from ingredients.
+
+        RU: Рассчитать нутриенты на порцию из ингредиентов.
+        EN: Calculate nutrients per serving from ingredients.
+
+        Args:
+            food_db: Dictionary mapping ingredient names to FoodItem objects
+
+        Returns:
+            Dictionary mapping nutrient names to amounts per serving
+
+        Raises:
+            ValueError: If servings is <= 0
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Validate servings
+        if self.servings <= 0:
+            raise ValueError(
+                f"Recipe servings must be > 0, got {self.servings}. "
+                f"Recipe: {getattr(self, 'name', 'unknown')}"
+            )
+
         total_nutrients: Dict[str, float] = {}
 
         for ingredient_name, amount_g in self.ingredients.items():
@@ -54,8 +78,17 @@ class Recipe:
                 for nutrient, value_per_100g in food_item.nutrients_per_100g.items():
                     nutrient_amount = (value_per_100g * amount_g) / 100
                     total_nutrients[nutrient] = total_nutrients.get(nutrient, 0.0) + nutrient_amount
+            else:
+                # Log warning for missing ingredients
+                recipe_id = getattr(self, "name", "unknown")
+                logger.warning(
+                    "Missing ingredient '%s' in food_db for recipe '%s'. "
+                    "Skipping nutrient contribution from this ingredient.",
+                    ingredient_name,
+                    recipe_id,
+                )
 
-        # Divide by servings
+        # Divide by validated servings
         return {k: v / self.servings for k, v in total_nutrients.items()}
 
 

@@ -90,22 +90,27 @@ def test_main_mixed_pass_fail_timeout(
     def fake_run(
         cmd: list[str], capture_output: bool, text: bool, timeout: int | None
     ) -> SimpleNamespace:  # noqa: ARG001
-        # Find test path by searching for element ending with expected test filename
-        test_path = next(
-            (
-                arg
-                for arg in cmd
-                if arg.endswith("t_ok.py") or arg.endswith("t_fail.py") or arg.endswith("t_to.py")
-            ),
-            None,
-        )
+        # Find test path by searching for element containing expected test filename
+        # Note: cmd may contain full paths, so we check if filename is in any arg
+        test_path = None
+        for arg in cmd:
+            if "t_ok.py" in arg:
+                test_path = "t_ok.py"
+                break
+            elif "t_fail.py" in arg:
+                test_path = "t_fail.py"
+                break
+            elif "t_to.py" in arg:
+                test_path = "t_to.py"
+                break
+
         if test_path is None:
             return SimpleNamespace(returncode=0, stdout="ok", stderr="")
-        if test_path.endswith("t_ok.py"):
+        if test_path == "t_ok.py":
             return SimpleNamespace(returncode=0, stdout="ok", stderr="")
-        if test_path.endswith("t_fail.py"):
+        if test_path == "t_fail.py":
             return SimpleNamespace(returncode=1, stdout="out-", stderr="-err")
-        if test_path.endswith("t_to.py"):
+        if test_path == "t_to.py":
             raise subprocess.TimeoutExpired(cmd="pytest", timeout=60)
         return SimpleNamespace(returncode=0, stdout="ok", stderr="")
 

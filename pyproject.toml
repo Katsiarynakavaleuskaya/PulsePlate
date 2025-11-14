@@ -140,6 +140,7 @@ exclude_lines = [
     "def __repr__",
     "raise NotImplementedError",
 ]
+fail_under = 97
 
 [tool.ruff.lint]
 select = ["E", "W", "F"]

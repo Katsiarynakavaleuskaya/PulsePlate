@@ -216,20 +216,25 @@ class TestSanitizeFunctions:
         assert "fiber_g" in result
 
     def test_sanitize_nutrition_dict_handles_exception(self) -> None:
-        """Verify exception in validation returns safe defaults."""
+        """Verify exception in validation raises NutritionSanitizationError with fallback defaults."""
         # Pass something that will cause validation to fail completely
         # Using a non-dict object should trigger the exception path
+        from core.data_sanitizer import NutritionSanitizationError
+
         with mock.patch(
             "core.data_sanitizer.NutritionData.model_validate", side_effect=ValueError("Test error")
         ):
-            result = sanitize_nutrition_dict({"kcal": 2000})
+            with pytest.raises(NutritionSanitizationError) as exc_info:
+                sanitize_nutrition_dict({"kcal": 2000})
 
-        # Should return safe defaults when exception occurs
-        assert result["kcal"] == 2000
-        assert result["protein_g"] == 100
-        assert result["fat_g"] == 70
-        assert result["carbs_g"] == 250
-        assert result["fiber_g"] == 25
+        # Should raise exception with fallback defaults available
+        error = exc_info.value
+        assert error.fallback_defaults is not None
+        assert error.fallback_defaults["kcal"] == 2000
+        assert error.fallback_defaults["protein_g"] == 100
+        assert error.fallback_defaults["fat_g"] == 70
+        assert error.fallback_defaults["carbs_g"] == 250
+        assert error.fallback_defaults["fiber_g"] == 25
 
     def test_sanitize_macros_dict_returns_essential_keys(self) -> None:
         """Verify sanitize_macros_dict returns all essential macro keys."""
@@ -369,11 +374,17 @@ class TestSanitizeFunctions:
 
     def test_sanity_filter_plate_data_handles_exception(self) -> None:
         """Verify exception returns safe defaults."""
-        # Mock sanitize_nutrition_dict to raise an exception
+        from core.data_sanitizer import NutritionSanitizationError
+
+        # Mock sanitize_macros_dict to raise NutritionSanitizationError
         with mock.patch(
-            "core.data_sanitizer.sanitize_nutrition_dict", side_effect=RuntimeError("Test error")
+            "core.data_sanitizer.sanitize_macros_dict",
+            side_effect=NutritionSanitizationError(
+                "Test error",
+                fallback_defaults={"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 25},
+            ),
         ):
-            result = sanity_filter_plate_data({"kcal": 2000})
+            result = sanity_filter_plate_data({"kcal": 2000, "macros": {"protein_g": 50}})
 
         # Should return safe defaults when exception occurs
         assert isinstance(result, dict)

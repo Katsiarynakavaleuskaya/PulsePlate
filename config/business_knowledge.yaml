@@ -38,6 +38,35 @@ customer_segments:
     ltv: 10000
     churn_rate: 0.01
 
+# Cost centers configuration
+# RU: Конфигурация центров затрат
+# EN: Cost centers configuration
+#
+# Semantics: These numbers represent RELATIVE SHARES within each top-level category,
+# not absolute shares of the total budget. Each category (infrastructure, development,
+# marketing, operations) has its own weight, and the values within each category
+# represent the proportion of that category's budget allocated to each sub-item.
+#
+# RU: Семантика: Эти числа представляют ОТНОСИТЕЛЬНЫЕ ДОЛИ внутри каждой категории верхнего уровня,
+# а не абсолютные доли от общего бюджета. Каждая категория (инфраструктура, разработка,
+# маркетинг, операции) имеет свой вес, а значения внутри каждой категории
+# представляют долю бюджета этой категории, выделенную на каждый подпункт.
+#
+# Example: If infrastructure category gets 30% of total budget, then:
+#   - aws gets 0.3 * 30% = 9% of total budget
+#   - gcp gets 0.25 * 30% = 7.5% of total budget
+#   - azure gets 0.2 * 30% = 6% of total budget
+#
+# RU: Пример: Если категория инфраструктуры получает 30% от общего бюджета, то:
+#   - aws получает 0.3 * 30% = 9% от общего бюджета
+#   - gcp получает 0.25 * 30% = 7.5% от общего бюджета
+#   - azure получает 0.2 * 30% = 6% от общего бюджета
+#
+# Note: Category weights are defined separately (not in this file) and must be
+# provided when computing absolute budget allocations.
+#
+# RU: Примечание: Веса категорий определяются отдельно (не в этом файле) и должны быть
+# предоставлены при вычислении абсолютных распределений бюджета.
 cost_centers:
   infrastructure:
     aws: 0.3

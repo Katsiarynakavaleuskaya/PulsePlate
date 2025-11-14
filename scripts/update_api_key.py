@@ -18,8 +18,39 @@ if str(PROJECT_ROOT) not in sys.path:
 # API Key validation constants (can be overridden via environment variables)
 # Константы валидации API-ключа (можно переопределить через переменные окружения)
 API_KEY_PREFIX: str = os.environ.get("API_KEY_PREFIX", "sk-")
-API_KEY_MIN_LENGTH: int = int(os.environ.get("API_KEY_MIN_LENGTH", "20"))
-API_KEY_MAX_LENGTH: int = int(os.environ.get("API_KEY_MAX_LENGTH", "256"))
+
+
+def _safe_int_from_env(env_var: str, default: int) -> int:
+    """Safely convert environment variable to integer with fallback.
+
+    RU: Безопасно преобразовать переменную окружения в целое число с резервным значением.
+    EN: Safely convert environment variable to integer with fallback.
+
+    Args:
+        env_var: Environment variable name
+        default: Default value to use if conversion fails
+
+    Returns:
+        Integer value from environment or default
+    """
+    value = os.environ.get(env_var)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Invalid integer value for %s: '%s', using default: %s",
+            env_var,
+            value,
+            default,
+        )
+        return default
+
+
+API_KEY_MIN_LENGTH: int = _safe_int_from_env("API_KEY_MIN_LENGTH", 20)
+API_KEY_MAX_LENGTH: int = _safe_int_from_env("API_KEY_MAX_LENGTH", 256)
 API_KEY_ALLOWED_CHARS: str = os.environ.get(
     "API_KEY_ALLOWED_CHARS", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
 )

@@ -1,10 +1,13 @@
 """
 Тесты для покрытия непокрытых строк в app.py
-Покрывает строки: 145-149,152,154-156,163,357-358,1276,1279-1280,1287-1288,
-1312,1315-1320,1325-1328,1375-1376,1380,1418,1479-1480,1501,2292,2296,2344-2345,2348
 
-RU: Тесты для покрытия непокрытых строк в app.py
-EN: Tests for covering uncovered lines in app.py
+RU: Тесты для покрытия непокрытых строк в app.py.
+    Покрывает: логику fallback базы данных, обработку исключений динамического патчинга,
+    валидацию CLI-ввода, обработку ошибок асинхронных операций, логику условных ветвлений.
+
+EN: Tests for covering uncovered lines in app.py.
+    Covers: database fallback logic, dynamic patching exception handling,
+    CLI input validation, async operation error handling, conditional branching logic.
 """
 
 import os

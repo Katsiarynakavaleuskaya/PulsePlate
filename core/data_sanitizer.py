@@ -40,6 +40,45 @@ INVALID_NUMERIC_MSG = "Invalid numeric value (NaN/inf): %s, defaulting to 0"
 CONVERSION_FAILED_MSG = "Could not convert value '%s' to numeric: %s, defaulting to 0"
 
 
+class NutritionSanitizationError(Exception):
+    """Exception raised when nutrition data sanitization fails.
+
+    RU: Исключение, возникающее при сбое санитизации данных о питании.
+    EN: Exception raised when nutrition data sanitization fails.
+
+    Attributes:
+        original_exception: The original exception that caused the failure
+        request_context: Optional context about the request/data being sanitized
+        fallback_defaults: Dictionary with safe default values that can be used
+    """
+
+    def __init__(
+        self,
+        message: str,
+        original_exception: Exception | None = None,
+        request_context: dict[str, Any] | None = None,
+        fallback_defaults: dict[str, int] | None = None,
+    ) -> None:
+        """Initialize NutritionSanitizationError.
+
+        Args:
+            message: Error message describing what went wrong
+            original_exception: The original exception that caused the failure
+            request_context: Optional context about the request/data being sanitized
+            fallback_defaults: Dictionary with safe default values
+        """
+        super().__init__(message)
+        self.original_exception = original_exception
+        self.request_context = request_context or {}
+        self.fallback_defaults = fallback_defaults or {
+            "kcal": 2000,
+            "protein_g": 100,
+            "fat_g": 70,
+            "carbs_g": 250,
+            "fiber_g": FIBER_G_MIN,
+        }
+
+
 class NutritionData(BaseModel):
     """Sanitized nutrition data with validated ranges.
 
@@ -144,6 +183,10 @@ def sanitize_nutrition_dict(data: dict[str, Any]) -> dict[str, int]:
 
     Returns:
         Sanitized dictionary with validated integer values
+
+    Raises:
+        NutritionSanitizationError: If validation fails, with fallback defaults
+            available in exception.fallback_defaults attribute
     """
     try:
         validated = NutritionData.model_validate(data)
@@ -158,14 +201,28 @@ def sanitize_nutrition_dict(data: dict[str, Any]) -> dict[str, int]:
             logger.info("Macro sum validation failed, returning sanitized data anyway")
         return result
     except Exception as e:
-        logger.error("Failed to sanitize nutrition data: %s, using safe defaults", e)
-        return {
+        fallback_defaults = {
             "kcal": 2000,
             "protein_g": 100,
             "fat_g": 70,
             "carbs_g": 250,
             "fiber_g": FIBER_G_MIN,
         }
+        error_msg = f"Failed to sanitize nutrition data: {e}"
+        logger.error(
+            "Failed to sanitize nutrition data: %s, context: %s",
+            e,
+            {"data_keys": list(data.keys()) if isinstance(data, dict) else "not_a_dict"},
+            exc_info=True,
+        )
+        raise NutritionSanitizationError(
+            message=error_msg,
+            original_exception=e,
+            request_context={
+                "data_keys": list(data.keys()) if isinstance(data, dict) else "not_a_dict"
+            },
+            fallback_defaults=fallback_defaults,
+        ) from e
 
 
 def sanitize_macros_dict(macros: dict[str, Any]) -> dict[str, int]:
@@ -179,6 +236,10 @@ def sanitize_macros_dict(macros: dict[str, Any]) -> dict[str, int]:
 
     Returns:
         Sanitized dictionary with validated integer values
+
+    Raises:
+        NutritionSanitizationError: If validation fails, with fallback defaults
+            available in exception.fallback_defaults attribute
     """
     full_data = {
         "kcal": macros.get("kcal", 0),  # Will be recalculated or validated
@@ -187,7 +248,19 @@ def sanitize_macros_dict(macros: dict[str, Any]) -> dict[str, int]:
         "carbs_g": macros.get("carbs_g", 0),
         "fiber_g": macros.get("fiber_g", FIBER_G_MIN),
     }
-    sanitized = sanitize_nutrition_dict(full_data)
+    try:
+        sanitized = sanitize_nutrition_dict(full_data)
+    except NutritionSanitizationError as e:
+        # Re-raise with updated context
+        raise NutritionSanitizationError(
+            message=f"Failed to sanitize macros dict: {e}",
+            original_exception=e.original_exception,
+            request_context={
+                **e.request_context,
+                "macros_keys": list(macros.keys()) if isinstance(macros, dict) else "not_a_dict",
+            },
+            fallback_defaults=e.fallback_defaults,
+        ) from e
     # Return all essential macro keys
     result = {
         "protein_g": sanitized["protein_g"],
@@ -277,7 +350,15 @@ def sanitize_meal_list(meals: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
             # Sanitize macros dict if present
             if "macros" in sanitized_meal and isinstance(sanitized_meal["macros"], dict):
-                sanitized_meal["macros"] = sanitize_macros_dict(sanitized_meal["macros"])
+                try:
+                    sanitized_meal["macros"] = sanitize_macros_dict(sanitized_meal["macros"])
+                except NutritionSanitizationError as e:
+                    logger.warning(
+                        "Failed to sanitize macros in meal %s: %s, using fallback defaults",
+                        idx,
+                        e,
+                    )
+                    sanitized_meal["macros"] = e.fallback_defaults
 
             sanitized.append(sanitized_meal)
         except Exception as e:
@@ -312,7 +393,15 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
         # Sanitize macros
         macros = plate_data.get("macros", {})
         if isinstance(macros, dict):
-            macros = sanitize_macros_dict(macros)
+            try:
+                macros = sanitize_macros_dict(macros)
+            except NutritionSanitizationError as e:
+                logger.error(
+                    "Failed to sanitize macros in plate data: %s, using fallback defaults",
+                    e,
+                    exc_info=True,
+                )
+                macros = e.fallback_defaults
         else:
             logger.warning("Invalid macros type: %s, using defaults", type(macros))
             macros = {

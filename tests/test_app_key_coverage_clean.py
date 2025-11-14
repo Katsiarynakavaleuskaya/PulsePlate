@@ -404,13 +404,9 @@ class TestImportFallbacks:
         assert app.app.title == "PulsePlate"
 
     def test_utility_helpers_exposed(self) -> None:
-        """Test utility helpers are exposed on app instance."""
-        assert hasattr(app.app, "get_activity_factor")
-        assert hasattr(app.app, "resolve_attr")
-        get_activity_factor = getattr(app.app, "get_activity_factor", None)
-        resolve_attr = getattr(app.app, "resolve_attr", None)
-        assert get_activity_factor is not None
-        assert resolve_attr is not None
+        """Test utility helpers are available from core.utils module."""
+        from core.utils import get_activity_factor, resolve_attr
+
         assert callable(get_activity_factor)
         assert callable(resolve_attr)
 

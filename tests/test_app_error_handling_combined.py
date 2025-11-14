@@ -39,7 +39,11 @@ def find_endpoint_dependency(
     for route in app_instance.routes:
         endpoint = getattr(route, "endpoint", None)
         if endpoint is not None and endpoint.__name__ == endpoint_name:
-            for dep in getattr(route, "dependant", object()).dependencies:  # type: ignore[arg-type]
+            dependant = getattr(route, "dependant", None)
+            if dependant is None:
+                continue
+            dependencies = getattr(dependant, "dependencies", [])
+            for dep in dependencies:
                 if getattr(dep.call, "__name__", "") == dependency_name:
                     return dep.call
     return None

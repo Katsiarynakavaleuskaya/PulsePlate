@@ -452,7 +452,35 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
             return None
     else:
         # Direct arguments - pass through
-        return make_weekly_menu(*args, **kwargs)  # type: ignore[arg-type]
+        from core.targets import UserProfile
+
+        if args and len(args) == 1 and isinstance(args[0], UserProfile):
+            # Ensure that only allowed kwargs (food_db and recipe_db) are passed if present and type safe
+            food_db = kwargs.get("food_db")
+            recipe_db = kwargs.get("recipe_db")
+
+            # Enforce typing to match make_weekly_menu signature
+            from typing import Dict
+            from core.menu_engine import FoodItem, Recipe
+
+            # Type check for food_db and recipe_db
+            if food_db is not None and not isinstance(food_db, dict):
+                food_db = (
+                    None  # or optionally: raise ValueError("food_db must be a dict if provided")
+                )
+            if recipe_db is not None and not isinstance(recipe_db, dict):
+                recipe_db = None
+
+            safe_kwargs = {}
+            if food_db is not None:
+                safe_kwargs["food_db"] = food_db
+            if recipe_db is not None:
+                safe_kwargs["recipe_db"] = recipe_db
+
+            return make_weekly_menu(args[0], **safe_kwargs)
+
+        # Fallback: if not UserProfile, try to convert or return None
+        return None
 
 
 def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> object | None:
@@ -463,8 +491,15 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
         logging.error("Failed to import core.recipe_synth.synthesize_recipes_for_week")
         return None
 
-    # Type ignore needed because args/kwargs are object but function expects Dict and int
-    return synthesize_recipes_for_week(*args, **kwargs)  # type: ignore[arg-type]
+    # Cast needed: adapter receives object types but synthesize_recipes_for_week expects Dict and int
+    # Safe cast because adapter pattern validates input before calling actual function
+    from typing import cast, Dict
+
+    if args and len(args) >= 1 and isinstance(args[0], dict):
+        week_plan = cast(Dict, args[0])
+        recipes_per_day = cast(int, args[1]) if len(args) > 1 and isinstance(args[1], int) else 1
+        return synthesize_recipes_for_week(week_plan, recipes_per_day)
+    return None
 
 
 def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:

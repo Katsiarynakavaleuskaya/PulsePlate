@@ -60,6 +60,26 @@ def test_targets_disabled_detects_alias_disables(monkeypatch: pytest.MonkeyPatch
     """If alias module nulls build_nutrition_targets we propagate disable."""
 
     class AliasStub(SimpleNamespace):
+        """Stub class for testing alias module behavior.
+
+        RU: Заглушка для тестирования поведения модуля-алиаса.
+        EN: Stub class for testing alias module behavior.
+
+        This class overrides __setattr__ to ignore subsequent assignments to
+        'build_nutrition_targets' after it has been set once. This simulates the
+        behavior where an alias module may null out or disable certain functions
+        at runtime, and we want to detect and propagate this disable state.
+
+        Callers should expect that:
+        - First assignment to 'build_nutrition_targets' succeeds
+        - Subsequent assignments are silently ignored
+        - Other attributes can be set normally
+
+        Edge cases:
+        - If 'build_nutrition_targets' is never set initially, it can be set normally
+        - The check uses hasattr() so even None values are considered "set"
+        """
+
         def __setattr__(self, name: str, value: Any) -> None:
             if name == "build_nutrition_targets" and hasattr(self, "build_nutrition_targets"):
                 return

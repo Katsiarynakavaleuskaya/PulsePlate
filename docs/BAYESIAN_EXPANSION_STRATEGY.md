@@ -1042,9 +1042,105 @@ class PersonalizedSafetyLimits:
 
 #### Medical Safety Approval Workflow
 
-- Подготовить предложение по guardrails в формате `safety_limits.proposal.yaml` и передать его клинико‑нутриционному совету (регламент: еженедельный Medical Review sync).
-- Зафиксировать утверждённые значения в репозитории конфигураций (`config/safety_limits.yaml`) и синхронизировать с продуктовой документацией.
-- Пройти юридический аудит на соответствие требованиям Apple/Google и локальных регуляторов до включения в прод.
+**RU: Рабочий процесс утверждения медицинской безопасности**
+**EN: Medical Safety Approval Workflow**
+
+##### Approval Format and Artifacts
+
+1. **Proposal Document**: `config/safety_limits.proposal.yaml`
+   - Contains proposed safety limits, guardrails, and validation rules
+   - Must include rationale, data sources, and risk assessment
+
+2. **Approval Artifact**: `config/safety_limits.approval.yaml`
+   - Required format:
+
+     ```yaml
+     approval_version: "1.0"
+     proposal_file: "config/safety_limits.proposal.yaml"
+     approved_date: "2025-01-11T00:00:00Z"
+     approvers:
+       - name: "Medical Advisory Board Member Name"
+         role: "Medical Advisory Board"
+         signature: "SHA256:abc123..."  # Cryptographic signature
+       - name: "Nutrition Safety Officer Name"
+         role: "Nutrition Safety Officer"
+         signature: "SHA256:def456..."
+       - name: "Legal Compliance Owner Name"
+         role: "Legal Compliance Owner"
+         signature: "SHA256:ghi789..."
+     medicalSafetyApproved: true
+     deployment_gate_passed: true
+     ```
+
+   - Must be committed to repository before deployment
+   - Linked to PR via metadata (PR labels, commit message)
+
+3. **PR Labels**:
+   - `medical-safety-approved`: Required for deployment
+   - `legal-compliance-approved`: Required for deployment
+   - `nutrition-safety-reviewed`: Required for deployment
+
+##### Responsible Roles and Minimum Approvals
+
+- **Medical Advisory Board**: Minimum 1 approval required
+  - Reviews clinical safety, health impact, medical evidence
+- **Nutrition Safety Officer**: Minimum 1 approval required
+  - Reviews nutritional accuracy, dietary guidelines compliance
+- **Legal Compliance Owner**: Minimum 1 approval required
+  - Reviews regulatory compliance (Apple/Google, local regulations)
+
+##### Audit Trail and Storage
+
+- **Storage Location**: `config/safety_limits.approval.yaml` (committed to repo)
+- **PR Metadata**: Approval file must be referenced in PR description
+- **CI Artifacts**: Approval verification results stored in CI job artifacts
+- **Verification Steps**:
+  1. Check presence of `config/safety_limits.approval.yaml`
+  2. Validate YAML structure and required fields
+  3. Verify `medicalSafetyApproved: true`
+  4. Verify minimum required approvers (1 from each role)
+  5. Validate signature format (optional but recommended)
+
+##### Deployment Gate Implementation
+
+**CI Job Name**: `check-medical-safety-approval`
+
+**Job Configuration** (in `.github/workflows/`):
+
+```yaml
+- name: Check Medical Safety Approval
+  run: |
+    if [ ! -f "config/safety_limits.approval.yaml" ]; then
+      echo "❌ Medical safety approval file missing"
+      exit 1
+    fi
+    # Verify medicalSafetyApproved flag
+    python scripts/verify_safety_approval.py
+```
+
+**Failure Behavior**:
+- Deployment pipeline fails if `medicalSafetyApproved` is not `true`
+- Deployment pipeline fails if approval file is missing
+- Deployment pipeline fails if minimum approvers not met
+- Error message: "Medical safety approval required before deployment. See docs/BAYESIAN_EXPANSION_STRATEGY.md"
+
+**Verification Script**: `scripts/verify_safety_approval.py`
+- Reads `config/safety_limits.approval.yaml`
+- Validates structure and required fields
+- Checks `medicalSafetyApproved` flag
+- Verifies minimum approver requirements
+- Returns exit code 0 if approved, non-zero if not
+
+##### Workflow Steps
+
+1. Prepare proposal: `config/safety_limits.proposal.yaml`
+2. Submit to Medical Review sync (weekly)
+3. Obtain approvals from required roles
+4. Create `config/safety_limits.approval.yaml` with signatures
+5. Commit approval file to repository
+6. Add PR labels: `medical-safety-approved`, `legal-compliance-approved`, `nutrition-safety-reviewed`
+7. CI gate `check-medical-safety-approval` verifies approval
+8. Upon CI pass, deployment proceeds
 
 #### Recommended Unit Tests Before Production Enablement
 

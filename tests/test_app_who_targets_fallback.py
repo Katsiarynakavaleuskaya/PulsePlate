@@ -156,7 +156,9 @@ def test_api_who_targets_endpoint_integration(
 
         # Validate expected values match the fallback calculation
         # Use same formula as app.py fallback (pct / 100.0)
-        tdee = int(24 * payload["weight_kg"] * app.get_activity_factor(payload["activity"]))
+        from core.utils import get_activity_factor
+
+        tdee = int(24 * payload["weight_kg"] * get_activity_factor(payload["activity"]))
         pct = 15.0  # default deficit_pct
         expected_kcal = max(1200, int(tdee * (1.0 - pct / 100.0)))
 

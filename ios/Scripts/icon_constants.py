@@ -27,3 +27,12 @@ IOS_ICON_SIZES: dict[str, int] = {
     # App Store (ios-marketing)
     "icon_marketing_1024.png": 1024,  # 1024x1024
 }
+
+# Duplicate sizes allowlist: size -> tuple of filenames that are allowed to share this size
+# Some iOS icons intentionally share the same pixel dimensions (e.g., 40px, 58px, 80px, 120px)
+IOS_ICON_DUPLICATE_ALLOWLIST: dict[int, tuple[str, ...]] = {
+    40: ("icon_iphone_20pt@2x.png", "icon_ipad_20pt@2x.png", "icon_ipad_40pt.png"),
+    58: ("icon_iphone_29pt@2x.png", "icon_ipad_29pt@2x.png"),
+    80: ("icon_iphone_40pt@2x.png", "icon_ipad_40pt@2x.png"),
+    120: ("icon_iphone_40pt@3x.png", "icon_iphone_60pt@2x.png"),
+}

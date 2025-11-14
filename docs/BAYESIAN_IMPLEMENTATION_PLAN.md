@@ -693,7 +693,7 @@ class TestNutritionDataValidator:
     def validator(self):
         return NutritionDataValidationAnalyzer()
 
-    def test_realistic_entry_passes(self, validator):
+    def test_realistic_entry_passes(self, validator) -> None:
         """Реалистичная запись должна проходить валидацию."""
         entry = NutritionEntry(
             meal_name="Oatmeal with banana",
@@ -712,7 +712,7 @@ class TestNutritionDataValidator:
         assert result.confidence > 0.5
         assert result.anomaly_score < 0.5
 
-    def test_unrealistic_calories_flagged(self, validator):
+    def test_unrealistic_calories_flagged(self, validator) -> None:
         """Нереалистично высокие калории должны быть помечены."""
         entry = NutritionEntry(
             meal_name="Apple",
@@ -731,7 +731,7 @@ class TestNutritionDataValidator:
         assert result.anomaly_score > 0.6
         assert len(result.issues) > 0
 
-    def test_learns_from_user_history(self, validator):
+    def test_learns_from_user_history(self, validator) -> None:
         """Валидатор должен учиться на основе истории пользователя."""
         # Добавляем историю: пользователь всегда ест большие завтраки
         for _ in range(10):

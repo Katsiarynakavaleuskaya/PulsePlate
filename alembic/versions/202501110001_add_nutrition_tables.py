@@ -9,12 +9,11 @@ Create Date: 2025-01-11 00:00:00.000000
 from __future__ import annotations
 
 import sqlalchemy as sa
-
-from alembic import op
+import alembic.op as op
 
 # revision identifiers, used by Alembic.
-revision = "202501110001"
-down_revision = "202501010001"
+revision: str = "202501110001"
+down_revision: str = "202501010001"
 branch_labels = None
 depends_on = None
 
@@ -29,7 +28,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("recipe_id", sa.String(length=255), nullable=False, unique=True),
         sa.Column("title", sa.String(length=500), nullable=False),
-        sa.Column("locale", sa.String(length=10), nullable=False, server_default="en"),
+        sa.Column("locale", sa.String(length=10), nullable=False, server_default=sa.text("'en'")),
         sa.Column("kcal_per_serving", sa.Float(), nullable=False),
         sa.Column("protein_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fat_g", sa.Float(), nullable=False, server_default="0.0"),
@@ -71,7 +70,10 @@ def upgrade() -> None:
         "meals",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column(
-            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+            "user_id",
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
         ),
         sa.Column(
             "recipe_id",
