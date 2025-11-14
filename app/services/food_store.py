@@ -325,7 +325,14 @@ def get_aliases() -> dict[str, list[str]]:
         with _ALIASES_LOCK:
             if _ALIASES_CACHE is None:
                 csv_aliases = _load_aliases_csv(ALIASES_CSV_PATH)
-                _ALIASES_CACHE = {**DEFAULT_ALIASES, **csv_aliases}
+                # Merge aliases per key instead of overwriting
+                merged: dict[str, list[str]] = {k: list(vs) for k, vs in DEFAULT_ALIASES.items()}
+                for canonical, extra_aliases in csv_aliases.items():
+                    base = merged.setdefault(canonical, [])
+                    for alias in extra_aliases:
+                        if alias not in base:
+                            base.append(alias)
+                _ALIASES_CACHE = merged
     return _ALIASES_CACHE
 
 
@@ -338,7 +345,7 @@ def expand_query(q: str) -> list[str]:
     for k, vs in get_aliases().items():
         if ql == k or ql in vs:
             terms.update([k, *vs])
-    return list(terms)
+    return sorted(terms)
 
 
 def _connect() -> sqlite3.Connection:
@@ -448,7 +455,8 @@ def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> tuple[str, float] | 
         return None
 
     grams_raw = ing.get("grams")
-    if not isinstance(grams_raw, (int, float, str)):
+    # Reject bool (True/False are int subclasses and become 1.0/0.0)
+    if isinstance(grams_raw, bool) or not isinstance(grams_raw, (int, float, str, Decimal)):
         logger.warning(
             "nutrients_for: grams has unsupported type for food_id=%s: %r",
             food_id,
@@ -491,10 +499,12 @@ def _safe_per_g(per_g_raw: FloatConvertible, food_id: str) -> float:
             DEFAULT_PER_G,
         )
         return DEFAULT_PER_G
-    if per_g == 0.0:
+    if per_g <= 0.0:
         logger.warning(
-            "nutrients_for: per_g is zero for food_id=%s; defaulting to %s to avoid division by zero",
+            "nutrients_for: per_g is non-positive for food_id=%s (value=%r); "
+            "defaulting to %s to avoid invalid scaling",
             food_id,
+            per_g,
             DEFAULT_PER_G,
         )
         return DEFAULT_PER_G

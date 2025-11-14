@@ -14,7 +14,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from core.aliases import map_to_canonical
 from core.units import iu_vitd_from_ug
-from .base import BaseAdapter, FoodRecord
+from core.food_sources.base import BaseAdapter, FoodRecord
 
 
 class USDAAdapter(BaseAdapter):

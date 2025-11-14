@@ -1,6 +1,12 @@
+import importlib
 import os
+import sys
+from typing import cast
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
 
 
 # Autouse fixture for forcing production env and API_KEY
@@ -18,17 +24,6 @@ def _force_prod_env() -> None:
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-
-
-import importlib
-import os
-import sys
-from typing import cast
-
-import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 
 @pytest.fixture
@@ -90,10 +85,8 @@ def test_export_pdf_no_reportlab_with_key(
 
 # Fixture for API key headers
 @pytest.fixture
-def api_key_headers() -> dict[str, str]:
-    api_key = os.getenv("API_KEY")
-    if api_key is None:
-        raise ValueError("API_KEY environment variable is not set")
+def api_key_headers(api_key: str) -> dict[str, str]:
+    """Return API key headers using api_key fixture from conftest."""
     return {"X-API-Key": api_key}
 
 
@@ -120,7 +113,7 @@ def test_premium_nutrient_gaps_fallback(
         importlib.reload(app_module)
     except ModuleNotFoundError:
         pass
-    reloaded_client = TestClient(cast(ASGIApp, app_module.app))
+    reloaded_client = TestClient(app_module.app)
     payload = {
         "consumed_nutrients": {"protein_g": 40.0, "calcium_mg": 200.0},
         "user_profile": {
@@ -197,15 +190,15 @@ def test_weekly_menu_generation_error(
 
     monkeypatch.setattr(app_module, "make_weekly_menu", raise_menu)
     payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    reloaded_client = TestClient(cast(ASGIApp, app_module.app))
+    reloaded_client = TestClient(app_module.app)
     response = reloaded_client.post(
         "/api/v1/premium/plan/week", json=payload, headers=api_key_headers
     )
-    assert response.status_code in [200, 500, 403]
-    if response.status_code == 200:
-        body = response.json()
-        assert "weekly_coverage" in body
-        assert "shopping_list" in body
+    # Endpoint returns 500 when make_weekly_menu raises, 403 for permission failures
+    assert response.status_code in [500, 403], (
+        f"Expected 500 (error) or 403 (permission), got {response.status_code}. "
+        f"Response: {response.text[:200]}"
+    )
 
 
 def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -22,6 +22,20 @@ def upgrade() -> None:
     """RU: Добавить таблицы Recipe, Meal, FoodItem с валидацией.
     EN: Add Recipe, Meal, FoodItem tables with validation."""
 
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name
+
+    def _json_server_default(literal: str) -> sa.sql.elements.TextClause:
+        """Return a dialect-aware JSON default literal."""
+        if dialect_name == "postgresql":
+            return sa.text(f"'{literal}'::jsonb")
+        if dialect_name == "mysql":
+            return sa.text(f"CAST('{literal}' AS JSON)")
+        return sa.text(f"'{literal}'")
+
+    json_object_default = _json_server_default("{}")
+    json_array_default = _json_server_default("[]")
+
     # Create recipes table
     op.create_table(
         "recipes",
@@ -35,9 +49,9 @@ def upgrade() -> None:
         sa.Column("carbs_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("servings", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("ingredients", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("tags", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
-        sa.Column("allergens", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column("ingredients", sa.JSON(), nullable=False, server_default=json_object_default),
+        sa.Column("tags", sa.JSON(), nullable=False, server_default=json_array_default),
+        sa.Column("allergens", sa.JSON(), nullable=False, server_default=json_array_default),
         sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("version_date", sa.String(length=20), nullable=False),
         sa.Column(
@@ -90,7 +104,7 @@ def upgrade() -> None:
         sa.Column("fat_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("carbs_g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g", sa.Float(), nullable=False, server_default="0.0"),
-        sa.Column("grams_data", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
+        sa.Column("grams_data", sa.JSON(), nullable=False, server_default=json_object_default),
         sa.Column("micros_data", sa.JSON(), nullable=True),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
@@ -123,7 +137,7 @@ def upgrade() -> None:
         sa.Column("carbs_g_per_100g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("fiber_g_per_100g", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("micros_data", sa.JSON(), nullable=True),
-        sa.Column("flags", sa.JSON(), nullable=False, server_default=sa.text("'[]'")),
+        sa.Column("flags", sa.JSON(), nullable=False, server_default=json_array_default),
         sa.Column("brand", sa.String(length=255), nullable=True),
         sa.Column("source", sa.String(length=255), nullable=False),
         sa.Column("source_id", sa.String(length=255), nullable=True),

@@ -3520,7 +3520,7 @@ async def export_daily_plan_csv(plan_id: str) -> Response:
         raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
 
-@app.post("/api/v1/export/pdf")
+@app.post("/api/v1/export/pdf", dependencies=[Depends(_get_api_key_dynamic)])
 async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
     """Generic PDF export endpoint for tests' error-handling coverage.
 
