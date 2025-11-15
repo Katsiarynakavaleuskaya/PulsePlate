@@ -183,11 +183,11 @@ class BusinessBayesianAnalyzer:
         config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():
             try:
-                import yaml  # noqa: F401
+                import yaml  # type: ignore[import-untyped]
 
-                with open(config_path, "r", encoding="utf-8") as f:
+                with open(config_path, "r", encoding="utf-8") as file:
                     try:
-                        data = yaml.safe_load(f)
+                        data = yaml.safe_load(file)
                         # Use Pydantic v2-compatible pattern if parsing objects (currently just YAML dict)
                         # Defensive: Only return if data is dict, else fallback to {}
                         return data if isinstance(data, dict) else {}
