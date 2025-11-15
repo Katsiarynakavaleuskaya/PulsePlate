@@ -103,7 +103,7 @@ class NutritionData(BaseModel):
 
     @field_validator("kcal", "protein_g", "fat_g", "carbs_g", "fiber_g", mode="before")
     @classmethod
-    def sanitize_numeric(cls, value: Any) -> int:
+    def sanitize_numeric(cls, value: Any) -> int:  # type: ignore[override]  # type: ignore[ANN401]
         """Sanitize numeric values: handle None, NaN, inf, and coerce to int.
 
         RU: Санитизация числовых значений: обработка None, NaN, inf, приведение к int.
