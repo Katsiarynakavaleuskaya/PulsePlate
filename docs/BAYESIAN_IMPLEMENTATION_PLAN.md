@@ -796,7 +796,6 @@ async def lifespan(app: FastAPI):
 
 # Новый эндпоинт для валидации
 from fastapi import Depends, HTTPException, status
-from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from typing import Literal, List, Dict
 
@@ -835,7 +834,6 @@ class MealValidationResponse(BaseModel):
 
 
 @app.post("/api/validate_meal", response_model=MealValidationResponse)
-@limiter.limit("100/minute")  # Rate limiting: 100 запросов в минуту
 async def validate_meal_data(
     request: Request,
     meal_request: MealValidationRequest,
@@ -847,7 +845,7 @@ async def validate_meal_data(
     Security & Privacy:
     - Требуется аутентификация через токен (current_user dependency)
     - Проверка авторизации: user_id должен совпадать с current_user.id
-    - Rate limiting: максимум 100 запросов в минуту на пользователя
+    - Rate limiting: реализуется SlowAPI middleware (см. app.py)
     - Шифрование в transit (HTTPS) и at rest (зашифрованное хранилище)
     - Результаты валидации не сохраняются (ephemeral)
     - PHI не логируется (только метаданные без раскрытия данных)
@@ -874,7 +872,6 @@ async def validate_meal_data(
         HTTPException(400): Невалидные входные данные
         HTTPException(401): Неавторизованный доступ
         HTTPException(403): user_id не совпадает с current_user.id
-        HTTPException(429): Превышен лимит запросов
     """
     # Проверка авторизации: user_id должен совпадать с current_user.id
     if meal_request.user_id != str(current_user.id):
@@ -916,7 +913,7 @@ async def validate_meal_data(
 
 **Зависимости**:
 
-- `fastapi-limiter`: для rate limiting (`pip install fastapi-limiter`)
+- SlowAPI middleware: глобальный rate limiting уже инициализируется в app.py
 - `pydantic`: для валидации входных данных (уже включен в FastAPI)
 - `get_current_user`: dependency для аутентификации (должен быть реализован в `api/auth.py` или аналогичном модуле)
 - `User`: модель пользователя из системы аутентификации

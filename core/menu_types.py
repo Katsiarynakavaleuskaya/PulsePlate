@@ -8,8 +8,11 @@ class identities when modules are reloaded during tests.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .targets import NutritionTargets
@@ -59,15 +62,10 @@ class Recipe:
         Raises:
             ValueError: If servings is <= 0
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
-
         # Validate servings
         if self.servings <= 0:
             raise ValueError(
-                f"Recipe servings must be > 0, got {self.servings}. "
-                f"Recipe: {getattr(self, 'name', 'unknown')}"
+                f"Recipe servings must be > 0, got {self.servings}. Recipe: {self.name}"
             )
 
         total_nutrients: Dict[str, float] = {}
@@ -79,13 +77,11 @@ class Recipe:
                     nutrient_amount = (value_per_100g * amount_g) / 100
                     total_nutrients[nutrient] = total_nutrients.get(nutrient, 0.0) + nutrient_amount
             else:
-                # Log warning for missing ingredients
-                recipe_id = getattr(self, "name", "unknown")
                 logger.warning(
                     "Missing ingredient '%s' in food_db for recipe '%s'. "
                     "Skipping nutrient contribution from this ingredient.",
                     ingredient_name,
-                    recipe_id,
+                    self.name,
                 )
 
         # Divide by validated servings

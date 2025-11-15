@@ -66,7 +66,7 @@ def test_engine_compat_async_url_derivation_edge_cases() -> None:
     assert postgres_result.startswith("postgresql+asyncpg://")
     assert (
         _derive_async_url("postgresql+psycopg://user@host/db")
-        == "postgresql+psycopg://user@host/db"
+        == "postgresql+psycopg_async://user@host/db"
     )
 
 

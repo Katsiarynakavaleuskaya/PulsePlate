@@ -150,15 +150,16 @@ class BayesianPytestPlugin:
         """
         try:
             all_markers = {m.name for m in getattr(item, "iter_markers", lambda: [])()}
-        except (AttributeError, TypeError):
-            # Handle cases where item doesn't have iter_markers or it raises TypeError
+        except Exception as exc:
+            # Handle cases where item doesn't have iter_markers or raises at iteration time
             all_markers = set()
             import logging
 
             logger = logging.getLogger(__name__)
             logger.warning(
-                "Failed to get markers from item %s: missing iter_markers or TypeError",
+                "Failed to get markers from item %s: %s",
                 getattr(item, "nodeid", str(item)),
+                exc,
             )
 
         # Настраиваемые маркеры
@@ -204,7 +205,9 @@ class BayesianPytestPlugin:
         context["has_mocks"] = self._detect_mocks_ast(test_code)
 
         # Проверить, связан ли тест с покрытием
-        context["coverage_related"] = "coverage" in str(item.fspath).lower()
+        fspath = getattr(item, "fspath", None)
+        path_str = getattr(fspath, "strpath", None) or (str(fspath) if fspath is not None else "")
+        context["coverage_related"] = "coverage" in path_str.lower()
 
         # Проверить сложность зависимостей
         fixturenames = getattr(item, "fixturenames", ()) or ()

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 import sys
@@ -11,6 +12,27 @@ from pathlib import Path
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+sys.modules.setdefault("update_api_key", sys.modules[__name__])
+
+try:
+    import secure_config as secure_config
+except ImportError:  # pragma: no cover - optional dependency
+    secure_config = None
+
+ENCRYPTION_AVAILABLE = (
+    getattr(secure_config, "ENCRYPTION_AVAILABLE", False) if secure_config else False
+)
+encrypt_value = getattr(secure_config, "encrypt_value", None) if secure_config else None
+
+
+def _encryption_available() -> bool:
+    """Return True when encryption helpers are available."""
+    module_flag = getattr(secure_config, "ENCRYPTION_AVAILABLE", None) if secure_config else None
+    global_flag = globals().get("ENCRYPTION_AVAILABLE", False)
+    if module_flag is None:
+        return bool(global_flag)
+    return bool(global_flag) and bool(module_flag)
+
 
 # Import from local module (this file is the module)
 # DEFAULT_PROFILE and update_api_key are defined in this file below
@@ -54,6 +76,64 @@ API_KEY_MAX_LENGTH: int = _safe_int_from_env("API_KEY_MAX_LENGTH", 256)
 API_KEY_ALLOWED_CHARS: str = os.environ.get(
     "API_KEY_ALLOWED_CHARS", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
 )
+
+
+def _validate_api_key_value(
+    api_key: str,
+    *,
+    key_source: str,
+    prefix: str,
+    min_len: int,
+    max_len: int,
+    allowed_chars_str: str,
+    verbose_errors: bool,
+    logger: logging.Logger,
+) -> None:
+    """Validate API key format and raise RuntimeError when invalid."""
+    if not api_key:
+        detailed_msg = (
+            f"Invalid API key from {key_source}: key is empty. "
+            f"API key must be non-empty, start with '{prefix}', be between {min_len}-{max_len} characters, "
+            "and contain only allowed characters."
+        )
+        logger.debug("API key validation failed: key is empty")
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
+
+    if not api_key.startswith(prefix):
+        detailed_msg = (
+            f"Invalid API key from {key_source}: key does not start with '{prefix}'. "
+            f"API key length: {len(api_key)} characters. "
+            f"API keys must start with '{prefix}' prefix."
+        )
+        logger.debug("API key validation failed: invalid prefix")
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
+
+    if len(api_key) < min_len:
+        detailed_msg = (
+            f"Invalid API key from {key_source}: key is too short ({len(api_key)} characters). "
+            f"API key must be at least {min_len} characters long."
+        )
+        logger.debug("API key validation failed: key too short")
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
+
+    if len(api_key) > max_len:
+        detailed_msg = (
+            f"Invalid API key from {key_source}: key is too long ({len(api_key)} characters). "
+            f"API key must be no longer than {max_len} characters."
+        )
+        logger.debug("API key validation failed: key too long")
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
+
+    allowed_chars = set(allowed_chars_str)
+    invalid_chars = [c for c in api_key if c not in allowed_chars]
+    if invalid_chars:
+        detailed_msg = (
+            f"Invalid API key from {key_source}: contains invalid characters. "
+            f"Found invalid characters: {set(invalid_chars)}. "
+            f"API key must contain only allowed characters: {allowed_chars_str}."
+        )
+        logger.debug("API key validation failed: invalid characters detected")
+        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
 
 def _read_api_key(
@@ -100,60 +180,22 @@ def _read_api_key(
                 " / API-ключ не передан через stdin или переменную окружения OPENAI_API_KEY."
             )
 
-    # Check if verbose errors are enabled (for debugging/development)
-    verbose_errors = os.getenv("API_KEY_VERBOSE_ERRORS", "").lower() in (
-        "1",
-        "true",
-        "on",
-        "yes",
+    _validate_api_key_value(
+        api_key=api_key,
+        key_source=key_source,
+        prefix=prefix,
+        min_len=min_len,
+        max_len=max_len,
+        allowed_chars_str=allowed_chars_str,
+        verbose_errors=os.getenv("API_KEY_VERBOSE_ERRORS", "").lower()
+        in (
+            "1",
+            "true",
+            "on",
+            "yes",
+        ),
+        logger=logger,
     )
-
-    # Validate API key format
-    if not api_key:
-        detailed_msg = (
-            f"Invalid API key from {key_source}: key is empty. "
-            f"API key must be non-empty, start with '{prefix}', be between {min_len}-{max_len} characters, "
-            "and contain only allowed characters."
-        )
-        logger.debug("API key validation failed: key is empty")
-        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
-
-    if not api_key.startswith(prefix):
-        detailed_msg = (
-            f"Invalid API key from {key_source}: key does not start with '{prefix}'. "
-            f"API key length: {len(api_key)} characters. "
-            f"API keys must start with '{prefix}' prefix."
-        )
-        logger.debug("API key validation failed: invalid prefix")
-        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
-
-    if len(api_key) < min_len:
-        detailed_msg = (
-            f"Invalid API key from {key_source}: key is too short ({len(api_key)} characters). "
-            f"API key must be at least {min_len} characters long."
-        )
-        logger.debug("API key validation failed: key too short")
-        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
-
-    if len(api_key) > max_len:
-        detailed_msg = (
-            f"Invalid API key from {key_source}: key is too long ({len(api_key)} characters). "
-            f"API key must be no longer than {max_len} characters."
-        )
-        logger.debug("API key validation failed: key too long")
-        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
-
-    # Check allowed characters
-    allowed_chars = set(allowed_chars_str)
-    invalid_chars = [c for c in api_key if c not in allowed_chars]
-    if invalid_chars:
-        detailed_msg = (
-            f"Invalid API key from {key_source}: contains invalid characters. "
-            f"Found invalid characters: {set(invalid_chars)}. "
-            f"API key must contain only allowed characters: {allowed_chars_str}."
-        )
-        logger.debug("API key validation failed: invalid characters detected")
-        raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     return api_key
 
@@ -199,30 +241,52 @@ def update_api_key(
         print(f"❌ Invalid profile '{profile}'. Valid profiles: {', '.join(PROFILE_CONFIG.keys())}")
         return False
 
+    try:
+        _validate_api_key_value(
+            api_key=api_key,
+            key_source="parameter",
+            prefix=API_KEY_PREFIX,
+            min_len=API_KEY_MIN_LENGTH,
+            max_len=API_KEY_MAX_LENGTH,
+            allowed_chars_str=API_KEY_ALLOWED_CHARS,
+            verbose_errors=False,
+            logger=logger,
+        )
+    except RuntimeError:
+        print("❌ Invalid API key format")
+        return False
+
     # Validate encryption availability
-    if use_encryption and not ENCRYPTION_AVAILABLE:
+    if use_encryption and encrypt_value is None:
+        logger.error("Encryption requested but encrypt_value helper is unavailable")
+        print("Encryption helper is not available")
+        return False
+
+    if not _encryption_available():
         logger.error("Encryption requested but cryptography library not installed")
         print("❌ Encryption not available. Please install 'cryptography' and retry.")
         return False
 
     try:
-        from secure_config import encrypt_value
-
         # Encrypt the key if requested
         if use_encryption:
             try:
-                encrypted_key = encrypt_value(api_key)
+                encrypted_key = encrypt_value(api_key)  # type: ignore[misc]
                 if not encrypted_key.startswith("encrypted:"):
                     logger.error("Encryption failed: output does not start with 'encrypted:'")
                     print("❌ Encryption failed: invalid output format")
                     return False
-                key_value = encrypted_key
+                env_key_value = encrypted_key
+                print("API key will be stored encrypted")
             except RuntimeError as e:
                 logger.error("Encryption failed: %s", e)
                 print(f"❌ Encryption failed: {e}")
+                print(f"Error: {e}")
                 return False
         else:
-            key_value = api_key
+            env_key_value = api_key
+
+        mcp_key_value = api_key
 
         # Update MCP configuration
         mcp_file = Path.home() / ".cursor" / "mcp.json"
@@ -247,7 +311,7 @@ def update_api_key(
                 mcp_config["mcpServers"][server_name]["env"] = {}
 
             env_key_name = PROFILE_CONFIG[profile]["env_key"]
-            mcp_config["mcpServers"][server_name]["env"][env_key_name] = key_value
+            mcp_config["mcpServers"][server_name]["env"][env_key_name] = mcp_key_value
 
             try:
                 with open(mcp_file, "w", encoding="utf-8") as f:
@@ -270,14 +334,16 @@ def update_api_key(
             updated = False
             new_lines = []
             for line in lines:
-                if line.strip().startswith(f"{env_key_name}="):
-                    new_lines.append(f"{env_key_name}={key_value}\n")
+                line_stripped = line.strip()
+                normalized_line = line if line.endswith("\n") else line + "\n"
+                if line_stripped.startswith(f"{env_key_name}="):
+                    new_lines.append(f"{env_key_name}={env_key_value}\n")
                     updated = True
                 else:
-                    new_lines.append(line)
+                    new_lines.append(normalized_line)
 
             if not updated:
-                new_lines.append(f"{env_key_name}={key_value}\n")
+                new_lines.append(f"{env_key_name}={env_key_value}\n")
 
             try:
                 with open(env_file, "w", encoding="utf-8") as f:
@@ -316,47 +382,62 @@ def update_api_key(
         return False
 
 
-# Check encryption availability
-try:
-    from secure_config import ENCRYPTION_AVAILABLE
-except ImportError:
-    ENCRYPTION_AVAILABLE = False
-
-
 def main() -> None:
-    """Entrypoint for secure key update flow. / Точка входа для безопасного обновления ключа."""
-    try:
-        # Read and validate API key
+    """Interactive CLI entrypoint for updating API keys."""
+    description = "PulsePlate API key management utilities"
+    parser = argparse.ArgumentParser(
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python update_api_key.py --api-key sk-your-key-here
+  python update_api_key.py --profile free --api-key sk-your-free-key
+""",
+    )
+    parser.add_argument(
+        "--api-key",
+        help="OpenAI API key (if omitted, you will be prompted interactively)",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=list(PROFILE_CONFIG.keys()),
+        default=DEFAULT_PROFILE,
+        help=f"Profile to update (default: {DEFAULT_PROFILE})",
+    )
+
+    use_argparse = bool(sys.argv and sys.argv[0].endswith("update_api_key.py"))
+    args = parser.parse_args(sys.argv[1:] if use_argparse else [])
+
+    print("🔑 PulsePlate API Key Configuration")
+    print("=" * 45)
+
+    api_key = args.api_key
+    if not api_key:
+        profile_desc = PROFILE_CONFIG[args.profile]["description"]
         try:
-            api_key = _read_api_key()
-        except RuntimeError as error:
-            print(f"❌ {error}")
-            sys.exit(1)
+            api_key = input(f"Enter your {profile_desc} OpenAI API key (sk-...): ").strip()
+        except EOFError:
+            api_key = ""
 
-        # Update API key with error handling
-        try:
-            success = update_api_key(api_key, profile=DEFAULT_PROFILE, use_encryption=True)
-            if not success:
-                print("❌ Failed to update API key. Check error messages above for details.")
-                sys.exit(1)
-        except RuntimeError as error:
-            print(f"❌ Error updating API key: {error}")
-            sys.exit(1)
-        except (IOError, OSError, PermissionError) as error:
-            print(f"❌ File system error while updating API key: {error}")
-            sys.exit(1)
-        except Exception as error:
-            print(f"❌ Unexpected error while updating API key: {type(error).__name__}: {error}")
-            sys.exit(1)
+    if not api_key:
+        print("❌ No API key provided")
+        return
 
-        sys.exit(0)
+    if encrypt_value is None:
+        print("❌ Encryption helper is not available")
+        return
 
-    except KeyboardInterrupt:
-        print("\n❌ Operation cancelled by user.")
-        sys.exit(130)
-    except Exception as error:
-        print(f"❌ Unexpected error: {type(error).__name__}: {error}")
-        sys.exit(1)
+    if not _encryption_available():
+        print("❌ Encryption not available. Please install 'cryptography' and retry.")
+        return
+
+    success = update_api_key(api_key, profile=args.profile, use_encryption=True)
+    if success:
+        print("🎉 API key updated successfully!")
+        profile_desc = PROFILE_CONFIG[args.profile]["description"]
+        print(f"✅ {profile_desc} key configuration updated successfully!")
+    else:
+        print("❌ Failed to update configuration")
 
 
 if __name__ == "__main__":

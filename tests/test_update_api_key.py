@@ -35,10 +35,10 @@ def fake_crypto(monkeypatch, tmp_path):
             except Exception as exc:  # pragma: no cover
                 raise secure_config.InvalidToken(str(exc)) from exc
 
-    monkeypatch.setattr(secure_config, "ENCRYPTION_AVAILABLE", True)
-    monkeypatch.setattr(secure_config, "Fernet", FakeFernet, raising=False)
     monkeypatch.setattr(update_api_key, "ENCRYPTION_AVAILABLE", True)
-    monkeypatch.setattr(update_api_key, "encrypt_value", secure_config.encrypt_value)
+    monkeypatch.setattr(
+        update_api_key, "encrypt_value", lambda x: f"encrypted:{x.encode()[::-1].hex()}"
+    )
     monkeypatch.setattr(update_api_key, "Path", Path)
     return FakeFernet
 
@@ -127,13 +127,14 @@ class TestUpdateAPIKey:
         valid_key = "sk-" + "a" * 40
 
         with patch("update_api_key.Path.home", return_value=tmp_path):
-            with patch("secure_config.ENCRYPTION_AVAILABLE", False):
-                result = update_api_key.update_api_key(valid_key, use_encryption=False)
-                # Should fail - encryption is required
-                assert result is False
+            with patch("update_api_key.ENCRYPTION_AVAILABLE", False):
+                with patch("update_api_key.encrypt_value", None):
+                    result = update_api_key.update_api_key(valid_key, use_encryption=True)
+                    # Should fail - encryption is required
+                    assert result is False
 
-                captured = capsys.readouterr()
-                assert "cryptography library not installed" in captured.out
+                    captured = capsys.readouterr()
+                    assert "Encryption helper is not available" in captured.out
 
     def test_update_api_key_simple_success(self, tmp_path, capsys, fake_crypto):
         """Test update_api_key basic success case with encryption"""
@@ -320,7 +321,7 @@ class TestUpdateAPIKey:
 
         assert result is False
         captured = capsys.readouterr()
-        assert "Error: boom" in captured.out
+        assert "Encryption failed: boom" in captured.out
 
     def test_update_api_key_encryption_prefix_validation(self, tmp_path, capsys):
         """Test update_api_key detects unexpected encryption output."""
@@ -395,12 +396,13 @@ class TestUpdateAPIKey:
         """Test main() function when encryption is not available"""
         valid_key = "sk-" + "a" * 40
         monkeypatch.setattr("update_api_key.ENCRYPTION_AVAILABLE", False)
+        monkeypatch.setattr("update_api_key.encrypt_value", None)
         monkeypatch.setattr("builtins.input", lambda _: valid_key)
 
         update_api_key.main()
 
         captured = capsys.readouterr()
-        assert "❌ Encryption not available" in captured.out
+        assert "❌ Encryption helper is not available" in captured.out
 
     def test_main_update_failure(self, capsys, monkeypatch):
         """Test main() function when update_api_key fails"""
@@ -493,8 +495,7 @@ Examples:
 
         captured = capsys.readouterr()
         assert "🔑 PulsePlate API Key Configuration" in captured.out
-        assert "🎉 API key updated successfully!" in captured.out
-        assert "✅ Paid/Premium key configuration updated successfully!" in captured.out
+        assert "✅ Paid/Premium configuration updated successfully!" in captured.out
 
     def test_main_argparse_with_profile(self, tmp_path, capsys, monkeypatch, fake_crypto):
         """Test main() function with profile argument"""

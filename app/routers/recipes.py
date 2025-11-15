@@ -18,6 +18,8 @@ async def list_recipes(
 ) -> List[RecipeQueryHit]:
     if limit > 50 or limit < 1:
         raise HTTPException(422, "limit must be in [1,50]")
+    if offset < 0:
+        raise HTTPException(422, "offset must be >= 0")
     rows = await asyncio.to_thread(recipe_store.search_recipes, query or "*", limit, offset)
     out = []
     for r in rows:

@@ -453,6 +453,7 @@ class TestPremiumEndpoints:
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
             patch("app.analyze_nutrient_gaps", None),
+            patch("app_module.analyze_nutrient_gaps", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -467,8 +468,8 @@ class TestPremiumEndpoints:
             }
 
             response = self.client.post("/api/v1/premium/gaps", json=data, headers=headers)
-            # May return 200 (success), 500, or 503 (feature unavailable)
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 503
+            assert response.json()["detail"] == "Nutrient gap analysis feature not available"
 
 
 class TestDatabaseAdminEndpoints:
@@ -479,26 +480,30 @@ class TestDatabaseAdminEndpoints:
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
             patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch("app_module.get_update_scheduler", new_callable=AsyncMock) as mock_app_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Scheduler error")
+            mock_app_scheduler.side_effect = Exception("Scheduler error")
 
             headers = {"X-API-Key": "test_key"}
             response = self.client.get("/api/v1/admin/db-status", headers=headers)
-            # May return 200, 500, or 503 depending on scheduler availability
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 500
+            assert response.json()["detail"] == "Failed to get database status: Scheduler error"
 
     def test_force_update_error(self):
         """Test force update endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
             patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch("app_module.get_update_scheduler", new_callable=AsyncMock) as mock_app_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Update error")
+            mock_app_scheduler.side_effect = Exception("Update error")
 
             headers = {"X-API-Key": "test_key"}
             response = self.client.post("/api/v1/admin/force-update", headers=headers)
-            # May return 200, 500, or 503 depending on scheduler availability
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 500
+            assert response.json()["detail"] == "Force update failed: Update error"
 
     def test_check_updates_error(self):
         """Test admin check updates error scenarios."""

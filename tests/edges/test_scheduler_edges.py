@@ -41,19 +41,23 @@ def test_scheduler_signal_handler_invocation(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(schedmod.signal, "signal", fake_signal)
 
-    # Intercept create_task to avoid running real stop
-    created = {}
-
-    def fake_create_task(coro: Any):  # noqa: D401
-        created["task"] = coro
-        return None
-
-    monkeypatch.setattr(asyncio, "create_task", fake_create_task)
-
     # Instantiation sets up handler and registers it
-    _ = DatabaseUpdateScheduler(update_interval_hours=1)
+    scheduler = DatabaseUpdateScheduler(update_interval_hours=1)
 
     # Call captured handler to execute handler body and cover lines
     handler = next(iter(captured.values()))
+    # Provide a dummy task so handler can cancel it
+    cancelled = {"flag": False}
+
+    class DummyTask:
+        def done(self) -> bool:
+            return False
+
+        def cancel(self) -> None:
+            cancelled["flag"] = True
+
+    scheduler._update_task = DummyTask()
+    scheduler.is_running = True
     handler(15, None)  # signum, frame
-    assert "task" in created
+    assert scheduler.is_running is False
+    assert cancelled["flag"] is True

@@ -14,18 +14,13 @@ from typing import Any, Dict, Optional, Tuple
 import requests  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field, field_validator
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
-
-try:
-    from tenacity import RetryCallState
-except ImportError:
-    # Fallback for older tenacity versions
-    RetryCallState = Any  # type: ignore[misc,assignment]
 
 from app.schemas.bmr import BMRResponse
 
@@ -47,9 +42,8 @@ def _calculate_backoff_time(attempt_number: int) -> float:
     Returns:
         Wait time in seconds, clamped between _RETRY_WAIT_MIN and _RETRY_WAIT_MAX
     """
-    wait_time = min(_RETRY_WAIT_MULTIPLIER * (2 ** (attempt_number - 1)), _RETRY_WAIT_MAX)
-    wait_time = max(wait_time, _RETRY_WAIT_MIN)  # Ensure minimum wait time
-    return wait_time
+    wait_time: float = min(_RETRY_WAIT_MULTIPLIER * (2 ** (attempt_number - 1)), _RETRY_WAIT_MAX)
+    return max(wait_time, _RETRY_WAIT_MIN)
 
 
 # Module-level constants for error messages (extracted from handle_request_errors to avoid duplication)

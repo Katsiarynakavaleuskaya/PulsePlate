@@ -65,8 +65,19 @@ def test_adapter_make_weekly_menu_direct_args_passthrough():
     def fake_make_weekly_menu(profile):
         return {"ok": True, "got": profile}
 
+    from core.targets import UserProfile
+
+    profile = UserProfile(
+        sex="male",
+        age=30,
+        height_cm=180.0,
+        weight_kg=80.0,
+        activity="moderate",
+        goal="maintain",
+    )
+
     with patch("core.menu_engine.make_weekly_menu", fake_make_weekly_menu):
-        out = vip._adapter_make_weekly_menu(object())
+        out = vip._adapter_make_weekly_menu(profile)
         assert isinstance(out, dict) and out.get("ok") is True
 
 

@@ -352,39 +352,51 @@ class BusinessBayesianAnalyzer:
             },
         }
 
-    def analyze_business_logic(self, test_code: str, test_name: str) -> list[BusinessTestResult]:
+    def analyze_business_logic(
+        self, test_code: str | list[str], test_name: str
+    ) -> list[BusinessTestResult]:
         """Анализирует бизнес-логику в тестах."""
         results: list[BusinessTestResult] = []
+        normalized_code = self._normalize_code_input(test_code)
 
         # Анализ монетизации
-        monetization_issues = self._analyze_monetization(test_code, test_name)
+        monetization_issues = self._analyze_monetization(normalized_code, test_name)
         results.extend(monetization_issues)
 
         # Анализ привлечения клиентов
-        acquisition_issues = self._analyze_customer_acquisition(test_code, test_name)
+        acquisition_issues = self._analyze_customer_acquisition(normalized_code, test_name)
         results.extend(acquisition_issues)
 
         # Анализ оптимизации затрат
-        cost_issues = self._analyze_cost_optimization(test_code, test_name)
+        cost_issues = self._analyze_cost_optimization(normalized_code, test_name)
         results.extend(cost_issues)
 
         # Анализ роста доходов
-        revenue_issues = self._analyze_revenue_growth(test_code, test_name)
+        revenue_issues = self._analyze_revenue_growth(normalized_code, test_name)
         results.extend(revenue_issues)
 
         # Анализ удержания клиентов
-        retention_issues = self._analyze_customer_retention(test_code, test_name)
+        retention_issues = self._analyze_customer_retention(normalized_code, test_name)
         results.extend(retention_issues)
 
         # Persist results for downstream diagnostics
         self.test_results.extend(results)
         return results
 
-    def _remove_comments(self, code: str) -> str:
+    def _normalize_code_input(self, code: str | list[str]) -> str:
+        """Convert test code input (str or list) to a single string."""
+        if isinstance(code, (list, tuple)):
+            return "\n".join(str(line) for line in code)
+        return str(code)
+
+    def _remove_comments(self, code: str | list[str]) -> str:
         """Remove inline comments while preserving '#' inside string literals."""
+        code_str = self._normalize_code_input(code)
+        if not isinstance(code_str, str):
+            code_str = str(code_str)
         try:
             tokens = []
-            for token in tokenize.generate_tokens(StringIO(code).readline):
+            for token in tokenize.generate_tokens(StringIO(code_str).readline):
                 if token.type != tokenize.COMMENT:
                     tokens.append(token)
             result = tokenize.untokenize(tokens)
@@ -393,7 +405,7 @@ class BusinessBayesianAnalyzer:
         except (tokenize.TokenError, SyntaxError):
             # Fallback to simple regex if tokenization fails (e.g., incomplete code)
             # Only strip comments that start a line or are preceded by whitespace
-            return re.sub(r"(^|\s)#.*", r"\1", code, flags=re.MULTILINE)
+            return re.sub(r"(^|\s)#.*", r"\1", code_str, flags=re.MULTILINE)
 
     def _analyze_monetization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует стратегии монетизации."""
@@ -411,7 +423,7 @@ class BusinessBayesianAnalyzer:
         ]
 
         for pattern in pricing_patterns:
-            matches = re.finditer(pattern, code, re.IGNORECASE)
+            matches = re.finditer(pattern, code_no_comments, re.IGNORECASE)
             for match in matches:
                 try:
                     price = float(match.group(1))

@@ -75,7 +75,11 @@ def run_coverage_check() -> bool:
         # sys.executable and hardcoded pytest arguments only; no user input or
         # external data is used. Timeout (600s) prevents hangs.
         result = subprocess.run(  # nosec B603
-            cmd, capture_output=True, text=True, timeout=600, cwd=Path(__file__).parent
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            cwd=Path(__file__).resolve().parent,
         )
         elapsed = time.perf_counter() - start_time
 

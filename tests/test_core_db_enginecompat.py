@@ -162,8 +162,8 @@ def test_derive_async_url_variants() -> None:
         _derive_async_url("postgresql://user:pass@localhost/db")
         == "postgresql+asyncpg://user:pass@localhost/db"
     )
-    # psycopg dialect reuses the same URL
+    # psycopg dialect uses explicit async marker
     assert (
         _derive_async_url("postgresql+psycopg://user:pass@localhost/db")
-        == "postgresql+psycopg://user:pass@localhost/db"
+        == "postgresql+psycopg_async://user:pass@localhost/db"
     )

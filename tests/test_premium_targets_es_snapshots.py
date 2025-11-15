@@ -21,6 +21,11 @@ class TestPremiumTargetsESSnapshots:
 
     def test_female_adult_es_snapshot(self):
         """ES snapshot for female adult profile"""
+        # Enable nutrition targets for this test
+        import app
+        from core.recommendations import build_nutrition_targets
+
+        app.build_nutrition_targets = build_nutrition_targets
         payload = {
             "sex": "female",
             "age": 30,
@@ -78,6 +83,11 @@ class TestPremiumTargetsESSnapshots:
 
     def test_male_adult_es_snapshot(self):
         """ES snapshot for male adult profile"""
+        # Enable nutrition targets for this test
+        import app
+        from core.recommendations import build_nutrition_targets
+
+        app.build_nutrition_targets = build_nutrition_targets
         payload = {
             "sex": "male",
             "age": 35,
@@ -135,6 +145,11 @@ class TestPremiumTargetsESSnapshots:
 
     def test_female_teen_es_snapshot_with_warnings(self):
         """ES snapshot for female teen with life stage warnings"""
+        # Enable nutrition targets for this test
+        import app
+        from core.recommendations import build_nutrition_targets
+
+        app.build_nutrition_targets = build_nutrition_targets
         payload = {
             "sex": "female",
             "age": 16,

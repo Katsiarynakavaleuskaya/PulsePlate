@@ -30,12 +30,15 @@ class TestBMIProAPI:
     def setup_method(self):
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_BMI_PRO"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        if "FEATURE_BMI_PRO" in os.environ:
+            del os.environ["FEATURE_BMI_PRO"]
 
     def test_bmi_pro_endpoint_success(self):
         """Test successful BMI Pro analysis."""

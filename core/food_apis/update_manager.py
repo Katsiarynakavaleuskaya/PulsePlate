@@ -1007,10 +1007,19 @@ class DatabaseUpdateManager:
 
     async def close(self) -> None:
         """Close all connections."""
-        await self.usda_client.close()
+        close_tasks = [self.usda_client.close(), self.unified_db.close()]
         if self.off_client and OFF_AVAILABLE:
-            await self.off_client.close()
-        await self.unified_db.close()
+            close_tasks.append(self.off_client.close())
+
+        results = await asyncio.gather(*close_tasks, return_exceptions=True)
+        for idx, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(
+                    "Error closing update manager client %d: %s",
+                    idx,
+                    result,
+                    exc_info=result,
+                )
 
 
 # Convenience functions for scheduled updates

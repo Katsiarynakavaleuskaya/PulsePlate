@@ -5,6 +5,7 @@ RU: Тесты для роутера BMI Pro.
 EN: Tests for BMI Pro router.
 """
 
+import os
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -21,7 +22,12 @@ class TestBMIProRouter:
 
         app = FastAPI()
         app.include_router(router)
+        os.environ["FEATURE_BMI_PRO"] = "true"
         self.client = TestClient(app)
+
+    def teardown_method(self) -> None:
+        """Clean up environment overrides."""
+        os.environ.pop("FEATURE_BMI_PRO", None)
 
     def test_bmi_pro_success_basic(self):
         """Test BMI Pro endpoint with basic data."""

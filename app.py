@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
 import secrets
@@ -93,6 +94,22 @@ def stop_background_updates() -> None:
     pass
 
 
+def _resolve_app_callable(
+    attr_name: str, default: Optional[Callable[..., Any]] = None
+) -> Optional[Callable[..., Any]]:
+    """Return callable attribute from app_module or app package if available."""
+    import sys as _sys
+
+    for module_name in ("app", "app_module"):
+        module = _sys.modules.get(module_name)
+        if module is None:
+            continue
+        candidate = getattr(module, attr_name, None)
+        if callable(candidate):
+            return candidate
+    return default
+
+
 GetRouterCallable = Callable[[], APIRouter]
 get_bodyfat_router: Optional[GetRouterCallable]
 try:
@@ -142,6 +159,34 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+_CLIENT_FINGERPRINT_SALT = os.getenv("CLIENT_FINGERPRINT_SALT", "")
+_DEFAULT_LIFE_STAGE_MESSAGES: dict[str, dict[str, str]] = {
+    "teen": {
+        "ru": "Подростковая группа: используйте специализированные нормы.",
+        "en": "Teen life stage: use age-appropriate references.",
+        "es": "Etapa adolescente: use referencias apropiadas para la edad.",
+    },
+    "pregnant": {
+        "ru": "Беременность: нормы отличаются; обратитесь к специализированным рекомендациям.",
+        "en": "Pregnancy: requirements differ; consult specialized guidelines.",
+        "es": "Embarazo: los requisitos difieren; consulte guías especializadas.",
+    },
+    "lactating": {
+        "ru": "Лактация: повышенные потребности в нутриентах.",
+        "en": "Lactation: increased nutrient requirements.",
+        "es": "Lactancia: requisitos de nutrientes aumentados.",
+    },
+    "elderly": {
+        "ru": "51+: возможна иная потребность в микронутриентах.",
+        "en": "Age 51+: micronutrient needs may differ.",
+        "es": "51+: las necesidades de micronutrientes pueden diferir.",
+    },
+    "child": {
+        "ru": "Детский возраст: используйте педиатрические нормы.",
+        "en": "Child age: use pediatric references.",
+        "es": "Edad infantil: use referencias pediátricas.",
+    },
+}
 
 # Circuit breaker for safety validation failures
 _MAX_SAFETY_FAILURES = int(os.getenv("MAX_SAFETY_FAILURES", "10"))
@@ -165,7 +210,7 @@ def _attempt_db_fallback(
     fallback_exception = isinstance(db_err, (OSError, IOError))
 
     if not (allowed_env or explicit_override or fallback_exception):
-        raise
+        raise db_err
 
     # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
     fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
@@ -230,8 +275,9 @@ def _attempt_db_fallback(
         logger.error("In-memory fallback init_db() failed: %s", fallback_err)
         # Reset fallback URL on failure
         os.environ.pop("DB_FALLBACK_URL", None)
+        raise db_err from fallback_err
     if not fallback_ok:
-        raise
+        raise db_err
 
 
 @asynccontextmanager
@@ -259,14 +305,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     try:
         import inspect as _inspect
-        import sys as _sys
 
-        _pkg = _sys.modules.get("app")
-        _start = (
-            getattr(_pkg, "start_background_updates", None)
-            if _pkg and hasattr(_pkg, "start_background_updates")
-            else start_background_updates
-        )
+        _start = _resolve_app_callable("start_background_updates", start_background_updates)
         _task: Optional[asyncio.Task[Any]] = None
         if callable(_start):
             result = _start(update_interval_hours=24)
@@ -297,14 +337,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     # Shutdown
     try:
-        import sys as _sys
-
-        _pkg = _sys.modules.get("app")
-        _stop = (
-            getattr(_pkg, "stop_background_updates", None)
-            if _pkg and hasattr(_pkg, "stop_background_updates")
-            else stop_background_updates
-        )
+        _stop = _resolve_app_callable("stop_background_updates", stop_background_updates)
         if callable(_stop):
             import inspect as _inspect
 
@@ -345,8 +378,6 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
 
     app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
     dev_mode = _is_truthy(os.getenv("ALLOW_DEV_API_KEY"))
-    if os.getenv("PYTEST_CURRENT_TEST") is not None:
-        dev_mode = True
     if app_env in {"", "local", "dev", "development", "test"}:
         dev_mode = True
 
@@ -502,14 +533,37 @@ async def csp_nonce_middleware(request: Request, call_next: CallNextHandler) -> 
     return response
 
 
+def _client_fingerprint(request: Request) -> str | None:
+    """Return a stable, non-PII identifier for the requesting client."""
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    forwarded_ip = forwarded_for.split(",")[0].strip() if forwarded_for else ""
+    remote_host = request.client.host if request.client else ""
+    source = forwarded_ip or remote_host
+    if not source:
+        return None
+    # Hash with salt so raw IP is never logged while keeping ability to correlate requests.
+    payload = f"{_CLIENT_FINGERPRINT_SALT}:{source}".encode("utf-8")
+    digest = hashlib.sha256(payload).hexdigest()
+    return digest[:12]
+
+
 # Add logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next: CallNextHandler) -> Response:
     start_time_req = time.time()
-    logger.debug("Request: %s %s", request.method, request.url.path)
+    fingerprint = _client_fingerprint(request)
+    if fingerprint:
+        logger.debug("Request: %s %s [client=%s]", request.method, request.url.path, fingerprint)
+    else:
+        logger.debug("Request: %s %s", request.method, request.url.path)
     response = await call_next(request)
     process_time = time.time() - start_time_req
-    logger.debug("Response: %s in %.4fs", response.status_code, process_time)
+    if fingerprint:
+        logger.debug(
+            "Response: %s in %.4fs [client=%s]", response.status_code, process_time, fingerprint
+        )
+    else:
+        logger.debug("Response: %s in %.4fs", response.status_code, process_time)
     return response
 
 
@@ -2706,6 +2760,12 @@ def _fallback_targets_response(
 ) -> WHOTargetsResponse:
     """Build a deterministic fallback response for WHO targets."""
 
+    if life_stage_warning_factory is None:
+        with suppress(ImportError):
+            from core.targets import _life_stage_warnings as _ls_warnings
+
+            life_stage_warning_factory = _ls_warnings
+
     base_bmr = 24 * req.weight_kg
     activity_factor = get_activity_factor(req.activity)
     tdee = int(base_bmr * activity_factor)
@@ -2755,21 +2815,36 @@ def _fallback_targets_response(
         "child",
         "elderly",
     }
-    if req.life_stage in ("pregnant", "lactating"):
-        if life_stage_warning_factory is not None:
-            warnings.extend(
-                life_stage_warning_factory(age=req.age, life_stage=req.life_stage, lang=req.lang)
+    life_stage_code = (req.life_stage or "").lower()
+    factory_warnings: list[dict[str, str]] = []
+    if life_stage_warning_factory is not None:
+        try:
+            factory_warnings = life_stage_warning_factory(
+                age=req.age, life_stage=req.life_stage, lang=req.lang
             )
-        elif include_generic_life_stage_note:
+        except Exception:
+            factory_warnings = []
+    if not factory_warnings and life_stage_code in _DEFAULT_LIFE_STAGE_MESSAGES:
+        msg_map = _DEFAULT_LIFE_STAGE_MESSAGES[life_stage_code]
+        factory_warnings = [
+            {
+                "code": life_stage_code,
+                "message": msg_map.get(req.lang, msg_map["en"]),
+            }
+        ]
+    warnings.extend(factory_warnings)
+
+    if req.life_stage in ("pregnant", "lactating"):
+        if not warnings and include_generic_life_stage_note:
             warnings.append(
                 {
                     "code": "life_stage",
                     "message": "Special nutrition considerations apply",
                 }
             )
-    if special_life_stage:
+    if special_life_stage and reason:
         has_life_stage_warning = any(w.get("code") == "life_stage" for w in warnings)
-        if not has_life_stage_warning or reason:
+        if not has_life_stage_warning:
             warnings.append({"code": "life_stage", "message": reason})
 
     return WHOTargetsResponse(
@@ -2801,10 +2876,18 @@ def _generate_who_targets_response(
                 raise HTTPException(
                     status_code=503, detail="WHO nutrition targets feature not available"
                 )
+
+            life_stage_warning_factory = None
+            with suppress(ImportError):
+                from core.targets import _life_stage_warnings as _ls_warnings
+
+                life_stage_warning_factory = _ls_warnings
+
             return _fallback_targets_response(
                 req,
                 reason="WHO targets fallback used because the calculation backend is unavailable.",
                 include_generic_life_stage_note=True,
+                life_stage_warning_factory=life_stage_warning_factory,
             )
 
         from core.targets import UserProfile, _life_stage_warnings
@@ -3703,11 +3786,10 @@ if get_bodyfat_router is not None:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
 # Include BMI Pro router (with feature flag)
-FEATURE_BMI_PRO_ENABLED = os.getenv("FEATURE_BMI_PRO_ENABLED", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+_bmi_pro_flag = os.getenv("FEATURE_BMI_PRO_ENABLED")
+if _bmi_pro_flag is None:
+    FEATURE_BMI_PRO_ENABLED = True
+else:
+    FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag)
 if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
     app.include_router(bmi_pro_router)

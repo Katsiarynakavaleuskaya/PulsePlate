@@ -153,7 +153,9 @@ class TestConftestEnvironmentCoverage:
         # Это проверяется тем, что переменные окружения установлены
         assert os.environ.get("APP_ENV") == "test"
 
-    def test_conftest_fixture_behavior_coverage(self, test_environment, test_client) -> None:
+    def test_conftest_fixture_behavior_coverage(
+        self, test_environment, _test_environment, test_client
+    ) -> None:
         """
         Тест покрытия conftest.py fixture behaviors (scope, parameters, return values,
         teardown, exceptions, dependencies, setup).
@@ -171,8 +173,9 @@ class TestConftestEnvironmentCoverage:
         # Assert APP_ENV is "test" (core assertion from all original tests)
         assert os.environ.get("APP_ENV") == "test"
 
-        # Test fixture return values: test_environment fixture returns a value (not None)
-        assert test_environment is not None
+        # test_environment is a setup-only fixture; _test_environment exposes values
+        assert test_environment is None
+        assert _test_environment is not None
 
         # Test fixture dependencies: test_client can be used and depends on test_environment
         assert isinstance(test_client, TestClient)

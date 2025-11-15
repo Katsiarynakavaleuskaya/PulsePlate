@@ -64,12 +64,16 @@ def generate_all_icons_from_source(source_path: str) -> bool:
         print("❌ Требуется библиотека Pillow: pip install Pillow")
         return False
 
-    # Путь к папке с иконками (относительно расположения скрипта)
-    script_dir: str = os.path.dirname(os.path.abspath(__file__))
-    icons_dir: str = os.path.join(
-        script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
-    )
-    icons_dir = os.path.normpath(icons_dir)
+    # Путь к папке с иконками (относительно расположения скрипта или из переменной окружения)
+    env_icons_dir = os.getenv("IOS_APPICONSET_DIR")
+    if env_icons_dir:
+        icons_dir = os.path.normpath(env_icons_dir)
+    else:
+        script_dir: str = os.path.dirname(os.path.abspath(__file__))
+        icons_dir: str = os.path.join(
+            script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
+        )
+        icons_dir = os.path.normpath(icons_dir)
 
     if not os.path.exists(icons_dir):
         print(f"⚠️  Папка {icons_dir} не найдена, создаём...")

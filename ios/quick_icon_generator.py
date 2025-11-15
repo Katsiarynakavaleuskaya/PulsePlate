@@ -21,8 +21,9 @@ def create_icons_from_source(source_path):
         print(f"❌ Файл {source_path} не найден!")
         return False
 
-    # Папка для иконок
-    icons_dir = "PulsePlate/Assets.xcassets/AppIcon.appiconset"
+    # Папка для иконок (можно переопределить через переменную окружения)
+    icons_dir = os.getenv("IOS_APPICONSET_DIR", "PulsePlate/Assets.xcassets/AppIcon.appiconset")
+    icons_dir = os.path.normpath(icons_dir)
 
     if not os.path.exists(icons_dir):
         print(f"❌ Папка {icons_dir} не найдена!")

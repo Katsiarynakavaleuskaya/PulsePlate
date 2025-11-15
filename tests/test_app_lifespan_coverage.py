@@ -81,7 +81,7 @@ class TestAppLifespanCoverage:
         """
         import app
 
-        with patch("app_module.start_background_updates") as mock_start:
+        with patch("app.start_background_updates") as mock_start:
             # TestClient автоматически запускает lifespan startup
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Проверяем, что start_background_updates был вызван при startup
@@ -97,7 +97,7 @@ class TestAppLifespanCoverage:
         """
         import app
 
-        with patch("app_module.stop_background_updates") as mock_stop:
+        with patch("app.stop_background_updates") as mock_stop:
             # TestClient с context manager гарантирует выполнение shutdown
             with TestClient(cast(ASGIApp, app.app)) as client:
                 # Проверяем, что приложение работает до shutdown
@@ -122,7 +122,7 @@ class TestAppLifespanCoverage:
 
         with (
             patch("app_module.init_db") as mock_init_db,
-            patch("app_module.stop_background_updates") as mock_stop,
+            patch("app.stop_background_updates") as mock_stop,
         ):
             # TestClient с context manager гарантирует startup и shutdown
             with TestClient(cast(ASGIApp, app.app)) as client:
@@ -168,7 +168,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем, что ошибка в stop_background_updates не ломает shutdown
-        with patch("app_module.stop_background_updates", side_effect=Exception("Stop error")):
+        with patch("app.stop_background_updates", side_effect=Exception("Stop error")):
             with TestClient(cast(ASGIApp, app.app)) as client:
                 response = client.get("/health")
                 assert response.status_code == 200

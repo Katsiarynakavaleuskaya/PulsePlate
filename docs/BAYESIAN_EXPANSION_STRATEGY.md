@@ -1180,8 +1180,8 @@ class PersonalizedSafetyLimits:
 - **Verification Steps**:
   1. Check presence of `config/safety_limits.approval.yaml`
   2. Validate YAML structure and required fields
-  3. Verify `medicalSafetyApproved: true`
-  4. Verify minimum required approvers (1 from each role)
+  3. Ensure `medicalSafetyApproved: true`
+  4. Confirm minimum required approvers (1 from each role)
   5. Validate signature format (optional but recommended)
 
 ##### Deployment Gate Implementation

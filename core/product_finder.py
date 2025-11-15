@@ -40,37 +40,23 @@ except ImportError:
 try:
     from nltk.corpus import stopwords
     from nltk.stem import WordNetLemmatizer
-    from nltk import download as nltk_download
-
-    _NLTK_AVAILABLE = True
-    try:
-        _stopwords = set(stopwords.words("english"))
-        _lemmatizer = WordNetLemmatizer()
-    except (LookupError, OSError):
-        # NLTK data not downloaded, try to download it
-        try:
-            nltk_download("stopwords", quiet=True)
-            nltk_download("wordnet", quiet=True)
-            nltk_download("omw-1.4", quiet=True)
-            _stopwords = set(stopwords.words("english"))
-            _lemmatizer = WordNetLemmatizer()
-        except (LookupError, OSError) as download_error:
-            logger.warning(
-                "NLTK data unavailable for product finder (%s); disabling NLP helpers",
-                download_error,
-            )
-            _NLTK_AVAILABLE = False
-            _stopwords = set()
-            _lemmatizer = None
-        except Exception as unexpected_error:  # pragma: no cover - defensive logging
-            logger.error(
-                "Unexpected error while initialising NLTK data: %s", unexpected_error, exc_info=True
-            )
-            raise
 except ImportError:
     _NLTK_AVAILABLE = False
     _stopwords = set()
     _lemmatizer = None
+else:
+    try:
+        _stopwords = set(stopwords.words("english"))
+        _lemmatizer = WordNetLemmatizer()
+        _NLTK_AVAILABLE = True
+    except (LookupError, OSError) as resource_error:
+        logger.warning(
+            "NLTK data unavailable for product finder (%s); disabling NLP helpers",
+            resource_error,
+        )
+        _NLTK_AVAILABLE = False
+        _stopwords = set()
+        _lemmatizer = None
 
 # Common English stopwords/articles as fallback
 _COMMON_STOPWORDS = {
@@ -382,24 +368,30 @@ class ProductFinder:
                 if ratio_similarity >= threshold:
                     return True
             except Exception as e:
-                logger.debug(f"Fuzzy matching failed: {e}, falling back to simple matching")
+                logger.debug("Fuzzy matching failed: %s, falling back to simple matching", e)
 
         # Fallback: lightweight substring/word intersection logic
-        # Check substring containment
-        norm1_clean = norm1_lemma.replace(" ", "").replace("_", "")
-        norm2_clean = norm2_lemma.replace(" ", "").replace("_", "")
-        if norm1_clean in norm2_clean or norm2_clean in norm1_clean:
-            return True
+        threshold_ratio = max(min(threshold / 100.0, 1.0), 0.0)
+        word_overlap_threshold = min(threshold_ratio, 0.5)
+        shorter, longer = (
+            (norm1_lemma, norm2_lemma)
+            if len(norm1_lemma) <= len(norm2_lemma)
+            else (norm2_lemma, norm1_lemma)
+        )
+        if shorter and shorter in longer:
+            substring_ratio = len(shorter) / max(len(longer), 1)
+            if substring_ratio >= threshold_ratio:
+                return True
 
         # Check common words
         words1 = set(norm1_lemma.split())
         words2 = set(norm2_lemma.split())
         common_words = words1.intersection(words2)
 
-        # If significant overlap (at least 50% of shorter name's words), consider similar
+        # Consider similar when overlap meets threshold ratio
         if common_words:
             min_len = min(len(words1), len(words2))
-            if min_len > 0 and len(common_words) / min_len >= 0.5:
+            if min_len > 0 and (len(common_words) / min_len) >= word_overlap_threshold:
                 return True
 
         return False

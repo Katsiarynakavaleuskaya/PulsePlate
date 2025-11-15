@@ -25,13 +25,15 @@ def upgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name
 
-    def _json_server_default(literal: str) -> sa.sql.elements.TextClause:
+    def _json_server_default(literal: str) -> sa.sql.elements.TextClause | None:
         """Return a dialect-aware JSON default literal."""
         if dialect_name == "postgresql":
-            return sa.text(f"'{literal}'::jsonb")
+            return sa.text(f"'{literal}'::json")
         if dialect_name == "mysql":
             return sa.text(f"CAST('{literal}' AS JSON)")
-        return sa.text(f"'{literal}'")
+        # SQLite and other dialects do not support JSON server defaults consistently.
+        # Defer to application-level defaults for portability.
+        return None
 
     json_object_default = _json_server_default("{}")
     json_array_default = _json_server_default("[]")

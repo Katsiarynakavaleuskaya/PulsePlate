@@ -7,7 +7,11 @@ are properly incremented and used in the safety score calculation.
 
 import pytest
 
-from core.nutrition_bayesian_analyzer import NutritionBayesianAnalyzer, NutritionErrorType
+from core.nutrition_bayesian_analyzer import (
+    NutritionBayesianAnalyzer,
+    NutritionCategory,
+    NutritionErrorType,
+)
 
 
 def test_counters_increment_on_successful_analysis() -> None:
@@ -245,7 +249,9 @@ def test_diagnose_nutrition_issues() -> None:
 
     # Verify each issue has a probability in valid range
     for issue_key, probability in issues.items():
-        assert isinstance(issue_key, str), f"Issue key should be string, got {type(issue_key)}"
+        assert isinstance(
+            issue_key, NutritionCategory
+        ), f"Issue key should be NutritionCategory, got {type(issue_key)}"
         assert isinstance(
             probability, float
         ), f"Probability should be float, got {type(probability)}"
@@ -254,7 +260,10 @@ def test_diagnose_nutrition_issues() -> None:
         ), f"Probability for {issue_key} should be in [0.0, 1.0], got {probability}"
 
     # For dangerous input (low calories, low BMI), probabilities should be above threshold
-    expected_issues = ["low_calories", "low_bmi"]
+    expected_issues = {
+        NutritionCategory.CALORIE_CALCULATION,
+        NutritionCategory.BMI_SAFETY,
+    }
     detected_issues = [key for key in expected_issues if key in issues]
     if detected_issues:
         for issue_key in detected_issues:
@@ -281,10 +290,8 @@ def test_generate_nutrition_recommendations() -> None:
     # Generate recommendations
     recommendations = analyzer.generate_nutrition_recommendations()
 
-    # Should return list of recommendations
-    assert isinstance(
-        recommendations, list
-    ), "generate_nutrition_recommendations should return a list"
+    # Should return list of recommendation strings
+    assert isinstance(recommendations, list), "generate_nutrition_recommendations returns a list"
     assert (
         len(recommendations) > 0
     ), "Should generate at least one recommendation for detected issues"
@@ -294,22 +301,14 @@ def test_generate_nutrition_recommendations() -> None:
     detected_keywords = []
 
     for rec in recommendations:
-        assert isinstance(rec, dict), f"Each recommendation should be a dict, got {type(rec)}"
-        assert "recommendation" in rec, "Recommendation should have 'recommendation' key"
-        assert isinstance(rec["recommendation"], str), "Recommendation text should be a string"
-        assert len(rec["recommendation"]) > 0, "Recommendation text should not be empty"
+        assert isinstance(rec, str), f"Each recommendation should be a string, got {type(rec)}"
+        assert len(rec) > 0, "Recommendation text should not be empty"
 
         # Check if recommendation mentions detected issues
-        rec_text_lower = rec["recommendation"].lower()
+        rec_text_lower = rec.lower()
         for keyword in issue_keywords:
             if keyword in rec_text_lower:
                 detected_keywords.append(keyword)
-
-        # Optional: check for other expected fields if they exist
-        if "issue" in rec:
-            assert isinstance(rec["issue"], str), "Issue identifier should be a string"
-        if "severity" in rec:
-            assert isinstance(rec["severity"], (str, int, float)), "Severity should be a valid type"
 
     # Verify that recommendations mention at least some of the detected issues
     assert len(detected_keywords) > 0, (

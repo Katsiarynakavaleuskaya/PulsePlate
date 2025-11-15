@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from dataclasses import asdict
 from typing import Literal, Optional, cast
 
 from fastapi import APIRouter, HTTPException
@@ -44,6 +46,9 @@ class BMIProResponse(BaseModel):
 
 @router.post("/pro", response_model=BMIProResponse)
 async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
+    flag = os.getenv("FEATURE_BMI_PRO", "0").strip().lower()
+    if flag not in {"1", "true", "yes", "on"}:
+        raise HTTPException(status_code=404, detail="Not found")
     try:
         # Convert height to meters for calc_bmi(weight, height_m)
         bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
@@ -65,4 +70,5 @@ async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         risk_level=cast(Literal["low", "moderate", "high"], risk),
         notes=notes,
     )
-    return BMIProResponse(**card.__dict__)
+    payload = asdict(card) if hasattr(card, "__dataclass_fields__") else card.__dict__
+    return BMIProResponse.model_validate(payload)

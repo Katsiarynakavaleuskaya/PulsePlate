@@ -267,7 +267,7 @@ def _apply_test_environment(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 def test_environment(
     monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
 ) -> Generator[None, None, None]:
-    """Set up deterministic test environment variables with no return value."""
+    """Set up deterministic test environment variables."""
     _apply_test_environment(monkeypatch)
     yield None
     # Cleanup handled by monkeypatch

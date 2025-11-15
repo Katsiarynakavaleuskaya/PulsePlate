@@ -118,15 +118,17 @@ class TestAPIKeyModes:
         clean_env: Generator[None, None, None],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Test strict mode accepts 'test' key when PYTEST_CURRENT_TEST is set."""
+        """Test strict mode still requires configured key even in pytest context."""
         app_module = reload_app_with_env(
             fresh_app,
             monkeypatch,
             {"API_KEY": "test-secret-key", "PYTEST_CURRENT_TEST": "test_something"},
         )
-        # Should accept both the configured key and 'test'
         assert getattr(app_module, "get_api_key")("test-secret-key") == "test-secret-key"
-        assert getattr(app_module, "get_api_key")("test") == "test"
+        with pytest.raises(HTTPException) as exc_info:
+            getattr(app_module, "get_api_key")("test")
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "Invalid API Key"
 
     def test_api_key_required_mode_without_key(
         self,

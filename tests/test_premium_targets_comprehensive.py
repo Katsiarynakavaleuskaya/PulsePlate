@@ -40,6 +40,11 @@ class TestPremiumTargetsComprehensive:
 
     def test_premium_targets_required_micronutrients_male_19_50(self):
         """Test that premium targets contain all required micronutrients for males aged 19-50."""
+        # Enable nutrition targets for this test
+        import app
+        from core.recommendations import build_nutrition_targets
+
+        app.build_nutrition_targets = build_nutrition_targets
         data = {
             "sex": "male",
             "age": 30,  # 19-50 age group

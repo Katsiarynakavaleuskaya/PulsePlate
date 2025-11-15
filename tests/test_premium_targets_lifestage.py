@@ -15,6 +15,20 @@ except Exception as exc:  # pragma: no cover
 client = TestClient(app_mod.app)  # type: ignore
 
 
+@pytest.fixture(autouse=True)
+def _targets_backend_reset() -> None:
+    """Ensure WHO targets backend is available even if previous tests disabled it."""
+    try:
+        from core.recommendations import build_nutrition_targets as _build_targets
+    except ImportError:  # pragma: no cover
+        _build_targets = None
+    if _build_targets is not None:
+        setattr(app_mod, "build_nutrition_targets", _build_targets)
+        if hasattr(app_mod, "_plate_deps"):
+            app_mod._plate_deps.build_nutrition_targets_fn = _build_targets  # type: ignore[attr-defined]
+    yield
+
+
 @pytest.mark.parametrize(
     "case",
     [

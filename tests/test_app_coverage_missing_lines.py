@@ -284,21 +284,23 @@ class TestAppMissingLinesCoverage:
         # May be 200, 400, 500, or 503 depending on scheduler availability
         assert response.status_code in [200, 400, 500, 503]
 
-    def test_export_pdf_generic_endpoint(self, client):
+    def test_export_pdf_generic_endpoint(self, client, api_key):
         """Test generic PDF export endpoint."""
         client = client
 
         # Test with valid payload
-        response = client.post("/api/v1/export/pdf", json={"test": "data"})
+        response = client.post(
+            "/api/v1/export/pdf", json={"test": "data"}, headers={"X-API-Key": api_key}
+        )
         # May be 200, 503, or 500 depending on PDF availability
         assert response.status_code in [200, 503, 500]
 
-    def test_export_pdf_generic_empty_payload(self, client):
+    def test_export_pdf_generic_empty_payload(self, client, api_key):
         """Test generic PDF export endpoint with empty payload."""
         client = client
 
         # Test with empty payload
-        response = client.post("/api/v1/export/pdf", json={})
+        response = client.post("/api/v1/export/pdf", json={}, headers={"X-API-Key": api_key})
         # Should be 400, 422, 500, or 503
         assert response.status_code in [400, 422, 500, 503]
 

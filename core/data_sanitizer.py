@@ -37,6 +37,15 @@ KCAL_MAX = int(KCAL_MAX_SAFE)
 FIBER_G_MIN = int(FIBER_MIN_G)
 FIBER_G_MAX = int(FIBER_MAX_G)
 
+# Safe fallback defaults reused across sanitizers
+NUTRITION_FALLBACK_DEFAULTS: dict[str, int] = {
+    "kcal": 2000,
+    "protein_g": 100,
+    "fat_g": 70,
+    "carbs_g": 250,
+    "fiber_g": FIBER_G_MIN,
+}
+
 # Log message constants for numeric conversion warnings
 INVALID_NUMERIC_MSG = "Invalid numeric value (NaN/inf): %s, defaulting to 0"
 CONVERSION_FAILED_MSG = "Could not convert value '%s' to numeric: %s, defaulting to 0"
@@ -72,13 +81,9 @@ class NutritionSanitizationError(Exception):
         super().__init__(message)
         self.original_exception = original_exception
         self.request_context = request_context or {}
-        self.fallback_defaults = fallback_defaults or {
-            "kcal": 2000,
-            "protein_g": 100,
-            "fat_g": 70,
-            "carbs_g": 250,
-            "fiber_g": FIBER_G_MIN,
-        }
+        self.fallback_defaults = (
+            fallback_defaults.copy() if fallback_defaults else NUTRITION_FALLBACK_DEFAULTS.copy()
+        )
 
 
 class NutritionData(BaseModel):
@@ -203,13 +208,7 @@ def sanitize_nutrition_dict(data: dict[str, Any]) -> dict[str, int]:
             logger.info("Macro sum validation failed, returning sanitized data anyway")
         return result
     except Exception as e:
-        fallback_defaults = {
-            "kcal": 2000,
-            "protein_g": 100,
-            "fat_g": 70,
-            "carbs_g": 250,
-            "fiber_g": FIBER_G_MIN,
-        }
+        fallback_defaults = NUTRITION_FALLBACK_DEFAULTS
         error_msg = f"Failed to sanitize nutrition data: {e}"
         logger.error(
             "Failed to sanitize nutrition data: %s, context: %s",
@@ -248,7 +247,7 @@ def sanitize_macros_dict(macros: dict[str, Any]) -> dict[str, int]:
         "protein_g": macros.get("protein_g", 0),
         "fat_g": macros.get("fat_g", 0),
         "carbs_g": macros.get("carbs_g", 0),
-        "fiber_g": macros.get("fiber_g", FIBER_G_MIN),
+        "fiber_g": macros.get("fiber_g", 0),
     }
     try:
         sanitized = sanitize_nutrition_dict(full_data)
@@ -284,7 +283,7 @@ class MealData(BaseModel):
     """
 
     title: str = Field(default="Unnamed Meal")
-    kcal: int = Field(ge=0, le=2000, default=500)
+    kcal: int = Field(ge=0, le=4000, default=500)
     macros: dict[str, int] = Field(default_factory=dict)
 
     @field_validator("title", mode="before")
@@ -310,7 +309,11 @@ class MealData(BaseModel):
         if not isinstance(value, dict):
             logger.warning("Invalid macros type: %s, using empty dict", type(value))
             return {}
-        return sanitize_macros_dict(value)
+        try:
+            return sanitize_macros_dict(value)
+        except NutritionSanitizationError as exc:
+            logger.warning("Failed to sanitize macros: %s; using fallback defaults", exc)
+            return exc.fallback_defaults.copy()
 
 
 def sanitize_meal_list(meals: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -360,7 +363,7 @@ def sanitize_meal_list(meals: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         idx,
                         e,
                     )
-                    sanitized_meal["macros"] = e.fallback_defaults
+                    sanitized_meal["macros"] = e.fallback_defaults.copy()
 
             sanitized.append(sanitized_meal)
         except Exception as e:
@@ -384,13 +387,17 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
     """
     try:
         # Sanitize kcal
-        kcal = plate_data.get("kcal", 2000)
+        kcal = plate_data.get("kcal", NUTRITION_FALLBACK_DEFAULTS["kcal"])
         try:
             kcal = int(round(float(kcal)))
             kcal = max(KCAL_MIN, min(KCAL_MAX, kcal))
         except (ValueError, TypeError):
-            logger.warning("Invalid kcal value: %s, defaulting to 2000", kcal)
-            kcal = 2000
+            logger.warning(
+                "Invalid kcal value: %s, defaulting to %s",
+                kcal,
+                NUTRITION_FALLBACK_DEFAULTS["kcal"],
+            )
+            kcal = NUTRITION_FALLBACK_DEFAULTS["kcal"]
 
         # Sanitize macros
         macros = plate_data.get("macros", {})
@@ -403,15 +410,10 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
                     e,
                     exc_info=True,
                 )
-                macros = e.fallback_defaults
+                macros = e.fallback_defaults.copy()
         else:
             logger.warning("Invalid macros type: %s, using defaults", type(macros))
-            macros = {
-                "protein_g": 100,
-                "fat_g": 70,
-                "carbs_g": 250,
-                "fiber_g": FIBER_G_MIN,
-            }
+            macros = {k: v for k, v in NUTRITION_FALLBACK_DEFAULTS.items() if k != "kcal"}
 
         # Sanitize meals
         meals = plate_data.get("meals", [])
@@ -436,8 +438,8 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
         logger.error("Failed to apply sanity filter to plate data: %s", e, exc_info=True)
         # Return minimal safe defaults
         return {
-            "kcal": 2000,
-            "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 25},
+            "kcal": NUTRITION_FALLBACK_DEFAULTS["kcal"],
+            "macros": {k: v for k, v in NUTRITION_FALLBACK_DEFAULTS.items() if k != "kcal"},
             "meals": [],
             "portions": {},
             "layout": [],

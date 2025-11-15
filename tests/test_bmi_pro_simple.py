@@ -12,9 +12,12 @@ client = TestClient(app)
 def api_key():
     """Set up and tear down API key for testing."""
     os.environ["API_KEY"] = "test_key"
+    os.environ["FEATURE_BMI_PRO"] = "true"
     yield "test_key"
     if "API_KEY" in os.environ:
         del os.environ["API_KEY"]
+    if "FEATURE_BMI_PRO" in os.environ:
+        del os.environ["FEATURE_BMI_PRO"]
 
 
 def test_bmi_pro_ok(api_key):
