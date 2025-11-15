@@ -299,9 +299,9 @@ class EngineCompat:
 
     def execute(
         self,
-        statement: Any,  # str | Executable | ClauseElement - Executable/ClauseElement are not generic types  # type: ignore[ANN401]
-        *args: Any,  # type: ignore[ANN401]
-        **kwargs: Any,  # type: ignore[ANN401]
+        statement: Any,  # str | Executable | ClauseElement - Executable/ClauseElement are not generic types  # noqa: ANN401
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
     ) -> _ResultWithConnectionCleanup:
         """Execute a statement using a temporary connection.
 

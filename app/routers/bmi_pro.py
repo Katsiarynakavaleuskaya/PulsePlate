@@ -61,7 +61,7 @@ async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         )
         risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     card = BMIProCard(
         bmi=bmi_val,
         whtr=v_whtr,
@@ -71,4 +71,4 @@ async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         notes=notes,
     )
     payload = asdict(card) if hasattr(card, "__dataclass_fields__") else card.__dict__
-    return BMIProResponse.model_validate(payload)
+    return BMIProResponse.model_validate(payload)  # type: ignore[no-any-return]
