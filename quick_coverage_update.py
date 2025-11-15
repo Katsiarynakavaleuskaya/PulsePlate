@@ -5,6 +5,7 @@
 # shell=False (default), sys.executable (not user-controlled), no user input,
 # args passed as list
 import json
+import re
 import subprocess  # nosec B404
 import sys
 import tempfile
@@ -16,10 +17,23 @@ from defusedxml import ElementTree as ET
 
 def fallback_tests_from_stdout(result: subprocess.CompletedProcess[str]) -> None:
     """Print test results fallback from stdout when JUnit XML parsing fails."""
-    passed = result.stdout.count(" PASSED")
-    failed = result.stdout.count(" FAILED")
-    errors = result.stdout.count(" ERROR")
-    skipped = result.stdout.count(" SKIPPED")
+    summary_line = ""
+    for line in reversed(result.stdout.splitlines()):
+        lowered = line.lower()
+        if "passed" in lowered and (
+            "failed" in lowered or "error" in lowered or "skipped" in lowered
+        ):
+            summary_line = line.strip()
+            break
+
+    def _extract_count(label: str) -> int:
+        match = re.search(rf"(\d+)\s+{label}", summary_line.lower())
+        return int(match.group(1)) if match else 0
+
+    passed = _extract_count("passed")
+    failed = _extract_count("failed")
+    errors = _extract_count("error")
+    skipped = _extract_count("skipped")
     print(
         f"✅ Tests: {passed} passed, {failed} failed, {errors} errors, {skipped} skipped (fallback)"
     )
@@ -30,7 +44,8 @@ def fallback_coverage_from_stdout(result: subprocess.CompletedProcess[str]) -> N
     for line in result.stdout.split("\n"):
         if "TOTAL" in line and "%" in line:
             print(f"📊 Coverage result: {line} (fallback)")
-            break
+            return
+    print("⚠️  Could not parse coverage information from stdout fallback")
 
 
 def run_coverage_check() -> bool:
@@ -141,6 +156,7 @@ def run_coverage_check() -> bool:
                 )
             else:
                 print("❌ Could not extract coverage percentage from JSON")
+                fallback_coverage_from_stdout(result)
         except FileNotFoundError:
             print(f"⚠️  Coverage JSON file not found: {cov_json_path}")
             # Fallback to stdout parsing

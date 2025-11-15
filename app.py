@@ -245,11 +245,11 @@ def _attempt_db_fallback(
         try:
             core_db.SessionLocal.configure(bind=fallback_engine)
         except Exception:
-            core_db.SessionLocal = core_db.sessionmaker(  # type: ignore[attr-defined]
+            core_db.SessionLocal = core_db.sessionmaker(
                 bind=fallback_engine, autoflush=False, autocommit=False, future=True
             )
-        core_db._RAW_ENGINE = fallback_engine  # type: ignore[attr-defined]
-        core_db.engine = core_db.EngineCompat(fallback_engine)  # type: ignore[attr-defined]
+        core_db._RAW_ENGINE = fallback_engine
+        core_db.engine = core_db.EngineCompat(fallback_engine)
         fallback_ok = True
 
         # Set DB_FALLBACK_URL only if needed for external tools
@@ -1522,9 +1522,9 @@ else:
 
 
 if "to_pdf_day" not in globals():
-    to_pdf_day = None  # type: ignore[assignment]
+    to_pdf_day = None
 if "to_pdf_week" not in globals():
-    to_pdf_week = None  # type: ignore[assignment]
+    to_pdf_week = None
 
 # Ensure analyze_nutrient_gaps is available at module level for tests
 if "analyze_nutrient_gaps" not in globals():
@@ -2326,7 +2326,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         )
         if callable(_aggregate_func):
             # _aggregate_func is resolved dynamically and may be async
-            day_micros = await _aggregate_func(plate_data["meals"])  # type: ignore[awaitable-is-coroutine]
+            day_micros = await _aggregate_func(plate_data["meals"])
         else:
             logger.warning(
                 "premium_plate: _aggregate_day_micronutrients not callable (%s), "
@@ -3299,7 +3299,10 @@ async def check_for_updates() -> JSONResponse:
         Dictionary showing which sources have updates available
     """
     try:
-        scheduler = await get_update_scheduler()
+        import sys as _sys
+
+        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        scheduler = await _getter()
         available_updates = await scheduler.update_manager.check_for_updates()
 
         response = {

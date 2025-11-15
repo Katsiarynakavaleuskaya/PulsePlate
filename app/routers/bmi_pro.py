@@ -45,7 +45,7 @@ class BMIProResponse(BaseModel):
 
 
 @router.post("/pro", response_model=BMIProResponse)
-async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
+def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     flag = os.getenv("FEATURE_BMI_PRO", "0").strip().lower()
     if flag not in {"1", "true", "yes", "on"}:
         raise HTTPException(status_code=404, detail="Not found")
@@ -70,5 +70,5 @@ async def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         risk_level=cast(Literal["low", "moderate", "high"], risk),
         notes=notes,
     )
-    payload = asdict(card) if hasattr(card, "__dataclass_fields__") else card.__dict__
-    return BMIProResponse.model_validate(payload)  # type: ignore[no-any-return]
+    payload = asdict(card)
+    return BMIProResponse.model_validate(payload)

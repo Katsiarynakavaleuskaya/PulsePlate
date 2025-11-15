@@ -6,18 +6,16 @@ RU: Байесовский анализатор для бизнес-логики
 EN: Analyzes tests from the perspective of business model, revenue, and cost optimization.
 """
 
+
 import ast
-import logging
 import math
 import re
-import tokenize
+
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 class BusinessCategory(Enum):
@@ -88,7 +86,7 @@ class ROIEstimate:
     credible_interval_lower: float  # 95% credible interval lower bound
     credible_interval_upper: float  # 95% credible interval upper bound
     time_horizon_months: int  # Time horizon for ROI calculation
-    assumptions: str  # Key assumptions for the estimate
+    assumptions: str | list[str]  # Key assumptions for the estimate
 
 
 class BusinessBayesianAnalyzer:
@@ -141,16 +139,17 @@ class BusinessBayesianAnalyzer:
             if business_knowledge is not None
             else self._load_business_knowledge()
         )
-        self.monetization_strategies = (
-            monetization_strategies
-            if monetization_strategies is not None
-            else self._load_monetization_strategies(locale=locale)
-        )
-        self.cost_optimization_rules = (
-            cost_optimization_rules
-            if cost_optimization_rules is not None
-            else self._load_cost_optimization_rules()
-        )
+        # Load monetization strategies
+        if monetization_strategies is not None:
+            self.monetization_strategies = monetization_strategies
+        else:
+            self.monetization_strategies = self._load_monetization_strategies(locale=locale)
+
+        # Load cost optimization rules
+        if cost_optimization_rules is not None:
+            self.cost_optimization_rules = cost_optimization_rules
+        else:
+            self.cost_optimization_rules = self._load_cost_optimization_rules()
 
         # Configure price thresholds
         if low_price_threshold is not None:
@@ -184,20 +183,20 @@ class BusinessBayesianAnalyzer:
         config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():
             try:
-                try:
-                    import yaml  # type: ignore[import-untyped]  # noqa: F401
+                import yaml  # noqa: F401
 
-                    yaml_available = True
-                except ImportError:
-                    # PyYAML not installed, fallback to defaults
-                    yaml_available = False
-                if yaml_available:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
-            except Exception:  # nosec B110 - intentional fallback to defaults
-                # Fallback to defaults on any error (file not found, parse error, etc.)
+                with open(config_path, "r", encoding="utf-8") as f:
+                    try:
+                        data = yaml.safe_load(f)
+                        # Use Pydantic v2-compatible pattern if parsing objects (currently just YAML dict)
+                        # Defensive: Only return if data is dict, else fallback to {}
+                        return data if isinstance(data, dict) else {}
+                    except yaml.YAMLError:
+                        # If YAML is invalid, return empty dict (fallback to defaults below)
+                        return {}
+            except ImportError:
+                # PyYAML not installed, fallback to defaults
                 pass
-
         # Fallback defaults (same as original hardcoded values)
         return {
             "revenue_streams": {
@@ -261,22 +260,15 @@ class BusinessBayesianAnalyzer:
             config_path = config_dir / f"monetization_strategies.{loc}.yaml"
             if config_path.exists():
                 try:
-                    try:
-                        import yaml  # noqa: F401
+                    import yaml  # noqa: F401
 
-                        yaml_available = True
-                    except ImportError:
-                        # PyYAML not installed, try next locale or fallback to defaults
-                        yaml_available = False
-                    if yaml_available:
-                        with open(config_path, "r", encoding="utf-8") as f:
-                            loaded = yaml.safe_load(f) or {}
-                            if loaded:  # Only return if we got valid data
-                                return loaded
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        loaded = yaml.safe_load(f) or {}
+                        if loaded:  # Only return if we got valid data
+                            return loaded
                 except Exception as e:  # nosec B110, B112 - intentional fallback to defaults
                     # Try next locale in fallback chain
                     # Log error for debugging but continue to next locale
-                    logger.debug("Failed to load config for locale %s: %s", loc, e)
                     continue
 
         # Fallback defaults (English text)
@@ -305,7 +297,8 @@ class BusinessBayesianAnalyzer:
         }
 
     def _load_cost_optimization_rules(self) -> dict[str, Any]:
-        """Load cost optimization rules from config file or return defaults.
+        """
+        Load cost optimization rules from a configuration file or return defaults.
 
         RU: Загружает правила оптимизации затрат из конфигурационного файла или возвращает значения по умолчанию.
         EN: Loads cost optimization rules from config/cost_optimization_rules.yaml or returns hardcoded defaults.
@@ -313,18 +306,14 @@ class BusinessBayesianAnalyzer:
         config_path = Path(__file__).parent.parent / "config" / "cost_optimization_rules.yaml"
         if config_path.exists():
             try:
-                try:
-                    import yaml  # noqa: F401
+                import yaml  # noqa: F401
 
-                    yaml_available = True
-                except ImportError:
-                    # PyYAML not installed, fallback to defaults
-                    yaml_available = False
-                if yaml_available:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        return yaml.safe_load(f) or {}
-            except Exception:  # nosec B110 - intentional fallback to defaults
-                # Fallback to defaults on any error
+                with open(config_path, "r", encoding="utf-8") as f:
+                    loaded = yaml.safe_load(f) or {}
+                    if loaded:
+                        return loaded
+            except ImportError:
+                # PyYAML not installed, fallback to defaults
                 pass
 
         # Fallback defaults (same as original hardcoded values)
@@ -355,33 +344,47 @@ class BusinessBayesianAnalyzer:
     def analyze_business_logic(
         self, test_code: str | list[str], test_name: str
     ) -> list[BusinessTestResult]:
-        """Анализирует бизнес-логику в тестах."""
-        results: list[BusinessTestResult] = []
-        normalized_code = self._normalize_code_input(test_code)
+        """
+        Analyzes business logic in test cases.
 
-        # Анализ монетизации
-        monetization_issues = self._analyze_monetization(normalized_code, test_name)
-        results.extend(monetization_issues)
+        Args:
+            test_code (str | list[str]): The code of the test to be analyzed. Can be a string or a list of strings.
+            test_name (str): The name of the test.
 
-        # Анализ привлечения клиентов
-        acquisition_issues = self._analyze_customer_acquisition(normalized_code, test_name)
-        results.extend(acquisition_issues)
+        Returns:
+            list[BusinessTestResult]: The results of business logic analysis.
+        """
+        business_logic_results: list[BusinessTestResult] = []
+        normalized_code: str = self._normalize_code_input(test_code)
+
+        # Анализ монетизации (Monetization Analysis)
+        monetization_analysis_results: list[BusinessTestResult] = self._analyze_monetization(
+            normalized_code, test_name
+        )
+        business_logic_results.extend(monetization_analysis_results)
+
+        customer_acquisition_results: list[BusinessTestResult] = self._analyze_customer_acquisition(
+            normalized_code, test_name
+        )
+        business_logic_results.extend(customer_acquisition_results)
 
         # Анализ оптимизации затрат
-        cost_issues = self._analyze_cost_optimization(normalized_code, test_name)
-        results.extend(cost_issues)
+        cost_issues: list[BusinessTestResult] = self._analyze_cost_optimization(
+            normalized_code, test_name
+        )
+        business_logic_results.extend(cost_issues)
 
         # Анализ роста доходов
         revenue_issues = self._analyze_revenue_growth(normalized_code, test_name)
-        results.extend(revenue_issues)
+        business_logic_results.extend(revenue_issues)
 
         # Анализ удержания клиентов
         retention_issues = self._analyze_customer_retention(normalized_code, test_name)
-        results.extend(retention_issues)
+        business_logic_results.extend(retention_issues)
 
         # Persist results for downstream diagnostics
-        self.test_results.extend(results)
-        return results
+        self.test_results.extend(business_logic_results)
+        return business_logic_results
 
     def _normalize_code_input(self, code: str | list[str]) -> str:
         """Convert test code input (str or list) to a single string."""
@@ -394,18 +397,16 @@ class BusinessBayesianAnalyzer:
         code_str = self._normalize_code_input(code)
         if not isinstance(code_str, str):
             code_str = str(code_str)
-        try:
-            tokens = []
-            for token in tokenize.generate_tokens(StringIO(code_str).readline):
-                if token.type != tokenize.COMMENT:
-                    tokens.append(token)
-            result = tokenize.untokenize(tokens)
-            # tokenize.untokenize returns bytes in some Python versions, ensure str
-            return result.decode("utf-8") if isinstance(result, bytes) else str(result)
-        except (tokenize.TokenError, SyntaxError):
-            # Fallback to simple regex if tokenization fails (e.g., incomplete code)
-            # Only strip comments that start a line or are preceded by whitespace
-            return re.sub(r"(^|\s)#.*", r"\1", code_str, flags=re.MULTILINE)
+        import tokenize
+
+        tokens = []
+        for token in tokenize.generate_tokens(StringIO(code_str).readline):
+            if token.type != tokenize.COMMENT:
+                tokens.append(token)
+        result = tokenize.untokenize(tokens)
+        if isinstance(result, bytes):
+            return result.decode("utf-8")
+        return str(result)
 
     def _analyze_monetization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует стратегии монетизации."""
