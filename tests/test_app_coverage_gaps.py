@@ -129,13 +129,41 @@ class TestAppTestRouterImport:
         self, _test_environment: pytest.FixtureRequest
     ) -> None:
         """Test _sync_app_attr_sources skips None source (line 1276)"""
-        # Create sources list with None
-        sources = [None, MagicMock(), None]
+        # Create alias_module mock
+        alias_module = MagicMock()
 
-        # Should skip None sources without error
-        result = plate_patch._sync_app_attr_sources(MagicMock(), sources)
-        # Function may return None or continue processing
-        # Main thing is it doesn't crash on None source
+        # Create sources list with None and a mock source with patched attributes
+        mock_source = MagicMock()
+        # Configure mock_source to have patched attributes
+        mock_source.build_nutrition_targets = MagicMock(return_value="mock_targets")
+        mock_source.make_plate = MagicMock(return_value="mock_plate")
+        mock_source.api_premium_plate = MagicMock(return_value="mock_premium")
+        mock_source._aggregate_day_micronutrients = MagicMock(return_value="mock_agg")
+
+        sources = [None, mock_source, None]
+
+        # Mock the global state to ensure attributes get copied
+        with patch.object(
+            plate_patch, "_PATCH_SOURCE_IDS", {attr: None for attr in plate_patch._PATCHED_ATTRS}
+        ):
+            # Call the function
+            result = plate_patch._sync_app_attr_sources(alias_module, sources)
+
+        # Assert function returns the alias_module
+        assert result is alias_module
+
+        # Assert that dir() was called on the mock_source (to get attributes)
+        mock_source.__dir__.assert_called_once()
+
+        # Assert that setattr was called on alias_module for each patched attribute
+        # The function should have set the attributes from mock_source to alias_module
+        expected_calls = [
+            ((attr, getattr(mock_source, attr)),) for attr in plate_patch._PATCHED_ATTRS
+        ]
+        alias_module.__setattr__.assert_has_calls(expected_calls, any_order=True)
+
+        # Verify the number of setattr calls matches the number of patched attributes
+        assert alias_module.__setattr__.call_count == len(plate_patch._PATCHED_ATTRS)
 
     def test_sync_app_attr_sources_attribute_error(
         self, _test_environment: pytest.FixtureRequest
@@ -152,7 +180,12 @@ class TestAppTestRouterImport:
         # Should handle AttributeError gracefully
         sources = [source]
         result = plate_patch._sync_app_attr_sources(alias_module, sources)
-        # Should not raise exception
+
+        # Assert result is the alias_module
+        assert result is alias_module
+
+        # Assert alias_module was not modified (no calls made)
+        alias_module.assert_not_called()
 
     def test_sync_app_attr_sources_setattr_exception(
         self, _test_environment: pytest.FixtureRequest
@@ -169,9 +202,6 @@ class TestAppTestRouterImport:
         alias_module = FailingTarget()
         sources = [source]
 
-        # Should handle setattr exception gracefully
-        result = plate_patch._sync_app_attr_sources(alias_module, sources)
-        # Should not raise exception, just continue
         # Should handle setattr exception gracefully
         result = plate_patch._sync_app_attr_sources(alias_module, sources)
         # Should not raise exception, just continue
@@ -305,21 +335,26 @@ class TestAppAttributeDeletion:
 
         # Create a mock module and add it to sys.modules
         mock_module = MagicMock()
-        mock_module.test_attr = "test_value"
         sys.modules["test_module_for_deletion"] = mock_module
 
-        # Add attribute that will be deleted
+        # Ensure the new attribute doesn't exist initially
+        assert not hasattr(mock_module, "new_attr")
+
+        # Temporarily add the new attribute to _PATCHED_ATTRS
         original_attrs = plate_patch._PATCHED_ATTRS
-        plate_patch._PATCHED_ATTRS = ["test_attr"]
+        plate_patch._PATCHED_ATTRS = original_attrs + ["new_attr"]
 
         try:
             # Use _plate_env_snapshot context manager
-            # This will capture the module state and restore it
             with plate_patch._plate_env_snapshot():
-                # Add attribute that didn't exist originally
-                if hasattr(mock_module, "test_attr"):
-                    delattr(mock_module, "test_attr")
-                # Attribute deletion is tested in finally block (lines 1479-1480)
+                # Set the attribute inside the context
+                mock_module.new_attr = "test_value"
+                # Assert it exists inside the context
+                assert hasattr(mock_module, "new_attr")
+                assert getattr(mock_module, "new_attr") == "test_value"
+
+            # After exiting the context, assert the attribute was removed
+            assert not hasattr(mock_module, "new_attr")
         finally:
             plate_patch._PATCHED_ATTRS = original_attrs
             # Cleanup

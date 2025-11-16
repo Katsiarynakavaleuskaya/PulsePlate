@@ -22,7 +22,7 @@ from core.menu_engine import _should_use_mock_food_db
 
 
 class TestTargetsDisabledCaching:
-    """Test _targets_disabled() caching mechanism."""
+    """Test targets_disabled() caching mechanism."""
 
     def test_targets_disabled_cache_hit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that cache is used when TTL is valid."""
@@ -70,7 +70,7 @@ class TestTargetsDisabledCaching:
 
 
 class TestCalculateHeuristicMacros:
-    """Test _calculate_heuristic_macros() function."""
+    """Test calculate_heuristic_macros() function."""
 
     def test_calculate_heuristic_macros_basic(self) -> None:
         """Test basic heuristic macro calculation."""

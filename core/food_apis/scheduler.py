@@ -57,9 +57,6 @@ class DatabaseUpdateScheduler:
         # Background task
         self._update_task: Optional[asyncio.Task] = None
 
-        # Thread-safe shutdown signaling
-        self._shutdown_event = threading.Event()
-
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
 
@@ -74,8 +71,12 @@ class DatabaseUpdateScheduler:
             # Set thread-safe shutdown signal
             self._shutdown_event.set()
             # Schedule shutdown logic on the event loop thread
-            loop = asyncio.get_running_loop()
-            loop.call_soon_threadsafe(self._schedule_async_shutdown)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.call_soon_threadsafe(self._schedule_async_shutdown)
+            except RuntimeError:
+                # No running loop - event loop may not have started yet
+                logger.warning("No running event loop in signal handler")
 
         # Handle common shutdown signals
         try:

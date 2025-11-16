@@ -228,7 +228,7 @@ async def test_api_premium_plate_fallback_handles_non_callable_global_builder(
     if getattr(app, "app_module", None) is not None:
         monkeypatch.setattr(app.app_module, "build_nutrition_targets", marker, raising=False)
 
-    monkeypatch.setattr(app, "_targets_disabled", lambda: False, raising=False)
+    monkeypatch.setattr(app, "targets_disabled", lambda: False, raising=False)
     monkeypatch.setattr(app, "_targets_runtime_disabled", False, raising=False)
 
     response = await app.api_premium_plate(request)
