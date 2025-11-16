@@ -17,10 +17,7 @@ from enum import Enum
 from io import StringIO
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, cast
-
-if TYPE_CHECKING:
-    from yaml import YAMLError
+from typing import Any, cast
 
 
 class BusinessCategory(Enum):
@@ -159,14 +156,14 @@ class BusinessBayesianAnalyzer:
         # Configure price thresholds
         if low_price_threshold is not None:
             self.low_price_threshold = low_price_threshold
-        elif domain in ("nutrition", "health"):
+        elif domain in {"nutrition", "health"}:
             self.low_price_threshold = self.NUTRITION_LOW_PRICE_THRESHOLD
         else:
             self.low_price_threshold = self.DEFAULT_LOW_PRICE_THRESHOLD
 
         if high_price_threshold is not None:
             self.high_price_threshold = high_price_threshold
-        elif domain in ("nutrition", "health"):
+        elif domain in {"nutrition", "health"}:
             self.high_price_threshold = self.NUTRITION_HIGH_PRICE_THRESHOLD
         else:
             self.high_price_threshold = self.DEFAULT_HIGH_PRICE_THRESHOLD
@@ -255,7 +252,7 @@ class BusinessBayesianAnalyzer:
             normalized_locale: str = normalize_lang(locale) if locale else "en"
         except ImportError:
             # Fallback if i18n module not available
-            normalized_locale = str(locale) if locale in ("en", "ru", "es") else "en"
+            normalized_locale = str(locale) if locale in {"en", "ru", "es"} else "en"
 
         config_dir = Path(__file__).parent.parent / "config"
 
