@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import cast
 
@@ -132,6 +133,16 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             print(
                 f"✅ Database initialized: {len(tables)} tables found (users, recipes, meals, food_items)"
             )
+            print(f"   Database file: {db_path}")
+            print(f"   Database URL: {core_db.DATABASE_URL}")
+
+        # CRITICAL: Reload app module AFTER database is initialized
+        # This ensures app.py uses the correct database when it imports core.db
+        # app.py imports core.db at module level, so we need to reload it
+        if "app" in sys.modules:
+            importlib.reload(sys.modules["app"])
+            logging.info("Reloaded app module after database initialization")
+            print("✅ Reloaded app module to use initialized database")
     except Exception as e:
         # Log error and re-raise to fail fast in CI; tests requiring DB will not run
         logging.error(f"Failed to initialize test database: {e}", exc_info=True)
@@ -140,7 +151,7 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
 
 
 @pytest.fixture(scope="session")
-def dynamic_app():
+def dynamic_app() -> ASGIApp:
     """Load FastAPI app dynamically from app.py"""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -152,23 +163,24 @@ def dynamic_app():
     spec.loader.exec_module(app_module)
 
     # Apply API key override for this app instance
-    def mock_get_api_key(api_key: str = ""):
+    def mock_get_api_key(api_key: str = "") -> str:
         if not api_key or len(api_key.strip()) < 3:
             from fastapi import HTTPException
 
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
 
-    if hasattr(app_module.app, "dependency_overrides"):
-        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
+    dependency_overrides = getattr(app_module.app, "dependency_overrides", None)
+    if dependency_overrides is not None:
+        dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
-    return app_module.app
+    return cast(ASGIApp, app_module.app)
 
 
 @pytest.fixture
-def dynamic_client(dynamic_app):
+def dynamic_client(dynamic_app: ASGIApp) -> Iterator[TestClient]:
     """TestClient using dynamically loaded app"""
-    client = TestClient(cast(ASGIApp, dynamic_app))
+    client = TestClient(dynamic_app)
     try:
         yield client
     finally:
@@ -176,7 +188,7 @@ def dynamic_client(dynamic_app):
 
 
 @pytest.fixture(autouse=True)
-def reset_environment():  # sourcery skip: use-contextlib-suppress
+def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-suppress
     """Automatically reset environment variables before and after each test."""
     # Save current environment
     old_env = dict(os.environ)
@@ -198,7 +210,7 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
         from app import app as fastapi_app
 
         # Simple pass-through that accepts any non-empty API key
-        def mock_get_api_key(api_key: str = ""):
+        def mock_get_api_key(api_key: str = "") -> str:
             if not api_key or len(api_key.strip()) < 3:
                 from fastapi import HTTPException
 
@@ -206,10 +218,11 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
             return api_key
 
         # Override the dependency
-        if hasattr(fastapi_app, "dependency_overrides"):
+        dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
+        if dependency_overrides is not None:
             from app import get_api_key
 
-            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key
+            dependency_overrides[get_api_key] = mock_get_api_key
     except (ImportError, AttributeError):
         # App not yet loaded, that's fine
         pass
@@ -224,8 +237,9 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
     try:
         from app import app as fastapi_app
 
-        if hasattr(fastapi_app, "dependency_overrides"):
-            fastapi_app.dependency_overrides.clear()
+        dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
+        if dependency_overrides is not None:
+            dependency_overrides.clear()
     except (ImportError, AttributeError):
         pass
 
@@ -244,7 +258,7 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
 
 
 @pytest.fixture(autouse=True)
-def reset_sys_modules():
+def reset_sys_modules() -> Iterator[None]:
     """Reset sys.modules for VIP module tests."""
     # Store original VIP module if it exists
     original_vip_module = sys.modules.get("app.routers.vip")
@@ -259,7 +273,7 @@ def reset_sys_modules():
 
 
 @pytest.fixture
-def production_environment():  # sourcery skip: dict-assign-update-to-union
+def production_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-to-union
     """Fixture for production environment testing."""
     old_env = dict(os.environ)
 
@@ -282,7 +296,7 @@ def production_environment():  # sourcery skip: dict-assign-update-to-union
 
 
 @pytest.fixture
-def test_environment():  # sourcery skip: dict-assign-update-to-union
+def test_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-to-union
     """Fixture for test environment testing."""
     old_env = dict(os.environ)
 
@@ -305,7 +319,7 @@ def test_environment():  # sourcery skip: dict-assign-update-to-union
 
 
 @pytest.fixture
-def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-union
+def premium_disabled_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-to-union
     """Fixture for testing with premium features disabled."""
     old_env = dict(os.environ)
 
@@ -328,7 +342,7 @@ def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-unio
 
 
 @pytest.fixture
-def test_client():
+def test_client() -> Iterator[TestClient]:
     """Fixture for creating and properly closing TestClient instances."""
     import app
 
@@ -343,7 +357,7 @@ def test_client():
 
 
 @pytest.fixture
-def isolated_test_client():
+def isolated_test_client() -> Iterator[TestClient]:
     """Fixture for creating isolated TestClient instances with clean app state."""
     import app
 
@@ -364,6 +378,6 @@ def isolated_test_client():
 
 
 @pytest.fixture
-def app_client(test_client):
+def app_client(test_client: TestClient) -> TestClient:
     """Alias for test_client to maintain compatibility with existing tests."""
     return test_client

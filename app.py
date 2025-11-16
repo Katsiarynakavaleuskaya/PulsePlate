@@ -157,7 +157,14 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
 
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging - ensure pytest can capture logs
+# In test environment, use DEBUG level to capture all logs
+_log_level = (
+    logging.DEBUG
+    if os.getenv("APP_ENV") == "test" or os.getenv("ENVIRONMENT") == "test"
+    else logging.INFO
+)
+logging.basicConfig(level=_log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 _CLIENT_FINGERPRINT_SALT = os.getenv("CLIENT_FINGERPRINT_SALT", "")
 _DEFAULT_LIFE_STAGE_MESSAGES: dict[str, dict[str, str]] = {
@@ -200,37 +207,81 @@ def _attempt_db_fallback(
 ) -> None:
     """Attempt to initialize database with fallback SQLite when primary DB fails.
 
-    Only allows fallback in non-production environments unless explicitly overridden
-    via ALLOW_DB_INMEMORY_FALLBACK env var or when the error is OSError/IOError.
+    Production environments never accept in-memory fallbacks. For production,
+    fallback is only allowed when:
+    1. ALLOW_DB_PERSISTENT_FALLBACK env var is set
+    2. DB_FALLBACK_URL points to a persistent storage URL (not in-memory SQLite)
+
+    Non-production environments can use any fallback URL including in-memory.
     """
-    # Determine whether we should attempt a fallback database initialization.
-    # Only allow fallback in non-production environments unless explicitly overridden.
-    allowed_env = not is_production
-    explicit_override = (os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or "").strip().lower() in truthy
-    fallback_exception = isinstance(db_err, (OSError, IOError))
-
-    # Log warning if ALLOW_DB_INMEMORY_FALLBACK is set in production (ignored)
-    if is_production and explicit_override:
-        logger.warning(
-            "ALLOW_DB_INMEMORY_FALLBACK is set but ignored in production environment (%s)",
-            env_name or "production",
-        )
-
-    # Ignore explicit_override in production
-    effective_explicit_override = explicit_override and not is_production
-
-    if not (allowed_env or effective_explicit_override or fallback_exception):
-        raise db_err
-
     # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
     fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
 
-    logger.warning(
-        "Database initialization failed (%s env: %s), attempting fallback SQLite: %s",
-        type(db_err).__name__,
-        env_name or "local",
-        db_err,
+    # Check if fallback URL is in-memory SQLite
+    is_in_memory = fallback_url == "sqlite:///:memory:" or fallback_url.startswith(
+        "sqlite:///:memory:"
     )
+
+    # Production: reject in-memory fallbacks
+    if is_production:
+        if is_in_memory:
+            logger.error(
+                "CRITICAL: In-memory database fallback is not allowed in production environment (%s). "
+                "Set DB_FALLBACK_URL to a persistent storage URL (e.g., sqlite:///./fallback.db) "
+                "and set ALLOW_DB_PERSISTENT_FALLBACK=1 if you need fallback in production.",
+                env_name or "production",
+            )
+            raise db_err
+
+        # Production fallback requires explicit override
+        allow_persistent_fallback = (
+            os.getenv("ALLOW_DB_PERSISTENT_FALLBACK") or ""
+        ).strip().lower() in truthy
+
+        if not allow_persistent_fallback:
+            logger.error(
+                "CRITICAL: Database initialization failed in production (%s). "
+                "Fallback is disabled unless ALLOW_DB_PERSISTENT_FALLBACK=1 is set. "
+                "In-memory fallbacks are not allowed in production. "
+                "Original error: %s",
+                env_name or "production",
+                db_err,
+            )
+            raise db_err
+
+        # Additional verification: ensure fallback URL is persistent (redundant check for safety)
+        # This should never trigger if is_in_memory check above worked, but provides defense in depth
+        if is_in_memory:
+            logger.error(
+                "CRITICAL: Production fallback URL must be persistent, not in-memory. "
+                "Current DB_FALLBACK_URL=%s is in-memory. Set DB_FALLBACK_URL to a file-based URL "
+                "(e.g., sqlite:///./fallback.db).",
+                fallback_url,
+            )
+            raise db_err
+
+        logger.warning(
+            "Database initialization failed in production (%s), attempting persistent fallback: %s",
+            env_name or "production",
+            fallback_url,
+        )
+    else:
+        # Non-production: allow any fallback including in-memory
+        allowed_env = True
+        explicit_override = (
+            os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or ""
+        ).strip().lower() in truthy
+        fallback_exception = isinstance(db_err, (OSError, IOError))
+
+        if not (allowed_env or explicit_override or fallback_exception):
+            raise db_err
+
+        logger.warning(
+            "Database initialization failed (%s env: %s), attempting fallback SQLite: %s",
+            type(db_err).__name__,
+            env_name or "local",
+            fallback_url,
+        )
 
     fallback_ok = False
     try:
@@ -360,6 +411,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="PulsePlate", lifespan=lifespan)
+
+
+# Explicit startup handler for TestClient compatibility
+# TestClient triggers startup events, ensuring DB schema exists before tests run
+@app.on_event("startup")
+def _startup_init_db() -> None:
+    """Initialize database schema on startup.
+
+    This handler ensures the database schema is created when the app starts,
+    including when TestClient is used in tests. This is idempotent and safe
+    to call multiple times.
+    """
+    try:
+        init_db()
+        logger.info("Database schema initialized via startup handler")
+    except Exception as e:
+        # In test environment, log but don't fail startup
+        # The lifespan handler will handle production errors
+        env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
+        if env_name in {"test", "ci"}:
+            logger.warning("Database initialization failed in test environment: %s", e)
+        else:
+            logger.error("Database initialization failed: %s", e)
+            raise
 
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
@@ -2810,9 +2885,7 @@ def _fallback_targets_response(
     *,
     reason: str,
     include_extra_iodine: bool = False,
-    life_stage_warning_factory: Optional[
-        Callable[[int, Optional[str], str], list[dict[str, str]]]
-    ] = None,
+    life_stage_warning_factory: Optional[Callable[..., list[dict[str, str]]]] = None,
     include_generic_life_stage_note: bool = False,
 ) -> WHOTargetsResponse:
     """Build a deterministic fallback response for WHO targets."""
@@ -2876,8 +2949,10 @@ def _fallback_targets_response(
     factory_warnings: list[dict[str, str]] = []
     if life_stage_warning_factory is not None:
         try:
+            # Pass positional arguments to match Callable[[int, Optional[str], str], ...] signature
+            # req.life_stage is Literal[...] which is compatible with Optional[str] in the type annotation
             factory_warnings = life_stage_warning_factory(
-                age=req.age, life_stage=req.life_stage, lang=req.lang
+                req.age, req.life_stage or "adult", req.lang or "en"
             )
         except Exception:
             factory_warnings = []

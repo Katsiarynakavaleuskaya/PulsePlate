@@ -36,6 +36,10 @@ _RETRY_WAIT_MAX: float = 10.0
 def _calculate_backoff_time(attempt_number: int) -> float:
     """Calculate exponential backoff wait time for retry attempts.
 
+    NOTE: This is an approximation for logging purposes only.
+    The actual wait time is computed by Tenacity's retry decorator.
+    When retry_state.next_action.sleep is available, use that value instead.
+
     Args:
         attempt_number: The current attempt number (1-indexed)
 
@@ -260,7 +264,21 @@ def _log_retry_attempt(retry_state: RetryCallState) -> None:
         )
 
     # Log next backoff delay using helper function
-    wait_time = _calculate_backoff_time(attempt_number)
+    # Use Tenacity's computed wait time from retry_state when available
+    # This ensures logging matches the actual wait time enforced by the decorator
+    if hasattr(retry_state, "next_action") and retry_state.next_action is not None:
+        if hasattr(retry_state.next_action, "sleep"):
+            wait_time = retry_state.next_action.sleep
+        else:
+            # Fallback: use approximation for logging only
+            wait_time = _calculate_backoff_time(attempt_number)
+            logger.debug(
+                "Using approximated backoff time for logging (Tenacity sleep not available)"
+            )
+    else:
+        # Fallback: use approximation for logging only when next_action is not available
+        wait_time = _calculate_backoff_time(attempt_number)
+        logger.debug("Using approximated backoff time for logging (next_action not available)")
     logger.info("Next retry in %.2f seconds", wait_time)
 
 

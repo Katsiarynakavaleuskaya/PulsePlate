@@ -9,8 +9,12 @@ import re
 
 def add_setup_method_to_file(file_path: str) -> bool:
     """Add setup_method to all test classes in a file"""
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        print(f"❌ Error reading file {file_path}: {e}")
+        return False
 
     # Find all class definitions that start with "class Test"
     class_pattern = r'(class Test[^:]*:)\s*\n(\s*)"""[^"]*"""\s*\n'
@@ -71,24 +75,51 @@ def add_setup_method_to_file(file_path: str) -> bool:
 
     # Only write if content changed
     if new_content != content:
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(new_content)
-        print(f"✅ Updated {file_path}")
-        return True
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+            print(f"✅ Updated {file_path}")
+            return True
+        except (OSError, UnicodeDecodeError) as e:
+            print(f"❌ Error writing file {file_path}: {e}")
+            return False
     else:
         print(f"⏭️  Skipped {file_path} (no changes needed)")
         return False
 
 
-def main() -> None:
-    """Main function to process all coverage test files"""
-    test_dir = "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/tests"
+def main(test_dir: str | None = None) -> None:
+    """Main function to process all coverage test files
+
+    Args:
+        test_dir: Optional directory path containing test files.
+                  If None, uses sys.argv[1] if provided, otherwise
+                  computes relative default: <script_dir>/../tests
+    """
+    import sys
+    from pathlib import Path
+
+    if test_dir is None:
+        # Check command line argument
+        if len(sys.argv) > 1:
+            test_dir = sys.argv[1]
+        else:
+            # Compute relative default: <script_dir>/../tests
+            script_dir = Path(__file__).parent.resolve()
+            test_dir = str(script_dir / ".." / "tests")
+
+    # Resolve test_dir to absolute path
+    test_dir = os.path.abspath(test_dir)
 
     # Find all test files with "coverage" in the name
     coverage_files = []
-    for file in os.listdir(test_dir):
-        if file.startswith("test_") and "coverage" in file and file.endswith(".py"):
-            coverage_files.append(os.path.join(test_dir, file))
+    try:
+        for file in os.listdir(test_dir):
+            if file.startswith("test_") and "coverage" in file and file.endswith(".py"):
+                coverage_files.append(os.path.join(test_dir, file))
+    except OSError as e:
+        print(f"❌ Error listing directory {test_dir}: {e}")
+        return
 
     print(f"Found {len(coverage_files)} coverage test files")
 

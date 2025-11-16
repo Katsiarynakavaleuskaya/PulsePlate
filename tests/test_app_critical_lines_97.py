@@ -4,6 +4,8 @@
 
 import contextlib
 import os
+from collections.abc import Generator
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +17,7 @@ import app
 
 
 class TestAppCriticalLines97:
-    def test_invalid_json_malformed_request_returns_422(self, client) -> None:
+    def test_invalid_json_malformed_request_returns_422(self, client: TestClient) -> None:
         """Тест малформированного JSON - должен возвращать 422 (validation error)"""
         # Отправляем невалидный JSON на существующий endpoint
         response = client.post(
@@ -37,7 +39,7 @@ class TestAppCriticalLines97:
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_error_handling_bmi_paths(self, client) -> None:
+    def test_error_handling_bmi_paths(self, client: TestClient) -> None:
         """Тест различных error handling путей для BMI"""
         # Тест с пустым телом запроса на реальном endpoint - должен возвращать 422 (missing required fields)
         response = client.post(
@@ -53,7 +55,7 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 200  # BMI is public, valid payload returns 200
 
-    def test_vip_endpoints_without_vip_module(self, client) -> None:
+    def test_vip_endpoints_without_vip_module(self, client: TestClient) -> None:
         """Тест VIP endpoints когда VIP модуль отключен"""
         with patch.dict("os.environ", {"VIP_MODULE_ENABLED": "false"}):
             # Перезагружаем app
@@ -75,7 +77,7 @@ class TestAppCriticalLines97:
                     or "not found" in response_data["detail"].lower()
                 )
 
-    def test_admin_endpoints_missing_scheduler_returns_503(self, client) -> None:
+    def test_admin_endpoints_missing_scheduler_returns_503(self, client: TestClient) -> None:
         """Тест admin endpoints когда scheduler недоступен - должен возвращать 503 (service unavailable)"""
         with patch("app.get_update_scheduler", return_value=None):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
@@ -84,7 +86,7 @@ class TestAppCriticalLines97:
             response_data = response.json()
             assert "detail" in response_data
 
-    def test_error_handling_edge_paths(self, client) -> None:
+    def test_error_handling_edge_paths(self, client: TestClient) -> None:
         """Тест различных error handling путей"""
         # Тест с пустым телом запроса - должен возвращать 422 (missing required fields)
         response = client.post(
@@ -98,17 +100,25 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 422
 
-    def test_missing_dependencies_import_paths(self) -> None:
-        """Тест путей когда зависимости недоступны - проверяем fallback stubs и работу endpoints"""
+    @pytest.fixture
+    def _missing_dependencies_context(self) -> Generator[dict[str, Any], None, None]:
+        """Helper fixture to simulate missing dependencies and restore modules after test.
+
+        Yields a dict with:
+        - 'app_module': reloaded app module with missing dependencies
+        - 'vip_module': reloaded vip router module
+        - 'client': TestClient instance
+        """
         import importlib
         import sys
+        from typing import Any
 
-        # Сохраняем оригинальные функции импорта
+        # Save original import functions
         orig_import = __import__
         orig_import_module = importlib.import_module
 
         def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
-            """Патчим __import__ чтобы вызывать ImportError для определенных модулей"""
+            """Patch __import__ to raise ImportError for specific modules."""
             if name == "core.auto_repair" or (
                 name == "core" and fromlist and "auto_repair" in fromlist
             ):
@@ -120,15 +130,15 @@ class TestAppCriticalLines97:
             return orig_import(name, globals, locals, fromlist, level)
 
         def import_module_side_effect(name, *args, **kwargs):
-            """Патчим importlib.import_module чтобы вызывать ImportError для определенных модулей"""
+            """Patch importlib.import_module to raise ImportError for specific modules."""
             if name == "core.auto_repair" or name.endswith(".auto_repair"):
                 raise ImportError("core.auto_repair module unavailable for test")
             if name == "core.menu_engine" or name.endswith(".menu_engine"):
                 raise ImportError("core.menu_engine module unavailable for test")
             return orig_import_module(name, *args, **kwargs)
 
-        # Сохраняем оригинальные модули для восстановления
-        original_modules = {}
+        # Save original modules for restoration
+        original_modules: dict[str, Any] = {}
         modules_to_reload = ["app.routers.vip", "app.routers", "app"]
         modules_to_remove = ["core.auto_repair", "core.menu_engine"]
 
@@ -137,92 +147,114 @@ class TestAppCriticalLines97:
                 original_modules[mod_name] = sys.modules[mod_name]
 
         try:
-            # Удаляем core модули из sys.modules чтобы они точно не были доступны
+            # Remove core modules from sys.modules
             for mod_name in modules_to_remove:
                 if mod_name in sys.modules:
                     del sys.modules[mod_name]
 
-            # Удаляем модули из sys.modules чтобы перезагрузить их с патчем
-            # Важно удалять в правильном порядке (дочерние модули сначала)
+            # Remove modules to reload (child modules first)
             for mod_name in reversed(modules_to_reload):
                 if mod_name in sys.modules:
                     del sys.modules[mod_name]
 
-            # Применяем патчи для имитации отсутствия зависимостей
+            # Apply patches to simulate missing dependencies
             with (
                 patch("builtins.__import__", side_effect=import_side_effect),
                 patch("importlib.import_module", side_effect=import_module_side_effect),
             ):
-                # Импортируем app после патча - должен использовать fallback stubs
+                # Import app after patching - should use fallback stubs
                 import app
-
-                # Проверяем что app загрузился
-                assert app is not None
-                assert hasattr(app, "app")
-
-                # Проверяем что VIP router использует fallback stubs
                 from app.routers import vip
 
-                # Проверяем что fallback атрибуты установлены (None означает fallback активен)
-                assert (
-                    getattr(vip, "get_auto_repair_engine", None) is None
-                ), "get_auto_repair_engine should be None when core.auto_repair is missing"
-                assert (
-                    getattr(vip, "auto_repair_week_plan", None) is None
-                ), "auto_repair_week_plan should be None when core.auto_repair is missing"
-                assert (
-                    getattr(vip, "make_weekly_menu", None) is None
-                ), "make_weekly_menu should be None when core.menu_engine is missing"
+                # Create TestClient
+                test_client = TestClient(app.app)
 
-                # Проверяем что app.py также использует fallback для menu_engine функций
-                assert (
-                    getattr(app, "make_weekly_menu", None) is None
-                ), "make_weekly_menu should be None when core.menu_engine is missing"
-                assert (
-                    getattr(app, "analyze_nutrient_gaps", None) is None
-                ), "analyze_nutrient_gaps should be None when core.menu_engine is missing"
-
-                # Создаем TestClient для проверки endpoints
-                client = TestClient(app.app)
-
-                # Тестируем критичный endpoint - должен работать даже с отсутствующими зависимостями
-                # Health endpoint должен всегда работать
-                response = client.get("/health")
-                assert response.status_code == 200, (
-                    f"Health endpoint should return 200 even with missing dependencies, "
-                    f"got {response.status_code}"
-                )
-                response_data = response.json()
-                assert (
-                    "status" in response_data or "health" in response_data.lower()
-                ), "Health endpoint should return valid health status"
-
-                # Тестируем публичный BMI endpoint - должен работать с fallback
-                response = client.post(
-                    "/api/v1/bmi",
-                    json={"sex": "male", "age": 30, "height_cm": 175, "weight_kg": 70},
-                )
-                assert response.status_code == 200, (
-                    f"BMI endpoint should return 200 even with missing dependencies, "
-                    f"got {response.status_code}"
-                )
-                bmi_data = response.json()
-                assert (
-                    "bmi" in bmi_data or "category" in bmi_data
-                ), "BMI endpoint should return valid BMI data"
+                yield {
+                    "app_module": app,
+                    "vip_module": vip,
+                    "client": test_client,
+                }
 
         finally:
-            # Восстанавливаем оригинальные модули
+            # Restore original modules
             for mod_name, mod_value in original_modules.items():
                 if mod_name not in sys.modules:
                     sys.modules[mod_name] = mod_value
                 else:
-                    # Перезагружаем модули для следующих тестов
+                    # Reload modules for next tests
                     try:
                         importlib.reload(sys.modules[mod_name])
                     except Exception:
-                        # Если перезагрузка не удалась, просто восстанавливаем
+                        # If reload failed, just restore
                         sys.modules[mod_name] = mod_value
+
+    def test_app_loads_with_missing_core_dependencies(
+        self, _missing_dependencies_context: dict[str, Any]
+    ) -> None:
+        """Test that app loads successfully when core dependencies are missing."""
+        app_module = _missing_dependencies_context["app_module"]
+        assert app_module is not None
+        assert hasattr(app_module, "app")
+
+    def test_vip_router_fallback_stubs_when_dependencies_missing(
+        self, _missing_dependencies_context: dict[str, Any]
+    ) -> None:
+        """Test that VIP router uses fallback stubs when dependencies are missing."""
+        vip_module = _missing_dependencies_context["vip_module"]
+        assert (
+            getattr(vip_module, "get_auto_repair_engine", None) is None
+        ), "get_auto_repair_engine should be None when core.auto_repair is missing"
+        assert (
+            getattr(vip_module, "auto_repair_week_plan", None) is None
+        ), "auto_repair_week_plan should be None when core.auto_repair is missing"
+        assert (
+            getattr(vip_module, "make_weekly_menu", None) is None
+        ), "make_weekly_menu should be None when core.menu_engine is missing"
+
+    def test_app_fallback_stubs_when_menu_engine_missing(
+        self, _missing_dependencies_context: dict[str, Any]
+    ) -> None:
+        """Test that app.py uses fallback stubs when menu_engine is missing."""
+        app_module = _missing_dependencies_context["app_module"]
+        assert (
+            getattr(app_module, "make_weekly_menu", None) is None
+        ), "make_weekly_menu should be None when core.menu_engine is missing"
+        assert (
+            getattr(app_module, "analyze_nutrient_gaps", None) is None
+        ), "analyze_nutrient_gaps should be None when core.menu_engine is missing"
+
+    def test_health_endpoint_works_without_dependencies(
+        self, _missing_dependencies_context: dict[str, Any]
+    ) -> None:
+        """Test that health endpoint works even when dependencies are missing."""
+        client = _missing_dependencies_context["client"]
+        response = client.get("/health")
+        assert response.status_code == 200, (
+            f"Health endpoint should return 200 even with missing dependencies, "
+            f"got {response.status_code}"
+        )
+        response_data = response.json()
+        assert (
+            "status" in response_data or "health" in response_data.lower()
+        ), "Health endpoint should return valid health status"
+
+    def test_bmi_endpoint_works_without_dependencies(
+        self, _missing_dependencies_context: dict[str, Any]
+    ) -> None:
+        """Test that BMI endpoint works even when dependencies are missing."""
+        client = _missing_dependencies_context["client"]
+        response = client.post(
+            "/api/v1/bmi",
+            json={"sex": "male", "age": 30, "height_cm": 175, "weight_kg": 70},
+        )
+        assert response.status_code == 200, (
+            f"BMI endpoint should return 200 even with missing dependencies, "
+            f"got {response.status_code}"
+        )
+        bmi_data = response.json()
+        assert (
+            "bmi" in bmi_data or "category" in bmi_data
+        ), "BMI endpoint should return valid BMI data"
 
     @contextlib.contextmanager
     def _dependency_overrides_context(self, app_instance):
@@ -270,7 +302,7 @@ class TestAppCriticalLines97:
         )
         assert response.status_code == 422
 
-    def test_recipes_endpoints_error_handling(self, client) -> None:
+    def test_recipes_endpoints_error_handling(self, client: TestClient) -> None:
         """Тест error handling в recipes endpoints"""
         # Тест с пустым запросом - должен возвращать пустой результат
         response = client.get("/api/v1/recipes/search?query=")
@@ -278,7 +310,7 @@ class TestAppCriticalLines97:
         response_data = response.json()
         assert isinstance(response_data, (list, dict))
 
-    def test_foods_endpoints_error_handling_returns_200(self, client) -> None:
+    def test_foods_endpoints_error_handling_returns_200(self, client: TestClient) -> None:
         """Тест error handling в foods endpoints - пустой query должен возвращать 200 (успешный запрос с пустым результатом)"""
         # Тест с невалидными параметрами поиска
         response = client.get("/api/v1/foods/search?query=")
@@ -286,7 +318,7 @@ class TestAppCriticalLines97:
             response.status_code == 200
         )  # Endpoint accepts empty query and returns empty results successfully
 
-    def test_export_endpoints_error_handling_returns_400(self, client) -> None:
+    def test_export_endpoints_error_handling_returns_400(self, client: TestClient) -> None:
         """Тест error handling в export endpoints - пустой payload должен возвращать 400 (bad request)"""
         # Тест экспорта без данных
         response = client.post("/api/v1/export/pdf", json={}, headers={"X-API-Key": "test_key"})

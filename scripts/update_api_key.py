@@ -15,12 +15,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 sys.modules.setdefault("update_api_key", sys.modules[__name__])
 
+secure_config: ModuleType | None
 try:
-    import secure_config as secure_config
+    import secure_config as _secure_config
 except ImportError:  # pragma: no cover - optional dependency
     secure_config = None
-
-secure_config: ModuleType | None
+else:
+    secure_config = _secure_config
 
 ENCRYPTION_AVAILABLE = (
     getattr(secure_config, "ENCRYPTION_AVAILABLE", False) if secure_config else False

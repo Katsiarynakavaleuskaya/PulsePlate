@@ -24,6 +24,7 @@ import importlib
 import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
+from pathlib import Path
 from types import ModuleType, TracebackType
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Callable, Generator, Optional
 
@@ -67,6 +68,10 @@ def _build_engine_url(fallback_url: Optional[str] = None) -> str:
 
     Returns:
         Database URL string.
+
+    Note:
+        For pytest-xdist workers, ensure DATABASE_URL is set per-worker
+        (e.g., via conftest.py or CI environment) to avoid conflicts.
     """
     # Use explicit fallback_url parameter if provided, otherwise check env var
     if fallback_url is None:
@@ -75,8 +80,26 @@ def _build_engine_url(fallback_url: Optional[str] = None) -> str:
     if fallback_url:
         database_url = fallback_url
     else:
-        default_path = os.path.join("cache", "app.db")
-        database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
+        # Check for explicit DATABASE_URL first (set by tests/CI)
+        env_url = os.getenv("DATABASE_URL")
+
+        if env_url:
+            database_url = env_url
+        else:
+            # Default to local SQLite with worker-specific path for tests
+            # In test environment, use worker ID or process ID for uniqueness
+            default_path = os.path.join("cache", "app.db")
+
+            # For pytest-xdist: use worker ID if available
+            worker_id = os.getenv("PYTEST_XDIST_WORKER") or os.getenv("GITHUB_RUN_ID")
+            if worker_id and os.getenv("APP_ENV") == "test":
+                # Create worker-specific DB file to avoid conflicts
+                base_path = Path(default_path)
+                default_path = str(
+                    base_path.with_name(f"{base_path.stem}_{worker_id}{base_path.suffix}")
+                )
+
+            database_url = f"sqlite:///{default_path}"
 
     database_url_str = str(database_url)
 

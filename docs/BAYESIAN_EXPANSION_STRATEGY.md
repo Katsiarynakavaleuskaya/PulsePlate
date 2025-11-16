@@ -733,13 +733,13 @@ class BayesianHealthCoach:
     def get_daily_insight(self, user_id: int, timeout_ms: int = 90) -> Optional["Insight"]:
         """
         RU: Быстрый пользовательский вызов с ограничением по времени.
-            - SLA: p95 < 90–120 мс на проде; по умолчанию timeout_ms=90.
+            - SLA: p95 < 90–120 мс на проде; по умолчанию timeout_ms=90 (int milliseconds).
             - При истечении таймаута:
                 1) Возвращает кэшированный результат, если он «свежий» (например, TTL ≤ 6–12 часов),
                 2) Иначе возвращает None (клиент показывает дружелюбное сообщение и/или skeleton UI).
             - Ошибки вычисления логируются; триггерится фоновая задача на пересчёт.
         EN: Fast user-facing call with strict timeout.
-            - SLA: p95 < 90–120 ms in production; default timeout_ms=90.
+            - SLA: p95 < 90–120 ms in production; default timeout_ms=90 (int milliseconds).
             - On timeout:
                 1) Return cached result if fresh (e.g., TTL ≤ 6–12h),
                 2) Else return None (client shows friendly message and/or skeleton UI).
@@ -773,6 +773,36 @@ class BayesianHealthCoach:
             - Returns full Insight with extended fields and model metadata.
         """
         return self._compute_insight_full(user_id=user_id, as_of=as_of or datetime.utcnow())
+
+    def _get_cached_insight(self, user_id: int) -> Optional["Insight"]:
+        """Get cached insight for user if available."""
+        # Implementation would check cache storage
+        pass
+
+    def _is_fresh(self, cached: "Insight") -> bool:
+        """Check if cached insight is still fresh (within TTL)."""
+        # Implementation would check TTL
+        pass
+
+    def _compute_insight_bounded(self, user_id: int, timeout_ms: int) -> Optional["Insight"]:
+        """Compute insight with timeout constraint."""
+        # Implementation would perform bounded computation
+        pass
+
+    def _compute_insight_full(self, user_id: int, as_of: datetime) -> "Insight":
+        """Compute full insight without timeout."""
+        # Implementation would perform full computation
+        pass
+
+    def _log_error(self, error_type: str, user_id: int) -> None:
+        """Log error for monitoring and debugging."""
+        # Implementation would log error
+        pass
+
+    def _enqueue_background_recompute(self, user_id: int) -> None:
+        """Enqueue background job to recompute insight."""
+        # Implementation would enqueue job
+        pass
 ```
 
 Контракт и SLA:

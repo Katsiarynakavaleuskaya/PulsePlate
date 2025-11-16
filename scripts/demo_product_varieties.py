@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -65,8 +65,8 @@ def main() -> None:
         # Показываем сравнение питательной ценности
         if comparison := manager.get_nutritional_comparison(product_name):
             print("  📊 Сравнение питательной ценности:")
-            for variety_name, nutrition in comparison.items():
-                print(f"    {variety_name}:")
+            for variety_label, nutrition in comparison.items():
+                print(f"    {variety_label}:")
                 print(
                     f"      Калории: {nutrition['calories']:.1f}, "
                     f"Белок: {nutrition['protein']}g, "
@@ -95,21 +95,18 @@ def main() -> None:
     print("👤 Персонализированные рекомендации")
     print("=" * 50)
 
-    user_profiles = [
-        {"name": "Диабетик", "preferences": {"low_sugar": True, "low_fat": True}},
-        {"name": "Спортсмен", "preferences": {"high_protein": True, "low_sugar": True}},
-        {
-            "name": "Вегетарианец",
-            "preferences": {"vegetarian": True, "gluten_free": True},
-        },
+    user_profiles: List[Tuple[str, Dict[str, bool]]] = [
+        ("Диабетик", {"low_sugar": True, "low_fat": True}),
+        ("Спортсмен", {"high_protein": True, "low_sugar": True}),
+        ("Вегетарианец", {"vegetarian": True, "gluten_free": True}),
     ]
 
-    for profile in user_profiles:
-        print(f"👤 Профиль: {profile['name']}")
-        print(f"   Предпочтения: {profile['preferences']}")
+    for profile_name, preferences in user_profiles:
+        print(f"👤 Профиль: {profile_name}")
+        print(f"   Предпочтения: {preferences}")
 
         for product_name in ["Молоко", "Сыр"]:
-            if recommended := manager.recommend_variety(product_name, profile["preferences"]):
+            if recommended := manager.recommend_variety(product_name, preferences):
                 print(f"   {product_name}: {recommended.variety} ({recommended.brand})")
                 print(
                     f"     Белок: {recommended.protein_g}g, Жиры: {recommended.fat_g}g, "
@@ -129,14 +126,16 @@ def main() -> None:
         ("Йогурт", None, "стандарт"),
     ]
 
-    for product_name, variety_name, brand in search_examples:
+    for product_name, variety_candidate, brand_candidate in search_examples:
+        variety_filter: Optional[str] = variety_candidate
+        brand_filter: Optional[str] = brand_candidate
         print(f"🔍 Поиск: {product_name}")
-        if variety_name:
-            print(f"   Сорт: {variety_name}")
-        if brand:
-            print(f"   Марка: {brand}")
+        if variety_filter:
+            print(f"   Сорт: {variety_filter}")
+        if brand_filter:
+            print(f"   Марка: {brand_filter}")
 
-        if results := manager.search_varieties(product_name, variety_name, brand):
+        if results := manager.search_varieties(product_name, variety_filter, brand_filter):
             print(f"   Найдено: {len(results)} результатов")
             for variety in results:
                 print(f"     - {variety.variety} ({variety.brand})")

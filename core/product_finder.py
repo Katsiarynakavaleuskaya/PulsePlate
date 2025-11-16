@@ -375,8 +375,16 @@ class ProductFinder:
                 ratio_similarity = fuzz.ratio(norm1_lemma, norm2_lemma)
                 if ratio_similarity >= threshold:
                     return True
-            except Exception as e:
+            except (TypeError, ValueError, AttributeError) as e:
+                # Catch expected exceptions from fuzzy matching (rapidfuzz/Levenshtein)
+                # TypeError: invalid argument types
+                # ValueError: invalid values
+                # AttributeError: missing attributes/methods
                 logger.debug("Fuzzy matching failed: %s, falling back to simple matching", e)
+            except Exception as e:
+                # Re-raise unexpected exceptions after logging
+                logger.error("Unexpected error in fuzzy matching: %s", e, exc_info=True)
+                raise
 
         # Fallback: lightweight substring/word intersection logic
         threshold_ratio = max(min(threshold / 100.0, 1.0), 0.0)

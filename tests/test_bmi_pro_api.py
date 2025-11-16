@@ -27,13 +27,13 @@ app = app_module.app
 class TestBMIProAPI:
     """Test BMI Pro API endpoint."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_BMI_PRO"] = "true"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]

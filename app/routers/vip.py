@@ -1095,7 +1095,8 @@ async def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, An
 @router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key_strict)])
 async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
-    result: Dict[str, Any] = await synthesize_recipe(request)
+    # synthesize_recipe is synchronous (returns dict directly), no await needed
+    result: Dict[str, Any] = synthesize_recipe(request)
     return result
 
 
