@@ -9,6 +9,7 @@ EN: Analyzes tests from the perspective of business model, revenue, and cost opt
 
 import ast
 import importlib
+import logging
 import math
 import re
 
@@ -18,6 +19,9 @@ from io import StringIO
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
+
+
+logger = logging.getLogger(__name__)
 
 
 class BusinessCategory(Enum):
@@ -191,11 +195,12 @@ class BusinessBayesianAnalyzer:
                         data = yaml_module.safe_load(file)
                     if isinstance(data, dict) and data:
                         return data
-                except (
-                    Exception
-                ):  # nosec B110 - Intentional fallback to defaults on YAML parse error
+                except Exception:  # nosec B110 - intentional fallback to defaults
                     # If YAML is invalid, fall back to defaults (continue execution)
-                    pass
+                    logger.warning(
+                        "Failed to parse business_knowledge.yaml; falling back to defaults",
+                        exc_info=True,
+                    )
         # Fallback defaults (same as original hardcoded values)
         return {
             "revenue_streams": {
@@ -408,7 +413,7 @@ class BusinessBayesianAnalyzer:
         import tokenize
 
         try:
-            tokens = []
+            tokens: list[tokenize.TokenInfo] = []
             tokens.extend(
                 token
                 for token in tokenize.generate_tokens(StringIO(code_str).readline)

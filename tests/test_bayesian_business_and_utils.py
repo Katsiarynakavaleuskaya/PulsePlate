@@ -199,6 +199,16 @@ def test_business_analyzer_detects_multi_category_issues() -> None:
     }
 
 
+def test_remove_comments_handles_standard_code() -> None:
+    """_remove_comments should strip actual comments but keep hashes in strings."""
+
+    analyzer = BusinessBayesianAnalyzer()
+    code = "price = 10  # drop comment\ntext = 'hash # allowed'\n"
+    cleaned = analyzer._remove_comments(code)
+    assert "# drop comment" not in cleaned
+    assert "hash # allowed" in cleaned
+
+
 def test_calculate_bayesian_roi_without_data() -> None:
     """RU/EN: ROI estimator should fall back to priors when no evidence provided."""
 

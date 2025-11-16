@@ -101,6 +101,17 @@ def test_targets_disabled_detects_alias_disables(monkeypatch: pytest.MonkeyPatch
             sys.modules["app_module"] = original_alias
 
 
+def test_quick_targets_disabled_state_detects_container_disable() -> None:
+    """_quick_targets_disabled_state should return True when container disables targets."""
+
+    original_fn = app._plate_deps.build_nutrition_targets_fn
+    try:
+        app._plate_deps.build_nutrition_targets_fn = None
+        assert app._quick_targets_disabled_state() is True
+    finally:
+        app._plate_deps.build_nutrition_targets_fn = original_fn
+
+
 def test_plate_env_snapshot_restores_env_and_modules(monkeypatch: pytest.MonkeyPatch) -> None:
     """Context manager restores aliased module attributes and env state."""
 

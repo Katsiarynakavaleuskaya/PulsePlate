@@ -256,7 +256,7 @@ def sanitize_macros_dict(macros: dict[str, Any]) -> dict[str, int]:
             message=f"Failed to sanitize macros dict: {e}",
             original_exception=e.original_exception,
             request_context={
-                **e.request_context,
+                **getattr(e, "request_context", {}),
                 "macros_keys": list(macros.keys()) if isinstance(macros, dict) else "not_a_dict",
             },
             fallback_defaults=e.fallback_defaults,

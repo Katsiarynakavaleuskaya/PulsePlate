@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import builtins
+from io import StringIO
 from pathlib import Path
 
 import pytest
 
+import core.business_bayesian_analyzer
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
 
 
@@ -74,3 +76,38 @@ def test_load_monetization_strategies_logs_read_errors(monkeypatch: pytest.Monke
 
     result = analyzer._load_monetization_strategies(locale="en")
     assert "conversion_tactics" in result
+
+
+def test_load_business_knowledge_yaml_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """YAML parse errors should log warning and fall back to defaults."""
+
+    analyzer = BusinessBayesianAnalyzer()
+    target_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
+
+    class FakeYAML:
+        class YAMLError(Exception):
+            pass
+
+        @staticmethod
+        def safe_load(_fh):
+            raise FakeYAML.YAMLError("boom")
+
+    monkeypatch.setattr(analyzer, "_import_yaml_module", lambda: FakeYAML())
+
+    original_exists = Path.exists
+
+    def fake_exists(self: Path) -> bool:  # noqa: D401
+        if self == target_path:
+            return True
+        return original_exists(self)
+
+    monkeypatch.setattr(Path, "exists", fake_exists)
+    monkeypatch.setattr(
+        core.business_bayesian_analyzer,
+        "open",
+        lambda *_args, **_kwargs: StringIO("invalid: [yaml"),
+        raising=False,
+    )
+
+    data = analyzer._load_business_knowledge()
+    assert "revenue_streams" in data
