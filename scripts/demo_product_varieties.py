@@ -8,8 +8,11 @@ EN: Demo script for working with product varieties.
 сортами и марками продуктов, учитывая их пищевую ценность.
 """
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -17,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.product_varieties import ProductVarietiesManager
 
 
-def main():
+def main() -> None:
     """Main function for product varieties demo."""
     print("🚀 Демонстрация системы сортов продуктов")
     print("=" * 50)
@@ -120,7 +123,7 @@ def main():
     print("🔍 Поиск по критериям")
     print("=" * 50)
 
-    search_examples = [
+    search_examples: List[Tuple[str, Optional[str], Optional[str]]] = [
         ("Молоко", "обезжиренное", None),
         ("Сыр", "твердый", None),
         ("Йогурт", None, "стандарт"),

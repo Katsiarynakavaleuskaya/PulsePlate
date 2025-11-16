@@ -69,23 +69,36 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             logging.error("Failed to unlink test DB '%s': %s", db_path, e, exc_info=True)
             # Explicitly surface unexpected FS problems to fail fast in CI/setup.
             raise
-        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
+        # Set DATABASE_URL BEFORE importing/reloading core.db
+        # This ensures _build_engine_url() uses the correct test database path
+        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
 
-        # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
+        # Reload core.db after setting DATABASE_URL to ensure engine uses test DB
         import importlib
 
         if "core.db" in sys.modules:
+            # Force reload to pick up new DATABASE_URL
             core_db = importlib.reload(sys.modules["core.db"])
         else:
             import core.db as core_db
 
-        # Reload or import models to ensure they're registered
+        # Verify that the engine is using the correct database
+        expected_db_path = str(db_path.resolve())
+        actual_db_url = core_db.DATABASE_URL
+        if not actual_db_url.endswith(expected_db_path):
+            logging.warning(
+                f"Database URL mismatch: expected path ending with {expected_db_path}, "
+                f"got {actual_db_url}"
+            )
+
+        # Reload or import models to ensure they're registered with Base.metadata
         if "core.models" in sys.modules:
             importlib.reload(sys.modules["core.models"])  # noqa: F401
         else:
             import core.models  # noqa: F401
 
-        # Initialize database - this creates all tables
+        # Initialize database - this creates all tables using _RAW_ENGINE
+        # init_db() calls Base.metadata.create_all(bind=_RAW_ENGINE)
         core_db.init_db()
 
         # Verify initialization succeeded by checking if tables exist
@@ -96,9 +109,29 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             inspector = inspect(session.get_bind())
             tables = inspector.get_table_names()
             if not tables:
-                raise RuntimeError("Database initialized but no tables found")
+                raise RuntimeError(
+                    f"Database initialized but no tables found. "
+                    f"Database URL: {core_db.DATABASE_URL}, "
+                    f"DB file exists: {db_path.exists()}"
+                )
+
+            # Check for required tables
+            required_tables = ["users", "recipes", "meals", "food_items"]
+            missing_tables = [t for t in required_tables if t not in tables]
+            if missing_tables:
+                raise RuntimeError(
+                    f"Required tables missing: {missing_tables}. "
+                    f"Found tables: {tables}. "
+                    f"Database URL: {core_db.DATABASE_URL}"
+                )
+
             tables_str = ", ".join(tables)
-            logging.info(f"Database initialized with {len(tables)} tables: {tables_str}")
+            logging.info(
+                f"✅ Database initialized successfully with {len(tables)} tables: {tables_str}"
+            )
+            print(
+                f"✅ Database initialized: {len(tables)} tables found (users, recipes, meals, food_items)"
+            )
     except Exception as e:
         # Log error and re-raise to fail fast in CI; tests requiring DB will not run
         logging.error(f"Failed to initialize test database: {e}", exc_info=True)

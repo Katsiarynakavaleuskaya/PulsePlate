@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from types import ModuleType
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -18,6 +19,8 @@ try:
     import secure_config as secure_config
 except ImportError:  # pragma: no cover - optional dependency
     secure_config = None
+
+secure_config: ModuleType | None
 
 ENCRYPTION_AVAILABLE = (
     getattr(secure_config, "ENCRYPTION_AVAILABLE", False) if secure_config else False
