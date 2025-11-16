@@ -19,24 +19,35 @@ runs:
         mkdir -p cache
 
         # Initialize database schema (create tables)
-        python -c "
-        import sys
-        sys.path.insert(0, '.')
+        # Note: PYTHONPATH from env above enables these imports without sys.path manipulation
+        python <<'EOF'
         import core.models  # noqa: F401 - ensure models are registered
         from core.db import init_db
         init_db()
         print('✅ Database initialized successfully')
-        "
-        # Verify tables were created
-        python -c "
-        import sys
-        sys.path.insert(0, '.')
+        EOF
+
+        # Verify tables were created and log details
+        # Note: PYTHONPATH from env above enables these imports without sys.path manipulation
+        python <<'EOF'
         from core.db import session_scope
         from sqlalchemy import inspect
+        import sys
+
         with session_scope() as session:
             inspector = inspect(session.bind)
             tables = inspector.get_table_names()
             tables_str = ', '.join(tables)
-            print(f\"✅ Found {len(tables)} tables: {tables_str}\")
-            assert 'users' in tables, 'users table not found'
-        "
+            print(f"✅ Found {len(tables)} tables: {tables_str}")
+
+            # Check for required tables
+            required_tables = ['users', 'recipes', 'meals', 'food_items']
+            missing_tables = [t for t in required_tables if t not in tables]
+
+            if missing_tables:
+                print(f"❌ Missing required tables: {', '.join(missing_tables)}")
+                print(f"Available tables: {tables_str}")
+                sys.exit(1)
+
+            print(f"✅ All required tables found: {', '.join(required_tables)}")
+        EOF

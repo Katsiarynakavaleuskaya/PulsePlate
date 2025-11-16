@@ -27,6 +27,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -46,6 +49,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -91,6 +97,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -120,6 +129,14 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
 
+      - name: Verify database initialization (explicit check)
+        env:
+          APP_ENV: test
+          ENVIRONMENT: test
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+        run: |
+          python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
+
       - name: Run tests with coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
@@ -128,8 +145,11 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          # Ensure conftest.py init_test_database fixture runs for xdist workers
+          TEST_DB_PATH: cache/test_app.sqlite
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
+          # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto --cov-fail-under=97
 
 
@@ -171,6 +191,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -200,6 +223,14 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
 
+      - name: Verify database initialization (explicit check)
+        env:
+          APP_ENV: test
+          ENVIRONMENT: test
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+        run: |
+          python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
+
       - name: Run tests with coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
@@ -208,8 +239,11 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          # Ensure conftest.py init_test_database fixture runs for xdist workers
+          TEST_DB_PATH: cache/test_app.sqlite
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
+          # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto --cov-fail-under=97
 
 
@@ -251,6 +285,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -334,6 +371,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Download coverage artifact (Python 3.13.5)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -390,6 +430,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Download coverage artifact (Python 3.13.5)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
@@ -420,6 +463,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
 
       - name: Download coverage artifact (Python 3.11)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2

@@ -21,12 +21,14 @@ class AppLoadError(ImportError):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def init_test_database() -> None:
+def init_test_database(request: pytest.FixtureRequest) -> None:
     """Initialize test database tables before running tests.
 
     This fixture ensures the database schema is created before any tests run.
     It imports models to ensure they're registered with SQLAlchemy Base metadata,
     then calls init_db() to create all tables.
+
+    For pytest-xdist, each worker gets its own database file to avoid conflicts.
     """
     import logging
 
@@ -38,7 +40,11 @@ def init_test_database() -> None:
         # Configure SQLite database path for tests
         db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
         db_path = Path(db_path_env)
-        worker_id = os.environ.get("PYTEST_XDIST_WORKER", "")
+
+        # Get worker ID from pytest-xdist (if running in parallel)
+        # pytest-xdist sets request.config.workerinput, not an environment variable
+        worker_info = getattr(request.config, "workerinput", {}) or {}
+        worker_id = worker_info.get("workerid", "")
         if worker_id:
             # Sanitize worker id to avoid path traversal / special characters
             # Allow only [A-Za-z0-9_-]; if empty after sanitization, fall back to "worker"
