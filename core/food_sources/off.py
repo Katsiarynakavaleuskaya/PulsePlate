@@ -16,7 +16,7 @@ from core.aliases import map_to_canonical
 from core.food_sources.base import BaseAdapter, FoodRecord
 
 
-def _parse_nutrient_value(raw_value: Any) -> Optional[float]:
+def _parse_nutrient_value(raw_value: object) -> Optional[float]:
     """
     RU: Парсинг значения питательного вещества.
     EN: Parse nutrient value.

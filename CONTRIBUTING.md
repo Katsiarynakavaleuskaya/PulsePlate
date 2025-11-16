@@ -180,7 +180,7 @@ Unit tests must assert:
 3. **Config loading**: Values are read from `config/medical_safety.yaml`, not hardcoded constants
 4. **Threshold application**: Approved config values are correctly applied when flag is enabled
 
-See `docs/BAYESIAN_EXPANSION_STRATEGY.md` lines 1042-1047 and `docs/BAYESIAN_IMPLEMENTATION_PLAN.md` for recommended test scenarios.
+See `docs/BAYESIAN_EXPANSION_STRATEGY.md` lines 1228-1234 and `docs/BAYESIAN_IMPLEMENTATION_PLAN.md` for recommended test scenarios.
 
 ## Getting Help
 

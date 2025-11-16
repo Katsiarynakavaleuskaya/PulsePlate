@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import threading
 from datetime import datetime, timedelta
 from types import FrameType
 from typing import Any, Dict, Optional
@@ -56,6 +57,9 @@ class DatabaseUpdateScheduler:
         # Background task
         self._update_task: Optional[asyncio.Task] = None
 
+        # Thread-safe shutdown signaling
+        self._shutdown_event = threading.Event()
+
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
 
@@ -67,10 +71,11 @@ class DatabaseUpdateScheduler:
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            # Signal handlers execute synchronously; set flag instead of creating task
-            self.is_running = False
-            if self._update_task and not self._update_task.done():
-                self._update_task.cancel()
+            # Set thread-safe shutdown signal
+            self._shutdown_event.set()
+            # Schedule shutdown logic on the event loop thread
+            loop = asyncio.get_running_loop()
+            loop.call_soon_threadsafe(self._schedule_async_shutdown)
 
         # Handle common shutdown signals
         try:
@@ -78,6 +83,18 @@ class DatabaseUpdateScheduler:
             signal.signal(signal.SIGINT, signal_handler)
         except Exception as e:
             logger.warning(f"Could not setup signal handlers: {e}")
+
+    def _schedule_async_shutdown(self) -> None:
+        """Schedule asynchronous shutdown on the event loop thread."""
+        # Create task to handle shutdown asynchronously
+        asyncio.create_task(self._handle_signal_shutdown())
+
+    async def _handle_signal_shutdown(self) -> None:
+        """Handle shutdown initiated from signal handler on the event loop thread."""
+        logger.info("Handling signal-initiated shutdown...")
+        self.is_running = False
+        if self._update_task and not self._update_task.done():
+            self._update_task.cancel()
 
     async def start(self) -> None:
         """

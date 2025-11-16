@@ -4,7 +4,7 @@ import pytest
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
 from core.data_sanitizer import NutritionData
 from app.routers.vip import get_regions
-from app import _targets_disabled, _calculate_heuristic_macros
+from app import targets_disabled, calculate_heuristic_macros
 
 
 class TestFinalCoverageBoost:
@@ -40,12 +40,12 @@ class TestFinalCoverageBoost:
 
     def test_app_utility_functions(self):
         """Test app utility functions."""
-        # Test _targets_disabled
-        result = _targets_disabled()
+        # Test targets_disabled
+        result = targets_disabled()
         assert isinstance(result, bool)
 
-        # Test _calculate_heuristic_macros
-        result = _calculate_heuristic_macros(2000, 70)
+        # Test calculate_heuristic_macros
+        result = calculate_heuristic_macros(2000, 70)
         assert isinstance(result, tuple)
         assert len(result) == 3
         assert all(isinstance(x, int) for x in result)
@@ -53,7 +53,7 @@ class TestFinalCoverageBoost:
     def test_coverage_edge_cases(self):
         """Test various edge cases for coverage."""
         # Test with zero inputs
-        result = _calculate_heuristic_macros(0, 0)
+        result = calculate_heuristic_macros(0, 0)
         assert all(x >= 0 for x in result)
 
         # Test analyzer with empty inputs

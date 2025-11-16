@@ -247,11 +247,14 @@ class ComprehensiveBayesianAnalyzer:
 
         # Общий балл
         # Health First policy: nutrition issues should appropriately reduce overall score
-        # Use a minimal floor to cap minimum contribution from nutrition so nutrition
-        # failures still reduce the overall score while preventing it from contributing zero.
-        # This ensures nutrition always contributes at least NUTRITION_MIN_CONTRIBUTION
-        # when computing the average of technical, nutrition, and business scores.
-        nutrition_effective = max(nutrition_score, self.NUTRITION_MIN_CONTRIBUTION)
+        # Use raw nutrition_score when nutrition checks were performed, otherwise apply
+        # NUTRITION_MIN_CONTRIBUTION for under-tested scenarios (no nutrition checks)
+        if nutrition_results:
+            # Use raw nutrition_score when nutrition checks were performed
+            nutrition_effective = nutrition_score
+        else:
+            # Apply minimum contribution when no nutrition checks were performed
+            nutrition_effective = self.NUTRITION_MIN_CONTRIBUTION
         overall_score = (technical_score + nutrition_effective + business_score) / 3
 
         # Критические проблемы

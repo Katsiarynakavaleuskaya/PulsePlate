@@ -209,7 +209,17 @@ def _attempt_db_fallback(
     explicit_override = (os.getenv("ALLOW_DB_INMEMORY_FALLBACK") or "").strip().lower() in truthy
     fallback_exception = isinstance(db_err, (OSError, IOError))
 
-    if not (allowed_env or explicit_override or fallback_exception):
+    # Log warning if ALLOW_DB_INMEMORY_FALLBACK is set in production (ignored)
+    if is_production and explicit_override:
+        logger.warning(
+            "ALLOW_DB_INMEMORY_FALLBACK is set but ignored in production environment (%s)",
+            env_name or "production",
+        )
+
+    # Ignore explicit_override in production
+    effective_explicit_override = explicit_override and not is_production
+
+    if not (allowed_env or effective_explicit_override or fallback_exception):
         raise db_err
 
     # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
@@ -1432,7 +1442,7 @@ _plate_deps = PlateDependencies(
 )
 
 
-def _targets_disabled() -> bool:
+def targets_disabled() -> bool:
     """Return True when build_nutrition_targets is disabled.
 
     Checks the dependency injection container first (authoritative source).
@@ -2069,7 +2079,7 @@ class WeeklyPlanFlexibleRequest(BaseModel):
     lang: Optional[str] = "en"
 
 
-def _calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, int, int]:
+def calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, int, int]:
     """Calculate heuristic macronutrient targets when WHO targets unavailable.
 
     Ratios based on WHO/IOM guidance:
@@ -2134,7 +2144,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             _sys.modules.get("_app_top_module"),
             _sys.modules.get(__name__),
         ]
-        targets_disabled = _targets_disabled()
+        targets_disabled = targets_disabled()
         _build_targets = None if targets_disabled else _resolve_build_targets_callable()
         _make_plate = resolve_attr("make_plate", make_plate, _candidates)
         logger.debug("premium_plate make_plate resolved to %r", _make_plate)
@@ -2166,7 +2176,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
             # Align with WHO targets if backend is available to keep macro deviation low
             # Use centralized helper to resolve build_nutrition_targets callable
-            targets_disabled = _targets_disabled()
+            targets_disabled = targets_disabled()
             _build_targets_resolved = (
                 None if targets_disabled else _resolve_build_targets_callable()
             )
@@ -2342,7 +2352,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         alignment_succeeded = False
 
         # Check if targets are disabled
-        targets_are_disabled = _targets_disabled()
+        targets_are_disabled = targets_disabled()
         _build_targets = None if targets_are_disabled else _resolve_build_targets_callable()
 
         logger.debug(
@@ -2423,7 +2433,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         # Only apply heuristic fallback if alignment did not succeed
         if (targets_are_disabled or _build_targets is None) and not alignment_succeeded:
             logger.debug("premium_plate alignment: using heuristic fallback")
-            prot_ref, fat_ref, carbs_ref = _calculate_heuristic_macros(
+            prot_ref, fat_ref, carbs_ref = calculate_heuristic_macros(
                 final_kcal_value, req.weight_kg
             )
             logger.debug(

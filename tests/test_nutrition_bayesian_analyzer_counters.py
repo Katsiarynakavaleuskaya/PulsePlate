@@ -223,7 +223,7 @@ def test_macros_sum_invalid_detection() -> None:
 
     results = analyzer.analyze_nutrition_safety(code_invalid_macros, "test_invalid_macros")
 
-    # Should detect MACROS_SUM_INVALID
+    # Should detect MACRONUTRIENT_SUM_INVALID
     assert any(not r.success for r in results), "Failed to detect invalid macro sum"
 
 

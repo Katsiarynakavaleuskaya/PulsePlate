@@ -95,7 +95,7 @@ def test_targets_disabled_detects_alias_disables(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(app, "build_nutrition_targets", sentinel_builder, raising=False)
 
     try:
-        assert app._targets_disabled() is True
+        assert app.targets_disabled() is True
     finally:
         if original_alias is not None:
             sys.modules["app_module"] = original_alias

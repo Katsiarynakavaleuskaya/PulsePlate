@@ -85,6 +85,50 @@ _STANDARD_GUIDANCE: Dict[str, Dict[str, str]] = {
     },
 }
 
+_EXCEPTION_MAPPINGS: Dict[type, Tuple[str, int, Dict[str, str]]] = {
+    requests.exceptions.Timeout: (
+        "timeout",
+        logging.ERROR,
+        {
+            "en": "⏱️ Timeout: %s",
+            "ru": "⏱️ Таймаут: %s",
+        },
+    ),
+    requests.exceptions.HTTPError: (
+        "http_error",
+        logging.ERROR,
+        {
+            "en": "❌ HTTP error: %s",
+            "ru": "❌ HTTP-ошибка: %s",
+        },
+    ),
+    requests.exceptions.ConnectionError: (
+        "connection_error",
+        logging.ERROR,
+        {
+            "en": "🔌 Connection error: %s",
+            "ru": "🔌 Ошибка соединения: %s",
+        },
+    ),
+    requests.exceptions.RequestException: (
+        "request_error",
+        logging.WARNING,
+        {
+            "en": "⚠️ Request error: %s",
+            "ru": "⚠️ Ошибка запроса: %s",
+        },
+    ),
+}
+
+_DEFAULT_EXCEPTION_INFO: Tuple[str, int, Dict[str, str]] = (
+    "unexpected",
+    logging.ERROR,
+    {
+        "en": "❌ Unexpected error: %s",
+        "ru": "❌ Непредвиденная ошибка: %s",
+    },
+)
+
 
 class ErrorFormatType(Enum):
     """Format types for error handling."""
@@ -283,7 +327,7 @@ def call_premium_bmr_api(
     activity: str,
     bodyfat: Optional[float] = None,
     lang: str = "en",
-    api_key: str = "test_key",  # nosec B105  # Example/demo key only
+    api_key: str = "DEMO_KEY",
     base_url: str = "http://localhost:8000",
     timeout: float = 10.0,
 ) -> BMRResponse:
@@ -571,46 +615,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-_EXCEPTION_MAPPINGS: Dict[type, Tuple[str, int, Dict[str, str]]] = {
-    requests.exceptions.Timeout: (
-        "timeout",
-        logging.ERROR,
-        {
-            "en": "⏱️ Timeout: %s",
-            "ru": "⏱️ Таймаут: %s",
-        },
-    ),
-    requests.exceptions.HTTPError: (
-        "http_error",
-        logging.ERROR,
-        {
-            "en": "❌ HTTP error: %s",
-            "ru": "❌ HTTP-ошибка: %s",
-        },
-    ),
-    requests.exceptions.ConnectionError: (
-        "connection_error",
-        logging.ERROR,
-        {
-            "en": "🔌 Connection error: %s",
-            "ru": "🔌 Ошибка соединения: %s",
-        },
-    ),
-    requests.exceptions.RequestException: (
-        "request_error",
-        logging.WARNING,
-        {
-            "en": "⚠️ Request error: %s",
-            "ru": "⚠️ Ошибка запроса: %s",
-        },
-    ),
-}
-
-_DEFAULT_EXCEPTION_INFO: Tuple[str, int, Dict[str, str]] = (
-    "unexpected",
-    logging.ERROR,
-    {
-        "en": "❌ Unexpected error: %s",
-        "ru": "❌ Непредвиденная ошибка: %s",
-    },
-)

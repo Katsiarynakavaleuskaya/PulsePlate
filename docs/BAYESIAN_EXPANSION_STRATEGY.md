@@ -917,8 +917,12 @@ class Insight(BaseModel):
 ```python
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, List, Tuple, TypedDict
+import yaml
 
 
 class BaselineOutlierReport(TypedDict, total=False):
@@ -941,11 +945,17 @@ class Limits:
 
 
 class PersonalizedSafetyLimits:
-    # RU: Значения-заглушки, NFR — требуется утверждение клинико‑нутриционного совета.
-    # EN: Placeholder guardrails — obtain approval via the Medical Safety Workflow (§ Medical Safety Approval Workflow).
-    # NOTE: These constants MUST be loaded from config/medical_safety.yaml at runtime.
-    # Hardcoded defaults are NOT allowed in production - use None/sentinel values instead.
-    # See CONTRIBUTING.md § Medical Safety Approval Workflow for approval requirements.
+    """Personalized safety limits for medical nutrition recommendations.
+
+    INVARIANT: After successful __init__, MIN_SAFE_FLOOR_KCAL and MAX_SAFE_CEILING_KCAL
+    will not be None. They are loaded from config/medical_safety.yaml at runtime.
+
+    RU: Значения-заглушки, NFR — требуется утверждение клинико‑нутриционного совета.
+    EN: Placeholder guardrails — obtain approval via the Medical Safety Workflow (§ Medical Safety Approval Workflow).
+    NOTE: These constants MUST be loaded from config/medical_safety.yaml at runtime.
+    Hardcoded defaults are NOT allowed in production - use None/sentinel values instead.
+    See CONTRIBUTING.md § Medical Safety Approval Workflow for approval requirements.
+    """
     MIN_SAFE_FLOOR_KCAL: float | None = None  # Must be loaded from config/medical_safety.yaml
     MAX_SAFE_CEILING_KCAL: float | None = None  # Must be loaded from config/medical_safety.yaml
 
@@ -960,11 +970,6 @@ class PersonalizedSafetyLimits:
             RuntimeError: If config values are missing, out of range, or approval flag is false
                 in production environment. This prevents production use of fallback values.
         """
-        import yaml
-        from pathlib import Path
-        import logging
-        import os
-
         logger = logging.getLogger(__name__)
         config_path = Path("config/medical_safety.yaml")
 

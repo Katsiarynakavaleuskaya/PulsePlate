@@ -5,26 +5,31 @@
 ### 1. Падающие тесты (5 тестов)
 
 #### ❌ `test_plate_alignment_with_targets`
+
 - **Файл:** `tests/test_plate_alignment.py:50`
 - **Ошибка:** `assert 107 == 186`
 - **Причина:** Несоответствие ожидаемых значений углеводов
 
 #### ❌ `test_plate_targets_life_stage_warnings`
+
 - **Файл:** `tests/test_plate_targets_integration.py:212`
 - **Ошибка:** `AssertionError: assert 'pregnant' in ['life_stage']`
 - **Причина:** Отсутствует код предупреждения 'pregnant' в warning_codes
 
 #### ❌ `test_iodine_coverage_plate_targets`
+
 - **Файл:** `tests/test_plate_targets_micro_coverage.py:448`
 - **Ошибка:** `AssertionError: Target iodine should be positive` (assert 0 > 0)
 - **Причина:** target_iodine равен 0 вместо положительного значения
 
 #### ❌ `test_plate_targets_calorie_alignment_hypothesis`
+
 - **Файл:** `tests/test_plate_targets_micros_hypothesis.py:246`
 - **Ошибка:** `AssertionError: Calorie deviation too high: 20.12% (plate: 1818, target: 2276)`
 - **Причина:** Отклонение калорий превышает допустимый порог 20%
 
 #### ❌ `test_plate_targets_macro_alignment_hypothesis`
+
 - **Файл:** `tests/test_plate_targets_micros_hypothesis.py:316`
 - **Ошибка:** `AssertionError: carbs_g deviation too high: 40.70% (plate: 102, target: 172)`
 - **Причина:** Отклонение углеводов превышает допустимый порог 40%

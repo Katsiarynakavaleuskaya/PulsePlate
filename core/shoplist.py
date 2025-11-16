@@ -195,7 +195,7 @@ class ShoplistGenerator:
 
         return rules
 
-    def aggregate_ingredients(self, week_plan: dict) -> dict[str, float]:
+    def aggregate_ingredients(self, week_plan: dict[str, dict[str, float]]) -> dict[str, float]:
         """Агрегирует ингредиенты из недельного плана.
 
         Args:
@@ -534,7 +534,7 @@ def _get_generator() -> ShoplistGenerator:
 
 
 # Функции для удобного использования
-def aggregate_ingredients(week_plan: dict) -> dict[str, float]:
+def aggregate_ingredients(week_plan: dict[str, dict[str, float]]) -> dict[str, float]:
     """Агрегирует ингредиенты из недельного плана."""
     return _get_generator().aggregate_ingredients(week_plan)
 
@@ -556,7 +556,7 @@ def format_export(
 
 
 def get_shoplist(
-    week_plan: dict,
+    week_plan: dict[str, dict[str, float]],
     format_type: str = "json",
     locale: str = "ru",
     packaging_db: dict[str, Any] | None = None,

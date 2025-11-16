@@ -61,7 +61,7 @@ class NutritionErrorType(Enum):
     FAT_TOO_HIGH = "fat_too_high"
     CARB_TOO_LOW = "carb_too_low"
     CARB_TOO_HIGH = "carb_too_high"
-    MACROS_SUM_INVALID = "macros_sum_invalid"
+    MACRONUTRIENT_SUM_INVALID = "macronutrient_sum_invalid"
 
 
 @dataclass
@@ -441,7 +441,7 @@ class NutritionBayesianAnalyzer:
                             test_name=test_name,
                             success=False,
                             nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
-                            error_type=NutritionErrorType.MACROS_SUM_INVALID,
+                            error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
                             error_message=(
                                 f"Проценты макронутриентов не суммируются до ~100%: "
                                 f"белок={protein_pct:.2%}, жиры={fat_pct:.2%}, "

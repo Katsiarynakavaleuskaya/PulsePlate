@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import app
@@ -20,7 +21,7 @@ from tests.test_utils import FailingProvider, SlowProvider
 
 
 def find_endpoint_dependency(
-    app_instance, endpoint_name: str, dependency_name: str
+    app_instance: FastAPI, endpoint_name: str, dependency_name: str
 ) -> Optional[Callable]:
     """
     Find a dependency function for a specific endpoint.

@@ -196,7 +196,6 @@ def app(app_module: ModuleType) -> FastAPI:
     app_instance = getattr(app_module, "app", None)
     if not isinstance(app_instance, FastAPI):
         raise RuntimeError("app_module.app is not initialised")
-    assert isinstance(app_instance, FastAPI)
     app_instance = cast(FastAPI, app_instance)
     if hasattr(app_module, "get_api_key"):
         app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key

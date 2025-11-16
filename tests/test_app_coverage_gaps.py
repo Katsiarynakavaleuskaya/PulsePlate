@@ -180,7 +180,7 @@ class TestAppTestRouterImport:
 class TestAppTargetsDisabled:
     """Тесты для _targets_disabled edge cases (строки 1312, 1315-1320, 1325-1328)"""
 
-    def test_targets_disabled_app_package_ref_set(
+    def test_targets_disabled_app_package_ref_set_public(
         self, _test_environment: Generator[dict[str, str], None, None]
     ) -> None:
         """Test _targets_disabled when _APP_PACKAGE_REF is set (line 1312)"""
@@ -190,7 +190,7 @@ class TestAppTargetsDisabled:
         app._APP_PACKAGE_REF = sys.modules.get("app")
 
         # Call _targets_disabled
-        result = app._targets_disabled()
+        result = app.targets_disabled()
         # Should return boolean
         assert isinstance(result, bool)
 
@@ -210,7 +210,7 @@ class TestAppTargetsDisabled:
                 del sys.modules["app"]
 
             # Call _targets_disabled
-            result = app._targets_disabled()
+            result = app.targets_disabled()
             assert isinstance(result, bool)
 
         # Restore
@@ -237,7 +237,7 @@ class TestAppTargetsDisabled:
 
             # Remove "app" from sys.modules and add "app_module" with None attribute
             with patch.dict(sys.modules, {"app": None, "app_module": alias_app}, clear=False):
-                result = app._targets_disabled()
+                result = app.targets_disabled()
                 # Should return True when alias has None attribute (lines 1325-1328)
                 assert isinstance(result, bool)
         finally:
@@ -268,7 +268,7 @@ class TestAppModuleInspection:
         with patch.dict(sys.modules, {"some_module": failing_module}, clear=False):
             # Call _targets_disabled which iterates modules
             # Should handle exception gracefully
-            result = app._targets_disabled()
+            result = app.targets_disabled()
             assert isinstance(result, bool)
 
 

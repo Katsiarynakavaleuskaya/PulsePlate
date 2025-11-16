@@ -5,8 +5,8 @@ RU: Тесты для улучшения покрытия патча PR #266
 EN: Tests for PR #266 patch coverage improvements
 
 Covers:
-- _targets_disabled() caching mechanism
-- _calculate_heuristic_macros() function
+- targets_disabled() caching mechanism
+- calculate_heuristic_macros() function
 - api_who_targets endpoint with dependency injection
 - Debug logging in _should_use_mock_food_db()
 """
@@ -31,12 +31,12 @@ class TestTargetsDisabledCaching:
         app._targets_disabled_cache_time = time.time()
 
         # First call should use cache
-        result1 = app._targets_disabled()
+        result1 = app.targets_disabled()
         assert isinstance(result1, bool)
 
         # Second call within TTL should use cache (no sys.modules scan)
         with patch("app.sys.modules", {}):
-            result2 = app._targets_disabled()
+            result2 = app.targets_disabled()
             assert result2 == result1  # Should return cached value
 
     def test_targets_disabled_cache_expires(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,7 +46,7 @@ class TestTargetsDisabledCaching:
         app._targets_disabled_cache_time = time.time() - 2.0  # 2 seconds ago (past TTL)
 
         # Should bypass cache and recalculate
-        result = app._targets_disabled()
+        result = app.targets_disabled()
         assert isinstance(result, bool)
         # Cache should be updated
         assert app._targets_disabled_cache is not None
@@ -64,7 +64,7 @@ class TestTargetsDisabledCaching:
 
         with patch.dict("sys.modules", {"some_regular_module": regular_module}):
             # Should not detect None in non-test module
-            result = app._targets_disabled()
+            result = app.targets_disabled()
             # Should return False (not disabled) because non-test modules are skipped
             assert isinstance(result, bool)
 
@@ -74,7 +74,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_basic(self) -> None:
         """Test basic heuristic macro calculation."""
-        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=2000, weight_kg=70)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=2000, weight_kg=70)
 
         # Protein: 1.6 * 70 = 112g
         assert prot == 112
@@ -90,7 +90,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_low_calories(self) -> None:
         """Test heuristic macros with low calorie target."""
-        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=1200, weight_kg=60)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=1200, weight_kg=60)
 
         assert prot > 0
         assert fat > 0
@@ -102,7 +102,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_high_weight(self) -> None:
         """Test heuristic macros with high weight."""
-        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=3000, weight_kg=100)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=3000, weight_kg=100)
 
         # Protein: 1.6 * 100 = 160g
         assert prot == 160
@@ -118,7 +118,7 @@ class TestCalculateHeuristicMacros:
     def test_calculate_heuristic_macros_minimum_carbs(self) -> None:
         """Test that carbs are always at least 1."""
         # Use very low calories to test minimum carbs enforcement
-        prot, fat, carbs = app._calculate_heuristic_macros(final_kcal=500, weight_kg=50)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=500, weight_kg=50)
 
         assert carbs >= 1  # Minimum enforced
 
