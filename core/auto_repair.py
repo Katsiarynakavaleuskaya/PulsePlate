@@ -310,17 +310,10 @@ class AutoRepairEngine:
         if "protein" in remaining_gaps:
             suggestions.append("Увеличьте порции белковых продуктов")
 
-        if not suggestions:
+        # Если нет специфических предложений, добавляем общее
+        if len(suggestions) == 2:  # Только базовые сообщения
             suggestions.append(
-                {
-                    "type": "add_ingredient",
-                    "nutrient": "iron",
-                    "suggestions": [
-                        {"name": "beef", "amount": 150, "unit": "g"},
-                        {"name": "lentils", "amount": 120, "unit": "g"},
-                    ],
-                    "reason": "Недостаточно данных для анализа — добавьте источник железа",
-                }
+                "Недостаточно данных для анализа — добавьте источник железа (мясо, чечевица)"
             )
 
         return suggestions
