@@ -17,7 +17,10 @@ from enum import Enum
 from io import StringIO
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from yaml import YAMLError
 
 
 class BusinessCategory(Enum):
@@ -182,21 +185,18 @@ class BusinessBayesianAnalyzer:
 
         Note: Return type annotation already present (-> dict[str, Any]).
         """
-        config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
+        config_path: Path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():
-            yaml_module = self._import_yaml_module()
+            yaml_module: ModuleType | None = self._import_yaml_module()
             if yaml_module is not None:
-                with open(config_path, "r", encoding="utf-8") as file:
-                    yaml_error = cast(
-                        type[BaseException], getattr(yaml_module, "YAMLError", Exception)
-                    )
-                    try:
+                try:
+                    with open(config_path, "r", encoding="utf-8") as file:
                         data = yaml_module.safe_load(file)
-                    except yaml_error:
-                        # If YAML is invalid, return empty dict (fallback to defaults below)
-                        return {}
-                    if isinstance(data, dict):
-                        return data
+                except Exception:
+                    # If YAML is invalid, fall back to defaults
+                    return {}
+                if isinstance(data, dict):
+                    return data
         # Fallback defaults (same as original hardcoded values)
         return {
             "revenue_streams": {
@@ -315,11 +315,12 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             yaml_module = self._import_yaml_module()
             if yaml_module is not None:
-                yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
+                # Get YAMLError type from the module for proper exception handling
+                yaml_error_type: type[BaseException] = getattr(yaml_module, "YAMLError", Exception)
                 try:
                     with open(config_path, "r", encoding="utf-8") as f:
                         loaded = yaml_module.safe_load(f) or {}
-                except (OSError, yaml_error):
+                except (OSError, yaml_error_type):
                     loaded = {}
                 if loaded:
                     return loaded
