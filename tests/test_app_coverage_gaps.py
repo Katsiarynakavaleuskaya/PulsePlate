@@ -13,10 +13,11 @@ EN: Tests for covering uncovered lines in app.py.
 import os
 import sys
 from contextlib import suppress
-from typing import Generator
+from typing import Any, Callable, Generator
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from tests.utils import plate_patch
@@ -25,7 +26,7 @@ from tests.utils import plate_patch
 class TestAppDatabaseFallback:
     """Тесты для database fallback логики в app.py lifespan (строки 145-163)"""
 
-    def test_database_init_failure_with_fallback(self, _test_environment) -> None:
+    def test_database_init_failure_with_fallback(self, _test_environment: Any) -> None:
         """Test database initialization failure triggers fallback to in-memory SQLite (lines 145-163)"""
         import app
         from core.db import init_db
@@ -34,7 +35,7 @@ class TestAppDatabaseFallback:
         original_init_db = init_db
         call_count = [0]
 
-        def failing_init_db():
+        def failing_init_db() -> None:
             call_count[0] += 1
             if call_count[0] == 1:
                 raise OSError("Database initialization failed")
@@ -47,12 +48,13 @@ class TestAppDatabaseFallback:
                 # We need to test the lifespan startup code
                 # Since lifespan is async, we test via TestClient which triggers it
                 # Use context manager to exercise startup/shutdown
-                with TestClient(app.app) as client:
+                app_instance: FastAPI = app.app  # type: ignore[assignment]
+                with TestClient(app_instance) as client:
                     # If we get here, fallback worked
                     response = client.get("/health")
                     assert response.status_code == 200
 
-    def test_database_fallback_oserror_handling(self, _test_environment) -> None:
+    def test_database_fallback_oserror_handling(self, _test_environment: Any) -> None:
         """Test database fallback handles OSError specifically (line 152)"""
         import app
         from core.db import init_db
@@ -61,28 +63,30 @@ class TestAppDatabaseFallback:
             with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test_fallback.db"}):
                 # This should be caught by suppress in the fallback logic
                 # Use context manager to exercise startup/shutdown
-                with TestClient(app.app) as client:
+                app_instance: FastAPI = app.app  # type: ignore[assignment]
+                with TestClient(app_instance) as client:
                     response = client.get("/health")
                     assert response.status_code in [200, 503]  # May fail gracefully
 
-    def test_database_fallback_ioerror_handling(self, _test_environment) -> None:
+    def test_database_fallback_ioerror_handling(self, _test_environment: Any) -> None:
         """Test database fallback handles IOError specifically (line 152)"""
         import app
         from core.db import init_db
 
         with patch("core.db.init_db", side_effect=IOError("I/O error")):
             with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test_fallback.db"}):
-                with TestClient(app.app) as client:
+                app_instance: FastAPI = app.app  # type: ignore[assignment]
+                with TestClient(app_instance) as client:
                     response = client.get("/health")
                     assert response.status_code in [200, 503]
 
-    def test_database_fallback_failure_propagation(self, _test_environment) -> None:
+    def test_database_fallback_failure_propagation(self, _test_environment: Any) -> None:
         """Test that database fallback failure propagates exception (line 163)"""
         import app
         from core.db import init_db
 
         # Mock init_db to fail both times
-        def always_failing_init_db():
+        def always_failing_init_db() -> None:
             raise OSError("Database initialization failed")
 
         with patch("core.db.init_db", side_effect=always_failing_init_db):
@@ -92,7 +96,8 @@ class TestAppDatabaseFallback:
                 # TestClient might catch exceptions, so we test the code path directly
                 # by checking that the fallback logic is executed
                 # Use context manager to exercise startup/shutdown
-                with TestClient(app.app) as client:
+                app_instance: FastAPI = app.app  # type: ignore[assignment]
+                with TestClient(app_instance) as client:
                     # TestClient may handle exceptions internally, but we've tested the code path
                     response = client.get("/health")
                     # Response may be 503 or 200 depending on error handling
@@ -111,7 +116,7 @@ class TestAppTestRouterImport:
         # Mock ImportError when importing test router
         original_import = __import__
 
-        def mock_import(name, *args, **kwargs):
+        def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
             if name == "app.routers.test":
                 raise ImportError("No module named 'app.routers.test'")
             return original_import(name, *args, **kwargs)
@@ -121,7 +126,8 @@ class TestAppTestRouterImport:
         with patch("builtins.__import__", side_effect=mock_import):
             # App should still work without test router
             # The ImportError is caught and logged (line 357-358)
-            with TestClient(app.app) as client:
+            app_instance: FastAPI = app.app  # type: ignore[assignment]
+            with TestClient(app_instance) as client:
                 response = client.get("/health")
                 assert response.status_code == 200
 
@@ -136,11 +142,9 @@ class TestAppTestRouterImport:
                 self._setattr_calls = []
 
             def __setattr__(self, name, value):
-                if name == "_setattr_calls":
-                    super().__setattr__(name, value)
-                else:
+                if name != "_setattr_calls":
                     self._setattr_calls.append((name, value))
-                    super().__setattr__(name, value)
+                return super().__setattr__(name, value)
 
         alias_module = AliasModule()
 
@@ -240,7 +244,7 @@ class TestAppTargetsDisabled:
         app._APP_PACKAGE_REF = sys.modules.get("app")
 
         # Call _targets_disabled
-        result = app.targets_disabled()
+        result: bool = app.targets_disabled()
         # Should return boolean
         assert isinstance(result, bool)
 
@@ -260,7 +264,7 @@ class TestAppTargetsDisabled:
                 del sys.modules["app"]
 
             # Call _targets_disabled
-            result = app.targets_disabled()
+            result: bool = app.targets_disabled()
             assert isinstance(result, bool)
 
         # Restore
@@ -287,7 +291,7 @@ class TestAppTargetsDisabled:
 
             # Remove "app" from sys.modules and add "app_module" with None attribute
             with patch.dict(sys.modules, {"app": None, "app_module": alias_app}, clear=False):
-                result = app.targets_disabled()
+                result: bool = app.targets_disabled()
                 # Should return True when alias has None attribute (lines 1325-1328)
                 assert isinstance(result, bool)
         finally:
@@ -303,13 +307,13 @@ class TestAppTargetsDisabled:
 class TestAppModuleInspection:
     """Тесты для module inspection exception handling (строки 1375-1376, 1380)"""
 
-    def test_targets_disabled_module_inspection_exception(self, _test_environment) -> None:
+    def test_targets_disabled_module_inspection_exception(self, _test_environment: Any) -> None:
         """Test _targets_disabled handles module inspection exception (lines 1375-1376, 1380)"""
         import app
 
         # Create module that raises exception on getattr
         class FailingModule:
-            def __getattr__(self, name):
+            def __getattr__(self, name: str) -> Any:
                 raise RuntimeError("Cannot access attribute")
 
         failing_module = FailingModule()
@@ -318,37 +322,37 @@ class TestAppModuleInspection:
         with patch.dict(sys.modules, {"some_module": failing_module}, clear=False):
             # Call _targets_disabled which iterates modules
             # Should handle exception gracefully
-            result = app.targets_disabled()
+            result: bool = app.targets_disabled()
             assert isinstance(result, bool)
 
 
 class TestAppCallableCheck:
     """Тесты для callable check (строка 1418)"""
 
-    def test_resolve_attr_callable_check(self, _test_environment) -> None:
+    def test_resolve_attr_callable_check(self, _test_environment: Any) -> None:
         """Test resolve_attr checks if function is callable (line 1418)"""
         import app
 
         # Create callable function
-        def test_func():
+        def test_func() -> str:
             return "test"
 
         # Should return callable function
-        result = app.resolve_attr("test_func", test_func)
+        result: Callable[[], str] = app.resolve_attr("test_func", test_func)  # type: ignore[assignment]
         assert callable(result)
         assert result() == "test"
 
         # Test with non-callable
-        non_callable = "not a function"
-        result = app.resolve_attr("test_attr", non_callable)
+        non_callable: str = "not a function"
+        result2: str = app.resolve_attr("test_attr", non_callable)  # type: ignore[assignment]
         # Should handle non-callable gracefully
-        assert result == non_callable
+        assert result2 == non_callable
 
 
 class TestAppAttributeDeletion:
     """Тесты для attribute deletion (строки 1479-1480)"""
 
-    def test_plate_env_snapshot_attribute_deletion(self, _test_environment) -> None:
+    def test_plate_env_snapshot_attribute_deletion(self, _test_environment: Any) -> None:
         """Test _plate_env_snapshot deletes attributes that didn't exist (lines 1479-1480)"""
         import app
         import sys
@@ -389,17 +393,17 @@ class TestAppAsyncWrapper:
     """Тесты для async wrapper (строка 1501)"""
 
     @pytest.mark.asyncio
-    async def test_with_plate_env_snapshot_async_wrapper(self, _test_environment) -> None:
+    async def test_with_plate_env_snapshot_async_wrapper(self, _test_environment: Any) -> None:
         """Test _with_plate_env_snapshot async wrapper (line 1501)"""
         import app
 
         # Create async function wrapped with _with_plate_env_snapshot decorator
         @plate_patch._with_plate_env_snapshot
-        async def test_async_func():
+        async def test_async_func() -> str:
             return "test_result"
 
         # Call wrapped function - this tests line 1501: with _plate_env_snapshot()
-        result = await test_async_func()
+        result: str = await test_async_func()
         assert result == "test_result"
 
 
@@ -407,7 +411,7 @@ class TestAppPremiumPlate:
     """Тесты для premium_plate edge cases (строки 2292, 2296, 2344-2345, 2348)"""
 
     @pytest.mark.asyncio
-    async def test_premium_plate_non_callable_aggregate(self, _test_environment) -> None:
+    async def test_premium_plate_non_callable_aggregate(self, _test_environment: Any) -> None:
         """Test premium_plate handles non-callable _aggregate_day_micronutrients (lines 2292, 2296)"""
         import app
         import os
@@ -424,13 +428,13 @@ class TestAppPremiumPlate:
                         activity="moderate",
                         goal="maintain",
                     )
-                    resp = await app.api_premium_plate(req)
+                    resp: app.PlateResponse = await app.api_premium_plate(req)  # type: ignore[assignment]
                     # Empty micros when aggregator is not callable
                     assert isinstance(resp, app.PlateResponse)
                     assert resp.day_micros == {}
 
     @pytest.mark.asyncio
-    async def test_premium_plate_targets_exception(self, _test_environment) -> None:
+    async def test_premium_plate_targets_exception(self, _test_environment: Any) -> None:
         """Test premium_plate handles targets exception (lines 2344-2345, 2348)"""
         import app
         import os
@@ -445,5 +449,5 @@ class TestAppPremiumPlate:
                     activity="moderate",
                     goal="maintain",
                 )
-                resp = await app.api_premium_plate(req)
+                resp: app.PlateResponse = await app.api_premium_plate(req)  # type: ignore[assignment]
                 assert isinstance(resp, app.PlateResponse)
