@@ -12,16 +12,18 @@ from app.services.food_store import nutrients_for
 router = APIRouter(tags=["recipes"])
 
 
-@router.get("/api/v1/recipes", response_model=List[RecipeQueryHit])
-async def list_recipes(
-    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
+async def _query_recipe_hits(
+    query: str,
+    limit: int,
+    offset: int,
 ) -> List[RecipeQueryHit]:
+    """Shared implementation for recipe search endpoints."""
     if limit > 50 or limit < 1:
         raise HTTPException(422, "limit must be in [1,50]")
     if offset < 0:
         raise HTTPException(422, "offset must be >= 0")
     rows = await asyncio.to_thread(recipe_store.search_recipes, query or "*", limit, offset)
-    out = []
+    out: List[RecipeQueryHit] = []
     for r in rows:
         tags = json.loads(r.get("tags_json") or "[]")
         out.append(
@@ -35,12 +37,19 @@ async def list_recipes(
     return out
 
 
+@router.get("/api/v1/recipes", response_model=List[RecipeQueryHit])
+async def list_recipes(
+    query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
+) -> List[RecipeQueryHit]:
+    return await _query_recipe_hits(query, limit, offset)
+
+
 # Backward-compatible alias for tests expecting /api/v1/recipes/search
 @router.get("/api/v1/recipes/search", response_model=List[RecipeQueryHit])
 async def list_recipes_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[RecipeQueryHit]:
-    return await list_recipes(query=query, limit=limit, offset=offset)
+    return await _query_recipe_hits(query, limit, offset)
 
 
 @router.get("/api/v1/recipes/{recipe_id}", response_model=Recipe)

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
@@ -211,7 +211,7 @@ def sanitize_nutrition_dict(data: dict[str, Any]) -> dict[str, int]:
     """
     try:
         validated = NutritionData.model_validate(data)
-        result = validated.model_dump()
+        result = cast(dict[str, int], validated.model_dump())
         if not validated.validate_macro_sum():
             logger.info("Macro sum validation failed, returning sanitized data anyway")
         return result

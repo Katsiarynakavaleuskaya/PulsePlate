@@ -10,14 +10,16 @@ from __future__ import annotations
 import csv
 import os
 from datetime import date
-from typing import Any, Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, TypeAlias
 
 from core.aliases import map_to_canonical
 from core.units import iu_vitd_from_ug
 from core.food_sources.base import BaseAdapter, FoodRecord
 
+RawValue: TypeAlias = str | float | int | None
 
-def _parse_nutrient_value(raw_value: Any) -> Optional[float]:
+
+def _parse_nutrient_value(raw_value: RawValue) -> Optional[float]:
     """
     RU: Парсинг значения питательного вещества.
     EN: Parse nutrient value.
@@ -64,7 +66,7 @@ class USDAAdapter(BaseAdapter):
             )
         self.csv_path = csv_path
 
-    def fetch(self) -> Iterable[Dict[str, Any]]:
+    def fetch(self) -> Iterable[Dict[str, str]]:
         """
         RU: Читаем один CSV или все CSV в директории (чанки).
         EN: Read a single CSV or all CSVs in a directory (chunks).

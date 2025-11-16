@@ -11,7 +11,7 @@ import csv
 import io
 import logging
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -195,7 +195,7 @@ class ShoplistGenerator:
 
         return rules
 
-    def aggregate_ingredients(self, week_plan: dict[str, dict[str, float]]) -> dict[str, float]:
+    def aggregate_ingredients(self, week_plan: Mapping[str, object]) -> dict[str, float]:
         """Агрегирует ингредиенты из недельного плана.
 
         Args:
@@ -206,40 +206,66 @@ class ShoplistGenerator:
         """
         aggregated: dict[str, float] = {}
 
-        # Если week_plan содержит дни
-        if "days" in week_plan:
-            for day in week_plan["days"]:
-                if "meals" in day:
-                    for meal in day["meals"]:
-                        if "ingredients" in meal:
-                            for ingredient in meal["ingredients"]:
-                                name = ingredient.get("name", "")
-                                amount = ingredient.get("amount", 0)
-                                unit = ingredient.get("unit", "g")
-
-                                # Конвертируем в граммы
-                                amount_g = self._convert_to_grams(amount, unit)
-
-                                if name in aggregated:
-                                    aggregated[name] += amount_g
-                                else:
-                                    aggregated[name] = amount_g
-
-        # Если week_plan содержит ингредиенты напрямую
-        elif "ingredients" in week_plan:
-            for ingredient in week_plan["ingredients"]:
-                name = ingredient.get("name", "")
-                amount = ingredient.get("amount", 0)
-                unit = ingredient.get("unit", "g")
-
-                amount_g = self._convert_to_grams(amount, unit)
-
-                if name in aggregated:
-                    aggregated[name] += amount_g
-                else:
-                    aggregated[name] = amount_g
+        days_data = week_plan.get("days")
+        if isinstance(days_data, Sequence):
+            self._collect_days(days_data, aggregated)
+        else:
+            ingredients_data = week_plan.get("ingredients")
+            if isinstance(ingredients_data, Sequence):
+                self._collect_ingredients_sequence(ingredients_data, aggregated)
 
         return aggregated
+
+    def _collect_days(self, days: Sequence[object], aggregated: dict[str, float]) -> None:
+        """Traverse nested day -> meal -> ingredient structures safely."""
+        for day in days:
+            if not isinstance(day, Mapping):
+                continue
+            meals = day.get("meals")
+            if not isinstance(meals, Sequence):
+                continue
+            for meal in meals:
+                if not isinstance(meal, Mapping):
+                    continue
+                ingredients = meal.get("ingredients")
+                if isinstance(ingredients, Sequence):
+                    self._collect_ingredients_sequence(ingredients, aggregated)
+
+    def _collect_ingredients_sequence(
+        self, ingredients: Sequence[object], aggregated: dict[str, float]
+    ) -> None:
+        for ingredient in ingredients:
+            if isinstance(ingredient, Mapping):
+                self._accumulate_ingredient(ingredient, aggregated)
+
+    def _accumulate_ingredient(
+        self, ingredient: Mapping[str, object], aggregated: dict[str, float]
+    ) -> None:
+        name = self._coerce_str(ingredient.get("name"), default="")
+        amount = self._coerce_float(ingredient.get("amount"), default=0.0)
+        unit = self._coerce_str(ingredient.get("unit"), default="g") or "g"
+
+        amount_g = self._convert_to_grams(amount, unit)
+        aggregated[name] = aggregated.get(name, 0.0) + amount_g
+
+    @staticmethod
+    def _coerce_str(value: object, default: str = "") -> str:
+        if isinstance(value, str):
+            return value
+        if value is None:
+            return default
+        return str(value)
+
+    @staticmethod
+    def _coerce_float(value: object, default: float = 0.0) -> float:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except ValueError:
+                return default
+        return default
 
     def _convert_to_grams(self, amount: float, unit: str) -> float:
         """Конвертирует количество в граммы."""

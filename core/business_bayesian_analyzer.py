@@ -8,6 +8,7 @@ EN: Analyzes tests from the perspective of business model, revenue, and cost opt
 
 
 import ast
+import importlib
 import math
 import re
 
@@ -15,7 +16,8 @@ from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Any, cast
 
 
 class BusinessCategory(Enum):
@@ -182,21 +184,19 @@ class BusinessBayesianAnalyzer:
         """
         config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():
-            try:
-                import yaml
-
+            yaml_module = self._import_yaml_module()
+            if yaml_module is not None:
                 with open(config_path, "r", encoding="utf-8") as file:
+                    yaml_error = cast(
+                        type[BaseException], getattr(yaml_module, "YAMLError", Exception)
+                    )
                     try:
-                        data = yaml.safe_load(file)
-                        # Use Pydantic v2-compatible pattern if parsing objects (currently just YAML dict)
-                        # Defensive: Only return if data is dict, else fallback to {}
-                        return data if isinstance(data, dict) else {}
-                    except yaml.YAMLError:
+                        data = yaml_module.safe_load(file)
+                    except yaml_error:
                         # If YAML is invalid, return empty dict (fallback to defaults below)
                         return {}
-            except ImportError:
-                # PyYAML not installed, fallback to defaults
-                pass
+                    if isinstance(data, dict):
+                        return data
         # Fallback defaults (same as original hardcoded values)
         return {
             "revenue_streams": {
@@ -226,6 +226,14 @@ class BusinessBayesianAnalyzer:
                 "operations": {"support": 0.15, "legal": 0.05},
             },
         }
+
+    @staticmethod
+    def _import_yaml_module() -> ModuleType | None:
+        """Import yaml lazily to avoid hard dependency for type checkers."""
+        try:
+            return importlib.import_module("yaml")
+        except ModuleNotFoundError:
+            return None
 
     def _load_monetization_strategies(self, locale: str | None = None) -> dict[str, Any]:
         """Load monetization strategies from locale-specific config file or return defaults.
@@ -259,17 +267,17 @@ class BusinessBayesianAnalyzer:
         for loc in locales_to_try:
             config_path = config_dir / f"monetization_strategies.{loc}.yaml"
             if config_path.exists():
-                try:
-                    import yaml  # noqa: F401
-
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        loaded = yaml.safe_load(f) or {}
-                        if loaded:  # Only return if we got valid data
-                            return loaded
-                except Exception as e:  # nosec B110, B112 - intentional fallback to defaults
-                    # Try next locale in fallback chain
-                    # Log error for debugging but continue to next locale
+                yaml_module = self._import_yaml_module()
+                if yaml_module is None:
                     continue
+                yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        loaded = yaml_module.safe_load(f) or {}
+                except (OSError, yaml_error):  # nosec B110, B112 - fallback to defaults
+                    continue
+                if loaded:  # Only return if we got valid data
+                    return loaded
 
         # Fallback defaults (English text)
         return {
@@ -305,16 +313,16 @@ class BusinessBayesianAnalyzer:
         """
         config_path = Path(__file__).parent.parent / "config" / "cost_optimization_rules.yaml"
         if config_path.exists():
-            try:
-                import yaml  # noqa: F401
-
-                with open(config_path, "r", encoding="utf-8") as f:
-                    loaded = yaml.safe_load(f) or {}
-                    if loaded:
-                        return loaded
-            except ImportError:
-                # PyYAML not installed, fallback to defaults
-                pass
+            yaml_module = self._import_yaml_module()
+            if yaml_module is not None:
+                yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
+                try:
+                    with open(config_path, "r", encoding="utf-8") as f:
+                        loaded = yaml_module.safe_load(f) or {}
+                except (OSError, yaml_error):
+                    loaded = {}
+                if loaded:
+                    return loaded
 
         # Fallback defaults (same as original hardcoded values)
         return {

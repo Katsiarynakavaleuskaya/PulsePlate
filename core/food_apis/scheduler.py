@@ -37,6 +37,9 @@ class DatabaseUpdateScheduler:
     - Update notifications and logging
     """
 
+    _shutdown_event: asyncio.Event
+    _update_task: asyncio.Task[None] | None
+
     def __init__(
         self,
         update_interval_hours: int = 24,

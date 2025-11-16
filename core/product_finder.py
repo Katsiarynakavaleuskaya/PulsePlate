@@ -731,18 +731,23 @@ class ProductFinder:
             "name": food_item.name,
             "unit_per": food_item.unit_per,
             "unit": food_item.unit,
-            "protein_g": food_item.protein_g,
-            "fat_g": food_item.fat_g,
-            "carbs_g": food_item.carbs_g,
-            "fiber_g": food_item.fiber_g,
-            "Fe_mg": food_item.Fe_mg,
-            "Ca_mg": food_item.Ca_mg,
-            "VitD_IU": food_item.VitD_IU,
-            "B12_ug": food_item.B12_ug,
-            "Folate_ug": food_item.Folate_ug,
-            "Iodine_ug": food_item.Iodine_ug,
-            "K_mg": food_item.K_mg,
-            "Mg_mg": food_item.Mg_mg,
+            "protein_g": self._serialize_optional(food_item.protein_g),
+            "fat_g": self._serialize_optional(food_item.fat_g),
+            "carbs_g": self._serialize_optional(food_item.carbs_g),
+            "fiber_g": self._serialize_optional(food_item.fiber_g),
+            "Fe_mg": self._serialize_optional(food_item.Fe_mg),
+            "Ca_mg": self._serialize_optional(food_item.Ca_mg),
+            "VitD_IU": self._serialize_optional(food_item.VitD_IU),
+            "B12_ug": self._serialize_optional(food_item.B12_ug),
+            "Folate_ug": self._serialize_optional(food_item.Folate_ug),
+            "Iodine_ug": self._serialize_optional(food_item.Iodine_ug),
+            "K_mg": self._serialize_optional(food_item.K_mg),
+            "Mg_mg": self._serialize_optional(food_item.Mg_mg),
             "price_per_unit": food_item.price_per_unit,
             "flags": ",".join(sorted(food_item.flags)) if food_item.flags else "",
         }
+
+    @staticmethod
+    def _serialize_optional(value: Optional[float]) -> float | str:
+        """Convert optional nutrient values to CSV-friendly format."""
+        return "" if value is None else value

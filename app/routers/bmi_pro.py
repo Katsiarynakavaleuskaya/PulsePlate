@@ -71,4 +71,4 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         notes=notes,
     )
     payload = asdict(card)
-    return BMIProResponse.model_validate(payload)
+    return BMIProResponse(**payload)
