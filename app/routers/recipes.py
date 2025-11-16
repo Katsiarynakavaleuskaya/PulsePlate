@@ -40,8 +40,7 @@ async def list_recipes(
 async def list_recipes_search(
     query: str = Query("", max_length=64), limit: int = 20, offset: int = 0
 ) -> List[RecipeQueryHit]:
-    result: List[RecipeQueryHit] = await list_recipes(query=query, limit=limit, offset=offset)
-    return result
+    return await list_recipes(query=query, limit=limit, offset=offset)
 
 
 @router.get("/api/v1/recipes/{recipe_id}", response_model=Recipe)

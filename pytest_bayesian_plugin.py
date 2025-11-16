@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import logging
 import os
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from _pytest.config import Config
@@ -37,14 +38,16 @@ from core.bayesian_test_analyzer import (
 
 # Import modules via proper packaging/pytest configuration (no sys.path mutations)
 
+logger = logging.getLogger(__name__)
+
 
 class BayesianPytestPlugin:
     """Pytest plugin для байесовской диагностики."""
 
-    DEFAULT_CATEGORY_MARKERS = ["smoke", "regression", "integration", "unit"]
+    DEFAULT_CATEGORY_MARKERS: List[str] = ["smoke", "regression", "integration", "unit"]
 
     # Mapping of marker names (lowercase) to TestCategory
-    MARKER_TO_CATEGORY = {
+    MARKER_TO_CATEGORY: Dict[str, TestCategory] = {
         "integration": TestCategory.INTEGRATION,
         "e2e": TestCategory.E2E,
         "performance": TestCategory.PERFORMANCE,
@@ -68,12 +71,12 @@ class BayesianPytestPlugin:
         (ErrorType.ASYNC_ERROR, ["asyncio", "await", "async"], False),
     ]
 
-    def __init__(self, category_markers: list | None = None) -> None:
+    def __init__(self, category_markers: Optional[List[str]] = None) -> None:
         self.analyzer = BayesianTestAnalyzer()
-        self.test_start_times: dict[str, float] = {}
         self.test_contexts: dict[str, dict[str, Any]] = {}
+        self.test_start_times: dict[str, float] = {}
         # Allow custom markers, fallback to default
-        self.category_markers = category_markers or self.DEFAULT_CATEGORY_MARKERS
+        self.category_markers = list(category_markers or self.DEFAULT_CATEGORY_MARKERS)
 
     def pytest_runtest_setup(self, item: Item) -> None:
         """Вызывается перед выполнением теста."""
@@ -118,10 +121,16 @@ class BayesianPytestPlugin:
             if error_message:
                 diagnosis = diagnose_test_failure(test_name, error_message, context)
                 self._print_diagnosis(diagnosis)
-        else:  # skipped, error
-            result = TestStatus.SKIPPED if report.outcome == "skipped" else TestStatus.ERROR
+        elif report.outcome == "skipped":
+            result = TestStatus.SKIPPED
             error_type = None
             error_message = None
+        else:  # ERROR/other unexpected outcomes
+            result = TestStatus.ERROR
+            error_type, error_message = self._analyze_failure(report)
+            if error_message:
+                diagnosis = diagnose_test_failure(test_name, error_message, context)
+                self._print_diagnosis(diagnosis)
 
         # Записать выполнение теста
         fspath = getattr(report, "fspath", None)
@@ -223,6 +232,7 @@ class BayesianPytestPlugin:
 
                 return inspect.getsource(item.function)
         except (OSError, TypeError):
+            # Source may be unavailable (e.g., dynamically generated functions or builtins).
             pass
         return ""
 
@@ -368,23 +378,32 @@ class BayesianPytestPlugin:
         truthy = {"1", "true", "yes", "on"}
         if val not in truthy:
             return
-        print("\n" + "=" * 60)
-        print("🔍 БАЙЕСОВСКАЯ ДИАГНОСТИКА")
-        print("=" * 60)
-        print(f"Наиболее вероятная причина: {diagnosis.most_likely_cause}")
-        print(f"Вероятность: {diagnosis.probability:.2%}")
-        print(f"Уверенность: {diagnosis.confidence:.2%}")
-        print("\n📋 Доказательства:")
-        for evidence in diagnosis.evidence:
-            print(f"  • {evidence}")
-        print("\n💡 Рекомендации:")
-        for recommendation in diagnosis.recommendations:
-            print(f"  • {recommendation}")
+        diag_logger = logging.getLogger("bayesian.diagnostics")
+        lines = [
+            "",
+            "=" * 60,
+            "🔍 БАЙЕСОВСКАЯ ДИАГНОСТИКА",
+            "=" * 60,
+            f"Наиболее вероятная причина: {diagnosis.most_likely_cause}",
+            f"Вероятность: {diagnosis.probability:.2%}",
+            f"Уверенность: {diagnosis.confidence:.2%}",
+            "",
+            "📋 Доказательства:",
+        ]
+        lines.extend(f"  • {evidence}" for evidence in diagnosis.evidence)
+        lines.append("")
+        lines.append("💡 Рекомендации:")
+        lines.extend(f"  • {recommendation}" for recommendation in diagnosis.recommendations)
         if diagnosis.alternative_causes:
-            print("\n🔄 Альтернативные причины:")
-            for cause, prob in diagnosis.alternative_causes:
-                print(f"  • {cause}: {prob:.2%}")
-        print("=" * 60 + "\n")
+            lines.append("")
+            lines.append("🔄 Альтернативные причины:")
+            lines.extend(f"  • {cause}: {prob:.2%}" for cause, prob in diagnosis.alternative_causes)
+        lines.append("=" * 60)
+        lines.append("")
+
+        for line in lines:
+            diag_logger.info(line)
+            print(line)
 
 
 def pytest_configure(config: Config) -> None:

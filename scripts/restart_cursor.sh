@@ -45,7 +45,7 @@ EOF
 # Function to validate numeric input
 is_numeric() {
     local value="$1"
-    if [[ "$value" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    if [[ "$value" =~ ^[0-9]+$ ]]; then
         return 0
     else
         return 1
@@ -126,7 +126,10 @@ echo "🔄 Restarting Cursor..."
 
 # Check if Cursor is running
 debug_log "Checking if Cursor is running..."
-if pgrep -x "Cursor" > /dev/null; then
+if [[ "$DRY_RUN" == "true" ]]; then
+    debug_log "DRY RUN: Would check and close Cursor"
+    echo "🚀 [DRY RUN] Would close Cursor (if running)"
+elif pgrep -x "Cursor" > /dev/null; then
     debug_log "Cursor process found via pgrep"
     echo "📋 Closing Cursor..."
     # Try graceful quit first (saves files)
@@ -157,7 +160,11 @@ fi
 
 # Wait a moment before reopening
 debug_log "Waiting $REOPEN_DELAY seconds before reopening..."
-sleep "$REOPEN_DELAY"
+if [[ "$DRY_RUN" != "true" ]]; then
+    sleep "$REOPEN_DELAY"
+else
+    debug_log "DRY RUN: Skipping $REOPEN_DELAY second delay"
+fi
 
 # Open Cursor
 if [[ "$DRY_RUN" == "true" ]]; then

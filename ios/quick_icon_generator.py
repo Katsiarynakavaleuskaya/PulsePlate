@@ -13,8 +13,12 @@ except ImportError:
     Image = None  # type: ignore
 
 
-def create_icons_from_source(source_path):
+def create_icons_from_source(source_path: str) -> bool:
     """Создает все иконки из исходного изображения"""
+
+    if Image is None:
+        print("❌ Установите Pillow: pip install Pillow")
+        return False
 
     # Проверяем исходный файл
     if not os.path.exists(source_path):
@@ -23,7 +27,7 @@ def create_icons_from_source(source_path):
 
     # Папка для иконок (можно переопределить через переменную окружения)
     icons_dir = os.getenv("IOS_APPICONSET_DIR", "PulsePlate/Assets.xcassets/AppIcon.appiconset")
-    icons_dir = os.path.normpath(icons_dir)
+    icons_dir = os.path.normpath(os.path.abspath(icons_dir))
 
     if not os.path.exists(icons_dir):
         print(f"❌ Папка {icons_dir} не найдена!")

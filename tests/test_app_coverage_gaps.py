@@ -13,6 +13,7 @@ EN: Tests for covering uncovered lines in app.py.
 import os
 import sys
 from contextlib import suppress
+from typing import Generator
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -101,7 +102,9 @@ class TestAppDatabaseFallback:
 class TestAppTestRouterImport:
     """Тесты для test router ImportError handling (строки 357-358)"""
 
-    def test_test_router_import_error_handling(self, _test_environment) -> None:
+    def test_test_router_import_error_handling(
+        self, _test_environment: pytest.FixtureRequest
+    ) -> None:
         """Test ImportError handling when test router is not available (lines 357-358)"""
         import app
 
@@ -122,11 +125,9 @@ class TestAppTestRouterImport:
                 response = client.get("/health")
                 assert response.status_code == 200
 
-
-class TestAppDynamicPatching:
-    """Тесты для dynamic patching exception handling (строки 1276, 1279-1280, 1287-1288)"""
-
-    def test_sync_app_attr_sources_none_source_skip(self, _test_environment) -> None:
+    def test_sync_app_attr_sources_none_source_skip(
+        self, _test_environment: pytest.FixtureRequest
+    ) -> None:
         """Test _sync_app_attr_sources skips None source (line 1276)"""
         # Create sources list with None
         sources = [None, MagicMock(), None]
@@ -136,7 +137,9 @@ class TestAppDynamicPatching:
         # Function may return None or continue processing
         # Main thing is it doesn't crash on None source
 
-    def test_sync_app_attr_sources_attribute_error(self, _test_environment) -> None:
+    def test_sync_app_attr_sources_attribute_error(
+        self, _test_environment: pytest.FixtureRequest
+    ) -> None:
         """Test _sync_app_attr_sources handles AttributeError (lines 1279-1280)"""
 
         # Create source that raises AttributeError
@@ -151,7 +154,9 @@ class TestAppDynamicPatching:
         result = plate_patch._sync_app_attr_sources(alias_module, sources)
         # Should not raise exception
 
-    def test_sync_app_attr_sources_setattr_exception(self, _test_environment) -> None:
+    def test_sync_app_attr_sources_setattr_exception(
+        self, _test_environment: pytest.FixtureRequest
+    ) -> None:
         """Test _sync_app_attr_sources handles setattr exception (lines 1287-1288)"""
         # Create source and target where setattr fails
         source = MagicMock()
@@ -167,12 +172,17 @@ class TestAppDynamicPatching:
         # Should handle setattr exception gracefully
         result = plate_patch._sync_app_attr_sources(alias_module, sources)
         # Should not raise exception, just continue
+        # Should handle setattr exception gracefully
+        result = plate_patch._sync_app_attr_sources(alias_module, sources)
+        # Should not raise exception, just continue
 
 
 class TestAppTargetsDisabled:
     """Тесты для _targets_disabled edge cases (строки 1312, 1315-1320, 1325-1328)"""
 
-    def test_targets_disabled_app_package_ref_set(self, _test_environment) -> None:
+    def test_targets_disabled_app_package_ref_set(
+        self, _test_environment: Generator[dict[str, str], None, None]
+    ) -> None:
         """Test _targets_disabled when _APP_PACKAGE_REF is set (line 1312)"""
         import app
 
@@ -184,7 +194,9 @@ class TestAppTargetsDisabled:
         # Should return boolean
         assert isinstance(result, bool)
 
-    def test_targets_disabled_primary_app_missing(self, _test_environment) -> None:
+    def test_targets_disabled_primary_app_missing(
+        self, _test_environment: Generator[dict[str, str], None, None]
+    ) -> None:
         """Test _targets_disabled when primary app module is missing (lines 1315-1320)"""
         import app
 
@@ -204,7 +216,9 @@ class TestAppTargetsDisabled:
         # Restore
         app._APP_PACKAGE_REF = original_ref
 
-    def test_targets_disabled_alias_app_none_attr(self, _test_environment) -> None:
+    def test_targets_disabled_alias_app_none_attr(
+        self, _test_environment: Generator[dict[str, str], None, None]
+    ) -> None:
         """Test _targets_disabled when alias app has None attribute (lines 1325-1328)"""
         import app
 

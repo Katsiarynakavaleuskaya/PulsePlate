@@ -182,7 +182,9 @@ def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, 
             alias_parts: list[str] = []
             for val in row_values[primary_idx + 1 :]:
                 for semicolon_part in val.split(";"):
-                    alias_parts.extend(semicolon_part.split(","))
+                    alias = semicolon_part.strip()
+                    if alias:
+                        alias_parts.append(alias)
             # Process each alias part
             seen = set(canonical_to_aliases[primary_lower])
             for alias_raw in alias_parts:

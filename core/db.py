@@ -78,16 +78,18 @@ def _build_engine_url(fallback_url: Optional[str] = None) -> str:
         default_path = os.path.join("cache", "app.db")
         database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
+    database_url_str = str(database_url)
+
     # Only create directory for file-based SQLite databases
-    if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):
+    if database_url_str.startswith("sqlite:///") and not database_url_str.endswith(":memory:"):
         # Extract the file path from sqlite:/// URL
-        sqlite_path = database_url.replace("sqlite:///", "", 1)
+        sqlite_path = database_url_str.replace("sqlite:///", "", 1)
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:  # Only create if there's a parent directory
             os.makedirs(db_dir, exist_ok=True)
 
     # Use file-based SQLite by default so the data survives across runs.
-    return str(database_url)
+    return database_url_str
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
@@ -107,6 +109,7 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
         or "aiosqlite" in sync_url
         or "asyncpg" in sync_url
         or "aiomysql" in sync_url
+        or sync_url.startswith("postgresql+psycopg://")
     ):
         return sync_url
 
@@ -119,8 +122,6 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
         return sync_url.replace("postgres://", "postgresql+asyncpg://", 1)
     if sync_url.startswith("postgresql+psycopg2://"):
         return sync_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://", 1)
-    if sync_url.startswith("postgresql+psycopg://"):
-        return sync_url.replace("postgresql+psycopg://", "postgresql+psycopg_async://", 1)
     if sync_url.startswith("mysql://"):
         return sync_url.replace("mysql://", "mysql+aiomysql://", 1)
     if sync_url.startswith("mysql+pymysql://"):

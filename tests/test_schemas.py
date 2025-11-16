@@ -31,7 +31,7 @@ def test_food_item_valid():
     assert food.fat_g == 0.2
     assert food.carbs_g == 14.0
     assert food.per_g == 100.0  # Default value
-    assert food.fiber_g == 0.0  # Default value
+    assert food.fiber_g is None  # Default value (None for unknown/missing)
     assert food.source == "USDA"
     assert food.version_date == "2023-01-01"
 
@@ -357,9 +357,9 @@ def test_default_values():
     )
 
     assert food.per_g == 100.0
-    assert food.fiber_g == 0.0
-    assert food.Fe_mg == 0.0
-    assert food.Ca_mg == 0.0
+    assert food.fiber_g is None  # Default value (None for unknown/missing)
+    assert food.Fe_mg is None  # Default value (None for unknown/missing)
+    assert food.Ca_mg is None  # Default value (None for unknown/missing)
     assert food.flags == []
     assert food.brand is None
 

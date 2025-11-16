@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from bmi_core import (
+    bmi_category,
     bmi_value,
     build_premium_plan,
     estimate_level,
@@ -169,23 +170,17 @@ class TestBMICoreCoverage:
 
     def _call_interpret_group_safe(self, group: str, lang: str, bmi: float = 24.9) -> str | None:
         """Safely call interpret_group with correct signature."""
-        fn = getattr(pytest.importorskip("bmi_core"), "interpret_group", None)
-        if not callable(fn):
-            pytest.skip("interpret_group not found")
-
         # Use correct signature: interpret_group(bmi, group, lang, age=None)
         try:
-            result = fn(bmi=bmi, group=group, lang=lang)
+            result = interpret_group(bmi=bmi, group=group, lang=lang)
             return str(result) if result is not None else None
         except (TypeError, ValueError) as e:
             pytest.skip(f"interpret_group call failed: {e}")
 
     def test_group_display_fallbacks_and_edges(self):
         """Test BMI category fallbacks and edge cases."""
-        bmi_core = pytest.importorskip("bmi_core")
-
         # language outside ('ru','en') -> fallback to default (en)
-        assert bmi_core.bmi_category(24.9, "de") == bmi_core.bmi_category(24.9, "en")
+        assert bmi_category(24.9, "de") == bmi_category(24.9, "en")
 
         # safe call to interpret_group (or skip if signature is unusual)
         res = self._call_interpret_group_safe("unknown_group", "en")

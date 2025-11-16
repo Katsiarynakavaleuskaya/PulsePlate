@@ -44,7 +44,7 @@ def _get_food(food_id: str) -> dict | None:
     return dict(row) if row else None
 
 
-def _sum_nutrients(ingredients: list[dict]) -> dict:
+def _sum_nutrients(ingredients: list[dict]) -> dict[str, float]:
     total = {k: 0.0 for k in KEYS}
     for ing in ingredients:
         food = _get_food(ing["food_id"])
@@ -67,7 +67,7 @@ def _sum_cost(ingredients: list[dict]) -> float:
     return cost
 
 
-def main():
+def main() -> None:
     df = pd.read_csv(SRC_CSV)
     print(f"Columns in CSV: {list(df.columns)}")
     print(f"First row: {df.iloc[0].to_dict()}")

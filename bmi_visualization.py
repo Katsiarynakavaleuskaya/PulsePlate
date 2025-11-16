@@ -187,10 +187,10 @@ class BMIVisualizer:
 
         # Add value labels on bars
         for bar, weight in zip(bars, weights):
-            height = bar.get_height()
+            bar_height = bar.get_height()
             ax.text(
                 bar.get_x() + bar.get_width() / 2.0,
-                height + 1,
+                bar_height + 1,
                 f"{weight:.1f}kg",
                 ha="center",
                 va="bottom",

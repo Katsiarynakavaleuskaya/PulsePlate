@@ -27,18 +27,18 @@ class FoodItem:
     name: str
     unit_per: int  # e.g., 100
     unit: str  # e.g., g
-    protein_g: float
-    fat_g: float
-    carbs_g: float
-    fiber_g: float
-    Fe_mg: float
-    Ca_mg: float
-    VitD_IU: float
-    B12_ug: float
-    Folate_ug: float
-    Iodine_ug: float
-    K_mg: float
-    Mg_mg: float
+    protein_g: Optional[float]
+    fat_g: Optional[float]
+    carbs_g: Optional[float]
+    fiber_g: Optional[float]
+    Fe_mg: Optional[float]
+    Ca_mg: Optional[float]
+    VitD_IU: Optional[float]
+    B12_ug: Optional[float]
+    Folate_ug: Optional[float]
+    Iodine_ug: Optional[float]
+    K_mg: Optional[float]
+    Mg_mg: Optional[float]
     price_per_unit: float
     flags: Set[str]
 
@@ -46,18 +46,20 @@ class FoodItem:
         """
         RU: Преобразует питательные вещества в формат MicroTargets.
         EN: Convert nutrients to MicroTargets format.
+
+        Missing nutrient values (None) are treated as 0.0.
         """
         return MicroTargets(
-            iron_mg=self.Fe_mg,
-            calcium_mg=self.Ca_mg,
-            magnesium_mg=self.Mg_mg,
+            iron_mg=self.Fe_mg or 0.0,
+            calcium_mg=self.Ca_mg or 0.0,
+            magnesium_mg=self.Mg_mg or 0.0,
             zinc_mg=0.0,  # Not in CSV, would need to be added
-            potassium_mg=self.K_mg,
-            iodine_ug=self.Iodine_ug,
+            potassium_mg=self.K_mg or 0.0,
+            iodine_ug=self.Iodine_ug or 0.0,
             selenium_ug=0.0,  # Not in CSV, would need to be added
-            folate_ug=self.Folate_ug,
-            b12_ug=self.B12_ug,
-            vitamin_d_iu=self.VitD_IU,
+            folate_ug=self.Folate_ug or 0.0,
+            b12_ug=self.B12_ug or 0.0,
+            vitamin_d_iu=self.VitD_IU or 0.0,
             vitamin_a_ug=0.0,  # Not in CSV, would need to be added
             vitamin_c_mg=0.0,  # Not in CSV, would need to be added
         )
@@ -85,7 +87,8 @@ class FoodItem:
             "vitamin_d_iu": self.VitD_IU,
         }
 
-        return nutrient_mapping.get(nutrient_name, 0.0) * factor
+        nutrient_value = nutrient_mapping.get(nutrient_name, 0.0)
+        return (nutrient_value or 0.0) * factor
 
 
 def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:

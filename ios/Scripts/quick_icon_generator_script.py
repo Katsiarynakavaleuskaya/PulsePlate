@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Быстрый генератор иконок для PulsePlate
-Использование: python quick_icon_generator.py path/to/your/icon.png
+Быстрый генератор иконок для PulsePlate.
+Использование: python quick_icon_generator_script.py path/to/your/icon.png
 """
 
 import os
@@ -22,6 +22,9 @@ from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 def create_icons_from_source(source_path: str) -> bool:
     """Создает все иконки из исходного изображения"""
+    if Image is None:
+        print("❌ Установите Pillow: pip install Pillow")
+        return False
 
     # Проверяем исходный файл
     if not os.path.exists(source_path):
@@ -82,7 +85,7 @@ def create_icons_from_source(source_path: str) -> bool:
 # Main guard — Pillow import check is required; script exits if Pillow is not installed
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Использование: python quick_icon_generator.py path/to/your/icon.png")
+        print("Использование: python quick_icon_generator_script.py path/to/your/icon.png")
         sys.exit(1)
 
     source_path = sys.argv[1]

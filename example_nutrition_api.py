@@ -362,58 +362,13 @@ def _get_exception_info(exception: Exception) -> Tuple[str, int, Dict[str, str]]
         - log_level: Logging level (logging.ERROR, logging.WARNING, etc.)
         - messages_dict: Dictionary with 'en' and 'ru' message templates
     """
-    # Centralized exception type mapping
-    exception_mappings: Dict[type, Tuple[str, int, Dict[str, str]]] = {
-        requests.exceptions.Timeout: (
-            "timeout",
-            logging.ERROR,
-            {
-                "en": "⏱️ Timeout: %s",
-                "ru": "⏱️ Таймаут: %s",
-            },
-        ),
-        requests.exceptions.HTTPError: (
-            "http_error",
-            logging.ERROR,
-            {
-                "en": "❌ HTTP error: %s",
-                "ru": "❌ HTTP-ошибка: %s",
-            },
-        ),
-        requests.exceptions.ConnectionError: (
-            "connection_error",
-            logging.ERROR,
-            {
-                "en": "🔌 Connection error: %s",
-                "ru": "🔌 Ошибка соединения: %s",
-            },
-        ),
-        requests.exceptions.RequestException: (
-            "request_error",
-            logging.WARNING,
-            {
-                "en": "⚠️ Request error: %s",
-                "ru": "⚠️ Ошибка запроса: %s",
-            },
-        ),
-    }
-
-    # Find matching exception type
-    default_result = (
-        "unexpected",
-        logging.ERROR,
-        {
-            "en": "❌ Unexpected error: %s",
-            "ru": "❌ Непредвиденная ошибка: %s",
-        },
-    )
     return next(
         (
             (key, level, messages)
-            for exc_type, (key, level, messages) in exception_mappings.items()
+            for exc_type, (key, level, messages) in _EXCEPTION_MAPPINGS.items()
             if isinstance(exception, exc_type)
         ),
-        default_result,
+        _DEFAULT_EXCEPTION_INFO,
     )
 
 
@@ -616,3 +571,46 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+_EXCEPTION_MAPPINGS: Dict[type, Tuple[str, int, Dict[str, str]]] = {
+    requests.exceptions.Timeout: (
+        "timeout",
+        logging.ERROR,
+        {
+            "en": "⏱️ Timeout: %s",
+            "ru": "⏱️ Таймаут: %s",
+        },
+    ),
+    requests.exceptions.HTTPError: (
+        "http_error",
+        logging.ERROR,
+        {
+            "en": "❌ HTTP error: %s",
+            "ru": "❌ HTTP-ошибка: %s",
+        },
+    ),
+    requests.exceptions.ConnectionError: (
+        "connection_error",
+        logging.ERROR,
+        {
+            "en": "🔌 Connection error: %s",
+            "ru": "🔌 Ошибка соединения: %s",
+        },
+    ),
+    requests.exceptions.RequestException: (
+        "request_error",
+        logging.WARNING,
+        {
+            "en": "⚠️ Request error: %s",
+            "ru": "⚠️ Ошибка запроса: %s",
+        },
+    ),
+}
+
+_DEFAULT_EXCEPTION_INFO: Tuple[str, int, Dict[str, str]] = (
+    "unexpected",
+    logging.ERROR,
+    {
+        "en": "❌ Unexpected error: %s",
+        "ru": "❌ Непредвиденная ошибка: %s",
+    },
+)

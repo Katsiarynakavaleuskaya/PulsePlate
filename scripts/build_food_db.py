@@ -16,7 +16,7 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
-from typing import Iterable
+from typing import Any, Iterable
 
 import pandas as pd
 from pydantic import ValidationError
@@ -137,7 +137,7 @@ class FoodDatabaseBuilder:
 
         # Merge records (pass objects directly)
         streams: list[Iterable[FoodRecord]] = [usda_data, off_data]
-        merged_records: list[dict] = merge_records(streams)
+        merged_records: list[dict[str, Any]] = merge_records(streams)
         logging.info(f"  📊 Merged: {len(merged_records)} unique foods")
 
         # Validate and convert to FoodItem
@@ -151,24 +151,25 @@ class FoodDatabaseBuilder:
                 food_id = self._generate_food_id(canonical_name, record)
 
                 # Create FoodItem with full provenance
+                # Note: Nutrient fields may be None for missing/unknown values
                 food_item = FoodItem(
                     id=food_id,
                     canonical_name=canonical_name,
                     group=record.get("group", "unknown"),
                     per_g=record.get("per_g", 100.0),
-                    kcal=record.get("kcal", 0.0),
-                    protein_g=record.get("protein_g", 0.0),
-                    fat_g=record.get("fat_g", 0.0),
-                    carbs_g=record.get("carbs_g", 0.0),
-                    fiber_g=record.get("fiber_g", 0.0),
-                    Fe_mg=record.get("Fe_mg", 0.0),
-                    Ca_mg=record.get("Ca_mg", 0.0),
-                    K_mg=record.get("K_mg", 0.0),
-                    Mg_mg=record.get("Mg_mg", 0.0),
-                    VitD_IU=record.get("VitD_IU", 0.0),
-                    B12_ug=record.get("B12_ug", 0.0),
-                    Folate_ug=record.get("Folate_ug", 0.0),
-                    Iodine_ug=record.get("Iodine_ug", 0.0),
+                    kcal=record.get("kcal"),  # May be None for missing values
+                    protein_g=record.get("protein_g"),  # May be None for missing values
+                    fat_g=record.get("fat_g"),  # May be None for missing values
+                    carbs_g=record.get("carbs_g"),  # May be None for missing values
+                    fiber_g=record.get("fiber_g"),  # May be None for missing values
+                    Fe_mg=record.get("Fe_mg"),  # May be None for missing values
+                    Ca_mg=record.get("Ca_mg"),  # May be None for missing values
+                    K_mg=record.get("K_mg"),  # May be None for missing values
+                    Mg_mg=record.get("Mg_mg"),  # May be None for missing values
+                    VitD_IU=record.get("VitD_IU"),  # May be None for missing values
+                    B12_ug=record.get("B12_ug"),  # May be None for missing values
+                    Folate_ug=record.get("Folate_ug"),  # May be None for missing values
+                    Iodine_ug=record.get("Iodine_ug"),  # May be None for missing values
                     flags=record.get("flags", []),
                     brand=record.get("brand"),
                     gtin=record.get("gtin"),
@@ -192,7 +193,7 @@ class FoodDatabaseBuilder:
         logging.info(f"  ✅ Validated: {len(validated_foods)} foods")
         return validated_foods
 
-    def _generate_food_id(self, canonical_name: str, record: dict) -> str:
+    def _generate_food_id(self, canonical_name: str, record: dict[str, Any]) -> str:
         """
         RU: Генерировать детерминированный ID продукта.
         EN: Generate deterministic food ID.
@@ -356,9 +357,10 @@ class FoodDatabaseBuilder:
             # Group distribution
             groups[food.group] = groups.get(food.group, 0) + 1
 
-            # Micronutrient coverage
+            # Micronutrient coverage - count foods with known (non-None) values > 0
             for field in MICRONUTRIENT_FIELDS:
-                if getattr(food, field) > 0:
+                value = getattr(food, field)
+                if value is not None and value > 0:
                     micronutrient_coverage[field] = micronutrient_coverage.get(field, 0) + 1
 
         # Calculate coverage percentages

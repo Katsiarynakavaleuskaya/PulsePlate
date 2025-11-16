@@ -222,7 +222,7 @@ def set_version(v: str) -> None:
         Updates or creates the openfoodfacts.version field in the JSON file.
     """
     # Load or create metadata - json.loads returns Any, validated below
-    meta: Any  # Declare once to avoid linter "already defined" error
+    meta: Dict[str, Any]  # Declare once to avoid linter "already defined" error
     if not VERS.exists():
         logger.warning(f"{VERS} missing, creating default")
         # Create default database_versions.json if it doesn't exist

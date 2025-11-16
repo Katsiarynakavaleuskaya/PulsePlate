@@ -66,7 +66,7 @@ class TestUSDAAdapter:
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             writer = csv.writer(f)
             writer.writerow(["description", "energy_kcal", "protein_g", "fat_g", "carbs_g"])
-            # Row with empty values that should fallback to 0
+            # Row with empty values that should be None for missing/unknown
             writer.writerow(["Test Food", "", "", "", "5.0"])
             f.flush()
 
@@ -76,9 +76,9 @@ class TestUSDAAdapter:
             assert len(results) == 1
             food = results[0]
             assert food.name  # Should have canonical name
-            assert food.kcal == 0.0  # Empty string -> 0
-            assert food.protein_g == 0.0  # Empty string -> 0
-            assert food.fat_g == 0.0  # Empty string -> 0
+            assert food.kcal is None  # Empty string -> None (unknown)
+            assert food.protein_g is None  # Empty string -> None (unknown)
+            assert food.fat_g is None  # Empty string -> None (unknown)
             assert food.carbs_g == 5.0  # Valid value
             assert food.source == "USDA"
 
@@ -239,9 +239,9 @@ class TestFoodSourcesIntegration:
             results = list(adapter.normalize())
 
             assert len(results) == 2
-            # Should handle zero and very small values
-            assert all(food.kcal >= 0 for food in results)
-            assert all(food.protein_g >= 0 for food in results)
+            # Should handle zero and very small values (only check non-None values)
+            assert all(food.kcal >= 0 for food in results if food.kcal is not None)
+            assert all(food.protein_g >= 0 for food in results if food.protein_g is not None)
 
         os.unlink(f.name)
 

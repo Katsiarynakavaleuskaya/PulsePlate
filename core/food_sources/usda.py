@@ -17,6 +17,32 @@ from core.units import iu_vitd_from_ug
 from core.food_sources.base import BaseAdapter, FoodRecord
 
 
+def _parse_nutrient_value(raw_value: Any) -> Optional[float]:
+    """
+    RU: Парсинг значения питательного вещества.
+    EN: Parse nutrient value.
+
+    Returns None if the value is missing, empty, or invalid.
+    Only returns a float if the raw value is a valid numeric string.
+
+    Args:
+        raw_value: Raw value from data source
+
+    Returns:
+        Parsed float value or None if missing/invalid
+    """
+    if raw_value is None or raw_value == "" or raw_value == "unknown":
+        return None
+    try:
+        # Strip whitespace and check if it's a valid number
+        cleaned = str(raw_value).strip()
+        if cleaned == "" or cleaned.lower() in {"nan", "null", "none"}:
+            return None
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return None
+
+
 class USDAAdapter(BaseAdapter):
     """
     RU: Адаптер для базы данных USDA.
@@ -68,24 +94,24 @@ class USDAAdapter(BaseAdapter):
             canonical = map_to_canonical(raw_name, locale="en")
             per_g = 100.0
 
-            # Extract nutrients (with fallback to 0)
-            kcal = float(row.get("energy_kcal", 0) or 0)
-            protein_g = float(row.get("protein_g", 0) or 0)
-            fat_g = float(row.get("fat_g", 0) or 0)
-            carbs_g = float(row.get("carbs_g", 0) or 0)
-            fiber_g = float(row.get("fiber_g", 0) or 0)
-            Fe_mg = float(row.get("iron_mg", 0) or 0)
-            Ca_mg = float(row.get("calcium_mg", 0) or 0)
+            # Extract nutrients (None for missing/unknown values)
+            kcal = _parse_nutrient_value(row.get("energy_kcal"))
+            protein_g = _parse_nutrient_value(row.get("protein_g"))
+            fat_g = _parse_nutrient_value(row.get("fat_g"))
+            carbs_g = _parse_nutrient_value(row.get("carbs_g"))
+            fiber_g = _parse_nutrient_value(row.get("fiber_g"))
+            Fe_mg = _parse_nutrient_value(row.get("iron_mg"))
+            Ca_mg = _parse_nutrient_value(row.get("calcium_mg"))
 
             # Vitamin D conversion
-            vitd_ug = float(row.get("vitd_ug", 0) or 0)
-            VitD_IU = iu_vitd_from_ug(vitd_ug)
+            vitd_ug = _parse_nutrient_value(row.get("vitd_ug"))
+            VitD_IU = iu_vitd_from_ug(vitd_ug) if vitd_ug is not None else None
 
-            B12_ug = float(row.get("b12_ug", 0) or 0)
-            Folate_ug = float(row.get("folate_ug", 0) or 0)
-            Iodine_ug = float(row.get("iodine_ug", 0) or 0)
-            K_mg = float(row.get("potassium_mg", 0) or 0)
-            Mg_mg = float(row.get("magnesium_mg", 0) or 0)
+            B12_ug = _parse_nutrient_value(row.get("b12_ug"))
+            Folate_ug = _parse_nutrient_value(row.get("folate_ug"))
+            Iodine_ug = _parse_nutrient_value(row.get("iodine_ug"))
+            K_mg = _parse_nutrient_value(row.get("potassium_mg"))
+            Mg_mg = _parse_nutrient_value(row.get("magnesium_mg"))
 
             yield FoodRecord(
                 name=canonical,

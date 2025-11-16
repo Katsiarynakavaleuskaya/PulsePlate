@@ -16,6 +16,32 @@ from core.aliases import map_to_canonical
 from core.food_sources.base import BaseAdapter, FoodRecord
 
 
+def _parse_nutrient_value(raw_value: Any) -> Optional[float]:
+    """
+    RU: Парсинг значения питательного вещества.
+    EN: Parse nutrient value.
+
+    Returns None if the value is missing, empty, or invalid.
+    Only returns a float if the raw value is a valid numeric string.
+
+    Args:
+        raw_value: Raw value from data source
+
+    Returns:
+        Parsed float value or None if missing/invalid
+    """
+    if raw_value is None or raw_value == "" or raw_value == "unknown":
+        return None
+    try:
+        # Strip whitespace and check if it's a valid number
+        cleaned = str(raw_value).strip()
+        if cleaned == "" or cleaned.lower() in {"nan", "null", "none"}:
+            return None
+        return float(cleaned)
+    except (ValueError, TypeError):
+        return None
+
+
 class OFFAdapter(BaseAdapter):
     """
     RU: Адаптер для базы данных Open Food Facts.
@@ -67,6 +93,7 @@ class OFFAdapter(BaseAdapter):
         EN: Normalize OFF data to unified format.
         """
         today = date.today().isoformat()
+        per_g = 100.0
         for row in self.fetch():
             # Get product name (try multiple fields)
             raw_name = (
@@ -75,24 +102,25 @@ class OFFAdapter(BaseAdapter):
                 or row.get("product_name_en", "")
             )
             canonical = map_to_canonical(raw_name, locale=self.locale)
-            per_g = 100.0
 
-            # Extract nutrients (with fallback to 0)
-            kcal = float(row.get("energy-kcal_100g", 0) or 0)
-            protein_g = float(row.get("proteins_100g", 0) or 0)
-            fat_g = float(row.get("fat_100g", 0) or 0)
-            carbs_g = float(row.get("carbohydrates_100g", 0) or 0)
-            fiber_g = float(row.get("fiber_100g", 0) or 0)
+            # Extract nutrients (None for missing/unknown values)
+            kcal = _parse_nutrient_value(row.get("energy-kcal_100g"))
+            protein_g = _parse_nutrient_value(row.get("proteins_100g"))
+            fat_g = _parse_nutrient_value(row.get("fat_100g"))
+            carbs_g = _parse_nutrient_value(row.get("carbohydrates_100g"))
+            fiber_g = _parse_nutrient_value(row.get("fiber_100g"))
 
             # Micro nutrients (often empty in OFF)
-            Fe_mg = float(row.get("iron_100g", 0) or 0)
-            Ca_mg = float(row.get("calcium_100g", 0) or 0)
-            VitD_IU = float(row.get("vitamin-d_100g", 0) or 0)  # May be in µg, needs conversion
-            B12_ug = float(row.get("vitamin-b12_100g", 0) or 0)
-            Folate_ug = float(row.get("vitamin-b9_100g", 0) or 0)
-            Iodine_ug = float(row.get("iodine_100g", 0) or 0)
-            K_mg = float(row.get("potassium_100g", 0) or 0)
-            Mg_mg = float(row.get("magnesium_100g", 0) or 0)
+            Fe_mg = _parse_nutrient_value(row.get("iron_100g"))
+            Ca_mg = _parse_nutrient_value(row.get("calcium_100g"))
+            VitD_IU = _parse_nutrient_value(
+                row.get("vitamin-d_100g")
+            )  # May be in µg, needs conversion
+            B12_ug = _parse_nutrient_value(row.get("vitamin-b12_100g"))
+            Folate_ug = _parse_nutrient_value(row.get("vitamin-b9_100g"))
+            Iodine_ug = _parse_nutrient_value(row.get("iodine_100g"))
+            K_mg = _parse_nutrient_value(row.get("potassium_100g"))
+            Mg_mg = _parse_nutrient_value(row.get("magnesium_100g"))
 
             # Extract flags
             flags = []

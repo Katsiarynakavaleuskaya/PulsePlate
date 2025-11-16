@@ -13,6 +13,7 @@ import csv
 import logging
 import re
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -150,8 +151,13 @@ class ProductFinder:
     """
 
     DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
+    DEFAULT_SIMILARITY_THRESHOLD = _DEFAULT_SIMILARITY_THRESHOLD
 
-    def __init__(self, min_confidence_threshold: float = DEFAULT_MIN_CONFIDENCE_THRESHOLD) -> None:
+    def __init__(
+        self,
+        min_confidence_threshold: float = DEFAULT_MIN_CONFIDENCE_THRESHOLD,
+        similarity_threshold: int = DEFAULT_SIMILARITY_THRESHOLD,
+    ) -> None:
         """
         Initialize the product finder.
 
@@ -169,7 +175,13 @@ class ProductFinder:
                 "min_confidence_threshold must be within the inclusive range [0.0, 1.0]"
             )
 
+        if not isinstance(similarity_threshold, (int, float)):
+            raise ValueError("similarity_threshold must be numeric within [0, 100]")
+        sim_threshold = int(round(similarity_threshold))
+        if sim_threshold < 0 or sim_threshold > 100:
+            raise ValueError("similarity_threshold must be within the inclusive range [0, 100]")
         self.min_confidence_threshold = threshold_value
+        self.similarity_threshold = sim_threshold
         self.usda_adapter = USDAAdapter()
         self.off_adapter = OFFAdapter()
         self.food_db = parse_food_db("data/food_db.csv")
@@ -194,7 +206,9 @@ class ProductFinder:
                 if (
                     ingredient.lower() in food_name
                     or food_name in ingredient.lower()
-                    or self._similar_names(ingredient, food_name)
+                    or self._similar_names(
+                        ingredient, food_name, threshold=self.similarity_threshold
+                    )
                 ):
                     found = True
                     break
@@ -292,21 +306,13 @@ class ProductFinder:
         words = text.split()
         lemmatized_words = []
         for word in words:
-            # Try noun first (most common for product names), then verb, adjective, adverb
-            lemmatized = _lemmatizer.lemmatize(word, pos="n")  # Default to noun
-            # If lemmatization changed the word, use it; otherwise try other POS
-            if lemmatized != word:
-                lemmatized_words.append(lemmatized)
-            else:
-                # Try other parts of speech
-                for pos in ["v", "a", "r"]:
-                    lemmatized = _lemmatizer.lemmatize(word, pos=pos)
-                    if lemmatized != word:
-                        lemmatized_words.append(lemmatized)
-                        break
-                else:
-                    # No change with any POS, keep original
-                    lemmatized_words.append(word)
+            normalized = word
+            for pos in ["n", "v", "a", "r"]:
+                candidate = _lemmatizer.lemmatize(word, pos=pos)
+                if candidate != word:
+                    normalized = candidate
+                    break
+            lemmatized_words.append(normalized)
 
         return " ".join(lemmatized_words)
 
@@ -372,7 +378,7 @@ class ProductFinder:
 
         # Fallback: lightweight substring/word intersection logic
         threshold_ratio = max(min(threshold / 100.0, 1.0), 0.0)
-        word_overlap_threshold = min(threshold_ratio, 0.5)
+        word_overlap_threshold = threshold_ratio
         shorter, longer = (
             (norm1_lemma, norm2_lemma)
             if len(norm1_lemma) <= len(norm2_lemma)
@@ -387,6 +393,13 @@ class ProductFinder:
         words1 = set(norm1_lemma.split())
         words2 = set(norm2_lemma.split())
         common_words = words1.intersection(words2)
+
+        if words1 and words2:
+            sorted_ratio = SequenceMatcher(
+                None, " ".join(sorted(words1)), " ".join(sorted(words2))
+            ).ratio()
+            if sorted_ratio >= threshold_ratio:
+                return True
 
         # Consider similar when overlap meets threshold ratio
         if common_words:

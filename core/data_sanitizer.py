@@ -37,6 +37,15 @@ KCAL_MAX = int(KCAL_MAX_SAFE)
 FIBER_G_MIN = int(FIBER_MIN_G)
 FIBER_G_MAX = int(FIBER_MAX_G)
 
+# Maximum safe ranges for nutrients
+NUTRITION_MAX_RANGES: dict[str, int] = {
+    "kcal": KCAL_MAX,
+    "protein_g": PROTEIN_G_MAX,
+    "fat_g": FAT_G_MAX,
+    "carbs_g": CARBS_G_MAX,
+    "fiber_g": FIBER_G_MAX,
+}
+
 # Safe fallback defaults reused across sanitizers
 NUTRITION_FALLBACK_DEFAULTS: dict[str, int] = {
     "kcal": 2000,
@@ -44,6 +53,10 @@ NUTRITION_FALLBACK_DEFAULTS: dict[str, int] = {
     "fat_g": 70,
     "carbs_g": 250,
     "fiber_g": FIBER_G_MIN,
+}
+
+MACROS_FALLBACK_DEFAULTS: dict[str, int] = {
+    k: v for k, v in NUTRITION_FALLBACK_DEFAULTS.items() if k != "kcal"
 }
 
 # Log message constants for numeric conversion warnings
@@ -136,16 +149,7 @@ class NutritionData(BaseModel):
         if field_name is None:
             return value
 
-        # Define max ranges for each field (min is always 0)
-        max_ranges = {
-            "kcal": KCAL_MAX,
-            "protein_g": PROTEIN_G_MAX,
-            "fat_g": FAT_G_MAX,
-            "carbs_g": CARBS_G_MAX,
-            "fiber_g": FIBER_G_MAX,
-        }
-
-        max_val = max_ranges.get(field_name, float("inf"))
+        max_val = NUTRITION_MAX_RANGES.get(field_name, KCAL_MAX)
 
         if value < 0:
             logger.warning("%s %s below zero, clamping to 0", field_name, value)
@@ -163,7 +167,17 @@ class NutritionData(BaseModel):
 
         Returns:
             True if macros sum is within 20% of kcal, False otherwise
+            Returns True if any required values are missing (None)
         """
+        # Skip validation if any required values are missing
+        if (
+            self.protein_g is None
+            or self.fat_g is None
+            or self.carbs_g is None
+            or self.kcal is None
+        ):
+            return True
+
         computed_kcal = self.protein_g * 4 + self.fat_g * 9 + self.carbs_g * 4
         if computed_kcal == 0:
             return self.kcal == 0
@@ -197,13 +211,7 @@ def sanitize_nutrition_dict(data: dict[str, Any]) -> dict[str, int]:
     """
     try:
         validated = NutritionData.model_validate(data)
-        result = {
-            "kcal": validated.kcal,
-            "protein_g": validated.protein_g,
-            "fat_g": validated.fat_g,
-            "carbs_g": validated.carbs_g,
-            "fiber_g": validated.fiber_g,
-        }
+        result = validated.model_dump()
         if not validated.validate_macro_sum():
             logger.info("Macro sum validation failed, returning sanitized data anyway")
         return result
@@ -413,7 +421,7 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
                 macros = e.fallback_defaults.copy()
         else:
             logger.warning("Invalid macros type: %s, using defaults", type(macros))
-            macros = {k: v for k, v in NUTRITION_FALLBACK_DEFAULTS.items() if k != "kcal"}
+            macros = MACROS_FALLBACK_DEFAULTS.copy()
 
         # Sanitize meals
         meals = plate_data.get("meals", [])
@@ -439,7 +447,7 @@ def sanity_filter_plate_data(plate_data: dict[str, Any]) -> dict[str, Any]:
         # Return minimal safe defaults
         return {
             "kcal": NUTRITION_FALLBACK_DEFAULTS["kcal"],
-            "macros": {k: v for k, v in NUTRITION_FALLBACK_DEFAULTS.items() if k != "kcal"},
+            "macros": MACROS_FALLBACK_DEFAULTS.copy(),
             "meals": [],
             "portions": {},
             "layout": [],

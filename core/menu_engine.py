@@ -28,6 +28,13 @@ from .targets import MicronutrientTargets, NutritionTargets, UserProfile
 
 _logger = logging.getLogger(__name__)
 
+# Environment variable names for controlling mock database usage
+MENU_ENGINE_FORCE_MOCK_DB = "MENU_ENGINE_FORCE_MOCK_DB"
+PYTEST_CURRENT_TEST = "PYTEST_CURRENT_TEST"
+
+# Set of string values considered truthy for environment variables
+TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+
 
 @dataclass
 class FoodItem:
@@ -221,11 +228,11 @@ def make_weekly_menu(
 
 def _should_use_mock_food_db() -> bool:
     """Return True when deterministic mock DB should be used (tests/CI)."""
-    flag = os.getenv("MENU_ENGINE_FORCE_MOCK_DB")
-    if flag and flag.strip().lower() in {"1", "true", "yes", "on"}:
-        _logger.debug("Using mock food DB: MENU_ENGINE_FORCE_MOCK_DB=%s", flag)
+    flag = os.getenv(MENU_ENGINE_FORCE_MOCK_DB)
+    if flag and flag.strip().lower() in TRUTHY_ENV_VALUES:
+        _logger.debug("Using mock food DB: %s=%s", MENU_ENGINE_FORCE_MOCK_DB, flag)
         return True
-    if os.getenv("PYTEST_CURRENT_TEST"):
+    if os.getenv(PYTEST_CURRENT_TEST):
         _logger.debug("Using mock food DB: detected pytest environment")
         return True
     return False

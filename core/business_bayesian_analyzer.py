@@ -183,7 +183,7 @@ class BusinessBayesianAnalyzer:
         config_path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():
             try:
-                import yaml  # type: ignore[import-untyped]
+                import yaml
 
                 with open(config_path, "r", encoding="utf-8") as file:
                     try:
