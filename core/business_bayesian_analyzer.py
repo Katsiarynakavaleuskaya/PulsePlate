@@ -490,10 +490,8 @@ class BusinessBayesianAnalyzer:
                     continue
 
         # Проверка на отсутствие стратегии монетизации
-        if (
-            "payment" in code_no_comments.lower() or "billing" in code_no_comments.lower()
-        ) and not any(
-            keyword in code_no_comments.lower()
+        if ("payment" in code_no_comments.lower() or "billing" in code_no_comments.lower()) and all(
+            keyword not in code_no_comments.lower()
             for keyword in ["subscription", "tier", "plan", "upgrade"]
         ):
             results.append(
@@ -520,8 +518,8 @@ class BusinessBayesianAnalyzer:
 
         if acquisition_mentions:
             # Проверка на отсутствие валидации
-            if not any(
-                keyword in code.lower() for keyword in ["validate", "check", "verify", "email"]
+            if all(
+                keyword not in code.lower() for keyword in ["validate", "check", "verify", "email"]
             ):
                 results.append(
                     BusinessTestResult(
@@ -536,8 +534,9 @@ class BusinessBayesianAnalyzer:
                 )
 
             # Проверка на отсутствие онбординга
-            if not any(
-                keyword in code.lower() for keyword in ["onboard", "tutorial", "guide", "welcome"]
+            if all(
+                keyword not in code.lower()
+                for keyword in ["onboard", "tutorial", "guide", "welcome"]
             ):
                 results.append(
                     BusinessTestResult(
@@ -677,7 +676,7 @@ class BusinessBayesianAnalyzer:
             context = code[context_start:context_end].lower()
             # Skip common retry/backoff patterns
             retry_keywords = ["retry", "backoff", "exponential", "jitter", "wait", "delay"]
-            if not any(keyword in context for keyword in retry_keywords):
+            if all(keyword not in context for keyword in retry_keywords):
                 results.append(
                     BusinessTestResult(
                         test_name=test_name,
@@ -696,8 +695,8 @@ class BusinessBayesianAnalyzer:
         # Проверка на отсутствие кэширования
         if any(
             keyword in code.lower() for keyword in ["database", "api", "request", "fetch"]
-        ) and not any(
-            keyword in code.lower() for keyword in ["cache", "memoize", "redis", "memory"]
+        ) and all(
+            keyword not in code.lower() for keyword in ["cache", "memoize", "redis", "memory"]
         ):
             results.append(
                 BusinessTestResult(
@@ -721,8 +720,9 @@ class BusinessBayesianAnalyzer:
         analytics_keywords = ["analytics", "metrics", "tracking", "conversion", "revenue"]
         analytics_mentions = [kw for kw in analytics_keywords if kw in code.lower()]
 
-        if analytics_mentions and not any(
-            keyword in code.lower() for keyword in ["ab_test", "experiment", "variant", "control"]
+        if analytics_mentions and all(
+            keyword not in code.lower()
+            for keyword in ["ab_test", "experiment", "variant", "control"]
         ):
             results.append(
                 BusinessTestResult(
@@ -740,8 +740,8 @@ class BusinessBayesianAnalyzer:
         if (
             "user" in code.lower()
             and "personal" in code.lower()
-            and not any(
-                keyword in code.lower()
+            and all(
+                keyword not in code.lower()
                 for keyword in ["recommend", "suggest", "customize", "tailor"]
             )
         ):
@@ -767,8 +767,8 @@ class BusinessBayesianAnalyzer:
         communication_keywords = ["notification", "email", "message", "alert", "reminder"]
         communication_mentions = [kw for kw in communication_keywords if kw in code.lower()]
 
-        if communication_mentions and not any(
-            keyword in code.lower() for keyword in ["segment", "group", "cohort", "tier"]
+        if communication_mentions and all(
+            keyword not in code.lower() for keyword in ["segment", "group", "cohort", "tier"]
         ):
             results.append(
                 BusinessTestResult(
@@ -783,8 +783,8 @@ class BusinessBayesianAnalyzer:
             )
 
         # Проверка на отсутствие обратной связи
-        if ("feedback" in code.lower() or "review" in code.lower()) and not any(
-            keyword in code.lower() for keyword in ["analyze", "process", "respond", "action"]
+        if ("feedback" in code.lower() or "review" in code.lower()) and all(
+            keyword not in code.lower() for keyword in ["analyze", "process", "respond", "action"]
         ):
             results.append(
                 BusinessTestResult(
