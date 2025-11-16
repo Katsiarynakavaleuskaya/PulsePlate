@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 import os
 import sys
+import urllib.parse
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Callable, cast
@@ -36,7 +37,7 @@ def _coerce_side_effect(side_effect: object) -> Callable[..., Any]:
         return _raise_from_instance
 
     if callable(side_effect):
-        return side_effect  # type: ignore[return-value]
+        return cast(Callable[..., Any], side_effect)
 
     raise TypeError("side_effect must be an exception class/instance or a callable")
 
@@ -61,13 +62,20 @@ def _setattr_with_side_effect(
     # to be passed as the second positional argument (name parameter). Adjust automatically so
     # calls like monkeypatch.setattr(\"module.attr\", side_effect=Exception) continue to work.
     if isinstance(target, str) and name is None and value is not _monkey_notset:
-        name = value
-        value = _monkey_notset
+        # Only adjust if value is a string; otherwise let original setattr handle it
+        if isinstance(value, str):
+            name = value
+            value = _monkey_notset
+        # For non-string values (e.g., callables from side_effect), don't adjust
 
-    _original_monkeypatch_setattr(self, target, name, value, raising)
+    # Ensure name is always a string when calling setattr
+    if name is not None and not isinstance(name, str):
+        raise TypeError(f"name argument must be a string or None, got {type(name).__name__}")
+
+    _original_monkeypatch_setattr(self, target, name, value, raising)  # type: ignore[arg-type]
 
 
-pytest.MonkeyPatch.setattr = _setattr_with_side_effect  # type: ignore[assignment]
+pytest.MonkeyPatch.setattr = _setattr_with_side_effect  # type: ignore[method-assign]
 
 
 class AppLoadError(ImportError):
@@ -106,9 +114,7 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             # Allow only [A-Za-z0-9_-]; if empty after sanitization, fall back to "worker"
             import re
 
-            safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id)
-            if not safe_worker:
-                safe_worker = "worker"
+            safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
             db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
         if not db_path.is_absolute():
             db_path = Path.cwd() / db_path
@@ -141,10 +147,12 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
         # Verify that the engine is using the correct database
         expected_db_path = str(db_path.resolve())
         actual_db_url = core_db.DATABASE_URL
-        if not actual_db_url.endswith(expected_db_path):
+        # Extract path component from URL for comparison (handles query parameters, etc.)
+        parsed = urllib.parse.urlparse(actual_db_url)
+        actual_path = parsed.path.lstrip("/") if parsed.scheme == "sqlite" else parsed.path
+        if actual_path != expected_db_path:
             logging.warning(
-                f"Database URL mismatch: expected path ending with {expected_db_path}, "
-                f"got {actual_db_url}"
+                f"Database URL mismatch: expected path {expected_db_path}, " f"got {actual_db_url}"
             )
 
         # Reload or import models to ensure they're registered with Base.metadata
@@ -164,12 +172,9 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
         with session_scope() as session:
             inspector = inspect(session.get_bind())
             tables = inspector.get_table_names()
-            if not tables:
-                raise RuntimeError(
-                    f"Database initialized but no tables found. "
-                    f"Database URL: {core_db.DATABASE_URL}, "
-                    f"DB file exists: {db_path.exists()}"
-                )
+            # Dependency overrides should be handled explicitly in test fixtures
+            # (see dynamic_app or test functions)
+            # No dependency overrides or stray code needed here for DB initialization checks.
 
             # Check for required tables
             required_tables = ["users", "recipes", "meals", "food_items"]
@@ -226,8 +231,9 @@ def dynamic_app() -> ASGIApp:
         return api_key
 
     dependency_overrides = getattr(app_module.app, "dependency_overrides", None)
-    if dependency_overrides is not None:
-        dependency_overrides[app_module.get_api_key] = mock_get_api_key
+    get_api_key_fn = getattr(app_module, "get_api_key", None)
+    if dependency_overrides is not None and get_api_key_fn is not None:
+        dependency_overrides[get_api_key_fn] = mock_get_api_key
 
     return cast(ASGIApp, app_module.app)
 
@@ -275,9 +281,13 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
         # Override the dependency
         dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
         if dependency_overrides is not None:
-            from app import get_api_key
+            # Only override if get_api_key exists
+            try:
+                from app import get_api_key
 
-            dependency_overrides[get_api_key] = mock_get_api_key
+                dependency_overrides[get_api_key] = mock_get_api_key
+            except (ImportError, AttributeError):
+                pass
     except (ImportError, AttributeError):
         # App not yet loaded, that's fine
         pass

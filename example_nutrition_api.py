@@ -473,13 +473,16 @@ def handle_request_errors(
     # Get centralized exception info
     exc_key, log_level, messages = _get_exception_info(exception)
     base_message = messages.get(lang, messages["en"])
+    # Substitute exception text into templates that use "%s"
+    if "%s" in base_message:
+        base_message = base_message % str(exception)
 
     # Branch on format_type to emit appropriate log text
     if format_type == ErrorFormatType.INLINE:
         if activity is None:
             activity = "unknown"
         activity_prefix = f"{activity:<15}"
-        # Inline format: activity prefix | message with exception
+        # Inline format: activity prefix | message with exception already substituted
         logger.log(log_level, f"{activity_prefix} | {base_message}", exc_info=True)
 
     elif format_type == ErrorFormatType.DETAILED:
@@ -490,7 +493,7 @@ def handle_request_errors(
         logger.log(log_level, detailed_msg, exc_info=True)
 
     else:  # STANDARD format
-        # Standard format with localized messages
+        # Standard format with localized messages (exception already substituted if needed)
         logger.log(log_level, base_message, exc_info=True)
 
         # Additional info for STANDARD format (using centralized module-level constant)

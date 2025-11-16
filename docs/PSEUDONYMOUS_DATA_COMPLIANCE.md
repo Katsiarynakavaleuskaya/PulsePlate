@@ -68,7 +68,7 @@ Logs containing client fingerprints are now:
   - Requester identifier (if available)
 
 **Audit Log Format**:
-```
+```text
 LOG_ACCESS_AUDIT: action=READ path=/logs/app.log classification=PSEUDONYMOUS reason=Read access timestamp=2025-01-15T10:30:00
 ```
 

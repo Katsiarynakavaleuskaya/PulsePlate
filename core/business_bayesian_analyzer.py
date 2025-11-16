@@ -12,6 +12,7 @@ import importlib
 import logging
 import math
 import re
+import tokenize
 
 from dataclasses import dataclass
 from enum import Enum
@@ -410,7 +411,6 @@ class BusinessBayesianAnalyzer:
         code_str = self._normalize_code_input(code)
         if not isinstance(code_str, str):
             code_str = str(code_str)
-        import tokenize
 
         try:
             tokens: list[tokenize.TokenInfo] = []

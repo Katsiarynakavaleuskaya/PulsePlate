@@ -10,8 +10,7 @@ Memori автоматически сохраняет контекст взаим
 
 import logging
 import os
-from typing import Optional
-
+import threading
 from typing import Optional, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -29,6 +28,24 @@ except ImportError:  # pragma: no cover - optional dependency
 Memori = _MemoriRuntime
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_bool(value: str, default: bool = False) -> bool:
+    """Parse boolean value from string, accepting common variants.
+
+    Args:
+        value: String value to parse
+        default: Default value if value is empty or unrecognized
+
+    Returns:
+        Boolean value parsed from string
+    """
+    normalized = value.strip().lower()
+    if not normalized:
+        return default
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    return False if normalized in {"0", "false", "no", "off"} else default
 
 
 def get_memori_instance(
@@ -76,12 +93,12 @@ def get_memori_instance(
     if conscious_ingest is not None:
         conscious = conscious_ingest
     else:
-        conscious = os.getenv("MEMORI_CONSCIOUS_INGEST", "false").lower() == "true"
+        conscious = _parse_bool(os.getenv("MEMORI_CONSCIOUS_INGEST", "false"), False)
 
     if auto_ingest is not None:
         auto = auto_ingest
     else:
-        auto = os.getenv("MEMORI_AUTO_INGEST", "false").lower() == "true"
+        auto = _parse_bool(os.getenv("MEMORI_AUTO_INGEST", "false"), False)
 
     # Создаем экземпляр Memori
     memori_cls = Memori if Memori is not None else _MemoriRuntime
@@ -96,7 +113,7 @@ def get_memori_instance(
         auto_ingest=auto,
         user_id=default_user_id,
         openai_api_key=openai_api_key,
-        verbose=os.getenv("MEMORI_VERBOSE", "false").lower() == "true",
+        verbose=_parse_bool(os.getenv("MEMORI_VERBOSE", "false"), False),
     )
 
     # Включаем Memori (активирует автоматическое сохранение контекста)
@@ -107,6 +124,7 @@ def get_memori_instance(
 
 # Глобальный экземпляр (ленивая инициализация)
 _memori_instance: Optional[MemoriType] = None
+_memori_lock = threading.Lock()
 
 
 def get_global_memori() -> Optional[MemoriType]:
@@ -116,16 +134,20 @@ def get_global_memori() -> Optional[MemoriType]:
     RU: Возвращает глобальный экземпляр Memori, создавая его при первом вызове.
     EN: Returns global Memori instance, creating it on first call.
 
+    Thread-safe singleton initialization using double-checked locking pattern.
+
     Returns:
         Экземпляр Memori или None, если не настроен
     """
     global _memori_instance
     if _memori_instance is None:
-        try:
-            _memori_instance = get_memori_instance()
-        except (ImportError, RuntimeError, ValueError) as e:
-            # Если Memori не настроен, возвращаем None
-            # Приложение может работать без памяти
-            logger.exception("Memori initialization failed: %s", e)
-            return None
+        with _memori_lock:
+            if _memori_instance is None:
+                try:
+                    _memori_instance = get_memori_instance()
+                except (ImportError, RuntimeError, ValueError) as e:
+                    # Если Memori не настроен, возвращаем None
+                    # Приложение может работать без памяти
+                    logger.exception("Memori initialization failed: %s", e)
+                    return None
     return _memori_instance

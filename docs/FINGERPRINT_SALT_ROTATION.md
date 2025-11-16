@@ -51,7 +51,7 @@ This means:
 
 ### Step 2: Generate New Salt
 
-**Option A: Using Python Script**
+#### Option A: Using Python Script
 
 ```python
 from core.fingerprint_security import generate_new_salt, rotate_salt
@@ -68,7 +68,7 @@ encrypted_salt = encrypt_value(new_salt)
 print(f"Encrypted salt: {encrypted_salt}")
 ```
 
-**Option B: Manual Generation**
+#### Option B: Manual Generation
 
 ```python
 import secrets

@@ -1,6 +1,7 @@
 import inspect
 import logging
 import os
+import sys
 from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
@@ -108,7 +109,27 @@ except ImportError:
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
 
+# VIP module feature flag check dependency
+def _check_vip_module_enabled() -> None:
+    """Dependency to check if VIP module is enabled."""
+    if not VIP_MODULE_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VIP module disabled")
+
+
+# Ensure reimports via app_module keep referencing the same module object
+sys.modules.setdefault("app_module.routers.vip", sys.modules[__name__])
+
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _resolve_available_regions() -> Optional[Callable[..., Any]]:
+    """Return the most up-to-date get_available_regions implementation."""
+
+    module = sys.modules.get("app.routers.vip")
+    provider = getattr(module, "get_available_regions", None) if module else None
+    if provider is None:
+        provider = globals().get("get_available_regions")
+    return provider
 
 
 def _is_production_environment() -> tuple[bool, str]:
@@ -372,24 +393,34 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
     if isinstance(medical_conditions, list):
         medical_conditions = set(medical_conditions)
 
-    # Use explicit conversions with safe fallbacks so typing is precise
+    # Use explicit conversions with validation: None is acceptable (use default),
+    # but non-parsable values raise ValueError
     age_raw = profile_data.get("age")
-    try:
-        age_val: int = 30 if age_raw is None else int(age_raw)
-    except (TypeError, ValueError):
-        age_val = 30
+    if age_raw is None:
+        age_val: int = 30
+    else:
+        try:
+            age_val = int(age_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid age value") from exc
 
     height_raw = profile_data.get("height_cm")
-    try:
-        height_val: float = 175.0 if height_raw is None else float(height_raw)
-    except (TypeError, ValueError):
-        height_val = 175.0
+    if height_raw is None:
+        height_val: float = 175.0
+    else:
+        try:
+            height_val = float(height_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid height_cm value") from exc
 
     weight_raw = profile_data.get("weight_kg")
-    try:
-        weight_val: float = 70.0 if weight_raw is None else float(weight_raw)
-    except (TypeError, ValueError):
-        weight_val = 70.0
+    if weight_raw is None:
+        weight_val: float = 70.0
+    else:
+        try:
+            weight_val = float(weight_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Invalid weight_kg value") from exc
 
     # Use explicit None checks so that missing/None values fall back to defaults
     return UserProfile(
@@ -455,8 +486,6 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
             return None
     else:
         # Direct arguments - pass through
-        from core.targets import UserProfile
-
         if args and len(args) == 1 and isinstance(args[0], UserProfile):
             # Ensure that only allowed kwargs (food_db and recipe_db) are passed if present and type safe
             food_db = kwargs.get("food_db")
@@ -464,10 +493,10 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
 
             # Type check for food_db and recipe_db
             if food_db is not None and not isinstance(food_db, dict):
-                food_db = (
-                    None  # or optionally: raise ValueError("food_db must be a dict if provided")
-                )
+                logging.warning("food_db must be a dict if provided, ignoring invalid value")
+                food_db = None
             if recipe_db is not None and not isinstance(recipe_db, dict):
+                logging.warning("recipe_db must be a dict if provided, ignoring invalid value")
                 recipe_db = None
 
             safe_kwargs = {}
@@ -619,17 +648,16 @@ async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="Generate weekly meal plan",
     description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
-    dependencies=[Depends(_require_api_key_strict)],
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
 )
 async def weekly_menu_plan_alias(
-    request: WeeklyPlanRequest, x_api_key: str = Header(None)
+    request: WeeklyPlanRequest,
 ) -> Union[WeeklyPlanResponse, ErrorResponse]:
     """
     Generate a weekly meal plan based on user profile.
 
     Args:
         request: Weekly plan request with user profile data
-        x_api_key: API key for VIP access
 
     Returns:
         WeeklyPlanResponse with generated plan or ErrorResponse on failure
@@ -836,7 +864,8 @@ async def get_regions() -> Dict[str, Any]:
     Returns:
         Список доступных регионов
     """
-    if get_available_regions is None:
+    provider = _resolve_available_regions()
+    if provider is None:
         return {
             "status": "success",
             "regions": [],
@@ -845,7 +874,10 @@ async def get_regions() -> Dict[str, Any]:
             "echo": {},
         }
     try:
-        regions = get_available_regions()
+        regions_raw = provider()
+        if not isinstance(regions_raw, list):
+            raise ValueError("Region list must be a list of strings")
+        regions = sorted({str(region).upper() for region in regions_raw if region})
         return {
             "status": "success",
             "regions": regions,
@@ -1387,13 +1419,10 @@ async def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> 
 
 
 @router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key_strict)])
-async def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
+async def get_repair_strategies() -> Dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта
     EN: Get available repair strategies
-
-    Args:
-        x_api_key: API key for VIP access
 
     Returns:
         Список доступных стратегий
