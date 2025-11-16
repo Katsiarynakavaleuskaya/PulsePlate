@@ -70,14 +70,14 @@ class DatabaseUpdateScheduler:
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            # Set thread-safe shutdown signal
             self._shutdown_event.set()
-            # Schedule shutdown logic on the event loop thread
+            self.is_running = False
+            if self._update_task and not self._update_task.done():
+                self._update_task.cancel()
             try:
                 loop = asyncio.get_running_loop()
                 loop.call_soon_threadsafe(self._schedule_async_shutdown)
             except RuntimeError:
-                # No running loop - event loop may not have started yet
                 logger.warning("No running event loop in signal handler")
 
         # Handle common shutdown signals

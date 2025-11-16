@@ -407,10 +407,20 @@ class BusinessBayesianAnalyzer:
             code_str = str(code_str)
         import tokenize
 
-        tokens = []
-        for token in tokenize.generate_tokens(StringIO(code_str).readline):
-            if token.type != tokenize.COMMENT:
-                tokens.append(token)
+        try:
+            tokens = []
+            for token in tokenize.generate_tokens(StringIO(code_str).readline):
+                if token.type != tokenize.COMMENT:
+                    tokens.append(token)
+        except tokenize.TokenError:
+            cleaned_lines = []
+            for line in code_str.splitlines():
+                if "#" in line:
+                    cleaned_lines.append(line.split("#", 1)[0])
+                else:
+                    cleaned_lines.append(line)
+            return "\n".join(cleaned_lines)
+
         result = tokenize.untokenize(tokens)
         if isinstance(result, bytes):
             return result.decode("utf-8")
