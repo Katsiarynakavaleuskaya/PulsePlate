@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Rate Limiting Test Script
 # Tests rate limiting functionality with proper authentication and valid payloads

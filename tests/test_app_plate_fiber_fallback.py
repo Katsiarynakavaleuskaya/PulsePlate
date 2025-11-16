@@ -6,6 +6,9 @@ import pytest
 
 import app
 
+# Shared constant for mocked plate kcal value
+MOCKED_PLATE_KCAL = 2100
+
 
 @pytest.mark.asyncio
 async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
@@ -30,7 +33,7 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
                 }
             ],
             "meals": [],
-            "kcal": 2100,
+            "kcal": MOCKED_PLATE_KCAL,
             "portions": {
                 "protein_palm": 2.0,
                 "carb_cups": 2.0,
@@ -59,7 +62,7 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
     )
     monkeypatch.setattr(app, "build_nutrition_targets", None, raising=False)
 
-    request = app.PlateRequest(
+    request = app.PlateRequest(  # type: ignore[operator]
         sex="female",
         age=32,
         height_cm=168,
@@ -72,8 +75,7 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
         diet_flags=None,
     )
 
-    response = await app.api_premium_plate(request)
+    response = await app.api_premium_plate(request)  # type: ignore[operator]
 
     assert response.macros["fiber_g"] == app.FIBER_MIN_G
-    mocked_plate_kcal = 2100  # From fake_make_plate above
-    assert response.kcal == mocked_plate_kcal
+    assert response.kcal == MOCKED_PLATE_KCAL

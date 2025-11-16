@@ -28,6 +28,11 @@ FONTS_DIR = Path("assets/fonts")
 FONT_PATH = FONTS_DIR / "DejaVuSans.ttf"
 FONT_NAME = "DejaVuSans"
 
+# PDF column truncation limits for proper layout
+AISLE_MAX_LEN = 24
+NAME_MAX_LEN = 40
+NOTE_MAX_LEN = 22
+
 
 def _export_timestamp() -> str:
     """Return an RFC3339-like timestamp usable in filenames."""
@@ -209,11 +214,11 @@ def _render_pdf(shop: Dict[str, Any]) -> bytes:
             y = draw_table_head(c, page_h - 70)
             c.setFont(font, 10)
 
-        c.drawString(40, y, str(row.get("aisle", ""))[:24])
-        c.drawString(160, y, str(row.get("name", ""))[:40])
+        c.drawString(40, y, str(row.get("aisle", ""))[:AISLE_MAX_LEN])
+        c.drawString(160, y, str(row.get("name", ""))[:NAME_MAX_LEN])
         c.drawString(380, y, str(row.get("qty", "")))
         c.drawString(430, y, str(row.get("unit", "")))
-        c.drawString(470, y, str(row.get("note", ""))[:22])
+        c.drawString(470, y, str(row.get("note", ""))[:NOTE_MAX_LEN])
         y -= 14
 
     c.setFont(font, 8)

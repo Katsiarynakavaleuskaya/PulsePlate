@@ -87,6 +87,14 @@ _STANDARD_GUIDANCE: Dict[str, Dict[str, str]] = {
         "en": "Make sure the API server is running and reachable at the configured base URL.",
         "ru": "Убедитесь, что API сервер запущен и доступен по настроенному базовому URL.",
     },
+    "request_error": {
+        "en": "A request error occurred. Check your request parameters and network connectivity.",
+        "ru": "Произошла ошибка запроса. Проверьте параметры запроса и сетевое подключение.",
+    },
+    "unexpected": {
+        "en": "An unexpected error occurred. Check logs for details and verify API configuration.",
+        "ru": "Произошла непредвиденная ошибка. Проверьте логи для деталей и убедитесь в правильности настройки API.",
+    },
 }
 
 _EXCEPTION_MAPPINGS: Dict[type, Tuple[str, int, Dict[str, str]]] = {
@@ -120,6 +128,14 @@ _EXCEPTION_MAPPINGS: Dict[type, Tuple[str, int, Dict[str, str]]] = {
         {
             "en": "⚠️ Request error: %s",
             "ru": "⚠️ Ошибка запроса: %s",
+        },
+    ),
+    Exception: (
+        "unexpected",
+        logging.ERROR,
+        {
+            "en": "❌ Unexpected error: %s",
+            "ru": "❌ Непредвиденная ошибка: %s",
         },
     ),
 }

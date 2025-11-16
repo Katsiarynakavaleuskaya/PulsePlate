@@ -13,7 +13,7 @@ EN: Tests for covering uncovered lines in app.py.
 import os
 import sys
 from contextlib import suppress
-from typing import Any, Callable, Generator
+from typing import Any, Callable
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -235,9 +235,7 @@ class TestAppTestRouterImport:
 class TestAppTargetsDisabled:
     """Тесты для _targets_disabled edge cases (строки 1312, 1315-1320, 1325-1328)"""
 
-    def test_targets_disabled_app_package_ref_set_public(
-        self, _test_environment: Generator[dict[str, str], None, None]
-    ) -> None:
+    def test_targets_disabled_app_package_ref_set_public(self, _test_environment: Any) -> None:
         """Test _targets_disabled when _APP_PACKAGE_REF is set (line 1312)"""
         import app
 
@@ -249,9 +247,7 @@ class TestAppTargetsDisabled:
         # Should return boolean
         assert isinstance(result, bool)
 
-    def test_targets_disabled_primary_app_missing(
-        self, _test_environment: Generator[dict[str, str], None, None]
-    ) -> None:
+    def test_targets_disabled_primary_app_missing(self, _test_environment: Any) -> None:
         """Test _targets_disabled when primary app module is missing (lines 1315-1320)"""
         import app
 
@@ -271,9 +267,7 @@ class TestAppTargetsDisabled:
         # Restore
         app._APP_PACKAGE_REF = original_ref
 
-    def test_targets_disabled_alias_app_none_attr(
-        self, _test_environment: Generator[dict[str, str], None, None]
-    ) -> None:
+    def test_targets_disabled_alias_app_none_attr(self, _test_environment: Any) -> None:
         """Test _targets_disabled when alias app has None attribute (lines 1325-1328)"""
         import app
 
@@ -358,7 +352,6 @@ class TestAppAttributeDeletion:
     def test_plate_env_snapshot_attribute_deletion(self, _test_environment: FixtureRequest) -> None:
         """Test _plate_env_snapshot deletes attributes that didn't exist (lines 1479-1480)"""
         import app
-        import sys
 
         # Create a real module object, not MagicMock, to properly test attribute deletion
         class TestModule:
@@ -424,9 +417,17 @@ class TestAppPremiumPlate:
         import os
 
         with patch.dict(os.environ, {"FEATURE_PREMIUM_NUTRITION": "true"}):
-            # Make aggregator non-callable
-            with patch("app._aggregate_day_micronutrients", "not_callable"):
-                with patch("app.resolve_attr", return_value="not_callable"):
+            # Store reference to real aggregator function to verify it's not called
+            real_aggregate_func = app._aggregate_day_micronutrients
+
+            # Patch resolve_attr to return non-callable value and spy on calls
+            with patch("core.utils.resolve_attr", return_value="not_callable") as mock_resolve_attr:
+                # Spy on the real aggregator to verify it's NOT called
+                with patch.object(
+                    app,
+                    "_aggregate_day_micronutrients",
+                    wraps=real_aggregate_func,
+                ) as aggregate_spy:
                     req = app.PlateRequest(
                         sex="male",
                         age=30,
@@ -436,7 +437,31 @@ class TestAppPremiumPlate:
                         goal="maintain",
                     )
                     resp: app.PlateResponse = await app.api_premium_plate(req)  # type: ignore[assignment]
-                    # Empty micros when aggregator is not callable
+
+                    # Verify resolve_attr was called to resolve the aggregator
+                    assert (
+                        mock_resolve_attr.called
+                    ), "resolve_attr should be called to resolve aggregator"
+
+                    # Verify it was called with '_aggregate_day_micronutrients' as first argument
+                    resolve_calls = [
+                        call_args
+                        for call_args in mock_resolve_attr.call_args_list
+                        if len(call_args[0]) >= 1
+                        and call_args[0][0] == "_aggregate_day_micronutrients"
+                    ]
+                    assert (
+                        resolve_calls
+                    ), "resolve_attr should be called with '_aggregate_day_micronutrients'"
+
+                    # Verify the real aggregator function was NOT called
+                    # (since resolve_attr returned a non-callable, the code path
+                    # at lines 2488-2497 should skip calling it)
+                    assert (
+                        not aggregate_spy.called
+                    ), "Real _aggregate_day_micronutrients should NOT be called when aggregator is non-callable"
+
+                    # Verify the response has empty micros due to non-callable aggregator
                     assert isinstance(resp, app.PlateResponse)
                     assert resp.day_micros == {}
 

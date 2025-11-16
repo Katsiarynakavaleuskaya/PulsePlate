@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Discover mypy targets for non-PR branch checks
 # This script discovers all Python packages, modules, and root-level files
 # that should be checked by mypy, preserving the exact logic from the workflow.

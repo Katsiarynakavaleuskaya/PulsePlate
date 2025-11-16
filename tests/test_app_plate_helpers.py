@@ -177,7 +177,10 @@ async def test_api_premium_plate_fallback_macro_values(
         2200,
         2759,
         2976,
-    ), f"Expected kcal=2200 (fallback), 2759 (calculated), or 2976 (non-callable fallback), got {response.kcal}"
+    ), (
+        f"Expected kcal=2200 (fallback), 2759 (calculated), or 2976 (non-callable fallback), "
+        f"got {response.kcal}"
+    )
     # Note: If build_nutrition_targets is not called or fails, calculated value is used
     # 1.6 * 80 = 128, but calculation may vary. Test accepts either target value (120) or calculated (128-136)
     protein_actual = response.macros.get("protein_g")

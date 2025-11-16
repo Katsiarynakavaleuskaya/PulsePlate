@@ -329,6 +329,10 @@ class BayesianTestAnalyzer:
         # Найти исторические случаи с похожими симптомами
         similar_cases = self._find_similar_cases(symptoms)
 
+        # P(симптомы) - общая вероятность симптомов (нормализация Байеса)
+        # Вычисляем один раз, так как зависит только от symptoms и similar_cases
+        evidence = self._calculate_evidence(symptoms, similar_cases)
+
         # Вычислить байесовские вероятности для каждой возможной причины
         cause_probabilities = {}
 
@@ -338,9 +342,6 @@ class BayesianTestAnalyzer:
 
             # P(симптомы|причина) - вероятность симптомов при данной причине
             likelihood = self._calculate_likelihood(symptoms, error_type, similar_cases)
-
-            # P(симптомы) - общая вероятность симптомов (нормализация Байеса)
-            evidence = self._calculate_evidence(symptoms, similar_cases)
 
             # P(причина|симптомы) = P(симптомы|причина) * P(причина) / P(симптомы)
             if evidence > 0:

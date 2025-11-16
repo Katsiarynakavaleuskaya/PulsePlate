@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # 🎯 Claude Code с автоматической загрузкой роли PulsePlate
 # Usage: ./scripts/claude_with_role.sh [дополнительные аргументы claude]
 #

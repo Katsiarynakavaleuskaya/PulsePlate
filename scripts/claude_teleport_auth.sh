@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # 🔐 Authentication guide for Claude Code teleport sessions
 # Руководство по аутентификации для сессий Claude Code teleport
 

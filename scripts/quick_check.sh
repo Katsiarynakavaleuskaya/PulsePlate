@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Быстрая проверка перед push - облегченная версия
 
 set -e

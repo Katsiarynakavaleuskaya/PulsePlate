@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Clean commit script - automatically cleans cache before committing
 

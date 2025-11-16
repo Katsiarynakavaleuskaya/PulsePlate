@@ -148,7 +148,9 @@ class TestAppMissingLinesTargeted:
         """Test concurrent requests to different endpoints"""
 
         def make_bmi_request():
-            return self.client.post(
+            # Create a separate TestClient for each thread
+            client = TestClient(app)
+            return client.post(
                 "/bmi",
                 json={
                     "weight": fake.random_int(min=50, max=100),
@@ -160,10 +162,14 @@ class TestAppMissingLinesTargeted:
             )
 
         def make_health_request():
-            return self.client.get("/health")
+            # Create a separate TestClient for each thread
+            client = TestClient(app)
+            return client.get("/health")
 
         def make_insight_request():
-            return self.client.post("/insight", json={"text": fake.sentence(), "lang": "en"})
+            # Create a separate TestClient for each thread
+            client = TestClient(app)
+            return client.post("/insight", json={"text": fake.sentence(), "lang": "en"})
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = []

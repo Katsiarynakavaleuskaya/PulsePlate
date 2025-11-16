@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # 🔄 Restart Cursor IDE
 # Usage: ./scripts/restart_cursor.sh [--grace-period SECONDS] [--reopen-delay SECONDS] [--verbose|--debug] [--help]
 
@@ -57,6 +57,49 @@ debug_log() {
     if [[ "$VERBOSE" == "true" ]]; then
         echo "Debug: $*"
     fi
+}
+
+# Function to close Cursor application gracefully
+# Returns 0 if Cursor was closed (or not running), non-zero on error
+close_cursor_app() {
+    # Check if Cursor is running
+    debug_log "Checking if Cursor is running..."
+    if [[ "$DRY_RUN" == "true" ]]; then
+        debug_log "DRY RUN: Would check and close Cursor"
+        echo "🚀 [DRY RUN] Would close Cursor (if running)"
+        return 0
+    fi
+
+    if pgrep -x "Cursor" > /dev/null; then
+        debug_log "Cursor process found via pgrep"
+        echo "📋 Closing Cursor..."
+        # Try graceful quit first (saves files)
+        debug_log "Attempting graceful quit via osascript..."
+        osascript -e 'tell application "Cursor" to quit' 2>/dev/null || true
+
+        # Wait a bit for graceful shutdown
+        debug_log "Waiting $GRACE_PERIOD seconds for graceful shutdown..."
+        sleep "$GRACE_PERIOD"
+
+        # Force kill if still running
+        debug_log "Checking if Cursor is still running..."
+        if pgrep -x "Cursor" > /dev/null; then
+            debug_log "Cursor still running, force killing..."
+            echo "⚠️  Force closing Cursor..."
+            killall "Cursor" 2>/dev/null || true
+            debug_log "Waiting $GRACE_PERIOD seconds after force kill..."
+            sleep "$GRACE_PERIOD"
+        else
+            debug_log "Cursor closed gracefully"
+        fi
+
+        echo "✅ Cursor closed"
+    else
+        debug_log "Cursor process not found via pgrep"
+        echo "ℹ️  Cursor is not running"
+    fi
+
+    return 0
 }
 
 # Parse command line arguments
@@ -124,39 +167,8 @@ fi
 
 echo "🔄 Restarting Cursor..."
 
-# Check if Cursor is running
-debug_log "Checking if Cursor is running..."
-if [[ "$DRY_RUN" == "true" ]]; then
-    debug_log "DRY RUN: Would check and close Cursor"
-    echo "🚀 [DRY RUN] Would close Cursor (if running)"
-elif pgrep -x "Cursor" > /dev/null; then
-    debug_log "Cursor process found via pgrep"
-    echo "📋 Closing Cursor..."
-    # Try graceful quit first (saves files)
-    debug_log "Attempting graceful quit via osascript..."
-    osascript -e 'tell application "Cursor" to quit' 2>/dev/null || true
-
-    # Wait a bit for graceful shutdown
-    debug_log "Waiting $GRACE_PERIOD seconds for graceful shutdown..."
-    sleep "$GRACE_PERIOD"
-
-    # Force kill if still running
-    debug_log "Checking if Cursor is still running..."
-    if pgrep -x "Cursor" > /dev/null; then
-        debug_log "Cursor still running, force killing..."
-        echo "⚠️  Force closing Cursor..."
-        killall "Cursor" 2>/dev/null || true
-        debug_log "Waiting $GRACE_PERIOD seconds after force kill..."
-        sleep "$GRACE_PERIOD"
-    else
-        debug_log "Cursor closed gracefully"
-    fi
-
-    echo "✅ Cursor closed"
-else
-    debug_log "Cursor process not found via pgrep"
-    echo "ℹ️  Cursor is not running"
-fi
+# Close Cursor application
+close_cursor_app
 
 # Wait a moment before reopening
 debug_log "Waiting $REOPEN_DELAY seconds before reopening..."

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Duplication detection script
 echo "🔍 Checking for code duplication..."

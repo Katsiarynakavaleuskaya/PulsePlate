@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Настройка Git алиасов для автоматизации
 
 echo "🔧 Настройка Git алиасов для PulsePlate..."

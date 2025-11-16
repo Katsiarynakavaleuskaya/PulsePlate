@@ -112,10 +112,10 @@ def get_provider() -> ProviderBase | None:
                 return GrokLiteProvider()
             try:
                 return GrokProvider(endpoint=endpoint, api_key=api_key, model=model)
-            except Exception as e:
+            except Exception:
                 logger.debug(
                     "Grok provider init failed with keyword args, falling back to positional args",
-                    exc_info=e,
+                    exc_info=True,
                 )
                 # Fallback to positional args if keyword args fail
                 try:
@@ -145,10 +145,10 @@ def get_provider() -> ProviderBase | None:
                 logger.warning("Invalid OLLAMA_TIMEOUT '%s', defaulting to 1.5: %s", raw_timeout, e)
             try:
                 return OllamaProvider(endpoint=endpoint, model=model, timeout_s=timeout_s)
-            except Exception as e:
+            except Exception:
                 logger.debug(
                     "Ollama provider init failed with keyword args, falling back to positional args",
-                    exc_info=e,
+                    exc_info=True,
                 )
                 # Fallback to positional args if keyword args fail (консистентно с GrokProvider)
                 try:

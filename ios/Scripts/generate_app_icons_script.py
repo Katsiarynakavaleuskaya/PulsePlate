@@ -22,6 +22,9 @@ except ImportError:
 
 from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
+# Constants
+MIN_SIZE = 16  # Minimum icon size in pixels for proper rendering
+
 
 def create_pulseplate_icon(size: int) -> Image.Image:
     """Создает иконку PulsePlate с заданным размером
@@ -33,7 +36,6 @@ def create_pulseplate_icon(size: int) -> Image.Image:
     if not isinstance(size, int):
         raise TypeError(f"size must be an integer (received {type(size).__name__})")
 
-    MIN_SIZE = 16
     if size < MIN_SIZE:
         raise ValueError(f"size must be >= {MIN_SIZE} pixels to render properly (got {size})")
 

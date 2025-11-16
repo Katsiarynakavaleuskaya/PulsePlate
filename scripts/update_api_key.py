@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Secure stdin-based API key updater. / Безопасный обновитель API-ключа через stdin."""
+"""Secure stdin-based API key updater. / Безопасный обновитель API-ключа через stdin.
+
+This script reads the API key from either:
+- OPENAI_API_KEY environment variable (read-only, not modified)
+- stdin input
+
+The script does NOT modify or remove environment variables to avoid side effects
+for other tools running in the same process. The OPENAI_API_KEY environment
+variable is read once and used for validation and storage, but remains unchanged
+in the process environment.
+
+RU: Этот скрипт читает API-ключ из переменной окружения OPENAI_API_KEY или stdin.
+Переменные окружения не изменяются, чтобы избежать побочных эффектов для других
+инструментов, работающих в том же процессе.
+"""
 
 from __future__ import annotations
 
@@ -100,7 +114,7 @@ def _validate_api_key_value(
             f"API key must be non-empty, start with '{prefix}', be between {min_len}-{max_len} characters, "
             "and contain only allowed characters."
         )
-        logger.debug("API key validation failed: key is empty")
+        logger.warning("API key validation failed: key is empty")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if not api_key.startswith(prefix):
@@ -109,7 +123,7 @@ def _validate_api_key_value(
             f"API key length: {len(api_key)} characters. "
             f"API keys must start with '{prefix}' prefix."
         )
-        logger.debug("API key validation failed: invalid prefix")
+        logger.warning("API key validation failed: invalid prefix")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if len(api_key) < min_len:
@@ -117,7 +131,7 @@ def _validate_api_key_value(
             f"Invalid API key from {key_source}: key is too short ({len(api_key)} characters). "
             f"API key must be at least {min_len} characters long."
         )
-        logger.debug("API key validation failed: key too short")
+        logger.warning("API key validation failed: key too short")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     if len(api_key) > max_len:
@@ -125,7 +139,7 @@ def _validate_api_key_value(
             f"Invalid API key from {key_source}: key is too long ({len(api_key)} characters). "
             f"API key must be no longer than {max_len} characters."
         )
-        logger.debug("API key validation failed: key too long")
+        logger.warning("API key validation failed: key too long")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
     allowed_chars = set(allowed_chars_str)
@@ -136,7 +150,7 @@ def _validate_api_key_value(
             f"Found invalid characters: {set(invalid_chars)}. "
             f"API key must contain only allowed characters: {allowed_chars_str}."
         )
-        logger.debug("API key validation failed: invalid characters detected")
+        logger.warning("API key validation failed: invalid characters detected")
         raise RuntimeError("Invalid API key" if not verbose_errors else detailed_msg)
 
 
@@ -170,8 +184,8 @@ def _read_api_key(
     env_key: str = os.environ.get("OPENAI_API_KEY", "").strip()
     key_source = "OPENAI_API_KEY environment variable"
     if env_key:
-        # Security: Remove from environment to prevent accidental leakage
-        os.environ.pop("OPENAI_API_KEY", None)
+        # Read-only access: we read the value but do NOT modify os.environ
+        # to avoid side effects for other tools running in the same process
         api_key = env_key
     else:
         stdin_data: str = sys.stdin.read().strip()
@@ -259,6 +273,10 @@ def update_api_key(
     except RuntimeError:
         print("❌ Invalid API key format")
         return False
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("Unexpected error validating API key: %s", exc)
+        print(f"❌ Error: {exc}")
+        return False
 
     # Validate encryption availability
     if use_encryption and encrypt_value is None:
@@ -294,7 +312,13 @@ def update_api_key(
 
         # Update MCP configuration
         mcp_file = Path.home() / ".cursor" / "mcp.json"
-        if mcp_file.exists():
+        try:
+            mcp_exists = mcp_file.exists()
+        except OSError as e:
+            logger.warning("Failed to access MCP config %s: %s", mcp_file, e)
+            mcp_exists = True
+
+        if mcp_exists:
             import json
 
             try:
@@ -326,7 +350,13 @@ def update_api_key(
 
         # Update .env file if it exists
         env_file = Path.home() / ".cursor" / ".env"
-        if env_file.exists():
+        try:
+            env_exists = env_file.exists()
+        except OSError as e:
+            logger.warning("Failed to access .env file %s: %s", env_file, e)
+            env_exists = True
+
+        if env_exists:
             try:
                 with open(env_file, "r", encoding="utf-8") as f:
                     lines = f.readlines()
@@ -358,7 +388,13 @@ def update_api_key(
 
         # Update settings.json if it exists
         settings_file = Path.home() / ".cursor" / "settings.json"
-        if settings_file.exists():
+        try:
+            settings_exists = settings_file.exists()
+        except OSError as e:
+            logger.warning("Failed to access settings.json %s: %s", settings_file, e)
+            settings_exists = True
+
+        if settings_exists:
             import json
 
             try:

@@ -20,7 +20,7 @@ except ImportError:  # pragma: no cover
     ENCRYPTION_AVAILABLE = False  # pragma: no cover
 
     # Placeholder when cryptography is unavailable
-    InvalidToken = Exception  # type: ignore[misc,assignment]  # pragma: no cover
+    InvalidToken = Exception  # pragma: no cover
 
 
 def get_encryption_key() -> Optional[bytes]:

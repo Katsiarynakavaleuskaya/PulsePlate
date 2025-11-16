@@ -68,7 +68,7 @@ class TestBayesianQualityReport:
         small = {"error1": 1e-15, "error2": 1e-15}
         assert calculate_confidence_from_priors(small) == 0.0
 
-    def test_main_success(self, tmp_path: Path) -> None:
+    def test_main_success(self) -> None:
         """Тест успешного выполнения main()."""
         from scripts.bayesian_quality_report import main
 

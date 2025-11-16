@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # scripts/validate-ci-environment.sh
 # Validate CI/CD environment and secrets
 

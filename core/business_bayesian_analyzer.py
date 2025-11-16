@@ -1055,7 +1055,29 @@ class BusinessBayesianAnalyzer:
         # For large std, this approximation may be inaccurate. For higher accuracy, consider:
         # - Exact propagation: var_log ≈ var / (1 + mean)**2 (delta-method variance formula)
         # - Numerical transformation: transform sample draws to log-space and compute mean/variance
-        prior_log_std = prior_std / (1 + prior_mean)
+
+        # Check if the small-relative-variance assumption holds
+        relative_variance = prior_std / (1 + prior_mean) if (1 + prior_mean) > 0 else float("inf")
+        var_ratio = (
+            (prior_std**2) / ((1 + prior_mean) ** 2) if (1 + prior_mean) > 0 else float("inf")
+        )
+
+        # Thresholds for the assumption: relative_variance > 0.1 or var_ratio > 0.01
+        if relative_variance > 0.1 or var_ratio > 0.01:
+            # Assumption violated: use more accurate delta-method variance formula
+            logger.warning(
+                f"Delta-method approximation assumption violated for category '{category}': "
+                f"relative_variance={relative_variance:.6f}, var_ratio={var_ratio:.6f}, "
+                f"prior_mean={prior_mean:.6f}, prior_std={prior_std:.6f}. "
+                f"Switching to delta-method variance formula for improved accuracy."
+            )
+            # Use delta-method variance formula: var_log ≈ prior_std**2 / (1 + prior_mean)**2
+            var_log = var_ratio
+            prior_log_std = math.sqrt(var_log) if var_log > 0 else EPSILON
+        else:
+            # Assumption holds: use first-order approximation
+            prior_log_std = prior_std / (1 + prior_mean)
+
         # Guard against zero/near-zero std before computing precision
         if prior_log_std <= 0:
             prior_log_std = EPSILON

@@ -8,11 +8,66 @@ import os
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import cast
+from typing import Any, Callable, cast
 
 import pytest
+from _pytest.monkeypatch import notset as _monkey_notset
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+_original_monkeypatch_setattr = pytest.MonkeyPatch.setattr
+
+
+def _coerce_side_effect(side_effect: object) -> Callable[..., Any]:
+    """Convert a side_effect spec into a callable suitable for monkeypatch."""
+
+    if isinstance(side_effect, type) and issubclass(side_effect, BaseException):
+
+        def _raise_from_type(*_args: Any, **_kwargs: Any) -> None:
+            raise side_effect()
+
+        return _raise_from_type
+
+    if isinstance(side_effect, BaseException):
+
+        def _raise_from_instance(*_args: Any, **_kwargs: Any) -> None:
+            raise side_effect
+
+        return _raise_from_instance
+
+    if callable(side_effect):
+        return side_effect  # type: ignore[return-value]
+
+    raise TypeError("side_effect must be an exception class/instance or a callable")
+
+
+def _setattr_with_side_effect(
+    self: pytest.MonkeyPatch,
+    target: str | object,
+    name: object | str | None = None,
+    value: object = _monkey_notset,
+    raising: bool = True,
+    *,
+    side_effect: object | None = None,
+) -> None:
+    """Extend MonkeyPatch.setattr to support side_effect keyword."""
+
+    if side_effect is not None:
+        if value is not _monkey_notset:
+            raise TypeError("Cannot pass both value and side_effect to monkeypatch.setattr")
+        value = _coerce_side_effect(side_effect)
+
+    # When target is a dotted path and no explicit name provided, pytest expects the replacement
+    # to be passed as the second positional argument (name parameter). Adjust automatically so
+    # calls like monkeypatch.setattr(\"module.attr\", side_effect=Exception) continue to work.
+    if isinstance(target, str) and name is None and value is not _monkey_notset:
+        name = value
+        value = _monkey_notset
+
+    _original_monkeypatch_setattr(self, target, name, value, raising)
+
+
+pytest.MonkeyPatch.setattr = _setattr_with_side_effect  # type: ignore[assignment]
 
 
 class AppLoadError(ImportError):

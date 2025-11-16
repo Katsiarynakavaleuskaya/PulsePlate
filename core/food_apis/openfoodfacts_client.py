@@ -16,7 +16,7 @@ import asyncio
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict
 
 import httpx
 
@@ -111,10 +111,10 @@ class OFFClient:
     def __init__(self) -> None:
         """Initialize Open Food Facts client."""
         # Underlying async HTTP client
-        self.client = httpx.AsyncClient()
+        self.client: httpx.AsyncClient = httpx.AsyncClient()
 
         # Common nutrient mappings (Open Food Facts nutrient names to our standard names)
-        self.nutrient_mapping = {
+        self.nutrient_mapping: Dict[str, str] = {
             # Macronutrients
             "proteins_100g": "protein_g",
             "fat_100g": "fat_g",

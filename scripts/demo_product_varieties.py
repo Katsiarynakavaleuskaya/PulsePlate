@@ -127,15 +127,13 @@ def main() -> None:
     ]
 
     for product_name, variety_candidate, brand_candidate in search_examples:
-        variety_filter: Optional[str] = variety_candidate
-        brand_filter: Optional[str] = brand_candidate
         print(f"🔍 Поиск: {product_name}")
-        if variety_filter:
-            print(f"   Сорт: {variety_filter}")
-        if brand_filter:
-            print(f"   Марка: {brand_filter}")
+        if variety_candidate:
+            print(f"   Сорт: {variety_candidate}")
+        if brand_candidate:
+            print(f"   Марка: {brand_candidate}")
 
-        if results := manager.search_varieties(product_name, variety_filter, brand_filter):
+        if results := manager.search_varieties(product_name, variety_candidate, brand_candidate):
             print(f"   Найдено: {len(results)} результатов")
             for variety in results:
                 print(f"     - {variety.variety} ({variety.brand})")

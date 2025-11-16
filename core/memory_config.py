@@ -8,18 +8,35 @@ Memori автоматически сохраняет контекст взаим
 запоминать предыдущие диалоги и предпочтения пользователей.
 """
 
+import logging
 import os
 from typing import Optional
 
-from memori import Memori
+from typing import Optional, TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from memori import Memori as MemoriType
+else:
+    MemoriType = Any  # type: ignore[misc]
+
+try:
+    from memori import Memori as _MemoriRuntime
+except ImportError:  # pragma: no cover - optional dependency
+    _MemoriRuntime = None
+
+# Expose runtime class for tests/monkeypatching
+# Use MemoriType for type annotations, Memori for runtime
+Memori = _MemoriRuntime
+
+logger = logging.getLogger(__name__)
 
 
 def get_memori_instance(
     user_id: Optional[str] = None,
     database_url: Optional[str] = None,
-    conscious_ingest: bool = False,
-    auto_ingest: bool = False,
-) -> Memori:
+    conscious_ingest: Optional[bool] = None,
+    auto_ingest: Optional[bool] = None,
+) -> MemoriType:
     """
     Создает и возвращает настроенный экземпляр Memori.
 
@@ -43,16 +60,37 @@ def get_memori_instance(
         MEMORI_AUTO_INGEST: Включить auto_ingest (true/false)
     """
     # Получаем настройки из переменных окружения
-    db_url = database_url or os.getenv("MEMORI_DATABASE_URL", "sqlite:///memori.db")
+    # RU: Явные аргументы переопределяют переменные окружения
+    # EN: Explicit arguments override environment variables
+    db_url = (
+        database_url
+        if database_url is not None
+        else os.getenv("MEMORI_DATABASE_URL", "sqlite:///memori.db")
+    )
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    default_user_id = user_id or os.getenv("MEMORI_USER_ID")
+    default_user_id = user_id if user_id is not None else os.getenv("MEMORI_USER_ID")
 
     # Парсим boolean флаги из окружения
-    conscious = conscious_ingest or os.getenv("MEMORI_CONSCIOUS_INGEST", "false").lower() == "true"
-    auto = auto_ingest or os.getenv("MEMORI_AUTO_INGEST", "false").lower() == "true"
+    # RU: Если явно передан аргумент (True или False), используем его, иначе берем из env
+    # EN: If argument is explicitly provided (True or False), use it, otherwise use env
+    if conscious_ingest is not None:
+        conscious = conscious_ingest
+    else:
+        conscious = os.getenv("MEMORI_CONSCIOUS_INGEST", "false").lower() == "true"
+
+    if auto_ingest is not None:
+        auto = auto_ingest
+    else:
+        auto = os.getenv("MEMORI_AUTO_INGEST", "false").lower() == "true"
 
     # Создаем экземпляр Memori
-    memori = Memori(
+    memori_cls = Memori if Memori is not None else _MemoriRuntime
+    if memori_cls is None:
+        raise RuntimeError(
+            "memori package is not installed. Install 'memori' to enable memory integration."
+        )
+
+    memori = memori_cls(
         database_connect=db_url,
         conscious_ingest=conscious,
         auto_ingest=auto,
@@ -68,10 +106,10 @@ def get_memori_instance(
 
 
 # Глобальный экземпляр (ленивая инициализация)
-_memori_instance: Optional[Memori] = None
+_memori_instance: Optional[MemoriType] = None
 
 
-def get_global_memori() -> Optional[Memori]:
+def get_global_memori() -> Optional[MemoriType]:
     """
     Получить глобальный экземпляр Memori (ленивая инициализация).
 
@@ -85,8 +123,9 @@ def get_global_memori() -> Optional[Memori]:
     if _memori_instance is None:
         try:
             _memori_instance = get_memori_instance()
-        except Exception:
+        except (ImportError, RuntimeError, ValueError) as e:
             # Если Memori не настроен, возвращаем None
             # Приложение может работать без памяти
+            logger.exception("Memori initialization failed: %s", e)
             return None
     return _memori_instance

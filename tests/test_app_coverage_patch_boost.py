@@ -5,6 +5,7 @@ Focuses on uncovered lines and edge cases to improve overall coverage.
 """
 
 import os
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -247,37 +248,22 @@ class TestAppCoveragePatchBoost:
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
-    def test_legacy_category_label_edge_cases(self, client: TestClient) -> None:
+    @pytest.mark.parametrize(
+        "category,lang,expected",
+        [
+            ("Normal weight", "en", "Healthy weight"),
+            ("Избыточная масса", "ru", "Избыточный вес"),
+            ("Normal weight", "es", "Normal weight"),
+            ("Normal weight", None, "Normal weight"),
+            pytest.param("Normal weight", 123, "Normal weight", id="invalid_lang_type"),
+        ],
+    )
+    def test_legacy_category_label_edge_cases(
+        self, client: TestClient, category: str, lang: Any, expected: str
+    ) -> None:
         """Test legacy_category_label with explicit language values and fallback behavior."""
-        # Test with explicit English language - should map "Normal weight" to "Healthy weight"
-        result = app.legacy_category_label("Normal weight", "en")
-        assert (
-            result == "Healthy weight"
-        ), f"Expected 'Healthy weight' for lang='en', got '{result}'"
-
-        # Test with explicit Russian language - should map "Избыточная масса" to "Избыточный вес"
-        result = app.legacy_category_label("Избыточная масса", "ru")
-        assert (
-            result == "Избыточный вес"
-        ), f"Expected 'Избыточный вес' for lang='ru', got '{result}'"
-
-        # Test with Spanish language (unsupported mapping) - should return category unchanged
-        result = app.legacy_category_label("Normal weight", "es")
-        assert result == "Normal weight", f"Expected 'Normal weight' for lang='es', got '{result}'"
-
-        # Test with None language - defaults to "ru", so "Normal weight" stays unchanged
-        # (no mapping exists for "Normal weight" in Russian context)
-        result = app.legacy_category_label("Normal weight", None)
-        assert (
-            result == "Normal weight"
-        ), f"Expected 'Normal weight' for lang=None (fallback to 'ru'), got '{result}'"
-
-        # Test with invalid lang type (int) - exception caught, defaults to "ru"
-        # Should return category unchanged as fallback behavior
-        result = app.legacy_category_label("Normal weight", 123)  # type: ignore
-        assert (
-            result == "Normal weight"
-        ), f"Expected 'Normal weight' for invalid lang (fallback to 'ru'), got '{result}'"
+        result = app.legacy_category_label(category, lang)
+        assert expected == result
 
     def test_add_visualization_if_requested_not_requested(self, client: TestClient) -> None:
         """Test add_visualization_if_requested when not requested."""

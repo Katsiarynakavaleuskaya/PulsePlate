@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # 🔐 Quick login/setup script for Claude/Cursor authentication
 # Usage: ./scripts/claude_login.sh
 
@@ -46,6 +46,7 @@ case $choice in
 
         if [ -z "$api_key" ]; then
             echo "❌ Error: API key cannot be empty"
+            unset api_key
             exit 1
         fi
 
@@ -55,6 +56,7 @@ $api_key
 EOF
         then
             echo "❌ Failed to update API key"
+            unset api_key
             exit 1
         fi
         unset api_key
@@ -131,13 +133,13 @@ EOF
                     # Strip surrounding quotes from value
                     value="${value#\"}"
                     value="${value%\"}"
-                    value="${value#\'}"
-                    value="${value%\'}"
                     # Sanitize value: reject control chars, newlines, and command injection chars
-                    # Allow only printable ASCII (32-126) excluding dangerous chars: `$();&|<>*?\ and newlines
+                    # Allow only printable ASCII (32-126) excluding dangerous chars: `$();&|<>*?'\" and newlines
                     # Note: In character classes, only ], \, and - need escaping
-                    if [[ "$value" =~ [^[:print:]] ]] || [[ "$value" =~ [\`\$\(\)\;\&\|\<\>\*\\\?] ]]; then
+                    if [[ "$value" =~ [^[:print:]] ]] || [[ "$value" =~ [\`\$\(\)\;\&\|\<\>\*\\\?\'\"] ]]; then
                         echo "⚠️  Warning: Skipping unsafe value for $key (contains control chars or injection chars)" >&2
+                        continue
+                    fi
                         continue
                     fi
                     # Export sanitized value directly (safer than eval)

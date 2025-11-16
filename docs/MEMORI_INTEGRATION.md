@@ -23,10 +23,15 @@ Memori - это SQL-native memory engine для AI агентов, которы�
 **Пример использования:**
 
 ```python
+from typing import Optional
+
+from memori import Memori
+
 from core.memory_config import get_global_memori
 
 # При первом запросе пользователь указывает: "Я вегетарианец"
 # Memori сохраняет: user_id="user123" → preference="vegetarian"
+memori: Optional[Memori] = get_global_memori()
 
 # При следующем запросе (даже через неделю)
 # Memori автоматически предоставляет контекст: "Этот пользователь вегетарианец"
@@ -96,14 +101,14 @@ from core.memory_config import get_global_memori
 memori = get_global_memori()
 if memori:
     # Сохраняем предпочтения пользователя
-    memori.add_memory(
+    memori.add(
+        messages=[{"role": "user", "content": "Пользователь вегетарианец, не ест мясо и рыбу"}],
         user_id="user123",
-        memory="Пользователь вегетарианец, не ест мясо и рыбу",
         metadata={"diet_type": "vegetarian"}
     )
 
     # При следующем запросе
-    memories = memori.search_memories(user_id="user123", query="диетические предпочтения")
+    memories = memori.search(query="диетические предпочтения", user_id="user123")
     # Автоматически фильтруем продукты
 ```
 
@@ -146,26 +151,30 @@ if memori:
 ### Минимальная настройка (работает сразу)
 
 ```python
+from typing import Optional
 from memori import Memori
+from core.memory_config import get_global_memori
 
-# Создаем экземпляр (использует SQLite по умолчанию)
-memori = Memori()
-memori.enable()  # Активирует автоматическое сохранение
-
-# Готово! Memori теперь автоматически сохраняет контекст
+# Получаем глобальный экземпляр (использует SQLite по умолчанию)
+memori: Optional[Memori] = get_global_memori()
+if memori:
+    # Memori автоматически активирован и сохраняет контекст
+    # Готово! Memori теперь автоматически сохраняет контекст
+    pass
 ```
 
 ### Расширенная настройка (через модуль)
 
 ```python
+from memori import Memori
 from core.memory_config import get_memori_instance
 
 # Использует настройки из переменных окружения
-memori = get_memori_instance(
-    user_id="user123",
-    database_url="postgresql://user:pass@host/db",  # Опционально
-    conscious_ingest=True,  # Извлечение сущностей (требует OpenAI API)
-)
+# Установите следующие переменные окружения:
+# MEMORI_DATABASE_URL - URL базы данных (например, postgresql://user:pass@host/db)
+# MEMORI_CONSCIOUS_INGEST - включить извлечение сущностей (true/false, требует OPENAI_API_KEY)
+# OPENAI_API_KEY - API ключ OpenAI (требуется для conscious_ingest)
+memori: Memori = get_memori_instance(user_id="user123")
 ```
 
 ## 💡 Рекомендации для PulsePlate
@@ -179,8 +188,24 @@ memori = get_memori_instance(
 
 - Все данные хранятся в вашей базе данных (полный контроль)
 - Можно использовать шифрование на уровне базы данных
-- Соответствует GDPR (данные хранятся локально, не отправляются в облако)
 - Можно настроить автоматическое удаление старых данных
+
+### ⚠️ Важно: Обработка данных при `conscious_ingest=True`
+
+**По умолчанию:** При включении `conscious_ingest=True` (см. [расширенная настройка](#расширенная-настройка-через-модуль)) данные отправляются в настроенный OpenAI API для извлечения сущностей. Это означает передачу персональных данных третьей стороне.
+
+**GDPR-соображения:**
+
+- Обработка данных третьей стороной (OpenAI) требует правового основания (согласие, договор, законный интерес)
+- Возможны трансграничные передачи данных (если API находится вне ЕС)
+- Необходимо информировать пользователей о передаче данных третьим лицам
+- Рекомендуется добавить соответствующие положения в политику конфиденциальности
+
+**Как сохранить данные локально:**
+
+1. Отключите `conscious_ingest=False` (базовая функциональность работает без внешних API)
+2. Или настройте локальный LLM-провайдер/self-hosted модель и убедитесь, что нет внешних API-вызовов
+3. Проверьте настройки провайдера в конфигурации (см. примеры выше)
 
 ## 📈 Метрики успеха
 

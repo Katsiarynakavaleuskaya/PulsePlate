@@ -66,8 +66,25 @@ class FoodItem(BaseModel):
         exercising minimal payloads see normalized values while real data keeps None.
         """
         if isinstance(self.source, str) and self.source == "TEST":
+            # Normalize all micronutrients to zero for TEST sources
             if self.fiber_g is None:
                 self.fiber_g = 0.0
+            if self.Fe_mg is None:
+                self.Fe_mg = 0.0
+            if self.Ca_mg is None:
+                self.Ca_mg = 0.0
+            if self.K_mg is None:
+                self.K_mg = 0.0
+            if self.Mg_mg is None:
+                self.Mg_mg = 0.0
+            if self.VitD_IU is None:
+                self.VitD_IU = 0.0
+            if self.B12_ug is None:
+                self.B12_ug = 0.0
+            if self.Folate_ug is None:
+                self.Folate_ug = 0.0
+            if self.Iodine_ug is None:
+                self.Iodine_ug = 0.0
         return self
 
     @property

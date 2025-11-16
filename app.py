@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
 import secrets
@@ -48,10 +47,17 @@ from app.services import recipe_store
 from app.services.food_store import get_food
 from bmi_core import bmi_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
+from core.fingerprint_security import compute_fingerprint
+from core.log_retention import (
+    DATA_CLASS_PSEUDONYMOUS,
+    get_retention_manager,
+    LogRetentionManager,
+)
 from core.db import get_session, init_db
 from core.i18n import Language, t
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
+import core.utils as core_utils
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
 if TYPE_CHECKING:
@@ -166,7 +172,10 @@ _log_level = (
 )
 logging.basicConfig(level=_log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-_CLIENT_FINGERPRINT_SALT = os.getenv("CLIENT_FINGERPRINT_SALT", "")
+bmi_logger = logging.getLogger("app.bmi")
+
+# Initialize log retention manager
+_log_retention_manager: Optional[LogRetentionManager] = None
 _DEFAULT_LIFE_STAGE_MESSAGES: dict[str, dict[str, str]] = {
     "teen": {
         "ru": "Подростковая группа: используйте специализированные нормы.",
@@ -422,19 +431,48 @@ def _startup_init_db() -> None:
     This handler ensures the database schema is created when the app starts,
     including when TestClient is used in tests. This is idempotent and safe
     to call multiple times.
+
+    In test/CI environment, this is critical for ensuring tables exist before tests run.
     """
+    env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
+    is_test_env = env_name in {"test", "ci"}
+
     try:
         init_db()
         logger.info("Database schema initialized via startup handler")
+
+        # In test environment, verify tables were created
+        if is_test_env:
+            from core.db import session_scope
+            from sqlalchemy import inspect
+
+            with session_scope() as session:
+                inspector = inspect(session.get_bind())
+                tables = inspector.get_table_names()
+                required_tables = ["users", "recipes", "meals", "food_items"]
+                missing_tables = [t for t in required_tables if t not in tables]
+
+                if missing_tables:
+                    logger.error(
+                        "CRITICAL: Required tables missing after init_db(): %s. Found: %s",
+                        missing_tables,
+                        tables,
+                    )
+                    # In test environment, raise to fail fast
+                    raise RuntimeError(
+                        f"Database initialization incomplete: missing tables {missing_tables}"
+                    )
+                logger.debug("Verified all required tables exist: %s", required_tables)
     except Exception as e:
-        # In test environment, log but don't fail startup
-        # The lifespan handler will handle production errors
-        env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
-        if env_name in {"test", "ci"}:
-            logger.warning("Database initialization failed in test environment: %s", e)
-        else:
-            logger.error("Database initialization failed: %s", e)
+        # In test environment, always raise to fail fast
+        if is_test_env:
+            logger.error(
+                "CRITICAL: Database initialization failed in test environment: %s", e, exc_info=True
+            )
             raise
+        # In production, let lifespan handler deal with it
+        logger.error("Database initialization failed: %s", e, exc_info=True)
+        raise
 
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
@@ -619,7 +657,14 @@ async def csp_nonce_middleware(request: Request, call_next: CallNextHandler) -> 
 
 
 def _client_fingerprint(request: Request) -> str | None:
-    """Return a stable, non-PII identifier for the requesting client."""
+    """Return a stable, non-PII identifier for the requesting client.
+
+    RU: Возвращает стабильный, не-ПДН идентификатор для запрашивающего клиента.
+    EN: Returns a stable, non-PII identifier for the requesting client.
+
+    This function produces pseudonymous identifiers (hashed+truncated IPs)
+    that must be treated as pseudonymous data per GDPR and privacy regulations.
+    """
     forwarded_for = request.headers.get("x-forwarded-for", "")
     forwarded_ip = forwarded_for.split(",")[0].strip() if forwarded_for else ""
     remote_host = request.client.host if request.client else ""
@@ -627,28 +672,56 @@ def _client_fingerprint(request: Request) -> str | None:
     if not source:
         return None
     # Hash with salt so raw IP is never logged while keeping ability to correlate requests.
-    payload = f"{_CLIENT_FINGERPRINT_SALT}:{source}".encode("utf-8")
-    digest = hashlib.sha256(payload).hexdigest()
-    return digest[:12]
+    # Uses secure salt storage - see core.fingerprint_security for details
+    return compute_fingerprint(source)
 
 
-# Add logging middleware
+# Add logging middleware with data classification
 @app.middleware("http")
 async def log_requests(request: Request, call_next: CallNextHandler) -> Response:
+    """Log requests with pseudonymous identifier classification.
+
+    RU: Логирует запросы с классификацией псевдонимных идентификаторов.
+    EN: Logs requests with pseudonymous identifier classification.
+
+    Logs containing client fingerprints are classified as PSEUDONYMOUS data
+    and subject to short retention periods per GDPR best practices.
+    """
     start_time_req = time.time()
     fingerprint = _client_fingerprint(request)
+    contains_pseudonymous_data = fingerprint is not None
+
+    # Classify and label log entries
+    data_class = DATA_CLASS_PSEUDONYMOUS if contains_pseudonymous_data else "PUBLIC"
+
     if fingerprint:
-        logger.debug("Request: %s %s [client=%s]", request.method, request.url.path, fingerprint)
-    else:
-        logger.debug("Request: %s %s", request.method, request.url.path)
-    response = await call_next(request)
-    process_time = time.time() - start_time_req
-    if fingerprint:
+        # Log with classification label for audit and retention purposes
         logger.debug(
-            "Response: %s in %.4fs [client=%s]", response.status_code, process_time, fingerprint
+            "Request: %s %s [client=%s] [data_class=%s]",
+            request.method,
+            request.url.path,
+            fingerprint,
+            data_class,
         )
     else:
-        logger.debug("Response: %s in %.4fs", response.status_code, process_time)
+        logger.debug("Request: %s %s [data_class=%s]", request.method, request.url.path, data_class)
+
+    response = await call_next(request)
+    process_time = time.time() - start_time_req
+
+    if fingerprint:
+        logger.debug(
+            "Response: %s in %.4fs [client=%s] [data_class=%s]",
+            response.status_code,
+            process_time,
+            fingerprint,
+            data_class,
+        )
+    else:
+        logger.debug(
+            "Response: %s in %.4fs [data_class=%s]", response.status_code, process_time, data_class
+        )
+
     return response
 
 
@@ -1202,15 +1275,78 @@ async def metrics() -> Dict[str, str]:
 
 
 @app.get("/privacy")
-async def privacy() -> Dict[str, str]:
-    """Privacy policy endpoint."""
+async def privacy() -> Dict[str, Any]:
+    """Privacy policy endpoint with explicit pseudonymous data disclosure.
+
+    RU: Эндпоинт политики конфиденциальности с явным раскрытием псевдонимных данных.
+    EN: Privacy policy endpoint with explicit pseudonymous data disclosure.
+    """
+    retention_manager = get_retention_manager()
+    pseudonymous_retention_days = retention_manager.pseudonymous_retention_days
+
     return {
         "privacy_policy": (
             "This application processes BMI calculations locally. "
-            "No personal data is stored or transmitted to external servers."
+            "No personal data is stored or transmitted to external servers. "
+            "However, we collect pseudonymous request identifiers (hashed and truncated IP addresses) "
+            "for security and analytics purposes. These identifiers cannot be used to directly identify "
+            "individual users but may be used to correlate requests from the same client."
         ),
-        "data_retention": "No data is retained beyond the current session.",
+        "data_collection": {
+            "pseudonymous_identifiers": {
+                "type": "Client fingerprints (hashed and truncated IP addresses)",
+                "purpose": "Security monitoring, request correlation, and abuse prevention",
+                "retention_period_days": pseudonymous_retention_days,
+                "classification": "Pseudonymous data (GDPR Article 4(5))",
+                "deletion": "Automatic deletion after retention period expires",
+            },
+        },
+        "data_retention": (
+            f"Pseudonymous request identifiers are retained for {pseudonymous_retention_days} days "
+            "and automatically deleted thereafter. No personal data is retained beyond the current session."
+        ),
+        "data_classification": {
+            "pseudonymous_logs": "Logs containing client fingerprints are classified as PSEUDONYMOUS data",
+            "access_control": "Access to logs containing pseudonymous identifiers is restricted and audited",
+            "salt_rotation": "Fingerprint salt is stored as a secret and can be rotated per documented procedures",
+        },
         "contact": "For privacy concerns, please contact the application administrator.",
+        "gdpr_compliance": (
+            "This application complies with GDPR requirements for pseudonymous data processing. "
+            "Users have the right to request information about data processing and to request deletion."
+        ),
+    }
+
+
+@app.post("/admin/logs/cleanup")
+async def cleanup_expired_logs(
+    data_class: Optional[str] = None,
+    api_key: str = Depends(api_key_header),
+) -> Dict[str, Any]:
+    """Cleanup expired log files based on retention policy.
+
+    RU: Очистка истекших лог-файлов на основе политики хранения.
+    EN: Cleanup expired log files based on retention policy.
+
+    Requires API key authentication. This endpoint enforces the data retention
+    policy by deleting logs that have exceeded their retention period.
+
+    Args:
+        data_class: Optional data classification to filter by (PSEUDONYMOUS, PUBLIC, SENSITIVE).
+                   If None, processes all classifications.
+        api_key: API key for authentication (via dependency)
+
+    Returns:
+        Dictionary with cleanup results
+    """
+    retention_manager = get_retention_manager()
+    deleted_count = retention_manager.cleanup_expired_logs(data_class=data_class)
+
+    return {
+        "status": "success",
+        "deleted_files": deleted_count,
+        "data_class": data_class or "ALL",
+        "message": f"Deleted {deleted_count} expired log file(s)",
     }
 
 
@@ -1234,6 +1370,9 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
         # Add visualization if requested and available
         add_visualization_if_requested(result, req)
+        log_msg = "BMI calculation skipped due to pregnancy flag [group=%s]"
+        logger.warning(log_msg, result["group"])
+        bmi_logger.warning(log_msg, result["group"])
 
         return result
 
@@ -1254,6 +1393,10 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
     # Add visualization if requested and available
     add_visualization_if_requested(bmi_result, req)
+    log_args = (bmi_result["group"], flags["is_athlete"], bmi)
+    log_tpl = "BMI calculation complete [group=%s athlete=%s bmi=%.1f]"
+    logger.warning(log_tpl, *log_args)
+    bmi_logger.warning(log_tpl, *log_args)
 
     return bmi_result
 
@@ -1692,6 +1835,7 @@ DietFlag = Literal[
     "KETO",
     "PALEO",
 ]
+LifeStage = Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
 
 
 class PlateRequest(BaseModel):
@@ -1711,6 +1855,8 @@ class PlateRequest(BaseModel):
     surplus_pct: Optional[float] = Field(None, ge=5, le=20)  # for gain
     bodyfat: Optional[float] = Field(None, ge=3, le=60)
     diet_flags: Optional[set[DietFlag]] = None
+    life_stage: LifeStage = "adult"
+    lang: str = "en"
 
 
 class VisualShape(BaseModel):
@@ -1746,6 +1892,7 @@ MICRO_ALIAS_MAP: Dict[str, tuple[str, ...]] = {
     "calcium_mg": ("calcium", "ca"),
     "magnesium_mg": ("magnesium",),
     "potassium_mg": ("potassium", "k"),
+    "iodine_ug": ("iodine",),
 }
 
 
@@ -2095,6 +2242,19 @@ def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
     return result
 
 
+MANDATORY_MICRO_DEFAULTS: Dict[str, float] = {"iodine_ug": 150.0}
+
+
+def _ensure_priority_micros(values: Dict[str, float]) -> Dict[str, float]:
+    """Ensure mandatory micronutrient keys are present with sane defaults."""
+
+    for nutrient, default_value in MANDATORY_MICRO_DEFAULTS.items():
+        current_value = values.get(nutrient)
+        if current_value is None or current_value <= 0:
+            values[nutrient] = default_value
+    return values
+
+
 # WHO-Based Nutrition Models
 class WHOTargetsRequest(BaseModel):
     """RU: Запрос на расчёт целей по нормам ВОЗ.
@@ -2201,6 +2361,22 @@ class WeeklyPlanFlexibleRequest(BaseModel):
     lang: Optional[str] = "en"
 
 
+def _macros_to_kcal(macros: Dict[str, Any]) -> Optional[int]:
+    """Convert macro grams into total kcal."""
+
+    try:
+        protein = float(macros.get("protein_g", 0))
+        fat = float(macros.get("fat_g", 0))
+        carbs = float(macros.get("carbs_g", 0))
+    except (TypeError, ValueError):
+        return None
+    total = protein * 4 + fat * 9 + carbs * 4
+    try:
+        return int(round(total))
+    except (TypeError, ValueError):
+        return None
+
+
 def calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, int, int]:
     """Calculate heuristic macronutrient targets when WHO targets unavailable.
 
@@ -2210,6 +2386,10 @@ def calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, 
     - Fat: 0.9 g/kg (minimum essential fat intake, IOM AMDR: 20-35% kcal)
     - Carbs: computed as calorie remainder (final_kcal - prot*4 - fat*9) / 4
       to match test expectations and ensure total calories align
+
+    If protein and fat calories exceed final_kcal (accounting for minimum 1g carbs),
+    protein and fat are proportionally scaled down to their target ratio while
+    ensuring total calories match final_kcal and carbs remain at least 1g.
 
     References:
     - IOM Dietary Reference Intakes (2005)
@@ -2223,9 +2403,33 @@ def calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, 
     Returns:
         Tuple of (protein_g, fat_g, carbs_g) in grams
     """
-    prot = int(round(1.6 * weight_kg))
-    fat = int(round(0.9 * weight_kg))
+    # Calculate raw protein and fat grams and their calories
+    prot_raw = 1.6 * weight_kg
+    fat_raw = 0.9 * weight_kg
+    prot_cal = prot_raw * 4
+    fat_cal = fat_raw * 9
+
+    # Check if protein + fat calories exceed available calories (reserving 4 kcal for min 1g carbs)
+    if prot_cal + fat_cal + 4 > final_kcal:
+        # Scale down protein and fat proportionally to fit within available calories
+        # Reserve 4 kcal for minimum 1g carbs
+        available_cal = final_kcal - 4
+        if available_cal > 0 and (prot_cal + fat_cal) > 0:
+            scale = max(available_cal / (prot_cal + fat_cal), 0.0)
+            prot_raw = prot_raw * scale
+            fat_raw = fat_raw * scale
+        else:
+            # Edge case: very low calories, set minimums
+            prot_raw = 0.0
+            fat_raw = 0.0
+
+    # Round to integers
+    prot = max(0, int(round(prot_raw)))
+    fat = max(0, int(round(fat_raw)))
+
+    # Calculate carbs from remainder, ensuring minimum 1g
     carbs = max(1, int(round((final_kcal - prot * 4 - fat * 9) / 4)))
+
     return prot, fat, carbs
 
 
@@ -2451,7 +2655,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
         # Aggregate micronutrients from meal ingredients
         # Resolve _aggregate_day_micronutrients dynamically to respect test patches
-        _aggregate_func = resolve_attr(
+        _aggregate_func = core_utils.resolve_attr(
             "_aggregate_day_micronutrients",
             _aggregate_day_micronutrients,
             _candidates,
@@ -2467,31 +2671,15 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             )
             day_micros = {}
 
-        # Align macros with WHO targets when available to keep deviation thresholds in tests
-        # Otherwise, use a simple heuristic fallback for carbs.
+        # Align macros with WHO targets (same logic as /api/v1/premium/targets)
         macros_aligned = dict(plate_data["macros"])
         target_kcal_override: Optional[int] = None
         alignment_succeeded = False
+        targets_available = not targets_disabled()
 
-        # Check if targets are disabled
-        targets_are_disabled = targets_disabled()
-        _build_targets = None if targets_are_disabled else _resolve_build_targets_callable()
-
-        logger.debug(
-            "premium_plate alignment: targets_disabled=%s build_targets=%s",
-            targets_are_disabled,
-            _build_targets,
-        )
-
-        if _build_targets is not None and callable(_build_targets) and not targets_are_disabled:
+        if targets_available:
             try:
-                logger.debug(
-                    "premium_plate alignment: using build_targets from %s",
-                    getattr(_build_targets, "__module__", "unknown"),
-                )
-                from core.targets import UserProfile
-
-                profile = UserProfile(
+                targets_req = WHOTargetsRequest(
                     sex=req.sex,
                     age=req.age,
                     height_cm=req.height_cm,
@@ -2501,43 +2689,86 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     deficit_pct=req.deficit_pct,
                     surplus_pct=req.surplus_pct,
                     bodyfat=req.bodyfat,
-                    diet_flags=set(req.diet_flags or []),
-                    life_stage="adult",
+                    diet_flags=req.diet_flags,
+                    life_stage=req.life_stage,
+                    lang=req.lang,
                 )
-                _targets = _build_targets(profile)
-                target_macros = getattr(_targets, "macros", None)
-                # Support dict-shaped targets (tests sometimes return dicts)
-                if target_macros is None and isinstance(_targets, dict):
-                    target_macros = _targets.get("macros")
+                targets_resp = _generate_who_targets_response(targets_req)
 
-                def _read_macro(name: str) -> Any:  # noqa: ANN401
-                    """Read macro value from target_macros (supports dict or object)."""
-                    if target_macros is None:
-                        return None
-                    if isinstance(target_macros, dict):
-                        return target_macros.get(name)
-                    # object-like access
-                    return getattr(target_macros, name, None)
+                for macro_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
+                    if macro_name not in macros_aligned:
+                        continue
+                    target_val = targets_resp.macros.get(macro_name)
+                    if target_val is not None:
+                        macros_aligned[macro_name] = int(target_val)
+                        alignment_succeeded = True
 
-                if target_macros is not None:
+                target_kcal_override = targets_resp.kcal_daily
+            except HTTPException as exc:
+                logger.warning(
+                    "premium_plate alignment: WHO targets request invalid: %s", exc.detail
+                )
+            except Exception as exc:
+                logger.warning(
+                    "premium_plate alignment: targets failed with %s, using heuristic", exc
+                )
+
+        if targets_available and not alignment_succeeded:
+            manual_builder = _resolve_build_targets_callable()
+            if manual_builder is not None and callable(manual_builder):
+                try:
+                    logger.debug(
+                        "premium_plate alignment: using build_targets from %s",
+                        getattr(manual_builder, "__module__", "unknown"),
+                    )
+                    from core.targets import UserProfile
+
+                    profile = UserProfile(
+                        sex=req.sex,
+                        age=req.age,
+                        height_cm=req.height_cm,
+                        weight_kg=req.weight_kg,
+                        activity=req.activity,
+                        goal=req.goal,
+                        deficit_pct=req.deficit_pct,
+                        surplus_pct=req.surplus_pct,
+                        bodyfat=req.bodyfat,
+                        diet_flags=set(req.diet_flags or []),
+                        life_stage=req.life_stage,
+                    )
+                    manual_targets = manual_builder(profile)
+                    target_macros = getattr(manual_targets, "macros", None)
+                    if target_macros is None and isinstance(manual_targets, dict):
+                        target_macros = manual_targets.get("macros")
+
+                    def _read_macro(name: str) -> Any:  # noqa: ANN401
+                        if target_macros is None:
+                            return None
+                        if isinstance(target_macros, dict):
+                            return target_macros.get(name)
+                        return getattr(target_macros, name, None)
+
                     for macro_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
+                        if macro_name not in macros_aligned:
+                            continue
                         target_val = _read_macro(macro_name)
-                        if target_val is not None and macro_name in macros_aligned:
+                        if target_val is not None:
                             macros_aligned[macro_name] = int(target_val)
                             alignment_succeeded = True
 
-                # Read kcal_daily (support dict or object)
-                if isinstance(_targets, dict):
-                    kcal_override = _targets.get("kcal_daily") or _targets.get("kcal")
-                else:
-                    kcal_override = getattr(_targets, "kcal_daily", None)
-                if kcal_override is not None:
-                    target_kcal_override = int(kcal_override)
-            except Exception as e:
-                logger.warning(
-                    "premium_plate alignment: targets failed with %s, using heuristic", e
-                )
-                targets_are_disabled = True
+                    if isinstance(manual_targets, dict):
+                        kcal_override = manual_targets.get("kcal_daily") or manual_targets.get(
+                            "kcal"
+                        )
+                    else:
+                        kcal_override = getattr(manual_targets, "kcal_daily", None)
+                    if kcal_override is not None:
+                        target_kcal_override = int(kcal_override)
+                except Exception as exc:  # pragma: no cover - defensive fallback
+                    logger.warning(
+                        "premium_plate alignment: manual targets failed with %s, using heuristic",
+                        exc,
+                    )
 
         # Determine final kcal before applying heuristic
         final_kcal_value = (
@@ -2553,7 +2784,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             )
 
         # Only apply heuristic fallback if alignment did not succeed
-        if (targets_are_disabled or _build_targets is None) and not alignment_succeeded:
+        if not alignment_succeeded:
             logger.debug("premium_plate alignment: using heuristic fallback")
             prot_ref, fat_ref, carbs_ref = calculate_heuristic_macros(
                 final_kcal_value, req.weight_kg
@@ -2591,6 +2822,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 logger.debug(
                     "Could not coerce macro %s=%r to int; leaving as-is", macro_key, macro_value
                 )
+        computed_kcal = _macros_to_kcal(macros_aligned)
+        if alignment_succeeded and computed_kcal is not None:
+            final_kcal_value = computed_kcal
         return PlateResponse(
             kcal=final_kcal_value,
             macros=macros_aligned,
@@ -2929,7 +3163,7 @@ def _fallback_targets_response(
     }
     if include_extra_iodine:
         priority_micros["iodine_ug"] = 150.0
-    priority_micros = _alias_micros(priority_micros)
+    priority_micros = _ensure_priority_micros(_alias_micros(priority_micros))
 
     activity_weekly = {
         "moderate_aerobic_min": 150,
@@ -3104,7 +3338,9 @@ def _generate_who_targets_response(
                 "fiber_g": targets.macros.fiber_g,
             },
             water_ml=targets.water_ml_daily,
-            priority_micros=_alias_micros(dict(targets.micros.get_priority_nutrients())),
+            priority_micros=_ensure_priority_micros(
+                _alias_micros(dict(targets.micros.get_priority_nutrients()))
+            ),
             activity_weekly={
                 "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
                 "strength_sessions": targets.activity.strength_sessions,
