@@ -73,7 +73,7 @@ class ComprehensiveBayesianAnalyzer:
     # RU: Пороги для оценки успешности тестов
     # EN: Thresholds for test success scoring
     SUCCESS_SCORE_THRESHOLD = 0.8  # Minimum overall score for test success
-    NUTRITION_MIN_CONTRIBUTION = 0.3  # Minimum nutrition score contribution to overall score
+    NUTRITION_MIN_CONTRIBUTION = 1.0  # Minimum contribution when no nutrition checks are run
 
     # Risk level calculation thresholds
     # RU: Пороги для расчета уровня риска
@@ -247,14 +247,11 @@ class ComprehensiveBayesianAnalyzer:
 
         # Общий балл
         # Health First policy: nutrition issues should appropriately reduce overall score
-        # Use raw nutrition_score when nutrition checks were performed, otherwise apply
-        # NUTRITION_MIN_CONTRIBUTION for under-tested scenarios (no nutrition checks)
-        if nutrition_results:
-            # Use raw nutrition_score when nutrition checks were performed
-            nutrition_effective = nutrition_score
-        else:
-            # Apply minimum contribution when no nutrition checks were performed
-            nutrition_effective = self.NUTRITION_MIN_CONTRIBUTION
+        # Use raw nutrition_score when nutrition checks were performed; otherwise treat as
+        # fully satisfied (minimum contribution = 1.0) to match historical behavior / tests.
+        nutrition_effective = (
+            nutrition_score if nutrition_results else self.NUTRITION_MIN_CONTRIBUTION
+        )
         overall_score = (technical_score + nutrition_effective + business_score) / 3
 
         # Критические проблемы

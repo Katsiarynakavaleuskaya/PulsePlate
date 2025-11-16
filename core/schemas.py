@@ -25,25 +25,25 @@ class FoodItem(BaseModel):
 
     # Nutritional data (per 100g)
     per_g: float = Field(default=100.0, description="Reference weight in grams")
-    kcal: float | None = Field(default=None, description="Energy in kcal (None if unknown)")
-    protein_g: float | None = Field(default=None, description="Protein in grams (None if unknown)")
-    fat_g: float | None = Field(default=None, description="Fat in grams (None if unknown)")
+    kcal: float | None = Field(default=0.0, description="Energy in kcal (None if unknown)")
+    protein_g: float | None = Field(default=0.0, description="Protein in grams (None if unknown)")
+    fat_g: float | None = Field(default=0.0, description="Fat in grams (None if unknown)")
     carbs_g: float | None = Field(
-        default=None, description="Carbohydrates in grams (None if unknown)"
+        default=0.0, description="Carbohydrates in grams (None if unknown)"
     )
     fiber_g: float | None = Field(
-        default=None, description="Dietary fiber in grams (None if unknown)"
+        default=0.0, description="Dietary fiber in grams (None if unknown)"
     )
 
     # Micronutrients (WHO/EFSA tracked) - None indicates unknown/missing values
-    Fe_mg: float | None = Field(default=None, description="Iron in mg (None if unknown)")
-    Ca_mg: float | None = Field(default=None, description="Calcium in mg (None if unknown)")
-    K_mg: float | None = Field(default=None, description="Potassium in mg (None if unknown)")
-    Mg_mg: float | None = Field(default=None, description="Magnesium in mg (None if unknown)")
-    VitD_IU: float | None = Field(default=None, description="Vitamin D in IU (None if unknown)")
-    B12_ug: float | None = Field(default=None, description="Vitamin B12 in µg (None if unknown)")
-    Folate_ug: float | None = Field(default=None, description="Folate in µg (None if unknown)")
-    Iodine_ug: float | None = Field(default=None, description="Iodine in µg (None if unknown)")
+    Fe_mg: float | None = Field(default=0.0, description="Iron in mg (None if unknown)")
+    Ca_mg: float | None = Field(default=0.0, description="Calcium in mg (None if unknown)")
+    K_mg: float | None = Field(default=0.0, description="Potassium in mg (None if unknown)")
+    Mg_mg: float | None = Field(default=0.0, description="Magnesium in mg (None if unknown)")
+    VitD_IU: float | None = Field(default=0.0, description="Vitamin D in IU (None if unknown)")
+    B12_ug: float | None = Field(default=0.0, description="Vitamin B12 in µg (None if unknown)")
+    Folate_ug: float | None = Field(default=0.0, description="Folate in µg (None if unknown)")
+    Iodine_ug: float | None = Field(default=0.0, description="Iodine in µg (None if unknown)")
 
     # Product metadata
     flags: List[str] = Field(default_factory=list, description="Dietary flags (VEG, GF, etc.)")

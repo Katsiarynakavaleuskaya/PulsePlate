@@ -802,7 +802,7 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
         generate_bmi_visualization,
         _candidates,
     ):
-        viz_result = _viz_func(
+        viz_result = _viz_func(  # type: ignore[operator]
             bmi=result["bmi"],
             age=req.age,
             gender=req.gender,
@@ -2144,8 +2144,8 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             _sys.modules.get("_app_top_module"),
             _sys.modules.get(__name__),
         ]
-        targets_disabled = targets_disabled()
-        _build_targets = None if targets_disabled else _resolve_build_targets_callable()
+        targets_disabled_flag = targets_disabled()
+        _build_targets = None if targets_disabled_flag else _resolve_build_targets_callable()
         _make_plate = resolve_attr("make_plate", make_plate, _candidates)
         logger.debug("premium_plate make_plate resolved to %r", _make_plate)
         _calc_bmr = resolve_attr("calculate_all_bmr", calculate_all_bmr, _candidates)
@@ -2176,9 +2176,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
             # Align with WHO targets if backend is available to keep macro deviation low
             # Use centralized helper to resolve build_nutrition_targets callable
-            targets_disabled = targets_disabled()
+            fallback_targets_disabled = targets_disabled()
             _build_targets_resolved = (
-                None if targets_disabled else _resolve_build_targets_callable()
+                None if fallback_targets_disabled else _resolve_build_targets_callable()
             )
             # If we have a callable targets builder, call it and prefer its macros/kcal
             if callable(_build_targets_resolved):
@@ -2296,20 +2296,20 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                     "fiber_g": fiber_g,
                 },
                 portions=portions,
-                layout=layout,
+                layout=layout,  # type: ignore[arg-type]
                 meals=meals,
                 day_micros={},
                 meals_per_day=meals_per_day,
             )
 
         # Calculate BMR/TDEE and generate plate
-        bmr_results = _calc_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
-        tdee_results = _calc_tdee(bmr_results, req.activity)
+        bmr_results = _calc_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)  # type: ignore[operator]
+        tdee_results = _calc_tdee(bmr_results, req.activity)  # type: ignore[operator]
         tdee_val = tdee_results["mifflin"]
 
         diet_flags_str = {str(flag) for flag in req.diet_flags} if req.diet_flags else None
         try:
-            plate_data_raw = _make_plate(
+            plate_data_raw = _make_plate(  # type: ignore[operator]
                 weight_kg=req.weight_kg,
                 tdee_val=tdee_val,
                 goal=req.goal,
@@ -2336,7 +2336,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         )
         if callable(_aggregate_func):
             # _aggregate_func is resolved dynamically and may be async
-            day_micros = await _aggregate_func(plate_data["meals"])
+            day_micros = await _aggregate_func(plate_data["meals"])  # type: ignore[misc]
         else:
             logger.warning(
                 "premium_plate: _aggregate_day_micronutrients not callable (%s), "
@@ -2473,7 +2473,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             kcal=final_kcal_value,
             macros=macros_aligned,
             portions=plate_data["portions"],
-            layout=layout,
+            layout=layout,  # type: ignore[arg-type]
             meals=plate_data["meals"],
             day_micros=day_micros or {},
             meals_per_day=plate_data.get("meals_per_day", 3),
@@ -3364,7 +3364,7 @@ async def rollback_database(source: str, target_version: str) -> JSONResponse:
                 detail="Rollback operation not supported by scheduler",
             )
 
-        success = await rollback_callable(source, target_version)
+        success = await rollback_callable(source, target_version)  # type: ignore[misc]
 
         if success:
             return JSONResponse(

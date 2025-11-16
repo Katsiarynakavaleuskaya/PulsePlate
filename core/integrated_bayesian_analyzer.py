@@ -112,8 +112,16 @@ class IntegratedBayesianAnalyzer:
             ],
         }
 
-    def analyze_test_comprehensively(self, test_code: str, test_name: str) -> IntegratedTestResult:
-        """Comprehensive analysis of a single test."""
+    def analyze_test_comprehensively(
+        self, test_code: str, test_name: str, file_path: str | None = None
+    ) -> IntegratedTestResult:
+        """Comprehensive analysis of a single test.
+
+        Args:
+            test_code: Source code of the test under analysis.
+            test_name: Test function name.
+            file_path: Optional path of the test file (for logging/telemetry).
+        """
 
         # Technical analysis
         technical_issues = self._analyze_technical_aspects(test_code, test_name)

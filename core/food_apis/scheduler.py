@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-import threading
 from datetime import datetime, timedelta
 from types import FrameType
 from typing import Any, Dict, Optional
@@ -37,9 +36,6 @@ class DatabaseUpdateScheduler:
     - Update notifications and logging
     """
 
-    _shutdown_event: asyncio.Event
-    _update_task: asyncio.Task[None] | None
-
     def __init__(
         self,
         update_interval_hours: int = 24,
@@ -59,6 +55,9 @@ class DatabaseUpdateScheduler:
 
         # Background task
         self._update_task: Optional[asyncio.Task] = None
+
+        # Shutdown event for graceful shutdown
+        self._shutdown_event: asyncio.Event = asyncio.Event()
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
