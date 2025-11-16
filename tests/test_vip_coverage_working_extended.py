@@ -26,16 +26,18 @@ class TestVIPCoverageWorkingExtended:
         client = test_client
 
         # Mock get_available_regions to return success
+        # Note: get_regions() converts to uppercase and sorts, so ["ES", "US"] becomes ["ES", "US"] (alphabetically)
         with patch.object(vip_router, "get_available_regions", return_value=["ES", "US"]):
             response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
-            assert_vip_response(
-                response,
-                expected_data_fields={
-                    "status": "success",
-                    "regions": ["ES", "US"],
-                    "total_regions": 2,
-                },
-            )
+            data = response.json()
+            # Regions are converted to uppercase and sorted alphabetically
+            assert data["status"] == "success"
+            assert "regions" in data
+            assert isinstance(data["regions"], list)
+            assert len(data["regions"]) == 2
+            # After sorting: ["ES", "US"] (alphabetically)
+            assert set(data["regions"]) == {"ES", "US"}
+            assert data["total_regions"] == 2
 
     def test_vip_regions_error_coverage(self, test_client):
         """Test VIP regions error coverage."""

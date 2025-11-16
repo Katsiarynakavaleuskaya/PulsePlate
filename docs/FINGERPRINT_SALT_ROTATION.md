@@ -17,12 +17,15 @@ The client fingerprint salt is a critical security secret used to hash IP addres
 ⚠️ **IMPORTANT**: Rotating the salt will break correlation of fingerprints across the rotation event. Old fingerprints will no longer match new ones, even for the same IP address.
 
 **Before Rotation:**
+
 - IP `192.168.1.1` → Fingerprint `abc123def456` (with old salt)
 
 **After Rotation:**
+
 - IP `192.168.1.1` → Fingerprint `xyz789ghi012` (with new salt)
 
 This means:
+
 - Historical logs cannot be correlated with new requests using fingerprints alone
 - If correlation is needed, you must use the original IP addresses (if available) or other identifiers
 - Audit trails may need to be maintained separately for pre-rotation and post-rotation periods
@@ -32,12 +35,14 @@ This means:
 ### Step 1: Preparation
 
 1. **Document Current State**:
+
    ```bash
    # Record the rotation date and time
    echo "Salt rotation scheduled for: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> salt_rotation_log.txt
    ```
 
 2. **Backup Current Salt** (if stored in environment):
+
    ```bash
    # Export current salt (for reference only - do not store unencrypted)
    echo "Old salt (encrypted): $CLIENT_FINGERPRINT_SALT" >> salt_rotation_log.txt
@@ -82,6 +87,7 @@ print(f"New salt: {new_salt}")
 #### Development/Staging
 
 Update `.env` file:
+
 ```bash
 # Encrypted format (recommended)
 CLIENT_FINGERPRINT_SALT=encrypted:<encrypted_value>
@@ -95,6 +101,7 @@ CLIENT_FINGERPRINT_SALT=<new_salt_value>
 Use a secrets manager:
 
 **AWS Secrets Manager:**
+
 ```bash
 aws secretsmanager update-secret \
   --secret-id pulseplate/fingerprint-salt \
@@ -102,11 +109,13 @@ aws secretsmanager update-secret \
 ```
 
 **HashiCorp Vault:**
+
 ```bash
 vault kv put secret/pulseplate fingerprint_salt="$new_salt"
 ```
 
 **Kubernetes Secrets:**
+
 ```bash
 kubectl create secret generic fingerprint-salt \
   --from-literal=salt="$new_salt" \
@@ -114,6 +123,7 @@ kubectl create secret generic fingerprint-salt \
 ```
 
 **GitHub Secrets (for CI/CD):**
+
 ```bash
 # Via GitHub CLI
 gh secret set CLIENT_FINGERPRINT_SALT --body "$new_salt"
@@ -127,6 +137,7 @@ gh secret set CLIENT_FINGERPRINT_SALT --body "$new_salt"
    - Update infrastructure-as-code (Terraform, CloudFormation, etc.)
 
 2. **Restart Application**:
+
    ```bash
    # The application will automatically pick up the new salt on restart
    systemctl restart pulseplate
@@ -137,6 +148,7 @@ gh secret set CLIENT_FINGERPRINT_SALT --body "$new_salt"
    ```
 
 3. **Verify**:
+
    ```bash
    # Check that new fingerprints are being generated
    curl -X GET http://localhost:8000/health
@@ -147,6 +159,7 @@ gh secret set CLIENT_FINGERPRINT_SALT --body "$new_salt"
 ### Step 5: Document Rotation
 
 1. **Update Rotation Log**:
+
    ```bash
    echo "Salt rotated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> salt_rotation_log.txt
    echo "New salt (encrypted): $CLIENT_FINGERPRINT_SALT" >> salt_rotation_log.txt
@@ -193,6 +206,7 @@ If the salt is suspected to be compromised:
 ### Calendar Reminders
 
 Set calendar reminders:
+
 - **90 days before rotation**: Plan rotation
 - **30 days before rotation**: Prepare documentation
 - **7 days before rotation**: Finalize rotation plan
@@ -218,6 +232,7 @@ Set calendar reminders:
 Before rotating in production:
 
 1. **Test in Development**:
+
    ```bash
    # Set test salt
    export CLIENT_FINGERPRINT_SALT="test_salt_old"
@@ -243,6 +258,7 @@ Before rotating in production:
 ### Issue: Application fails to start after rotation
 
 **Solution**: Check that the salt is properly set in environment variables:
+
 ```bash
 # Verify salt is set
 echo $CLIENT_FINGERPRINT_SALT
@@ -256,6 +272,7 @@ tail -f logs/app.log
 **Expected Behavior**: This is by design. Old and new fingerprints cannot be correlated after rotation.
 
 **If Correlation is Required**:
+
 - Use original IP addresses (if logged separately)
 - Use other identifiers (session IDs, user IDs, etc.)
 - Maintain separate audit trails for pre-rotation and post-rotation periods
@@ -270,6 +287,7 @@ tail -f logs/app.log
 ## Contact
 
 For questions about salt rotation:
+
 - Security Team: [security@example.com]
 - Compliance Officer: [compliance@example.com]
 - Operations: [ops@example.com]

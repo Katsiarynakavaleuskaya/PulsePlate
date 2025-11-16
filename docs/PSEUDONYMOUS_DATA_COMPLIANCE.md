@@ -11,6 +11,7 @@ This document describes the implementation of privacy and security controls for 
 **Location**: `app.py` - `/privacy` endpoint
 
 The privacy policy now explicitly discloses:
+
 - Collection of pseudonymous request identifiers (hashed and truncated IP addresses)
 - Purpose of collection (security monitoring, request correlation, abuse prevention)
 - Retention period (configurable, default 30 days)
@@ -23,11 +24,13 @@ The privacy policy now explicitly discloses:
 **Location**: `core/log_retention.py`, `app.py` - logging middleware
 
 Logs containing client fingerprints are now:
+
 - Classified as `PSEUDONYMOUS` data
 - Labeled with `[data_class=PSEUDONYMOUS]` in log entries
 - Subject to shorter retention periods than public logs
 
 **Classification Labels**:
+
 - `PSEUDONYMOUS`: Contains pseudonymous identifiers (client fingerprints)
 - `PUBLIC`: No sensitive data
 - `SENSITIVE`: Contains sensitive data
@@ -37,6 +40,7 @@ Logs containing client fingerprints are now:
 **Location**: `core/log_retention.py`
 
 **Features**:
+
 - Configurable retention periods via environment variables:
   - `LOG_PSEUDONYMOUS_RETENTION_DAYS` (default: 30 days)
   - `LOG_PUBLIC_RETENTION_DAYS` (default: 90 days)
@@ -45,6 +49,7 @@ Logs containing client fingerprints are now:
 - Classification-aware retention (pseudonymous logs have shorter TTL)
 
 **Cleanup Endpoint**: `POST /admin/logs/cleanup`
+
 - Requires API key authentication
 - Can filter by data classification
 - Returns count of deleted files
@@ -54,10 +59,12 @@ Logs containing client fingerprints are now:
 **Location**: `core/log_retention.py` - `LogRetentionManager` class
 
 **Access Controls**:
+
 - Log cleanup endpoint requires API key authentication
 - Access to logs containing pseudonymous data is restricted to authorized personnel
 
 **Audit Logging**:
+
 - All access to logs containing pseudonymous/sensitive data is logged
 - Audit log includes:
   - Action (READ, DELETE, etc.)
@@ -68,6 +75,7 @@ Logs containing client fingerprints are now:
   - Requester identifier (if available)
 
 **Audit Log Format**:
+
 ```text
 LOG_ACCESS_AUDIT: action=READ path=/logs/app.log classification=PSEUDONYMOUS reason=Read access timestamp=2025-01-15T10:30:00
 ```
@@ -77,17 +85,20 @@ LOG_ACCESS_AUDIT: action=READ path=/logs/app.log classification=PSEUDONYMOUS rea
 **Location**: `core/fingerprint_security.py`
 
 **Secure Storage**:
+
 - Salt is retrieved from environment variable `CLIENT_FINGERPRINT_SALT`
 - Supports encrypted storage (using `secure_config` module)
 - Validates salt is set in production (raises error if missing)
 - Generates warning in development if salt is not set
 
 **Salt Rotation**:
+
 - Function `rotate_salt()` generates new salt
 - Function `generate_new_salt()` creates cryptographically secure salt (32 bytes)
 - Documentation: `docs/FINGERPRINT_SALT_ROTATION.md`
 
 **Rotation Plan**:
+
 - Detailed procedure for rotating salt
 - Impact analysis (fingerprints cannot be correlated across rotation)
 - Emergency rotation procedures
@@ -135,26 +146,31 @@ salt = get_fingerprint_salt()
 ### GDPR (General Data Protection Regulation)
 
 **Article 4(5) - Pseudonymisation**:
+
 - Client fingerprints are pseudonymous data (cannot directly identify individuals)
 - Still subject to GDPR requirements for data processing
 
 **Article 5 - Principles**:
+
 - ✅ **Minimization**: Only collects hashed IPs, not full IPs
 - ✅ **Storage Limitation**: Short retention period (30 days default)
 - ✅ **Accountability**: Audit logging of access
 
 **Article 13/14 - Information to be provided**:
+
 - ✅ Privacy policy explicitly discloses pseudonymous data collection
 - ✅ Purpose and legal basis stated
 - ✅ Retention period disclosed
 
 **Article 30 - Records of processing activities**:
+
 - Salt rotation must be documented
 - Access to logs must be logged
 
 ### HIPAA (if applicable)
 
 **Administrative Safeguards**:
+
 - Salt rotation is a security control
 - Access controls and audit logs meet requirements
 - Documentation of security procedures
@@ -164,11 +180,13 @@ salt = get_fingerprint_salt()
 ### Manual Testing
 
 1. **Check Privacy Policy**:
+
    ```bash
    curl http://localhost:8000/privacy | jq
    ```
 
 2. **Verify Log Classification**:
+
    ```bash
    # Make a request
    curl http://localhost:8000/health
@@ -178,6 +196,7 @@ salt = get_fingerprint_salt()
    ```
 
 3. **Test Log Cleanup**:
+
    ```bash
    # Cleanup expired pseudonymous logs
    curl -X POST http://localhost:8000/admin/logs/cleanup \
@@ -189,6 +208,7 @@ salt = get_fingerprint_salt()
 ### Automated Testing
 
 Add tests to verify:
+
 - Privacy policy includes pseudonymous data disclosure
 - Logs are properly classified
 - Retention policy is enforced
@@ -215,6 +235,7 @@ Add tests to verify:
 ### Alerts
 
 Set up alerts for:
+
 - Salt not configured in production
 - Unusual access patterns to log files
 - Retention cleanup failures
@@ -231,6 +252,7 @@ Set up alerts for:
 ## Contact
 
 For questions about pseudonymous data compliance:
+
 - Security Team: [security@example.com]
 - Compliance Officer: [compliance@example.com]
 - Privacy Officer: [privacy@example.com]

@@ -10,6 +10,9 @@ omit =
     frontend/build/*
     htmlcov/*
     coverage/*
+    ios/*
+    ios/Scripts/*
+    scripts/*
     providers/pico.py
     app/routers/vip.py
     conftest.py

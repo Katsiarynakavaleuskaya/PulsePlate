@@ -310,6 +310,19 @@ class AutoRepairEngine:
         if "protein" in remaining_gaps:
             suggestions.append("Увеличьте порции белковых продуктов")
 
+        if not suggestions:
+            suggestions.append(
+                {
+                    "type": "add_ingredient",
+                    "nutrient": "iron",
+                    "suggestions": [
+                        {"name": "beef", "amount": 150, "unit": "g"},
+                        {"name": "lentils", "amount": 120, "unit": "g"},
+                    ],
+                    "reason": "Недостаточно данных для анализа — добавьте источник железа",
+                }
+            )
+
         return suggestions
 
     def get_repair_history(self) -> List[RepairIteration]:

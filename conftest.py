@@ -45,7 +45,7 @@ def _coerce_side_effect(side_effect: object) -> Callable[..., Any]:
 def _setattr_with_side_effect(
     self: pytest.MonkeyPatch,
     target: str | object,
-    name: object | str | None = None,
+    name: object | str = _monkey_notset,
     value: object = _monkey_notset,
     raising: bool = True,
     *,
@@ -58,21 +58,29 @@ def _setattr_with_side_effect(
             raise TypeError("Cannot pass both value and side_effect to monkeypatch.setattr")
         value = _coerce_side_effect(side_effect)
 
-    # When target is a dotted path and no explicit name provided, pytest expects the replacement
-    # to be passed as the second positional argument (name parameter). Adjust automatically so
-    # calls like monkeypatch.setattr(\"module.attr\", side_effect=Exception) continue to work.
-    if isinstance(target, str) and name is None and value is not _monkey_notset:
-        # Only adjust if value is a string; otherwise let original setattr handle it
-        if isinstance(value, str):
-            name = value
-            value = _monkey_notset
-        # For non-string values (e.g., callables from side_effect), don't adjust
+    # Handle case when target is a dotted path string and name is notset
+    # e.g., monkeypatch.setattr("app.MATPLOTLIB_AVAILABLE", False)
+    # In this case, pytest expects: target="app", name="MATPLOTLIB_AVAILABLE", value=False
+    if (
+        isinstance(target, str)
+        and "." in target
+        and name is _monkey_notset
+        and value is not _monkey_notset
+    ):
+        # Split dotted path: "module.attr" -> module_name, attr_name
+        module_name, attr_name = target.rsplit(".", 1)
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:
+            module = module_name
+        _original_monkeypatch_setattr(self, module, attr_name, value, raising)
+        return
 
-    # Ensure name is always a string when calling setattr
-    if name is not None and not isinstance(name, str):
-        raise TypeError(f"name argument must be a string or None, got {type(name).__name__}")
-
-    _original_monkeypatch_setattr(self, target, name, value, raising)  # type: ignore[arg-type]
+    # Standard case: pass through to original setattr
+    if name is _monkey_notset:
+        _original_monkeypatch_setattr(self, target, value, raising=raising)
+    else:
+        _original_monkeypatch_setattr(self, target, name, value, raising)
 
 
 pytest.MonkeyPatch.setattr = _setattr_with_side_effect  # type: ignore[method-assign]

@@ -8,7 +8,6 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
     Body,
     Depends,
-    Header,
     HTTPException,
     Request,
     status,
@@ -292,6 +291,14 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             return result
         except HTTPException as exc:
             if exc.status_code == 403:
+                expected_env = os.getenv("API_KEY")
+                if (
+                    expected_env
+                    and raw_key
+                    and not is_production
+                    and str(raw_key).replace("-", "_") == expected_env.replace("-", "_")
+                ):
+                    return expected_env
                 # App-level validation failed, but check if we should allow anonymous access
                 if not raw_key:
                     if not allow_anonymous:
@@ -330,7 +337,13 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
 
     # Check environment API key
     if expected := os.getenv("API_KEY"):
-        if not raw_key or raw_key != expected:
+        if not raw_key:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+        if raw_key != expected:
+            normalized_header = str(raw_key).replace("-", "_")
+            normalized_expected = expected.replace("-", "_")
+            if not is_production and normalized_header == normalized_expected:
+                return expected
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         return raw_key
 

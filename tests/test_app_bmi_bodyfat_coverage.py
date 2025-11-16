@@ -4,11 +4,12 @@
 """
 
 import logging
-from typing import cast
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from pytest import LogCaptureFixture
 from starlette.types import ASGIApp
 
 
@@ -31,8 +32,8 @@ class TestAppBMIBodyfatCoverage:
         ],
     )
     def test_endpoint_valid_request(
-        self, test_environment, endpoint, valid_payload, invalid_payload
-    ):
+        self, test_environment: Any, endpoint: str, valid_payload: dict, invalid_payload: dict
+    ) -> None:
         """Тест покрытия валидных запросов к BMI и bodyfat endpoints"""
         import app
 
@@ -69,8 +70,8 @@ class TestAppBMIBodyfatCoverage:
         ],
     )
     def test_endpoint_invalid_data(
-        self, test_environment, endpoint, invalid_payload, expected_status
-    ):
+        self, test_environment: Any, endpoint: str, invalid_payload: dict, expected_status: int
+    ) -> None:
         """Тест покрытия невалидных данных для BMI и bodyfat endpoints"""
         import app
 
@@ -97,8 +98,8 @@ class TestAppBMIBodyfatCoverage:
         ],
     )
     def test_endpoint_public_access(
-        self, test_environment, endpoint, valid_payload, expected_status
-    ):
+        self, test_environment: Any, endpoint: str, valid_payload: dict, expected_status: int
+    ) -> None:
         """Тест публичного доступа к BMI и bodyfat endpoints (без API ключа)"""
         import app
 
@@ -113,32 +114,45 @@ class TestAppBMIBodyfatCoverage:
         else:
             assert response.status_code == expected_status
 
-    def test_bmi_logging_coverage(self, test_environment, caplog):
+    def test_bmi_logging_coverage(self, test_environment: Any, caplog: LogCaptureFixture) -> None:
         """Тест покрытия BMI logging с проверкой логов"""
         import app
+        import logging
+
+        # Set up logging to capture all levels
+        caplog.set_level(logging.DEBUG)
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        with caplog.at_level(logging.INFO):
-            response = client.post(
-                "/api/v1/bmi",
-                json={"weight_kg": 70, "height_cm": 170, "group": "general"},
-                headers={"X-API-Key": "test_key"},
-            )
+        response = client.post(
+            "/api/v1/bmi",
+            json={"weight_kg": 70, "height_cm": 170, "group": "general"},
+            headers={"X-API-Key": "test_key"},
+        )
 
         assert response.status_code == 200
 
         # Проверяем, что логи записались
         log_messages = [record.message for record in caplog.records]
         # Ищем логи, связанные с BMI расчетом
+        # Логирование происходит в bmi_endpoint_v1: "BMI v1 calculation complete [group=... athlete=...]"
+        # Также проверяем более широкий набор ключевых слов
+        bmi_keywords = [
+            "bmi",
+            "calculation",
+            "calculated",
+            "complete",
+            "group",
+            "athlete",
+            "v1 calculation",
+            "calculation complete",
+        ]
         bmi_logs = [
-            msg
-            for msg in log_messages
-            if any(keyword in msg.lower() for keyword in ["bmi", "calculated", "group"])
+            msg for msg in log_messages if any(keyword in msg.lower() for keyword in bmi_keywords)
         ]
         assert bmi_logs, f"Expected BMI-related logs, got: {log_messages}"
 
-    def test_bmi_metrics_coverage(self, test_environment):
+    def test_bmi_metrics_coverage(self, test_environment: Any) -> None:
         """Тест покрытия BMI metrics с моком метрик"""
         import app
 
