@@ -1441,6 +1441,11 @@ _plate_deps = PlateDependencies(
     aggregate_day_micronutrients_fn=None,  # Will be set after function definition
 )
 
+# Cache settings for targets_disabled() to avoid repeated sys.modules scans
+_TARGETS_DISABLED_TTL = 1.0
+_targets_disabled_cache: bool | None = None
+_targets_disabled_cache_time = 0.0
+
 
 def targets_disabled() -> bool:
     """Return True when build_nutrition_targets is disabled.
@@ -1451,13 +1456,29 @@ def targets_disabled() -> bool:
     Tests should disable targets by setting _plate_deps.build_nutrition_targets_fn = None
     rather than patching module attributes.
     """
-    # Primary check: dependency injection container (authoritative source)
+    global _targets_disabled_cache, _targets_disabled_cache_time
+
+    now = time.time()
+    if (
+        _targets_disabled_cache is not None
+        and now - _targets_disabled_cache_time < _TARGETS_DISABLED_TTL
+    ):
+        quick_state = _quick_targets_disabled_state()
+        if quick_state is None or quick_state == _targets_disabled_cache:
+            return _targets_disabled_cache
+
+    result = _evaluate_targets_disabled()
+    _targets_disabled_cache = result
+    _targets_disabled_cache_time = now
+    return result
+
+
+def _evaluate_targets_disabled() -> bool:
+    """Compute targets_disabled without consulting the cache (test helper)."""
     if _plate_deps.build_nutrition_targets_fn is None:
         logger.debug("_targets_disabled: container has build_nutrition_targets_fn=None")
         return True
 
-    # Fallback: check app module attribute only if container is not configured
-    # This handles edge cases where the container might not be initialized
     import sys as _sys
 
     primary_app = _sys.modules.get("app")
@@ -1467,7 +1488,6 @@ def targets_disabled() -> bool:
             logger.debug("_targets_disabled: app module has build_nutrition_targets=None")
             return True
 
-    # Also check app_module alias for test compatibility
     alias_app = _sys.modules.get("app_module")
     if alias_app is not None and alias_app is not primary_app:
         alias_value = getattr(alias_app, "build_nutrition_targets", None)
@@ -1476,6 +1496,33 @@ def targets_disabled() -> bool:
             return True
 
     return False
+
+
+def _quick_targets_disabled_state() -> bool | None:
+    """Best-effort check to detect obvious enable/disable changes without full scan."""
+    if _plate_deps.build_nutrition_targets_fn is None:
+        return True
+    import sys as _sys
+
+    primary_app = _sys.modules.get("app")
+    alias_app = _sys.modules.get("app_module")
+
+    primary_value = getattr(primary_app, "build_nutrition_targets", None) if primary_app else None
+    alias_value = getattr(alias_app, "build_nutrition_targets", None) if alias_app else None
+
+    # If either module explicitly disabled targets, honor that immediately
+    if primary_value is None or (alias_app is not None and alias_value is None):
+        return True
+
+    if (
+        primary_app is not None
+        and alias_app is not None
+        and callable(primary_value)
+        and callable(alias_value)
+    ):
+        return False
+
+    return None
 
 
 def _resolve_build_targets_callable() -> Optional[Callable[..., Any]]:
@@ -2176,7 +2223,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
             # Align with WHO targets if backend is available to keep macro deviation low
             # Use centralized helper to resolve build_nutrition_targets callable
-            fallback_targets_disabled = targets_disabled()
+            fallback_targets_disabled = _evaluate_targets_disabled()
             _build_targets_resolved = (
                 None if fallback_targets_disabled else _resolve_build_targets_callable()
             )
@@ -3015,9 +3062,7 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WHOTargetsResponse,
 )
-async def api_who_targets(
-    request: Request, payload: Dict[str, Any] = Body(...)
-) -> WHOTargetsResponse:
+async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
     """Calculate WHO-aligned nutrition targets for premium clients.
 
     Normal FastAPI route usage with Body(...) and dependency injection.

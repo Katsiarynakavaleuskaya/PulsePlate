@@ -26,6 +26,10 @@ def fallback_tests_from_stdout(result: subprocess.CompletedProcess[str]) -> None
             summary_line = line.strip()
             break
 
+    if not summary_line:
+        print("⚠️  Could not find test summary line in stdout (fallback)")
+        return
+
     def _extract_count(label: str) -> int:
         match = re.search(rf"(\d+)\s+{label}", summary_line.lower())
         return int(match.group(1)) if match else 0

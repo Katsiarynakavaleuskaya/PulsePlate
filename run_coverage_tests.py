@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 
-def run_command(cmd, description):
+def run_command(cmd: list[str], description: str) -> subprocess.CompletedProcess[str]:
     """Запуск команды с выводом результата"""
     print(f"\n🚀 {description}")
     print(f"Команда: {' '.join(cmd)}")
@@ -31,7 +31,7 @@ def run_command(cmd, description):
     return result
 
 
-def main():
+def main() -> int:
     print("📊 Запуск проверки покрытия тестов для достижения 97%")
 
     # Сначала запустим быстрые точечные тесты новых файлов

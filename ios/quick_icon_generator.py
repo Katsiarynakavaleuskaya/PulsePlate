@@ -1,83 +1,26 @@
 #!/usr/bin/env python3
 """
 Быстрый генератор иконок для PulsePlate
+
 Использование: python quick_icon_generator.py path/to/your/icon.png
+
+Это обёртка над ios/Scripts/quick_icon_generator_script.py для удобства использования.
 """
 
-import os
 import sys
+from pathlib import Path
+
+# Add Scripts directory to path for imports
+_scripts_dir = Path(__file__).parent / "Scripts"
+if str(_scripts_dir) not in sys.path:
+    sys.path.insert(0, str(_scripts_dir))
 
 try:
     from PIL import Image
 except ImportError:
     Image = None  # type: ignore
 
-
-def create_icons_from_source(source_path: str) -> bool:
-    """Создает все иконки из исходного изображения"""
-
-    if Image is None:
-        print("❌ Установите Pillow: pip install Pillow")
-        return False
-
-    # Проверяем исходный файл
-    if not os.path.exists(source_path):
-        print(f"❌ Файл {source_path} не найден!")
-        return False
-
-    # Папка для иконок (можно переопределить через переменную окружения)
-    icons_dir = os.getenv("IOS_APPICONSET_DIR", "PulsePlate/Assets.xcassets/AppIcon.appiconset")
-    icons_dir = os.path.normpath(os.path.abspath(icons_dir))
-
-    if not os.path.exists(icons_dir):
-        print(f"❌ Папка {icons_dir} не найдена!")
-        return False
-
-    # Размеры иконок
-    sizes = {
-        "AppIcon-20@1x.png": 20,
-        "AppIcon-20@2x.png": 40,
-        "AppIcon-20@3x.png": 60,
-        "AppIcon-29@1x.png": 29,
-        "AppIcon-29@2x.png": 58,
-        "AppIcon-29@3x.png": 87,
-        "AppIcon-40@1x.png": 40,
-        "AppIcon-40@2x.png": 80,
-        "AppIcon-40@3x.png": 120,
-        "AppIcon-60@2x.png": 120,
-        "AppIcon-60@3x.png": 180,
-        "AppIcon-76@1x.png": 76,
-        "AppIcon-76@2x.png": 152,
-        "AppIcon-83.5@2x.png": 167,
-        "AppIcon-1024.png": 1024,
-    }
-
-    print(f"🎨 Создаем иконки из {source_path}")
-    print(f"📁 Сохраняем в {icons_dir}")
-
-    success = 0
-
-    for filename, size in sizes.items():
-        try:
-            # Загружаем и изменяем размер
-            with Image.open(source_path) as img:
-                if img.mode != "RGBA":
-                    img = img.convert("RGBA")
-
-                resized = img.resize((size, size), Image.Resampling.LANCZOS)
-
-                # Сохраняем
-                output_path = os.path.join(icons_dir, filename)
-                resized.save(output_path, "PNG", optimize=True)
-
-                print(f"✅ {filename} ({size}x{size})")
-                success += 1
-
-        except Exception as e:
-            print(f"❌ Ошибка {filename}: {e}")
-
-    print(f"\n🎯 Создано {success}/{len(sizes)} иконок")
-    return success == len(sizes)
+from quick_icon_generator_script import create_icons_from_source  # noqa: E402
 
 
 if __name__ == "__main__":

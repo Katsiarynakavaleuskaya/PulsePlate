@@ -163,7 +163,9 @@ class ProductFinder:
 
         Args:
             min_confidence_threshold: Minimum confidence threshold for product matching
-                (default: DEFAULT_MIN_CONFIDENCE_THRESHOLD)
+                (default: DEFAULT_MIN_CONFIDENCE_THRESHOLD, range 0.0-1.0)
+            similarity_threshold: Similarity threshold for name matching (range 0-100,
+                used by _similar_names for fuzzy string matching)
         """
         # Validate threshold early to prevent invalid configuration from propagating.
         # RU: Ранняя проверка порога уверенности (0.0–1.0), принимаются только числа.

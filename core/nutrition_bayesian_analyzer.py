@@ -593,7 +593,10 @@ class NutritionBayesianAnalyzer:
         if NutritionCategory.DATA_PRIVACY in issues:
             recommendations.append("Удалить или зашифровать чувствительные данные в тестах")
 
-        if NutritionCategory.NUTRITION_STANDARDS in issues:
+        if (
+            NutritionCategory.NUTRITION_STANDARDS in issues
+            or NutritionCategory.MACRONUTRIENT_BALANCE in issues
+        ):
             recommendations.append(
                 "Проверять баланс макронутриентов согласно медицинским стандартам"
             )

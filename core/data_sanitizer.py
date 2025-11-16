@@ -166,18 +166,9 @@ class NutritionData(BaseModel):
         EN: Check if macro sum matches kcal (with tolerance).
 
         Returns:
-            True if macros sum is within 20% of kcal, False otherwise
-            Returns True if any required values are missing (None)
+            True if macros sum is within 20% of kcal, False otherwise.
+            Special case: if computed_kcal == 0, returns True only if declared kcal == 0.
         """
-        # Skip validation if any required values are missing
-        if (
-            self.protein_g is None
-            or self.fat_g is None
-            or self.carbs_g is None
-            or self.kcal is None
-        ):
-            return True
-
         computed_kcal = self.protein_g * 4 + self.fat_g * 9 + self.carbs_g * 4
         if computed_kcal == 0:
             return self.kcal == 0

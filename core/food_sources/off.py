@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, Optional
 
 from core.aliases import map_to_canonical
 from core.food_sources.base import BaseAdapter, FoodRecord
+from core.units import iu_vitd_from_ug
 
 
 def _parse_nutrient_value(raw_value: object) -> Optional[float]:
@@ -113,9 +114,9 @@ class OFFAdapter(BaseAdapter):
             # Micro nutrients (often empty in OFF)
             Fe_mg = _parse_nutrient_value(row.get("iron_100g"))
             Ca_mg = _parse_nutrient_value(row.get("calcium_100g"))
-            VitD_IU = _parse_nutrient_value(
-                row.get("vitamin-d_100g")
-            )  # May be in µg, needs conversion
+            # OFF provides vitamin D in µg, convert to IU
+            vitd_ug = _parse_nutrient_value(row.get("vitamin-d_100g"))
+            VitD_IU = iu_vitd_from_ug(vitd_ug) if vitd_ug is not None else None
             B12_ug = _parse_nutrient_value(row.get("vitamin-b12_100g"))
             Folate_ug = _parse_nutrient_value(row.get("vitamin-b9_100g"))
             Iodine_ug = _parse_nutrient_value(row.get("iodine_100g"))

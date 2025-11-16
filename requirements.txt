@@ -20,3 +20,4 @@ email-validator==2.3.0
 faker==37.12.0
 cryptography==46.0.3
 pyarrow>=14.0.0
+memorisdk==2.3.2

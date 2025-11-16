@@ -91,6 +91,26 @@ class FoodItem:
         return (nutrient_value or 0.0) * factor
 
 
+def _parse_optional_float(value: str | None) -> float | None:
+    """Parse optional float value from CSV, returning None for empty/missing values.
+
+    Args:
+        value: String value from CSV or None
+
+    Returns:
+        Parsed float value or None if value is empty/missing/invalid
+    """
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
 def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
     """
     RU: Парсит CSV файл базы данных продуктов.
@@ -116,18 +136,18 @@ def parse_food_db(csv_path: str = "data/food_db.csv") -> Dict[str, FoodItem]:
                 name=row["name"],
                 unit_per=int(row["unit_per"]) if "unit_per" in row else 100,
                 unit=row["unit"] if "unit" in row else "g",
-                protein_g=float(row["protein_g"]),
-                fat_g=float(row["fat_g"]),
-                carbs_g=float(row["carbs_g"]),
-                fiber_g=float(row["fiber_g"]),
-                Fe_mg=float(row["Fe_mg"]),
-                Ca_mg=float(row["Ca_mg"]),
-                VitD_IU=float(row["VitD_IU"]),
-                B12_ug=float(row["B12_ug"]),
-                Folate_ug=float(row["Folate_ug"]),
-                Iodine_ug=float(row["Iodine_ug"]),
-                K_mg=float(row["K_mg"]),
-                Mg_mg=float(row["Mg_mg"]),
+                protein_g=_parse_optional_float(row.get("protein_g")),
+                fat_g=_parse_optional_float(row.get("fat_g")),
+                carbs_g=_parse_optional_float(row.get("carbs_g")),
+                fiber_g=_parse_optional_float(row.get("fiber_g")),
+                Fe_mg=_parse_optional_float(row.get("Fe_mg")),
+                Ca_mg=_parse_optional_float(row.get("Ca_mg")),
+                VitD_IU=_parse_optional_float(row.get("VitD_IU")),
+                B12_ug=_parse_optional_float(row.get("B12_ug")),
+                Folate_ug=_parse_optional_float(row.get("Folate_ug")),
+                Iodine_ug=_parse_optional_float(row.get("Iodine_ug")),
+                K_mg=_parse_optional_float(row.get("K_mg")),
+                Mg_mg=_parse_optional_float(row.get("Mg_mg")),
                 price_per_unit=float(row.get("price_per_unit", 0) or 0),
                 flags=flags,
             )

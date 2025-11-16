@@ -349,9 +349,9 @@ def call_premium_bmr_api(
         activity: Activity level ("sedentary", "light", "moderate", "active", "very_active")
         bodyfat: Optional body fat percentage (for Katch-McArdle formula)
         lang: Response language ("en" or "ru")
-        api_key: API key for authentication. **WARNING**: The default value "test_key" is for
+        api_key: API key for authentication. **WARNING**: The default value "DEMO_KEY" is for
             example/demo purposes only and must NEVER be used in production. For production use,
-            obtain a real API key and set it via environment variables (e.g., `os.getenv("API_KEY")`)
+            obtain a real API key and set it via environment variables (e.g., `os.getenv("API_KEY", "")`)
             or secure secret management systems (e.g., AWS Secrets Manager, HashiCorp Vault).
         base_url: Base URL of the API server
         timeout: Request timeout in seconds per attempt
@@ -446,7 +446,7 @@ def handle_request_errors(
             activity = "unknown"
         activity_prefix = f"{activity:<15}"
         # Inline format: activity prefix | message with exception
-        logger.log(log_level, f"{activity_prefix} | {base_message}", exception, exc_info=True)
+        logger.log(log_level, f"{activity_prefix} | {base_message}", exc_info=True)
 
     elif format_type == ErrorFormatType.DETAILED:
         # Detailed format with extra info (using centralized module-level constant)
@@ -457,7 +457,7 @@ def handle_request_errors(
 
     else:  # STANDARD format
         # Standard format with localized messages
-        logger.log(log_level, base_message, exception, exc_info=True)
+        logger.log(log_level, base_message, exc_info=True)
 
         # Additional info for STANDARD format (using centralized module-level constant)
         guidance_msg = _STANDARD_GUIDANCE.get(exc_key)

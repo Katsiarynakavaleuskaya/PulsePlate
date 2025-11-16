@@ -184,7 +184,10 @@ class BayesianPytestPlugin:
                 return category
 
         # Фоллбэк по имени/пути
-        test_path = str(item.fspath).lower()
+        fspath = getattr(item, "fspath", None)
+        test_path = (
+            getattr(fspath, "strpath", None) or str(fspath) if fspath is not None else ""
+        ).lower()
         test_name = item.name.lower()
         if "integration" in test_path or "integration" in test_name:
             return TestCategory.INTEGRATION

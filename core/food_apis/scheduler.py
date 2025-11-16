@@ -292,14 +292,17 @@ class DatabaseUpdateScheduler:
 _scheduler_instance: Optional[DatabaseUpdateScheduler] = None
 
 
-async def get_update_scheduler() -> DatabaseUpdateScheduler:
+async def get_update_scheduler(update_interval_hours: int = 24) -> DatabaseUpdateScheduler:
     """
     RU: Получить глобальный экземпляр планировщика обновлений.
     EN: Get global update scheduler instance.
+
+    Args:
+        update_interval_hours: Интервал обновления в часах (используется только при создании нового экземпляра).
     """
     global _scheduler_instance
     if _scheduler_instance is None:
-        _scheduler_instance = DatabaseUpdateScheduler()
+        _scheduler_instance = DatabaseUpdateScheduler(update_interval_hours=update_interval_hours)
     return _scheduler_instance
 
 
@@ -307,8 +310,11 @@ async def start_background_updates(update_interval_hours: int = 24) -> None:
     """
     RU: Запускает фоновые обновления баз данных.
     EN: Start background database updates.
+
+    Args:
+        update_interval_hours: Интервал обновления в часах.
     """
-    scheduler = await get_update_scheduler()
+    scheduler = await get_update_scheduler(update_interval_hours=update_interval_hours)
     if not scheduler.is_running:
         await scheduler.start()
         logger.info(f"Background database updates started (every {update_interval_hours}h)")

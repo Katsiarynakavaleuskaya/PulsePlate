@@ -560,8 +560,17 @@ def _get_generator() -> ShoplistGenerator:
 
 
 # Функции для удобного использования
-def aggregate_ingredients(week_plan: dict[str, dict[str, float]]) -> dict[str, float]:
-    """Агрегирует ингредиенты из недельного плана."""
+def aggregate_ingredients(week_plan: Mapping[str, object]) -> dict[str, float]:
+    """Агрегирует ингредиенты из недельного плана.
+
+    Args:
+        week_plan: Словарь с недельным планом питания. Может содержать:
+            - Вложенную структуру: {"days": [{"meals": [{"ingredients": [...]}]}]}
+            - Прямую структуру: {"ingredients": [...]}
+
+    Returns:
+        Словарь вида {ingredient_name: total_grams}.
+    """
     return _get_generator().aggregate_ingredients(week_plan)
 
 
@@ -582,7 +591,7 @@ def format_export(
 
 
 def get_shoplist(
-    week_plan: dict[str, dict[str, float]],
+    week_plan: Mapping[str, object],
     format_type: str = "json",
     locale: str = "ru",
     packaging_db: dict[str, Any] | None = None,

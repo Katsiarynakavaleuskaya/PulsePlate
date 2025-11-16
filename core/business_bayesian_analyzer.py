@@ -189,11 +189,13 @@ class BusinessBayesianAnalyzer:
                 try:
                     with open(config_path, "r", encoding="utf-8") as file:
                         data = yaml_module.safe_load(file)
-                except Exception:
-                    # If YAML is invalid, fall back to defaults
-                    return {}
-                if isinstance(data, dict):
-                    return data
+                    if isinstance(data, dict) and data:
+                        return data
+                except (
+                    Exception
+                ):  # nosec B110 - Intentional fallback to defaults on YAML parse error
+                    # If YAML is invalid, fall back to defaults (continue execution)
+                    pass
         # Fallback defaults (same as original hardcoded values)
         return {
             "revenue_streams": {
@@ -407,9 +409,11 @@ class BusinessBayesianAnalyzer:
 
         try:
             tokens = []
-            for token in tokenize.generate_tokens(StringIO(code_str).readline):
-                if token.type != tokenize.COMMENT:
-                    tokens.append(token)
+            tokens.extend(
+                token
+                for token in tokenize.generate_tokens(StringIO(code_str).readline)
+                if token.type != tokenize.COMMENT
+            )
         except tokenize.TokenError:
             cleaned_lines = []
             for line in code_str.splitlines():
@@ -420,9 +424,7 @@ class BusinessBayesianAnalyzer:
             return "\n".join(cleaned_lines)
 
         result = tokenize.untokenize(tokens)
-        if isinstance(result, bytes):
-            return result.decode("utf-8")
-        return str(result)
+        return result.decode("utf-8") if isinstance(result, bytes) else str(result)
 
     def _analyze_monetization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует стратегии монетизации."""

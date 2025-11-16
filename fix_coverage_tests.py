@@ -7,7 +7,7 @@ import os
 import re
 
 
-def add_setup_method_to_file(file_path):
+def add_setup_method_to_file(file_path: str) -> bool:
     """Add setup_method to all test classes in a file"""
     with open(file_path, "r", encoding="utf-8") as f:
         content = f.read()
@@ -15,7 +15,7 @@ def add_setup_method_to_file(file_path):
     # Find all class definitions that start with "class Test"
     class_pattern = r'(class Test[^:]*:)\s*\n(\s*)"""[^"]*"""\s*\n'
 
-    def replacement(match):
+    def replacement(match: re.Match[str]) -> str:
         class_line = match.group(1)
         indent = match.group(2)
 
@@ -53,7 +53,7 @@ def add_setup_method_to_file(file_path):
     # Simple pattern for classes without proper docstrings
     simple_pattern = r"(class Test[^:]*:)\s*\n(\s*)(def test_[^(]*\()"
 
-    def simple_replacement(match):
+    def simple_replacement(match: re.Match[str]) -> str:
         class_line = match.group(1)
         indent = match.group(2)
         def_line = match.group(3)
@@ -80,7 +80,7 @@ def add_setup_method_to_file(file_path):
         return False
 
 
-def main():
+def main() -> None:
     """Main function to process all coverage test files"""
     test_dir = "/Users/katsiarynakavaleuskaya/BMI-App_2025_clean/tests"
 

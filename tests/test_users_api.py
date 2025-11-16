@@ -21,6 +21,11 @@ def _cleanup_users() -> Generator[None, None, None]:
     EN: Ensure users table is cleared between tests.
     """
 
+    # Ensure schema exists even if a worker removed the sqlite file.
+    # init_db() is idempotent, so calling it per-test avoids race conditions
+    # when pytest-xdist starts multiple workers in parallel.
+    db_module.init_db()
+
     def _truncate() -> None:
         with db_module.session_scope() as session:
             session.execute(text("DELETE FROM users"))
@@ -28,13 +33,18 @@ def _cleanup_users() -> Generator[None, None, None]:
     try:
         _truncate()
     except OperationalError:
+        # If the table was dropped between init_db() and DELETE (unlikely but defensive),
+        # recreate schema and retry once more.
         db_module.init_db()
         _truncate()
 
     yield
 
-    with db_module.session_scope() as session:
-        session.execute(text("DELETE FROM users"))
+    try:
+        with db_module.session_scope() as session:
+            session.execute(text("DELETE FROM users"))
+    except OperationalError:
+        db_module.init_db()
 
 
 def _client() -> TestClient:

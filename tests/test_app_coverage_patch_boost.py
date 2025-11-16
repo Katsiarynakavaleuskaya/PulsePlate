@@ -45,7 +45,8 @@ class TestAppCoveragePatchBoost:
         mock_scheduler.start = AsyncMock()
 
         # Patch get_update_scheduler to return our mock (async function)
-        async def mock_get_scheduler() -> MagicMock:
+        async def mock_get_scheduler(*args, **kwargs) -> MagicMock:  # noqa: D401
+            # Accept arbitrary args/kwargs to mirror real get_update_scheduler signature
             return mock_scheduler
 
         with patch("core.food_apis.scheduler.get_update_scheduler", side_effect=mock_get_scheduler):
