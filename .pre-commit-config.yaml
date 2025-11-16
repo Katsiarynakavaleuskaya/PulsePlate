@@ -122,10 +122,10 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      # docker-build-test — test Docker build before push
+      # docker-build-test — test Docker build before push (with timeout)
       - id: docker-build-test
         name: docker build test
-        entry: bash -c "make docker-build && echo '✅ Docker build successful'"
+        entry: bash -c "if timeout 300 make docker-build 2>&1 | tail -50; then echo '✅ Docker build successful'; else echo '⚠️  Docker build failed or timed out after 5 minutes - check logs above'; exit 1; fi"
         language: system
         pass_filenames: false
         stages: [pre-push]
