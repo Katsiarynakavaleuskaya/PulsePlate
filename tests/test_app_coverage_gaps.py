@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pytest import FixtureRequest
 
 from tests.utils import plate_patch
 
@@ -26,7 +27,7 @@ from tests.utils import plate_patch
 class TestAppDatabaseFallback:
     """Тесты для database fallback логики в app.py lifespan (строки 145-163)"""
 
-    def test_database_init_failure_with_fallback(self, _test_environment: Any) -> None:
+    def test_database_init_failure_with_fallback(self, _test_environment: FixtureRequest) -> None:
         """Test database initialization failure triggers fallback to in-memory SQLite (lines 145-163)"""
         import app
         from core.db import init_db
@@ -54,7 +55,7 @@ class TestAppDatabaseFallback:
                     response = client.get("/health")
                     assert response.status_code == 200
 
-    def test_database_fallback_oserror_handling(self, _test_environment: Any) -> None:
+    def test_database_fallback_oserror_handling(self, _test_environment: FixtureRequest) -> None:
         """Test database fallback handles OSError specifically (line 152)"""
         import app
         from core.db import init_db
@@ -68,7 +69,7 @@ class TestAppDatabaseFallback:
                     response = client.get("/health")
                     assert response.status_code in [200, 503]  # May fail gracefully
 
-    def test_database_fallback_ioerror_handling(self, _test_environment: Any) -> None:
+    def test_database_fallback_ioerror_handling(self, _test_environment: FixtureRequest) -> None:
         """Test database fallback handles IOError specifically (line 152)"""
         import app
         from core.db import init_db
@@ -80,7 +81,7 @@ class TestAppDatabaseFallback:
                     response = client.get("/health")
                     assert response.status_code in [200, 503]
 
-    def test_database_fallback_failure_propagation(self, _test_environment: Any) -> None:
+    def test_database_fallback_failure_propagation(self, _test_environment: FixtureRequest) -> None:
         """Test that database fallback failure propagates exception (line 163)"""
         import app
         from core.db import init_db
@@ -116,7 +117,7 @@ class TestAppTestRouterImport:
         # Mock ImportError when importing test router
         original_import = __import__
 
-        def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
             if name == "app.routers.test":
                 raise ImportError("No module named 'app.routers.test'")
             return original_import(name, *args, **kwargs)
@@ -138,13 +139,13 @@ class TestAppTestRouterImport:
 
         # Create alias_module as a real object, not MagicMock, to track setattr calls
         class AliasModule:
-            def __init__(self):
-                self._setattr_calls = []
+            def __init__(self) -> None:
+                self._setattr_calls: list[tuple[str, Any]] = []
 
-            def __setattr__(self, name, value):
+            def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
                 if name != "_setattr_calls":
                     self._setattr_calls.append((name, value))
-                return super().__setattr__(name, value)
+                super().__setattr__(name, value)
 
         alias_module = AliasModule()
 
@@ -212,7 +213,7 @@ class TestAppTestRouterImport:
         source._aggregate_day_micronutrients = MagicMock(return_value="mock_agg")
 
         class FailingTarget:
-            def __setattr__(self, name, value):
+            def __setattr__(self, name: str, value: Any) -> None:  # noqa: ANN401
                 # Only fail for patched attributes, not internal ones
                 if name in plate_patch._PATCHED_ATTRS:
                     raise RuntimeError("Cannot set attribute")
@@ -307,13 +308,15 @@ class TestAppTargetsDisabled:
 class TestAppModuleInspection:
     """Тесты для module inspection exception handling (строки 1375-1376, 1380)"""
 
-    def test_targets_disabled_module_inspection_exception(self, _test_environment: Any) -> None:
+    def test_targets_disabled_module_inspection_exception(
+        self, _test_environment: FixtureRequest
+    ) -> None:
         """Test _targets_disabled handles module inspection exception (lines 1375-1376, 1380)"""
         import app
 
         # Create module that raises exception on getattr
         class FailingModule:
-            def __getattr__(self, name: str) -> Any:
+            def __getattr__(self, name: str) -> Any:  # noqa: ANN401
                 raise RuntimeError("Cannot access attribute")
 
         failing_module = FailingModule()
@@ -329,7 +332,7 @@ class TestAppModuleInspection:
 class TestAppCallableCheck:
     """Тесты для callable check (строка 1418)"""
 
-    def test_resolve_attr_callable_check(self, _test_environment: Any) -> None:
+    def test_resolve_attr_callable_check(self, _test_environment: FixtureRequest) -> None:
         """Test resolve_attr checks if function is callable (line 1418)"""
         import app
 
@@ -352,7 +355,7 @@ class TestAppCallableCheck:
 class TestAppAttributeDeletion:
     """Тесты для attribute deletion (строки 1479-1480)"""
 
-    def test_plate_env_snapshot_attribute_deletion(self, _test_environment: Any) -> None:
+    def test_plate_env_snapshot_attribute_deletion(self, _test_environment: FixtureRequest) -> None:
         """Test _plate_env_snapshot deletes attributes that didn't exist (lines 1479-1480)"""
         import app
         import sys
@@ -393,7 +396,9 @@ class TestAppAsyncWrapper:
     """Тесты для async wrapper (строка 1501)"""
 
     @pytest.mark.asyncio
-    async def test_with_plate_env_snapshot_async_wrapper(self, _test_environment: Any) -> None:
+    async def test_with_plate_env_snapshot_async_wrapper(
+        self, _test_environment: FixtureRequest
+    ) -> None:
         """Test _with_plate_env_snapshot async wrapper (line 1501)"""
         import app
 
@@ -411,7 +416,9 @@ class TestAppPremiumPlate:
     """Тесты для premium_plate edge cases (строки 2292, 2296, 2344-2345, 2348)"""
 
     @pytest.mark.asyncio
-    async def test_premium_plate_non_callable_aggregate(self, _test_environment: Any) -> None:
+    async def test_premium_plate_non_callable_aggregate(
+        self, _test_environment: FixtureRequest
+    ) -> None:
         """Test premium_plate handles non-callable _aggregate_day_micronutrients (lines 2292, 2296)"""
         import app
         import os
@@ -434,7 +441,7 @@ class TestAppPremiumPlate:
                     assert resp.day_micros == {}
 
     @pytest.mark.asyncio
-    async def test_premium_plate_targets_exception(self, _test_environment: Any) -> None:
+    async def test_premium_plate_targets_exception(self, _test_environment: FixtureRequest) -> None:
         """Test premium_plate handles targets exception (lines 2344-2345, 2348)"""
         import app
         import os
