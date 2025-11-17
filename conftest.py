@@ -9,7 +9,8 @@ import sys
 import urllib.parse
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Callable, cast
+from types import ModuleType
+from typing import Any, Callable, Union, cast
 
 import pytest
 from _pytest.monkeypatch import notset as _monkey_notset
@@ -70,17 +71,22 @@ def _setattr_with_side_effect(
         # Split dotted path: "module.attr" -> module_name, attr_name
         module_name, attr_name = target.rsplit(".", 1)
         try:
-            module = importlib.import_module(module_name)
+            imported_module = importlib.import_module(module_name)
+            module: Union[ModuleType, str] = imported_module
         except ImportError:
+            # If module can't be imported, pass the string name directly
+            # pytest.MonkeyPatch.setattr accepts both ModuleType and str
             module = module_name
         _original_monkeypatch_setattr(self, module, attr_name, value, raising)
         return
 
     # Standard case: pass through to original setattr
+    # target can be str or object, but setattr accepts various types
+    # Use cast to satisfy type checker while maintaining runtime flexibility
     if name is _monkey_notset:
-        _original_monkeypatch_setattr(self, target, value, raising=raising)
+        _original_monkeypatch_setattr(self, cast(Any, target), value, raising=raising)
     else:
-        _original_monkeypatch_setattr(self, target, name, value, raising)
+        _original_monkeypatch_setattr(self, cast(Any, target), cast(str, name), value, raising)
 
 
 pytest.MonkeyPatch.setattr = _setattr_with_side_effect  # type: ignore[method-assign]

@@ -31,12 +31,12 @@ class TestTargetsDisabledCaching:
         app._targets_disabled_cache_time = time.time()
 
         # First call should use cache
-        result1 = app.targets_disabled()  # type: ignore[misc]
+        result1 = app.targets_disabled()  # type: ignore[operator]
         assert isinstance(result1, bool)
 
         # Second call within TTL should use cache (no sys.modules scan)
         with patch.dict("sys.modules", {}):
-            result2 = app.targets_disabled()  # type: ignore[misc]
+            result2 = app.targets_disabled()  # type: ignore[operator]
             assert result2 == result1  # Should return cached value
 
     def test_targets_disabled_cache_expires(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,7 +46,7 @@ class TestTargetsDisabledCaching:
         app._targets_disabled_cache_time = time.time() - 2.0  # 2 seconds ago (past TTL)
 
         # Should bypass cache and recalculate
-        result = app.targets_disabled()  # type: ignore[misc]
+        result = app.targets_disabled()  # type: ignore[operator]
         assert isinstance(result, bool)
         # Cache should be updated
         assert app._targets_disabled_cache is not None
@@ -64,7 +64,7 @@ class TestTargetsDisabledCaching:
 
         with patch.dict("sys.modules", {"some_regular_module": regular_module}):
             # Should not detect None in non-test module
-            result = app.targets_disabled()  # type: ignore[misc]
+            result = app.targets_disabled()  # type: ignore[operator]
             # Should return False (not disabled) because non-test modules are skipped
             assert isinstance(result, bool)
 
@@ -74,7 +74,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_basic(self) -> None:
         """Test basic heuristic macro calculation."""
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=2000, weight_kg=70)  # type: ignore[misc]
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=2000, weight_kg=70)  # type: ignore[operator]
 
         # Protein: 1.6 * 70 = 112g
         assert prot == 112
@@ -90,7 +90,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_low_calories(self) -> None:
         """Test heuristic macros with low calorie target."""
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=1200, weight_kg=60)  # type: ignore[misc]
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=1200, weight_kg=60)  # type: ignore[operator]
 
         assert prot > 0
         assert fat > 0
@@ -102,7 +102,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_high_weight(self) -> None:
         """Test heuristic macros with high weight."""
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=3000, weight_kg=100)  # type: ignore[misc]
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=3000, weight_kg=100)  # type: ignore[operator]
 
         # Protein: 1.6 * 100 = 160g
         assert prot == 160
@@ -118,7 +118,7 @@ class TestCalculateHeuristicMacros:
     def test_calculate_heuristic_macros_minimum_carbs(self) -> None:
         """Test that carbs are always at least 1."""
         # Use very low calories to test minimum carbs enforcement
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=500, weight_kg=50)  # type: ignore[misc]  # noqa: E501
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=500, weight_kg=50)  # type: ignore[operator]  # noqa: E501
 
         assert carbs >= 1  # Minimum enforced
 
