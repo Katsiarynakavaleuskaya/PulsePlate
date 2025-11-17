@@ -189,37 +189,38 @@ class TestWhoTargetsEndpoint:
 class TestMenuEngineDebugLogging:
     """Test debug logging in _should_use_mock_food_db()."""
 
-    @patch("core.menu_engine._logger")
-    def test_should_use_mock_food_db_logs_force_flag(self, mock_logger, monkeypatch) -> None:
+    def test_should_use_mock_food_db_logs_force_flag(self, monkeypatch) -> None:
         """Test that debug logging occurs when MENU_ENGINE_FORCE_MOCK_DB is set."""
+        import core.menu_engine
+
         monkeypatch.setenv("MENU_ENGINE_FORCE_MOCK_DB", "true")
-        # Clear any previous calls
-        mock_logger.reset_mock()
 
-        result = _should_use_mock_food_db()
+        with patch.object(core.menu_engine, "_logger") as mock_logger:
+            result = _should_use_mock_food_db()
 
-        assert result is True
-        mock_logger.debug.assert_called()
-        # Check that the log message contains the flag name
-        call_args_str = str(mock_logger.debug.call_args)
-        assert (
-            "MENU_ENGINE_FORCE_MOCK_DB" in call_args_str or "mock food DB" in call_args_str.lower()
-        )
+            assert result is True
+            mock_logger.debug.assert_called()
+            # Check that the log message contains the flag name
+            call_args_str = str(mock_logger.debug.call_args)
+            assert (
+                "MENU_ENGINE_FORCE_MOCK_DB" in call_args_str
+                or "mock food DB" in call_args_str.lower()
+            )
 
-    @patch("core.menu_engine._logger")
-    def test_should_use_mock_food_db_logs_pytest_env(self, mock_logger, monkeypatch) -> None:
+    def test_should_use_mock_food_db_logs_pytest_env(self, monkeypatch) -> None:
         """Test that debug logging occurs when PYTEST_CURRENT_TEST is set."""
+        import core.menu_engine
+
         monkeypatch.setenv("PYTEST_CURRENT_TEST", "test_something::test_method")
-        # Clear any previous calls
-        mock_logger.reset_mock()
 
-        result = _should_use_mock_food_db()
+        with patch.object(core.menu_engine, "_logger") as mock_logger:
+            result = _should_use_mock_food_db()
 
-        assert result is True
-        mock_logger.debug.assert_called()
-        # Check that the log message contains pytest-related text
-        call_args_str = str(mock_logger.debug.call_args).lower()
-        assert "pytest" in call_args_str or "mock food db" in call_args_str
+            assert result is True
+            mock_logger.debug.assert_called()
+            # Check that the log message contains pytest-related text
+            call_args_str = str(mock_logger.debug.call_args).lower()
+            assert "pytest" in call_args_str or "mock food db" in call_args_str
 
     def test_should_use_mock_food_db_no_logging_when_false(self, monkeypatch) -> None:
         """Test that no debug logging occurs when conditions are not met."""

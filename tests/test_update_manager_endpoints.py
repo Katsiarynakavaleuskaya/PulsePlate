@@ -169,16 +169,26 @@ class TestUpdateManagerEndpoints:
 
     def test_rollback_success(self, client) -> None:
         """Test successful database rollback."""
+        from fastapi.testclient import TestClient
+        from starlette.types import ASGIApp
+
+        import app
+
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
         mock_update_manager.rollback_database = AsyncMock(return_value=True)
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
-            response = client.post(
+        with (
+            patch("app.get_update_scheduler", new=mock_get_scheduler),
+            patch("core.food_apis.scheduler.get_update_scheduler", new=mock_get_scheduler),
+        ):
+            # Create TestClient inside patch context
+            test_client = TestClient(cast(ASGIApp, app.app))
+            response = test_client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},  # Match fixture's API_KEY="test-key"
             )
 
         # Accept success, client errors, or auth failure (lenient for coverage)
@@ -192,16 +202,26 @@ class TestUpdateManagerEndpoints:
 
     def test_rollback_failure(self, client) -> None:
         """Test failed database rollback."""
+        from fastapi.testclient import TestClient
+        from starlette.types import ASGIApp
+
+        import app
+
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
         mock_update_manager.rollback_database = AsyncMock(return_value=False)
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
-            response = client.post(
+        with (
+            patch("app.get_update_scheduler", new=mock_get_scheduler),
+            patch("core.food_apis.scheduler.get_update_scheduler", new=mock_get_scheduler),
+        ):
+            # Create TestClient inside patch context
+            test_client = TestClient(cast(ASGIApp, app.app))
+            response = test_client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},  # Match fixture's API_KEY="test-key"
             )
 
         # Should return 500 or client error for rollback failure
@@ -214,16 +234,26 @@ class TestUpdateManagerEndpoints:
 
     def test_rollback_exception(self, client) -> None:
         """Test rollback with exception."""
+        from fastapi.testclient import TestClient
+        from starlette.types import ASGIApp
+
+        import app
+
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
         mock_update_manager.rollback_database = AsyncMock(side_effect=ValueError("Invalid version"))
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
-            response = client.post(
+        with (
+            patch("app.get_update_scheduler", new=mock_get_scheduler),
+            patch("core.food_apis.scheduler.get_update_scheduler", new=mock_get_scheduler),
+        ):
+            # Create TestClient inside patch context
+            test_client = TestClient(cast(ASGIApp, app.app))
+            response = test_client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=invalid",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},  # Match fixture's API_KEY="test-key"
             )
 
         # Should return 500 or client error for exception
