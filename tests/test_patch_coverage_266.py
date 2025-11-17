@@ -31,12 +31,12 @@ class TestTargetsDisabledCaching:
         app._targets_disabled_cache_time = time.time()
 
         # First call should use cache
-        result1 = app.targets_disabled()
+        result1 = app.targets_disabled()  # type: ignore[misc]
         assert isinstance(result1, bool)
 
         # Second call within TTL should use cache (no sys.modules scan)
-        with patch("app.sys.modules", {}):
-            result2 = app.targets_disabled()
+        with patch.dict("sys.modules", {}):
+            result2 = app.targets_disabled()  # type: ignore[misc]
             assert result2 == result1  # Should return cached value
 
     def test_targets_disabled_cache_expires(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,7 +46,7 @@ class TestTargetsDisabledCaching:
         app._targets_disabled_cache_time = time.time() - 2.0  # 2 seconds ago (past TTL)
 
         # Should bypass cache and recalculate
-        result = app.targets_disabled()
+        result = app.targets_disabled()  # type: ignore[misc]
         assert isinstance(result, bool)
         # Cache should be updated
         assert app._targets_disabled_cache is not None
@@ -64,7 +64,7 @@ class TestTargetsDisabledCaching:
 
         with patch.dict("sys.modules", {"some_regular_module": regular_module}):
             # Should not detect None in non-test module
-            result = app.targets_disabled()
+            result = app.targets_disabled()  # type: ignore[misc]
             # Should return False (not disabled) because non-test modules are skipped
             assert isinstance(result, bool)
 
@@ -74,7 +74,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_basic(self) -> None:
         """Test basic heuristic macro calculation."""
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=2000, weight_kg=70)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=2000, weight_kg=70)  # type: ignore[misc]
 
         # Protein: 1.6 * 70 = 112g
         assert prot == 112
@@ -90,7 +90,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_low_calories(self) -> None:
         """Test heuristic macros with low calorie target."""
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=1200, weight_kg=60)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=1200, weight_kg=60)  # type: ignore[misc]
 
         assert prot > 0
         assert fat > 0
@@ -102,7 +102,7 @@ class TestCalculateHeuristicMacros:
 
     def test_calculate_heuristic_macros_high_weight(self) -> None:
         """Test heuristic macros with high weight."""
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=3000, weight_kg=100)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=3000, weight_kg=100)  # type: ignore[misc]
 
         # Protein: 1.6 * 100 = 160g
         assert prot == 160
@@ -118,7 +118,7 @@ class TestCalculateHeuristicMacros:
     def test_calculate_heuristic_macros_minimum_carbs(self) -> None:
         """Test that carbs are always at least 1."""
         # Use very low calories to test minimum carbs enforcement
-        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=500, weight_kg=50)
+        prot, fat, carbs = app.calculate_heuristic_macros(final_kcal=500, weight_kg=50)  # type: ignore[misc]  # noqa: E501
 
         assert carbs >= 1  # Minimum enforced
 
@@ -189,7 +189,7 @@ class TestWhoTargetsEndpoint:
 class TestMenuEngineDebugLogging:
     """Test debug logging in _should_use_mock_food_db()."""
 
-    def test_should_use_mock_food_db_logs_force_flag(self, monkeypatch) -> None:
+    def test_should_use_mock_food_db_logs_force_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that debug logging occurs when MENU_ENGINE_FORCE_MOCK_DB is set."""
         import core.menu_engine
 
@@ -207,7 +207,7 @@ class TestMenuEngineDebugLogging:
                 or "mock food DB" in call_args_str.lower()
             )
 
-    def test_should_use_mock_food_db_logs_pytest_env(self, monkeypatch) -> None:
+    def test_should_use_mock_food_db_logs_pytest_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that debug logging occurs when PYTEST_CURRENT_TEST is set."""
         import core.menu_engine
 
@@ -222,7 +222,9 @@ class TestMenuEngineDebugLogging:
             call_args_str = str(mock_logger.debug.call_args).lower()
             assert "pytest" in call_args_str or "mock food db" in call_args_str
 
-    def test_should_use_mock_food_db_no_logging_when_false(self, monkeypatch) -> None:
+    def test_should_use_mock_food_db_no_logging_when_false(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that no debug logging occurs when conditions are not met."""
         monkeypatch.delenv("MENU_ENGINE_FORCE_MOCK_DB", raising=False)
         monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)

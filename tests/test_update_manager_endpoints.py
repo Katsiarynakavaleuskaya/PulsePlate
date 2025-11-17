@@ -7,35 +7,39 @@ Missing lines in update_manager.py: 14 lines (49, 52, 55, 63, 67, 412->433, 654,
 import sys
 import tempfile
 from contextlib import ExitStack
-from typing import cast
+from typing import TYPE_CHECKING, Any, Callable, Generator, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestUpdateManagerEndpoints:
     """Test admin endpoints that use update_manager to hit missing lines."""
 
     @pytest.fixture
-    def client(self, monkeypatch):
+    def client(self, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
         """Get test client with API key."""
-        from fastapi.testclient import TestClient
-
         import app
 
         monkeypatch.setenv("API_KEY", "test-key")
         monkeypatch.setenv("API_KEY_MODE", "required")
         monkeypatch.setenv("MPLCONFIGDIR", tempfile.gettempdir())
 
-        client = TestClient(cast(ASGIApp, app.app))
+        test_client = TestClient(cast(ASGIApp, app.app))
         try:
-            yield client
+            yield test_client
         finally:
-            client.close()
+            test_client.close()
 
-    def test_check_updates_success(self, client) -> None:
+    def test_check_updates_success(self, client: TestClient) -> None:
         """Test successful updates check - hits update_manager.check_for_updates()."""
+        import app
+
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
         mock_update_manager.check_for_updates = AsyncMock(
@@ -44,12 +48,10 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
 
         # Patch _scheduler_getter to return our mock scheduler
-        import app
-
         original_getter = app._scheduler_getter
         try:
 
-            async def mock_getter():
+            async def mock_getter() -> MagicMock:
                 return mock_scheduler
 
             app._scheduler_getter = mock_getter
@@ -76,8 +78,10 @@ class TestUpdateManagerEndpoints:
         finally:
             app._scheduler_getter = original_getter
 
-    def test_check_updates_auth_failure(self, client) -> None:
+    def test_check_updates_auth_failure(self, client: TestClient) -> None:
         """Test updates check with invalid API key - should return 403 and not call update manager."""
+        import app
+
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
         mock_update_manager.check_for_updates = AsyncMock(
@@ -86,12 +90,10 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
 
         # Patch _scheduler_getter to return our mock scheduler
-        import app
-
         original_getter = app._scheduler_getter
         try:
 
-            async def mock_getter():
+            async def mock_getter() -> MagicMock:
                 return mock_scheduler
 
             app._scheduler_getter = mock_getter
@@ -115,8 +117,10 @@ class TestUpdateManagerEndpoints:
         finally:
             app._scheduler_getter = original_getter
 
-    def test_check_updates_server_error(self, client) -> None:
+    def test_check_updates_server_error(self, client: TestClient) -> None:
         """Test updates check with server error - should return 500 with error detail."""
+        import app
+
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
         # Mock check_for_updates to raise an exception
@@ -126,12 +130,10 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
 
         # Patch _scheduler_getter to return our mock scheduler
-        import app
-
         original_getter = app._scheduler_getter
         try:
 
-            async def mock_getter():
+            async def mock_getter() -> MagicMock:
                 return mock_scheduler
 
             app._scheduler_getter = mock_getter
@@ -158,7 +160,7 @@ class TestUpdateManagerEndpoints:
         finally:
             app._scheduler_getter = original_getter
 
-    def test_check_updates_failure(self, client) -> None:
+    def test_check_updates_failure(self, client: TestClient) -> None:
         """Test updates check failure - hits exception handling."""
         # Since mocking is complex in async context, test different scenario
         # Test with malformed API key
@@ -167,11 +169,8 @@ class TestUpdateManagerEndpoints:
         # Check if we get error response - either forbidden or internal error
         assert response.status_code in [403, 500]
 
-    def test_rollback_success(self, client) -> None:
+    def test_rollback_success(self, client: TestClient) -> None:
         """Test successful database rollback."""
-        from fastapi.testclient import TestClient
-        from starlette.types import ASGIApp
-
         import app
 
         mock_scheduler = MagicMock()
@@ -200,11 +199,8 @@ class TestUpdateManagerEndpoints:
             if mock_get_scheduler.await_count > 0:
                 mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_failure(self, client) -> None:
+    def test_rollback_failure(self, client: TestClient) -> None:
         """Test failed database rollback."""
-        from fastapi.testclient import TestClient
-        from starlette.types import ASGIApp
-
         import app
 
         mock_scheduler = MagicMock()
@@ -232,11 +228,8 @@ class TestUpdateManagerEndpoints:
             if mock_get_scheduler.await_count > 0:
                 mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_exception(self, client) -> None:
+    def test_rollback_exception(self, client: TestClient) -> None:
         """Test rollback with exception."""
-        from fastapi.testclient import TestClient
-        from starlette.types import ASGIApp
-
         import app
 
         mock_scheduler = MagicMock()
@@ -265,12 +258,12 @@ class TestUpdateManagerEndpoints:
             if mock_get_scheduler.await_count > 0:
                 mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_check_updates_no_api_key(self, client) -> None:
+    def test_check_updates_no_api_key(self, client: TestClient) -> None:
         """Test check updates without API key."""
         response = client.get("/api/v1/admin/check-updates")
         assert response.status_code == 403  # Forbidden without API key
 
-    def test_rollback_no_api_key(self, client) -> None:
+    def test_rollback_no_api_key(self, client: TestClient) -> None:
         """Test rollback without API key."""
         response = client.post("/api/v1/admin/rollback?source=usda&target_version=1.0.0")
         assert response.status_code == 403  # Forbidden without API key
@@ -280,11 +273,11 @@ class TestUpdateManagerDirectCoverage:
     """Direct tests on update_manager.py to hit missing lines."""
 
     @pytest.fixture
-    def temp_db_path(self, tmp_path):
+    def temp_db_path(self, tmp_path: "Path") -> "Path":
         """Create temporary database path."""
         return tmp_path / "test_db.db"
 
-    def test_database_update_manager_error_paths(self, temp_db_path) -> None:
+    def test_database_update_manager_error_paths(self, temp_db_path: "Path") -> None:
         """Test error paths in DatabaseUpdateManager to hit missing lines."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -305,7 +298,7 @@ class TestUpdateManagerDirectCoverage:
         pass
 
     @pytest.mark.asyncio
-    async def test_update_manager_file_operations(self, temp_db_path) -> None:
+    async def test_update_manager_file_operations(self, temp_db_path: "Path") -> None:
         """Test file operation error paths in update_manager."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -376,7 +369,7 @@ class TestUpdateManagerDirectCoverage:
         # Test callback registration and execution
         callback_called = False
 
-        def test_callback(result):
+        def test_callback(result: Any) -> None:
             nonlocal callback_called
             callback_called = True
 
