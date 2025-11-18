@@ -152,13 +152,18 @@ def make_weekly_menu(
 
 
 def _should_use_mock_food_db() -> bool:
-    """Return True when deterministic mock DB should be used (tests/CI)."""
+    """Return True when deterministic mock DB should be used (tests/CI).
+
+    This function logs a debug message when the decision is made so tests
+    that patch core.menu_engine._logger can assert on logging calls.
+    """
     flag = os.getenv(MENU_ENGINE_FORCE_MOCK_DB)
     if flag and flag.strip().lower() in TRUTHY_ENV_VALUES:
-        _logger.debug("Using mock food DB: %s=%s", MENU_ENGINE_FORCE_MOCK_DB, flag)
+        _logger.debug("MENU_ENGINE_FORCE_MOCK_DB=%r -> using mock food DB", flag)
         return True
-    if os.getenv(PYTEST_CURRENT_TEST):
-        _logger.debug("Using mock food DB: detected pytest environment")
+    pytest_env = os.getenv(PYTEST_CURRENT_TEST)
+    if pytest_env:
+        _logger.debug("PYTEST_CURRENT_TEST=%r -> using mock food DB", pytest_env)
         return True
     return False
 

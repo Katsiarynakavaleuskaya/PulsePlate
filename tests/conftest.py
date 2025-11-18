@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=False)
 def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None, None, None]:
     """Configure and initialize a per-worker SQLite database for the test session."""
     os.environ.setdefault("APP_ENV", "test")
@@ -196,7 +196,6 @@ def app(app_module: ModuleType) -> FastAPI:
     app_instance = getattr(app_module, "app", None)
     if not isinstance(app_instance, FastAPI):
         raise RuntimeError("app_module.app is not initialised")
-    app_instance = cast(FastAPI, app_instance)
     if hasattr(app_module, "get_api_key"):
         app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 

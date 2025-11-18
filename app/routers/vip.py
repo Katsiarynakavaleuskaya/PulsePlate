@@ -935,6 +935,26 @@ async def search_region_products(
     try:
         search_result = search_products(query, region, category, max_results)
 
+        # Handle case when search_result is None or invalid
+        if search_result is None:
+            return {
+                "status": "error",
+                "message": "Search returned no results",
+                "region": region,
+                "query": query,
+                "products": [],
+            }
+
+        # Handle case when search_result.products is missing or empty
+        if not hasattr(search_result, "products") or not search_result.products:
+            return {
+                "status": "error",
+                "message": "No products found",
+                "region": region,
+                "query": query,
+                "products": [],
+            }
+
         # Конвертируем продукты в словари для JSON
         products_data = [
             {
@@ -952,15 +972,17 @@ async def search_region_products(
             for product in search_result.products
         ]
 
+        total_count = getattr(search_result, "total_count", len(products_data))
+
         return {
             "status": "success",
             "region": region,
             "query": query,
             "category": category,
             "products": products_data,
-            "total_count": search_result.total_count,
+            "total_count": total_count,
             "returned_count": len(products_data),
-            "message": f"Found {search_result.total_count} products in {region}",
+            "message": f"Found {total_count} products in {region}",
         }
     except Exception as e:
         return {
