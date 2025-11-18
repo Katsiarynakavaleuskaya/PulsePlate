@@ -71,7 +71,8 @@ class RecipeDB:
             candidates = [r for r in self.recipes if self._compatible(r.tags, diet_flags)]
         if not candidates:
             return None
-        return random.choice(candidates)  # nosec B311 - pseudo random ok for variety
+        # Pseudo-random choice is acceptable to diversify generated menus (Bandit B311).
+        return random.choice(candidates)  # nosec B311
 
     def _compatible(self, recipe_flags: List[str], diet_flags: List[str]) -> bool:
         if "VEG" in diet_flags and "OMNI" in recipe_flags:

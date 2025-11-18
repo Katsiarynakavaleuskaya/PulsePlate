@@ -408,6 +408,28 @@ Access the API at `http://localhost:8000`
 - `POST /api/v1/premium/bmr` - Calculate BMR and TDEE (requires `API_KEY`)
 - `POST /api/v1/premium/plan/week` - Generate weekly meal plan (open by default)
 
+### VIP Module (protected by `X-API-Key`)
+
+- `GET /api/v1/vip/health` — Health check for VIP module
+- `POST /api/v1/vip/menu/weekly/plan` — Generate weekly plan (echo mode in CI/dev)
+- `POST /api/v1/vip/menu/weekly/repair` — Repair weekly plan (echo mode)
+- `POST /api/v1/vip/shoplist/weekly` — Weekly shopping list
+- `POST /api/v1/vip/shoplist/daily` — Daily shopping list
+- `GET /api/v1/vip/shoplist/formats` — Supported export formats/locales
+- `GET /api/v1/vip/regions` — Available regions
+- `GET /api/v1/vip/regions/{region}/categories` — Categories for region
+- `GET /api/v1/vip/regions/{region}/stores` — Store chains for region
+- `GET /api/v1/vip/regions/compare/{product}` — Price comparison across regions
+- `GET /api/v1/vip/regions/{region}/search?query=...&category=...&max_results=20` — Search products in a region
+
+Notes on `regions/{region}/search`:
+- Always returns `status: "success"` with a list of products; when nothing is found (or provider unavailable), the list is empty and `total_count=0`.
+- Response fields:
+  - `status` (`success`)
+  - `region`, `query`, `category`
+  - `products` (array of items with `product_id`, `name_es`, `name_en`, `category`, `unit`, `typical_package_size`, `price_eur`, `price_usd`, `store_chain`, `region`)
+  - `total_count`, `returned_count`, `message`
+
 ### Auth behavior for weekly plan
 
 - Dev (default): open access to simplify local testing and CI.

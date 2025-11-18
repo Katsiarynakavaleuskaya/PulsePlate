@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -195,7 +195,7 @@ class LogRetentionManager:
                 log_path,
                 data_class,
                 reason,
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
             )
 
     def audit_log_read(

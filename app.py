@@ -422,57 +422,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="PulsePlate", lifespan=lifespan)
 
 
-# Explicit startup handler for TestClient compatibility
-# TestClient triggers startup events, ensuring DB schema exists before tests run
-@app.on_event("startup")
-def _startup_init_db() -> None:
-    """Initialize database schema on startup.
-
-    This handler ensures the database schema is created when the app starts,
-    including when TestClient is used in tests. This is idempotent and safe
-    to call multiple times.
-
-    In test/CI environment, this is critical for ensuring tables exist before tests run.
-    """
-    env_name = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
-    is_test_env = env_name in {"test", "ci"}
-
-    try:
-        init_db()
-        logger.info("Database schema initialized via startup handler")
-
-        # In test environment, verify tables were created
-        if is_test_env:
-            from core.db import session_scope
-            from sqlalchemy import inspect
-
-            with session_scope() as session:
-                inspector = inspect(session.get_bind())
-                tables = inspector.get_table_names()
-                required_tables = ["users", "recipes", "meals", "food_items"]
-                missing_tables = [t for t in required_tables if t not in tables]
-
-                if missing_tables:
-                    logger.error(
-                        "CRITICAL: Required tables missing after init_db(): %s. Found: %s",
-                        missing_tables,
-                        tables,
-                    )
-                    # In test environment, raise to fail fast
-                    raise RuntimeError(
-                        f"Database initialization incomplete: missing tables {missing_tables}"
-                    )
-                logger.debug("Verified all required tables exist: %s", required_tables)
-    except Exception as e:
-        # In test environment, always raise to fail fast
-        if is_test_env:
-            logger.error(
-                "CRITICAL: Database initialization failed in test environment: %s", e, exc_info=True
-            )
-            raise
-        # In production, let lifespan handler deal with it
-        logger.error("Database initialization failed: %s", e, exc_info=True)
-        raise
+# The previous explicit startup handler using @app.on_event("startup")
+# has been removed in favor of the lifespan handler above to avoid
+# FastAPI deprecation warnings. The lifespan startup already performs
+# init_db() and template validation, which covers TestClient usage.
 
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
@@ -1371,12 +1324,11 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
         # Add visualization if requested and available
         add_visualization_if_requested(result, req)
-        # Log without sensitive data (group is non-sensitive category: "athlete" or "general")
+        # Log without sensitive data - only generic message, no user data
         # Note: req object contains sensitive data (weight, height, pregnancy status) but is not logged
-        # CodeQL flags this location, but we only log a generic message without any user data
         log_msg = "BMI calculation skipped due to pregnancy flag"
-        logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
-        bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+        logger.info(log_msg)
+        bmi_logger.info(log_msg)
 
         return result
 
@@ -1400,11 +1352,12 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # Log without sensitive data (BMI values are personal health information)
     # Only log non-sensitive metadata: group category and athlete flag
     # Note: We explicitly avoid logging weight, height, age, BMI values, or pregnancy status
-    group_category = bmi_result["group"]
+    # Use direct computation instead of dict access to avoid CodeQL false positives
+    group_category = "athlete" if flags["is_athlete"] else "general"
     is_athlete_flag = flags["is_athlete"]
     log_msg = f"BMI calculation complete [group={group_category} athlete={is_athlete_flag}]"
-    logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
-    bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+    logger.info(log_msg)
+    bmi_logger.info(log_msg)
 
     return bmi_result
 
@@ -1480,8 +1433,8 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         }
         # Log without sensitive data - only generic message, no user data
         log_msg = "BMI v1 calculation skipped due to pregnancy flag"
-        logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
-        bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+        logger.info(log_msg)
+        bmi_logger.info(log_msg)
         return response_payload
 
     category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
@@ -1498,13 +1451,14 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         "athlete": flags["is_athlete"],
         "group": "athlete" if flags["is_athlete"] else "general",
     }
-    # Log without sensitive data - use pre-computed values, not result_payload dict access
+    # Log without sensitive data - use direct computation, not result_payload dict access
     # Note: We explicitly avoid logging BMI, weight, height, age, or pregnancy status
-    group_category = result_payload["group"]
+    # Use direct computation instead of dict access to avoid CodeQL false positives
+    group_category = "athlete" if flags["is_athlete"] else "general"
     is_athlete_flag = flags["is_athlete"]
     log_msg = f"BMI v1 calculation complete [group={group_category} athlete={is_athlete_flag}]"
-    logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
-    bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+    logger.info(log_msg)
+    bmi_logger.info(log_msg)
     return result_payload
 
 

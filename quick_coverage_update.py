@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Quick coverage check for our progress."""
 
-# nosec B404 - subprocess is safe: args are static (hardcoded test file paths),
-# shell=False (default), sys.executable (not user-controlled), no user input,
-# args passed as list
+# Subprocess usage here relies on static commands (Bandit B404 false positive).
 import json
 import re
 import subprocess  # nosec B404
@@ -88,11 +86,8 @@ def run_coverage_check() -> bool:
             "-q",  # Quiet mode
         ]
 
-        # Timeout aligned with analyze_coverage_gaps.py (600s) for consistency
-        # Note: This script runs a subset of tests, so typically completes faster
-        # nosec B603: Safe subprocess invocation - cmd is a static list built from
-        # sys.executable and hardcoded pytest arguments only; no user input or
-        # external data is used. Timeout (600s) prevents hangs.
+        # Timeout aligned with analyze_coverage_gaps.py (600s). Command uses
+        # deterministic args only (Bandit B603 false positive).
         result = subprocess.run(  # nosec B603
             cmd,
             capture_output=True,
@@ -213,8 +208,8 @@ def run_coverage_check() -> bool:
             if path_str is not None:
                 try:
                     Path(path_str).unlink(missing_ok=True)
-                except Exception:  # nosec B110
-                    pass  # Ignore cleanup errors
+                except Exception as cleanup_error:
+                    print(f"⚠️  Failed to delete temporary file {path_str}: {cleanup_error}")
 
 
 if __name__ == "__main__":

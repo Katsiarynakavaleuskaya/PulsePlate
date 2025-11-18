@@ -15,6 +15,6 @@ echo "[CI-LOCAL] Frontend unit tests (Vitest)..."
 npm test --prefix frontend || true
 
 echo "[CI-LOCAL] Security scans (Bandit)..."
-bandit -r . || true
+bandit -r app core scripts
 
 echo "[CI-LOCAL] Done."

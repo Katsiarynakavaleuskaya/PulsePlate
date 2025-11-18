@@ -19,7 +19,8 @@ class NormalizedIssueType(Enum):
     """Language-agnostic normalized issue types for risk assessment."""
 
     INJECTION = "injection"
-    PASSWORD_LEAK = "passwordLeak"  # nosec B105 - enum value, not hardcoded password
+    # Enum member name contains "password" but it is not a secret value (Bandit B105).
+    PASSWORD_LEAK = "passwordLeak"  # nosec B105
     DANGEROUS_INSTRUCTION = "dangerousInstruction"
     EXCEPTION_HANDLING = "exceptionHandling"
     ASYNC_ERROR = "asyncError"

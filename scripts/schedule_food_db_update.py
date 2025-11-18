@@ -10,7 +10,9 @@ import logging
 import math
 import os
 import random
-import subprocess  # nosec B404 - controlled execution of internal script
+
+# Subprocess usage restricted to internal scripts (Bandit B404 false positive).
+import subprocess  # nosec B404
 import sys
 import time
 from dataclasses import dataclass

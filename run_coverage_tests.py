@@ -14,9 +14,8 @@ def run_command(cmd: list[str], description: str) -> subprocess.CompletedProcess
     print(f"Команда: {' '.join(cmd)}")
     print("=" * 60)
 
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, cwd=os.getcwd()
-    )  # nosec B603 - cmd is controlled, not user input
+    # Command is fully controlled (static arguments); Bandit B603 false positive.
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())  # nosec B603
 
     print("STDOUT:")
     print(result.stdout)

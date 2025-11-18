@@ -4,19 +4,45 @@
 Исключает кеш-файлы из покрытия для ускорения.
 """
 
+import contextlib
+import io
 import logging
 import os
 import shutil
-import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any
 
 # Package should be installed in editable mode (pip install -e .)
 # or PYTHONPATH should be set in the environment
 from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
+import pytest
 
 project_root = Path(__file__).parent.parent
+
+
+def _run_pytest_with_timeout(args: list[str], timeout: int) -> tuple[int, str]:
+    """Run pytest inside a worker thread with stdout/err capture and timeout."""
+
+    def _invoke_pytest() -> tuple[int, str]:
+        buffer = io.StringIO()
+        prev_cwd = Path.cwd()
+        try:
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+                os.chdir(project_root)
+                exit_code = pytest.main(args)
+        finally:
+            os.chdir(prev_cwd)
+        return exit_code, buffer.getvalue()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_invoke_pytest)
+        try:
+            return future.result(timeout=timeout)
+        except FuturesTimeoutError as exc:
+            future.cancel()
+            raise TimeoutError("Pytest run exceeded timeout") from exc
 
 
 def clean_cache() -> None:
@@ -54,34 +80,23 @@ def run_tests_fast() -> dict[str, Any]:
     clean_cache()
 
     try:
-        # Security: Using list form (not shell=True) with static strings only.
-        # sys.executable is a Python built-in and not controllable by external actors.
-        # This prevents command injection vulnerabilities.
-        result = subprocess.run(  # nosec B603 - test args are controlled, not user input
+        exit_code, output = _run_pytest_with_timeout(
             [
-                sys.executable,  # Safe: Python built-in, returns interpreter path
-                "-m",
-                "pytest",
                 "tests/",
-                "-q",  # Тихий режим
-                "--tb=short",  # Короткий traceback
-                "--cov=core",  # Только core (исключаем кеш)
-                "--cov=app",  # И app
+                "-q",
+                "--tb=short",
+                "--cov=core",
+                "--cov=app",
                 "--cov-report=term-missing",
-                "--cache-clear",  # Очистка кеша pytest
-                "--maxfail=10",  # Максимум 10 падений
+                "--cache-clear",
+                "--maxfail=10",
             ],
-            capture_output=True,
-            text=True,
-            cwd=project_root,
-            timeout=600,  # 10 минут максимум
+            timeout=600,
         )
-
-        output = result.stdout + result.stderr
 
         # Извлекаем информацию об упавших/ошибочных тестах
         failed_tests = []
-        if result.returncode != 0:
+        if exit_code != 0:
             lines = output.split("\n")
             for i, line in enumerate(lines):
                 if ("FAILED" in line or "ERROR" in line) and "::" in line:
@@ -115,13 +130,13 @@ def run_tests_fast() -> dict[str, Any]:
                     )
 
         return {
-            "success": result.returncode == 0,
+            "success": exit_code == 0,
             "failed_tests": failed_tests,
             "output": output,
-            "returncode": result.returncode,
+            "returncode": exit_code,
         }
 
-    except subprocess.TimeoutExpired:
+    except TimeoutError:
         return {
             "success": False,
             "failed_tests": [],

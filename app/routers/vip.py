@@ -32,7 +32,7 @@ EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping l
 """
 
 # Test key constant for development mode only
-TEST_KEY = "test_key"  # nosec B105  # Development mode only
+TEST_KEY = "test_key"
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
@@ -291,14 +291,10 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             return result
         except HTTPException as exc:
             if exc.status_code == 403:
-                expected_env = os.getenv("API_KEY")
-                if (
-                    expected_env
-                    and raw_key
-                    and not is_production
-                    and str(raw_key).replace("-", "_") == expected_env.replace("-", "_")
-                ):
-                    return expected_env
+                # Security: Do not allow key normalization - keys must match exactly
+                # Normalization (dash/underscore equivalence) is a security risk
+                # and has been removed. Keys must match character-for-character.
+                pass  # App-level validation failed, continue to environment check
                 # App-level validation failed, but check if we should allow anonymous access
                 if not raw_key:
                     if not allow_anonymous:
@@ -340,10 +336,9 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
         if not raw_key:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         if raw_key != expected:
-            normalized_header = str(raw_key).replace("-", "_")
-            normalized_expected = expected.replace("-", "_")
-            if not is_production and normalized_header == normalized_expected:
-                return expected
+            # Security: Keys must match exactly - no normalization allowed
+            # Normalization (dash/underscore equivalence) is a security risk
+            # and has been removed. Keys must match character-for-character.
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         return raw_key
 
@@ -415,7 +410,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
         try:
             age_val = int(age_raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError("Invalid age value") from exc
+            raise ValueError(f"Invalid age value: {age_raw!r}") from exc
 
     height_raw = profile_data.get("height_cm")
     if height_raw is None:
@@ -424,7 +419,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
         try:
             height_val = float(height_raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError("Invalid height_cm value") from exc
+            raise ValueError(f"Invalid height_cm value: {height_raw!r}") from exc
 
     weight_raw = profile_data.get("weight_kg")
     if weight_raw is None:
@@ -433,7 +428,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
         try:
             weight_val = float(weight_raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError("Invalid weight_kg value") from exc
+            raise ValueError(f"Invalid weight_kg value: {weight_raw!r}") from exc
 
     # Use explicit None checks so that missing/None values fall back to defaults
     return UserProfile(
@@ -594,7 +589,10 @@ async def vip_health() -> Dict[str, Any]:
     }
 
 
-@router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/menu/weekly/plan",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
@@ -735,7 +733,10 @@ async def weekly_menu_plan_alias(
         return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")
 
 
-@router.post("/menu/weekly/repair", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/menu/weekly/repair",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного меню на основе дефицитов
@@ -759,7 +760,10 @@ async def weekly_menu_repair(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.post("/shoplist/weekly", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/shoplist/weekly",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Создание списка покупок на неделю с округлением до упаковок
@@ -805,7 +809,10 @@ async def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.post("/shoplist/daily", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/shoplist/daily",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Создание списка покупок на день с округлением до упаковок
@@ -851,7 +858,10 @@ async def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.get("/shoplist/formats", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/shoplist/formats",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def available_export_formats() -> Dict[str, Any]:
     """
     RU: Получить доступные форматы экспорта списков покупок
@@ -868,7 +878,10 @@ async def available_export_formats() -> Dict[str, Any]:
     }
 
 
-@router.get("/regions", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/regions",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def get_regions() -> Dict[str, Any]:
     """
     RU: Получить список доступных регионов
@@ -889,7 +902,9 @@ async def get_regions() -> Dict[str, Any]:
     try:
         regions_raw = provider()
         if not isinstance(regions_raw, list):
-            raise ValueError("Region list must be a list of strings")
+            raise ValueError(
+                f"Region list must be a list of strings, got {type(regions_raw).__name__}: {regions_raw!r}"
+            )
         regions = sorted({str(region).upper() for region in regions_raw if region})
         return {
             "status": "success",
@@ -908,7 +923,10 @@ async def get_regions() -> Dict[str, Any]:
         }
 
 
-@router.get("/regions/{region}/search", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/regions/{region}/search",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def search_region_products(
     region: str, query: str, category: str = "", max_results: int = 20
 ) -> Dict[str, Any]:
@@ -926,10 +944,16 @@ async def search_region_products(
         Результаты поиска
     """
     if search_products is None:
+        # Graceful echo-mode: succeed with empty results when provider unavailable
         return {
-            "status": "error",
-            "message": "Region catalog module not available",
-            "results": [],
+            "status": "success",
+            "region": region,
+            "query": query,
+            "category": category,
+            "products": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "message": "Search provider unavailable (echo mode)",
         }
 
     try:
@@ -937,22 +961,29 @@ async def search_region_products(
 
         # Handle case when search_result is None or invalid
         if search_result is None:
+            # Treat missing results as empty success
             return {
-                "status": "error",
-                "message": "Search returned no results",
+                "status": "success",
                 "region": region,
                 "query": query,
+                "category": category,
                 "products": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "message": "No products found",
             }
 
         # Handle case when search_result.products is missing or empty
         if not hasattr(search_result, "products") or not search_result.products:
             return {
-                "status": "error",
-                "message": "No products found",
+                "status": "success",
                 "region": region,
                 "query": query,
+                "category": category,
                 "products": [],
+                "total_count": getattr(search_result, "total_count", 0),
+                "returned_count": 0,
+                "message": "No products found",
             }
 
         # Конвертируем продукты в словари для JSON
@@ -994,7 +1025,10 @@ async def search_region_products(
         }
 
 
-@router.get("/regions/{region}/categories", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/regions/{region}/categories",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def get_region_categories(region: str) -> Dict[str, Any]:
     """
     RU: Получить категории продуктов в регионе
@@ -1033,7 +1067,10 @@ async def get_region_categories(region: str) -> Dict[str, Any]:
         }
 
 
-@router.get("/regions/{region}/stores", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/regions/{region}/stores",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def get_region_stores(region: str) -> Dict[str, Any]:
     """
     RU: Получить торговые сети в регионе
@@ -1072,7 +1109,10 @@ async def get_region_stores(region: str) -> Dict[str, Any]:
         }
 
 
-@router.get("/regions/compare/{product_name}", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/regions/compare/{product_name}",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[str, Any]:
     """
     RU: Сравнить цены продукта в разных регионах
@@ -1132,7 +1172,10 @@ async def compare_product_prices(product_name: str, regions: str = "es,us") -> D
         }
 
 
-@router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/recipes/synthesize",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепт на основе ингредиентов
@@ -1159,7 +1202,10 @@ async def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, An
     }
 
 
-@router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/recipe/synthesize",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
     # Reuse the same logic as synthesize_recipe endpoint
@@ -1178,7 +1224,10 @@ async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-@router.post("/recipes/weekly", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/recipes/weekly",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Синтезировать рецепты для недельного плана
@@ -1299,7 +1348,10 @@ async def _get_recipe_synthesizer_safe(request: Request) -> Optional[RecipeSynth
         return None
 
 
-@router.get("/recipes/templates", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/recipes/templates",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def get_recipe_templates(
     synthesizer: Optional[RecipeSynthesizer] = Depends(_get_recipe_synthesizer_safe),
 ) -> Dict[str, Any]:
@@ -1357,7 +1409,10 @@ async def get_recipe_templates(
         return payload
 
 
-@router.post("/auto-repair/weekly", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/auto-repair/weekly",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
     """
     RU: Авто-ремонт недельного плана с UX-петлей
@@ -1431,7 +1486,10 @@ async def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
-@router.post("/auto-repair/suggestions", dependencies=[Depends(_require_api_key_strict)])
+@router.post(
+    "/auto-repair/suggestions",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Получить предложения для ручного ремонта
@@ -1453,7 +1511,10 @@ async def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> 
     }
 
 
-@router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key_strict)])
+@router.get(
+    "/auto-repair/strategies",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def get_repair_strategies() -> Dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта

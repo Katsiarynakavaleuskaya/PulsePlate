@@ -165,6 +165,10 @@ pythonVersion = "3.13"
 reportMissingImports = false
 pythonPath = "."
 
+[tool.bandit]
+exclude_dirs = ["tests", "tests_strict", "cache", "test_cache", "frontend/build", "htmlcov", "releases", "data", "external", "node_modules", "dist", "build", ".venv"]
+exclude = ["test_quick_check.py"]
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.1.0"

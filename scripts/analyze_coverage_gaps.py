@@ -54,7 +54,7 @@ def run_coverage_analysis() -> bool:
             "PYTHONPATH": ".:core:app:tests",
             "VIP_MODULE_ENABLED": "true",
             "FEATURE_PREMIUM_NUTRITION": "true",
-            "API_KEY": "test_key",  # nosec B105  # Coverage analysis only
+            "API_KEY": "test_key",
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
         }

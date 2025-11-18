@@ -290,11 +290,12 @@ def update_api_key(
         return False
 
     try:
-        # Encrypt the key if requested
-        if use_encryption:
+        # Security: Encrypt the key if requested, otherwise validate production environment
+        encrypted_key: str | None = None
+        if use_encryption and ENCRYPTION_AVAILABLE:
             try:
                 encrypted_key = encrypt_value(api_key)  # type: ignore[misc]
-                if not encrypted_key.startswith("encrypted:"):
+                if encrypted_key is None or not encrypted_key.startswith("encrypted:"):
                     logger.error("Encryption failed: output does not start with 'encrypted:'")
                     print("❌ Encryption failed: invalid output format")
                     return False
@@ -307,16 +308,31 @@ def update_api_key(
                 return False
         else:
             # Store plaintext key only when explicitly requested (dev/test mode)
-            # CodeQL flags this as security risk, but it's intentional for local development
-            # In production, use_encryption=True should always be used
-            env_key_value = api_key
-            if not use_encryption:
-                logger.warning(
-                    "API key stored in plaintext (use_encryption=False). "
-                    "This should only be used in local development/test environments."
+            # In production, this should never happen - use_encryption=True is default
+            app_env = os.getenv("APP_ENV", "").strip().lower()
+            is_production = app_env not in {"", "local", "dev", "development", "test"}
+            if is_production:
+                logger.error(
+                    "Cannot store API key in plaintext in production. "
+                    "Set use_encryption=True or use development environment."
                 )
+                print("❌ Cannot store API key in plaintext in production environment")
+                return False
+            env_key_value = api_key
+            logger.warning(
+                "API key stored in plaintext (use_encryption=False). "
+                "This should only be used in local development/test environments."
+            )
 
-        mcp_key_value = api_key
+        # Security: Use encrypted value for MCP and settings.json if encryption was used
+        # Never store API keys in plaintext in configuration files when encryption is available
+        if encrypted_key is not None:
+            mcp_key_value = encrypted_key
+            settings_key_value = encrypted_key
+        else:
+            # Only allow plaintext in dev/test environments (already validated above)
+            mcp_key_value = api_key
+            settings_key_value = api_key
 
         # Update MCP configuration
         mcp_file = Path.home() / ".cursor" / "mcp.json"
@@ -380,26 +396,19 @@ def update_api_key(
                 normalized_line = line if line.endswith("\n") else line + "\n"
                 if line_stripped.startswith(f"{env_key_name}="):
                     # env_key_value is encrypted when use_encryption=True (checked above)
-                    # When use_encryption=False, this is intentional for local dev/test only
-                    # See comment below for CodeQL suppression rationale
-                    new_lines.append(
-                        f"{env_key_name}={env_key_value}\n"
-                    )  # codeql[py/clear-text-storage-sensitive-data]
+                    # When use_encryption=False, production check above prevents plaintext storage
+                    new_lines.append(f"{env_key_name}={env_key_value}\n")
                     updated = True
                 else:
                     new_lines.append(normalized_line)
 
             if not updated:
                 # env_key_value is encrypted when use_encryption=True (checked above)
-                # When use_encryption=False, this is intentional for local dev/test only
-                # CodeQL flags this as security risk, but plaintext storage is only used
-                # when explicitly requested (use_encryption=False) for local development
-                # This is safe because: 1) only used in dev/test, 2) file is in .gitignore, 3) user explicitly opts in
-                new_lines.append(
-                    f"{env_key_name}={env_key_value}\n"
-                )  # codeql[py/clear-text-storage-sensitive-data]
+                # When use_encryption=False, production check above prevents plaintext storage
+                new_lines.append(f"{env_key_name}={env_key_value}\n")
 
             try:
+                # Only write if data is encrypted or in dev/test environment (checked above)
                 with open(env_file, "w", encoding="utf-8") as f:
                     f.writelines(new_lines)  # codeql[py/clear-text-storage-sensitive-data]
                 logger.info("Updated .env file")
@@ -424,7 +433,8 @@ def update_api_key(
                 logger.warning("Failed to read settings.json: %s", e)
                 settings = {}
 
-            settings["cursor.ai.openaiApiKey"] = api_key
+            # Security: Store encrypted key if encryption was used, otherwise plaintext (dev/test only)
+            settings["cursor.ai.openaiApiKey"] = settings_key_value
 
             try:
                 with open(settings_file, "w", encoding="utf-8") as f:

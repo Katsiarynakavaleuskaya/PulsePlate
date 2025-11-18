@@ -3,16 +3,21 @@ Shared fixtures for app group tests.
 Provides reusable setup for environment variables and test clients.
 """
 
-from typing import Generator, cast
+from typing import Any, Generator, cast
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from httpx import Response
 
 import app as app_mod
 
 
-def assert_vip_response(response, expected_status_codes=None, expected_data_fields=None):
+def assert_vip_response(
+    response: Response,
+    expected_status_codes: list[int] | None = None,
+    expected_data_fields: dict[str, Any] | None = None,
+) -> None:
     """
     Helper function to assert VIP API responses without conditionals in tests.
 

@@ -54,7 +54,8 @@ jobs:
         id: changed
         run: |
           set -e
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          # Fetch a deeper history to ensure accurate diffs (some repos have shallow merges)
+          git fetch origin "${{ github.base_ref }}" --depth=100
           CHANGED=$(git diff --name-only --diff-filter=AMRT "origin/${{ github.base_ref }}"... | grep -E '\\.py$' || true)
           printf "Changed Python files:\n%s\n" "$CHANGED"
           {
@@ -189,6 +190,7 @@ jobs:
           ENVIRONMENT: test
           TEST_DB_PATH: cache/test_pr.sqlite
           CLIENT_FINGERPRINT_SALT: 'test-salt-for-ci-only-not-for-production'
+          # Note: ALLOW_KEY_NORMALIZATION removed - keys must match exactly for security
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
         run: |

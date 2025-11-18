@@ -3927,6 +3927,7 @@
 Футболист
 характеристик
 хардкод
+хардкода
 хардкоженный
 хелперы
 Хлеб
@@ -4346,6 +4347,7 @@ excinfo
 executemany
 éxito
 Explainability
+Extremal
 facecolor
 fastapi
 fdopen
@@ -4433,6 +4435,7 @@ infantil
 ingestions
 ings
 initialised
+INMEMORY
 inplace
 Intermedio
 internationalizable
@@ -4624,6 +4627,8 @@ pediátricas
 Pepino
 perder
 pérdida
+personalisation
+personalised
 personalizer
 pesc
 pgrep
@@ -4757,6 +4762,7 @@ Salmón
 salud
 saludable
 saludables
+samefile
 sanitise
 sarcopenia
 Sarcopenia
@@ -4823,6 +4829,7 @@ testportions
 testsuite
 testsuites
 testtarget
+threadpool
 thursday
 Tienes
 timebox

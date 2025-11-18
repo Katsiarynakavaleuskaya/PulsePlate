@@ -17,7 +17,7 @@ class TestVIPCoverage97Clean:
 
     # setup_method removed - using conftest.py autouse fixture for environment setup
 
-    def test_vip_import_fallback_coverage_lines_55_74(self):
+    def test_vip_import_fallback_coverage_lines_55_74(self) -> None:
         """Test VIP import fallback coverage for lines 55-74."""
         # Test that VIP module imports successfully and functions are available
         from app.routers import vip
@@ -25,7 +25,7 @@ class TestVIPCoverage97Clean:
         # Verify that VIP functions are available (not None)
         assert vip.make_weekly_menu is not None
 
-    def test_vip_safe_call_with_adapter_errors(self):
+    def test_vip_safe_call_with_adapter_errors(self) -> None:
         """Test VIP _safe_call_with_adapter error path when adapter missing."""
         from app.routers.vip import _safe_call_with_adapter
 
@@ -68,7 +68,7 @@ class TestVIPCoverage97Clean:
             )
             mock_error.assert_called_once()
 
-    def test_vip_weekly_menu_plan_coverage_lines_173_180(self):
+    def test_vip_weekly_menu_plan_coverage_lines_173_180(self) -> None:
         """Test VIP weekly menu plan coverage for lines 173, 180."""
         import app
 
@@ -90,7 +90,7 @@ class TestVIPCoverage97Clean:
         )
         assert response.status_code in [422, 403]  # Validation error or API key issue
 
-    def test_vip_weekly_menu_plan_error_coverage_lines_189_191(self):
+    def test_vip_weekly_menu_plan_error_coverage_lines_189_191(self) -> None:
         """Test VIP weekly menu plan error coverage for lines 189-191."""
         import app
 
@@ -104,7 +104,7 @@ class TestVIPCoverage97Clean:
         )
         assert response.status_code in [422, 403]  # Validation error or API key issue
 
-    def test_vip_shoplist_weekly_coverage_lines_219_259(self):
+    def test_vip_shoplist_weekly_coverage_lines_219_259(self) -> None:
         """Test VIP shoplist weekly coverage for lines 219-259."""
         import app
 
@@ -120,7 +120,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "shopping_list": "exists"}
         )
 
-    def test_vip_shoplist_daily_coverage_lines_315_316(self):
+    def test_vip_shoplist_daily_coverage_lines_315_316(self) -> None:
         """Test VIP shoplist daily coverage for lines 315-316."""
         import app
 
@@ -136,7 +136,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "shopping_list": "exists"}
         )
 
-    def test_vip_shoplist_formats_coverage_lines_350_361_362(self):
+    def test_vip_shoplist_formats_coverage_lines_350_361_362(self) -> None:
         """Test VIP shoplist formats coverage for lines 350, 361-362."""
         import app
 
@@ -148,7 +148,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "formats": "exists"}
         )
 
-    def test_vip_regions_coverage_lines_421_422_449(self):
+    def test_vip_regions_coverage_lines_421_422_449(self) -> None:
         """Test VIP regions coverage for lines 421-422, 449."""
         import app
 
@@ -160,35 +160,70 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "regions": "exists"}
         )
 
-    def test_vip_region_search_coverage_lines_485_486(self):
+    def test_vip_region_search_coverage_lines_485_486(self) -> None:
         """Test VIP region search coverage for lines 485-486."""
         import app
+        from app.routers import vip as vip_router
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Test region search endpoint
-        response = client.get(
-            "/api/v1/vip/regions/ES/search?query=test", headers={"X-API-Key": "test-key"}
-        )
-        assert_vip_response(
-            response, expected_data_fields={"status": "success", "products": "exists"}
-        )
+        # Mock search_products to return success
+        mock_product = MagicMock()
+        mock_product.product_id = "123"
+        mock_product.name_es = "Test Product"
+        mock_product.name_en = "Test Product"
+        mock_product.category = "test"
+        mock_product.unit = "kg"
+        mock_product.typical_package_size = 1.0
+        mock_product.price_eur = 1.0
+        mock_product.price_usd = 1.2
+        mock_product.store_chain = "Test Store"
+        mock_product.region = "ES"
 
-    def test_vip_region_categories_coverage_line_508(self):
+        mock_search_result = MagicMock()
+        mock_search_result.products = [mock_product]
+        mock_search_result.total_count = 1
+
+        # Ensure search_products is not None before patching
+        original_search_products = vip_router.search_products
+        if original_search_products is None:
+            vip_router.search_products = lambda *args, **kwargs: mock_search_result
+
+        with patch.object(vip_router, "search_products", return_value=mock_search_result):
+            # Test region search endpoint
+            response = client.get(
+                "/api/v1/vip/regions/ES/search?query=test", headers={"X-API-Key": "test-key"}
+            )
+            assert_vip_response(
+                response, expected_data_fields={"status": "success", "products": "exists"}
+            )
+
+    def test_vip_region_categories_coverage_line_508(self) -> None:
         """Test VIP region categories coverage for line 508."""
         import app
+        from app.routers import vip as vip_router
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Test region categories endpoint
-        response = client.get(
-            "/api/v1/vip/regions/ES/categories", headers={"X-API-Key": "test-key"}
-        )
-        assert_vip_response(
-            response, expected_data_fields={"status": "success", "categories": "exists"}
-        )
+        # Mock get_region_catalog to return success
+        mock_catalog = MagicMock()
+        mock_catalog.get_categories.return_value = ["dairy", "vegetables", "fruits"]
 
-    def test_vip_region_stores_coverage_lines_525_526(self):
+        # Ensure get_region_catalog is not None before patching
+        original_get_region_catalog = vip_router.get_region_catalog
+        if original_get_region_catalog is None:
+            vip_router.get_region_catalog = lambda *args, **kwargs: mock_catalog
+
+        with patch.object(vip_router, "get_region_catalog", return_value=mock_catalog):
+            # Test region categories endpoint
+            response = client.get(
+                "/api/v1/vip/regions/ES/categories", headers={"X-API-Key": "test-key"}
+            )
+            assert_vip_response(
+                response, expected_data_fields={"status": "success", "categories": "exists"}
+            )
+
+    def test_vip_region_stores_coverage_lines_525_526(self) -> None:
         """Test VIP region stores coverage for lines 525-526."""
         import app
 
@@ -200,7 +235,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "stores": "exists"}
         )
 
-    def test_vip_price_comparison_coverage_line_547(self):
+    def test_vip_price_comparison_coverage_line_547(self) -> None:
         """Test VIP price comparison coverage for line 547."""
         import app
 
@@ -214,7 +249,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "comparison": "exists"}
         )
 
-    def test_vip_recipe_templates_coverage_lines_564_565_587(self):
+    def test_vip_recipe_templates_coverage_lines_564_565_587(self) -> None:
         """Test VIP recipe templates coverage for lines 564-565, 587."""
         import app
 
@@ -226,7 +261,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "templates": "exists"}
         )
 
-    def test_vip_auto_repair_coverage_lines_623_624_681(self):
+    def test_vip_auto_repair_coverage_lines_623_624_681(self) -> None:
         """Test VIP auto-repair coverage for lines 623-624, 681."""
         import app
 
@@ -242,7 +277,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "error", "repair_result": "exists"}
         )
 
-    def test_vip_auto_repair_strategies_coverage_lines_695_702_716(self):
+    def test_vip_auto_repair_strategies_coverage_lines_695_702_716(self) -> None:
         """Test VIP auto-repair strategies coverage for lines 695, 702, 716."""
         import app
 
@@ -256,7 +291,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "strategies": "exists"}
         )
 
-    def test_vip_weekly_recipes_coverage_lines_721_725_738_739_758(self):
+    def test_vip_weekly_recipes_coverage_lines_721_725_738_739_758(self) -> None:
         """Test VIP weekly recipes coverage for lines 721-725, 738-739, 758."""
         import app
 
@@ -272,7 +307,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "weekly_recipes": "exists"}
         )
 
-    def test_vip_recipe_synthesis_coverage_lines_788_789_809(self):
+    def test_vip_recipe_synthesis_coverage_lines_788_789_809(self) -> None:
         """Test VIP recipe synthesis coverage for lines 788-789, 809."""
         import app
 
@@ -288,7 +323,7 @@ class TestVIPCoverage97Clean:
             response, expected_data_fields={"status": "success", "recipe": "exists"}
         )
 
-    def test_vip_weekly_plan_coverage_lines_829_832_835(self):
+    def test_vip_weekly_plan_coverage_lines_829_832_835(self) -> None:
         """Test VIP weekly plan coverage for lines 829-832, 835."""
         import app
 
@@ -302,7 +337,7 @@ class TestVIPCoverage97Clean:
         )
         assert response.status_code in [422, 403]  # Validation error or API key issue
 
-    def test_vip_menu_repair_coverage_lines_907_941_942(self):
+    def test_vip_menu_repair_coverage_lines_907_941_942(self) -> None:
         """Test VIP menu repair coverage for lines 907, 941-942."""
         import app
 

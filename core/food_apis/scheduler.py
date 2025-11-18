@@ -13,9 +13,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import inspect
 from datetime import datetime, timedelta
 from types import FrameType
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Awaitable, cast
 
 from ..time_utils import now_utc
 from .update_manager import DatabaseUpdateManager, UpdateResult
@@ -72,8 +73,25 @@ class DatabaseUpdateScheduler:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             self._shutdown_event.set()
             self.is_running = False
-            if self._update_task and not self._update_task.done():
-                self._update_task.cancel()
+            # Avoid calling .done() on AsyncMock (which returns a coroutine and triggers warnings)
+            if isinstance(self._update_task, asyncio.Task):
+                if not self._update_task.done():
+                    self._update_task.cancel()
+            elif self._update_task is not None:
+                # For mocks or custom task-like objects, invoke cancel() safely
+                cancel = getattr(self._update_task, "cancel", None)
+                if callable(cancel):
+                    try:
+                        if inspect.iscoroutinefunction(cancel):
+                            try:
+                                loop = asyncio.get_running_loop()
+                                loop.create_task(cancel())
+                            except RuntimeError:
+                                logger.warning("No running event loop in signal handler")
+                        else:
+                            cancel()
+                    except Exception:
+                        logger.exception("Failed to cancel update task from signal handler")
             try:
                 loop = asyncio.get_running_loop()
                 loop.call_soon_threadsafe(self._schedule_async_shutdown)
@@ -96,8 +114,16 @@ class DatabaseUpdateScheduler:
         """Handle shutdown initiated from signal handler on the event loop thread."""
         logger.info("Handling signal-initiated shutdown...")
         self.is_running = False
-        if self._update_task and not self._update_task.done():
-            self._update_task.cancel()
+        if self._update_task is not None:
+            # Cancel; support AsyncMock cancel being awaitable
+            try:
+                cancel = getattr(self._update_task, "cancel", None)
+                if callable(cancel):
+                    res = cancel()
+                    if inspect.isawaitable(res):
+                        await res
+            except Exception:
+                logger.exception("Failed to cancel update task during shutdown signal handling")
 
     async def start(self) -> None:
         """
@@ -128,10 +154,25 @@ class DatabaseUpdateScheduler:
         self.is_running = False
 
         # Cancel background task
-        if self._update_task and not self._update_task.done():
-            self._update_task.cancel()
+        if self._update_task is not None:
+            # Cancel regardless of completion state
             try:
-                await self._update_task
+                cancel = getattr(self._update_task, "cancel", None)
+                if callable(cancel):
+                    res = cancel()
+                    if inspect.isawaitable(res):
+                        await res
+            except Exception:
+                logger.exception("Failed to cancel update task during scheduler stop")
+            # Await only when truly awaitable Task/Future
+            task_obj = self._update_task
+            try:
+                if (
+                    isinstance(task_obj, asyncio.Task)
+                    or asyncio.isfuture(task_obj)
+                    or inspect.isawaitable(task_obj)
+                ):
+                    await cast(Awaitable[Any], task_obj)
             except asyncio.CancelledError:
                 pass
 

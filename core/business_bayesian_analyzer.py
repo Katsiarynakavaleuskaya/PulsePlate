@@ -196,7 +196,7 @@ class BusinessBayesianAnalyzer:
                         data = yaml_module.safe_load(file)
                     if isinstance(data, dict) and data:
                         return data
-                except Exception:  # nosec B110 - intentional fallback to defaults
+                except Exception:
                     # If YAML is invalid, fall back to defaults (continue execution)
                     logger.warning(
                         "Failed to parse business_knowledge.yaml; falling back to defaults",
@@ -276,12 +276,21 @@ class BusinessBayesianAnalyzer:
                 if yaml_module is None:
                     continue
                 yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
+                load_failed = False
+                loaded: dict[str, Any] | None = None
                 try:
                     with open(config_path, "r", encoding="utf-8") as f:
                         loaded = yaml_module.safe_load(f) or {}
-                except (OSError, yaml_error):  # nosec B110, B112 - fallback to defaults
+                except (OSError, yaml_error) as load_error:
+                    logger.warning(
+                        "Failed to load monetization strategies from %s",
+                        config_path,
+                        exc_info=load_error,
+                    )
+                    load_failed = True
+                if load_failed:
                     continue
-                if loaded:  # Only return if we got valid data
+                if loaded:
                     return loaded
 
         # Fallback defaults (English text)

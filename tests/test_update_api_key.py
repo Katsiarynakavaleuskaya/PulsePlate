@@ -179,7 +179,8 @@ class TestUpdateAPIKey:
 
         config = json.loads(mcp_file.read_text())
         env = config["mcpServers"]["pulseplate-chatgpt"]["env"]
-        assert env["OPENAI_API_KEY"] == valid_key
+        # Key is stored encrypted when use_encryption=True (default)
+        assert env["OPENAI_API_KEY"].startswith("encrypted:")
 
     def test_update_api_key_updates_env_file(self, tmp_path: Path, fake_crypto: Type[Any]) -> None:
         """Ensure .env file is updated and encrypted value written."""
@@ -244,7 +245,7 @@ class TestUpdateAPIKey:
     def test_update_api_key_writes_plaintext_to_settings_json(
         self, tmp_path: Path, fake_crypto: Type[Any]
     ) -> None:
-        """settings.json should receive plain text key."""
+        """settings.json should receive encrypted key when encryption is available."""
         settings_file = tmp_path / ".cursor" / "settings.json"
         settings_file.parent.mkdir(parents=True, exist_ok=True)
         settings_file.write_text(json.dumps({}))
@@ -256,7 +257,8 @@ class TestUpdateAPIKey:
             assert result is True
 
         settings = json.loads(settings_file.read_text())
-        assert settings["cursor.ai.openaiApiKey"] == valid_key
+        # Key is stored encrypted when use_encryption=True (default)
+        assert settings["cursor.ai.openaiApiKey"].startswith("encrypted:")
 
     def test_update_api_key_updates_env_file_existing_key(
         self, tmp_path: Path, fake_crypto: Type[Any]
@@ -338,7 +340,9 @@ class TestUpdateAPIKey:
                 assert result is True
 
         updated = json.loads(settings_file.read_text())
-        assert updated["cursor.ai.openaiApiKey"] == valid_key
+        # Key is stored encrypted when use_encryption=True (default)
+        assert updated["cursor.ai.openaiApiKey"].startswith("encrypted:")
+        assert updated["cursor.ai.openaiApiKey"] != "old"
 
     def test_update_api_key_encrypt_failure(
         self, tmp_path: Path, capsys: CaptureFixture[str]
@@ -948,7 +952,8 @@ class TestUpdateAPIKeyComprehensive:
 
         config = json.loads(mcp_file.read_text())
         env = config["mcpServers"]["pulseplate-chatgpt"]["env"]
-        assert env["OPENAI_API_KEY_FREE"] == valid_key
+        # Key is stored encrypted when use_encryption=True (default)
+        assert env["OPENAI_API_KEY_FREE"].startswith("encrypted:")
 
 
 class TestMainCLI:

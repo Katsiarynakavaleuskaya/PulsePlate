@@ -2,7 +2,9 @@
 """Quick test coverage check. / Быстрая проверка покрытия тестов."""
 
 import os
-import subprocess  # nosec B404 - importing subprocess to invoke pytest for coverage checks; safe because we control the command and arguments
+
+# Subprocess usage limited to static pytest commands (Bandit B404 false positive).
+import subprocess  # nosec B404
 import sys
 
 try:
@@ -21,7 +23,8 @@ def main() -> None:
 
     try:
         # Run tests with coverage / Запуск тестов с покрытием
-        result = subprocess.run(  # nosec B603 - safe: args passed as list, shell=False
+        # Command is static and shell is disabled (Bandit B603 false positive).
+        result = subprocess.run(  # nosec B603
             [
                 sys.executable,
                 "-m",

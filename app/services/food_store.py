@@ -400,24 +400,16 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> li
     terms = expand_query(query) if query else []
     params: list[Any] = []
     if terms:
-        # Query uses parameter placeholders for all user inputs;
-        # only the number of placeholders is constructed dynamically.
-        # Safe but consider phrase/prefix search (e.g., "term*" for prefix matching)
-        # for better FTS behavior in future enhancements.
-        # Dynamic SQL construction: only clause count is dynamic, all values use placeholders
-        # This is safe because we only construct the number of OR clauses, not the actual values
-        sql = (
-            """
+        # Build a single FTS query string using OR to match any expanded term.
+        fts_query = " OR ".join(terms)
+        sql = """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
-          WHERE """
-            + " OR ".join(
-                ["ff.canonical_name MATCH ?"] * len(terms)
-            )  # nosec B608: safe - only clause count is dynamic, all values use placeholders
-            + " LIMIT ? OFFSET ?"
-        )
-        params = [*terms, limit, offset]
+          WHERE ff.canonical_name MATCH ?
+          LIMIT ? OFFSET ?
+        """
+        params = [fts_query, limit, offset]
     else:
         sql = (
             "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ? OFFSET ?"

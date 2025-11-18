@@ -20,6 +20,103 @@ from starlette.types import ASGIApp
 
 _original_monkeypatch_setattr = pytest.MonkeyPatch.setattr
 
+# Required database tables for tests
+REQUIRED_TABLES = ["users", "recipes", "meals", "food_items"]
+
+
+def _mock_get_api_key(api_key: str = "") -> str:
+    """Mock API key validator for test fixtures."""
+    if not api_key or len(api_key.strip()) < 3:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+    return api_key
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """
+    Ensure test database is configured & created before any module imports.
+
+    Runs before collection and can prevent app.py from binding to the wrong DB.
+    This hook runs earlier than fixtures and ensures DATABASE_URL is set before
+    any module-level imports of app.py or core.db occur.
+    """
+    # Set test environment variables early
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
+
+    # Configure test database path
+    db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+    db_path = Path(db_path_env)
+
+    # Get worker ID from pytest-xdist if running in parallel
+    worker_info = getattr(config, "workerinput", {}) or {}
+    worker_id = worker_info.get("workerid", "")
+    if worker_id:
+        import re
+
+        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
+        db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
+
+    if not db_path.is_absolute():
+        db_path = Path.cwd() / db_path
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path = db_path.resolve()
+
+    # Set DATABASE_URL before any imports
+    os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
+    os.environ["TEST_DB_PATH"] = str(resolved_path)
+
+    # Remove stale DB file if it exists
+    try:
+        resolved_path.unlink(missing_ok=True)
+    except (PermissionError, OSError):
+        pass  # Ignore errors, init_db will handle it
+
+    # Import/reload core.db and core.models so init_db() uses our DATABASE_URL
+    if "core.db" in sys.modules:
+        core_db = importlib.reload(sys.modules["core.db"])
+    else:
+        core_db = importlib.import_module("core.db")
+
+    # Register models
+    if "core.models" in sys.modules:
+        importlib.reload(sys.modules["core.models"])
+    else:
+        import core.models  # noqa: F401
+
+    # Initialize database schema
+    try:
+        core_db.init_db()
+
+        # Verify tables were created
+        from sqlalchemy import inspect
+
+        with core_db.session_scope() as session:
+            inspector = inspect(session.get_bind())
+            tables = inspector.get_table_names()
+            missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
+            if missing_tables:
+                raise RuntimeError(
+                    f"Required tables missing after init_db(): {missing_tables}. "
+                    f"Found tables: {tables}. Database: {core_db.DATABASE_URL}"
+                )
+            logging.info(
+                f"✅ Test database initialized in pytest_configure with {len(tables)} tables: {', '.join(tables)}"
+            )
+    except Exception as e:
+        logging.error("Database initialization in pytest_configure failed: %s", e, exc_info=True)
+        # Continue - session fixture will retry
+
+    # If app was accidentally loaded, reload it to ensure it uses the initialized DB
+    if "app" in sys.modules:
+        importlib.reload(sys.modules["app"])
+
+    # Enable debug logging for tests that assert on debug logs
+    logging.getLogger().setLevel(logging.DEBUG)
+
 
 def pytest_configure(config: pytest.Config) -> None:
     """
@@ -274,8 +371,7 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             # No dependency overrides or stray code needed here for DB initialization checks.
 
             # Check for required tables
-            required_tables = ["users", "recipes", "meals", "food_items"]
-            missing_tables = [t for t in required_tables if t not in tables]
+            missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
             if missing_tables:
                 raise RuntimeError(
                     f"Required tables missing: {missing_tables}. "
@@ -321,17 +417,10 @@ def dynamic_app() -> ASGIApp:
     spec.loader.exec_module(app_module)
 
     # Apply API key override for this app instance
-    def mock_get_api_key(api_key: str = "") -> str:
-        if not api_key or len(api_key.strip()) < 3:
-            from fastapi import HTTPException
-
-            raise HTTPException(status_code=403, detail="Invalid API Key")
-        return api_key
-
     dependency_overrides = getattr(app_module.app, "dependency_overrides", None)
     get_api_key_fn = getattr(app_module, "get_api_key", None)
     if dependency_overrides is not None and get_api_key_fn is not None:
-        dependency_overrides[get_api_key_fn] = mock_get_api_key
+        dependency_overrides[get_api_key_fn] = _mock_get_api_key
 
     return cast(ASGIApp, app_module.app)
 

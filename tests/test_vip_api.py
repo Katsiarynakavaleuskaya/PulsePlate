@@ -7,12 +7,14 @@ EN: Tests for VIP API endpoints
 """
 
 from typing import cast
+from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 import app
+from app.routers import vip as vip_router
 
 # Type assertion to satisfy type checker
 assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
@@ -20,7 +22,7 @@ assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
 client = TestClient(cast(ASGIApp, app.app))
 
 
-def test_vip_health():
+def test_vip_health() -> None:
     """Test VIP health endpoint returns 200"""
     r = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -30,7 +32,7 @@ def test_vip_health():
     assert "features" in data
 
 
-def test_vip_weekly_plan_echo():
+def test_vip_weekly_plan_echo() -> None:
     """Test VIP weekly plan endpoint returns echo structure"""
     payload = {
         "sex": "male",
@@ -54,7 +56,7 @@ def test_vip_weekly_plan_echo():
     assert data["echo"]["constraints"] == payload["constraints"]
 
 
-def test_vip_weekly_repair_echo():
+def test_vip_weekly_repair_echo() -> None:
     """Test VIP weekly repair endpoint returns echo structure"""
     payload = {"menu": {"days": 7, "meals": []}, "deficits": {"Ca": 200, "VitD": 100}}
     r = client.post(
@@ -67,7 +69,7 @@ def test_vip_weekly_repair_echo():
     assert data["echo"] == payload
 
 
-def test_vip_module_enabled():
+def test_vip_module_enabled() -> None:
     """Ensure VIP module is enabled and the health endpoint responds with 200."""
     # Confirm the FastAPI app is initialised with the VIP router
     assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
@@ -77,7 +79,7 @@ def test_vip_module_enabled():
     assert r.status_code == 200
 
 
-def test_vip_shoplist_weekly():
+def test_vip_shoplist_weekly() -> None:
     """Test VIP weekly shoplist endpoint"""
     payload = {
         "days": [
@@ -115,7 +117,7 @@ def test_vip_shoplist_weekly():
     assert data["echo"] == payload
 
 
-def test_vip_shoplist_daily():
+def test_vip_shoplist_daily() -> None:
     """Test VIP daily shoplist endpoint"""
     payload = {
         "ingredients": [
@@ -135,7 +137,7 @@ def test_vip_shoplist_daily():
     assert data["echo"] == payload
 
 
-def test_vip_shoplist_formats():
+def test_vip_shoplist_formats() -> None:
     """Test VIP shoplist formats endpoint"""
     r = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -151,7 +153,7 @@ def test_vip_shoplist_formats():
     assert "es" in data["locales"]
 
 
-def test_vip_regions():
+def test_vip_regions() -> None:
     """Test VIP regions endpoint"""
     r = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -162,32 +164,73 @@ def test_vip_regions():
     assert isinstance(data["regions"], list)
 
 
-def test_vip_region_search():
+def test_vip_region_search() -> None:
     """Test VIP region search endpoint"""
-    r = client.get("/api/v1/vip/regions/es/search?query=tomato", headers={"X-API-Key": "test_key"})
-    assert r.status_code == 200
-    data = r.json()
-    assert data["status"] == "success"
-    assert "region" in data
-    assert "query" in data
-    assert "products" in data
-    assert data["region"] == "es"
-    assert data["query"] == "tomato"
+    # Mock search_products to return success
+    mock_product = MagicMock()
+    mock_product.product_id = "123"
+    mock_product.name_es = "Tomate"
+    mock_product.name_en = "Tomato"
+    mock_product.category = "vegetables"
+    mock_product.unit = "kg"
+    mock_product.typical_package_size = 1.0
+    mock_product.price_eur = 2.5
+    mock_product.price_usd = 2.8
+    mock_product.store_chain = "Carrefour"
+    mock_product.region = "ES"
+
+    mock_search_result = MagicMock()
+    mock_search_result.products = [mock_product]
+    mock_search_result.total_count = 1
+
+    # Ensure search_products is not None before patching
+    # If it's None, the endpoint will return error before calling the function
+    original_search_products = vip_router.search_products
+    if original_search_products is None:
+        # If search_products is None, we need to set it to a mock function first
+        vip_router.search_products = lambda *args, **kwargs: mock_search_result
+
+    with patch.object(vip_router, "search_products", return_value=mock_search_result):
+        r = client.get(
+            "/api/v1/vip/regions/es/search?query=tomato", headers={"X-API-Key": "test_key"}
+        )
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {r.text}"
+        data = r.json()
+        assert (
+            data["status"] == "success"
+        ), f"Expected 'success', got '{data.get('status')}'. Full response: {data}"
+        assert "region" in data
+        assert "query" in data
+        assert "products" in data
+        assert data["region"] == "es"
+        assert data["query"] == "tomato"
 
 
-def test_vip_region_categories():
+def test_vip_region_categories() -> None:
     """Test VIP region categories endpoint"""
-    r = client.get("/api/v1/vip/regions/es/categories", headers={"X-API-Key": "test_key"})
-    assert r.status_code == 200
-    data = r.json()
-    assert data["status"] == "success"
-    assert "region" in data
-    assert "categories" in data
-    assert "total_categories" in data
-    assert data["region"] == "es"
+    # Mock get_region_catalog to return success
+    mock_catalog = MagicMock()
+    mock_catalog.get_categories.return_value = ["dairy", "vegetables", "fruits"]
+
+    # Ensure get_region_catalog is not None before patching
+    original_get_region_catalog = vip_router.get_region_catalog
+    if original_get_region_catalog is None:
+        vip_router.get_region_catalog = lambda *args, **kwargs: mock_catalog
+
+    with patch.object(vip_router, "get_region_catalog", return_value=mock_catalog):
+        r = client.get("/api/v1/vip/regions/es/categories", headers={"X-API-Key": "test_key"})
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}. Response: {r.text}"
+        data = r.json()
+        assert (
+            data["status"] == "success"
+        ), f"Expected 'success', got '{data.get('status')}'. Full response: {data}"
+        assert "region" in data
+        assert "categories" in data
+        assert "total_categories" in data
+        assert data["region"] == "es"
 
 
-def test_vip_region_stores():
+def test_vip_region_stores() -> None:
     """Test VIP region stores endpoint"""
     r = client.get("/api/v1/vip/regions/es/stores", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -199,7 +242,7 @@ def test_vip_region_stores():
     assert data["region"] == "es"
 
 
-def test_vip_region_price_comparison():
+def test_vip_region_price_comparison() -> None:
     """Test VIP region price comparison endpoint"""
     r = client.get("/api/v1/vip/regions/compare/tomato", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -211,7 +254,7 @@ def test_vip_region_price_comparison():
     assert data["product_name"] == "tomato"
 
 
-def test_vip_recipe_synthesize():
+def test_vip_recipe_synthesize() -> None:
     """Test VIP recipe synthesis endpoint"""
     payload = {
         "ingredients": [
@@ -238,7 +281,7 @@ def test_vip_recipe_synthesize():
     assert "steps" in data["recipe"]
 
 
-def test_vip_recipe_weekly():
+def test_vip_recipe_weekly() -> None:
     """Test VIP weekly recipe synthesis endpoint"""
     payload = {
         "week_plan": {
@@ -279,7 +322,7 @@ def test_vip_recipe_weekly():
     assert data["total_recipes"] > 0
 
 
-def test_vip_recipe_templates():
+def test_vip_recipe_templates() -> None:
     """Test VIP recipe templates endpoint"""
     r = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200
@@ -291,7 +334,7 @@ def test_vip_recipe_templates():
     assert data["total_templates"] > 0
 
 
-def test_vip_auto_repair_weekly():
+def test_vip_auto_repair_weekly() -> None:
     """Test VIP auto-repair weekly plan endpoint"""
     payload = {
         "week_plan": {
@@ -332,7 +375,7 @@ def test_vip_auto_repair_weekly():
     assert "iterations" in data["repair_result"]
 
 
-def test_vip_auto_repair_suggestions():
+def test_vip_auto_repair_suggestions() -> None:
     """Test VIP auto-repair suggestions endpoint"""
     payload = {
         "week_plan": {
@@ -370,7 +413,7 @@ def test_vip_auto_repair_suggestions():
     assert isinstance(data["suggestions"], list)
 
 
-def test_vip_auto_repair_strategies():
+def test_vip_auto_repair_strategies() -> None:
     """Test VIP auto-repair strategies endpoint"""
     r = client.get("/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test_key"})
     assert r.status_code == 200

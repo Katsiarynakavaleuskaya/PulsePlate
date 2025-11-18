@@ -73,7 +73,7 @@ repos:
         args:
           - -q
           - -c
-          - .bandit
+          - pyproject.toml
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit
