@@ -139,7 +139,8 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             db_path.unlink(missing_ok=True)  # ignores FileNotFoundError by design
         except PermissionError as e:
             logging.error("Permission error unlinking test DB '%s': %s", db_path, e, exc_info=True)
-            # Optionally, init_db can implement schema cleanup (DROP TABLE IF EXISTS ...) as a fallback.
+            # Optionally, init_db can implement schema cleanup
+            # (DROP TABLE IF EXISTS ...) as a fallback.
             raise
         except OSError as e:
             logging.error("Failed to unlink test DB '%s': %s", db_path, e, exc_info=True)
@@ -159,11 +160,15 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
             import core.db as core_db
 
         # Verify that the engine is using the correct database
-        expected_db_path = str(db_path.resolve())
+        expected_db_path = db_path.resolve()
         actual_db_url = core_db.DATABASE_URL
         # Extract path component from URL for comparison (handles query parameters, etc.)
         parsed = urllib.parse.urlparse(actual_db_url)
-        actual_path = parsed.path.lstrip("/") if parsed.scheme == "sqlite" else parsed.path
+        # Normalize both paths for comparison (handles URL encoding and absolute paths)
+        # Decode URL-encoded path and convert to Path for normalization
+        url_path = urllib.parse.unquote(parsed.path)
+        # For sqlite:/// URLs, path starts with / for absolute paths; normalize via Path.resolve()
+        actual_path = Path(url_path).resolve()
         if actual_path != expected_db_path:
             logging.warning(
                 f"Database URL mismatch: expected path {expected_db_path}, " f"got {actual_db_url}"
@@ -205,7 +210,8 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
                 f"✅ Database initialized successfully with {len(tables)} tables: {tables_str}"
             )
             print(
-                f"✅ Database initialized: {len(tables)} tables found (users, recipes, meals, food_items)"
+                f"✅ Database initialized: {len(tables)} tables found "
+                f"(users, recipes, meals, food_items)"
             )
             print(f"   Database file: {db_path}")
             print(f"   Database URL: {core_db.DATABASE_URL}")
