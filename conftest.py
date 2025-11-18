@@ -169,7 +169,14 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
         url_path = urllib.parse.unquote(parsed.path)
         # For sqlite:/// URLs, path starts with / for absolute paths; normalize via Path.resolve()
         actual_path = Path(url_path).resolve()
-        if actual_path != expected_db_path:
+        # Use samefile() for robust comparison (handles symlinks, different representations)
+        # Fall back to string comparison if files don't exist yet
+        try:
+            paths_match = os.path.samefile(str(expected_db_path), str(actual_path))
+        except OSError:
+            # Files may not exist yet, use normalized path comparison
+            paths_match = expected_db_path == actual_path
+        if not paths_match:
             logging.warning(
                 f"Database URL mismatch: expected path {expected_db_path}, " f"got {actual_db_url}"
             )
