@@ -4,6 +4,7 @@ Global test configuration and fixtures for the project.
 
 import importlib
 import importlib.util
+import logging
 import os
 import sys
 import urllib.parse
@@ -18,6 +19,76 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 _original_monkeypatch_setattr = pytest.MonkeyPatch.setattr
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """
+    Ensure test database is configured & created before any module imports.
+
+    Runs before collection and can prevent app.py from binding to the wrong DB.
+    This hook runs earlier than fixtures and ensures DATABASE_URL is set before
+    any module-level imports of app.py or core.db occur.
+    """
+    # Set test environment variables early
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
+
+    # Configure test database path
+    db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+    db_path = Path(db_path_env)
+
+    # Get worker ID from pytest-xdist if running in parallel
+    worker_info = getattr(config, "workerinput", {}) or {}
+    worker_id = worker_info.get("workerid", "")
+    if worker_id:
+        import re
+
+        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
+        db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
+
+    if not db_path.is_absolute():
+        db_path = Path.cwd() / db_path
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path = db_path.resolve()
+
+    # Set DATABASE_URL before any imports
+    os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
+    os.environ["TEST_DB_PATH"] = str(resolved_path)
+
+    # Remove stale DB file if it exists
+    try:
+        resolved_path.unlink(missing_ok=True)
+    except (PermissionError, OSError):
+        pass  # Ignore errors, init_db will handle it
+
+    # Import/reload core.db and core.models so init_db() uses our DATABASE_URL
+    if "core.db" in sys.modules:
+        core_db = importlib.reload(sys.modules["core.db"])
+    else:
+        core_db = importlib.import_module("core.db")
+
+    # Register models
+    if "core.models" in sys.modules:
+        importlib.reload(sys.modules["core.models"])
+    else:
+        import core.models  # noqa: F401
+
+    # Initialize database schema
+    try:
+        core_db.init_db()
+        logging.info("✅ Test database initialized in pytest_configure")
+    except Exception as e:
+        logging.warning("Database initialization in pytest_configure failed: %s", e)
+        # Continue - session fixture will retry
+
+    # If app was accidentally loaded, reload it to ensure it uses the initialized DB
+    if "app" in sys.modules:
+        importlib.reload(sys.modules["app"])
+
+    # Enable debug logging for tests that assert on debug logs
+    logging.getLogger().setLevel(logging.DEBUG)
 
 
 def _coerce_side_effect(side_effect: object) -> Callable[..., Any]:
@@ -292,32 +363,12 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
+    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
 
-    # Override API key validation for all tests
-    try:
-        from app import app as fastapi_app
-
-        # Simple pass-through that accepts any non-empty API key
-        def mock_get_api_key(api_key: str = "") -> str:
-            if not api_key or len(api_key.strip()) < 3:
-                from fastapi import HTTPException
-
-                raise HTTPException(status_code=403, detail="Invalid API Key")
-            return api_key
-
-        # Override the dependency
-        dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
-        if dependency_overrides is not None:
-            # Only override if get_api_key exists
-            try:
-                from app import get_api_key
-
-                dependency_overrides[get_api_key] = mock_get_api_key
-            except (ImportError, AttributeError):
-                pass
-    except (ImportError, AttributeError):
-        # App not yet loaded, that's fine
-        pass
+    # Do not import app here to avoid creating DB engine before DB init.
+    # Dependency override for get_api_key will be applied later when the app is loaded
+    # by the app fixtures (see dynamic_app/app fixture). Keeping this empty prevents
+    # premature app import during autouse environment reset.
 
     yield
 
@@ -325,15 +376,18 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.clear()
     os.environ.update(old_env)
 
-    # Clear dependency overrides
-    try:
-        from app import app as fastapi_app
-
-        dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
-        if dependency_overrides is not None:
-            dependency_overrides.clear()
-    except (ImportError, AttributeError):
-        pass
+    # Clear dependency overrides (only if app was loaded by test fixtures)
+    # Do not import app here to avoid premature import
+    if "app" in sys.modules:
+        try:
+            app_module = sys.modules["app"]
+            fastapi_app = getattr(app_module, "app", None)
+            if fastapi_app is not None:
+                dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
+                if dependency_overrides is not None:
+                    dependency_overrides.clear()
+        except (ImportError, AttributeError):
+            pass
 
     # Restore sys.modules (be careful not to break everything)
     # Only restore modules that were added during the test

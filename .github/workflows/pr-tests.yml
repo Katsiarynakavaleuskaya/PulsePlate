@@ -124,6 +124,7 @@ jobs:
         env:
           APP_ENV: test
           ENVIRONMENT: test
+          CLIENT_FINGERPRINT_SALT: 'test-salt-for-ci-only-not-for-production'
           # PYTHONPATH is set here to enable imports of core.* and app.* modules
           # No sys.path manipulation needed in inline Python scripts - PYTHONPATH is sufficient
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
@@ -187,6 +188,7 @@ jobs:
           APP_ENV: test
           ENVIRONMENT: test
           TEST_DB_PATH: cache/test_pr.sqlite
+          CLIENT_FINGERPRINT_SALT: 'test-salt-for-ci-only-not-for-production'
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
         run: |

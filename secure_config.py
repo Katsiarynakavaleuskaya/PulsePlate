@@ -20,7 +20,13 @@ except ImportError:  # pragma: no cover
     ENCRYPTION_AVAILABLE = False  # pragma: no cover
 
     # Placeholder when cryptography is unavailable
-    InvalidToken = Exception  # pragma: no cover
+    # Create a custom exception class to satisfy mypy type checking
+    # This redefinition is intentional - we need InvalidToken to exist even when
+    # cryptography is unavailable, so tests and code can catch it
+    class InvalidToken(Exception):  # type: ignore[no-redef]  # pragma: no cover
+        """Placeholder for InvalidToken when cryptography is unavailable."""
+
+        pass
 
 
 def get_encryption_key() -> Optional[bytes]:

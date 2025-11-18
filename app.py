@@ -1399,14 +1399,12 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     add_visualization_if_requested(bmi_result, req)
     # Log without sensitive data (BMI values are personal health information)
     # Only log non-sensitive metadata: group category and athlete flag
+    # Note: We explicitly avoid logging weight, height, age, BMI values, or pregnancy status
     group_category = bmi_result["group"]
     is_athlete_flag = flags["is_athlete"]
     log_msg = f"BMI calculation complete [group={group_category} athlete={is_athlete_flag}]"
-    logger.info(log_msg)
-    bmi_logger.info(log_msg)
-    logger.warning(log_msg)
-    bmi_logger.warning(log_msg)
-    logging.warning(log_msg)
+    logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+    bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
 
     return bmi_result
 
@@ -1480,12 +1478,10 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
             "athlete": flags["is_athlete"],
             "group": "athlete" if flags["is_athlete"] else "general",
         }
+        # Log without sensitive data - only generic message, no user data
         log_msg = "BMI v1 calculation skipped due to pregnancy flag"
-        logger.info(log_msg)
-        bmi_logger.info(log_msg)
-        logger.warning(log_msg)
-        bmi_logger.warning(log_msg)
-        logging.warning(log_msg)
+        logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+        bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
         return response_payload
 
     category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
@@ -1502,9 +1498,13 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         "athlete": flags["is_athlete"],
         "group": "athlete" if flags["is_athlete"] else "general",
     }
-    log_msg = f"BMI v1 calculation complete [group={result_payload['group']} athlete={flags['is_athlete']}]"
-    logger.info(log_msg)
-    bmi_logger.info(log_msg)
+    # Log without sensitive data - use pre-computed values, not result_payload dict access
+    # Note: We explicitly avoid logging BMI, weight, height, age, or pregnancy status
+    group_category = result_payload["group"]
+    is_athlete_flag = flags["is_athlete"]
+    log_msg = f"BMI v1 calculation complete [group={group_category} athlete={is_athlete_flag}]"
+    logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
+    bmi_logger.info(log_msg)  # codeql[py/clear-text-logging-sensitive-data]
     return result_payload
 
 

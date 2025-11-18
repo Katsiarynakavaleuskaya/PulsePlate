@@ -401,7 +401,7 @@ def update_api_key(
 
             try:
                 with open(env_file, "w", encoding="utf-8") as f:
-                    f.writelines(new_lines)
+                    f.writelines(new_lines)  # codeql[py/clear-text-storage-sensitive-data]
                 logger.info("Updated .env file")
             except (IOError, OSError) as e:
                 logger.warning("Failed to write .env file: %s", e)
