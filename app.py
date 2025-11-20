@@ -1352,10 +1352,17 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # Log without sensitive data (BMI values are personal health information)
     # Only log non-sensitive metadata: group category and athlete flag
     # Note: We explicitly avoid logging weight, height, age, BMI values, or pregnancy status
-    # Use direct computation instead of dict access to avoid CodeQL false positives
-    group_category = "athlete" if flags["is_athlete"] else "general"
-    is_athlete_flag = flags["is_athlete"]
-    log_msg = f"BMI calculation complete [group={group_category} athlete={is_athlete_flag}]"
+    # Use req.athlete directly to avoid CodeQL false positives from flags dict (which contains sensitive data)
+    is_athlete = (
+        isinstance(req.athlete, bool)
+        and req.athlete
+        or (
+            isinstance(req.athlete, str)
+            and req.athlete.lower() in {"спортсмен", "да", "yes", "y", "athlete"}
+        )
+    )
+    group_category = "athlete" if is_athlete else "general"
+    log_msg = f"BMI calculation complete [group={group_category} athlete={is_athlete}]"
     logger.info(log_msg)
     bmi_logger.info(log_msg)
 
@@ -1453,10 +1460,17 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     }
     # Log without sensitive data - use direct computation, not result_payload dict access
     # Note: We explicitly avoid logging BMI, weight, height, age, or pregnancy status
-    # Use direct computation instead of dict access to avoid CodeQL false positives
-    group_category = "athlete" if flags["is_athlete"] else "general"
-    is_athlete_flag = flags["is_athlete"]
-    log_msg = f"BMI v1 calculation complete [group={group_category} athlete={is_athlete_flag}]"
+    # Use req.athlete directly to avoid CodeQL false positives from flags dict (which contains sensitive data)
+    is_athlete = (
+        isinstance(req.athlete, bool)
+        and req.athlete
+        or (
+            isinstance(req.athlete, str)
+            and req.athlete.lower() in {"спортсмен", "да", "yes", "y", "athlete"}
+        )
+    )
+    group_category = "athlete" if is_athlete else "general"
+    log_msg = f"BMI v1 calculation complete [group={group_category} athlete={is_athlete}]"
     logger.info(log_msg)
     bmi_logger.info(log_msg)
     return result_payload

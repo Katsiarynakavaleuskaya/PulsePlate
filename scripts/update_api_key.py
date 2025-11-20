@@ -407,10 +407,29 @@ def update_api_key(
                 # When use_encryption=False, production check above prevents plaintext storage
                 new_lines.append(f"{env_key_name}={env_key_value}\n")
 
+            # Security: Final check before writing - ensure we never write plaintext in production
+            # This explicit check helps CodeQL understand the security guarantee
+            if not use_encryption:
+                app_env_check = os.getenv("APP_ENV", "").strip().lower()
+                is_production_check = app_env_check not in {
+                    "",
+                    "local",
+                    "dev",
+                    "development",
+                    "test",
+                }
+                if is_production_check:
+                    logger.error(
+                        "Security violation: Attempted to write plaintext API key in production"
+                    )
+                    return False
+
             try:
-                # Only write if data is encrypted or in dev/test environment (checked above)
+                # Security: env_key_value is encrypted when use_encryption=True (checked above)
+                # When use_encryption=False, explicit production check above prevents plaintext storage
+                # Only write if data is encrypted or in dev/test environment (validated above)
                 with open(env_file, "w", encoding="utf-8") as f:
-                    f.writelines(new_lines)  # codeql[py/clear-text-storage-sensitive-data]
+                    f.writelines(new_lines)
                 logger.info("Updated .env file")
             except (IOError, OSError) as e:
                 logger.warning("Failed to write .env file: %s", e)

@@ -16,7 +16,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional, cast
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,37 @@ DATA_CLASS_PSEUDONYMOUS = "PSEUDONYMOUS"  # Contains pseudonymous identifiers
 DATA_CLASS_PUBLIC = "PUBLIC"  # No sensitive data
 DATA_CLASS_SENSITIVE = "SENSITIVE"  # Contains sensitive data
 
+DataClass = Literal["PSEUDONYMOUS", "PUBLIC", "SENSITIVE"]
+
+
+def _parse_retention_days(env_var: str, default: int) -> int:
+    """Parse retention days from environment variable with validation."""
+    raw = os.getenv(env_var)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+        if value <= 0:
+            raise ValueError
+        return value
+    except ValueError:
+        logger.warning(
+            "Invalid value for %s=%r; falling back to default %d days",
+            env_var,
+            raw,
+            default,
+        )
+        return default
+
+
 # Default retention periods (in days)
 # Short TTL for logs containing pseudonymous identifiers per GDPR best practices
-DEFAULT_PSEUDONYMOUS_RETENTION_DAYS = int(
-    os.getenv("LOG_PSEUDONYMOUS_RETENTION_DAYS", "30")
+DEFAULT_PSEUDONYMOUS_RETENTION_DAYS = _parse_retention_days(
+    "LOG_PSEUDONYMOUS_RETENTION_DAYS",
+    30,
 )  # 30 days default, configurable
-DEFAULT_PUBLIC_RETENTION_DAYS = int(os.getenv("LOG_PUBLIC_RETENTION_DAYS", "90"))
-DEFAULT_SENSITIVE_RETENTION_DAYS = int(os.getenv("LOG_SENSITIVE_RETENTION_DAYS", "90"))
+DEFAULT_PUBLIC_RETENTION_DAYS = _parse_retention_days("LOG_PUBLIC_RETENTION_DAYS", 90)
+DEFAULT_SENSITIVE_RETENTION_DAYS = _parse_retention_days("LOG_SENSITIVE_RETENTION_DAYS", 90)
 
 
 class LogRetentionManager:
@@ -75,7 +99,7 @@ class LogRetentionManager:
             return DATA_CLASS_PSEUDONYMOUS
         return DATA_CLASS_PUBLIC
 
-    def get_retention_days(self, data_class: str) -> int:
+    def get_retention_days(self, data_class: DataClass) -> int:
         """Get retention period in days for a data classification.
 
         Args:
@@ -90,7 +114,7 @@ class LogRetentionManager:
             return self.sensitive_retention_days
         return self.public_retention_days
 
-    def should_retain_log(self, log_file: Path, data_class: str) -> bool:
+    def should_retain_log(self, log_file: Path, data_class: DataClass) -> bool:
         """Check if a log file should be retained based on its classification and age.
 
         Args:
@@ -104,16 +128,19 @@ class LogRetentionManager:
             return False
 
         try:
-            file_mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
+            file_mtime = datetime.fromtimestamp(
+                log_file.stat().st_mtime,
+                tz=timezone.utc,
+            )
             retention_days = self.get_retention_days(data_class)
-            cutoff_date = datetime.now() - timedelta(days=retention_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
             return file_mtime > cutoff_date
         except OSError as e:
             logger.warning("Failed to check retention for %s: %s", log_file, e)
             return True  # Err on the side of caution
 
-    def cleanup_expired_logs(self, data_class: Optional[str] = None) -> int:
+    def cleanup_expired_logs(self, data_class: Optional[DataClass] = None) -> int:
         """Delete expired log files based on retention policy.
 
         Args:
@@ -127,10 +154,14 @@ class LogRetentionManager:
             return 0
 
         deleted_count = 0
-        classifications_to_check = (
+        classifications_to_check: list[DataClass] = (
             [data_class]
             if data_class
-            else [DATA_CLASS_PSEUDONYMOUS, DATA_CLASS_PUBLIC, DATA_CLASS_SENSITIVE]
+            else [
+                cast(DataClass, DATA_CLASS_PSEUDONYMOUS),
+                cast(DataClass, DATA_CLASS_PUBLIC),
+                cast(DataClass, DATA_CLASS_SENSITIVE),
+            ]
         )
 
         for log_file in self.logs_dir.glob("*.log"):
@@ -158,8 +189,8 @@ class LogRetentionManager:
 
         return deleted_count
 
-    def _infer_log_classification(self, log_file: Path) -> str:
-        """Infer log classification from filename or content.
+    def _infer_log_classification(self, log_file: Path) -> DataClass:
+        """Infer log classification from filename.
 
         Args:
             log_file: Path to log file
@@ -170,15 +201,21 @@ class LogRetentionManager:
         # Check filename for classification markers
         filename = log_file.name.lower()
         if "pseudonymous" in filename or "fingerprint" in filename or "client" in filename:
-            return DATA_CLASS_PSEUDONYMOUS
+            return cast(DataClass, DATA_CLASS_PSEUDONYMOUS)
         if "sensitive" in filename:
-            return DATA_CLASS_SENSITIVE
+            return cast(DataClass, DATA_CLASS_SENSITIVE)
 
         # Default to pseudonymous if we can't determine (safer default)
         # In production, logs with fingerprints should be explicitly named
-        return DATA_CLASS_PSEUDONYMOUS
+        return cast(DataClass, DATA_CLASS_PSEUDONYMOUS)
 
-    def _audit_log_access(self, action: str, log_path: str, data_class: str, reason: str) -> None:
+    def _audit_log_access(
+        self,
+        action: str,
+        log_path: str,
+        data_class: DataClass,
+        reason: str,
+    ) -> None:
         """Log access to log files containing pseudonymous data for audit purposes.
 
         Args:
@@ -199,7 +236,7 @@ class LogRetentionManager:
             )
 
     def audit_log_read(
-        self, log_path: str, data_class: str, requester: Optional[str] = None
+        self, log_path: str, data_class: DataClass, requester: Optional[str] = None
     ) -> None:
         """Audit read access to log files.
 

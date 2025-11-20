@@ -8,7 +8,6 @@ import importlib.util
 import logging
 import os
 import sys
-import urllib.parse
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
@@ -198,11 +197,11 @@ class AppLoadError(ImportError):
 def init_test_database(request: pytest.FixtureRequest) -> None:
     """Initialize test database tables before running tests.
 
-    This fixture ensures the database schema is created before any tests run.
-    It imports models to ensure they're registered with SQLAlchemy Base metadata,
-    then calls init_db() to create all tables.
+    This fixture relies on pytest_configure to set DATABASE_URL and TEST_DB_PATH.
+    It only verifies the database is initialized and tables exist, without
+    re-deriving paths or re-initializing (to avoid double worker suffix).
 
-    For pytest-xdist, each worker gets its own database file to avoid conflicts.
+    For pytest-xdist, each worker gets its own database file via pytest_configure.
     """
     import logging
 
@@ -211,124 +210,59 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
     os.environ.setdefault("ENVIRONMENT", "test")
 
     try:
-        # Configure SQLite database path for tests
-        db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
-        db_path = Path(db_path_env)
+        # Use DATABASE_URL and TEST_DB_PATH already set by pytest_configure
+        # pytest_configure already handled worker suffix and DB initialization
+        database_url = os.environ.get("DATABASE_URL")
+        if not database_url:
+            raise RuntimeError(
+                "DATABASE_URL not set. pytest_configure should have set it before this fixture runs."
+            )
 
-        # Get worker ID from pytest-xdist (if running in parallel)
-        # pytest-xdist sets request.config.workerinput, not an environment variable
-        worker_info = getattr(request.config, "workerinput", {}) or {}
-        worker_id = worker_info.get("workerid", "")
-        if worker_id:
-            # Sanitize worker id to avoid path traversal / special characters
-            # Allow only [A-Za-z0-9_-]; if empty after sanitization, fall back to "worker"
-            import re
-
-            safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
-            db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
-        if not db_path.is_absolute():
-            db_path = Path.cwd() / db_path
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        # Remove stale test DB file before init; missing_ok handles FileNotFoundError.
-        # Narrow exception handling: surface real FS issues instead of masking them.
-        try:
-            db_path.unlink(missing_ok=True)  # ignores FileNotFoundError by design
-        except PermissionError as e:
-            logging.error("Permission error unlinking test DB '%s': %s", db_path, e, exc_info=True)
-            # Optionally, init_db can implement schema cleanup
-            # (DROP TABLE IF EXISTS ...) as a fallback.
-            raise
-        except OSError as e:
-            logging.error("Failed to unlink test DB '%s': %s", db_path, e, exc_info=True)
-            # Explicitly surface unexpected FS problems to fail fast in CI/setup.
-            raise
-        # Set DATABASE_URL BEFORE importing/reloading core.db
-        # This ensures _build_engine_url() uses the correct test database path
-        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
-
-        # Reload core.db after setting DATABASE_URL to ensure engine uses test DB
+        # Import core.db to verify it uses the correct database
         import importlib
 
         if "core.db" in sys.modules:
-            # Force reload to pick up new DATABASE_URL
             core_db = importlib.reload(sys.modules["core.db"])
         else:
             import core.db as core_db
 
-        # Verify that the engine is using the correct database
-        expected_db_path = db_path.resolve()
-        actual_db_url = core_db.DATABASE_URL
-        # Extract path component from URL for comparison (handles query parameters, etc.)
-        parsed = urllib.parse.urlparse(actual_db_url)
-        # Normalize both paths for comparison (handles URL encoding and absolute paths)
-        # Decode URL-encoded path and convert to Path for normalization
-        url_path = urllib.parse.unquote(parsed.path)
-        # For sqlite:/// URLs, path starts with / for absolute paths; normalize via Path.resolve()
-        actual_path = Path(url_path).resolve()
-        # Use samefile() for robust comparison (handles symlinks, different representations)
-        # Fall back to string comparison if files don't exist yet
-        try:
-            paths_match = os.path.samefile(str(expected_db_path), str(actual_path))
-        except OSError:
-            # Files may not exist yet, use normalized path comparison
-            paths_match = expected_db_path == actual_path
-        if not paths_match:
-            logging.warning(
-                f"Database URL mismatch: expected path {expected_db_path}, " f"got {actual_db_url}"
-            )
-
-        # Reload or import models to ensure they're registered with Base.metadata
-        if "core.models" in sys.modules:
-            importlib.reload(sys.modules["core.models"])  # noqa: F401
-        else:
-            import core.models  # noqa: F401
-
-        # Initialize database - this creates all tables using _RAW_ENGINE
-        # init_db() calls Base.metadata.create_all(bind=_RAW_ENGINE)
-        core_db.init_db()
-
         # Verify initialization succeeded by checking if tables exist
-        session_scope = core_db.session_scope
         from sqlalchemy import inspect
 
-        with session_scope() as session:
+        with core_db.session_scope() as session:
             inspector = inspect(session.get_bind())
             tables = inspector.get_table_names()
-            # Dependency overrides should be handled explicitly in test fixtures
-            # (see dynamic_app or test functions)
-            # No dependency overrides or stray code needed here for DB initialization checks.
 
             # Check for required tables
             missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
             if missing_tables:
-                raise RuntimeError(
+                # If tables are missing, try to initialize (pytest_configure may have failed)
+                logging.warning(
                     f"Required tables missing: {missing_tables}. "
-                    f"Found tables: {tables}. "
-                    f"Database URL: {core_db.DATABASE_URL}"
+                    f"Attempting to initialize database..."
                 )
+                core_db.init_db()
+                # Re-check after initialization
+                inspector = inspect(session.get_bind())
+                tables = inspector.get_table_names()
+                missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
+                if missing_tables:
+                    raise RuntimeError(
+                        f"Required tables missing after init_db(): {missing_tables}. "
+                        f"Found tables: {tables}. "
+                        f"Database URL: {core_db.DATABASE_URL}"
+                    )
 
             tables_str = ", ".join(tables)
-            logging.info(
-                f"✅ Database initialized successfully with {len(tables)} tables: {tables_str}"
-            )
-            print(
-                f"✅ Database initialized: {len(tables)} tables found "
-                f"(users, recipes, meals, food_items)"
-            )
-            print(f"   Database file: {db_path}")
-            print(f"   Database URL: {core_db.DATABASE_URL}")
+            logging.info(f"✅ Database verified with {len(tables)} tables: {tables_str}")
 
-        # CRITICAL: Reload app module AFTER database is initialized
-        # This ensures app.py uses the correct database when it imports core.db
-        # app.py imports core.db at module level, so we need to reload it
+        # Reload app module if needed to ensure it uses the initialized DB
         if "app" in sys.modules:
             importlib.reload(sys.modules["app"])
-            logging.info("Reloaded app module after database initialization")
-            print("✅ Reloaded app module to use initialized database")
+            logging.info("Reloaded app module after database verification")
     except Exception as e:
         # Log error and re-raise to fail fast in CI; tests requiring DB will not run
-        logging.error(f"Failed to initialize test database: {e}", exc_info=True)
-        print(f"ERROR: Could not initialize test database: {e}")
+        logging.error(f"Failed to verify test database: {e}", exc_info=True)
         raise
 
 

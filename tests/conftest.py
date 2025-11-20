@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session", autouse=False)
+@pytest.fixture(scope="session", autouse=True)
 def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None, None, None]:
     """Configure and initialize a per-worker SQLite database for the test session."""
     os.environ.setdefault("APP_ENV", "test")

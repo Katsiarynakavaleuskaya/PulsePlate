@@ -294,47 +294,14 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                 # Security: Do not allow key normalization - keys must match exactly
                 # Normalization (dash/underscore equivalence) is a security risk
                 # and has been removed. Keys must match character-for-character.
-                pass  # App-level validation failed, continue to environment check
-                # App-level validation failed, but check if we should allow anonymous access
-                if not raw_key:
-                    if not allow_anonymous:
-                        # Anonymous access is disabled
-                        error_msg = (
-                            "API key required in production environment"
-                            if is_production
-                            else "API key required"
-                        )
-                        mode_str = "production" if is_production else "development"
-                        _log_api_key_event(
-                            f"VIP endpoint accessed without API key in {mode_str} mode.",
-                            is_production,
-                            app_env,
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg
-                        )
-                    else:
-                        # Anonymous access is explicitly allowed (non-production only)
-                        _log_api_key_event(
-                            (
-                                "VIP endpoint accessed with anonymous API key. "
-                                "ALLOW_ANONYMOUS_API_KEYS: true"
-                            ),
-                            is_production,
-                            app_env,
-                        )
-                        return "anonymous"
-                else:
-                    # Invalid API key provided
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.detail
-                    ) from exc
+                # App-level validation failed, re-raise as 401 for consistency
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+                ) from exc
             raise
 
     # Check environment API key
     if expected := os.getenv("API_KEY"):
-        if not raw_key:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         if raw_key != expected:
             # Security: Keys must match exactly - no normalization allowed
             # Normalization (dash/underscore equivalence) is a security risk
@@ -343,6 +310,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
         return raw_key
 
     # Handle missing API key based on environment and configuration
+    # Note: raw_key is guaranteed to be None here since we already handled it above
     if not raw_key:
         if is_production and not allow_anonymous:
             # Fail fast in production with clear error
@@ -575,7 +543,10 @@ def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> 
 # NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
+)
 async def vip_health() -> Dict[str, Any]:
     """
     RU: Проверка здоровья VIP модуля

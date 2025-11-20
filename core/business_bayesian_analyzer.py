@@ -640,22 +640,23 @@ class BusinessBayesianAnalyzer:
                         )
                     )
 
-        # 2. SELECT *: only flag when not in test/fixture context
+        # 2. SELECT *: flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"
-        if re.search(select_star_pattern, code, re.IGNORECASE) and (
-            not test_name.lower().startswith("test_") and "fixture" not in code.lower()
-        ):
-            results.append(
-                BusinessTestResult(
-                    test_name=test_name,
-                    success=False,
-                    business_category=BusinessCategory.COST_OPTIMIZATION,
-                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                    error_message=("SELECT * запрос без контекста теста/фикстуры"),
-                    cost_impact="Избыточная загрузка данных",
-                    optimization_potential="Указать конкретные колонки вместо SELECT *",
+        select_star_match = re.search(select_star_pattern, code, re.IGNORECASE)
+        if select_star_match:
+            is_test_or_fixture = test_name.lower().startswith("test_") or "fixture" in code.lower()
+            if not is_test_or_fixture:
+                results.append(
+                    BusinessTestResult(
+                        test_name=test_name,
+                        success=False,
+                        business_category=BusinessCategory.COST_OPTIMIZATION,
+                        error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                        error_message=("SELECT * запрос без контекста теста/фикстуры"),
+                        cost_impact="Избыточная загрузка данных",
+                        optimization_potential="Указать конкретные колонки вместо SELECT *",
+                    )
                 )
-            )
 
         # 3. while True: only flag when no break/return in loop body
         while_true_pattern = r"while\s+True\s*:"
