@@ -65,15 +65,16 @@ repos:
     rev: 1.7.9
     hooks:
       - id: bandit
-        name: bandit (security, changed files)
+        name: bandit (security, full repo)
         stages: [pre-commit]
-        types: [python]
-        # Changed-files only (fast path). Full scan added below on pre-push/CI.
-        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/|^test_quick_check\.py$
+        always_run: true
+        pass_filenames: false
         args:
           - -q
           - -c
-          - pyproject.toml
+          - .bandit.yaml
+          - -r
+          - .
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit

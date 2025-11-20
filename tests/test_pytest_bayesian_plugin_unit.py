@@ -5,13 +5,17 @@ Unit tests to cover core logic of pytest_bayesian_plugin without relying on pyte
 from __future__ import annotations
 
 import os
-from typing import Any, List
+from typing import TYPE_CHECKING, Any, List, cast
 from unittest.mock import MagicMock
 
 import pytest
 
 from core.bayesian_test_analyzer import ErrorType, TestCategory
 from pytest_bayesian_plugin import BayesianPytestPlugin
+
+if TYPE_CHECKING:
+    from _pytest.nodes import Item
+    from _pytest.reports import TestReport
 
 
 class _FakeMarker:
@@ -44,79 +48,79 @@ def test_determine_category_custom_marker_defaults_to_unit() -> None:
     plugin = BayesianPytestPlugin(
         category_markers=["regression"]
     )  # custom marker not mapped to enum
-    item = _FakeItem(["regression"])  # will fall back to UNIT
+    item = cast("Item", _FakeItem(["regression"]))  # will fall back to UNIT
     assert plugin._determine_test_category(item) == TestCategory.UNIT
 
 
 def test_determine_category_known_marker_integration() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem(["integration"])  # known mapping
+    item = cast("Item", _FakeItem(["integration"]))  # known mapping
     assert plugin._determine_test_category(item) == TestCategory.INTEGRATION
 
 
 def test_determine_category_custom_marker_integration() -> None:
     plugin = BayesianPytestPlugin(category_markers=["integration"])
-    item = _FakeItem(["integration"])
+    item = cast("Item", _FakeItem(["integration"]))
     assert plugin._determine_test_category(item) == TestCategory.INTEGRATION
 
 
 def test_determine_category_custom_marker_e2e() -> None:
     plugin = BayesianPytestPlugin(category_markers=["e2e"])
-    item = _FakeItem(["e2e"])
+    item = cast("Item", _FakeItem(["e2e"]))
     assert plugin._determine_test_category(item) == TestCategory.E2E
 
 
 def test_determine_category_custom_marker_performance() -> None:
     plugin = BayesianPytestPlugin(category_markers=["performance"])
-    item = _FakeItem(["performance"])
+    item = cast("Item", _FakeItem(["performance"]))
     assert plugin._determine_test_category(item) == TestCategory.PERFORMANCE
 
 
 def test_determine_category_custom_marker_coverage() -> None:
     plugin = BayesianPytestPlugin(category_markers=["coverage"])
-    item = _FakeItem(["coverage"])
+    item = cast("Item", _FakeItem(["coverage"]))
     assert plugin._determine_test_category(item) == TestCategory.COVERAGE
 
 
 def test_determine_category_custom_marker_monte_carlo() -> None:
     plugin = BayesianPytestPlugin(category_markers=["monte_carlo"])
-    item = _FakeItem(["monte_carlo"])
+    item = cast("Item", _FakeItem(["monte_carlo"]))
     assert plugin._determine_test_category(item) == TestCategory.MONTE_CARLO
 
 
 def test_determine_category_custom_marker_bayesian() -> None:
     plugin = BayesianPytestPlugin(category_markers=["bayesian"])
-    item = _FakeItem(["bayesian"])
+    item = cast("Item", _FakeItem(["bayesian"]))
     assert plugin._determine_test_category(item) == TestCategory.BAYESIAN
 
 
 def test_determine_category_fallback_path_name_e2e() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([], fspath="tests/e2e/test_flow.py", name="test_flow")
+    item = cast("Item", _FakeItem([], fspath="tests/e2e/test_flow.py", name="test_flow"))
     assert plugin._determine_test_category(item) == TestCategory.E2E
 
 
 def test_determine_category_fallback_path_performance() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([], fspath="tests/performance/test_speed.py", name="test_speed")
+    item = cast("Item", _FakeItem([], fspath="tests/performance/test_speed.py", name="test_speed"))
     assert plugin._determine_test_category(item) == TestCategory.PERFORMANCE
 
 
 def test_determine_category_fallback_path_coverage() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([], fspath="tests/test_coverage.py", name="test_coverage")
+    item = cast("Item", _FakeItem([], fspath="tests/test_coverage.py", name="test_coverage"))
     assert plugin._determine_test_category(item) == TestCategory.COVERAGE
 
 
 def test_determine_category_fallback_path_monte_carlo() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([], fspath="tests/test_monte_carlo.py", name="test_mc")
+    item = cast("Item", _FakeItem([], fspath="tests/test_monte_carlo.py", name="test_mc"))
     assert plugin._determine_test_category(item) == TestCategory.MONTE_CARLO
 
 
 def test_determine_category_fallback_path_bayesian() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([], fspath="tests/test_bayesian.py", name="test_bayesian")
+    item = cast("Item", _FakeItem([], fspath="tests/test_bayesian.py", name="test_bayesian"))
     assert plugin._determine_test_category(item) == TestCategory.BAYESIAN
 
 
@@ -133,7 +137,7 @@ def test_determine_category_exception_in_iter_markers() -> None:
 
     item = _BrokenItem()
     # Should fallback to UNIT when marker iteration fails
-    assert plugin._determine_test_category(item) == TestCategory.UNIT
+    assert plugin._determine_test_category(cast("Item", item)) == TestCategory.UNIT
 
 
 def test_gather_test_context_flags_present() -> None:
@@ -142,7 +146,7 @@ def test_gather_test_context_flags_present() -> None:
     async def _afunc() -> None:  # async function to trigger is_async
         return None
 
-    item = _FakeItem([])
+    item = cast("Item", _FakeItem([]))
     # Attach function attribute expected by the plugin
     item.function = _afunc  # type: ignore[attr-defined]
     ctx = plugin._gather_test_context(item)
@@ -175,7 +179,7 @@ def test_gather_test_context_has_mocks(test_func: Any, expected_has_mocks: bool)
     """Test that _gather_test_context correctly detects presence/absence of mocks."""
     plugin = BayesianPytestPlugin()
 
-    item = _FakeItem([])
+    item = cast("Item", _FakeItem([]))
     item.function = test_func  # type: ignore[attr-defined]
     ctx = plugin._gather_test_context(item)
     assert ctx["has_mocks"] is expected_has_mocks
@@ -183,15 +187,15 @@ def test_gather_test_context_has_mocks(test_func: Any, expected_has_mocks: bool)
 
 def test_gather_test_context_coverage_related() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([], fspath="tests/test_coverage.py")
+    item = cast("Item", _FakeItem([], fspath="tests/test_coverage.py"))
     ctx = plugin._gather_test_context(item)
     assert ctx["coverage_related"] is True
 
 
 def test_gather_test_context_complex_dependencies() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([])
-    item.fixturenames = ["fixture1", "fixture2", "fixture3", "fixture4"]  # > 3
+    item = cast("Item", _FakeItem([]))
+    item.fixturenames = ["fixture1", "fixture2", "fixture3", "fixture4"]  # type: ignore[attr-defined]  # > 3
     ctx = plugin._gather_test_context(item)
     assert ctx["complex_dependencies"] is True
 
@@ -203,7 +207,7 @@ def test_get_test_code_success() -> None:
         """Test function."""
         pass
 
-    item = _FakeItem([])
+    item = cast("Item", _FakeItem([]))
     item.function = _test_func  # type: ignore[attr-defined]
     code = plugin._get_test_code(item)
     assert "def _test_func" in code or "_test_func" in code
@@ -211,7 +215,7 @@ def test_get_test_code_success() -> None:
 
 def test_get_test_code_no_function() -> None:
     plugin = BayesianPytestPlugin()
-    item = _FakeItem([])
+    item = cast("Item", _FakeItem([]))
     code = plugin._get_test_code(item)
     assert code == ""
 
@@ -225,12 +229,12 @@ def test_get_test_code_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     # Make inspect.getsource raise OSError
     import inspect
 
-    def _raise_oserror(*args, **kwargs) -> str:
+    def _raise_oserror(*args: Any, **kwargs: Any) -> str:
         raise OSError("Could not get source")
 
     monkeypatch.setattr(inspect, "getsource", _raise_oserror)
 
-    item = _FakeItem([])
+    item = cast("Item", _FakeItem([]))
     item.function = _func  # type: ignore[attr-defined]
     code = plugin._get_test_code(item)
     assert code == ""
@@ -268,7 +272,7 @@ class _FakeReport:
 def test_analyze_failure_extracts_error_type() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("AssertionError: boom")
-    err_type, msg = plugin._analyze_failure(report)
+    err_type, msg = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.ASSERTION_ERROR
     assert isinstance(msg, str) and "AssertionError" in msg
 
@@ -276,91 +280,91 @@ def test_analyze_failure_extracts_error_type() -> None:
 def test_analyze_failure_import_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("ImportError: No module named 'xyz'")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.IMPORT_ERROR
 
 
 def test_analyze_failure_modulenotfound_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("ModuleNotFoundError: No module named 'xyz'")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.IMPORT_ERROR
 
 
 def test_analyze_failure_type_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("TypeError: unsupported operand type")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.TYPE_ERROR
 
 
 def test_analyze_failure_attribute_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("AttributeError: 'NoneType' object has no attribute 'x'")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.ATTRIBUTE_ERROR
 
 
 def test_analyze_failure_value_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("ValueError: invalid value")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.VALUE_ERROR
 
 
 def test_analyze_failure_unprocessable() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("Request is unprocessable")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.VALUE_ERROR
 
 
 def test_analyze_failure_runtime_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("RuntimeError: something went wrong")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.RUNTIME_ERROR
 
 
 def test_analyze_failure_timeout_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("TimeoutError: operation timed out")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.TIMEOUT_ERROR
 
 
 def test_analyze_failure_generic_timeout() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("Operation timeout exceeded")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.TIMEOUT_ERROR
 
 
 def test_analyze_failure_coverage_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("Coverage below threshold")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.COVERAGE_ERROR
 
 
 def test_analyze_failure_mock_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("Mock was not called")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.MOCK_ERROR
 
 
 def test_analyze_failure_patch_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("patch target not found")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.MOCK_ERROR
 
 
 def test_analyze_failure_async_error() -> None:
     plugin = BayesianPytestPlugin()
     report = _FakeReport("coroutine was never awaited")
-    err_type, _ = plugin._analyze_failure(report)
+    err_type, _ = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.ASYNC_ERROR
 
 
@@ -368,7 +372,7 @@ def test_analyze_failure_no_longrepr() -> None:
     plugin = BayesianPytestPlugin()
     report = MagicMock()
     report.longrepr = None
-    err_type, msg = plugin._analyze_failure(report)
+    err_type, msg = plugin._analyze_failure(cast("TestReport", report))
     assert err_type is None
     assert msg is None
 
@@ -380,7 +384,7 @@ def test_analyze_failure_with_reprtraceback() -> None:
     # The longrepr string representation is used for error type detection
     longrepr = _FakeLongRepr("AssertionError: test failed", traceback)
     report = _FakeReport("", longrepr)
-    err_type, msg = plugin._analyze_failure(report)
+    err_type, msg = plugin._analyze_failure(cast("TestReport", report))
     assert err_type == ErrorType.ASSERTION_ERROR
     assert msg is not None and ("AssertionError" in msg or "test failed" in msg)
 

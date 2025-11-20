@@ -642,20 +642,20 @@ class BusinessBayesianAnalyzer:
 
         # 2. SELECT *: only flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"
-        if re.search(select_star_pattern, code, re.IGNORECASE):
-            # Skip if test_name starts with "test_" or code contains "fixture"
-            if not test_name.lower().startswith("test_") and "fixture" not in code.lower():
-                results.append(
-                    BusinessTestResult(
-                        test_name=test_name,
-                        success=False,
-                        business_category=BusinessCategory.COST_OPTIMIZATION,
-                        error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                        error_message=("SELECT * запрос без контекста теста/фикстуры"),
-                        cost_impact="Избыточная загрузка данных",
-                        optimization_potential="Указать конкретные колонки вместо SELECT *",
-                    )
+        if re.search(select_star_pattern, code, re.IGNORECASE) and (
+            not test_name.lower().startswith("test_") and "fixture" not in code.lower()
+        ):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                    error_message=("SELECT * запрос без контекста теста/фикстуры"),
+                    cost_impact="Избыточная загрузка данных",
+                    optimization_potential="Указать конкретные колонки вместо SELECT *",
                 )
+            )
 
         # 3. while True: only flag when no break/return in loop body
         while_true_pattern = r"while\s+True\s*:"
@@ -910,12 +910,10 @@ class BusinessBayesianAnalyzer:
                 category_counts[category] = category_counts.get(category, 0) + 1
                 total_issues += 1
 
-        # Вычисляем вероятности
-        probabilities = {}
-        for category, count in category_counts.items():
-            probabilities[category] = count / total_issues if total_issues > 0 else 0.0
-
-        return probabilities
+        return {
+            category: count / total_issues if total_issues > 0 else 0.0
+            for category, count in category_counts.items()
+        }
 
     def calculate_roi_potential(self) -> list[ROIEstimate]:
         """
@@ -1066,10 +1064,8 @@ class BusinessBayesianAnalyzer:
         # - Numerical transformation: transform sample draws to log-space and compute mean/variance
 
         # Check if the small-relative-variance assumption holds
-        relative_variance = prior_std / (1 + prior_mean) if (1 + prior_mean) > 0 else float("inf")
-        var_ratio = (
-            (prior_std**2) / ((1 + prior_mean) ** 2) if (1 + prior_mean) > 0 else float("inf")
-        )
+        relative_variance = prior_std / (1 + prior_mean) if prior_mean > -1 else float("inf")
+        var_ratio = (prior_std**2) / ((1 + prior_mean) ** 2) if prior_mean > -1 else float("inf")
 
         # Thresholds for the assumption: relative_variance > 0.1 or var_ratio > 0.01
         if relative_variance > 0.1 or var_ratio > 0.01:

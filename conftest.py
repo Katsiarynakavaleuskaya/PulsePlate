@@ -2,6 +2,7 @@
 Global test configuration and fixtures for the project.
 """
 
+import contextlib
 import importlib
 import importlib.util
 import logging
@@ -70,11 +71,8 @@ def pytest_configure(config: pytest.Config) -> None:
     os.environ["TEST_DB_PATH"] = str(resolved_path)
 
     # Remove stale DB file if it exists
-    try:
+    with contextlib.suppress(OSError):
         resolved_path.unlink(missing_ok=True)
-    except (PermissionError, OSError):
-        pass  # Ignore errors, init_db will handle it
-
     # Import/reload core.db and core.models so init_db() uses our DATABASE_URL
     if "core.db" in sys.modules:
         core_db = importlib.reload(sys.modules["core.db"])
@@ -108,76 +106,6 @@ def pytest_configure(config: pytest.Config) -> None:
             )
     except Exception as e:
         logging.error("Database initialization in pytest_configure failed: %s", e, exc_info=True)
-        # Continue - session fixture will retry
-
-    # If app was accidentally loaded, reload it to ensure it uses the initialized DB
-    if "app" in sys.modules:
-        importlib.reload(sys.modules["app"])
-
-    # Enable debug logging for tests that assert on debug logs
-    logging.getLogger().setLevel(logging.DEBUG)
-
-
-def pytest_configure(config: pytest.Config) -> None:
-    """
-    Ensure test database is configured & created before any module imports.
-
-    Runs before collection and can prevent app.py from binding to the wrong DB.
-    This hook runs earlier than fixtures and ensures DATABASE_URL is set before
-    any module-level imports of app.py or core.db occur.
-    """
-    # Set test environment variables early
-    os.environ.setdefault("APP_ENV", "test")
-    os.environ.setdefault("ENVIRONMENT", "test")
-    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
-
-    # Configure test database path
-    db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
-    db_path = Path(db_path_env)
-
-    # Get worker ID from pytest-xdist if running in parallel
-    worker_info = getattr(config, "workerinput", {}) or {}
-    worker_id = worker_info.get("workerid", "")
-    if worker_id:
-        import re
-
-        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
-        db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
-
-    if not db_path.is_absolute():
-        db_path = Path.cwd() / db_path
-
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    resolved_path = db_path.resolve()
-
-    # Set DATABASE_URL before any imports
-    os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
-    os.environ["TEST_DB_PATH"] = str(resolved_path)
-
-    # Remove stale DB file if it exists
-    try:
-        resolved_path.unlink(missing_ok=True)
-    except (PermissionError, OSError):
-        pass  # Ignore errors, init_db will handle it
-
-    # Import/reload core.db and core.models so init_db() uses our DATABASE_URL
-    if "core.db" in sys.modules:
-        core_db = importlib.reload(sys.modules["core.db"])
-    else:
-        core_db = importlib.import_module("core.db")
-
-    # Register models
-    if "core.models" in sys.modules:
-        importlib.reload(sys.modules["core.models"])
-    else:
-        import core.models  # noqa: F401
-
-    # Initialize database schema
-    try:
-        core_db.init_db()
-        logging.info("✅ Test database initialized in pytest_configure")
-    except Exception as e:
-        logging.warning("Database initialization in pytest_configure failed: %s", e)
         # Continue - session fixture will retry
 
     # If app was accidentally loaded, reload it to ensure it uses the initialized DB
@@ -463,7 +391,7 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
 
     # Restore environment
     os.environ.clear()
-    os.environ.update(old_env)
+    os.environ |= old_env
 
     # Clear dependency overrides (only if app was loaded by test fixtures)
     # Do not import app here to avoid premature import

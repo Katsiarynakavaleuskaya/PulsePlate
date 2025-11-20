@@ -1237,12 +1237,14 @@ class PersonalizedSafetyLimits:
 ```
 
 **Failure Behavior**:
+
 - Deployment pipeline fails if `medicalSafetyApproved` is not `true`
 - Deployment pipeline fails if approval file is missing
 - Deployment pipeline fails if minimum approvers not met
 - Error message: "Medical safety approval required before deployment. See docs/BAYESIAN_EXPANSION_STRATEGY.md"
 
 **Verification Script**: `scripts/verify_safety_approval.py`
+
 - Reads `config/safety_limits.approval.yaml`
 - Validates structure and required fields
 - Checks `medicalSafetyApproved` flag
