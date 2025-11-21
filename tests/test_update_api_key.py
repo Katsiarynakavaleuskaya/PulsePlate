@@ -766,28 +766,16 @@ class TestReadAPIKey:
 class TestUpdateAPIKeyComprehensive:
     """Comprehensive tests for update_api_key function covering all branches"""
 
-    def test_update_api_key_without_encryption(
+    def test_update_api_key_plaintext_disabled(
         self, tmp_path: Path, capsys: pytest.CaptureFixture, fake_crypto: type
     ) -> None:
-        """Test update_api_key succeeds without encryption when use_encryption=False"""
+        """Test update_api_key rejects plaintext storage when use_encryption=False"""
         valid_key = "sk-" + "a" * 40
-        mcp_file = tmp_path / ".cursor" / "mcp.json"
-        mcp_file.parent.mkdir(parents=True, exist_ok=True)
-        mcp_file.write_text(json.dumps({"mcpServers": {}}))
-
-        env_file = tmp_path / ".cursor" / ".env"
-        env_file.parent.mkdir(parents=True, exist_ok=True)
-        env_file.write_text("OTHER=value")
-
         with patch("update_api_key.Path.home", return_value=tmp_path):
-            # Note: _encryption_available() is still checked even when use_encryption=False
-            # This is current behavior of the code
             result = update_api_key.update_api_key(valid_key, use_encryption=False)
-            assert result is True
-
-        # Check that plaintext key was written to .env
-        content = env_file.read_text()
-        assert f"OPENAI_API_KEY={valid_key}" in content
+            assert result is False
+            captured = capsys.readouterr()
+            assert "Plaintext API key storage is disabled" in captured.out
 
     def test_update_api_key_encryption_helper_missing(
         self, tmp_path: Path, capsys: pytest.CaptureFixture

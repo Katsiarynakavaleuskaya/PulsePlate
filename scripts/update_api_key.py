@@ -244,7 +244,7 @@ def update_api_key(
     Args:
         api_key: The API key to store
         profile: Profile name (default, free, etc.)
-        use_encryption: Whether to encrypt the key (requires cryptography)
+        use_encryption: Maintained for backward compatibility; plaintext storage is disallowed and this must remain True.
 
     Returns:
         True if successful, False otherwise
@@ -278,8 +278,8 @@ def update_api_key(
         print(f"❌ Error: {exc}")
         return False
 
-    # Validate encryption availability
-    if use_encryption and encrypt_value is None:
+    # Validate encryption availability (plaintext storage is disallowed)
+    if encrypt_value is None:
         logger.error("Encryption requested but encrypt_value helper is unavailable")
         print("Encryption helper is not available")
         return False
@@ -289,50 +289,31 @@ def update_api_key(
         print("❌ Encryption not available. Please install 'cryptography' and retry.")
         return False
 
+    if not use_encryption:
+        logger.error("Plaintext API key storage is disabled. Encryption is required.")
+        print("❌ Plaintext API key storage is disabled. Please enable encryption.")
+        return False
+
     try:
-        # Security: Encrypt the key if requested, otherwise validate production environment
+        # Security: Always encrypt the key before persisting anywhere
         encrypted_key: str | None = None
-        if use_encryption and ENCRYPTION_AVAILABLE:
-            try:
-                encrypted_key = encrypt_value(api_key)  # type: ignore[misc]
-                if encrypted_key is None or not encrypted_key.startswith("encrypted:"):
-                    logger.error("Encryption failed: output does not start with 'encrypted:'")
-                    print("❌ Encryption failed: invalid output format")
-                    return False
-                env_key_value = encrypted_key
-                print("API key will be stored encrypted")
-            except RuntimeError as e:
-                logger.error("Encryption failed: %s", e)
-                print(f"❌ Encryption failed: {e}")
-                print(f"Error: {e}")
+        try:
+            encrypted_key = encrypt_value(api_key)  # type: ignore[misc]
+            if encrypted_key is None or not encrypted_key.startswith("encrypted:"):
+                logger.error("Encryption failed: output does not start with 'encrypted:'")
+                print("❌ Encryption failed: invalid output format")
                 return False
-        else:
-            # Store plaintext key only when explicitly requested (dev/test mode)
-            # In production, this should never happen - use_encryption=True is default
-            app_env = os.getenv("APP_ENV", "").strip().lower()
-            is_production = app_env not in {"", "local", "dev", "development", "test"}
-            if is_production:
-                logger.error(
-                    "Cannot store API key in plaintext in production. "
-                    "Set use_encryption=True or use development environment."
-                )
-                print("❌ Cannot store API key in plaintext in production environment")
-                return False
-            env_key_value = api_key
-            logger.warning(
-                "API key stored in plaintext (use_encryption=False). "
-                "This should only be used in local development/test environments."
-            )
+            env_key_value = encrypted_key
+            print("API key will be stored encrypted")
+        except RuntimeError as e:
+            logger.error("Encryption failed: %s", e)
+            print(f"❌ Encryption failed: {e}")
+            print(f"Error: {e}")
+            return False
 
         # Security: Use encrypted value for MCP and settings.json if encryption was used
-        # Never store API keys in plaintext in configuration files when encryption is available
-        if encrypted_key is not None:
-            mcp_key_value = encrypted_key
-            settings_key_value = encrypted_key
-        else:
-            # Only allow plaintext in dev/test environments (already validated above)
-            mcp_key_value = api_key
-            settings_key_value = api_key
+        mcp_key_value = encrypted_key
+        settings_key_value = encrypted_key
 
         # Update MCP configuration
         mcp_file = Path.home() / ".cursor" / "mcp.json"
@@ -395,39 +376,18 @@ def update_api_key(
                 line_stripped = line.strip()
                 normalized_line = line if line.endswith("\n") else line + "\n"
                 if line_stripped.startswith(f"{env_key_name}="):
-                    # env_key_value is encrypted when use_encryption=True (checked above)
-                    # When use_encryption=False, production check above prevents plaintext storage
+                    # env_key_value is always encrypted before writing
                     new_lines.append(f"{env_key_name}={env_key_value}\n")
                     updated = True
                 else:
                     new_lines.append(normalized_line)
 
             if not updated:
-                # env_key_value is encrypted when use_encryption=True (checked above)
-                # When use_encryption=False, production check above prevents plaintext storage
+                # env_key_value is always encrypted before writing
                 new_lines.append(f"{env_key_name}={env_key_value}\n")
 
-            # Security: Final check before writing - ensure we never write plaintext in production
-            # This explicit check helps CodeQL understand the security guarantee
-            if not use_encryption:
-                app_env_check = os.getenv("APP_ENV", "").strip().lower()
-                is_production_check = app_env_check not in {
-                    "",
-                    "local",
-                    "dev",
-                    "development",
-                    "test",
-                }
-                if is_production_check:
-                    logger.error(
-                        "Security violation: Attempted to write plaintext API key in production"
-                    )
-                    return False
-
             try:
-                # Security: env_key_value is encrypted when use_encryption=True (checked above)
-                # When use_encryption=False, explicit production check above prevents plaintext storage
-                # Only write if data is encrypted or in dev/test environment (validated above)
+                # Security: env_key_value is encrypted before reaching this point
                 with open(env_file, "w", encoding="utf-8") as f:
                     f.writelines(new_lines)
                 logger.info("Updated .env file")
