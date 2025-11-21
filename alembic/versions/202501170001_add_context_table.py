@@ -27,7 +27,8 @@ def upgrade() -> None:
     )
     if bind.dialect.name == "mysql":
         # MySQL supports automatic timestamp update via server-side default
-        updated_at_column.server_onupdate = sa.text("CURRENT_TIMESTAMP")
+        # Use sa.func.now() which returns FetchedValue compatible with server_onupdate type
+        updated_at_column.server_onupdate = sa.func.now()  # type: ignore[assignment]
 
     op.create_table(
         "context",
