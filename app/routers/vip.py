@@ -321,7 +321,11 @@ def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
     """Create UserProfile from dictionary data with validation."""
-    # Use default values for missing fields instead of validation
+    required_fields = ["sex", "age", "height_cm", "weight_kg", "activity", "goal"]
+    missing = [field for field in required_fields if profile_data.get(field) is None]
+    if missing:
+        raise ValueError("Missing required profile fields: " + ", ".join(sorted(missing)))
+
     # Convert diet_flags to set if it's a list
     diet_flags = profile_data.get("diet_flags", [])
     if isinstance(diet_flags, list):
@@ -335,43 +339,34 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
     # Use explicit conversions with validation: None is acceptable (use default),
     # but non-parsable values raise ValueError
     age_raw = profile_data.get("age")
-    if age_raw is None:
-        age_val: int = 30
-    else:
-        try:
-            age_val = int(age_raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid age value: {age_raw!r}") from exc
+    try:
+        age_val = int(age_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid age value: {age_raw!r}") from exc
 
     height_raw = profile_data.get("height_cm")
-    if height_raw is None:
-        height_val: float = 175.0
-    else:
-        try:
-            height_val = float(height_raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid height_cm value: {height_raw!r}") from exc
+    try:
+        height_val = float(height_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid height_cm value: {height_raw!r}") from exc
 
     weight_raw = profile_data.get("weight_kg")
-    if weight_raw is None:
-        weight_val: float = 70.0
-    else:
-        try:
-            weight_val = float(weight_raw)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid weight_kg value: {weight_raw!r}") from exc
+    try:
+        weight_val = float(weight_raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid weight_kg value: {weight_raw!r}") from exc
 
     # Use explicit None checks so that missing/None values fall back to defaults
     return UserProfile(
-        sex=cast(Literal["male", "female"], profile_data.get("sex") or "male"),
+        sex=cast(Literal["male", "female"], profile_data["sex"]),
         age=age_val,
         height_cm=height_val,
         weight_kg=weight_val,
         activity=cast(
             Literal["sedentary", "light", "moderate", "active", "very_active"],
-            profile_data.get("activity") or "moderate",
+            profile_data["activity"],
         ),
-        goal=cast(Literal["loss", "maintain", "gain"], profile_data.get("goal") or "maintain"),
+        goal=cast(Literal["loss", "maintain", "gain"], profile_data["goal"]),
         deficit_pct=profile_data.get("deficit_pct"),
         surplus_pct=profile_data.get("surplus_pct"),
         bodyfat=profile_data.get("bodyfat"),
@@ -424,11 +419,19 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
             # Return None to trigger echo mode in the endpoint
             return None
     else:
-        # Direct arguments - pass through
-        if args and len(args) == 1 and isinstance(args[0], UserProfile):
-            # Ensure that only allowed kwargs (food_db and recipe_db) are passed if present and type safe
+        # Direct arguments - pass through when first arg is a UserProfile
+        if args and isinstance(args[0], UserProfile):
+            profile = args[0]
+
+            positional_extras = list(args[1:])
             food_db = kwargs.get("food_db")
             recipe_db = kwargs.get("recipe_db")
+
+            if positional_extras:
+                if len(positional_extras) >= 1 and isinstance(positional_extras[0], dict):
+                    food_db = food_db or positional_extras[0]
+                if len(positional_extras) >= 2 and isinstance(positional_extras[1], dict):
+                    recipe_db = recipe_db or positional_extras[1]
 
             # Type check for food_db and recipe_db
             if food_db is not None and not isinstance(food_db, dict):
@@ -438,13 +441,13 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
                 logging.warning("recipe_db must be a dict if provided, ignoring invalid value")
                 recipe_db = None
 
-            safe_kwargs = {}
+            safe_kwargs: Dict[str, Any] = {}
             if food_db is not None:
                 safe_kwargs["food_db"] = food_db
             if recipe_db is not None:
                 safe_kwargs["recipe_db"] = recipe_db
 
-            return make_weekly_menu(args[0], **safe_kwargs)
+            return make_weekly_menu(profile, **safe_kwargs)
 
         # Fallback: if not UserProfile, try to convert or return None
         return None
@@ -675,6 +678,9 @@ async def weekly_menu_plan_alias(
         return WeeklyPlanResponse(
             status="success", data=plan_dict, message="Weekly plan generated successfully"
         )
+    except HTTPException:
+        # Preserve deliberate HTTP responses such as validation errors
+        raise
     except Exception as e:
         logging.exception("weekly-plan generation failed")
         return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")

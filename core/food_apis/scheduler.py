@@ -53,8 +53,10 @@ class DatabaseUpdateScheduler:
         self.last_update_check: Optional[datetime] = None
         self.retry_counts: Dict[str, int] = {}
 
-        # Background task
+        # Background task tracking
         self._update_task: Optional[asyncio.Task] = None
+        self._shutdown_task: Optional[asyncio.Task] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
@@ -70,11 +72,16 @@ class DatabaseUpdateScheduler:
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            loop: Optional[asyncio.AbstractEventLoop] = None
             try:
                 loop = asyncio.get_running_loop()
-                loop.call_soon_threadsafe(self._schedule_async_shutdown)
             except RuntimeError:
-                logger.warning("No running event loop in signal handler")
+                loop = self._loop
+
+            if loop and loop.is_running():
+                loop.call_soon_threadsafe(self._schedule_async_shutdown)
+            else:
+                logger.warning("No active event loop available to schedule shutdown")
 
         # Handle common shutdown signals
         try:
@@ -85,8 +92,8 @@ class DatabaseUpdateScheduler:
 
     def _schedule_async_shutdown(self) -> None:
         """Schedule asynchronous shutdown on the event loop thread."""
-        # Create task to handle shutdown asynchronously
-        asyncio.create_task(self._handle_signal_shutdown())
+        if self._shutdown_task is None or self._shutdown_task.done():
+            self._shutdown_task = asyncio.create_task(self._handle_signal_shutdown())
 
     async def _handle_signal_shutdown(self) -> None:
         """Handle shutdown initiated from signal handler."""
@@ -95,6 +102,8 @@ class DatabaseUpdateScheduler:
             await self.stop()
         except Exception:
             logger.exception("Error while handling signal-initiated shutdown")
+        finally:
+            self._shutdown_task = None
 
     async def start(self) -> None:
         """
@@ -106,6 +115,10 @@ class DatabaseUpdateScheduler:
             return
 
         self.is_running = True
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
         logger.info("Starting database update scheduler...")
 
         # Start background update task

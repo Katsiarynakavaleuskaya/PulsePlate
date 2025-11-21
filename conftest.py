@@ -3,6 +3,7 @@ Global test configuration and fixtures for the project.
 """
 
 import contextlib
+from contextlib import contextmanager
 import importlib
 import importlib.util
 import logging
@@ -11,7 +12,7 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Union, cast
+from typing import Any, Callable, Dict, Union, cast
 
 import pytest
 from _pytest.monkeypatch import notset as _monkey_notset
@@ -21,6 +22,7 @@ from starlette.types import ASGIApp
 _original_monkeypatch_setattr = pytest.MonkeyPatch.setattr
 
 # Required database tables for tests
+# Core DB tables required for every test database
 REQUIRED_TABLES = ["users", "recipes", "meals", "food_items", "context"]
 
 
@@ -375,13 +377,21 @@ def reset_sys_modules() -> Iterator[None]:
         del sys.modules["app.routers.vip"]
 
 
+@contextmanager
+def _environment_fixture(overrides: Dict[str, str]) -> Iterator[None]:
+    old_env = dict(os.environ)
+    os.environ.update(overrides)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(old_env)
+
+
 @pytest.fixture
 def production_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-to-union
     """Fixture for production environment testing."""
-    old_env = dict(os.environ)
-
-    # Set production environment
-    os.environ.update(
+    with _environment_fixture(
         {
             "APP_ENV": "production",
             "ALLOW_DEV_API_KEY": "false",
@@ -389,22 +399,14 @@ def production_environment() -> Iterator[None]:  # sourcery skip: dict-assign-up
             "FEATURE_PREMIUM_NUTRITION": "true",
             "VIP_MODULE_ENABLED": "true",
         }
-    )
-
-    yield
-
-    # Restore environment
-    os.environ.clear()
-    os.environ.update(old_env)
+    ):
+        yield
 
 
 @pytest.fixture
 def test_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-to-union
     """Fixture for test environment testing."""
-    old_env = dict(os.environ)
-
-    # Set test environment
-    os.environ.update(
+    with _environment_fixture(
         {
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
@@ -412,22 +414,14 @@ def test_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-t
             "FEATURE_PREMIUM_NUTRITION": "true",
             "VIP_MODULE_ENABLED": "true",
         }
-    )
-
-    yield
-
-    # Restore environment
-    os.environ.clear()
-    os.environ.update(old_env)
+    ):
+        yield
 
 
 @pytest.fixture
 def premium_disabled_environment() -> Iterator[None]:  # sourcery skip: dict-assign-update-to-union
     """Fixture for testing with premium features disabled."""
-    old_env = dict(os.environ)
-
-    # Set environment with premium disabled
-    os.environ.update(
+    with _environment_fixture(
         {
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
@@ -435,13 +429,8 @@ def premium_disabled_environment() -> Iterator[None]:  # sourcery skip: dict-ass
             "FEATURE_PREMIUM_NUTRITION": "false",
             "VIP_MODULE_ENABLED": "false",
         }
-    )
-
-    yield
-
-    # Restore environment
-    os.environ.clear()
-    os.environ.update(old_env)
+    ):
+        yield
 
 
 @pytest.fixture
