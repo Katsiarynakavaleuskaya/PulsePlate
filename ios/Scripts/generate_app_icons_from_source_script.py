@@ -22,7 +22,11 @@ else:
     except ImportError:
         Image = None  # type: ignore
 
-from icon_constants import IOS_ICON_SIZES  # noqa: E402
+try:
+    from .icon_constants import IOS_ICON_SIZES  # noqa: E402
+except ImportError:
+    # Fallback for when script is run directly (not as module)
+    from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 
 def _process_image_for_icon(img: Image.Image, size: int) -> Image.Image:

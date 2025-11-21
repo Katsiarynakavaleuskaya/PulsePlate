@@ -20,7 +20,11 @@ except ImportError:
     print("   or: brew install pillow (on macOS)")
     sys.exit(1)
 
-from icon_constants import IOS_ICON_SIZES  # noqa: E402
+try:
+    from .icon_constants import IOS_ICON_SIZES  # noqa: E402
+except ImportError:
+    # Fallback for when script is run directly (not as module)
+    from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 # Constants
 MIN_SIZE = 16  # Minimum icon size in pixels for proper rendering
