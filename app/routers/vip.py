@@ -336,27 +336,33 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
     if isinstance(medical_conditions, list):
         medical_conditions = set(medical_conditions)
 
-    # Use explicit conversions with validation: None is acceptable (use default),
+    # Use explicit conversions with validation: None is not acceptable after missing check
     # but non-parsable values raise ValueError
     age_raw = profile_data.get("age")
+    if age_raw is None:
+        raise ValueError("Missing required profile field: age")
     try:
         age_val = int(age_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid age value: {age_raw!r}") from exc
 
     height_raw = profile_data.get("height_cm")
+    if height_raw is None:
+        raise ValueError("Missing required profile field: height_cm")
     try:
         height_val = float(height_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid height_cm value: {height_raw!r}") from exc
 
     weight_raw = profile_data.get("weight_kg")
+    if weight_raw is None:
+        raise ValueError("Missing required profile field: weight_kg")
     try:
         weight_val = float(weight_raw)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Invalid weight_kg value: {weight_raw!r}") from exc
 
-    # Use explicit None checks so that missing/None values fall back to defaults
+    # All required fields are validated and non-None at this point
     return UserProfile(
         sex=cast(Literal["male", "female"], profile_data["sex"]),
         age=age_val,
