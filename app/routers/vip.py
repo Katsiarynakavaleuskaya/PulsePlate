@@ -491,7 +491,14 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
         recipes_per_day = 1
     else:
         try:
-            recipes_per_day = int(recipes_arg)
+            # Explicit type conversion with validation
+            # recipes_arg is object, but we validate it can be converted to int
+            if isinstance(recipes_arg, (int, str)):
+                recipes_per_day = int(recipes_arg)
+            else:
+                raise TypeError(
+                    f"recipes_per_day must be int or str, got {type(recipes_arg).__name__}"
+                )
         except (TypeError, ValueError) as exc:
             raise ValueError(f"Invalid recipes_per_day value: {recipes_arg!r}") from exc
         if recipes_per_day <= 0:

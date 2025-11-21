@@ -7,7 +7,6 @@ Create Date: 2025-01-18
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
 
 revision = "202501180001"
@@ -16,12 +15,13 @@ branch_labels = None
 depends_on = None
 
 
+# Bounds aligned with WHO-based targets in core.targets.MicronutrientTargets
 RECIPE_CONSTRAINTS = {
     "ck_recipe_kcal_max": "kcal_per_serving <= 2000",
-    "ck_recipe_protein_max": "protein_g <= 150",
-    "ck_recipe_fat_max": "fat_g <= 100",
-    "ck_recipe_carbs_max": "carbs_g <= 200",
-    "ck_recipe_fiber_max": "fiber_g <= 40",
+    "ck_recipe_protein_max": "protein_g <= 60",
+    "ck_recipe_fat_max": "fat_g <= 50",
+    "ck_recipe_carbs_max": "carbs_g <= 150",
+    "ck_recipe_fiber_max": "fiber_g <= 20",
 }
 
 MEAL_CONSTRAINTS = {
