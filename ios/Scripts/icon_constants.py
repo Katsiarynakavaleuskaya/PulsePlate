@@ -28,6 +28,29 @@ IOS_ICON_SIZES: dict[str, int] = {
     "icon_marketing_1024.png": 1024,  # 1024x1024
 }
 
+IOS_APPICON_NAME_MAP: dict[str, str] = {
+    "AppIcon-20@2x.png": "icon_iphone_20pt@2x.png",
+    "AppIcon-20@3x.png": "icon_iphone_20pt@3x.png",
+    "AppIcon-29@2x.png": "icon_iphone_29pt@2x.png",
+    "AppIcon-29@3x.png": "icon_iphone_29pt@3x.png",
+    "AppIcon-40@2x.png": "icon_iphone_40pt@2x.png",
+    "AppIcon-40@3x.png": "icon_iphone_40pt@3x.png",
+    "AppIcon-60@2x.png": "icon_iphone_60pt@2x.png",
+    "AppIcon-60@3x.png": "icon_iphone_60pt@3x.png",
+    "AppIcon-20@1x.png": "icon_ipad_20pt.png",
+    "AppIcon-29@1x.png": "icon_ipad_29pt.png",
+    "AppIcon-40@1x.png": "icon_ipad_40pt.png",
+    "AppIcon-76@1x.png": "icon_ipad_76pt.png",
+    "AppIcon-76@2x.png": "icon_ipad_76pt@2x.png",
+    "AppIcon-83.5@2x.png": "icon_ipad_83_5pt@2x.png",
+    "AppIcon-1024.png": "icon_marketing_1024.png",
+}
+
+IOS_APPICON_SIZES: dict[str, int] = {
+    app_filename: IOS_ICON_SIZES[source_filename]
+    for app_filename, source_filename in IOS_APPICON_NAME_MAP.items()
+}
+
 # Duplicate sizes allowlist: size -> tuple of filenames that are allowed to share this size
 # Some iOS icons intentionally share the same pixel dimensions (e.g., 40px, 58px, 80px, 120px)
 IOS_ICON_DUPLICATE_ALLOWLIST: dict[int, tuple[str, ...]] = {

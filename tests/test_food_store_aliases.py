@@ -14,7 +14,7 @@ def test_get_aliases_merges_defaults_and_csv(monkeypatch: pytest.MonkeyPatch) ->
         fs, "_load_aliases_csv", lambda p: {"йогурт": ["joghurt"], "avocado": ["avo"]}
     )
     aliases = fs.get_aliases()
-    # default key preserved (CSV overrides take precedence for same key)
+    # default key preserved (CSV aliases are merged and defaults retained)
     yogurt_aliases = aliases.get("йогурт")
     assert yogurt_aliases is not None
     assert "joghurt" in yogurt_aliases

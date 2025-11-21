@@ -21,7 +21,7 @@ from starlette.types import ASGIApp
 _original_monkeypatch_setattr = pytest.MonkeyPatch.setattr
 
 # Required database tables for tests
-REQUIRED_TABLES = ["users", "recipes", "meals", "food_items"]
+REQUIRED_TABLES = ["users", "recipes", "meals", "food_items", "context"]
 
 
 def _mock_get_api_key(api_key: str = "") -> str:
@@ -100,8 +100,10 @@ def pytest_configure(config: pytest.Config) -> None:
                     f"Required tables missing after init_db(): {missing_tables}. "
                     f"Found tables: {tables}. Database: {core_db.DATABASE_URL}"
                 )
+            tables_list = ", ".join(tables)
             logging.info(
-                f"✅ Test database initialized in pytest_configure with {len(tables)} tables: {', '.join(tables)}"
+                "✅ Test database initialized in pytest_configure "
+                f"with {len(tables)} tables: {tables_list}"
             )
     except Exception as e:
         logging.error("Database initialization in pytest_configure failed: %s", e, exc_info=True)
@@ -337,15 +339,12 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     # Clear dependency overrides (only if app was loaded by test fixtures)
     # Do not import app here to avoid premature import
     if "app" in sys.modules:
-        try:
-            app_module = sys.modules["app"]
-            fastapi_app = getattr(app_module, "app", None)
-            if fastapi_app is not None:
-                dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
-                if dependency_overrides is not None:
-                    dependency_overrides.clear()
-        except (ImportError, AttributeError):
-            pass
+        app_module = sys.modules["app"]
+        fastapi_app = getattr(app_module, "app", None)
+        if fastapi_app is not None:
+            dependency_overrides = getattr(fastapi_app, "dependency_overrides", None)
+            if dependency_overrides is not None:
+                dependency_overrides.clear()
 
     # Restore sys.modules (be careful not to break everything)
     # Only restore modules that were added during the test

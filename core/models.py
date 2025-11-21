@@ -17,6 +17,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     func,
     text,
 )
@@ -229,4 +230,34 @@ class FoodItem(Base):
     )
 
 
-__all__: list[str] = ["User", "Recipe", "Meal", "FoodItem"]
+class ContextEntry(Base):
+    """RU: Контекстные записи для RAG/диагностики. EN: Context entries for RAG/diagnostics."""
+
+    __tablename__ = "context"
+    __table_args__ = (
+        Index("ix_context_slug", "slug", unique=True),
+        Index("ix_context_locale", "locale"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    slug: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    locale: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="en", server_default=text("'en'")
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSON),
+        nullable=False,
+        default=lambda: {},
+        server_default=text("'{}'"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+__all__: list[str] = ["User", "Recipe", "Meal", "FoodItem", "ContextEntry"]

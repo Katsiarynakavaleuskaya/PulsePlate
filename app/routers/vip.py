@@ -641,20 +641,6 @@ async def weekly_menu_plan_alias(
         activity_value = required_fields["activity"]
         goal_value = required_fields["goal"]
 
-        if (
-            sex is None
-            or age is None
-            or height_cm is None
-            or weight_kg is None
-            or activity_value is None
-            or goal_value is None
-        ):
-            # Defensive check; should not happen because we raised above
-            raise HTTPException(
-                status_code=422,
-                detail="Missing required fields after validation.",
-            )
-
         # Required fields validated above, so we can safely use the provided values
         profile = UserProfile(
             sex=cast(Literal["female", "male"], sex),

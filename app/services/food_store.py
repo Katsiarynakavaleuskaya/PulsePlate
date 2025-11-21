@@ -165,7 +165,7 @@ def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, 
     """
     canonical_to_aliases: dict[str, list[str]] = {}
     # Schema: primary,aliases (original format)
-    # Handle CSV where aliases may contain unquoted commas, requiring special parsing
+    # csv.reader already splits on commas; keep existing comma-separated format
     header = next(reader, None)
     if header and header[0].lower() == "primary":
         primary_idx = 0
@@ -179,16 +179,10 @@ def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, 
             primary_lower = primary_raw.lower()
             if primary_lower not in canonical_to_aliases:
                 canonical_to_aliases[primary_lower] = []
-            # Collect all values after primary as aliases
-            # csv.reader has already split on commas; only handle explicit secondary separators
-            # Note: CSV files should use semicolons (;) as secondary separator within alias fields
-            # If existing CSV files use comma-separated aliases, they need to be migrated
-            alias_parts: list[str] = []
-            for val in row_values[primary_idx + 1 :]:
-                for semicolon_part in val.split(";"):
-                    alias = semicolon_part.strip()
-                    if alias:
-                        alias_parts.append(alias)
+            # Collect all values after primary as aliases (comma separated via csv.reader)
+            alias_parts = [
+                val.strip() for val in row_values[primary_idx + 1 :] if val and val.strip()
+            ]
             # Process each alias part
             seen = set(canonical_to_aliases[primary_lower])
             for alias_raw in alias_parts:

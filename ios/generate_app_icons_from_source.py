@@ -7,9 +7,16 @@ App Icon Generator from Source Image
 import argparse
 import os
 import sys
+from pathlib import Path
 from typing import Dict
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from PIL import Image
+from ios.Scripts.icon_constants import IOS_APPICON_SIZES
 
 
 def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> bool:
@@ -39,27 +46,7 @@ def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> 
 def generate_all_icons_from_source(source_path: str) -> bool:
     """Генерирует все необходимые размеры иконок из исходного изображения"""
 
-    # Размеры для iOS (в пикселях)
-    icon_sizes: Dict[str, int] = {
-        # iPhone
-        "AppIcon-20@2x.png": 40,  # 20x20 @2x
-        "AppIcon-20@3x.png": 60,  # 20x20 @3x
-        "AppIcon-29@2x.png": 58,  # 29x29 @2x
-        "AppIcon-29@3x.png": 87,  # 29x29 @3x
-        "AppIcon-40@2x.png": 80,  # 40x40 @2x
-        "AppIcon-40@3x.png": 120,  # 40x40 @3x
-        "AppIcon-60@2x.png": 120,  # 60x60 @2x
-        "AppIcon-60@3x.png": 180,  # 60x60 @3x
-        # iPad
-        "AppIcon-20@1x.png": 20,  # 20x20 @1x
-        "AppIcon-29@1x.png": 29,  # 29x29 @1x
-        "AppIcon-40@1x.png": 40,  # 40x40 @1x
-        "AppIcon-76@1x.png": 76,  # 76x76 @1x
-        "AppIcon-76@2x.png": 152,  # 76x76 @2x
-        "AppIcon-83.5@2x.png": 167,  # 83.5x83.5 @2x
-        # App Store
-        "AppIcon-1024.png": 1024,  # 1024x1024
-    }
+    icon_sizes: Dict[str, int] = IOS_APPICON_SIZES.copy()
 
     # Путь к папке с иконками
     icons_dir = "PulsePlate/Assets.xcassets/AppIcon.appiconset"

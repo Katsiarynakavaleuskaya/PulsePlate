@@ -60,6 +60,20 @@ from core.utils import get_activity_factor, resolve_attr
 import core.utils as core_utils
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
+try:
+    from core.food_apis.scheduler import (
+        start_background_updates as _scheduler_start_background_updates,
+        stop_background_updates as _scheduler_stop_background_updates,
+    )
+except ImportError:  # pragma: no cover - scheduler not available outside backend runtime
+
+    async def _scheduler_start_background_updates(update_interval_hours: int = 24) -> None:
+        logger.warning("Scheduler module unavailable; background updates not started.")
+
+    async def _scheduler_stop_background_updates() -> None:
+        logger.warning("Scheduler module unavailable; background updates not stopped (noop).")
+
+
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
     from core.food_apis.scheduler import DatabaseUpdateScheduler
@@ -92,12 +106,14 @@ except ImportError:
     vip_router = None
 
 
-def start_background_updates(update_interval_hours: int = 24) -> None:
-    pass
+async def start_background_updates(update_interval_hours: int = 24) -> None:
+    """Proxy to scheduler.start_background_updates so _resolve_app_callable can find it."""
+    await _scheduler_start_background_updates(update_interval_hours=update_interval_hours)
 
 
-def stop_background_updates() -> None:
-    pass
+async def stop_background_updates() -> None:
+    """Proxy to scheduler.stop_background_updates so _resolve_app_callable can find it."""
+    await _scheduler_stop_background_updates()
 
 
 def _resolve_app_callable(

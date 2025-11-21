@@ -63,7 +63,10 @@ class DatabaseUpdateScheduler:
         self._setup_signal_handlers()
 
     def _setup_signal_handlers(self) -> None:
-        """Setup signal handlers for graceful shutdown."""
+        """Setup signal handlers for graceful shutdown.
+
+        Note: process-wide handlers assume a single scheduler instance per process.
+        """
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
