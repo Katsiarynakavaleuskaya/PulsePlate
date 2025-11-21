@@ -50,6 +50,16 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     models_module = importlib.import_module("core.models")
     importlib.reload(models_module)
 
+    # After reload, explicitly import all models to ensure they're registered in metadata
+    # This is critical because reload() can reset SQLAlchemy metadata
+    from core.models import (  # noqa: F401
+        User,
+        Recipe,
+        Meal,
+        FoodItem,
+        ContextEntry,
+    )
+
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
         try:

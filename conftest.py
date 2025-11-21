@@ -86,6 +86,16 @@ def pytest_configure(config: pytest.Config) -> None:
     else:
         import core.models  # noqa: F401
 
+    # After reload, explicitly import all models to ensure they're registered in metadata
+    # This is critical because reload() can reset SQLAlchemy metadata
+    from core.models import (  # noqa: F401
+        User,
+        Recipe,
+        Meal,
+        FoodItem,
+        ContextEntry,
+    )
+
     # Initialize database schema
     try:
         core_db.init_db()

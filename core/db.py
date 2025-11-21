@@ -491,8 +491,15 @@ def init_db() -> None:
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
-    # Explicitly import ContextEntry to ensure it's registered in metadata
-    from core.models import ContextEntry  # noqa: F401
+    # Explicitly import all models to ensure they're registered in metadata
+    # This is critical for models that might not be imported elsewhere
+    from core.models import (  # noqa: F401
+        User,
+        Recipe,
+        Meal,
+        FoodItem,
+        ContextEntry,
+    )
 
     metadata = Base.metadata
     create_all = metadata.create_all
@@ -524,8 +531,15 @@ async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
-    # Explicitly import ContextEntry to ensure it's registered in metadata
-    from core.models import ContextEntry  # noqa: F401
+    # Explicitly import all models to ensure they're registered in metadata
+    # This is critical for models that might not be imported elsewhere
+    from core.models import (  # noqa: F401
+        User,
+        Recipe,
+        Meal,
+        FoodItem,
+        ContextEntry,
+    )
 
     metadata = Base.metadata
 
