@@ -298,7 +298,7 @@ def update_api_key(
         # Security: Always encrypt the key before persisting anywhere
         encrypted_key: str | None = None
         try:
-            encrypted_key = encrypt_value(api_key)  # type: ignore[misc]
+            encrypted_key = encrypt_value(api_key)
             if encrypted_key is None or not encrypted_key.startswith("encrypted:"):
                 logger.error("Encryption failed: output does not start with 'encrypted:'")
                 print("❌ Encryption failed: invalid output format")
