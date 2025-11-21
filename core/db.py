@@ -491,6 +491,9 @@ def init_db() -> None:
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
+    # Explicitly import ContextEntry to ensure it's registered in metadata
+    from core.models import ContextEntry  # noqa: F401
+
     metadata = Base.metadata
     create_all = metadata.create_all
 
@@ -520,6 +523,9 @@ def init_db() -> None:
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""
     import core.models  # noqa: F401  # pylint: disable=unused-import
+
+    # Explicitly import ContextEntry to ensure it's registered in metadata
+    from core.models import ContextEntry  # noqa: F401
 
     metadata = Base.metadata
 
