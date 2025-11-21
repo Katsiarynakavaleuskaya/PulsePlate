@@ -150,6 +150,10 @@ class DatabaseUpdateScheduler:
         # Close update manager
         await self.update_manager.close()
 
+        # Clear references after shutdown for clean reuse/testing
+        self._update_task = None
+        self._loop = None
+
         logger.info("Database update scheduler stopped")
 
     async def _update_loop(self) -> None:
@@ -324,9 +328,16 @@ async def start_background_updates(update_interval_hours: int = 24) -> None:
     EN: Start background database updates.
 
     Args:
-        update_interval_hours: Интервал обновления в часах.
+        update_interval_hours: Интервал обновления в часах (используется при первом создании).
     """
     scheduler = await get_update_scheduler(update_interval_hours=update_interval_hours)
+    requested_interval = timedelta(hours=update_interval_hours)
+    if scheduler.update_interval != requested_interval:
+        logger.warning(
+            "Update scheduler already initialized with interval %s; requested %s will be ignored",
+            scheduler.update_interval,
+            requested_interval,
+        )
     if not scheduler.is_running:
         await scheduler.start()
         logger.info(f"Background database updates started (every {update_interval_hours}h)")

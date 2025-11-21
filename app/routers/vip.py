@@ -467,13 +467,37 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
         logging.error("Failed to import core.recipe_synth.synthesize_recipes_for_week")
         return None
 
-    # Cast needed: adapter receives object types but synthesize_recipes_for_week expects Dict and int
-    # Safe cast because adapter pattern validates input before calling actual function
-    if args and len(args) >= 1 and isinstance(args[0], dict):
-        week_plan = args[0]
-        recipes_per_day = args[1] if len(args) > 1 and isinstance(args[1], int) else 1
-        return synthesize_recipes_for_week(week_plan, recipes_per_day)
-    return None
+    week_plan: Optional[dict[str, Any]] = None
+    extra_args: list[object] = []
+
+    if args:
+        if isinstance(args[0], dict):
+            week_plan = args[0]
+            extra_args = list(args[1:])
+        else:
+            raise ValueError("First argument must be a dict representing week plan")
+    elif "week_plan" in kwargs and isinstance(kwargs["week_plan"], dict):
+        week_plan = kwargs["week_plan"]
+    else:
+        return None
+
+    recipes_arg: object | None = None
+    if extra_args:
+        recipes_arg = extra_args[0]
+    elif "recipes_per_day" in kwargs:
+        recipes_arg = kwargs["recipes_per_day"]
+
+    if recipes_arg is None:
+        recipes_per_day = 1
+    else:
+        try:
+            recipes_per_day = int(recipes_arg)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid recipes_per_day value: {recipes_arg!r}") from exc
+        if recipes_per_day <= 0:
+            raise ValueError("recipes_per_day must be positive")
+
+    return synthesize_recipes_for_week(week_plan, recipes_per_day)
 
 
 def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:

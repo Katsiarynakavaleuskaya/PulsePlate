@@ -18,10 +18,20 @@ depends_on = None
 
 def upgrade() -> None:
     """Create context table with indexes."""
+    bind = op.get_bind()
+    updated_at_column = sa.Column(
+        "updated_at",
+        sa.DateTime(timezone=True),
+        server_default=sa.func.now(),
+        nullable=False,
+    )
+    if bind.dialect.name == "mysql":
+        updated_at_column.server_onupdate = sa.func.now()
+
     op.create_table(
         "context",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True, nullable=False),
-        sa.Column("slug", sa.String(length=255), nullable=False, unique=True),
+        sa.Column("slug", sa.String(length=255), nullable=False),
         sa.Column("title", sa.String(length=255), nullable=False),
         sa.Column("locale", sa.String(length=10), nullable=False, server_default="en"),
         sa.Column("content", sa.Text(), nullable=False),
@@ -32,13 +42,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
             nullable=False,
         ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
-            server_onupdate=sa.func.now(),
-            nullable=False,
-        ),
+        updated_at_column,
     )
     op.create_index("ix_context_slug", "context", ["slug"], unique=True)
     op.create_index("ix_context_locale", "context", ["locale"])
