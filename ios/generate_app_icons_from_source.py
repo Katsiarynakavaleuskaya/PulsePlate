@@ -7,11 +7,12 @@ App Icon Generator from Source Image
 import argparse
 import os
 import sys
+from typing import Dict
 
 from PIL import Image
 
 
-def resize_icon(source_path, output_dir, filename, size):
+def resize_icon(source_path: str, output_dir: str, filename: str, size: int) -> bool:
     """Создает иконку нужного размера из исходного изображения"""
     try:
         # Загружаем исходное изображение
@@ -35,11 +36,11 @@ def resize_icon(source_path, output_dir, filename, size):
         return False
 
 
-def generate_all_icons_from_source(source_path):
+def generate_all_icons_from_source(source_path: str) -> bool:
     """Генерирует все необходимые размеры иконок из исходного изображения"""
 
     # Размеры для iOS (в пикселях)
-    icon_sizes = {
+    icon_sizes: Dict[str, int] = {
         # iPhone
         "AppIcon-20@2x.png": 40,  # 20x20 @2x
         "AppIcon-20@3x.png": 60,  # 20x20 @3x
@@ -85,7 +86,7 @@ def generate_all_icons_from_source(source_path):
     return success_count == total_count
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Генератор иконок iOS из исходного изображения")
     parser.add_argument("source", help="Путь к исходному изображению (PNG, JPG)")
 

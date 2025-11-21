@@ -309,43 +309,6 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
         return raw_key
 
-    # Handle missing API key based on environment and configuration
-    # Note: raw_key is guaranteed to be None here since we already handled it above
-    if not raw_key:
-        if is_production and not allow_anonymous:
-            # Fail fast in production with clear error
-            error_msg = "API key required in production environment"
-            _log_api_key_event(
-                "VIP endpoint accessed without API key in production mode.", is_production, app_env
-            )
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
-        elif allow_anonymous and not is_production:
-            # Explicitly allowed anonymous access (non-production only)
-            _log_api_key_event(
-                "VIP endpoint accessed with anonymous API key. ALLOW_ANONYMOUS_API_KEYS: true",
-                is_production,
-                app_env,
-            )
-            return "anonymous"
-        else:
-            # Development mode fallback (non-production) — respect explicit disallow
-            _anon_flag2 = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
-            _explicit_false2 = isinstance(_anon_flag2, str) and _anon_flag2.lower() in {
-                "false",
-                "0",
-                "no",
-                "off",
-            }
-            if not is_production and not _explicit_false2:
-                _log_api_key_event(
-                    "VIP endpoint accessed without API key in development mode.",
-                    is_production,
-                    app_env,
-                )
-                return TEST_KEY
-            error_msg = "API key required"
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
-
     return raw_key
 
 
@@ -652,29 +615,56 @@ async def weekly_menu_plan_alias(
         # Type-safe conversion from WeeklyPlanRequest to UserProfile
         # The WeeklyPlanRequest and UserProfile use identical Literal types,
         # Validate required fields are present
-        if not all(
-            [
-                request.sex,
-                request.age,
-                request.height_cm,
-                request.weight_kg,
-                request.activity,
-                request.goal,
-            ]
-        ):
+        required_fields = {
+            "sex": request.sex,
+            "age": request.age,
+            "height_cm": request.height_cm,
+            "weight_kg": request.weight_kg,
+            "activity": request.activity,
+            "goal": request.goal,
+        }
+        missing = [name for name, value in required_fields.items() if value is None]
+        if missing:
             raise HTTPException(
                 status_code=422,
-                detail="Missing required fields: sex, age, height_cm, weight_kg, activity, goal",
+                detail=(
+                    "Missing required fields: "
+                    + ", ".join(sorted(missing))
+                    + ". Provide core profile data or alternative calorie/protein inputs."
+                ),
             )
 
-        # so we can safely convert the values directly
+        sex = required_fields["sex"]
+        age = required_fields["age"]
+        height_cm = required_fields["height_cm"]
+        weight_kg = required_fields["weight_kg"]
+        activity_value = required_fields["activity"]
+        goal_value = required_fields["goal"]
+
+        if (
+            sex is None
+            or age is None
+            or height_cm is None
+            or weight_kg is None
+            or activity_value is None
+            or goal_value is None
+        ):
+            # Defensive check; should not happen because we raised above
+            raise HTTPException(
+                status_code=422,
+                detail="Missing required fields after validation.",
+            )
+
+        # Required fields validated above, so we can safely use the provided values
         profile = UserProfile(
-            sex=request.sex or "male",
-            age=request.age or 30,
-            height_cm=request.height_cm or 175.0,
-            weight_kg=request.weight_kg or 70.0,
-            activity=request.activity or "moderate",
-            goal=request.goal or "maintain",
+            sex=cast(Literal["female", "male"], sex),
+            age=age,
+            height_cm=height_cm,
+            weight_kg=weight_kg,
+            activity=cast(
+                Literal["sedentary", "light", "moderate", "active", "very_active"], activity_value
+            ),
+            goal=cast(Literal["loss", "maintain", "gain"], goal_value),
         )
 
         plan = make_weekly_menu(profile=profile)
@@ -1159,18 +1149,7 @@ async def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, An
         Синтезированный рецепт
     """
     # Always use echo mode for now to fix tests
-    return {
-        "status": "success",
-        "echo": request,
-        "recipe": {
-            "recipe_id": "echo_recipe_123",
-            "name": "Echo Recipe",
-            "title": "Echo Recipe",
-            "ingredients": request.get("ingredients", []),
-            "steps": ["Step 1: Prepare ingredients", "Step 2: Combine and cook"],
-        },
-        "message": "Recipe synthesis in echo mode",
-    }
+    return _build_echo_recipe_response(request)
 
 
 @router.post(
@@ -1179,20 +1158,7 @@ async def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, An
 )
 async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     """Alias for singular recipe synthesis endpoint."""
-    # Reuse the same logic as synthesize_recipe endpoint
-    # Cannot call synthesize_recipe directly as it's a FastAPI endpoint function
-    return {
-        "status": "success",
-        "echo": request,
-        "recipe": {
-            "recipe_id": "echo_recipe_123",
-            "name": "Echo Recipe",
-            "title": "Echo Recipe",
-            "ingredients": request.get("ingredients", []),
-            "steps": ["Step 1: Prepare ingredients", "Step 2: Combine and cook"],
-        },
-        "message": "Recipe synthesis in echo mode",
-    }
+    return _build_echo_recipe_response(request)
 
 
 @router.post(
@@ -1535,3 +1501,19 @@ async def get_repair_strategies() -> Dict[str, Any]:
             "message": f"Error retrieving strategies: {str(e)}",
             "strategies": [],
         }
+
+
+def _build_echo_recipe_response(request: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a deterministic echo response used by recipe synthesis endpoints."""
+    return {
+        "status": "success",
+        "echo": request,
+        "recipe": {
+            "recipe_id": "echo_recipe_123",
+            "name": "Echo Recipe",
+            "title": "Echo Recipe",
+            "ingredients": request.get("ingredients", []),
+            "steps": ["Step 1: Prepare ingredients", "Step 2: Combine and cook"],
+        },
+        "message": "Recipe synthesis in echo mode",
+    }

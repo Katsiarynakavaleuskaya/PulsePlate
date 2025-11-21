@@ -445,7 +445,7 @@ def pytest_runtest_teardown(item: Item, nextitem: Item | None) -> None:
         item.config.bayesian_plugin.pytest_runtest_teardown(item, nextitem)
 
 
-def pytest_runtest_logreport(report: Any) -> None:
+def pytest_runtest_logreport(report: TestReport) -> None:
     """Хук для отчета о тесте."""
     report_config = getattr(report, "config", None)
     if report_config is None:

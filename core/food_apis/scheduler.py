@@ -88,7 +88,10 @@ class DatabaseUpdateScheduler:
     async def _handle_signal_shutdown(self) -> None:
         """Handle shutdown initiated from signal handler."""
         logger.info("Handling signal-initiated shutdown...")
-        await self.stop()
+        try:
+            await self.stop()
+        except Exception:
+            logger.exception("Error while handling signal-initiated shutdown")
 
     async def start(self) -> None:
         """

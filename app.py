@@ -1294,7 +1294,24 @@ async def cleanup_expired_logs(
         Dictionary with cleanup results
     """
     retention_manager = get_retention_manager()
-    deleted_count = retention_manager.cleanup_expired_logs(data_class=data_class)
+
+    # Map input string to DataClass Enum if provided, else None.
+    data_class_enum = None
+    if data_class is not None:
+        from .models import DataClass  # adjust import according to project structure
+
+        try:
+            data_class_enum = DataClass(data_class)
+        except ValueError:
+            return {
+                "status": "error",
+                "deleted_files": 0,
+                "data_class": data_class,
+                "message": f"Invalid data_class: '{data_class}'. Must be one of: "
+                f"{', '.join([e.value for e in DataClass])}",
+            }
+
+    deleted_count = retention_manager.cleanup_expired_logs(data_class=data_class_enum)
 
     return {
         "status": "success",

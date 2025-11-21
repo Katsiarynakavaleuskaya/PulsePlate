@@ -143,20 +143,18 @@ exclude_lines = [
 fail_under = 97
 
 [tool.ruff.lint]
-select = ["E", "W", "F"]
-# Temporarily disable repo-wide ANN enforcement; re-enable when annotations are complete.
+select = ["E", "W", "F", "ANN"]
 ignore = [
     "E402",  # Module level import not at top of file
     "E501",  # Line too long
     "F811",  # Redefinition of unused variable
     "F401",  # Imported but unused
     "F841",  # Local variable assigned but never used
-    "ANN101",  # Missing type annotation for self in method
-    "ANN102",  # Missing type annotation for cls in classmethod
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["E402", "F811", "F401", "F841", "ANN201"]  # ANN201: Missing return type annotation for public function
+"tests/**/*.py" = ["E402", "F811", "F401", "F841", "ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN401"]
+"tests_strict/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "ANN204", "ANN205", "ANN401"]
 "scripts/*.py" = ["E402", "ANN201"]
 "releases/**/*.py" = ["E402", "ANN201"]
 

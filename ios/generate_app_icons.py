@@ -6,11 +6,12 @@ App Icon Generator for PulsePlate
 
 import os
 import sys
+from typing import Dict
 
 from PIL import Image, ImageDraw
 
 
-def create_pulseplate_icon(size):
+def create_pulseplate_icon(size: int) -> Image.Image:
     """Создает иконку PulsePlate с заданным размером"""
     # Создаем изображение с прозрачным фоном
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
@@ -80,11 +81,11 @@ def create_pulseplate_icon(size):
     return img
 
 
-def generate_all_icons():
+def generate_all_icons() -> bool:
     """Генерирует все необходимые размеры иконок"""
 
     # Размеры для iOS (в пикселях)
-    icon_sizes = {
+    icon_sizes: Dict[str, int] = {
         # iPhone
         "AppIcon-20@2x.png": 40,  # 20x20 @2x
         "AppIcon-20@3x.png": 60,  # 20x20 @3x

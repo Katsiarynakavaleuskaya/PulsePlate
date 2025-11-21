@@ -120,14 +120,14 @@ def _coerce_side_effect(side_effect: object) -> Callable[..., Any]:
 
     if isinstance(side_effect, type) and issubclass(side_effect, BaseException):
 
-        def _raise_from_type(*_args: Any, **_kwargs: Any) -> None:
+        def _raise_from_type(*_args: object, **_kwargs: object) -> None:
             raise side_effect()
 
         return _raise_from_type
 
     if isinstance(side_effect, BaseException):
 
-        def _raise_from_instance(*_args: Any, **_kwargs: Any) -> None:
+        def _raise_from_instance(*_args: object, **_kwargs: object) -> None:
             raise side_effect
 
         return _raise_from_instance
@@ -229,6 +229,7 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
         # Verify initialization succeeded by checking if tables exist
         from sqlalchemy import inspect
 
+        missing_tables: list[str] = []
         with core_db.session_scope() as session:
             inspector = inspect(session.get_bind())
             tables = inspector.get_table_names()
@@ -241,8 +242,12 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
                     f"Required tables missing: {missing_tables}. "
                     f"Attempting to initialize database..."
                 )
-                core_db.init_db()
-                # Re-check after initialization
+
+        # Initialize outside of session context
+        if missing_tables:
+            core_db.init_db()
+            # Re-check after initialization in a new session
+            with core_db.session_scope() as session:
                 inspector = inspect(session.get_bind())
                 tables = inspector.get_table_names()
                 missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
@@ -252,7 +257,9 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
                         f"Found tables: {tables}. "
                         f"Database URL: {core_db.DATABASE_URL}"
                     )
-
+                tables_str = ", ".join(tables)
+                logging.info(f"✅ Database verified with {len(tables)} tables: {tables_str}")
+        else:
             tables_str = ", ".join(tables)
             logging.info(f"✅ Database verified with {len(tables)} tables: {tables_str}")
 

@@ -57,8 +57,10 @@ def _safe_float(value: FloatConvertible) -> float:
 
     RU: Безопасное приведение к float; возвращает 0.0 для None/нечисловых значений.
     """
+    if value is None:
+        return 0.0
     try:
-        return float(value)  # type: ignore[arg-type]
+        return float(value)
     except (TypeError, ValueError):
         return 0.0
 
@@ -395,6 +397,14 @@ def _validate_pagination_params(limit: int | str, offset: int | str) -> tuple[in
     return limit, offset
 
 
+def _escape_fts_term(term: str) -> str:
+    """Escape term for use inside an SQLite FTS MATCH literal."""
+    if not term:
+        return '""'
+    sanitized = term.replace('"', '""')
+    return f'"{sanitized}"'
+
+
 def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> list[dict[str, Any]]:
     """Search foods via FTS; parameters are safely bound using placeholders."""
     # Validate and normalize pagination parameters
@@ -403,7 +413,8 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> li
     params: list[Any] = []
     if terms:
         # Build a single FTS query string using OR to match any expanded term.
-        fts_query = " OR ".join(terms)
+        escaped_terms = [_escape_fts_term(term) for term in terms if term]
+        fts_query = " OR ".join(escaped_terms) if escaped_terms else '""'
         sql = """
           SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
           FROM foods f

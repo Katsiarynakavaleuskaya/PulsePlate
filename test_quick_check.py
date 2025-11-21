@@ -29,4 +29,5 @@ def test_quick_llm_import_smoke() -> None:
     import llm
 
     m = importlib.reload(llm)
-    assert m.get_provider() is None  # nosec B101 - test shim ensures deterministic behavior
+    # Placeholder assertion for shim module; expected None when provider=none
+    assert m.get_provider() is None  # nosec B101
