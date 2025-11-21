@@ -145,6 +145,7 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          COVERAGE_CONTEXT: "disabled"
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
@@ -239,6 +240,7 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          COVERAGE_CONTEXT: "disabled"
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
@@ -331,6 +333,7 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          COVERAGE_CONTEXT: "disabled"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
