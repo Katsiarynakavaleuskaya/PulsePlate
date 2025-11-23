@@ -644,6 +644,7 @@ def run():
 
 def test_run_tests_fast_fallback_logging(monkeypatch: pytest.MonkeyPatch) -> None:
     """RU/EN: Ensure fallback path when extracting failed tests triggers logging."""
+    monkeypatch.setenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "0")
 
     class BadLine(str):
         def split(self, sep=None):
@@ -683,7 +684,10 @@ def test_run_tests_fast_fallback_logging(monkeypatch: pytest.MonkeyPatch) -> Non
     def fake_warning(msg, exc_info=False):
         warnings.append(msg)
 
-    monkeypatch.setattr("subprocess.run", fake_run)
+    def fake_runner(*args, **kwargs):
+        return 1, BadString("FAILED tests/test_demo.py::test_example - AssertionError\n")
+
+    monkeypatch.setattr(run_tests_bayesian, "_run_pytest_with_timeout", fake_runner)
     monkeypatch.setattr(run_tests_bayesian.logging, "warning", fake_warning)
 
     result = run_tests_bayesian.run_tests_fast()

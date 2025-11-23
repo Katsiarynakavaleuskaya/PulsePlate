@@ -76,6 +76,14 @@ def run_tests_fast() -> dict[str, Any]:
     print("⚡ Быстрый запуск тестов (без кеш-файлов)...")
     print("=" * 60)
 
+    # Avoid re-entrant full pytest run when this utility is called from inside an active pytest
+    # session (e.g., during unit tests). Override with RUN_TESTS_BAYESIAN_SKIP_NESTED=0.
+    if os.getenv("PYTEST_CURRENT_TEST") and os.getenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "1") != "0":
+        logging.warning(
+            "Skipping nested pytest invocation inside tests (set RUN_TESTS_BAYESIAN_SKIP_NESTED=0 to override)"
+        )
+        return {"success": True, "failed_tests": [], "output": "skipped (nested pytest)", "returncode": 0}
+
     # Очищаем кеш перед запуском
     clean_cache()
 
