@@ -15,9 +15,6 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
 from fastapi.security import APIKeyHeader  # pyright: ignore[reportMissingImports]
 
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
-
-# get_api_key is defined in app.py, not app.dependencies
-# We use _require_api_key_strict instead which is already defined in this module
 from app.schemas.vip import ErrorResponse, WeeklyPlanRequest, WeeklyPlanResponse
 from core.recipe_synth import RecipeSynthesizer
 from core.targets import MicronutrientTargets, UserProfile
@@ -956,45 +953,10 @@ async def search_region_products(
             "region": region,
         }
     ]
-    current_test = os.getenv("PYTEST_CURRENT_TEST", "")
-    if "test_vip_region_search_error_coverage" in current_test:
-        return {
-            "status": "error",
-            "message": "Search error: provider unavailable",
-            "region": region,
-            "query": query,
-            "products": [],
-        }
-    provider = globals().get("search_products")
-    try:
-        import app.routers.vip as _vip_mod
-
-        provider = getattr(_vip_mod, "search_products", provider)
-    except Exception:
-        provider = provider
-
-    side_effect = getattr(provider, "side_effect", None)
-    if side_effect:
-        try:
-            raise side_effect
-        except Exception as e:
-            return {
-                "status": "error",
-                "message": f"Error searching products: {str(e)}",
-                "region": region,
-                "query": query,
-                "products": [],
-            }
+    # Resolve provider via dependency - can be overridden in tests via app.dependency_overrides
+    provider = search_products
 
     if provider is None or not callable(provider):
-        if os.getenv("PYTEST_CURRENT_TEST") and not category:
-            return {
-                "status": "error",
-                "message": "Search error: provider unavailable",
-                "region": region,
-                "query": query,
-                "products": [],
-            }
         # Graceful echo-mode: succeed with empty results when provider unavailable
         return {
             "status": "success",
@@ -1083,10 +1045,11 @@ async def search_region_products(
             "returned_count": len(products_data),
             "message": f"Found {total_count} products in {region}",
         }
-    except Exception as e:
+    except Exception:
         return {
             "status": "error",
-            "message": f"Error searching products: {str(e)}",
+            # Generic message only; avoid exposing internal exception details
+            "message": "Error searching products",
             "region": region,
             "query": query,
             "products": [],
@@ -1108,15 +1071,7 @@ async def get_region_categories(region: str) -> Dict[str, Any]:
     Returns:
         Список категорий
     """
-    current_test = os.getenv("PYTEST_CURRENT_TEST", "")
-    if "test_vip_region_categories_error_coverage" in current_test:
-        return {
-            "status": "error",
-            "message": "Categories error (forced for coverage)",
-            "region": region,
-            "categories": [],
-        }
-    if get_region_catalog is None:
+    if get_region_catalog is None or not callable(get_region_catalog):
         return {
             "status": "error",
             "message": "Region catalog module not available",
@@ -1158,15 +1113,7 @@ async def get_region_stores(region: str) -> Dict[str, Any]:
     Returns:
         Список торговых сетей
     """
-    current_test = os.getenv("PYTEST_CURRENT_TEST", "")
-    if "test_vip_region_stores_error_coverage" in current_test:
-        return {
-            "status": "error",
-            "message": "Stores error (forced for coverage)",
-            "region": region,
-            "stores": [],
-        }
-    if get_region_catalog is None:
+    if get_region_catalog is None or not callable(get_region_catalog):
         return {
             "status": "error",
             "message": "Region catalog module not available",
@@ -1209,16 +1156,7 @@ async def compare_product_prices(product_name: str, regions: str = "es,us") -> D
     Returns:
         Сравнение цен по регионам
     """
-    current_test = os.getenv("PYTEST_CURRENT_TEST", "")
-    if "test_vip_price_comparison_error_coverage" in current_test:
-        return {
-            "status": "error",
-            "message": "Price error (forced for coverage)",
-            "comparison": {},
-            "product_name": product_name,
-            "regions": regions.split(","),
-        }
-    if get_price_comparison is None:
+    if get_price_comparison is None or not callable(get_price_comparison):
         return {
             "status": "error",
             "message": "Region catalog module not available",
@@ -1594,13 +1532,6 @@ async def get_repair_strategies() -> Dict[str, Any]:
     Returns:
         Список доступных стратегий
     """
-    current_test = os.getenv("PYTEST_CURRENT_TEST", "")
-    if "test_vip_auto_repair_strategies_error_coverage" in current_test:
-        return {
-            "status": "error",
-            "message": "Auto-repair module not available (forced for coverage)",
-            "strategies": [],
-        }
     if RepairStrategy is None:
         return {
             "status": "error",

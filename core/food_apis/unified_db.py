@@ -171,10 +171,9 @@ class UnifiedFoodDatabase:
         """Save cached food items to disk."""
         try:
             # Optional throttle via env (milliseconds)
-            import os as _os
             import time as _time
 
-            ms = int(_os.getenv("UNIFIED_DB_SAVE_THROTTLE_MS", "0"))
+            ms = int(os.getenv("UNIFIED_DB_SAVE_THROTTLE_MS", "0"))
             if ms > 0:
                 last_save_ts = getattr(self, "_last_save_ts", None)
                 if last_save_ts is not None:
@@ -327,10 +326,8 @@ class UnifiedFoodDatabase:
         foods_db = {}
 
         # Optional sleep override for faster tests
-        import os as _os
-
-        default_sleep_ms = "0" if _os.getenv("APP_ENV", "").lower() in {"test", "ci"} else "100"
-        _sleep_ms = int(_os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", default_sleep_ms))
+        default_sleep_ms = "0" if os.getenv("APP_ENV", "").lower() in {"test", "ci"} else "100"
+        _sleep_ms = int(os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", default_sleep_ms))
 
         for standard_name, search_query in common_searches.items():
             try:

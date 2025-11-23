@@ -1008,6 +1008,10 @@ class DatabaseUpdateManager:
 
     async def close(self) -> None:
         """Close all connections."""
+        # Idempotency guard: return immediately if already closed
+        if self.closed:
+            return
+
         close_tasks = [self.usda_client.close(), self.unified_db.close()]
         if self.off_client and OFF_AVAILABLE:
             close_tasks.append(self.off_client.close())
