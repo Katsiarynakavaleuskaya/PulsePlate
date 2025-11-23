@@ -72,10 +72,10 @@ class FakeEngine:
 class TestDbMissingLinesCoverage:
     """Test specific missing lines in core/db.py"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         Faker.seed(42)
 
-    def test_engine_compat_execute_commit_exception_lines_56_65(self):
+    def test_engine_compat_execute_commit_exception_lines_56_65(self) -> None:
         """Test lines 56-65: exception handling in EngineCompat.execute()"""
         try:
             from core.db import EngineCompat
@@ -90,7 +90,7 @@ class TestDbMissingLinesCoverage:
             fake_engine = FakeEngine(fake_conn)
 
             # Create EngineCompat instance
-            engine_compat = EngineCompat(fake_engine)
+            engine_compat = EngineCompat(fake_engine)  # type: ignore[arg-type]
 
             # Execute a statement - should re-raise commit exception
             with pytest.raises(SQLAlchemyError, match="Commit failed"):
@@ -104,7 +104,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_engine_compat_execute_with_string_statement(self):
+    def test_engine_compat_execute_with_string_statement(self) -> None:
         """Test EngineCompat.execute with string statement conversion"""
         try:
             from core.db import EngineCompat
@@ -119,7 +119,7 @@ class TestDbMissingLinesCoverage:
             fake_engine = FakeEngine(fake_conn)
 
             # Create EngineCompat instance
-            engine_compat = EngineCompat(fake_engine)
+            engine_compat = EngineCompat(fake_engine)  # type: ignore[arg-type]
 
             # Test with string statement (should convert to text())
             result = engine_compat.execute("SELECT * FROM users")
@@ -136,7 +136,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_engine_compat_execute_different_exception_types(self):
+    def test_engine_compat_execute_different_exception_types(self) -> None:
         """Test different types of exceptions in commit"""
         try:
             from core.db import EngineCompat
@@ -158,7 +158,7 @@ class TestDbMissingLinesCoverage:
                 )
                 fake_engine = FakeEngine(fake_conn)
 
-                engine_compat = EngineCompat(fake_engine)
+                engine_compat = EngineCompat(fake_engine)  # type: ignore[arg-type]
 
                 # Should re-raise any commit exception
                 with pytest.raises(type(exception)):
@@ -170,7 +170,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_init_db_assert_called_once_line_136(self):
+    def test_init_db_assert_called_once_line_136(self) -> None:
         """Test line 136: assert_called_once error condition in init_db()"""
         try:
             import core.db
@@ -181,12 +181,20 @@ class TestDbMissingLinesCoverage:
 
             try:
                 # Create a real function that doesn't have assert_called_once
-                def mock_create_all(*args, **kwargs):
+                def mock_create_all(*args: Any, **kwargs: Any) -> None:
                     pass
 
                 # Create metadata with this function
                 mock_metadata = Mock()
                 mock_metadata.create_all = mock_create_all
+                # Mock tables.keys() to return an iterable (for diagnostic logging)
+                mock_metadata.tables.keys.return_value = [
+                    "users",
+                    "recipes",
+                    "meals",
+                    "food_items",
+                    "context",
+                ]
 
                 # Ensure it doesn't have assert_called_once initially
                 assert not hasattr(mock_create_all, "assert_called_once")
@@ -209,7 +217,7 @@ class TestDbMissingLinesCoverage:
                 # We need to manually test the _assert_called_once function
                 called = {"value": False}
 
-                def _assert_called_once():
+                def _assert_called_once() -> None:
                     if not called["value"]:
                         raise AssertionError("create_all was not invoked")
 
@@ -229,7 +237,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_get_session_lines_90_94(self):
+    def test_get_session_lines_90_94(self) -> None:
         """Test lines 90-94: get_session dependency function"""
         try:
             from core.db import get_session
@@ -259,7 +267,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_get_session_with_exception(self):
+    def test_get_session_with_exception(self) -> None:
         """Test get_session with exception during session usage"""
         try:
             from core.db import get_session
@@ -284,7 +292,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_init_db_metadata_wrapping_behavior(self):
+    def test_init_db_metadata_wrapping_behavior(self) -> None:
         """Test the metadata wrapping behavior in init_db"""
         try:
             import core.db
@@ -295,9 +303,16 @@ class TestDbMissingLinesCoverage:
             try:
                 # Test with metadata that already has assert_called_once
                 mock_metadata = Mock()
-                mock_create_all = Mock()
-                mock_create_all.assert_called_once = Mock()  # Already has it
+                mock_create_all = Mock()  # Mock already has assert_called_once method
                 mock_metadata.create_all = mock_create_all
+                # Mock tables.keys() to return an iterable (for diagnostic logging)
+                mock_metadata.tables.keys.return_value = [
+                    "users",
+                    "recipes",
+                    "meals",
+                    "food_items",
+                    "context",
+                ]
 
                 core.db.Base.metadata = mock_metadata
 
@@ -313,7 +328,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_engine_compat_getattr_delegation(self):
+    def test_engine_compat_getattr_delegation(self) -> None:
         """Test EngineCompat.__getattr__ delegation"""
         try:
             from core.db import EngineCompat
@@ -334,7 +349,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_comprehensive_database_edge_cases(self):
+    def test_comprehensive_database_edge_cases(self) -> None:
         """Test comprehensive database edge cases with faker data"""
         try:
             from core.db import EngineCompat, get_session, session_scope
@@ -348,8 +363,7 @@ class TestDbMissingLinesCoverage:
             with patch("core.db.SessionLocal", mock_session_class):
                 with session_scope() as session:
                     assert session == mock_session
-                    # Simulate some work
-                    session.query = Mock()
+                    # Simulate some work (mock already provides query attribute)
 
                 # Should have committed and closed
                 mock_session.commit.assert_called_once()
@@ -362,7 +376,7 @@ class TestDbMissingLinesCoverage:
             with patch("core.db.SessionLocal", mock_session_class):
                 with pytest.raises(Exception, match="Database error"):
                     with session_scope() as session:
-                        session.query = Mock()
+                        # Simulate some work (mock already provides query attribute)
                         raise Exception("Database error")
 
                 # Should have rolled back and closed
@@ -372,7 +386,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_database_url_building_edge_cases(self):
+    def test_database_url_building_edge_cases(self) -> None:
         """Test database URL building with different environments"""
         try:
             from core.db import _build_engine_url, _sqlite_connect_args
@@ -398,7 +412,7 @@ class TestDbMissingLinesCoverage:
         except ImportError:
             pass
 
-    def test_engine_compat_execute_with_args_kwargs(self):
+    def test_engine_compat_execute_with_args_kwargs(self) -> None:
         """Test EngineCompat.execute with various args and kwargs"""
         try:
             from core.db import EngineCompat
@@ -409,7 +423,7 @@ class TestDbMissingLinesCoverage:
             class TrackingFakeConnection(FakeConnection):
                 """Fake connection that tracks execute call arguments."""
 
-                def __init__(self, *args, **kwargs) -> None:
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
                     super().__init__(*args, **kwargs)
                     self._execute_args: Tuple[Any, ...] | None = None
                     self._execute_kwargs: dict[str, Any] | None = None
@@ -426,7 +440,7 @@ class TestDbMissingLinesCoverage:
             )
             fake_engine = FakeEngine(fake_conn)
 
-            engine_compat = EngineCompat(fake_engine)
+            engine_compat = EngineCompat(fake_engine)  # type: ignore[arg-type]
 
             # Test with args and kwargs
             test_args = (fake.random_int(), fake.word())
