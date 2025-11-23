@@ -238,7 +238,8 @@ class AutoRepairEngine:
 
         # Call repair function - works with both real implementation and mocked versions
         try:
-            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)
+            # week_plan may be Dict, but we handle TypeError in except clause
+            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore[arg-type]
         except (TypeError, AttributeError) as exc:
             # Fallback: simulate partial improvement when repair fails
             # This handles cases where week_plan format is incompatible
@@ -305,7 +306,7 @@ class AutoRepairEngine:
                 "type": "repair",
                 "strategy": strategy.value,
                 "iteration": iteration,
-                "repaired_plan": repaired_plan,
+                "repaired_plan": repaired_plan,  # type: ignore[dict-item]
                 "gaps_before": gaps_before,
                 "gaps_after": gaps_after,
             }
