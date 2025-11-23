@@ -4,45 +4,40 @@
 Исключает кеш-файлы из покрытия для ускорения.
 """
 
-import contextlib
-import io
 import logging
 import os
 import shutil
 import sys
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any
+import subprocess
 
 # Package should be installed in editable mode (pip install -e .)
 # or PYTHONPATH should be set in the environment
 from core.comprehensive_bayesian_analyzer import ComprehensiveBayesianAnalyzer
-import pytest
 
 project_root = Path(__file__).parent.parent
 
 
 def _run_pytest_with_timeout(args: list[str], timeout: int) -> tuple[int, str]:
-    """Run pytest inside a worker thread with stdout/err capture and timeout."""
-
-    def _invoke_pytest() -> tuple[int, str]:
-        buffer = io.StringIO()
-        prev_cwd = Path.cwd()
-        try:
-            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
-                os.chdir(project_root)
-                exit_code = pytest.main(args)
-        finally:
-            os.chdir(prev_cwd)
-        return exit_code, buffer.getvalue()
-
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_invoke_pytest)
-        try:
-            return future.result(timeout=timeout)
-        except FuturesTimeoutError as exc:
-            future.cancel()
-            raise TimeoutError("Pytest run exceeded timeout") from exc
+    """Запускает pytest с таймаутом, возвращая код возврата и вывод."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", *args],
+            capture_output=True,
+            text=True,
+            cwd=project_root,
+            timeout=timeout,
+        )
+        output_parts = []
+        if result.stdout:
+            output_parts.append(result.stdout.strip())
+        if result.stderr:
+            output_parts.append(result.stderr.strip())
+        output = "\n".join(part for part in output_parts if part)
+        return result.returncode, output
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError("Pytest run exceeded timeout") from exc
 
 
 def clean_cache() -> None:
@@ -75,19 +70,6 @@ def run_tests_fast() -> dict[str, Any]:
     """Запускает тесты быстро с исключением кеш-файлов."""
     print("⚡ Быстрый запуск тестов (без кеш-файлов)...")
     print("=" * 60)
-
-    # Avoid re-entrant full pytest run when this utility is called from inside an active pytest
-    # session (e.g., during unit tests). Override with RUN_TESTS_BAYESIAN_SKIP_NESTED=0.
-    if os.getenv("PYTEST_CURRENT_TEST") and os.getenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "1") != "0":
-        logging.warning(
-            "Skipping nested pytest invocation inside tests (set RUN_TESTS_BAYESIAN_SKIP_NESTED=0 to override)"
-        )
-        return {
-            "success": True,
-            "failed_tests": [],
-            "output": "skipped (nested pytest)",
-            "returncode": 0,
-        }
 
     # Очищаем кеш перед запуском
     clean_cache()
