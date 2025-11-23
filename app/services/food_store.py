@@ -453,13 +453,14 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> li
         else:
             escaped_terms = [t.replace('"', '""') for t in terms if t]
             placeholders = " OR ".join("?" for _ in escaped_terms) if escaped_terms else '""'
-            sql = f"""
-              SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
-              FROM foods f
-              JOIN foods_fts ff ON ff.rowid = f.rowid
-              WHERE ff.canonical_name MATCH {placeholders}
-              LIMIT ? OFFSET ?
-            """
+            # Build SQL with placeholders - safe because placeholders contains only "?" chars
+            sql = (
+                "SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g "
+                "FROM foods f "
+                "JOIN foods_fts ff ON ff.rowid = f.rowid "
+                f"WHERE ff.canonical_name MATCH {placeholders} "  # nosec B608
+                "LIMIT ? OFFSET ?"
+            )
             params = [*escaped_terms, limit, offset]
     else:
         sql = (

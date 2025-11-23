@@ -163,9 +163,9 @@ def _should_use_mock_food_db() -> bool:
         import core.menu_engine as _me
 
         logger = getattr(_me, "_logger", logger)
-    except Exception:
+    except Exception as e:
         # Best-effort logger resolution; fall back to existing logger if import fails.
-        pass
+        logger.debug("Failed to resolve logger from module: %s", e)
     flag = os.getenv(MENU_ENGINE_FORCE_MOCK_DB)
     if flag and flag.strip().lower() in TRUTHY_ENV_VALUES:
         logger.debug("MENU_ENGINE_FORCE_MOCK_DB=%r -> using mock food DB", flag)
