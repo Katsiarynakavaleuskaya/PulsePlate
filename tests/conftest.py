@@ -72,6 +72,27 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
 
     db_module.init_db()
 
+    # Verify all required tables were created
+    from sqlalchemy import inspect
+
+    # Use _RAW_ENGINE for inspection (engine is wrapped in EngineCompat)
+    inspector = inspect(db_module._RAW_ENGINE)
+    created_tables = inspector.get_table_names()
+    required_tables = ["users", "recipes", "meals", "food_items", "context"]
+    missing_tables = [t for t in required_tables if t not in created_tables]
+    if missing_tables:
+        logger.error(
+            f"Database initialization failed! Missing tables: {missing_tables}. "
+            f"Created tables: {created_tables}"
+        )
+        raise RuntimeError(
+            f"Required tables not created: {missing_tables}. "
+            f"Database may not be properly initialized."
+        )
+    logger.info(
+        f"✅ Database verified with {len(created_tables)} tables: {', '.join(sorted(created_tables))}"
+    )
+
     if "app" in sys.modules:
         importlib.reload(sys.modules["app"])
 
