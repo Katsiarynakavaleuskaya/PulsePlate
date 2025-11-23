@@ -22,6 +22,9 @@ from .update_manager import DatabaseUpdateManager, UpdateResult
 
 logger = logging.getLogger(__name__)
 
+# Track whether signal handlers have been installed to avoid process-wide overrides
+_SIGNALS_INSTALLED = False
+
 
 class DatabaseUpdateScheduler:
     """
@@ -69,6 +72,9 @@ class DatabaseUpdateScheduler:
 
         Note: process-wide handlers assume a single scheduler instance per process.
         """
+        global _SIGNALS_INSTALLED
+        if _SIGNALS_INSTALLED:
+            return
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
@@ -89,6 +95,8 @@ class DatabaseUpdateScheduler:
             signal.signal(signal.SIGINT, signal_handler)
         except Exception as e:
             logger.warning(f"Could not setup signal handlers: {e}")
+        else:
+            _SIGNALS_INSTALLED = True
 
     def _schedule_async_shutdown(self) -> None:
         """Schedule asynchronous shutdown on the event loop thread."""
@@ -203,6 +211,8 @@ class DatabaseUpdateScheduler:
                 if has_updates:
                     await self._run_source_update(source)
 
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Error during update check: {e}")
 
@@ -227,6 +237,8 @@ class DatabaseUpdateScheduler:
                 # Handle failure
                 self._handle_update_failure(source, result.errors)
 
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             # Handle exception
             self._handle_update_failure(source, [str(e)])

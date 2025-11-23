@@ -112,5 +112,6 @@
   "github.copilot.enable": {
     "markdown": true,
     "plaintext": true
-  }
+  },
+  "chatgpt.openOnStartup": true
 }

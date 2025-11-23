@@ -7,9 +7,9 @@ App Icon Generator for PulsePlate
 import os
 import sys
 
-# Add script directory to path for imports
+# Add script directory to path only when executed as a script
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-if _script_dir not in sys.path:
+if (__package__ in (None, "")) and _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
 try:

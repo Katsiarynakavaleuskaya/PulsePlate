@@ -9,9 +9,9 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-# Add script directory to path for imports
+# Add script directory to path only when executed as a script
 _script_dir = os.path.dirname(os.path.abspath(__file__))
-if _script_dir not in sys.path:
+if (__package__ in (None, "")) and _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ except ImportError:
     from icon_constants import IOS_ICON_SIZES  # noqa: E402
 
 
-def _process_image_for_icon(img: Image.Image, size: int) -> Image.Image:
+def _process_image_for_icon(img: "Image.Image", size: int) -> "Image.Image":
     """Обрабатывает изображение для создания иконки"""
 
     # Конвертируем в RGBA если нужно
@@ -71,7 +71,7 @@ def generate_all_icons_from_source(source_path: str) -> bool:
     # Путь к папке с иконками (относительно расположения скрипта или из переменной окружения)
     env_icons_dir = os.getenv("IOS_APPICONSET_DIR")
     if env_icons_dir:
-        icons_dir = os.path.normpath(os.path.abspath(env_icons_dir))
+        icons_dir = os.path.normpath(os.path.abspath(os.path.expanduser(env_icons_dir)))
     else:
         script_dir: str = os.path.dirname(os.path.abspath(__file__))
         icons_dir: str = os.path.join(

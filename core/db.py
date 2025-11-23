@@ -526,6 +526,28 @@ def init_db() -> None:
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
     metadata.create_all(bind=_RAW_ENGINE)
 
+    # Verify that context table was created (critical for tests)
+    from sqlalchemy import inspect
+
+    with session_scope() as session:
+        inspector = inspect(session.get_bind())
+        created_tables = inspector.get_table_names()
+        if "context" not in created_tables:
+            # Log warning and try to create context table explicitly
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "context table was not created by create_all(). "
+                "Tables created: %s. Attempting explicit creation...",
+                created_tables,
+            )
+            # Force re-import ContextEntry to ensure it's in metadata
+            from core.models import ContextEntry as _ContextEntry  # noqa: F401
+
+            # Re-create all tables to ensure context is included
+            metadata.create_all(bind=_RAW_ENGINE)
+
 
 async def init_db_async() -> None:
     """Async variant of :func:`init_db` for async engines."""

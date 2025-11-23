@@ -115,9 +115,6 @@ def _check_vip_module_enabled() -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VIP module disabled")
 
 
-# Ensure reimports via app_module keep referencing the same module object
-sys.modules.setdefault("app_module.routers.vip", sys.modules[__name__])
-
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -456,6 +453,11 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
             return make_weekly_menu(profile, **safe_kwargs)
 
         # Fallback: if not UserProfile, try to convert or return None
+        logging.warning(
+            "make_weekly_menu adapter: unable to convert args to UserProfile, "
+            "falling back to echo mode. Args types: %s",
+            [type(a).__name__ for a in args] if args else "no args",
+        )
         return None
 
 
@@ -494,7 +496,9 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
             # Explicit type conversion with validation
             # recipes_arg is object, but we validate it can be converted to int
             if isinstance(recipes_arg, (int, str)):
-                recipes_per_day = int(recipes_arg)
+                # Assign to typed variable to help mypy narrow the type
+                validated_arg: Union[int, str] = recipes_arg
+                recipes_per_day = int(validated_arg)
             else:
                 raise TypeError(
                     f"recipes_per_day must be int or str, got {type(recipes_arg).__name__}"

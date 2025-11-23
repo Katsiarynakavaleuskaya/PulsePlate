@@ -7,7 +7,7 @@ EN: Adds the context table for storing diagnostic/RAG snippets.
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
+import alembic.op as op
 
 # revision identifiers, used by Alembic.
 revision = "202501170001"
