@@ -8,7 +8,7 @@ Sprint 5: Auto-repair недели (UX-петля)
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.menu_engine import repair_week_plan
 from core.targets import MicronutrientTargets
@@ -301,12 +301,21 @@ class AutoRepairEngine:
                 success=False,
             )
 
+        # Serialize repaired plan for changes log
+        repaired_serialized: Dict[str, Any]
+        if isinstance(repaired_plan, dict):
+            repaired_serialized = repaired_plan
+        elif hasattr(repaired_plan, "__dict__"):
+            repaired_serialized = vars(repaired_plan)
+        else:
+            repaired_serialized = {"_repr": str(repaired_plan)}
+
         changes = [
             {
                 "type": "repair",
                 "strategy": strategy.value,
                 "iteration": iteration,
-                "repaired_plan": repaired_plan,  # type: ignore[dict-item]
+                "repaired_plan": repaired_serialized,
                 "gaps_before": gaps_before,
                 "gaps_after": gaps_after,
             }

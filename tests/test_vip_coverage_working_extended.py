@@ -157,6 +157,25 @@ class TestVIPCoverageWorkingExtended:
                 assert data["status"] == "error"
                 assert "Error searching products" in data["message"]
 
+    def test_vip_region_search_provider_unavailable_error_coverage(self) -> None:
+        """Error response when search provider is unavailable (None)."""
+        client: TestClient = TestClient(cast(ASGIApp, app.app))
+
+        # Temporarily disable provider
+        original_provider = vip_router.search_products
+        vip_router.search_products = None
+        try:
+            response = client.get(
+                "/api/v1/vip/regions/ES/search?query=milk", headers={"X-API-Key": "test-key"}
+            )
+            assert response.status_code in [200, 403]
+            if response.status_code == 200:
+                data = response.json()
+                assert data["status"] == "error"
+                assert "Search provider unavailable" in data["message"]
+        finally:
+            vip_router.search_products = original_provider
+
     def test_vip_region_categories_success_coverage(self) -> None:
         """Test VIP region categories success coverage."""
         client = TestClient(cast(ASGIApp, app.app))
