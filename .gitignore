@@ -361,3 +361,16 @@ ios/.build/
 frontend/tsconfig.node.tsbuildinfo
 frontend/tsconfig.node.tsbuildinfo
 bandit-report.json
+
+# MCP and Cursor AI cache files
+.cursor/.env
+.cursor/mcp.json
+.cursor/settings.json
+.cursor/*.backup.*
+mcp-cache/
+.mcp/
+*.mcp.log
+
+# Agent backups
+.github/agents/*.backup
+.github/agents/*-verbose.md.backup

@@ -2,15 +2,45 @@
 """
 MCP Server for PulsePlate Project
 Integrates ChatGPT with project-specific context
+Fixed: Added memory limits and resource management
 """
 
 import asyncio
 import json
 import os
 import sys
+import resource
+import signal
 from typing import Any, Dict
 
 import openai
+
+# Set memory limit to prevent excessive RAM usage (default: 512 MB)
+MAX_MEMORY_MB = int(os.getenv("MCP_MAX_MEMORY_MB", "512"))
+try:
+    # Set soft and hard limits for memory usage
+    resource.setrlimit(
+        resource.RLIMIT_AS,
+        (MAX_MEMORY_MB * 1024 * 1024, MAX_MEMORY_MB * 1024 * 1024)
+    )
+except (ValueError, OSError) as e:
+    # Log warning but continue - some systems don't support memory limits
+    print(f"Warning: Could not set memory limit: {e}", file=sys.stderr)
+
+# Flag for graceful shutdown
+_shutdown_flag = False
+
+
+def _signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    global _shutdown_flag
+    _shutdown_flag = True
+    print("\nReceived shutdown signal, cleaning up...", file=sys.stderr)
+
+
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGINT, _signal_handler)
+signal.signal(signal.SIGTERM, _signal_handler)
 
 
 class PulsePlateMCPServer:
@@ -136,32 +166,37 @@ class PulsePlateMCPServer:
         query = args.get("query", "")
         context = args.get("context", "")
 
-        # Build prompt with project context
-        prompt = f"""
-Project Context: {json.dumps(self.project_context, indent=2)}
+        # Build minimal prompt to reduce memory usage
+        prompt = f"""User Query: {query}
+Context: {context}
 
-User Query: {query}
-Additional Context: {context}
-
-Please provide a helpful response considering the PulsePlate project context.
+Project: PulsePlate (FastAPI backend, SwiftUI iOS frontend, 97% test coverage)
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an AI assistant helping with the PulsePlate health and nutrition tracking app development.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=1000,
-                temperature=0.7,
+            # Use timeout to prevent hanging
+            timeout = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model="gpt-4",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an AI assistant for PulsePlate health app. Be concise.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=500,  # Reduced from 1000 to save memory
+                    temperature=0.7,
+                ),
+                timeout=timeout
             )
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
 
+        except asyncio.TimeoutError:
+            return {"error": "ChatGPT query timed out"}
         except Exception as e:
             return {"error": f"ChatGPT query failed: {str(e)}"}
 
@@ -169,37 +204,43 @@ Please provide a helpful response considering the PulsePlate project context.
         """Review code with ChatGPT"""
         code = args.get("code", "")
         language = args.get("language", "python")
+        
+        # Limit code size to prevent memory issues
+        max_code_length = 2000
+        if len(code) > max_code_length:
+            return {"error": f"Code too large (max {max_code_length} chars)"}
 
-        prompt = f"""
-Review this {language} code for the PulsePlate project:
+        prompt = f"""Review this {language} code (PulsePlate project):
 
 ```{language}
 {code}
 ```
 
-Please provide:
-1. Code quality assessment
-2. Potential improvements
-3. Best practices suggestions
-4. Security considerations
-"""
+Focus on: quality, improvements, best practices, security."""
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a senior code reviewer for the PulsePlate project.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=1500,
-                temperature=0.3,
+            timeout = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model="gpt-4",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a code reviewer for PulsePlate. Be concise.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=800,  # Reduced from 1500
+                    temperature=0.3,
+                ),
+                timeout=timeout
             )
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
 
+        except asyncio.TimeoutError:
+            return {"error": "Code review timed out"}
         except Exception as e:
             return {"error": f"Code review failed: {str(e)}"}
 
@@ -208,34 +249,34 @@ Please provide:
         description = args.get("description", "")
         language = args.get("language", "python")
 
-        prompt = f"""
-Generate {language} code for the PulsePlate project based on this description:
+        prompt = f"""Generate {language} code for PulsePlate:
 {description}
 
-Requirements:
-- Follow project coding standards
-- Include proper error handling
-- Add type hints where appropriate
-- Include docstrings
-- Consider the FastAPI backend and SwiftUI frontend architecture
-"""
+Requirements: Follow standards, error handling, type hints, docstrings."""
 
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a senior developer for the PulsePlate project.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=2000,
-                temperature=0.5,
+            timeout = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model="gpt-4",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a developer for PulsePlate. Be concise.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=1000,  # Reduced from 2000
+                    temperature=0.5,
+                ),
+                timeout=timeout
             )
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
 
+        except asyncio.TimeoutError:
+            return {"error": "Code generation timed out"}
         except Exception as e:
             return {"error": f"Code generation failed: {str(e)}"}
 
@@ -245,10 +286,15 @@ async def main() -> None:
     server = PulsePlateMCPServer()
 
     # Read from stdin and write to stdout
-    while True:
+    while not _shutdown_flag:
         try:
-            line = sys.stdin.readline()
-            if not line:
+            # Use select-like behavior to check for input with timeout
+            line = await asyncio.wait_for(
+                asyncio.to_thread(sys.stdin.readline),
+                timeout=1.0
+            )
+            
+            if not line or _shutdown_flag:
                 break
 
             request = json.loads(line.strip())
@@ -256,10 +302,19 @@ async def main() -> None:
             print(json.dumps(response))
             sys.stdout.flush()
 
+        except asyncio.TimeoutError:
+            # Timeout is normal, just check shutdown flag and continue
+            continue
+        except json.JSONDecodeError as e:
+            error_response = {"error": f"Invalid JSON: {str(e)}"}
+            print(json.dumps(error_response))
+            sys.stdout.flush()
         except Exception as e:
             error_response = {"error": str(e)}
             print(json.dumps(error_response))
             sys.stdout.flush()
+    
+    print("MCP server shutdown complete", file=sys.stderr)
 
 
 if __name__ == "__main__":
