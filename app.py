@@ -116,7 +116,9 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         # No running loop: run synchronously
-        asyncio.run(_scheduler_start_background_updates(update_interval_hours=update_interval_hours))
+        asyncio.run(
+            _scheduler_start_background_updates(update_interval_hours=update_interval_hours)
+        )
     else:
         # Running loop: schedule and return immediately
         loop.create_task(
