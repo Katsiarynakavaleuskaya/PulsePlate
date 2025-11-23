@@ -155,7 +155,7 @@ class TestVIPCoverageWorkingExtended:
             if response.status_code == 200:
                 data = response.json()
                 assert data["status"] == "error"
-                assert "Search error" in data["message"]
+                assert "Error searching products" in data["message"]
 
     def test_vip_region_categories_success_coverage(self) -> None:
         """Test VIP region categories success coverage."""

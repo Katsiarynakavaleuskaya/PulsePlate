@@ -120,16 +120,9 @@ class UnifiedFoodDatabase:
     def __init__(self, cache_dir: Optional[str] = None) -> None:
         self.usda_client = USDAClient()
         # Resolve OFF client at runtime (allows tests to patch resolution)
-        # Treat OFFClient==None as unavailable without mutating module-level flags
-        runtime_off = (
-            OFFClient()
-            if (
-                OFFClient is not None
-                and OFF_AVAILABLE
-                and os.getenv("APP_ENV", "").lower() not in {"test", "ci"}
-            )
-            else None
-        )
+        # Skip OFFClient in test/ci environments for isolation
+        is_test_env = os.getenv("APP_ENV", "").lower() in {"test", "ci"}
+        runtime_off = OFFClient() if (OFF_AVAILABLE and not is_test_env) else None
         self.off_client: Optional[Any] = runtime_off
         self.cache_dir = Path(cache_dir or "cache/food_db")
         self.cache_dir.mkdir(parents=True, exist_ok=True)

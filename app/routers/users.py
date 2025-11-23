@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -14,7 +13,6 @@ from core.db import get_session
 from core.models import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
-logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
