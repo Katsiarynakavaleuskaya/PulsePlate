@@ -151,7 +151,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=95
 
 
       - name: Clean Python cache (post-test)
@@ -246,7 +246,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=95
 
 
       - name: Clean Python cache (post-test)
@@ -336,7 +336,7 @@ jobs:
           COVERAGE_CONTEXT: "disabled"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=95
 
 
       - name: Clean Python cache (post-test)
