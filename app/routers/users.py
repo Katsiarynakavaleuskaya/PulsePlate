@@ -43,13 +43,9 @@ def list_users(
 
     EN: Return paginated list of users.
     """
-    try:
-        rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
-        results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
-        return results
-    except OperationalError as exc:
-        logger.warning("Users table unavailable, returning empty list: %s", exc)
-        return []
+    rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
+    results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
+    return results
 
 
 @router.get("/{user_id}", response_model=UserRead)

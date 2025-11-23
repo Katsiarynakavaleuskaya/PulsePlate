@@ -82,7 +82,12 @@ def run_tests_fast() -> dict[str, Any]:
         logging.warning(
             "Skipping nested pytest invocation inside tests (set RUN_TESTS_BAYESIAN_SKIP_NESTED=0 to override)"
         )
-        return {"success": True, "failed_tests": [], "output": "skipped (nested pytest)", "returncode": 0}
+        return {
+            "success": True,
+            "failed_tests": [],
+            "output": "skipped (nested pytest)",
+            "returncode": 0,
+        }
 
     # Очищаем кеш перед запуском
     clean_cache()
