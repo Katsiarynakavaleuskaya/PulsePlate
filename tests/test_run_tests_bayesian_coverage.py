@@ -99,7 +99,7 @@ class TestRunTestsFast:
     @pytest.fixture
     def mock_subprocess_success(self) -> Generator[Mock, None, None]:
         """Mock successful subprocess run."""
-        with patch("subprocess.run") as mock_run:
+        with patch("scripts.run_tests_bayesian.subprocess.run") as mock_run:
             result = Mock()
             result.returncode = 0
             result.stdout = "All tests passed"
@@ -110,7 +110,7 @@ class TestRunTestsFast:
     @pytest.fixture
     def mock_subprocess_failure(self) -> Generator[Mock, None, None]:
         """Mock failed subprocess run."""
-        with patch("subprocess.run") as mock_run:
+        with patch("scripts.run_tests_bayesian.subprocess.run") as mock_run:
             result = Mock()
             result.returncode = 1
             result.stdout = (
@@ -125,14 +125,14 @@ class TestRunTestsFast:
     @pytest.fixture
     def mock_subprocess_timeout(self) -> Generator[Mock, None, None]:
         """Mock subprocess timeout."""
-        with patch("subprocess.run") as mock_run:
+        with patch("scripts.run_tests_bayesian.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired("pytest", 600)
             yield mock_run
 
     @pytest.fixture
     def mock_subprocess_exception(self) -> Generator[Mock, None, None]:
         """Mock subprocess exception."""
-        with patch("subprocess.run") as mock_run:
+        with patch("scripts.run_tests_bayesian.subprocess.run") as mock_run:
             mock_run.side_effect = Exception("Subprocess error")
             yield mock_run
 
@@ -220,7 +220,7 @@ class TestRunTestsFast:
 
     def test_run_tests_fast_handles_parse_error(self) -> None:
         """Test run_tests_fast handles parsing errors gracefully."""
-        with patch("subprocess.run") as mock_run:
+        with patch("scripts.run_tests_bayesian.subprocess.run") as mock_run:
             process = Mock()
             process.returncode = 1
             process.stdout = "FAILED :: test_name\nERROR :: other_test"
