@@ -297,8 +297,24 @@ class AutoRepairEngine:
 
         try:
             gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)
-        except Exception:
-            gaps_after = {}
+        except Exception as exc:
+            # Gap analysis failed after repair - treat as failure, not success
+            return RepairIteration(
+                iteration_number=iteration,
+                strategy=strategy,
+                gaps_before=gaps_before,
+                gaps_after=gaps_before,  # Keep original gaps to show no improvement
+                changes_applied=[
+                    {
+                        "type": "error",
+                        "strategy": strategy.value,
+                        "iteration": iteration,
+                        "error": f"Failed to analyze gaps after repair: {str(exc)}",
+                        "fallback": "gap_analysis_error",
+                    }
+                ],
+                success=False,
+            )
 
         changes = [
             {
@@ -366,11 +382,17 @@ class AutoRepairEngine:
         if "protein" in remaining_gaps:
             suggestions.append("Увеличьте порции белковых продуктов")
 
-        # Если нет специфических предложений, добавляем общее
+        # Если нет специфических предложений, добавляем общее на основе реальных дефицитов
         if len(suggestions) == 2:  # Только базовые сообщения
-            suggestions.append(
-                "Недостаточно данных для анализа — добавьте источник железа (мясо, чечевица)"
-            )
+            missing = ", ".join(sorted(remaining_gaps.keys()))
+            if missing:
+                suggestions.append(
+                    f"Обнаружены дефициты: {missing}. Подберите продукты или проконсультируйтесь с диетологом."
+                )
+            else:
+                suggestions.append(
+                    "Недостаточно данных для точного анализа — поддерживайте разнообразный рацион."
+                )
 
         return suggestions
 
@@ -427,13 +449,10 @@ class AutoRepairEngine:
         if not suggestions:
             suggestions.append(
                 {
-                    "type": "add_ingredient",
-                    "nutrient": "iron",
-                    "suggestions": [
-                        {"name": "lentils", "amount": 120, "unit": "g"},
-                        {"name": "spinach", "amount": 100, "unit": "g"},
-                    ],
-                    "reason": "Базовые рекомендации для поддержания уровня железа",
+                    "type": "info",
+                    "nutrient": "general_balance",
+                    "suggestions": [],
+                    "reason": "Явных дефицитов не обнаружено. Поддерживайте разнообразный рацион и при необходимости консультируйтесь со специалистом.",
                 }
             )
 
