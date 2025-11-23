@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> UserRead:
     """RU: Создаёт нового пользователя. EN: Create a new user entry."""
-    existing = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+    result = db.execute(select(User).where(User.email == payload.email))
+    existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
 
@@ -28,8 +29,8 @@ def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> User
     db.add(user)
     db.commit()
     db.refresh(user)
-    result: UserRead = UserRead.model_validate(user)
-    return result
+    result_model: UserRead = UserRead.model_validate(user)
+    return result_model
 
 
 @router.get("", response_model=List[UserRead])
@@ -42,7 +43,8 @@ def list_users(
 
     EN: Return paginated list of users.
     """
-    rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
+    result = db.execute(select(User).order_by(User.id).offset(offset).limit(limit))
+    rows = result.scalars()
     results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
     return results
 
