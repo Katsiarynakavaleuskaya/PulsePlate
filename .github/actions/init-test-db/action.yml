@@ -30,7 +30,7 @@ runs:
         # Verify tables were created and log details
         # Note: PYTHONPATH from env above enables these imports without sys.path manipulation
         python <<'EOF'
-        from core.db import session_scope, DATABASE_URL
+        from core.db import _RAW_ENGINE, DATABASE_URL
         from sqlalchemy import inspect
         import sys
         from pathlib import Path
@@ -44,27 +44,27 @@ runs:
         if db_file.exists():
             print(f"📁 Database file size: {db_file.stat().st_size} bytes")
 
-        with session_scope() as session:
-            inspector = inspect(session.bind)
-            tables = inspector.get_table_names()
-            tables_str = ', '.join(tables)
-            print(f"✅ Found {len(tables)} tables: {tables_str}")
+        # Use _RAW_ENGINE for inspection (engine may be wrapped)
+        inspector = inspect(_RAW_ENGINE)
+        tables = inspector.get_table_names()
+        tables_str = ', '.join(sorted(tables))
+        print(f"✅ Found {len(tables)} tables: {tables_str}")
 
-            # Check for required tables
-            required_tables = ['users', 'recipes', 'meals', 'food_items']
-            missing_tables = [t for t in required_tables if t not in tables]
+        # Check for required tables (including context)
+        required_tables = ['users', 'recipes', 'meals', 'food_items', 'context']
+        missing_tables = [t for t in required_tables if t not in tables]
 
-            if missing_tables:
-                print(f"❌ Missing required tables: {', '.join(missing_tables)}")
-                print(f"Available tables: {tables_str}")
-                print(f"Database URL: {DATABASE_URL}")
-                print(f"Database file exists: {db_file.exists()}")
-                sys.exit(1)
+        if missing_tables:
+            print(f"❌ Missing required tables: {', '.join(missing_tables)}")
+            print(f"Available tables: {tables_str}")
+            print(f"Database URL: {DATABASE_URL}")
+            print(f"Database file exists: {db_file.exists()}")
+            sys.exit(1)
 
-            print(f"✅ All required tables found: {', '.join(required_tables)}")
+        print(f"✅ All required tables found: {', '.join(required_tables)}")
 
-            # Verify users table structure
-            if 'users' in tables:
-                columns = [col['name'] for col in inspector.get_columns('users')]
-                print(f"✅ Users table columns: {', '.join(columns)}")
+        # Verify users table structure
+        if 'users' in tables:
+            columns = [col['name'] for col in inspector.get_columns('users')]
+            print(f"✅ Users table columns: {', '.join(columns)}")
         EOF
