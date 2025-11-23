@@ -221,9 +221,25 @@ _DEFAULT_LIFE_STAGE_MESSAGES: dict[str, dict[str, str]] = {
 }
 
 # Circuit breaker for safety validation failures
+# Thread-safe implementation to prevent race conditions during parallel test execution
 _MAX_SAFETY_FAILURES = int(os.getenv("MAX_SAFETY_FAILURES", "10"))
 _safety_failure_count = 0
 _safety_failure_lock = threading.Lock()
+
+
+def reset_safety_failure_count() -> None:
+    """Reset safety failure counter (useful for test isolation)."""
+    global _safety_failure_count
+    with _safety_failure_lock:
+        _safety_failure_count = 0
+
+
+def reset_targets_cache() -> None:
+    """Reset targets disabled cache (useful for test isolation)."""
+    global _targets_disabled_cache, _targets_disabled_cache_time
+    with _targets_disabled_lock:
+        _targets_disabled_cache = None
+        _targets_disabled_cache_time = 0.0
 
 
 # Lifespan event handler
@@ -1685,6 +1701,7 @@ _plate_deps = PlateDependencies(
 _TARGETS_DISABLED_TTL = 1.0
 _targets_disabled_cache: bool | None = None
 _targets_disabled_cache_time = 0.0
+_targets_disabled_lock = threading.Lock()
 
 
 def targets_disabled() -> bool:
@@ -1695,10 +1712,14 @@ def targets_disabled() -> bool:
 
     Tests should disable targets by setting _plate_deps.build_nutrition_targets_fn = None
     rather than patching module attributes.
+
+    Thread-safe implementation to prevent race conditions during parallel test execution.
     """
     global _targets_disabled_cache, _targets_disabled_cache_time
 
     now = time.time()
+
+    # Fast path: check cache without lock for performance
     if (
         _targets_disabled_cache is not None
         and now - _targets_disabled_cache_time < _TARGETS_DISABLED_TTL
@@ -1707,10 +1728,19 @@ def targets_disabled() -> bool:
         if quick_state is None or quick_state == _targets_disabled_cache:
             return _targets_disabled_cache
 
-    result = _evaluate_targets_disabled()
-    _targets_disabled_cache = result
-    _targets_disabled_cache_time = now
-    return result
+    # Slow path: acquire lock to update cache
+    with _targets_disabled_lock:
+        # Double-check pattern: another thread may have updated cache
+        if (
+            _targets_disabled_cache is not None
+            and time.time() - _targets_disabled_cache_time < _TARGETS_DISABLED_TTL
+        ):
+            return _targets_disabled_cache
+
+        result = _evaluate_targets_disabled()
+        _targets_disabled_cache = result
+        _targets_disabled_cache_time = time.time()
+        return result
 
 
 def _evaluate_targets_disabled() -> bool:

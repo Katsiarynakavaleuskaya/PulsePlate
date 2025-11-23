@@ -494,3 +494,34 @@ def production_env(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, Non
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     yield
     # Cleanup handled by monkeypatch
+
+
+@pytest.fixture(autouse=True)
+def reset_global_caches() -> Iterator[None]:
+    """Reset all global caches before each test to ensure test isolation.
+
+    This prevents race conditions and state leakage when running tests in parallel.
+    Runs automatically after each test to clean up any cached state.
+    """
+    yield
+
+    # Reset all global caches after each test
+    try:
+        # Reset app.py caches
+        if "app" in sys.modules:
+            app_module = sys.modules["app"]
+            if hasattr(app_module, "reset_targets_cache"):
+                app_module.reset_targets_cache()
+            if hasattr(app_module, "reset_safety_failure_count"):
+                app_module.reset_safety_failure_count()
+
+        # Reset food_store caches
+        if "app.services.food_store" in sys.modules:
+            food_store = sys.modules["app.services.food_store"]
+            if hasattr(food_store, "reset_aliases_cache"):
+                food_store.reset_aliases_cache()
+            if hasattr(food_store, "reset_missing_food_counter"):
+                food_store.reset_missing_food_counter()
+    except Exception as e:
+        logger.debug(f"Error resetting global caches: {e}")
+    # Errors in cleanup should not fail tests

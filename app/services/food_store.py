@@ -260,13 +260,25 @@ def _load_aliases_csv(csv_path: Path, is_production: bool | None = None) -> dict
 
 
 # Lazy alias cache to avoid file I/O at import time
+# Thread-safe implementation for parallel test execution
 _ALIASES_CACHE: dict[str, list[str]] | None = None
 _ALIASES_LOCK = threading.Lock()
 
 # Missing food counter/collector for periodic summary logging
+# Thread-safe implementation for parallel test execution
 _MISSING_FOOD_COUNTER: dict[str, int] = defaultdict(int)
 _MISSING_FOOD_LOCK = threading.Lock()
 _MISSING_FOOD_REPORT_THRESHOLD = int(os.getenv("MISSING_FOOD_REPORT_THRESHOLD", "100"))
+
+
+def reset_aliases_cache() -> None:
+    """Reset the aliases cache (useful for testing or when aliases change).
+
+    Thread-safe cache invalidation for test isolation.
+    """
+    global _ALIASES_CACHE
+    with _ALIASES_LOCK:
+        _ALIASES_CACHE = None
 
 
 def _log_missing_food(food_id: str) -> None:
@@ -320,20 +332,30 @@ def reset_missing_food_counter() -> None:
 
 
 def get_aliases() -> dict[str, list[str]]:
-    """Return merged alias mapping (defaults + CSV), loading lazily on first use."""
+    """Return merged alias mapping (defaults + CSV), loading lazily on first use.
+
+    Thread-safe double-checked locking pattern to prevent race conditions
+    during parallel test execution.
+    """
     global _ALIASES_CACHE
-    if _ALIASES_CACHE is None:
-        with _ALIASES_LOCK:
-            if _ALIASES_CACHE is None:
-                csv_aliases = _load_aliases_csv(ALIASES_CSV_PATH)
-                # Merge aliases per key instead of overwriting
-                merged: dict[str, list[str]] = {k: list(vs) for k, vs in DEFAULT_ALIASES.items()}
-                for canonical, extra_aliases in csv_aliases.items():
-                    base = merged.setdefault(canonical, [])
-                    for alias in extra_aliases:
-                        if alias not in base:
-                            base.append(alias)
-                _ALIASES_CACHE = merged
+
+    # Fast path: return cached value without lock (common case)
+    if _ALIASES_CACHE is not None:
+        return _ALIASES_CACHE
+
+    # Slow path: acquire lock to initialize cache
+    with _ALIASES_LOCK:
+        # Double-check: another thread may have initialized while we waited
+        if _ALIASES_CACHE is None:
+            csv_aliases = _load_aliases_csv(ALIASES_CSV_PATH)
+            # Merge aliases per key instead of overwriting
+            merged: dict[str, list[str]] = {k: list(vs) for k, vs in DEFAULT_ALIASES.items()}
+            for canonical, extra_aliases in csv_aliases.items():
+                base = merged.setdefault(canonical, [])
+                for alias in extra_aliases:
+                    if alias not in base:
+                        base.append(alias)
+            _ALIASES_CACHE = merged
     return _ALIASES_CACHE
 
 
