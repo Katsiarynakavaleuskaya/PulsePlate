@@ -90,9 +90,9 @@ def _build_engine_url(fallback_url: Optional[str] = None) -> str:
             # In test environment, use worker ID or process ID for uniqueness
             default_path = os.path.join("cache", "app.db")
 
-            # For pytest-xdist: use worker ID if available
+            # For pytest-xdist/CI: use worker ID if available
             worker_id = os.getenv("PYTEST_XDIST_WORKER") or os.getenv("GITHUB_RUN_ID")
-            if worker_id and os.getenv("APP_ENV") == "test":
+            if worker_id:
                 # Create worker-specific DB file to avoid conflicts
                 base_path = Path(default_path)
                 default_path = str(
