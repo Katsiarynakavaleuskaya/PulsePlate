@@ -3,6 +3,7 @@ Test coverage boost to reach 97%
 """
 
 import importlib
+import os
 from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
@@ -53,7 +54,7 @@ class TestCoverageFinalBoost:
 
             if hasattr(test_pro_access, "main"):
                 # Patch external dependencies instead of the main function
-                with patch("builtins.input", return_value="test-key"):
+                with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
                     with patch("builtins.print") as mock_print:
                         with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
                             mock_test.return_value = {

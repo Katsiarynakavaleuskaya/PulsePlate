@@ -64,7 +64,7 @@ class TestTestProAccessCoverage:
             "total_models": len(models),
         }
 
-    def test_test_openai_pro_access_success(self):
+    def test_test_openai_pro_access_success(self) -> None:
         """Test test_openai_pro_access with successful API call"""
         model_ids = ["gpt-4", "gpt-3.5-turbo", "gpt-5", "codex-001"]
         mock_client = self._create_mock_client_with_models(model_ids)
@@ -72,7 +72,7 @@ class TestTestProAccessCoverage:
         with patch("openai.OpenAI", return_value=mock_client):
             self._verify_pro_access_result(True, model_ids)
 
-    def test_test_openai_pro_access_error(self):
+    def test_test_openai_pro_access_error(self) -> None:
         """Test test_openai_pro_access with API error"""
         mock_client = MagicMock()
         mock_client.models.list.side_effect = Exception("API Error")
@@ -86,7 +86,7 @@ class TestTestProAccessCoverage:
             assert result["pro_models"] == {}
             assert result["total_models"] == 0
 
-    def test_test_openai_pro_access_no_pro_models(self):
+    def test_test_openai_pro_access_no_pro_models(self) -> None:
         """Test test_openai_pro_access with no Pro models available"""
         model_ids = ["gpt-3.5-turbo", "text-davinci-003"]
         mock_client = self._create_mock_client_with_models(model_ids)
@@ -104,7 +104,7 @@ class TestTestProAccessCoverage:
         }
         self._assert_success_result(result, model_ids, expected_pro_models)
 
-    def test_main_function_with_env_key(self):
+    def test_main_function_with_env_key(self) -> None:
         """Test main function with API key from environment"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
@@ -115,7 +115,7 @@ class TestTestProAccessCoverage:
 
                     self._verify_main_execution_with_mocks(mock_test, "test-key", mock_print)
 
-    def test_main_function_with_input_key(self):
+    def test_main_function_with_input_key(self) -> None:
         """Test main function with API key from user input"""
         with patch.dict(os.environ, {}, clear=True):
             with patch("builtins.input", return_value="user-input-key"):
@@ -132,7 +132,7 @@ class TestTestProAccessCoverage:
                             mock_test, "user-input-key", mock_print
                         )
 
-    def test_main_function_no_key(self):
+    def test_main_function_no_key(self) -> None:
         """Test main function with no API key provided"""
         with patch.dict(os.environ, {}, clear=True):
             with patch("builtins.input", return_value=""):
@@ -141,7 +141,7 @@ class TestTestProAccessCoverage:
 
                     mock_print.assert_called_with("❌ No API key provided")
 
-    def test_main_function_success_output(self):
+    def test_main_function_success_output(self) -> None:
         """Test main function success output formatting"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
@@ -152,7 +152,7 @@ class TestTestProAccessCoverage:
                     assert any("Total models available: 2" in call for call in print_calls)
                     assert any("✅ Pro Models Status:" in call for call in print_calls)
 
-    def test_main_function_error_output(self):
+    def test_main_function_error_output(self) -> None:
         """Test main function error output formatting"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
@@ -172,7 +172,7 @@ class TestTestProAccessCoverage:
                     assert "Status: error" in print_calls
                     assert "❌ Error: Invalid API key" in print_calls
 
-    def test_pro_models_detection(self):
+    def test_pro_models_detection(self) -> None:
         """Test Pro models detection logic"""
         mock_models = MagicMock()
         mock_models.data = [
@@ -195,7 +195,7 @@ class TestTestProAccessCoverage:
             assert result["pro_models"]["gpt-4"] is True
             assert result["pro_models"]["gpt-3.5-turbo"] is True
 
-    def test_openai_client_initialization(self):
+    def test_openai_client_initialization(self) -> None:
         """Test OpenAI client initialization"""
         with patch("openai.OpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -208,7 +208,7 @@ class TestTestProAccessCoverage:
 
             mock_openai.assert_called_once_with(api_key="test-key")
 
-    def test_models_list_processing(self):
+    def test_models_list_processing(self) -> None:
         """Test models list processing"""
         model_ids = ["model-1", "model-2", "model-3"]
         mock_client = self._create_mock_client_with_models(model_ids)
@@ -219,10 +219,10 @@ class TestTestProAccessCoverage:
             assert len(result["available_models"]) == 3
             assert result["total_models"] == 3
 
-    def test_main_execution_mock(self):
+    def test_main_execution_mock(self) -> None:
         """Test main execution when script is run directly"""
         # Patch external dependencies instead of the main function
-        with patch("builtins.input", return_value="test-key"):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
             with patch("builtins.print") as mock_print:
                 with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
                     mock_test.return_value = {
@@ -242,18 +242,18 @@ class TestTestProAccessCoverage:
         mock_test.assert_called_once_with(api_key)
         mock_print.assert_called()
 
-    def test_api_key_validation(self):
+    def test_api_key_validation(self) -> None:
         """Test API key validation logic"""
         # Test that API keys start with 'sk-'
         assert "sk-abc123def456".startswith("sk-") is True
         assert "invalid-key".startswith("sk-") is False
         assert "".startswith("sk-") is False
 
-    def test_main_execution_callable(self):
+    def test_main_execution_callable(self) -> None:
         """Test main execution symbol is callable"""
         assert callable(test_pro_access.main)
 
-    def test_environment_variable_priority(self):
+    def test_environment_variable_priority(self) -> None:
         """Test that environment variable takes priority over input"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}):
             with patch("builtins.input", return_value="input-key"):
@@ -271,7 +271,7 @@ class TestTestProAccessCoverage:
                         # Should use environment key, not input key
                         mock_test.assert_called_once_with("env-key")
 
-    def test_output_formatting(self):
+    def test_output_formatting(self) -> None:
         """Test output formatting in main function"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch.object(test_pro_access, "test_openai_pro_access") as mock_test:
