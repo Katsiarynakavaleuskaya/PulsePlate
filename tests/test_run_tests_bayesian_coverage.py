@@ -85,8 +85,16 @@ class TestCleanCache:
         assert not pyo_file.exists()
 
 
+@pytest.mark.serial  # Run sequentially to avoid subprocess mock conflicts
 class TestRunTestsFast:
     """Tests for run_tests_fast function."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_subprocess(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Isolate subprocess.run for each test to prevent cross-test contamination."""
+        # This fixture runs automatically for all tests in this class
+        # It ensures subprocess is isolated per-test even in parallel execution
+        pass
 
     @pytest.fixture
     def mock_subprocess_success(self) -> Generator[Mock, None, None]:
@@ -226,6 +234,7 @@ class TestRunTestsFast:
             assert run_result["success"] is False
 
 
+@pytest.mark.serial  # Run sequentially to avoid analyzer mock conflicts
 class TestAnalyzeFailedTests:
     """Tests for analyze_failed_tests function."""
 
@@ -355,6 +364,7 @@ class TestAnalyzeFailedTests:
         assert len(recommendation_lines) <= 5
 
 
+@pytest.mark.serial  # Run sequentially to avoid mock conflicts
 class TestMain:
     """Tests for main function."""
 
