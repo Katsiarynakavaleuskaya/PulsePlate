@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import threading
+import weakref
 from datetime import datetime, timedelta
 from types import FrameType
 from typing import Any, Dict, Optional
@@ -23,6 +25,8 @@ from .update_manager import DatabaseUpdateManager, UpdateResult
 logger = logging.getLogger(__name__)
 
 # Track whether signal handlers have been installed to avoid process-wide overrides
+# Thread-safe synchronization for signal handler installation
+_SIGNALS_LOCK = threading.Lock()
 _SIGNALS_INSTALLED = False
 
 
@@ -71,32 +75,42 @@ class DatabaseUpdateScheduler:
         """Setup signal handlers for graceful shutdown.
 
         Note: process-wide handlers assume a single scheduler instance per process.
+        Uses weak references to prevent memory leaks.
         """
         global _SIGNALS_INSTALLED
-        if _SIGNALS_INSTALLED:
-            return
 
-        def signal_handler(signum: int, frame: FrameType | None) -> None:
-            logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            loop: Optional[asyncio.AbstractEventLoop] = None
+        with _SIGNALS_LOCK:
+            if _SIGNALS_INSTALLED:
+                return
+
+            weak_self = weakref.ref(self)
+
+            def signal_handler(signum: int, frame: FrameType | None) -> None:
+                logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+                scheduler = weak_self()
+                if scheduler is None:
+                    logger.warning("Scheduler instance no longer exists")
+                    return
+
+                loop: Optional[asyncio.AbstractEventLoop] = None
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    loop = scheduler._loop
+
+                if loop and loop.is_running():
+                    loop.call_soon_threadsafe(scheduler._schedule_async_shutdown)
+                else:
+                    logger.warning("No active event loop available to schedule shutdown")
+
+            # Handle common shutdown signals
             try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = self._loop
-
-            if loop and loop.is_running():
-                loop.call_soon_threadsafe(self._schedule_async_shutdown)
+                signal.signal(signal.SIGTERM, signal_handler)
+                signal.signal(signal.SIGINT, signal_handler)
+            except Exception as e:
+                logger.warning(f"Could not setup signal handlers: {e}")
             else:
-                logger.warning("No active event loop available to schedule shutdown")
-
-        # Handle common shutdown signals
-        try:
-            signal.signal(signal.SIGTERM, signal_handler)
-            signal.signal(signal.SIGINT, signal_handler)
-        except Exception as e:
-            logger.warning(f"Could not setup signal handlers: {e}")
-        else:
-            _SIGNALS_INSTALLED = True
+                _SIGNALS_INSTALLED = True
 
     def _schedule_async_shutdown(self) -> None:
         """Schedule asynchronous shutdown on the event loop thread."""

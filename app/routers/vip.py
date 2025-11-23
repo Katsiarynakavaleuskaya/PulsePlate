@@ -125,6 +125,8 @@ def _resolve_available_regions() -> Optional[Callable[..., Any]]:
     provider = getattr(module, "get_available_regions", None) if module else None
     if provider is None:
         provider = globals().get("get_available_regions")
+    if provider is not None and not callable(provider):
+        return None
     return provider
 
 
@@ -1444,10 +1446,12 @@ async def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
             "echo": request,
         }
     except Exception as exc:
+        is_production, _ = _is_production_environment()
+        msg = "Error during auto-repair" if is_production else f"Error during auto-repair: {exc}"
         return {
             "status": "error",
             "repair_result": {},
-            "message": f"Error during auto-repair: {exc}",
+            "message": msg,
             "echo": request,
         }
 
@@ -1525,9 +1529,15 @@ async def get_repair_strategies() -> Dict[str, Any]:
             "message": f"Retrieved {len(strategies)} repair strategies",
         }
     except Exception as e:
+        is_production, _ = _is_production_environment()
+        msg = (
+            "Error retrieving strategies"
+            if is_production
+            else f"Error retrieving strategies: {str(e)}"
+        )
         return {
             "status": "error",
-            "message": f"Error retrieving strategies: {str(e)}",
+            "message": msg,
             "strategies": [],
         }
 

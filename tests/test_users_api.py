@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Generator, cast
+from typing import Any, Generator, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,44 +14,37 @@ import app
 from core import db as db_module
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="function")
 def _cleanup_users() -> Generator[None, None, None]:
     """RU: Очищает таблицу пользователей между тестами.
 
     EN: Ensure users table is cleared between tests.
+    Thread-safe implementation for parallel test execution.
     """
 
-    # Ensure schema exists even if a worker removed the sqlite file.
-    # init_db() is idempotent, so calling it per-test avoids race conditions
-    # when pytest-xdist starts multiple workers in parallel.
-    db_module.init_db()
-
     def _truncate() -> None:
-        with db_module.session_scope() as session:
-            session.execute(text("DELETE FROM users"))
+        try:
+            with db_module.session_scope() as session:
+                session.execute(text("DELETE FROM users"))
+                session.commit()
+        except OperationalError:
+            # Table might not exist yet, skip cleanup
+            pass
 
-    try:
-        _truncate()
-    except OperationalError:
-        # If the table was dropped between init_db() and DELETE (unlikely but defensive),
-        # recreate schema and retry once more.
-        db_module.init_db()
-        _truncate()
+    # Cleanup before test
+    _truncate()
 
     yield
 
-    try:
-        with db_module.session_scope() as session:
-            session.execute(text("DELETE FROM users"))
-    except OperationalError:
-        db_module.init_db()
+    # Cleanup after test
+    _truncate()
 
 
 def _client() -> TestClient:
     return TestClient(cast(ASGIApp, app.app))
 
 
-def test_create_and_get_user() -> None:
+def test_create_and_get_user(_cleanup_users: Any) -> None:
     with _client() as client:
         response = client.post("/api/v1/users", json={"email": "ann@example.com", "name": "Ann"})
         assert response.status_code == 201
@@ -64,7 +57,7 @@ def test_create_and_get_user() -> None:
         assert fetched.json()["name"] == "Ann"
 
 
-def test_list_users_pagination() -> None:
+def test_list_users_pagination(_cleanup_users: Any) -> None:
     with _client() as client:
         for idx in range(3):
             client.post(
@@ -79,7 +72,7 @@ def test_list_users_pagination() -> None:
         assert data[0]["email"] == "user1@example.com"
 
 
-def test_create_user_conflict() -> None:
+def test_create_user_conflict(_cleanup_users: Any) -> None:
     with _client() as client:
         client.post("/api/v1/users", json={"email": "dup@example.com", "name": "One"})
         duplicate = client.post("/api/v1/users", json={"email": "dup@example.com", "name": "Two"})
@@ -87,13 +80,13 @@ def test_create_user_conflict() -> None:
         assert duplicate.json()["detail"] == "Email already exists"
 
 
-def test_get_user_not_found() -> None:
+def test_get_user_not_found(_cleanup_users: Any) -> None:
     with _client() as client:
         response = client.get("/api/v1/users/9999")
     assert response.status_code == 404
 
 
-def test_delete_user_success_and_not_found() -> None:
+def test_delete_user_success_and_not_found(_cleanup_users: Any) -> None:
     with _client() as client:
         created = client.post("/api/v1/users", json={"email": "del@example.com", "name": "Del"})
         user_id = created.json()["id"]
@@ -105,7 +98,7 @@ def test_delete_user_success_and_not_found() -> None:
         assert missing.status_code == 404
 
 
-def test_create_user_validation_error() -> None:
+def test_create_user_validation_error(_cleanup_users: Any) -> None:
     with _client() as client:
         bad = client.post("/api/v1/users", json={"email": "not-an-email", "name": ""})
     assert bad.status_code == 422
