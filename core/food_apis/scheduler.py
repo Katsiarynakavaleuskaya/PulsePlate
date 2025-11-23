@@ -362,13 +362,14 @@ async def start_background_updates(update_interval_hours: int = 24) -> None:
     """
     scheduler = await get_update_scheduler(update_interval_hours=update_interval_hours)
     requested_interval = timedelta(hours=update_interval_hours)
-    if scheduler.update_interval != requested_interval:
+    current_interval = getattr(scheduler, "update_interval", requested_interval)
+    if current_interval != requested_interval:
         logger.warning(
             "Update scheduler already initialized with interval %s; requested %s will be ignored",
-            scheduler.update_interval,
+            current_interval,
             requested_interval,
         )
-    if not scheduler.is_running:
+    if not getattr(scheduler, "is_running", False):
         await scheduler.start()
         logger.info(f"Background database updates started (every {update_interval_hours}h)")
 
