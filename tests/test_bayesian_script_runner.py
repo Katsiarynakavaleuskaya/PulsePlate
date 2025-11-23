@@ -12,36 +12,26 @@ def test_run_tests_fast_success(monkeypatch: pytest.MonkeyPatch) -> None:
     # Import inside to ensure test discovery works even if path changes
     from scripts import run_tests_bayesian as runner
 
-    run_calls: list[tuple[Sequence[str], dict[str, Any]]] = []
+    monkeypatch.setenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "0")
+
+    run_calls: list[tuple[list[str], int]] = []
     clean_calls: list[bool] = []
 
-    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        # Use subprocess.CompletedProcess directly instead of Mock
-        command_list: Sequence[str] = args[0] if args and isinstance(args[0], (list, tuple)) else []
-        run_calls.append((command_list, kwargs))
-        return subprocess.CompletedProcess(
-            args=args[0] if args else [],
-            returncode=0,
-            stdout="OK\n",
-            stderr="",
-        )
+    def fake_run(args: list[str], timeout: int) -> tuple[int, str]:
+        run_calls.append((args, timeout))
+        return 0, "OK\n"
 
-    monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("scripts.run_tests_bayesian._run_pytest_with_timeout", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
     result: dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert len(run_calls) == 1
-    command, cmd_kwargs = run_calls[0]
-    assert Path(command[0]).resolve() == Path(sys.executable).resolve()
-    assert command[2] == "pytest"
-    assert "tests/" in command
-    assert "--cov=core" in command
-    assert "--cov=app" in command
-    assert cmd_kwargs["cwd"] == runner.project_root
-    assert cmd_kwargs["timeout"] == 600
-    assert cmd_kwargs["capture_output"] is True
-    assert cmd_kwargs["text"] is True
+    args, timeout = run_calls[0]
+    assert args[0] == "tests/"
+    assert "--cov=core" in args
+    assert "--cov=app" in args
+    assert timeout == 600
     assert result["success"] is True
     assert result["returncode"] == 0
     assert isinstance(result.get("output"), str)
@@ -51,28 +41,27 @@ def test_run_tests_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test failure path with returncode=1."""
     from scripts import run_tests_bayesian as runner
 
-    run_calls: list[tuple[Sequence[str], dict[str, Any]]] = []
+    monkeypatch.setenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "0")
+
+    run_calls: list[tuple[list[str], int]] = []
     clean_calls: list[bool] = []
 
-    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        command_list: Sequence[str] = args[0] if args and isinstance(args[0], (list, tuple)) else []
-        run_calls.append((command_list, kwargs))
-        return subprocess.CompletedProcess(
-            args=args[0] if args else [],
-            returncode=1,
-            stdout="FAILED tests/test_demo.py::test_example - AssertionError\n",
-            stderr="Error occurred",
+    def fake_run(args: list[str], timeout: int) -> tuple[int, str]:
+        run_calls.append((args, timeout))
+        return (
+            1,
+            "FAILED tests/test_demo.py::test_example - AssertionError\nError occurred\n",
         )
 
-    monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("scripts.run_tests_bayesian._run_pytest_with_timeout", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
     result: dict[str, Any] = runner.run_tests_fast()
     assert clean_calls == [True]
     assert len(run_calls) == 1
-    command, cmd_kwargs = run_calls[0]
-    assert "pytest" in command
-    assert cmd_kwargs["cwd"] == runner.project_root
+    args, timeout = run_calls[0]
+    assert "tests/" in args
+    assert timeout == 600
     assert result["success"] is False
     assert result["returncode"] == 1
     assert isinstance(result.get("output"), str)
@@ -84,12 +73,13 @@ def test_run_tests_fast_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test exception handling path."""
     from scripts import run_tests_bayesian as runner
 
+    monkeypatch.setenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "0")
     clean_calls: list[bool] = []
 
-    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+    def fake_run(*args: Any, **kwargs: Any) -> tuple[int, str]:
         raise FileNotFoundError("pytest command not found")
 
-    monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("scripts.run_tests_bayesian._run_pytest_with_timeout", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
     result: dict[str, Any] = runner.run_tests_fast()
@@ -104,17 +94,13 @@ def test_run_tests_fast_empty_output(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test edge case with empty stdout/stderr."""
     from scripts import run_tests_bayesian as runner
 
+    monkeypatch.setenv("RUN_TESTS_BAYESIAN_SKIP_NESTED", "0")
     clean_calls: list[bool] = []
 
-    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(
-            args=args[0] if args else [],
-            returncode=0,
-            stdout="",
-            stderr="",
-        )
+    def fake_run(args: list[str], timeout: int) -> tuple[int, str]:
+        return 0, ""
 
-    monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("scripts.run_tests_bayesian._run_pytest_with_timeout", fake_run)
     monkeypatch.setattr("scripts.run_tests_bayesian.clean_cache", lambda: clean_calls.append(True))
 
     result: dict[str, Any] = runner.run_tests_fast()
