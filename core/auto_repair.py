@@ -260,7 +260,7 @@ class AutoRepairEngine:
 
         try:
             # Используем существующую функцию ремонта
-            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore
+            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)
         except AttributeError as exc:
             # Fallback for dict-like week_plan when underlying implementation expects richer object
             # Simulate partial improvement by dropping every second gap entry
@@ -296,7 +296,7 @@ class AutoRepairEngine:
             )
 
         try:
-            gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)  # type: ignore
+            gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)
         except Exception:
             gaps_after = {}
 
