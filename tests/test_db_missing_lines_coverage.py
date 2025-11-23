@@ -203,11 +203,23 @@ class TestDbMissingLinesCoverage:
                 core.db.Base.metadata = mock_metadata
 
                 # Mock the engine to prevent actual database operations
+                # Must support inspect() which returns an inspector with get_table_names()
                 mock_engine = Mock()
-                core.db._RAW_ENGINE = mock_engine
+                mock_inspector = Mock()
+                mock_inspector.get_table_names.return_value = [
+                    "users",
+                    "recipes",
+                    "meals",
+                    "food_items",
+                    "context",
+                ]
 
-                # Call init_db - this should wrap create_all
-                core.db.init_db()
+                # Patch inspect to return our mock inspector
+                with patch("sqlalchemy.inspect", return_value=mock_inspector):
+                    core.db._RAW_ENGINE = mock_engine
+
+                    # Call init_db - this should wrap create_all
+                    core.db.init_db()
 
                 # Now the wrapped function should have assert_called_once
                 wrapped_create_all = mock_metadata.create_all
@@ -316,10 +328,21 @@ class TestDbMissingLinesCoverage:
 
                 core.db.Base.metadata = mock_metadata
 
-                # Call init_db - should not wrap if already has assert_called_once
-                core.db.init_db()
+                # Mock inspector for table verification
+                mock_inspector = Mock()
+                mock_inspector.get_table_names.return_value = [
+                    "users",
+                    "recipes",
+                    "meals",
+                    "food_items",
+                    "context",
+                ]
 
-                # The original mock should still be there
+                # Call init_db with mocked inspect
+                with patch("sqlalchemy.inspect", return_value=mock_inspector):
+                    core.db.init_db()
+
+                # The original mock should still be there (not wrapped since it has assert_called_once)
                 assert mock_metadata.create_all == mock_create_all
 
             finally:

@@ -507,9 +507,24 @@ def init_db() -> None:
     create_all = metadata.create_all
 
     # Diagnostic log: show registered tables BEFORE create_all
+    # Defensive retrieval of table keys (works for real metadata and Mock objects)
+    table_keys: list[str] = []
+    try:
+        tables_attr = getattr(metadata, "tables", None)
+        if tables_attr is not None and hasattr(tables_attr, "keys"):
+            # Call .keys() and convert to list of strings
+            raw_keys = tables_attr.keys()
+            table_keys = [str(k) for k in raw_keys]
+        elif tables_attr:
+            # tables might already be iterable
+            table_keys = [str(k) for k in tables_attr]
+    except Exception:
+        # In case of any error, just use empty list and continue
+        table_keys = []
+
     log_module.getLogger(__name__).debug(
         "init_db: registered tables in Base.metadata BEFORE create_all: %s",
-        sorted(metadata.tables.keys()),
+        sorted(table_keys) if table_keys else [],
     )
 
     # Wrap create_all in a callable object with an assert_called_once helper,

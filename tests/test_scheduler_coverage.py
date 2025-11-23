@@ -270,6 +270,11 @@ class TestSchedulerCoverage:
     @pytest.mark.asyncio
     async def test_global_scheduler_functions(self):
         """Test global scheduler functions."""
+        # Reset scheduler instance to ensure clean state
+        import core.food_apis.scheduler as sched_mod
+
+        sched_mod._scheduler_instance = None
+
         # Test get_update_scheduler
         scheduler1 = await get_update_scheduler()
         scheduler2 = await get_update_scheduler()
@@ -277,7 +282,8 @@ class TestSchedulerCoverage:
         # Should return the same instance
         assert scheduler1 is scheduler2
 
-        # Test start_background_updates
+        # Test start_background_updates - ensure scheduler is not running
+        scheduler1.is_running = False
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             try:
                 await start_background_updates(1)  # 1 hour interval
@@ -287,7 +293,8 @@ class TestSchedulerCoverage:
                 # Skip test if scheduler doesn't have start method
                 pytest.skip(f"Scheduler start method not available: {e}")
 
-        # Test stop_background_updates
+        # Test stop_background_updates - ensure scheduler is running
+        scheduler1.is_running = True
         with patch("core.food_apis.scheduler.logger") as mock_logger:
             await stop_background_updates()
             # Should log that updates stopped
