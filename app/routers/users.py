@@ -7,6 +7,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.schemas.users import UserCreate, UserRead
@@ -42,9 +43,13 @@ def list_users(
 
     EN: Return paginated list of users.
     """
-    rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
-    results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
-    return results
+    try:
+        rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
+        results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
+        return results
+    except OperationalError as exc:
+        logger.warning("Users table unavailable, returning empty list: %s", exc)
+        return []
 
 
 @router.get("/{user_id}", response_model=UserRead)

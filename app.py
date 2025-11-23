@@ -106,14 +106,34 @@ except ImportError:
     vip_router = None
 
 
-async def start_background_updates(update_interval_hours: int = 24) -> None:
-    """Proxy to scheduler.start_background_updates so _resolve_app_callable can find it."""
-    await _scheduler_start_background_updates(update_interval_hours=update_interval_hours)
+def start_background_updates(update_interval_hours: int = 24) -> None:
+    """Start background updates in the current or a new event loop (sync wrapper).
+
+    Returns:
+        None (synchronous fire-and-forget wrapper for the async scheduler starter)
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop: run synchronously
+        asyncio.run(_scheduler_start_background_updates(update_interval_hours=update_interval_hours))
+    else:
+        # Running loop: schedule and return immediately
+        loop.create_task(
+            _scheduler_start_background_updates(update_interval_hours=update_interval_hours)
+        )
+    return None
 
 
-async def stop_background_updates() -> None:
-    """Proxy to scheduler.stop_background_updates so _resolve_app_callable can find it."""
-    await _scheduler_stop_background_updates()
+def stop_background_updates() -> None:
+    """Stop background updates in the current or a new event loop (sync wrapper)."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.run(_scheduler_stop_background_updates())
+    else:
+        loop.create_task(_scheduler_stop_background_updates())
+    return None
 
 
 def _resolve_app_callable(

@@ -1,109 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# Pre-commit hook to run lightweight smoke tests before committing.
+# To enable: git config core.hooksPath .githooks
+
 set -euo pipefail
 
-# Enhanced pre-commit hook with comprehensive checks
-echo "🔍 Running pre-commit checks..."
-
-# 1. Clean Python cache files
-echo "🧹 Cleaning cache files..."
-if ! ./scripts/clean-cache.sh > /dev/null 2>&1; then
-    echo "⚠️  Warning: Cache cleanup script failed"
+if [[ "${SKIP_PRECOMMIT_TESTS:-0}" == "1" ]]; then
+  echo "⚠️  SKIP_PRECOMMIT_TESTS=1 set, skipping pre-commit smoke tests."
+  exit 0
 fi
 
-# 2. Check if any cache files are staged
-CACHE_FILES=$(git diff --cached --name-only | grep -E '(__pycache__|\.pyc$|\.pyo$|\.pyd$|\.pytest_cache/|\.mypy_cache/|\.ruff_cache/|\.hypothesis/)' || true)
-
-if [ ! -z "$CACHE_FILES" ]; then
-    echo "❌ Cache files detected in staged changes:"
-    echo "$CACHE_FILES"
-    echo ""
-    echo "Please run: ./scripts/clean-cache.sh"
-    echo "Then: git add . && git commit"
-    exit 1
+if [[ "${CI:-}" == "true" ]]; then
+  exit 0
 fi
 
-# 3. Check for frontend changes and run tests
-FRONTEND_CHANGES=$(git diff --cached --name-only | grep -E "^frontend/(src/|package\.json)" || true)
-
-if [ ! -z "$FRONTEND_CHANGES" ]; then
-    echo "🎨 Frontend changes detected, running tests..."
-
-    # Check if we're in the right directory
-    if [ ! -f "frontend/package.json" ]; then
-        echo "⚠️  Warning: frontend/package.json not found, skipping frontend tests"
-    else
-        cd frontend
-
-        # Run linting
-        echo "🔍 Running ESLint..."
-        if ! npm run lint --if-present; then
-            echo "❌ ESLint failed. Please fix linting errors before committing."
-            exit 1
-        fi
-
-        # Run type checking
-        echo "🔍 Running TypeScript type check..."
-        if ! npm run type-check --if-present; then
-            echo "❌ TypeScript type check failed. Please fix type errors before committing."
-            exit 1
-        fi
-
-        # Run tests for changed files
-        echo "🧪 Running tests for changed files..."
-        declare -a CHANGED_TEST_FILES=()
-        for file in $FRONTEND_CHANGES; do
-            # Consider only TS/TSX under frontend/src/
-            if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]]; then
-                rel="${BASH_REMATCH[1]}"   # path without extension, may include ".test"
-                ext="${BASH_REMATCH[2]}"
-                # If the changed file is a test, run it; otherwise, map to its sibling test file.
-                if [[ "$rel" == *.test ]]; then
-                    test_file="src/${rel}.${ext}"
-                else
-                    test_file="src/${rel}.test.${ext}"
-                fi
-                if [ -f "$test_file" ]; then
-                    CHANGED_TEST_FILES+=("$test_file")
-                fi
-            fi
-        done
-
-        # Run specific tests if any, otherwise run all tests
-        if [ ${#CHANGED_TEST_FILES[@]} -gt 0 ]; then
-            echo "Running tests for: ${CHANGED_TEST_FILES[*]}"
-            if ! npm run test --if-present -- --run "${CHANGED_TEST_FILES[@]}"; then
-                echo "❌ Tests failed. Please fix failing tests before committing."
-                exit 1
-            fi
-        else
-            echo "Running all tests..."
-            if ! npm run test --if-present -- --run; then
-                echo "❌ Tests failed. Please fix failing tests before committing."
-                exit 1
-            fi
-        fi
-
-        cd ..
-    fi
-fi
-
-# 4. Check for Python changes and run basic checks
-PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
-
-if [ ! -z "$PYTHON_CHANGES" ]; then
-    echo "🐍 Python changes detected, running basic checks..."
-
-    # Check Python syntax
-    for file in $PYTHON_CHANGES; do
-        if [ -f "$file" ]; then
-            echo "Checking syntax: $file"
-            if ! python -m py_compile "$file"; then
-                echo "❌ Python syntax error in $file"
-                exit 1
-            fi
-        fi
-    done
-fi
-
-echo "✅ All pre-commit checks passed!"
-exit 0
+exec scripts/precommit_smoke.sh

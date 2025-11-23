@@ -36,6 +36,9 @@ curl http://localhost:8000/health  # Verify it works
 **Always run pre-commit checks before pushing:**
 
 ```bash
+# Enable lightweight smoke tests hook (once per clone)
+git config core.hooksPath .githooks
+
 # Option 1: Use the existing pre-commit hook (recommended)
 git commit  # Automatically runs pre-commit hooks
 
@@ -53,6 +56,7 @@ pre-commit run --all-files
 - ✅ **MyPy** type checking
 - ✅ **Bandit** security scanning
 - ✅ **Automatic cache cleanup** (removes `__pycache__` and `.pyc` files)
+- ✅ **Smoke pytest** (`scripts/precommit_smoke.sh`): low-parallel, no-coverage run of fast suites (`test_quick_check.py`, `test_pro_access.py`, `test_ascii_logging.py`, `tests/quick`, `tests/utils`). Skip only if needed via `SKIP_PRECOMMIT_TESTS=1`.
 
 ### Python Version
 

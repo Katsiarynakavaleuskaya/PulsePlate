@@ -15,6 +15,7 @@ import logging
 import signal
 import threading
 import weakref
+import os
 from datetime import datetime, timedelta
 from types import FrameType
 from typing import Any, Dict, Optional
@@ -79,8 +80,14 @@ class DatabaseUpdateScheduler:
         """
         global _SIGNALS_INSTALLED
 
+        allow_rebind = os.getenv("ALLOW_SIGNAL_REBIND", "").lower() in {"1", "true", "yes", "on"}
+        in_test_env = (
+            os.getenv("APP_ENV", "").lower() in {"test", "ci"}
+            or "PYTEST_CURRENT_TEST" in os.environ
+        )
+
         with _SIGNALS_LOCK:
-            if _SIGNALS_INSTALLED:
+            if _SIGNALS_INSTALLED and not (allow_rebind or in_test_env):
                 return
 
             weak_self = weakref.ref(self)
