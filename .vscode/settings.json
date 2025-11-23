@@ -108,10 +108,9 @@
   "claudeCodeChat.permissions.yoloMode": true,
   "editor.tabCompletion": "on",
   "diffEditor.codeLens": true,
-  "MutableAI.upsell": true,
+  "mutableAI.upsell": true,
   "github.copilot.enable": {
     "markdown": true,
     "plaintext": true
-  },
-  "chatgpt.openOnStartup": true
+  }
 }

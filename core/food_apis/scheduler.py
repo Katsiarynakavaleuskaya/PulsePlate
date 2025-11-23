@@ -123,10 +123,7 @@ class DatabaseUpdateScheduler:
             return
 
         self.is_running = True
-        try:
-            self._loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._loop = None
+        self._loop = asyncio.get_running_loop()
         logger.info("Starting database update scheduler...")
 
         # Start background update task

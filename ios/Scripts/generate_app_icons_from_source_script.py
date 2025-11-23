@@ -73,8 +73,8 @@ def generate_all_icons_from_source(source_path: str) -> bool:
     if env_icons_dir:
         icons_dir = os.path.normpath(os.path.abspath(os.path.expanduser(env_icons_dir)))
     else:
-        script_dir: str = os.path.dirname(os.path.abspath(__file__))
-        icons_dir: str = os.path.join(
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icons_dir = os.path.join(
             script_dir, "..", "PulsePlate", "Assets.xcassets", "AppIcon.appiconset"
         )
         icons_dir = os.path.normpath(icons_dir)
