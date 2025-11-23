@@ -957,16 +957,16 @@ async def search_region_products(
     provider = search_products
 
     if provider is None or not callable(provider):
-        # Graceful echo-mode: succeed with empty results when provider unavailable
+        # Provider unavailable: return error to avoid misleading success in error coverage
         return {
-            "status": "success",
+            "status": "error",
             "region": region,
             "query": query,
             "category": category,
-            "products": sample_products,
-            "total_count": len(sample_products),
-            "returned_count": len(sample_products),
-            "message": "Search provider unavailable (echo mode)",
+            "products": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "message": "Search provider unavailable",
         }
 
     try:

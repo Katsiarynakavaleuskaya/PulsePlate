@@ -6,6 +6,7 @@ RU: Тесты для функциональности авто-ремонта �
 EN: Tests for auto-repair functionality with UX loop
 """
 
+from typing import Any
 from unittest.mock import patch
 
 from core.auto_repair import (
@@ -41,7 +42,7 @@ def default_targets() -> MicronutrientTargets:
 class TestRepairStrategy:
     """Тесты для enum RepairStrategy"""
 
-    def test_repair_strategy_values(self):
+    def test_repair_strategy_values(self) -> None:
         """Тест значений стратегий ремонта"""
         assert RepairStrategy.CONSERVATIVE.value == "conservative"
         assert RepairStrategy.BALANCED.value == "balanced"
@@ -51,7 +52,7 @@ class TestRepairStrategy:
 class TestRepairStatus:
     """Тесты для enum RepairStatus"""
 
-    def test_repair_status_values(self):
+    def test_repair_status_values(self) -> None:
         """Тест значений статусов ремонта"""
         assert RepairStatus.SUCCESS.value == "success"
         assert RepairStatus.PARTIAL.value == "partial"
@@ -62,7 +63,7 @@ class TestRepairStatus:
 class TestRepairResult:
     """Тесты для класса RepairResult"""
 
-    def test_repair_result_creation(self):
+    def test_repair_result_creation(self) -> None:
         """Тест создания результата ремонта"""
         result = RepairResult(
             status=RepairStatus.SUCCESS,
@@ -85,7 +86,7 @@ class TestRepairResult:
 class TestRepairIteration:
     """Тесты для класса RepairIteration"""
 
-    def test_repair_iteration_creation(self):
+    def test_repair_iteration_creation(self) -> None:
         """Тест создания итерации ремонта"""
         iteration = RepairIteration(
             iteration_number=1,
@@ -106,21 +107,21 @@ class TestRepairIteration:
 class TestAutoRepairEngine:
     """Тесты для класса AutoRepairEngine"""
 
-    def test_init_with_default_max_iterations(self):
+    def test_init_with_default_max_iterations(self) -> None:
         """Тест инициализации с максимальным количеством итераций по умолчанию"""
         engine = AutoRepairEngine()
 
         assert engine.max_iterations == 3
         assert engine.repair_history == []
 
-    def test_init_with_custom_max_iterations(self):
+    def test_init_with_custom_max_iterations(self) -> None:
         """Тест инициализации с пользовательским максимальным количеством итераций"""
         engine = AutoRepairEngine(max_iterations=5)
 
         assert engine.max_iterations == 5
         assert engine.repair_history == []
 
-    def test_analyze_nutrient_gaps_no_gaps(self):
+    def test_analyze_nutrient_gaps_no_gaps(self) -> None:
         """Тест анализа дефицитов - нет дефицитов"""
         engine = AutoRepairEngine()
 
@@ -146,7 +147,7 @@ class TestAutoRepairEngine:
         # В данном случае должны быть дефициты из-за упрощенной логики
         assert isinstance(gaps, dict)
 
-    def test_analyze_nutrient_gaps_with_gaps(self):
+    def test_analyze_nutrient_gaps_with_gaps(self) -> None:
         """Тест анализа дефицитов - есть дефициты"""
         engine = AutoRepairEngine()
 
@@ -159,7 +160,7 @@ class TestAutoRepairEngine:
 
         assert isinstance(gaps, dict)
 
-    def test_get_next_strategy(self):
+    def test_get_next_strategy(self) -> None:
         """Тест получения следующей стратегии"""
         engine = AutoRepairEngine()
 
@@ -167,7 +168,7 @@ class TestAutoRepairEngine:
         assert engine._get_next_strategy(RepairStrategy.BALANCED) == RepairStrategy.AGGRESSIVE
         assert engine._get_next_strategy(RepairStrategy.AGGRESSIVE) == RepairStrategy.CONSERVATIVE
 
-    def test_get_all_changes_empty_history(self):
+    def test_get_all_changes_empty_history(self) -> None:
         """Тест получения всех изменений - пустая история"""
         engine = AutoRepairEngine()
 
@@ -175,7 +176,7 @@ class TestAutoRepairEngine:
 
         assert changes == []
 
-    def test_get_all_changes_with_history(self):
+    def test_get_all_changes_with_history(self) -> None:
         """Тест получения всех изменений - есть история"""
         engine = AutoRepairEngine()
 
@@ -196,7 +197,7 @@ class TestAutoRepairEngine:
         assert changes[0]["type"] == "repair"
         assert changes[0]["details"] == "test"
 
-    def test_generate_success_suggestions(self):
+    def test_generate_success_suggestions(self) -> None:
         """Тест генерации предложений при успехе"""
         engine = AutoRepairEngine()
 
@@ -206,7 +207,7 @@ class TestAutoRepairEngine:
         assert len(suggestions) > 0
         assert "План успешно оптимизирован!" in suggestions
 
-    def test_generate_manual_suggestions(self):
+    def test_generate_manual_suggestions(self) -> None:
         """Тест генерации предложений для ручного ремонта"""
         engine = AutoRepairEngine()
 
@@ -224,7 +225,7 @@ class TestAutoRepairEngine:
         assert any("железа" in suggestion for suggestion in suggestions)
         assert any("витамина C" in suggestion for suggestion in suggestions)
 
-    def test_suggest_manual_fixes(self):
+    def test_suggest_manual_fixes(self) -> None:
         """Тест предложения ручных исправлений"""
         engine = AutoRepairEngine()
 
@@ -238,7 +239,7 @@ class TestAutoRepairEngine:
         assert isinstance(suggestions, list)
         # Могут быть предложения или пустой список в зависимости от логики
 
-    def test_get_repair_history(self):
+    def test_get_repair_history(self) -> None:
         """Тест получения истории ремонта"""
         engine = AutoRepairEngine()
 
@@ -260,14 +261,14 @@ class TestAutoRepairEngine:
         assert history[0].strategy == RepairStrategy.BALANCED
 
     @patch("core.auto_repair.repair_week_plan")
-    def test_attempt_repair_success(self, mock_repair):
+    def test_attempt_repair_success(self, mock_repair: Any) -> None:
         """Тест попытки ремонта - успех"""
         engine = AutoRepairEngine()
 
         # Мокаем успешный ремонт
         mock_repair.return_value = {"days": [], "repaired": True}
 
-        week_plan = {"days": []}
+        week_plan: dict = {"days": []}
         targets = default_targets()
 
         iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
@@ -277,14 +278,14 @@ class TestAutoRepairEngine:
         assert iteration.strategy == RepairStrategy.BALANCED
 
     @patch("core.auto_repair.repair_week_plan")
-    def test_attempt_repair_failure(self, mock_repair):
+    def test_attempt_repair_failure(self, mock_repair: Any) -> None:
         """Тест попытки ремонта - неудача"""
         engine = AutoRepairEngine()
 
         # Мокаем неудачный ремонт
         mock_repair.side_effect = Exception("Repair failed")
 
-        week_plan = {"days": []}
+        week_plan: dict = {"days": []}
         targets = default_targets()
 
         iteration = engine._attempt_repair(week_plan, targets, RepairStrategy.BALANCED, 1)
@@ -294,7 +295,7 @@ class TestAutoRepairEngine:
         assert iteration.strategy == RepairStrategy.BALANCED
         assert iteration.success is False
 
-    def test_auto_repair_week_plan_no_gaps(self):
+    def test_auto_repair_week_plan_no_gaps(self) -> None:
         """Тест авто-ремонта - нет дефицитов"""
         engine = AutoRepairEngine()
 
@@ -325,7 +326,7 @@ class TestAutoRepairEngine:
         assert result.iterations == 0
         assert "уже соответствует" in result.message
 
-    def test_auto_repair_week_plan_with_gaps(self):
+    def test_auto_repair_week_plan_with_gaps(self) -> None:
         """Тест авто-ремонта - есть дефициты"""
         engine = AutoRepairEngine()
 
@@ -357,7 +358,7 @@ class TestConvenienceFunctions:
     """Тесты для удобных функций"""
 
     @patch("core.auto_repair._auto_repair_engine")
-    def test_get_auto_repair_engine(self, mock_engine):
+    def test_get_auto_repair_engine(self, mock_engine: Any) -> None:
         """Тест получения глобального движка авто-ремонта"""
         mock_engine_instance = AutoRepairEngine()
         mock_engine.return_value = mock_engine_instance
@@ -367,7 +368,7 @@ class TestConvenienceFunctions:
         assert engine is not None
 
     @patch("core.auto_repair.get_auto_repair_engine")
-    def test_auto_repair_week_plan_function(self, mock_get_engine):
+    def test_auto_repair_week_plan_function(self, mock_get_engine: Any) -> None:
         """Тест функции авто-ремонта недельного плана"""
         from unittest.mock import MagicMock
 
@@ -385,21 +386,8 @@ class TestConvenienceFunctions:
         )
         mock_get_engine.return_value = mock_engine
 
-        week_plan = {"days": []}
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        week_plan: dict = {"days": []}
+        targets = default_targets()
 
         result = auto_repair_week_plan(week_plan, targets)
 
@@ -407,7 +395,7 @@ class TestConvenienceFunctions:
         assert result.status == RepairStatus.SUCCESS
 
     @patch("core.auto_repair.get_auto_repair_engine")
-    def test_suggest_manual_fixes_function(self, mock_get_engine):
+    def test_suggest_manual_fixes_function(self, mock_get_engine: Any) -> None:
         """Тест функции предложения ручных исправлений"""
         from unittest.mock import MagicMock
 
@@ -417,23 +405,14 @@ class TestConvenienceFunctions:
         ]
         mock_get_engine.return_value = mock_engine
 
-        week_plan = {"days": []}
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        week_plan: dict = {"days": []}
+        targets = default_targets()
 
         suggestions = suggest_manual_fixes(week_plan, targets)
+
+        # Verify mock was called
+        mock_get_engine.assert_called_once()
+        mock_engine.suggest_manual_fixes.assert_called_once_with(week_plan, targets)
 
         assert isinstance(suggestions, list)
         assert len(suggestions) == 1
@@ -443,7 +422,7 @@ class TestConvenienceFunctions:
 class TestIntegration:
     """Интеграционные тесты"""
 
-    def test_full_auto_repair_workflow(self):
+    def test_full_auto_repair_workflow(self) -> None:
         """Тест полного рабочего процесса авто-ремонта"""
         engine = AutoRepairEngine(max_iterations=2)
 
@@ -451,25 +430,12 @@ class TestIntegration:
             "days": [{"meals": [{"ingredients": [{"name": "rice", "amount": 200, "unit": "g"}]}]}]
         }
 
-        targets = MicronutrientTargets(
-            iron_mg=18.0,
-            calcium_mg=1000.0,
-            magnesium_mg=400.0,
-            zinc_mg=11.0,
-            potassium_mg=3500.0,
-            iodine_ug=150.0,
-            selenium_ug=55.0,
-            folate_ug=400.0,
-            b12_ug=2.4,
-            vitamin_d_iu=20.0,
-            vitamin_a_ug=900.0,
-            vitamin_c_mg=90.0,
-        )
+        targets = default_targets()
 
         # Мокаем анализ дефицитов - сначала есть дефициты, потом нет
         counter = {"n": 0}
 
-        def mock_analyze_gaps(plan, targets):
+        def mock_analyze_gaps(plan: dict, targets: MicronutrientTargets) -> dict[str, float]:
             # Первый вызов - есть дефициты
             counter["n"] += 1
             return {"iron": 50.0} if counter["n"] == 1 else {}
@@ -495,7 +461,7 @@ class TestIntegration:
         # changes_made может быть пустым если нет дефицитов с самого начала
         assert len(result.suggestions) > 0
 
-    def test_auto_repair_max_iterations_reached(self):
+    def test_auto_repair_max_iterations_reached(self) -> None:
         """Тест авто-ремонта - достигнуто максимальное количество итераций"""
         engine = AutoRepairEngine(max_iterations=1)
 
