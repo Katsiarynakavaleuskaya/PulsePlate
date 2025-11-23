@@ -100,6 +100,11 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
 
     # Teardown: Clean up database connections and files
     try:
+        # Force garbage collection to close any lingering sqlite3 connections
+        import gc
+
+        gc.collect()
+
         # Close database connections if available
         # First, close the raw engine if it exists
         if hasattr(db_module, "_RAW_ENGINE") and db_module._RAW_ENGINE:
@@ -125,6 +130,9 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
                 logger.debug(f"Cleared SessionLocal binding for worker {worker_id}")
             except Exception as e:
                 logger.debug(f"Error clearing SessionLocal binding: {e}")
+
+        # Force another garbage collection after disposing engines
+        gc.collect()
 
         # Remove the SQLite database file
         db_path = Path(os.environ.get("TEST_DB_PATH", ""))
@@ -155,6 +163,11 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
                 pass
             except Exception as e:
                 logger.debug(f"Could not remove parent directory: {e}")
+
+        # Final garbage collection to ensure all resources are released
+        import gc
+
+        gc.collect()
 
     except Exception as e:
         logger.error(f"Error during database cleanup: {e}")
