@@ -126,7 +126,6 @@ class UnifiedFoodDatabase:
             if (
                 OFFClient is not None
                 and OFF_AVAILABLE
-                and callable(OFFClient)
                 and os.getenv("APP_ENV", "").lower() not in {"test", "ci"}
             )
             else None
@@ -290,10 +289,9 @@ class UnifiedFoodDatabase:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
 
-                foods_db = {}
-                for key, item_data in cache_data.items():
-                    foods_db[key] = UnifiedFoodItem(**item_data)
-
+                foods_db = {
+                    key: UnifiedFoodItem(**item_data) for key, item_data in cache_data.items()
+                }
                 logger.info(f"Loaded {len(foods_db)} common foods from cache")
                 return foods_db
             except Exception as e:
