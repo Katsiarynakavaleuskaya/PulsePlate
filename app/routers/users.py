@@ -6,12 +6,11 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from app.schemas.users import UserCreate, UserRead
-from core.db import get_session
+from core.db import get_session, init_db
 from core.models import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
@@ -43,6 +42,13 @@ def list_users(
 
     EN: Return paginated list of users.
     """
+    # Ensure the users table exists; some tests run without app lifespan initialization.
+    bind = db.get_bind()
+    if bind is not None:
+        inspector = inspect(bind)
+        if "users" not in inspector.get_table_names():
+            init_db()
+
     rows = db.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
     results: List[UserRead] = [UserRead.model_validate(row) for row in rows]
     return results

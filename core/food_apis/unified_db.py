@@ -14,6 +14,7 @@ import asyncio
 import importlib
 import json
 import logging
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -122,7 +123,12 @@ class UnifiedFoodDatabase:
         # Treat OFFClient==None as unavailable without mutating module-level flags
         runtime_off = (
             OFFClient()
-            if (OFFClient is not None and OFF_AVAILABLE and callable(OFFClient))
+            if (
+                OFFClient is not None
+                and OFF_AVAILABLE
+                and callable(OFFClient)
+                and os.getenv("APP_ENV", "").lower() not in {"test", "ci"}
+            )
             else None
         )
         self.off_client: Optional[Any] = runtime_off
@@ -275,6 +281,8 @@ class UnifiedFoodDatabase:
 
         Returns a dictionary of common foods with standardized names.
         """
+        if os.getenv("UNIFIED_DB_FAST_TEST", "").lower() in {"1", "true", "yes"}:
+            return {}
         # Check if we have cached common foods
         cache_file = self.cache_dir / "common_foods.json"
 
@@ -321,7 +329,8 @@ class UnifiedFoodDatabase:
         # Optional sleep override for faster tests
         import os as _os
 
-        _sleep_ms = int(_os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", "100"))
+        default_sleep_ms = "0" if _os.getenv("APP_ENV", "").lower() in {"test", "ci"} else "100"
+        _sleep_ms = int(_os.getenv("UNIFIED_DB_COMMON_SLEEP_MS", default_sleep_ms))
 
         for standard_name, search_query in common_searches.items():
             try:

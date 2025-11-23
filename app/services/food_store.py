@@ -6,6 +6,7 @@ EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
 
 import csv
+import re
 import logging
 import os
 import sqlite3
@@ -141,13 +142,24 @@ def _parse_alias_canonical_schema(reader: csv.DictReader) -> dict[str, list[str]
             continue
         # Lowercase canonical to match DEFAULT_ALIASES format
         canonical_lower = canonical_raw.lower()
-        alias_lower = alias_raw.lower()
         if canonical_lower not in canonical_to_aliases:
             canonical_to_aliases[canonical_lower] = []
-        # Add alias if not already present (avoid duplicates)
-        if alias_lower not in canonical_to_aliases[canonical_lower]:
-            canonical_to_aliases[canonical_lower].append(alias_lower)
+        seen = set(canonical_to_aliases[canonical_lower])
+        for token in _split_alias_tokens(alias_raw):
+            if token not in seen:
+                canonical_to_aliases[canonical_lower].append(token)
+                seen.add(token)
     return canonical_to_aliases
+
+
+def _split_alias_tokens(raw: str) -> list[str]:
+    """Split alias strings that may contain semicolons/commas, preserving multi-word tokens."""
+    tokens: list[str] = []
+    for part in re.split(r"[;,]", raw):
+        normalized = part.strip().lower()
+        if normalized:
+            tokens.append(normalized)
+    return tokens
 
 
 def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, list[str]]:
@@ -183,13 +195,13 @@ def _parse_primary_aliases_schema(reader: Iterator[Sequence[str]]) -> dict[str, 
             alias_parts = [
                 val.strip() for val in row_values[primary_idx + 1 :] if val and val.strip()
             ]
-            # Process each alias part
+            # Process each alias part (support semicolon/comma separated tokens)
             seen = set(canonical_to_aliases[primary_lower])
             for alias_raw in alias_parts:
-                alias_lower = alias_raw.strip().lower()
-                if alias_lower and alias_lower not in seen:
-                    canonical_to_aliases[primary_lower].append(alias_lower)
-                    seen.add(alias_lower)
+                for token in _split_alias_tokens(alias_raw):
+                    if token not in seen:
+                        canonical_to_aliases[primary_lower].append(token)
+                        seen.add(token)
     return canonical_to_aliases
 
 
@@ -428,17 +440,27 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> li
     terms = expand_query(query) if query else []
     params: list[Any] = []
     if terms:
-        # Build a single FTS query string using OR to match any expanded term.
-        escaped_terms = [_escape_fts_term(term) for term in terms if term]
-        fts_query = " OR ".join(escaped_terms) if escaped_terms else '""'
-        sql = """
-          SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
-          FROM foods f
-          JOIN foods_fts ff ON ff.rowid = f.rowid
-          WHERE ff.canonical_name MATCH ?
-          LIMIT ? OFFSET ?
-        """
-        params = [fts_query, limit, offset]
+        if len(terms) == 1:
+            term = terms[0].replace('"', '""') if terms[0] else ""
+            sql = """
+              SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
+              FROM foods f
+              JOIN foods_fts ff ON ff.rowid = f.rowid
+              WHERE ff.canonical_name MATCH ?
+              LIMIT ? OFFSET ?
+            """
+            params = [term, limit, offset]
+        else:
+            escaped_terms = [t.replace('"', '""') for t in terms if t]
+            placeholders = " OR ".join("?" for _ in escaped_terms) if escaped_terms else '""'
+            sql = f"""
+              SELECT f.id, f.canonical_name, f.kcal, f.protein_g, f.fat_g, f.carbs_g
+              FROM foods f
+              JOIN foods_fts ff ON ff.rowid = f.rowid
+              WHERE ff.canonical_name MATCH {placeholders}
+              LIMIT ? OFFSET ?
+            """
+            params = [*escaped_terms, limit, offset]
     else:
         sql = (
             "SELECT id, canonical_name, kcal, protein_g, fat_g, carbs_g FROM foods LIMIT ? OFFSET ?"

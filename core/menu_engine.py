@@ -157,13 +157,22 @@ def _should_use_mock_food_db() -> bool:
     This function logs a debug message when the decision is made so tests
     that patch core.menu_engine._logger can assert on logging calls.
     """
+    logger = globals().get("_logger") or logging.getLogger(__name__)
+    try:
+        # During tests the module attribute may be patched; prefer the patched value.
+        import core.menu_engine as _me
+
+        logger = getattr(_me, "_logger", logger)
+    except Exception:
+        # Best-effort logger resolution; fall back to existing logger if import fails.
+        pass
     flag = os.getenv(MENU_ENGINE_FORCE_MOCK_DB)
     if flag and flag.strip().lower() in TRUTHY_ENV_VALUES:
-        _logger.debug("MENU_ENGINE_FORCE_MOCK_DB=%r -> using mock food DB", flag)
+        logger.debug("MENU_ENGINE_FORCE_MOCK_DB=%r -> using mock food DB", flag)
         return True
     pytest_env = os.getenv(PYTEST_CURRENT_TEST)
     if pytest_env:
-        _logger.debug("PYTEST_CURRENT_TEST=%r -> using mock food DB", pytest_env)
+        logger.debug("PYTEST_CURRENT_TEST=%r -> using mock food DB", pytest_env)
         return True
     return False
 

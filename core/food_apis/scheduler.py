@@ -143,6 +143,12 @@ class DatabaseUpdateScheduler:
             logger.warning("Update scheduler is already running")
             return
 
+        # Recreate update manager if it was closed previously (clients are not reusable)
+        if getattr(self.update_manager, "closed", False):
+            self.update_manager = DatabaseUpdateManager(
+                update_interval_hours=int(self.update_interval.total_seconds() / 3600),
+            )
+
         self.is_running = True
         self._loop = asyncio.get_running_loop()
         logger.info("Starting database update scheduler...")

@@ -95,6 +95,10 @@ slowapi_available = Limiter is not None
 vip_router: Optional[APIRouter]
 _scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
 
+# Track whether the app is running on a degraded/fallback database so /health/db
+# can report an accurate status (used by tests simulating DB failures).
+_db_fallback_active = False
+
 # Safe import for VIP_MODULE_ENABLED to avoid attribute errors
 try:
     from app.routers import vip as _vip_mod
@@ -346,6 +350,7 @@ def _attempt_db_fallback(
             fallback_url,
         )
 
+    global _db_fallback_active
     fallback_ok = False
     try:
         # Create a new engine directly with the fallback URL instead of reloading module
@@ -375,6 +380,8 @@ def _attempt_db_fallback(
         core_db._RAW_ENGINE = fallback_engine
         core_db.engine = core_db.EngineCompat(fallback_engine)
         fallback_ok = True
+        _db_fallback_active = True
+        os.environ["DB_HEALTH_DEGRADED"] = "1"
 
         # Set DB_FALLBACK_URL only if needed for external tools
         if not is_production:
@@ -415,6 +422,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         init_db()
         logger.info("Database schema initialized")
+        # Clear degraded marker if a real database is available
+        global _db_fallback_active
+        _db_fallback_active = False
+        os.environ.pop("DB_HEALTH_DEGRADED", None)
     except Exception as db_err:
         _attempt_db_fallback(env_name, is_production, db_err, truthy)
 
@@ -741,6 +752,14 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
     """
 
     try:
+        if _db_fallback_active or os.getenv("DB_HEALTH_DEGRADED") == "1":
+            raise HTTPException(status_code=503, detail="Database unavailable")
+
+        exec_fn = getattr(session, "execute", None)
+        if exec_fn is None or not callable(exec_fn):
+            raise HTTPException(status_code=503, detail="Database unavailable")
+        if getattr(session, "bind", None) is None:
+            raise HTTPException(status_code=503, detail="Database unavailable")
         await run_in_threadpool(session.execute, text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - defensive path hit via tests
         logger.error("Database health check failed: %s", exc)

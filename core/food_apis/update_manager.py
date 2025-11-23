@@ -160,6 +160,7 @@ class DatabaseUpdateManager:
         update_interval_hours: int = 24,
         max_rollback_versions: int = 5,
     ) -> None:
+        self.closed = False
         real_cache_path = Path(cache_dir)
         real_cache_path.mkdir(parents=True, exist_ok=True)
         # Wrap with a patch-friendly wrapper so tests can monkeypatch methods like .glob
@@ -1020,6 +1021,7 @@ class DatabaseUpdateManager:
                     result,
                     exc_info=result,
                 )
+        self.closed = True
 
 
 # Convenience functions for scheduled updates
