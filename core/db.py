@@ -488,6 +488,8 @@ def init_db() -> None:
 
     EN: Creates database schema for all registered models (used during startup).
     """
+    import logging as log_module  # Local import to avoid logger variable shadowing
+
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
@@ -503,6 +505,12 @@ def init_db() -> None:
 
     metadata = Base.metadata
     create_all = metadata.create_all
+
+    # Diagnostic log: show registered tables BEFORE create_all
+    log_module.getLogger(__name__).debug(
+        "init_db: registered tables in Base.metadata BEFORE create_all: %s",
+        sorted(metadata.tables.keys()),
+    )
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
