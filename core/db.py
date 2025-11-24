@@ -90,14 +90,14 @@ def _build_engine_url(fallback_url: Optional[str] = None) -> str:
             # In test environment, use worker ID or process ID for uniqueness
             default_path = os.path.join("cache", "app.db")
 
-            # For pytest-xdist/CI: use worker ID if available
-            worker_id = os.getenv("PYTEST_XDIST_WORKER") or os.getenv("GITHUB_RUN_ID")
-            if worker_id:
-                # Create worker-specific DB file to avoid conflicts
-                base_path = Path(default_path)
-                default_path = str(
-                    base_path.with_name(f"{base_path.stem}_{worker_id}{base_path.suffix}")
-                )
+            # For pytest-xdist/CI: use worker ID if available, fallback to process ID
+            worker_id = (
+                os.getenv("PYTEST_XDIST_WORKER") or os.getenv("GITHUB_RUN_ID") or str(os.getpid())
+            )
+            base_path = Path(os.path.abspath(default_path))
+            default_path = str(
+                base_path.with_name(f"{base_path.stem}_{worker_id}{base_path.suffix}")
+            )
 
             database_url = f"sqlite:///{default_path}"
 
@@ -490,6 +490,8 @@ def init_db() -> None:
     """
     import logging as log_module  # Local import to avoid logger variable shadowing
 
+    func_logger = log_module.getLogger(__name__)
+
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
@@ -546,20 +548,28 @@ def init_db() -> None:
     if not hasattr(create_all, "assert_called_once"):
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
-    # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
-    metadata.create_all(bind=_RAW_ENGINE)
+    # Use an explicit transactional connection so DDL is executed and committed
+    func_logger.info("Creating DB schema for URL: %s", DATABASE_URL)
+    if DATABASE_URL.startswith("sqlite:///"):
+        db_file = Path(DATABASE_URL.replace("sqlite:///", "", 1))
+        func_logger.info(
+            "SQLite DB file path: %s, exists before create_all: %s", db_file, db_file.exists()
+        )
+    try:
+        from sqlalchemy import inspect
 
-    # Verify tables were created using inspector (without session_scope)
-    from sqlalchemy import inspect
-
-    inspector = inspect(_RAW_ENGINE)
-    created_tables = inspector.get_table_names()
+        with _RAW_ENGINE.begin() as conn:
+            metadata.create_all(bind=conn)
+        inspector = inspect(_RAW_ENGINE)
+        created_tables = inspector.get_table_names()
+        func_logger.info("Tables present after create_all: %s", created_tables)
+    except Exception:
+        func_logger.exception("Failed to create DB schema using engine.begin()")
+        raise
     if "context" not in created_tables and created_tables:
         # Log warning and try to create context table explicitly
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.warning(
+        ctx_logger = func_logger
+        ctx_logger.warning(
             "context table was not created by create_all(). "
             "Tables created: %s. Attempting explicit creation...",
             created_tables,
@@ -568,7 +578,12 @@ def init_db() -> None:
         from core.models import ContextEntry as _ContextEntry  # noqa: F401
 
         # Re-create all tables to ensure context is included
-        metadata.create_all(bind=_RAW_ENGINE)
+        try:
+            with _RAW_ENGINE.begin() as conn:
+                metadata.create_all(bind=conn)
+        except Exception:
+            ctx_logger.exception("Failed to re-create DB schema including context table")
+            raise
 
 
 async def init_db_async() -> None:
