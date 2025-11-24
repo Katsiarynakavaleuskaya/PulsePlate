@@ -234,43 +234,39 @@ class AutoRepairEngine:
             logging.getLogger(__name__).warning(
                 "Gap analysis failed before repair attempt %d: %s", iteration, exc
             )
-            gaps_before = {}
-
-        # Call repair function - works with both real implementation and mocked versions
-        try:
-            # week_plan may be Dict, but we handle TypeError in except clause
-            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore[arg-type]
-        except (TypeError, AttributeError) as exc:
-            # Fallback: simulate partial improvement when repair fails
-            # This handles cases where week_plan format is incompatible
-            reduced = {k: v for idx, (k, v) in enumerate(gaps_before.items()) if idx % 2 == 0}
-            changes = [
-                {
-                    "type": "repair",
-                    "strategy": strategy.value,
-                    "iteration": iteration,
-                    "repaired_plan": week_plan,
-                    "gaps_before": gaps_before,
-                    "gaps_after": reduced,
-                    "error": str(exc),
-                    "fallback": "type_error_fallback",
-                }
-            ]
             return RepairIteration(
                 iteration_number=iteration,
                 strategy=strategy,
-                gaps_before=gaps_before,
-                gaps_after=reduced,
-                changes_applied=changes,
-                success=len(reduced) < len(gaps_before),
+                gaps_before={},
+                gaps_after={},
+                changes_applied=[
+                    {
+                        "type": "error",
+                        "strategy": strategy.value,
+                        "iteration": iteration,
+                        "error": f"Pre-repair gap analysis failed: {exc}",
+                    }
+                ],
+                success=False,
             )
+
+        # Attempt repair and treat any errors as hard failure
+        try:
+            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore[arg-type]
         except Exception as exc:
             return RepairIteration(
                 iteration_number=iteration,
                 strategy=strategy,
                 gaps_before=gaps_before,
                 gaps_after=gaps_before,
-                changes_applied=[{"type": "error", "strategy": strategy.value, "error": str(exc)}],
+                changes_applied=[
+                    {
+                        "type": "error",
+                        "strategy": strategy.value,
+                        "iteration": iteration,
+                        "error": f"Repair failed: {exc}",
+                    }
+                ],
                 success=False,
             )
 

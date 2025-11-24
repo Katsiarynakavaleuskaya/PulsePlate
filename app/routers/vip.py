@@ -105,6 +105,22 @@ except ImportError:
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
 
+# Helper to build a sample/demo product for echo mode or empty results
+def _build_sample_product(query: str, category: str, region: str) -> Dict[str, Any]:
+    return {
+        "product_id": "demo",
+        "name_es": query,
+        "name_en": query,
+        "category": category or "general",
+        "unit": "unit",
+        "typical_package_size": 1,
+        "price_eur": 0.0,
+        "price_usd": 0.0,
+        "store_chain": "demo",
+        "region": region,
+    }
+
+
 # VIP module feature flag check dependency
 def _check_vip_module_enabled() -> None:
     """Dependency to check if VIP module is enabled."""
@@ -356,16 +372,40 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
         raise ValueError(f"Invalid weight_kg value: {weight_raw!r}") from exc
 
     # All required fields are validated and non-None at this point
+    # Validate enum-like literal fields before casting
+    sex_value = profile_data["sex"]
+    if sex_value not in ("male", "female"):
+        raise ValueError(f"Invalid sex value: {sex_value!r}. Must be 'male' or 'female'.")
+
+    activity_value = profile_data["activity"]
+    valid_activities = ("sedentary", "light", "moderate", "active", "very_active")
+    if activity_value not in valid_activities:
+        raise ValueError(
+            f"Invalid activity value: {activity_value!r}. Must be one of {valid_activities}."
+        )
+
+    goal_value = profile_data["goal"]
+    if goal_value not in ("loss", "maintain", "gain"):
+        raise ValueError(
+            f"Invalid goal value: {goal_value!r}. Must be 'loss', 'maintain', or 'gain'."
+        )
+
+    life_stage_value = profile_data.get("life_stage") or "adult"
+    valid_life_stages = ("child", "teen", "adult", "pregnant", "lactating", "elderly")
+    if life_stage_value not in valid_life_stages:
+        raise ValueError(
+            f"Invalid life_stage value: {life_stage_value!r}. Must be one of {valid_life_stages}."
+        )
+
     return UserProfile(
-        sex=cast(Literal["male", "female"], profile_data["sex"]),
+        sex=cast(Literal["male", "female"], sex_value),
         age=age_val,
         height_cm=height_val,
         weight_kg=weight_val,
         activity=cast(
-            Literal["sedentary", "light", "moderate", "active", "very_active"],
-            profile_data["activity"],
+            Literal["sedentary", "light", "moderate", "active", "very_active"], activity_value
         ),
-        goal=cast(Literal["loss", "maintain", "gain"], profile_data["goal"]),
+        goal=cast(Literal["loss", "maintain", "gain"], goal_value),
         deficit_pct=profile_data.get("deficit_pct"),
         surplus_pct=profile_data.get("surplus_pct"),
         bodyfat=profile_data.get("bodyfat"),
@@ -374,7 +414,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
         diet_flags=diet_flags,
         life_stage=cast(
             Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"],
-            profile_data.get("life_stage") or "adult",
+            life_stage_value,
         ),
         medical_conditions=medical_conditions,
     )
@@ -945,20 +985,7 @@ async def search_region_products(
     Returns:
         Результаты поиска
     """
-    sample_products: list[dict[str, Any]] = [
-        {
-            "product_id": "demo",
-            "name_es": query,
-            "name_en": query,
-            "category": category or "general",
-            "unit": "unit",
-            "typical_package_size": 1,
-            "price_eur": 0.0,
-            "price_usd": 0.0,
-            "store_chain": "demo",
-            "region": region,
-        }
-    ]
+    sample_products = [_build_sample_product(query, category, region)]
     # Resolve provider via dependency - can be overridden in tests via app.dependency_overrides
     provider = search_products
 
@@ -1025,20 +1052,7 @@ async def search_region_products(
         total_count = getattr(search_result, "total_count", len(products_data))
 
         if not products_data:
-            products_data = [
-                {
-                    "product_id": "demo",
-                    "name_es": query,
-                    "name_en": query,
-                    "category": category or "general",
-                    "unit": "unit",
-                    "typical_package_size": 1,
-                    "price_eur": 0.0,
-                    "price_usd": 0.0,
-                    "store_chain": "demo",
-                    "region": region,
-                }
-            ]
+            products_data = [_build_sample_product(query, category, region)]
             total_count = max(total_count, len(products_data))
 
         return {
@@ -1237,6 +1251,18 @@ async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
     return _build_echo_recipe_response(request)
 
 
+# Serializer helper for weekly recipes
+
+
+def _serialize_recipe(recipe: object) -> dict[str, object] | str:
+    if isinstance(recipe, dict):
+        return recipe
+    elif hasattr(recipe, "__dict__"):
+        return recipe.__dict__
+    else:
+        return str(recipe)
+
+
 @router.post(
     "/recipes/weekly",
     dependencies=[Depends(_check_vip_module_enabled), Depends(_require_api_key_strict)],
@@ -1286,31 +1312,16 @@ async def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
                 "echo": request,
             }
 
-        # Helper function for recipe serialization
-
-        def serialize_recipe(recipe: object) -> dict[str, object] | str:
-            """Serialize a recipe for JSON response.
-
-            Returns:
-                - recipe unchanged if it's a dict
-                - recipe.__dict__ if it has __dict__
-                - str(recipe) otherwise
-            """
-            if isinstance(recipe, dict):
-                return recipe
-            elif hasattr(recipe, "__dict__"):
-                return recipe.__dict__
-            else:
-                return str(recipe)
+        # Helper function moved to module-level: _serialize_recipe
 
         # Сериализация рецептов для возврата
         serialized = {}
         for day, recipes in weekly_recipes.items():
             # recipes может быть списком или одним рецептом
             if isinstance(recipes, list):
-                serialized[day] = [serialize_recipe(r) for r in recipes]
+                serialized[day] = [_serialize_recipe(r) for r in recipes]
             else:
-                serialized[day] = [serialize_recipe(recipes)]
+                serialized[day] = [_serialize_recipe(recipes)]
         # Calculate total recipes count
         total_recipes = sum(
             len(recipes) if isinstance(recipes, list) else 1 for recipes in serialized.values()
