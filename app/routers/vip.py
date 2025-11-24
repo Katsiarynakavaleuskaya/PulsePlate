@@ -1542,11 +1542,9 @@ async def get_repair_strategies() -> Dict[str, Any]:
     Returns:
         Список доступных стратегий
     """
-    module = sys.modules.get("app.routers.vip")
-    current_strategy = (
-        getattr(module, "RepairStrategy", None) if module else globals().get("RepairStrategy")
-    )
-    if current_strategy is None:
+    # RepairStrategy is imported at module level (line 54)
+    # Check if it's available (could be None in test scenarios)
+    if RepairStrategy is None:
         return {
             "status": "error",
             "message": "Auto-repair module not available",

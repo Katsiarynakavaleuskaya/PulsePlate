@@ -338,7 +338,9 @@ class AutoRepairEngine:
 
         # Serialize repaired plan for changes log
         # repaired_plan is always WeekMenu from repair_week_plan
-        repaired_serialized: Dict[str, Any] = vars(repaired_plan)
+        from dataclasses import asdict
+
+        repaired_serialized: Dict[str, Any] = asdict(repaired_plan)
 
         changes = [
             {
