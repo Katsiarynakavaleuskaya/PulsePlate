@@ -73,11 +73,16 @@ def setup_custom_mcp(argv: list[str] | None = None) -> None:
     mcp_config = {
         "$schema": "https://modelcontextprotocol.io/schemas/mcp.json",
         "_warning": "⚠️ SECURITY WARNING: This file contains API key placeholders. Replace 'your_openai_api_key_here' with your actual API key and DO NOT commit this file to version control!",
+        "_memory_note": "Memory limits set to prevent excessive RAM usage (512MB default)",
         "mcpServers": {
             "pulseplate-chatgpt": {
                 "command": "python",
                 "args": [str(Path.cwd() / "mcp_pulseplate_server.py")],
-                "env": {"OPENAI_API_KEY": "your_openai_api_key_here"},
+                "env": {
+                    "OPENAI_API_KEY": "your_openai_api_key_here",
+                    "MCP_MAX_MEMORY_MB": "512",
+                    "MCP_TIMEOUT_SECONDS": "30",
+                },
             }
         },
     }
@@ -104,11 +109,14 @@ MCP_ENABLED=true
     # Create Cursor settings
     cursor_settings = {
         "_warning": "⚠️ SECURITY WARNING: This file contains API key placeholders. Replace 'your_openai_api_key_here' with your actual API key and DO NOT commit this file to version control!",
+        "_memory_note": "Reduced context length (8000) and max tokens (2048) to prevent memory issues",
         "cursor.ai.enabled": True,
         "cursor.ai.primaryModel": "gpt-4",
         "cursor.ai.secondaryModel": "gpt-3.5-turbo",
         "cursor.ai.openaiApiKey": "your_openai_api_key_here",
         "cursor.ai.openaiBaseUrl": "https://api.openai.com/v1",
+        "cursor.ai.contextLength": 8000,
+        "cursor.ai.maxTokens": 2048,
         "mcp.enabled": True,
         "mcp.servers": ["pulseplate-chatgpt"],
     }

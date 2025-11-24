@@ -204,7 +204,17 @@ class TestDbMissingLinesCoverage:
 
                 # Mock the engine to prevent actual database operations
                 # Must support inspect() which returns an inspector with get_table_names()
-                mock_engine = Mock()
+                # Also must support begin() as context manager for with statement
+                from unittest.mock import MagicMock
+
+                mock_engine = MagicMock()
+                mock_connection = MagicMock()
+                # Configure begin() to return a context manager (MagicMock supports context manager protocol)
+                mock_context_manager = MagicMock()
+                mock_context_manager.__enter__ = MagicMock(return_value=mock_connection)
+                mock_context_manager.__exit__ = MagicMock(return_value=False)
+                mock_engine.begin.return_value = mock_context_manager
+
                 mock_inspector = Mock()
                 mock_inspector.get_table_names.return_value = [
                     "users",

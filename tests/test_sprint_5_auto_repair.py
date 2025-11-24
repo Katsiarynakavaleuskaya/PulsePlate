@@ -394,24 +394,27 @@ class TestConvenienceFunctions:
         assert isinstance(result, RepairResult)
         assert result.status == RepairStatus.SUCCESS
 
-    @patch("core.auto_repair.get_auto_repair_engine")
-    def test_suggest_manual_fixes_function(self, mock_get_engine: Any) -> None:
+    def test_suggest_manual_fixes_function(self) -> None:
         """Тест функции предложения ручных исправлений"""
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         mock_engine = MagicMock()
         mock_engine.suggest_manual_fixes.return_value = [
             {"type": "add_ingredient", "nutrient": "iron", "suggestions": []}
         ]
-        mock_get_engine.return_value = mock_engine
 
         week_plan: dict = {"days": []}
         targets = default_targets()
 
-        suggestions = suggest_manual_fixes(week_plan, targets)
+        # Patch get_auto_repair_engine in the module where suggest_manual_fixes uses it
+        with patch("core.auto_repair.get_auto_repair_engine") as mock_get_engine:
+            mock_get_engine.return_value = mock_engine
+            suggestions = suggest_manual_fixes(week_plan, targets)
 
-        # Verify mock was called
-        mock_get_engine.assert_called_once()
+            # Verify get_auto_repair_engine was called
+            mock_get_engine.assert_called_once()
+
+        # Verify mock engine's method was called
         mock_engine.suggest_manual_fixes.assert_called_once_with(week_plan, targets)
 
         assert isinstance(suggestions, list)

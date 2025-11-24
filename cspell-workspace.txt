@@ -4346,6 +4346,7 @@ evaluación
 excinfo
 executemany
 éxito
+expanduser
 Explainability
 Extremal
 facecolor

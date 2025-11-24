@@ -38,7 +38,10 @@ class TestCoreDB:
         with patch.dict(os.environ, {}, clear=True):
             url = _build_engine_url(fallback_url=None)
             assert url.startswith("sqlite:///")
-            assert "cache/app.db" in url
+            # The URL may include worker ID suffix (e.g., app_2360.db) and absolute paths,
+            # so check for base path pattern instead of exact filename
+            assert "cache/app" in url or "cache\\app" in url  # Handle both Unix and Windows paths
+            assert url.endswith(".db")
 
     def test_build_engine_url_custom(self):
         """Test _build_engine_url with custom DATABASE_URL."""

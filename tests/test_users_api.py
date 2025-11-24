@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -25,13 +26,10 @@ def _cleanup_users() -> Generator[None, None, None]:
     """
 
     def _truncate() -> None:
-        try:
+        with contextlib.suppress(OperationalError):
             with db_module.session_scope() as session:
                 session.execute(text("DELETE FROM users"))
                 session.commit()
-        except OperationalError:
-            # Table might not exist yet, skip cleanup
-            pass
 
     # Cleanup before test
     _truncate()

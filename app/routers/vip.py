@@ -420,7 +420,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
     )
 
 
-def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
+def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> Any:  # noqa: ANN401
     """Adapter for make_weekly_menu to handle dict input.
 
     Supported patterns:
@@ -506,7 +506,7 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
         return None
 
 
-def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> object | None:
+def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> Any:  # noqa: ANN401
     """Adapter for synthesize_recipes_for_week - already has correct signature."""
     try:
         from core.recipe_synth import synthesize_recipes_for_week
@@ -552,7 +552,7 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
     return synthesize_recipes_for_week(week_plan, recipes_per_day)
 
 
-def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:
+def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> Any:  # noqa: ANN401
     """Call function with proper adapter and explicit error handling."""
     import logging
 
