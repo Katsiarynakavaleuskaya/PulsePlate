@@ -103,20 +103,19 @@ def pytest_configure(config: pytest.Config) -> None:
         # Verify tables were created
         from sqlalchemy import inspect
 
-        with core_db.session_scope() as session:
-            inspector = inspect(session.get_bind())
-            tables = inspector.get_table_names()
-            missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
-            if missing_tables:
-                raise RuntimeError(
-                    f"Required tables missing after init_db(): {missing_tables}. "
-                    f"Found tables: {tables}. Database: {core_db.DATABASE_URL}"
-                )
-            tables_list = ", ".join(tables)
-            logging.info(
-                "✅ Test database initialized in pytest_configure "
-                f"with {len(tables)} tables: {tables_list}"
+        inspector = inspect(core_db._RAW_ENGINE)
+        tables = inspector.get_table_names()
+        missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
+        if missing_tables:
+            raise RuntimeError(
+                f"Required tables missing after init_db(): {missing_tables}. "
+                f"Found tables: {tables}. Database: {core_db.DATABASE_URL}"
             )
+        tables_list = ", ".join(tables)
+        logging.info(
+            "✅ Test database initialized in pytest_configure "
+            f"with {len(tables)} tables: {tables_list}"
+        )
     except Exception as e:
         logging.error("Database initialization in pytest_configure failed: %s", e, exc_info=True)
         # Continue - session fixture will retry
@@ -244,35 +243,33 @@ def init_test_database(request: pytest.FixtureRequest) -> None:
         from sqlalchemy import inspect
 
         missing_tables: list[str] = []
-        with core_db.session_scope() as session:
-            inspector = inspect(session.get_bind())
-            tables = inspector.get_table_names()
+        inspector = inspect(core_db._RAW_ENGINE)
+        tables = inspector.get_table_names()
 
-            # Check for required tables
-            missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
-            if missing_tables:
-                # If tables are missing, try to initialize (pytest_configure may have failed)
-                logging.warning(
-                    f"Required tables missing: {missing_tables}. "
-                    f"Attempting to initialize database..."
-                )
+        # Check for required tables
+        missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
+        if missing_tables:
+            # If tables are missing, try to initialize (pytest_configure may have failed)
+            logging.warning(
+                f"Required tables missing: {missing_tables}. "
+                f"Attempting to initialize database..."
+            )
 
         # Initialize outside of session context
         if missing_tables:
             core_db.init_db()
             # Re-check after initialization in a new session
-            with core_db.session_scope() as session:
-                inspector = inspect(session.get_bind())
-                tables = inspector.get_table_names()
-                missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
-                if missing_tables:
-                    raise RuntimeError(
-                        f"Required tables missing after init_db(): {missing_tables}. "
-                        f"Found tables: {tables}. "
-                        f"Database URL: {core_db.DATABASE_URL}"
-                    )
-                tables_str = ", ".join(tables)
-                logging.info(f"✅ Database verified with {len(tables)} tables: {tables_str}")
+            inspector = inspect(core_db._RAW_ENGINE)
+            tables = inspector.get_table_names()
+            missing_tables = [t for t in REQUIRED_TABLES if t not in tables]
+            if missing_tables:
+                raise RuntimeError(
+                    f"Required tables missing after init_db(): {missing_tables}. "
+                    f"Found tables: {tables}. "
+                    f"Database URL: {core_db.DATABASE_URL}"
+                )
+            tables_str = ", ".join(tables)
+            logging.info(f"✅ Database verified with {len(tables)} tables: {tables_str}")
         else:
             tables_str = ", ".join(tables)
             logging.info(f"✅ Database verified with {len(tables)} tables: {tables_str}")
