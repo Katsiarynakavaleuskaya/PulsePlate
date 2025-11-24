@@ -118,10 +118,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 def _resolve_available_regions() -> Optional[Callable[..., Any]]:
     """Return the most up-to-date get_available_regions implementation."""
 
-    module = sys.modules.get("app.routers.vip")
-    provider = getattr(module, "get_available_regions", None) if module else None
-    if provider is None:
-        provider = globals().get("get_available_regions")
+    provider = globals().get("get_available_regions")
     if provider is not None and not callable(provider):
         return None
     return provider
@@ -384,7 +381,16 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> UserProfile:
 
 
 def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object | None:
-    """Adapter for make_weekly_menu to handle dict input."""
+    """Adapter for make_weekly_menu to handle dict input.
+
+    Supported patterns:
+    1. Single dict arg: _adapter_make_weekly_menu({"sex": "male", ...})
+    2. Kwargs with profile fields: _adapter_make_weekly_menu(sex="male", age=30, ...)
+    3. UserProfile + optional dbs: _adapter_make_weekly_menu(profile, food_db, recipe_db)
+
+    Returns:
+        WeekMenu object or None if input cannot be converted to UserProfile.
+    """
     try:
         from core.menu_engine import make_weekly_menu
     except ImportError:
@@ -605,8 +611,8 @@ async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
 
     try:
         # Convert WeeklyPlanRequest to dict for the core function
-        request_dict = request.model_dump(exclude_none=True)
-        plan_candidate = _safe_call_with_adapter("make_weekly_menu", **request_dict)
+        # Use filtered original_data (no None/empty values) for adapter
+        plan_candidate = _safe_call_with_adapter("make_weekly_menu", **original_data)
 
         # Check if _safe_call_with_adapter returned an error
         if isinstance(plan_candidate, dict) and plan_candidate.get("status") == "error":
@@ -1532,7 +1538,11 @@ async def get_repair_strategies() -> Dict[str, Any]:
     Returns:
         Список доступных стратегий
     """
-    if RepairStrategy is None:
+    module = sys.modules.get("app.routers.vip")
+    current_strategy = (
+        getattr(module, "RepairStrategy", None) if module else globals().get("RepairStrategy")
+    )
+    if current_strategy is None:
         return {
             "status": "error",
             "message": "Auto-repair module not available",
