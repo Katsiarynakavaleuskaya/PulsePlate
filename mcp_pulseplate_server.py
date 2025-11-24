@@ -30,7 +30,7 @@ except (ValueError, OSError) as exc:
 _shutdown_flag = False
 
 
-def _signal_handler(signum: int, frame: Optional[FrameType]) -> None:  # type: ignore[override]
+def _signal_handler(signum: int, frame: Optional[FrameType]) -> None:
     """Handle shutdown signals."""
     del signum, frame
     global _shutdown_flag
@@ -175,17 +175,18 @@ class PulsePlateMCPServer:
             timeout = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
             response = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.client.chat.completions.create,
-                    model="gpt-4",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an AI assistant for PulsePlate health app. Be concise.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    max_tokens=1000,
-                    temperature=0.7,
+                    lambda: self.client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are an AI assistant for PulsePlate health app. Be concise.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_tokens=1000,
+                        temperature=0.7,
+                    )
                 ),
                 timeout=timeout,
             )
@@ -215,17 +216,18 @@ class PulsePlateMCPServer:
             timeout = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
             response = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.client.chat.completions.create,
-                    model="gpt-4",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a code reviewer for PulsePlate. Be concise.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    max_tokens=1500,
-                    temperature=0.3,
+                    lambda: self.client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a code reviewer for PulsePlate. Be concise.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_tokens=1500,
+                        temperature=0.3,
+                    )
                 ),
                 timeout=timeout,
             )
@@ -251,17 +253,18 @@ class PulsePlateMCPServer:
             timeout = int(os.getenv("MCP_TIMEOUT_SECONDS", "30"))
             response = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.client.chat.completions.create,
-                    model="gpt-4",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a developer for PulsePlate. Be concise.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    max_tokens=2000,
-                    temperature=0.5,
+                    lambda: self.client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": "You are a developer for PulsePlate. Be concise.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_tokens=2000,
+                        temperature=0.5,
+                    )
                 ),
                 timeout=timeout,
             )

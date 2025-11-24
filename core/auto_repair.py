@@ -8,9 +8,10 @@ Sprint 5: Auto-repair недели (UX-петля)
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from core.menu_engine import repair_week_plan
+from core.menu_types import DayMenu, WeekMenu
 from core.targets import MicronutrientTargets
 
 
@@ -217,16 +218,51 @@ class AutoRepairEngine:
 
         return gaps
 
+    def _dict_to_week_menu(self, plan_dict: Dict[str, Any]) -> WeekMenu:
+        """Convert dict representation to WeekMenu dataclass."""
+        # Convert daily_menus from dict to DayMenu objects
+        daily_menus: List[DayMenu] = []
+        for day_dict in plan_dict.get("daily_menus", []):
+            # DayMenu requires: date, meals, total_nutrients, targets, coverage, recommendations, estimated_cost
+            # Use targets from day_dict if present
+            targets = day_dict.get("targets")
+            # If targets is None, we'll use type: ignore since DayMenu requires it
+            # In practice, day_dict should always have targets from the original plan
+
+            day_menu = DayMenu(
+                date=day_dict.get("date", ""),
+                meals=day_dict.get("meals", []),
+                total_nutrients=day_dict.get("total_nutrients", {}),
+                targets=targets,
+                coverage=day_dict.get("coverage", {}),
+                recommendations=day_dict.get("recommendations", []),
+                estimated_cost=day_dict.get("estimated_cost", 0.0),
+            )
+            daily_menus.append(day_menu)
+
+        return WeekMenu(
+            week_start=plan_dict.get("week_start", ""),
+            daily_menus=daily_menus,
+            weekly_coverage=plan_dict.get("weekly_coverage", {}),
+            shopping_list=plan_dict.get("shopping_list", {}),
+            total_cost=plan_dict.get("total_cost", 0.0),
+            adherence_score=plan_dict.get("adherence_score", 0.0),
+        )
+
     def _attempt_repair(
         self,
-        week_plan: Dict,
+        week_plan: Union[Dict[str, Any], WeekMenu],
         targets: MicronutrientTargets,
         strategy: RepairStrategy,
         iteration: int,
     ) -> RepairIteration:
         """Пытается отремонтировать план с заданной стратегией"""
+        # Convert WeekMenu to dict for gap analysis
+        plan_dict: Dict[str, Any] = (
+            vars(week_plan) if isinstance(week_plan, WeekMenu) else week_plan
+        )
         try:
-            gaps_before = self._analyze_nutrient_gaps(week_plan, targets)
+            gaps_before = self._analyze_nutrient_gaps(plan_dict, targets)
         except Exception as exc:
             # Log for diagnostics - gap analysis failure before repair
             import logging
@@ -252,7 +288,13 @@ class AutoRepairEngine:
 
         # Attempt repair and treat any errors as hard failure
         try:
-            repaired_plan = repair_week_plan(week_plan, targets, strategy.value)  # type: ignore[arg-type]
+            # Convert dict to WeekMenu if needed
+            week_menu: WeekMenu
+            if isinstance(week_plan, dict):
+                week_menu = self._dict_to_week_menu(week_plan)
+            else:
+                week_menu = week_plan
+            repaired_plan = repair_week_plan(week_menu, targets, strategy.value)
         except Exception as exc:
             return RepairIteration(
                 iteration_number=iteration,
@@ -271,13 +313,10 @@ class AutoRepairEngine:
             )
 
         try:
-            # If repaired_plan is not a dict, try to convert it to dict if possible
-            if isinstance(repaired_plan, dict):
-                gaps_after = self._analyze_nutrient_gaps(repaired_plan, targets)
-            elif hasattr(repaired_plan, "__dict__"):
-                gaps_after = self._analyze_nutrient_gaps(vars(repaired_plan), targets)
-            else:
-                raise TypeError("repaired_plan must be a dict or have a __dict__ attribute")
+            # repaired_plan is always WeekMenu from repair_week_plan
+            # Convert to dict for gap analysis
+            repaired_dict: Dict[str, Any] = vars(repaired_plan)
+            gaps_after = self._analyze_nutrient_gaps(repaired_dict, targets)
         except Exception as exc:
             # Gap analysis failed after repair - treat as failure, not success
             return RepairIteration(
@@ -298,13 +337,8 @@ class AutoRepairEngine:
             )
 
         # Serialize repaired plan for changes log
-        repaired_serialized: Dict[str, Any]
-        if isinstance(repaired_plan, dict):
-            repaired_serialized = repaired_plan
-        elif hasattr(repaired_plan, "__dict__"):
-            repaired_serialized = vars(repaired_plan)
-        else:
-            repaired_serialized = {"_repr": str(repaired_plan)}
+        # repaired_plan is always WeekMenu from repair_week_plan
+        repaired_serialized: Dict[str, Any] = vars(repaired_plan)
 
         changes = [
             {
@@ -377,7 +411,8 @@ class AutoRepairEngine:
             missing = ", ".join(sorted(remaining_gaps.keys()))
             if missing:
                 suggestions.append(
-                    f"Обнаружены дефициты: {missing}. Подберите продукты или проконсультируйтесь с диетологом."
+                    f"Обнаружены дефициты: {missing}. "
+                    "Подберите продукты или проконсультируйтесь с диетологом."
                 )
             else:
                 suggestions.append(
@@ -442,7 +477,10 @@ class AutoRepairEngine:
                     "type": "info",
                     "nutrient": "general_balance",
                     "suggestions": [],
-                    "reason": "Явных дефицитов не обнаружено. Поддерживайте разнообразный рацион и при необходимости консультируйтесь со специалистом.",
+                    "reason": (
+                        "Явных дефицитов не обнаружено. Поддерживайте разнообразный рацион "
+                        "и при необходимости консультируйтесь со специалистом."
+                    ),
                 }
             )
 

@@ -151,7 +151,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=95
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
 
 
       - name: Clean Python cache (post-test)
@@ -246,7 +246,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=95
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
 
 
       - name: Clean Python cache (post-test)
@@ -336,7 +336,7 @@ jobs:
           COVERAGE_CONTEXT: "disabled"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=95
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n auto --cov-fail-under=97
 
 
       - name: Clean Python cache (post-test)
@@ -406,10 +406,7 @@ jobs:
           diff-cover ./coverage-artifacts/coverage.xml \
             --compare-branch "origin/${{ github.event.pull_request.base.ref }}" \
             --fail-under=97 \
-            --diff-range-notation=".." \
-            --exclude 'core/bayesian_recommendations.py' \
-            --exclude 'core/bayesian_technical_utils.py' \
-            --exclude 'core/business_bayesian_analyzer.py'
+            --diff-range-notation=".."
 
       - name: Upload to Codecov
         if: ${{ hashFiles('./coverage-artifacts/coverage.xml') != '' }}

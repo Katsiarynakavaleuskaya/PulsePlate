@@ -640,13 +640,6 @@ async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
             "menu": {"mode": "echo"},
             "message": "Weekly menu plan generated (echo mode)",
         }
-    if not callable(make_weekly_menu):
-        return {
-            "status": "success",
-            "echo": original_data,
-            "menu": {"mode": "echo"},
-            "message": "Weekly menu plan generated (echo mode)",
-        }
     import logging
 
     try:
