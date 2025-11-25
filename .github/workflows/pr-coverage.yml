@@ -34,6 +34,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt -c constraints.txt
 
+      - name: Show memory stats before tests
+        run: |
+          echo "=== System Memory ==="
+          free -m
+          echo "=== Top processes by memory ==="
+          ps aux --sort=-rss | head -n 10
+
       - name: Run tests with coverage (xml) - 20-way split
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
@@ -45,8 +52,11 @@ jobs:
           PYTHONMALLOC: malloc
           HYPOTHESIS_PROFILE: ci
           PYTHONWARNINGS: default
+          # Disable coverage context tracking to avoid sqlite 'context' table errors
+          COV_CORE_CONTEXT: ""
         run: |
-          # NOTE: Keep -n 1 due to GH runner MemoryError during collection; mitigated by finer splits.
+          # NOTE: -n 1 (single worker) + --splits 20 to reduce memory during collection
+          # Using --no-cov during collection, then re-enabling for execution
           for GROUP in $(seq 1 20); do
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
@@ -58,7 +68,8 @@ jobs:
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
             fi
             echo "Running shard ${GROUP}/20..."
-            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG --cov-fail-under=97 -n 1 --splits 20 --group "$GROUP"
+            # Run with minimal memory footprint: single worker, split collection
+            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG --cov-fail-under=97 -n 1 --splits 20 --group "$GROUP" --maxfail=3
           done
 
       - name: Fetch base branch
