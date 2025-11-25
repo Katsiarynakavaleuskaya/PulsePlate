@@ -139,7 +139,7 @@ jobs:
         run: |
           python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
 
-      - name: Run tests with coverage (6-way split, no xdist - pure serial to avoid MemoryError)
+      - name: Run tests with coverage (6-way file-shard, avoids full collection)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -154,19 +154,52 @@ jobs:
           TEST_DB_PATH: cache/test_app.sqlite
           LLM_PROVIDER: stub
         run: |
-          for GROUP in $(seq 1 6); do
+          set -euo pipefail
+
+          # Python helper: select test files for shard using md5(filename) % N
+          select_files_for_shard() {
+            python - "$1" "$2" <<'PY'
+          import glob, hashlib, sys, shlex
+          group = int(sys.argv[1])      # 1-based
+          groups = int(sys.argv[2])
+          files = sorted(glob.glob('tests/**/*.py', recursive=True))
+          # Filter test files only (exclude __init__.py, conftest.py)
+          test_files = [f for f in files if f.endswith('_test.py') or f.startswith('tests/test_')]
+          selected = []
+          for f in test_files:
+              h = int(hashlib.md5(f.encode('utf-8')).hexdigest(), 16)
+              if (h % groups) + 1 == group:
+                  selected.append(f)
+          # Print space-separated, safe shell quoting
+          print(' '.join(shlex.quote(x) for x in selected))
+          PY
+          }
+
+          GROUPS=6
+          for GROUP in $(seq 1 $GROUPS); do
+            # Compute files for this shard
+            FILES=$(select_files_for_shard "$GROUP" "$GROUPS")
+            if [ -z "$FILES" ]; then
+              echo "No files selected for shard $GROUP; skipping"
+              continue
+            fi
+
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
             JUNIT_FLAG=""
             if [ "$GROUP" -gt 1 ]; then
               APPEND_FLAG="--cov-append"
             fi
-            if [ "$GROUP" -eq 6 ]; then
+            if [ "$GROUP" -eq $GROUPS ]; then
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
               JUNIT_FLAG="--junitxml=tests/results.xml"
             fi
-            echo "Running shard ${GROUP}/6..."
-            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --splits 6 --group "$GROUP" --cov-fail-under=97
+
+            echo "Running shard ${GROUP}/${GROUPS} on files:"
+            echo "$FILES"
+
+            # Run pytest only on selected files (avoids global collection)
+            python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --cov-fail-under=97
           done
 
 
@@ -250,7 +283,7 @@ jobs:
         run: |
           python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
 
-      - name: Run tests with coverage (6-way split, no xdist - pure serial to avoid MemoryError)
+      - name: Run tests with coverage (6-way file-shard, avoids full collection)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -265,19 +298,52 @@ jobs:
           TEST_DB_PATH: cache/test_app.sqlite
           LLM_PROVIDER: stub
         run: |
-          for GROUP in $(seq 1 6); do
+          set -euo pipefail
+
+          # Python helper: select test files for shard using md5(filename) % N
+          select_files_for_shard() {
+            python - "$1" "$2" <<'PY'
+          import glob, hashlib, sys, shlex
+          group = int(sys.argv[1])      # 1-based
+          groups = int(sys.argv[2])
+          files = sorted(glob.glob('tests/**/*.py', recursive=True))
+          # Filter test files only (exclude __init__.py, conftest.py)
+          test_files = [f for f in files if f.endswith('_test.py') or f.startswith('tests/test_')]
+          selected = []
+          for f in test_files:
+              h = int(hashlib.md5(f.encode('utf-8')).hexdigest(), 16)
+              if (h % groups) + 1 == group:
+                  selected.append(f)
+          # Print space-separated, safe shell quoting
+          print(' '.join(shlex.quote(x) for x in selected))
+          PY
+          }
+
+          GROUPS=6
+          for GROUP in $(seq 1 $GROUPS); do
+            # Compute files for this shard
+            FILES=$(select_files_for_shard "$GROUP" "$GROUPS")
+            if [ -z "$FILES" ]; then
+              echo "No files selected for shard $GROUP; skipping"
+              continue
+            fi
+
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
             JUNIT_FLAG=""
             if [ "$GROUP" -gt 1 ]; then
               APPEND_FLAG="--cov-append"
             fi
-            if [ "$GROUP" -eq 6 ]; then
+            if [ "$GROUP" -eq $GROUPS ]; then
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
               JUNIT_FLAG="--junitxml=tests/results.xml"
             fi
-            echo "Running shard ${GROUP}/6..."
-            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --splits 6 --group "$GROUP" --cov-fail-under=97
+
+            echo "Running shard ${GROUP}/${GROUPS} on files:"
+            echo "$FILES"
+
+            # Run pytest only on selected files (avoids global collection)
+            python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --cov-fail-under=97
           done
 
 

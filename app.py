@@ -2283,7 +2283,7 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
             )
             # Use resolved function (test patch) or fallback to local
             if agg_fn is not None and agg_fn is not _aggregate_meal_micronutrients:
-                meal_micros_raw = await agg_fn(ingredients, meal_title=meal_title)  # type: ignore[misc]
+                meal_micros_raw = await agg_fn(ingredients, meal_title=meal_title)  # type: ignore[operator]
             else:
                 # Use local aggregator (normal runtime or no test patch)
                 meal_micros_raw = await _aggregate_meal_micronutrients(
@@ -2738,7 +2738,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 or PlateResponse
             )
 
-            return PlateResponseCls(
+            return PlateResponseCls(  # type: ignore[operator, no-any-return]
                 kcal=target_kcal,
                 macros={
                     "protein_g": protein_g,
@@ -2956,7 +2956,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates) or PlateResponse
         )
 
-        return PlateResponseCls(
+        return PlateResponseCls(  # type: ignore[operator, no-any-return]
             kcal=final_kcal_value,
             macros=macros_aligned,
             portions=plate_data["portions"],
