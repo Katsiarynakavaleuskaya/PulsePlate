@@ -139,24 +139,7 @@ jobs:
         run: |
           python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
 
-      - name: Run tests with coverage - Part 1/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          # Ensure conftest.py init_test_database fixture runs for xdist workers
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          # MemoryError mitigation: shard collection with pytest-split, keep xdist at -n 1
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml:.coverage1.xml --cov-report=term-missing -o junit_family=legacy -n 1 --splits 8 --group 1 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 2/8
+      - name: Run tests with coverage (8-way split)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -169,97 +152,20 @@ jobs:
           HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage2.xml -o junit_family=legacy -n 1 --splits 8 --group 2 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 3/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage3.xml -o junit_family=legacy -n 1 --splits 8 --group 3 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 4/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage4.xml -o junit_family=legacy -n 1 --splits 8 --group 4 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 5/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage5.xml -o junit_family=legacy -n 1 --splits 8 --group 5 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 6/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage6.xml -o junit_family=legacy -n 1 --splits 8 --group 6 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 7/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage7.xml -o junit_family=legacy -n 1 --splits 8 --group 7 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 8/8 (final XML)
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n 1 --splits 8 --group 8 --cov-fail-under=97
+          for GROUP in 1 2 3 4 5 6 7 8; do
+            APPEND_FLAG=""
+            XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
+            JUNIT_FLAG=""
+            if [ "$GROUP" -gt 1 ]; then
+              APPEND_FLAG="--cov-append"
+            fi
+            if [ "$GROUP" -eq 8 ]; then
+              XML_FLAG="--cov-report=xml --cov-report=term-missing"
+              JUNIT_FLAG="--junitxml=tests/results.xml"
+            fi
+            echo "Running shard ${GROUP}/8..."
+            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 8 --group "$GROUP" --cov-fail-under=97
+          done
 
 
       - name: Clean Python cache (post-test)
@@ -342,7 +248,7 @@ jobs:
         run: |
           python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
 
-      - name: Run tests with coverage - Part 1/8
+      - name: Run tests with coverage (8-way split)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -355,112 +261,20 @@ jobs:
           HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml:.coverage1.xml --cov-report=term-missing -o junit_family=legacy -n 1 --splits 8 --group 1 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 2/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage2.xml -o junit_family=legacy -n 1 --splits 8 --group 2 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 3/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage3.xml -o junit_family=legacy -n 1 --splits 8 --group 3 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 4/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage4.xml -o junit_family=legacy -n 1 --splits 8 --group 4 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 5/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage5.xml -o junit_family=legacy -n 1 --splits 8 --group 5 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 6/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage6.xml -o junit_family=legacy -n 1 --splits 8 --group 6 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 7/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage7.xml -o junit_family=legacy -n 1 --splits 8 --group 7 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 8/8 (final XML)
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-          TEST_DB_PATH: cache/test_app.sqlite
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n 1 --splits 8 --group 8 --cov-fail-under=97
+          for GROUP in 1 2 3 4 5 6 7 8; do
+            APPEND_FLAG=""
+            XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
+            JUNIT_FLAG=""
+            if [ "$GROUP" -gt 1 ]; then
+              APPEND_FLAG="--cov-append"
+            fi
+            if [ "$GROUP" -eq 8 ]; then
+              XML_FLAG="--cov-report=xml --cov-report=term-missing"
+              JUNIT_FLAG="--junitxml=tests/results.xml"
+            fi
+            echo "Running shard ${GROUP}/8..."
+            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 8 --group "$GROUP" --cov-fail-under=97
+          done
 
 
       - name: Clean Python cache (post-test)
@@ -540,7 +354,7 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
 
-      - name: Run tests with coverage - Part 1/8
+      - name: Run tests with coverage (8-way split)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -552,106 +366,22 @@ jobs:
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
           HYPOTHESIS_PROFILE: ci
+          TEST_DB_PATH: cache/test_app.sqlite
         run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml:.coverage1.xml --cov-report=term-missing --junitxml=tests/results-part1.xml -o junit_family=legacy -n 1 --splits 8 --group 1 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 2/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage2.xml -o junit_family=legacy -n 1 --splits 8 --group 2 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 3/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage3.xml -o junit_family=legacy -n 1 --splits 8 --group 3 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 4/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage4.xml -o junit_family=legacy -n 1 --splits 8 --group 4 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 5/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage5.xml -o junit_family=legacy -n 1 --splits 8 --group 5 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 6/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage6.xml -o junit_family=legacy -n 1 --splits 8 --group 6 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 7/8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage7.xml -o junit_family=legacy -n 1 --splits 8 --group 7 --cov-fail-under=97
-
-      - name: Run tests with coverage - Part 8/8 (final XML)
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          COVERAGE_CONTEXT: "disabled"
-          PYTHONMALLOC: malloc
-          HYPOTHESIS_PROFILE: ci
-        run: |
-          python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n 1 --splits 8 --group 8 --cov-fail-under=97
+          for GROUP in 1 2 3 4 5 6 7 8; do
+            APPEND_FLAG=""
+            XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
+            JUNIT_FLAG=""
+            if [ "$GROUP" -gt 1 ]; then
+              APPEND_FLAG="--cov-append"
+            fi
+            if [ "$GROUP" -eq 8 ]; then
+              XML_FLAG="--cov-report=xml --cov-report=term-missing"
+              JUNIT_FLAG="--junitxml=tests/results.xml"
+            fi
+            echo "Running shard ${GROUP}/8..."
+            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 8 --group "$GROUP" --cov-fail-under=97
+          done
 
 
       - name: Clean Python cache (post-test)
@@ -702,7 +432,7 @@ jobs:
 
       - name: Setup Python for diff-cover
         if: ${{ hashFiles('./coverage-artifacts/coverage.xml') != '' }}
-        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.1
+        uses: actions/setup-python@v5.5.0
         with:
           python-version: '3.12'
 

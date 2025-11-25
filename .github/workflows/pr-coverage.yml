@@ -34,7 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt -c constraints.txt
 
-      - name: Run tests with coverage (xml) - 10-way split
+      - name: Run tests with coverage (xml) - 20-way split
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -46,19 +46,19 @@ jobs:
           HYPOTHESIS_PROFILE: ci
           PYTHONWARNINGS: default
         run: |
-          # NOTE: Keep -n 1 due to GH runner MemoryError during collection; mitigated by 10-way splits.
-          for GROUP in 1 2 3 4 5 6 7 8 9 10; do
+          # NOTE: Keep -n 1 due to GH runner MemoryError during collection; mitigated by finer splits.
+          for GROUP in $(seq 1 20); do
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
             if [ "$GROUP" -gt 1 ]; then
               APPEND_FLAG="--cov-append"
             fi
             # Final shard writes the canonical coverage.xml for diff-cover
-            if [ "$GROUP" -eq 10 ]; then
+            if [ "$GROUP" -eq 20 ]; then
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
             fi
-            echo "Running shard ${GROUP}/10..."
-            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG -n 1 --splits 10 --group "$GROUP"
+            echo "Running shard ${GROUP}/20..."
+            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG -n 1 --splits 20 --group "$GROUP"
           done
 
       - name: Fetch base branch
