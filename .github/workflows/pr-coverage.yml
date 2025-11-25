@@ -52,7 +52,11 @@ jobs:
           PYTHONMALLOC: malloc
           HYPOTHESIS_PROFILE: ci
           PYTHONWARNINGS: default
-          # Disable coverage context tracking to avoid sqlite 'context' table errors
+          # TODO: Investigate root cause of sqlite 'context' table errors in CI.
+          # COV_CORE_CONTEXT="" disables pytest-cov/coverage.py context tracking
+          # to avoid concurrent write conflicts (prevents flaky failures) while
+          # acknowledging this reduces coverage granularity. See coverage.py docs
+          # on parallel-mode and --concurrency for potential long-term fixes.
           COV_CORE_CONTEXT: ""
           # Use stub provider to avoid LLM initialization overhead
           LLM_PROVIDER: stub
