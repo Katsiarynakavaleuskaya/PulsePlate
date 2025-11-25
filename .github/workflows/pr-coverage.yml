@@ -16,10 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.13.5
+      - name: Set up Python 3.12
         uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
         with:
-          python-version: '3.13.5'
+          python-version: '3.12'
 
       - name: Cache pip
         uses: actions/cache@v4
@@ -44,7 +44,7 @@ jobs:
           API_KEY: "test_key"
           PYTHONWARNINGS: default
         run: |
-          pytest -q --disable-warnings --cov=. --cov-report=xml
+          pytest -q --disable-warnings --cov=. --cov-report=xml -n 1
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
