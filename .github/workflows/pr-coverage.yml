@@ -41,7 +41,7 @@ jobs:
           echo "=== Top processes by memory ==="
           ps aux --sort=-rss | head -n 10
 
-      - name: Run tests with coverage (xml) - 3-way split for memory safety
+      - name: Run tests with coverage (sequential, no sharding)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -55,22 +55,11 @@ jobs:
           # Disable coverage context tracking to avoid sqlite 'context' table errors
           COV_CORE_CONTEXT: ""
         run: |
-          # NOTE: Reduced to 3 splits to prevent MemoryError during collection
-          # pytest-split overhead increases with more splits; 3-way is optimal balance
-          for GROUP in $(seq 1 3); do
-            APPEND_FLAG=""
-            XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
-            if [ "$GROUP" -gt 1 ]; then
-              APPEND_FLAG="--cov-append"
-            fi
-            # Final shard writes the canonical coverage.xml for diff-cover
-            if [ "$GROUP" -eq 3 ]; then
-              XML_FLAG="--cov-report=xml --cov-report=term-missing"
-            fi
-            echo "Running shard ${GROUP}/3..."
-            # Run with minimal memory footprint: single worker, minimal splits
-            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG --cov-fail-under=97 -n 1 --splits 3 --group "$GROUP" --maxfail=3
-          done
+          # NOTE: Removed --splits completely to eliminate pytest collection overhead
+          # Running all 5321 tests sequentially with single worker for minimal memory usage
+          # This is slower but prevents MemoryError during AST parsing in pytest collection
+          echo "Running full test suite sequentially..."
+          pytest -q --disable-warnings --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 -n 1 --maxfail=3
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
