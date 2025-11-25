@@ -224,10 +224,12 @@ class AutoRepairEngine:
         daily_menus: List[DayMenu] = []
         for day_dict in plan_dict.get("daily_menus", []):
             # DayMenu requires: date, meals, total_nutrients, targets, coverage, recommendations, estimated_cost
-            # Use targets from day_dict if present
+            # Validate targets is present
             targets = day_dict.get("targets")
-            # If targets is None, we'll use type: ignore since DayMenu requires it
-            # In practice, day_dict should always have targets from the original plan
+            if targets is None:
+                raise ValueError(
+                    f"Missing required 'targets' in day_dict for date {day_dict.get('date', 'unknown')}"
+                )
 
             day_menu = DayMenu(
                 date=day_dict.get("date", ""),
@@ -258,9 +260,16 @@ class AutoRepairEngine:
     ) -> RepairIteration:
         """Пытается отремонтировать план с заданной стратегией"""
         # Convert WeekMenu to dict for gap analysis
-        plan_dict: Dict[str, Any] = (
-            vars(week_plan) if isinstance(week_plan, WeekMenu) else week_plan
-        )
+        # _analyze_nutrient_gaps expects {"days": [...]}, not {"daily_menus": [...]}
+        if isinstance(week_plan, WeekMenu):
+            from dataclasses import asdict
+
+            plan_dict: Dict[str, Any] = {
+                "days": [asdict(day) for day in week_plan.daily_menus],
+                "week_start": week_plan.week_start,
+            }
+        else:
+            plan_dict = week_plan
         try:
             gaps_before = self._analyze_nutrient_gaps(plan_dict, targets)
         except Exception as exc:
@@ -314,8 +323,13 @@ class AutoRepairEngine:
 
         try:
             # repaired_plan is always WeekMenu from repair_week_plan
-            # Convert to dict for gap analysis
-            repaired_dict: Dict[str, Any] = vars(repaired_plan)
+            # Convert to dict structure expected by _analyze_nutrient_gaps
+            from dataclasses import asdict
+
+            repaired_dict: Dict[str, Any] = {
+                "days": [asdict(day) for day in repaired_plan.daily_menus],
+                "week_start": repaired_plan.week_start,
+            }
             gaps_after = self._analyze_nutrient_gaps(repaired_dict, targets)
         except Exception as exc:
             # Gap analysis failed after repair - treat as failure, not success

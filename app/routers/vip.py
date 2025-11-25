@@ -1,7 +1,6 @@
 import inspect
 import logging
 import os
-import sys
 from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
