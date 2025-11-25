@@ -89,6 +89,8 @@ jobs:
     permissions:
       contents: read
       actions: write
+    env:
+      HYPOTHESIS_PROFILE: ci
     strategy:
       fail-fast: false
       matrix:
@@ -147,6 +149,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
@@ -163,6 +166,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage2.xml -o junit_family=legacy -n 1 --splits 8 --group 2 --cov-fail-under=97
@@ -177,6 +181,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage3.xml -o junit_family=legacy -n 1 --splits 8 --group 3 --cov-fail-under=97
@@ -191,6 +196,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage4.xml -o junit_family=legacy -n 1 --splits 8 --group 4 --cov-fail-under=97
@@ -205,6 +211,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage5.xml -o junit_family=legacy -n 1 --splits 8 --group 5 --cov-fail-under=97
@@ -219,6 +226,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage6.xml -o junit_family=legacy -n 1 --splits 8 --group 6 --cov-fail-under=97
@@ -233,6 +241,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage7.xml -o junit_family=legacy -n 1 --splits 8 --group 7 --cov-fail-under=97
@@ -247,6 +256,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n 1 --splits 8 --group 8 --cov-fail-under=97
@@ -282,6 +292,8 @@ jobs:
     permissions:
       contents: read
       actions: write
+    env:
+      HYPOTHESIS_PROFILE: ci
     strategy:
       fail-fast: false
       matrix:
@@ -340,6 +352,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml:.coverage1.xml --cov-report=term-missing -o junit_family=legacy -n 1 --splits 8 --group 1 --cov-fail-under=97
@@ -354,6 +367,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage2.xml -o junit_family=legacy -n 1 --splits 8 --group 2 --cov-fail-under=97
@@ -368,6 +382,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage3.xml -o junit_family=legacy -n 1 --splits 8 --group 3 --cov-fail-under=97
@@ -382,6 +397,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage4.xml -o junit_family=legacy -n 1 --splits 8 --group 4 --cov-fail-under=97
@@ -396,6 +412,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage5.xml -o junit_family=legacy -n 1 --splits 8 --group 5 --cov-fail-under=97
@@ -410,6 +427,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage6.xml -o junit_family=legacy -n 1 --splits 8 --group 6 --cov-fail-under=97
@@ -424,6 +442,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage7.xml -o junit_family=legacy -n 1 --splits 8 --group 7 --cov-fail-under=97
@@ -438,6 +457,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n 1 --splits 8 --group 8 --cov-fail-under=97
@@ -473,6 +493,8 @@ jobs:
     permissions:
       contents: read
       actions: write
+    env:
+      HYPOTHESIS_PROFILE: ci
     strategy:
       fail-fast: false
       matrix:
@@ -529,6 +551,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml:.coverage1.xml --cov-report=term-missing --junitxml=tests/results-part1.xml -o junit_family=legacy -n 1 --splits 8 --group 1 --cov-fail-under=97
 
@@ -542,6 +565,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage2.xml -o junit_family=legacy -n 1 --splits 8 --group 2 --cov-fail-under=97
 
@@ -555,6 +579,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage3.xml -o junit_family=legacy -n 1 --splits 8 --group 3 --cov-fail-under=97
 
@@ -568,6 +593,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage4.xml -o junit_family=legacy -n 1 --splits 8 --group 4 --cov-fail-under=97
 
@@ -581,6 +607,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage5.xml -o junit_family=legacy -n 1 --splits 8 --group 5 --cov-fail-under=97
 
@@ -594,6 +621,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage6.xml -o junit_family=legacy -n 1 --splits 8 --group 6 --cov-fail-under=97
 
@@ -607,6 +635,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml:.coverage7.xml -o junit_family=legacy -n 1 --splits 8 --group 7 --cov-fail-under=97
 
@@ -620,6 +649,7 @@ jobs:
           API_KEY: "test_key"
           COVERAGE_CONTEXT: "disabled"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
         run: |
           python -m pytest -m "not slow" tests --cov=. --cov-append --cov-report=xml --cov-report=term-missing --junitxml=tests/results.xml -o junit_family=legacy -n 1 --splits 8 --group 8 --cov-fail-under=97
 

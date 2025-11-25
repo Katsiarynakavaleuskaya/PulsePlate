@@ -15,9 +15,14 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from hypothesis import settings as hyp_settings
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
+
+# CI-focused Hypothesis profile to cap example count and lower memory usage
+hyp_settings.register_profile("ci", max_examples=10, deadline=None)
+hyp_settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "ci"))
 
 
 @pytest.fixture(scope="session", autouse=True)

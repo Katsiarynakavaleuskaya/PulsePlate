@@ -34,7 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt -c constraints.txt
 
-      - name: Run tests with coverage (xml) - Part 1
+      - name: Run tests with coverage (xml) - 10-way split
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -43,137 +43,23 @@ jobs:
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
           PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           PYTHONWARNINGS: default
         run: |
           # NOTE: Keep -n 1 due to GH runner MemoryError during collection; mitigated by 10-way splits.
-          # Run first 1/10 of tests using pytest-split to reduce memory per shard
-          pytest -q --disable-warnings --cov=. --cov-report=xml:.coverage1.xml -n 1 --splits 10 --group 1
-
-      - name: Run tests with coverage (xml) - Part 2
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 2/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage2.xml -n 1 --splits 10 --group 2
-
-      - name: Run tests with coverage (xml) - Part 3
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 3/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage3.xml -n 1 --splits 10 --group 3
-
-      - name: Run tests with coverage (xml) - Part 4
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 4/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage4.xml -n 1 --splits 10 --group 4
-
-      - name: Run tests with coverage (xml) - Part 5
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 5/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage5.xml -n 1 --splits 10 --group 5
-
-      - name: Run tests with coverage (xml) - Part 6
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 6/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage6.xml -n 1 --splits 10 --group 6
-
-      - name: Run tests with coverage (xml) - Part 7
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 7/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage7.xml -n 1 --splits 10 --group 7
-
-      - name: Run tests with coverage (xml) - Part 8
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 8/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage8.xml -n 1 --splits 10 --group 8
-
-      - name: Run tests with coverage (xml) - Part 9
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run 9/10 of tests, append coverage
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage9.xml -n 1 --splits 10 --group 9
-
-      - name: Run tests with coverage (xml) - Part 10
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
-          VIP_MODULE_ENABLED: "true"
-          APP_ENV: test
-          ENVIRONMENT: test
-          FEATURE_PREMIUM_NUTRITION: "true"
-          API_KEY: "test_key"
-          PYTHONMALLOC: malloc
-          PYTHONWARNINGS: default
-        run: |
-          # Run final 10/10 of tests, append coverage and generate final XML
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml -n 1 --splits 10 --group 10
+          for GROUP in 1 2 3 4 5 6 7 8 9 10; do
+            APPEND_FLAG=""
+            XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
+            if [ "$GROUP" -gt 1 ]; then
+              APPEND_FLAG="--cov-append"
+            fi
+            # Final shard writes the canonical coverage.xml for diff-cover
+            if [ "$GROUP" -eq 10 ]; then
+              XML_FLAG="--cov-report=xml --cov-report=term-missing"
+            fi
+            echo "Running shard ${GROUP}/10..."
+            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG -n 1 --splits 10 --group "$GROUP"
+          done
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'

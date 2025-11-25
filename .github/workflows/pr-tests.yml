@@ -190,6 +190,8 @@ jobs:
           ENVIRONMENT: test
           TEST_DB_PATH: cache/test_pr.sqlite
           CLIENT_FINGERPRINT_SALT: 'test-salt-for-ci-only-not-for-production'
+          PYTHONMALLOC: malloc
+          HYPOTHESIS_PROFILE: ci
           # Note: ALLOW_KEY_NORMALIZATION removed - keys must match exactly for security
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
