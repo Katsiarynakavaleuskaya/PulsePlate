@@ -23,9 +23,16 @@ class GrokProvider:
         self.endpoint = endpoint.rstrip("/")
         self.model = model
         self.api_key = api_key
-        # создаём асинхронного клиента (OpenAI совместимый эндпоинт у x.ai)
-        self.client = AsyncOpenAI(base_url=self.endpoint, api_key=self.api_key)
         self.timeout = timeout
+        # Lazy initialization to reduce memory overhead during test collection
+        self._client: Optional[AsyncOpenAI] = None
+
+    @property
+    def client(self) -> AsyncOpenAI:
+        """Lazy-initialized AsyncOpenAI client to minimize memory during import/collection."""
+        if self._client is None:
+            self._client = AsyncOpenAI(base_url=self.endpoint, api_key=self.api_key)
+        return self._client
 
     @retry(
         stop=stop_after_attempt(3),
@@ -45,3 +52,15 @@ class GrokProvider:
         except Exception as e:
             # Пробрасываем понятную ошибку наверх
             raise RuntimeError(f"Grok error: {type(e).__name__}: {e}")
+
+    async def close(self) -> None:
+        """Close the AsyncOpenAI client to free resources."""
+        if self._client is not None:
+            try:
+                await self._client.aclose()
+            except Exception as e:  # noqa: B110
+                # Ignore errors during cleanup - client may already be closed
+                import logging
+
+                logging.debug("Error closing AsyncOpenAI client: %s", e)
+            self._client = None

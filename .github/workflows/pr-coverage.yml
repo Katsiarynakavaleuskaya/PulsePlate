@@ -41,7 +41,7 @@ jobs:
           echo "=== Top processes by memory ==="
           ps aux --sort=-rss | head -n 10
 
-      - name: Run tests with coverage (sequential, no sharding)
+      - name: Run tests with coverage (pure sequential, no xdist)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -54,12 +54,14 @@ jobs:
           PYTHONWARNINGS: default
           # Disable coverage context tracking to avoid sqlite 'context' table errors
           COV_CORE_CONTEXT: ""
+          # Use stub provider to avoid LLM initialization overhead
+          LLM_PROVIDER: stub
         run: |
-          # NOTE: Removed --splits completely to eliminate pytest collection overhead
-          # Running all 5321 tests sequentially with single worker for minimal memory usage
-          # This is slower but prevents MemoryError during AST parsing in pytest collection
-          echo "Running full test suite sequentially..."
-          pytest -q --disable-warnings --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 -n 1 --maxfail=3
+          # NOTE: Removed ALL parallelism including -n flag to eliminate execnet/xdist overhead
+          # pytest-xdist causes MemoryError in execnet serialization (_save_integral)
+          # Running pure sequential: no workers, no sharding, no parallel collection
+          echo "Running full test suite in pure sequential mode (no xdist)..."
+          pytest -q --disable-warnings --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --maxfail=3
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
