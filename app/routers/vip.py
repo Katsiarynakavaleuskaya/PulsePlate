@@ -642,8 +642,7 @@ async def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
     import logging
 
     try:
-        # Convert WeeklyPlanRequest to dict for the core function
-        # Use filtered original_data (no None/empty values) for adapter
+        # Adapter uses already-filtered original_data (None/empty values removed above)
         plan_candidate = _safe_call_with_adapter("make_weekly_menu", **original_data)
 
         # Check if _safe_call_with_adapter returned an error
@@ -1258,7 +1257,7 @@ async def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
 # Serializer helper for weekly recipes
 
 
-def _serialize_recipe(recipe: object) -> dict[str, object] | str:
+def _serialize_recipe(recipe: object) -> dict[str, Any] | str:
     if isinstance(recipe, dict):
         return recipe
     elif hasattr(recipe, "__dict__"):
@@ -1315,8 +1314,6 @@ async def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
                 "weekly_recipes": {},
                 "echo": request,
             }
-
-        # Helper function moved to module-level: _serialize_recipe
 
         # Сериализация рецептов для возврата
         serialized = {}
