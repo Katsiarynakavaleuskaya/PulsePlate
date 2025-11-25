@@ -25,9 +25,13 @@ hyp_settings.register_profile("ci", max_examples=10, deadline=None)
 hyp_settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "ci"))
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None, None, None]:
-    """Configure and initialize a per-worker SQLite database for the test session."""
+    """Configure and initialize a per-worker SQLite database for the test module.
+
+    Changed from session to module scope to reduce memory accumulation.
+    Each test module gets a fresh database, allowing cleanup between modules.
+    """
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
     # Enable premium features by default in tests (individual tests can override)
@@ -193,10 +197,13 @@ def setup_test_environment() -> Generator[None, None, None]:
         os.environ.pop("API_KEY", None)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def app_module() -> ModuleType:
     """
     Dynamically load app.py and return the module.
+
+    Changed from session to module scope to allow garbage collection
+    between test modules, reducing peak memory usage.
 
     This fixture depends on setup_test_environment to ensure
     API_KEY is set before loading the app.
