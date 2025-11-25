@@ -57,17 +57,34 @@ jobs:
           # Use stub provider to avoid LLM initialization overhead
           LLM_PROVIDER: stub
         run: |
-          # NOTE: EXTREME memory optimization - run ONLY smoke tests for diff-coverage
-          # Full test suite (including not slow) runs in ci.yml jobs
-          # This job focuses solely on diff-coverage validation with minimal memory
-          echo "Running coverage guard on smoke tests only (minimal memory mode)..."
-          pytest -q -m "smoke" \
-            --disable-warnings \
-            --cov=. \
-            --cov-report=xml \
-            --cov-report=term-missing \
-            --cov-fail-under=97 \
-            --maxfail=3
+          # NOTE: Split test execution into batches to avoid MemoryError in reorder_items
+          # Large PR with many new files causes pytest to collect too many tests at once
+          # Running in batches with explicit cleanup between runs
+          echo "Running coverage in batches to manage memory..."
+
+          # Batch 1: Core and app tests
+          echo "=== Batch 1: Core & App ==="
+          pytest -q -m "not slow" tests/test_app*.py tests/test_db*.py tests/test_food*.py \
+            --disable-warnings --cov=. --cov-report= --maxfail=3
+
+          # Batch 2: VIP and premium tests
+          echo "=== Batch 2: VIP & Premium ==="
+          pytest -q -m "not slow" tests/test_vip*.py tests/test_premium*.py tests/test_targets*.py \
+            --disable-warnings --cov=. --cov-append --cov-report= --maxfail=3
+
+          # Batch 3: I18n and utils
+          echo "=== Batch 3: I18n & Utils ==="
+          pytest -q -m "not slow" tests/test_i18n*.py tests/test_utils*.py tests/test_llm*.py \
+            --disable-warnings --cov=. --cov-append --cov-report= --maxfail=3
+
+          # Batch 4: Quick tests and remaining
+          echo "=== Batch 4: Quick & Remaining ==="
+          pytest -q -m "not slow" tests/quick/ tests/test_plate*.py tests/test_zero*.py \
+            --disable-warnings --cov=. --cov-append --cov-report= --maxfail=3
+
+          # Final: Generate coverage report
+          echo "=== Generating final coverage report ==="
+          pytest -q -m "smoke" --disable-warnings --cov=. --cov-append --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --maxfail=1
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
