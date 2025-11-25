@@ -57,11 +57,17 @@ jobs:
           # Use stub provider to avoid LLM initialization overhead
           LLM_PROVIDER: stub
         run: |
-          # NOTE: Removed ALL parallelism including -n flag to eliminate execnet/xdist overhead
-          # pytest-xdist causes MemoryError in execnet serialization (_save_integral)
-          # Running pure sequential: no workers, no sharding, no parallel collection
-          echo "Running full test suite in pure sequential mode (no xdist)..."
-          pytest -q --disable-warnings --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --maxfail=3
+          # NOTE: EXTREME memory optimization - run ONLY smoke tests for diff-coverage
+          # Full test suite (including not slow) runs in ci.yml jobs
+          # This job focuses solely on diff-coverage validation with minimal memory
+          echo "Running coverage guard on smoke tests only (minimal memory mode)..."
+          pytest -q -m "smoke" \
+            --disable-warnings \
+            --cov=. \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=97 \
+            --maxfail=3
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
