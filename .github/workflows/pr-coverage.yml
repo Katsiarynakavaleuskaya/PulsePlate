@@ -58,7 +58,7 @@ jobs:
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
             fi
             echo "Running shard ${GROUP}/20..."
-            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG -n 1 --splits 20 --group "$GROUP"
+            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG --cov-fail-under=97 -n 1 --splits 20 --group "$GROUP"
           done
 
       - name: Fetch base branch

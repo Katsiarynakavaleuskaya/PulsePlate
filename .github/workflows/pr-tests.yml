@@ -26,9 +26,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@v6.0.0
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Cache pip
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
@@ -104,9 +104,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Python
-        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        uses: actions/setup-python@v6.0.0
         with:
-          python-version: '3.12'
+          python-version: '3.13.5'
 
       - name: Cache pip
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
@@ -213,11 +213,7 @@ jobs:
             echo "⚠️  coverage.xml not found, skipping diff-cover step"
             exit 0
           fi
-          # TODO: Remove exclusions by 2025-12-31 - comprehensive tests for Bayesian modules pending
-          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97 \
-            --exclude 'core/bayesian_recommendations.py' \
-            --exclude 'core/bayesian_technical_utils.py' \
-            --exclude 'core/business_bayesian_analyzer.py'
+          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
       - name: Upload coverage.xml (PR diagnostics)
         if: always() && github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'
