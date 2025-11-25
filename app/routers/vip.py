@@ -764,7 +764,13 @@ async def weekly_menu_plan_alias(
         raise
     except Exception as e:
         logging.exception("weekly-plan generation failed")
-        return ErrorResponse(message=f"Weekly plan generation failed: {str(e)}")
+        is_production, _ = _is_production_environment()
+        msg = (
+            "Weekly plan generation failed"
+            if is_production
+            else f"Weekly plan generation failed: {str(e)}"
+        )
+        return ErrorResponse(message=msg)
 
 
 @router.post(
@@ -948,11 +954,14 @@ async def get_regions() -> Dict[str, Any]:
             "echo": {},
         }
     except Exception as e:
+        logging.exception("Error retrieving regions: %s", e)
+        is_production, _ = _is_production_environment()
+        msg = "Error retrieving regions" if is_production else f"Error retrieving regions: {e}"
         return {
             "status": "error",
             "regions": [],
             "total_regions": 0,
-            "message": f"Error retrieving regions: {e}",
+            "message": msg,
             "echo": {},
         }
 
@@ -1206,9 +1215,12 @@ async def compare_product_prices(product_name: str, regions: str = "es,us") -> D
             "message": f"Price comparison for '{product_name}' across {len(region_list)} regions",
         }
     except Exception as e:
+        logging.exception("Error comparing prices: %s", e)
+        is_production, _ = _is_production_environment()
+        msg = "Error comparing prices" if is_production else f"Error comparing prices: {str(e)}"
         return {
             "status": "error",
-            "message": f"Error comparing prices: {str(e)}",
+            "message": msg,
             "product_name": product_name,
             "regions": regions.split(","),
             "comparison": {},
