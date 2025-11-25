@@ -57,7 +57,7 @@ class GrokProvider:
         """Close the AsyncOpenAI client to free resources."""
         if self._client is not None:
             try:
-                await self._client.aclose()
+                await self._client.close()
             except Exception as e:  # noqa: B110
                 # Ignore errors during cleanup - client may already be closed
                 import logging
