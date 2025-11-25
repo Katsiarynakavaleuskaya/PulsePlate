@@ -2250,23 +2250,45 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
             # Use existing micros directly
             meal_micros_raw = dict(meal_micros_existing)
         else:
+            # Build candidate modules to respect test-time patches on app/app_module aliases
+            _candidates = [
+                sys.modules.get("app"),
+                sys.modules.get("app_module"),
+                sys.modules.get("_app_top_module"),
+                sys.modules.get(__name__),
+            ]
+
             # Get ingredients for this meal
-            # Check if meal has ingredients key
             ingredients = meal.get("ingredients")
 
-            # If ingredients is None or empty list, look them up from recipes
-            # This ensures empty list [] triggers recipe lookup (important for tests)
+            # Resolve recipe lookup function dynamically so test patches are honored
+            lookup_fn = core_utils.resolve_attr(
+                "_get_recipe_ingredients_for_meal", _get_recipe_ingredients_for_meal, _candidates
+            )
+
+            # Trigger lookup when ingredients missing OR explicitly an empty list (tests expect lookup)
             if ingredients is None or (isinstance(ingredients, list) and len(ingredients) == 0):
-                ingredients = await asyncio.to_thread(_get_recipe_ingredients_for_meal, meal_title)
+                if callable(lookup_fn):
+                    ingredients = await asyncio.to_thread(lookup_fn, meal_title)
+                else:
+                    ingredients = []
 
             # Ensure ingredients is a list for aggregation
             if not isinstance(ingredients, list):
                 ingredients = []
 
-            # Aggregate micronutrients from ingredients
-            meal_micros_raw = await _aggregate_meal_micronutrients(
-                ingredients, meal_title=meal_title
+            # Resolve aggregator dynamically so tests that patch app/app_module are honored
+            agg_fn = core_utils.resolve_attr(
+                "_aggregate_meal_micronutrients", _aggregate_meal_micronutrients, _candidates
             )
+            # Use resolved function (test patch) or fallback to local
+            if agg_fn is not None and agg_fn is not _aggregate_meal_micronutrients:
+                meal_micros_raw = await agg_fn(ingredients, meal_title=meal_title)  # type: ignore[misc]
+            else:
+                # Use local aggregator (normal runtime or no test patch)
+                meal_micros_raw = await _aggregate_meal_micronutrients(
+                    ingredients, meal_title=meal_title
+                )
 
             # Apply aliases and assign to meal (clone to avoid mutation)
             meal_micros_aliased = _alias_micros(dict(meal_micros_raw))
@@ -2710,7 +2732,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 },
             ]
 
-            return PlateResponse(
+            # Resolve PlateResponse class dynamically to respect test patches (class identity)
+            PlateResponseCls = (
+                core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates)
+                or PlateResponse
+            )
+
+            return PlateResponseCls(
                 kcal=target_kcal,
                 macros={
                     "protein_g": protein_g,
@@ -2922,7 +2950,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         computed_kcal = _macros_to_kcal(macros_aligned)
         if alignment_succeeded and computed_kcal is not None:
             final_kcal_value = computed_kcal
-        return PlateResponse(
+
+        # Resolve PlateResponse class dynamically to respect test patches (class identity)
+        PlateResponseCls = (
+            core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates) or PlateResponse
+        )
+
+        return PlateResponseCls(
             kcal=final_kcal_value,
             macros=macros_aligned,
             portions=plate_data["portions"],
