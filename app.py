@@ -1795,15 +1795,24 @@ def _evaluate_targets_disabled() -> bool:
     primary_app = _sys.modules.get("app")
     if primary_app is not None:
         module_value = getattr(primary_app, "build_nutrition_targets", None)
-        if module_value is None:
-            logger.debug("_targets_disabled: app module has build_nutrition_targets=None")
+        # Treat missing OR non-callable as explicit disablement
+        if module_value is None or not callable(module_value):
+            logger.debug(
+                "_targets_disabled: app module has build_nutrition_targets=%r (callable=%s)",
+                module_value,
+                callable(module_value),
+            )
             return True
 
     alias_app = _sys.modules.get("app_module")
     if alias_app is not None and alias_app is not primary_app:
         alias_value = getattr(alias_app, "build_nutrition_targets", None)
-        if alias_value is None:
-            logger.debug("_targets_disabled: app_module alias has build_nutrition_targets=None")
+        if alias_value is None or not callable(alias_value):
+            logger.debug(
+                "_targets_disabled: app_module alias has build_nutrition_targets=%r (callable=%s)",
+                alias_value,
+                callable(alias_value),
+            )
             return True
 
     return False
@@ -1821,8 +1830,12 @@ def _quick_targets_disabled_state() -> bool | None:
     primary_value = getattr(primary_app, "build_nutrition_targets", None) if primary_app else None
     alias_value = getattr(alias_app, "build_nutrition_targets", None) if alias_app else None
 
-    # If either module explicitly disabled targets, honor that immediately
-    if primary_value is None or (alias_app is not None and alias_value is None):
+    # If either module explicitly disabled targets (None or non-callable), honor that immediately
+    if (
+        primary_value is None
+        or not callable(primary_value)
+        or (alias_app is not None and (alias_value is None or not callable(alias_value)))
+    ):
         return True
 
     if (
@@ -2733,10 +2746,14 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             ]
 
             # Resolve PlateResponse class dynamically to respect test patches (class identity)
-            PlateResponseCls = (
-                core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates)
-                or PlateResponse
-            )
+            PlateResponseCls = core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates)
+            # Ensure PlateResponseCls is callable; fallback to local PlateResponse if not
+            if not callable(PlateResponseCls):
+                logger.debug(
+                    "premium_plate fallback: PlateResponseCls not callable (%s), using local",
+                    type(PlateResponseCls),
+                )
+                PlateResponseCls = PlateResponse
 
             return PlateResponseCls(  # type: ignore[operator, no-any-return]
                 kcal=target_kcal,
@@ -2801,6 +2818,15 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         target_kcal_override: Optional[int] = None
         alignment_succeeded = False
         targets_available = not targets_disabled()
+
+        # If targets are explicitly disabled (including non-callable global), prefer TDEE as fallback kcal
+        if not targets_available:
+            try:
+                # tdee_val is computed earlier in this function when using _calc_tdee
+                target_kcal_override = int(tdee_val)
+            except Exception:
+                # defensive: leave override as None if tdee_val missing/uncoercible
+                target_kcal_override = None
 
         if targets_available:
             try:
@@ -2952,9 +2978,14 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             final_kcal_value = computed_kcal
 
         # Resolve PlateResponse class dynamically to respect test patches (class identity)
-        PlateResponseCls = (
-            core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates) or PlateResponse
-        )
+        PlateResponseCls = core_utils.resolve_attr("PlateResponse", PlateResponse, _candidates)
+        # Ensure PlateResponseCls is callable; fallback to local PlateResponse if not
+        if not callable(PlateResponseCls):
+            logger.debug(
+                "premium_plate: PlateResponseCls not callable (%s), using local PlateResponse",
+                type(PlateResponseCls),
+            )
+            PlateResponseCls = PlateResponse
 
         return PlateResponseCls(  # type: ignore[operator, no-any-return]
             kcal=final_kcal_value,

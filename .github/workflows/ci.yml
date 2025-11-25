@@ -199,7 +199,12 @@ jobs:
             echo "$FILES"
 
             # Run pytest only on selected files (avoids global collection)
-            python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --cov-fail-under=97
+            # Note: --cov-fail-under only on final shard to check total coverage
+            if [ "$GROUP" -eq $GROUPS ]; then
+              python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --cov-fail-under=97
+            else
+              python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy
+            fi
           done
 
 
@@ -343,7 +348,12 @@ jobs:
             echo "$FILES"
 
             # Run pytest only on selected files (avoids global collection)
-            python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --cov-fail-under=97
+            # Note: --cov-fail-under only on final shard to check total coverage
+            if [ "$GROUP" -eq $GROUPS ]; then
+              python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy --cov-fail-under=97
+            else
+              python -m pytest -m "not slow" $FILES --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy
+            fi
           done
 
 
