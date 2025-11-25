@@ -34,7 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt -c constraints.txt
 
-      - name: Run tests with coverage (xml)
+      - name: Run tests with coverage (xml) - Part 1
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -44,7 +44,34 @@ jobs:
           API_KEY: "test_key"
           PYTHONWARNINGS: default
         run: |
-          pytest -q --disable-warnings --cov=. --cov-report=xml -n 1
+          # Run first 1/3 of tests using pytest-split
+          pytest -q --disable-warnings --cov=. --cov-report=xml:.coverage1.xml -n 1 --splits 3 --group 1
+
+      - name: Run tests with coverage (xml) - Part 2
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
+          PYTHONWARNINGS: default
+        run: |
+          # Run second 1/3 of tests, append coverage
+          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml:.coverage2.xml -n 1 --splits 3 --group 2
+
+      - name: Run tests with coverage (xml) - Part 3
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          VIP_MODULE_ENABLED: "true"
+          APP_ENV: test
+          ENVIRONMENT: test
+          FEATURE_PREMIUM_NUTRITION: "true"
+          API_KEY: "test_key"
+          PYTHONWARNINGS: default
+        run: |
+          # Run final 1/3 of tests, append coverage and generate final XML
+          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml -n 1 --splits 3 --group 3
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
