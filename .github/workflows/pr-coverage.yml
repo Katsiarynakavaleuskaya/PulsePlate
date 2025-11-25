@@ -41,7 +41,7 @@ jobs:
           echo "=== Top processes by memory ==="
           ps aux --sort=-rss | head -n 10
 
-      - name: Run tests with coverage (xml) - 20-way split
+      - name: Run tests with coverage (xml) - 5-way split for memory safety
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -55,21 +55,21 @@ jobs:
           # Disable coverage context tracking to avoid sqlite 'context' table errors
           COV_CORE_CONTEXT: ""
         run: |
-          # NOTE: -n 1 (single worker) + --splits 20 to reduce memory during collection
-          # Using --no-cov during collection, then re-enabling for execution
-          for GROUP in $(seq 1 20); do
+          # NOTE: Reduced to 5 splits to prevent MemoryError during collection
+          # Each shard runs ~1066 tests instead of ~267, but uses less memory overall
+          for GROUP in $(seq 1 5); do
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
             if [ "$GROUP" -gt 1 ]; then
               APPEND_FLAG="--cov-append"
             fi
             # Final shard writes the canonical coverage.xml for diff-cover
-            if [ "$GROUP" -eq 20 ]; then
+            if [ "$GROUP" -eq 5 ]; then
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
             fi
-            echo "Running shard ${GROUP}/20..."
-            # Run with minimal memory footprint: single worker, split collection
-            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG --cov-fail-under=97 -n 1 --splits 20 --group "$GROUP" --maxfail=3
+            echo "Running shard ${GROUP}/5..."
+            # Run with minimal memory footprint: single worker, reduced splits
+            pytest -q --disable-warnings --cov=. $APPEND_FLAG $XML_FLAG --cov-fail-under=97 -n 1 --splits 5 --group "$GROUP" --maxfail=3
           done
 
       - name: Fetch base branch
