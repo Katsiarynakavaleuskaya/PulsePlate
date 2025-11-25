@@ -248,7 +248,7 @@ jobs:
         run: |
           python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
 
-      - name: Run tests with coverage (8-way split)
+      - name: Run tests with coverage (12-way split)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -261,19 +261,19 @@ jobs:
           HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
-          for GROUP in 1 2 3 4 5 6 7 8; do
+          for GROUP in $(seq 1 12); do
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
             JUNIT_FLAG=""
             if [ "$GROUP" -gt 1 ]; then
               APPEND_FLAG="--cov-append"
             fi
-            if [ "$GROUP" -eq 8 ]; then
+            if [ "$GROUP" -eq 12 ]; then
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
               JUNIT_FLAG="--junitxml=tests/results.xml"
             fi
-            echo "Running shard ${GROUP}/8..."
-            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 8 --group "$GROUP" --cov-fail-under=97
+            echo "Running shard ${GROUP}/12..."
+            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 12 --group "$GROUP" --cov-fail-under=97
           done
 
 
@@ -354,7 +354,7 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
 
-      - name: Run tests with coverage (8-way split)
+      - name: Run tests with coverage (12-way split)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
@@ -368,19 +368,19 @@ jobs:
           HYPOTHESIS_PROFILE: ci
           TEST_DB_PATH: cache/test_app.sqlite
         run: |
-          for GROUP in 1 2 3 4 5 6 7 8; do
+          for GROUP in $(seq 1 12); do
             APPEND_FLAG=""
             XML_FLAG="--cov-report=xml:.coverage${GROUP}.xml"
             JUNIT_FLAG=""
             if [ "$GROUP" -gt 1 ]; then
               APPEND_FLAG="--cov-append"
             fi
-            if [ "$GROUP" -eq 8 ]; then
+            if [ "$GROUP" -eq 12 ]; then
               XML_FLAG="--cov-report=xml --cov-report=term-missing"
               JUNIT_FLAG="--junitxml=tests/results.xml"
             fi
-            echo "Running shard ${GROUP}/8..."
-            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 8 --group "$GROUP" --cov-fail-under=97
+            echo "Running shard ${GROUP}/12..."
+            python -m pytest -m "not slow" tests --cov=. $APPEND_FLAG $XML_FLAG $JUNIT_FLAG -o junit_family=legacy -n 1 --splits 12 --group "$GROUP" --cov-fail-under=97
           done
 
 
