@@ -65,16 +65,12 @@ repos:
     rev: 1.7.9
     hooks:
       - id: bandit
-        name: bandit (security, full repo)
+        name: bandit (security, changed files only)
         stages: [pre-commit]
-        always_run: true
-        pass_filenames: false
         args:
           - -q
           - -c
           - .bandit.yaml
-          - -r
-          - .
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit
@@ -108,24 +104,11 @@ repos:
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
-      # Check trailing newlines (POSIX compliance)
-      # All text files must end with '\n' character per POSIX standard
-      - id: check-trailing-newline
-        name: check trailing newline (POSIX)
-        entry: python3 scripts/check_trailing_newline.py
-        language: system
-        pass_filenames: false
-        stages: [pre-commit, pre-push]
-        files: \.(py|sh)$
+      # Removed: check-trailing-newline (redundant with end-of-file-fixer)
+      # The end-of-file-fixer hook (line 13) already ensures POSIX compliance
 
-      # ruff — strict on pre-push (no silent auto-fix bypass)
-      # Limited to working directories only (excludes tests) - ANN checks only
-      - id: ruff-pre-push
-        name: ruff (pre-push, strict)
-        entry: bash -c "if ! command -v ruff >/dev/null 2>&1; then echo '⚠️  ruff not available, skipping pre-push check' && exit 0; else ruff check --select ANN app/ core/ scripts/ app.py main.py settings.py secure_config.py signed_links.py llm.py nutrition_core.py nutrition_plate.py bmi_core.py bodyfat.py bmi_visualization.py mcp_*.py setup_*.py update_*.py verify_*.py providers/; fi"
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
+      # Removed: ruff-pre-push (redundant with ruff hook line 51-61)
+      # Type hint checks are already covered by main ruff hook
 
       # bandit-full — full security scan with smart excludes
       - id: bandit-full-pre-push
@@ -138,7 +121,7 @@ repos:
       # docker-build-test — test Docker build before push (with timeout)
       - id: docker-build-test
         name: docker build test
-        entry: bash -c "if timeout 300 make docker-build 2>&1 | tail -50; then echo '✅ Docker build successful'; else echo '⚠️  Docker build failed or timed out after 5 minutes - check logs above'; exit 1; fi"
+        entry: bash -c "set -o pipefail; if timeout 300 make docker-build 2>&1 | tail -50; then echo '✅ Docker build successful'; else echo '⚠️  Docker build failed or timed out after 5 minutes - check logs above'; exit 1; fi"
         language: system
         pass_filenames: false
         stages: [pre-push]
