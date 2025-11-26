@@ -145,7 +145,7 @@ jobs:
           with session_scope() as session:
               inspector = inspect(session.bind)
               tables = inspector.get_table_names()
-              print(f"✅ Found {len(tables)} tables: {', '.join(tables)}")
+              print('✅ Found', len(tables), 'tables:', ', '.join(tables))
               assert 'users' in tables, 'users table not found'
           "
 
