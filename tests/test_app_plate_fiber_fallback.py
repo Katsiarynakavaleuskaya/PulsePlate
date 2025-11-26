@@ -7,7 +7,10 @@ import pytest
 import app
 
 # Shared constant for mocked plate kcal value
-MOCKED_PLATE_KCAL = 2100
+# Note: This must match the TDEE value returned by fake_calculate_all_tdee
+# because api_premium_plate uses TDEE-based kcal when targets are available,
+# overriding the kcal value from make_plate
+MOCKED_PLATE_KCAL = 2000
 
 
 @pytest.mark.asyncio

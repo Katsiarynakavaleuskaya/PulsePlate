@@ -2582,6 +2582,15 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     - Hand/cup portion method for real-world application
     - Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)
     - Macro-balanced meal suggestions
+
+    Calorie Calculation Precedence:
+    1. build_nutrition_targets().kcal_daily (highest priority when targets available)
+    2. TDEE calculation with goal adjustment (used when targets unavailable)
+    3. make_plate().kcal (lowest priority, only used in basic fallback mode)
+
+    Note: When build_nutrition_targets is available and callable, its kcal_daily
+    value will override any kcal value returned by make_plate. This ensures
+    consistency with WHO-based nutrition targets.
     """
     # Feature flag check BEFORE snapshot to allow tests to set FEATURE_PREMIUM_NUTRITION
     if str(os.getenv("FEATURE_PREMIUM_NUTRITION", "")).strip().lower() not in {
