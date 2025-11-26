@@ -74,12 +74,12 @@ jobs:
               exit 0
             fi
             # Iterate newline-delimited paths safely
-            while IFS= read -r file; do
+            IFS=$'\n'
+            for file in ${{ steps.changed.outputs.files }}; do
               [ -z "$file" ] && continue
               mypy "$file"
-            done <<-'EOF'
-            ${{ steps.changed.outputs.files }}
-            EOF
+            done
+            unset IFS
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
