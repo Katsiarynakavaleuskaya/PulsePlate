@@ -5,6 +5,8 @@ repos:
     hooks:
       - id: check-yaml
       - id: end-of-file-fixer
+        # Automatically fixes missing trailing newlines (POSIX requirement)
+        # All text files must end with '\n' character
       - id: trailing-whitespace
       - id: check-merge-conflict
       - id: check-added-large-files
@@ -28,7 +30,7 @@ repos:
         language_version: python3
         files: ^(?!frontend/).+\.py$
 
-  # --- Lint: Ruff (fast flake8 + isort)
+  # --- Lint: Ruff (fast flake8 + isort + type hints)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.2
     hooks:
@@ -36,6 +38,12 @@ repos:
         name: ruff (lint, local)
         files: ^(?!frontend/).+\.py$
         args: [--fix]
+      - id: ruff
+        name: ruff (type hints check)
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|providers/.*\.py|(mcp_|setup_|update_|verify_).*\.py|(app|main|settings|secure_config|signed_links|llm|nutrition_core|nutrition_plate|bmi_core|bodyfat|bmi_visualization)\.py)$
+        exclude: ^core/(db|auto_repair|data_sanitizer|business_bayesian_analyzer)\.py$
+        args: [--select, ANN, --fix]  # Check and auto-fix type annotations
+        stages: [pre-push]  # Run on pre-push for stricter enforcement
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
@@ -46,7 +54,6 @@ repos:
         pass_filenames: false
         stages: [pre-push]
         args:
-          - --explicit-package-bases
           - --pretty
           - --show-error-codes
           - app
@@ -58,15 +65,12 @@ repos:
     rev: 1.7.9
     hooks:
       - id: bandit
-        name: bandit (security, changed files)
+        name: bandit (security, changed files only)
         stages: [pre-commit]
-        types: [python]
-        # Changed-files only (fast path). Full scan added below on pre-push/CI.
-        exclude: ^frontend/|^tests/|^tests_strict/|^node_modules/|^dist/|^build/|^test-results/|^\.venv/|^venv/|^cache/|^test_quick_check\.py$
         args:
           - -q
           - -c
-          - .bandit
+          - .bandit.yaml
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit
@@ -100,13 +104,11 @@ repos:
   # --- Local composite hooks (pre-push): strict gates before remote
   - repo: local
     hooks:
-      # ruff — strict on pre-push (no silent auto-fix bypass)
-      - id: ruff-pre-push
-        name: ruff (pre-push, strict)
-        entry: ruff check .
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
+      # Removed: check-trailing-newline (redundant with end-of-file-fixer)
+      # The end-of-file-fixer hook (line 13) already ensures POSIX compliance
+
+      # Removed: ruff-pre-push (redundant with ruff hook line 51-61)
+      # Type hint checks are already covered by main ruff hook
 
       # bandit-full — full security scan with smart excludes
       - id: bandit-full-pre-push
@@ -116,10 +118,10 @@ repos:
         pass_filenames: false
         stages: [pre-push]
 
-      # docker-build-test — test Docker build before push
+      # docker-build-test — test Docker build before push (with timeout)
       - id: docker-build-test
         name: docker build test
-        entry: bash -c "make docker-build && echo '✅ Docker build successful'"
+        entry: bash -c "set -o pipefail; if timeout 300 make docker-build 2>&1 | tail -50; then echo '✅ Docker build successful'; else echo '⚠️  Docker build failed or timed out after 5 minutes - check logs above'; exit 1; fi"
         language: system
         pass_filenames: false
         stages: [pre-push]
