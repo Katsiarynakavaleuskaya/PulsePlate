@@ -198,8 +198,9 @@ jobs:
         run: |
           # conftest.py:init_test_database fixture (autouse=True) handles per-worker DB initialization
           # Each xdist worker gets its own SQLite file: cache/test_pr_worker{id}.sqlite
+          # Use -n auto to parallelize and avoid MemoryError from loading all tests at once
           pytest -m "not slow and not monte_carlo and not demo" \
-            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
+            -n auto --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 
       - name: Fetch base branch for diff-cover
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'

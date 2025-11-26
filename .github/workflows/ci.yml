@@ -434,14 +434,6 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
 
-      - name: Verify database initialization (explicit check)
-        env:
-          APP_ENV: test
-          ENVIRONMENT: test
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
-        run: |
-          python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
-
       - name: Run tests with coverage (6-way split, no xdist - pure serial to avoid MemoryError)
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"

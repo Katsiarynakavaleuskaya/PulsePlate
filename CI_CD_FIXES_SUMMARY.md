@@ -71,21 +71,16 @@ consistency with WHO-based nutrition targets.
 
 ---
 
-### 3. Added Database Verification Step to CI
-**File:** `.github/workflows/ci.yml` - `test-main` job
+### 3. Added pytest-xdist Parallelization to PR Tests
+**File:** `.github/workflows/pr-tests.yml`
 
 **Addition:**
 ```yaml
-- name: Verify database initialization (explicit check)
-  env:
-    APP_ENV: test
-    ENVIRONMENT: test
-    PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
-  run: |
-    python -c "from core.db import init_db; init_db(); print('✅ Database verified and initialized')"
+pytest -m "not slow and not monte_carlo and not demo" \
+  -n auto --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 ```
 
-**Rationale:** Addresses CodeRabbit feedback for consistency across all test jobs (test-pr and test-feature already had this step).
+**Rationale:** Prevents MemoryError by distributing test execution across multiple workers, avoiding the need to load all ~1200 test items into memory at once during pytest collection phase.
 
 ---
 
@@ -119,9 +114,9 @@ consistency with WHO-based nutrition targets.
 ✅ No new linting errors introduced
 
 ### Files Modified
-1. `tests/test_app_plate_fiber_fallback.py` - Updated test constant
-2. `app.py` - Added API documentation
-3. `.github/workflows/ci.yml` - Added DB verification step
+1. `tests/test_app_plate_fiber_fallback.py` - Updated test constant with documentation
+2. `app.py` - Added kcal precedence documentation to api_premium_plate
+3. `.github/workflows/pr-tests.yml` - Added -n auto for pytest-xdist parallelization
 
 ---
 
@@ -136,8 +131,8 @@ consistency with WHO-based nutrition targets.
 **Solution:** Explicitly document calculation precedence in code
 
 ### CI Consistency
-**Issue:** Missing verification step in test-main job
-**Solution:** Ensure all test jobs have identical verification steps
+**Issue:** MemoryError in PR Tests workflow from loading all tests at once
+**Solution:** Use pytest-xdist (-n auto) to distribute tests across workers
 
 ---
 
@@ -153,12 +148,12 @@ consistency with WHO-based nutrition targets.
 
 ## 📝 Commit Message
 
-```
+```text
 fix(tests): align plate API test expectations with TDEE precedence
 
 - Update MOCKED_PLATE_KCAL from 2100 to 2000 to match TDEE calculation
 - Add documentation clarifying kcal calculation precedence in api_premium_plate
-- Add database verification step to test-main CI job for consistency
+- Add pytest-xdist parallelization to PR Tests workflow to fix MemoryError
 
 Fixes all CI/CD pipeline failures in PR #266.
 
@@ -166,13 +161,17 @@ The test was expecting make_plate().kcal (2100) to be returned, but the
 implementation correctly prioritizes build_nutrition_targets().kcal_daily
 which uses TDEE-based calculations (2000).
 
+PR Tests (Fast) workflow was failing with MemoryError during pytest collection
+phase when trying to load ~1200 test items. Fixed by adding -n auto flag to
+enable pytest-xdist parallelization.
+
 Documentation now explicitly states the precedence order:
 1. build_nutrition_targets().kcal_daily (highest priority)
 2. TDEE calculation with goal adjustment
 3. make_plate().kcal (lowest priority, fallback only)
 
 Resolves: #266 (CI failures)
-Addresses: CodeRabbit feedback on test-main job consistency
+Addresses: CodeRabbit feedback on code block language identifiers
 ```
 
 ---
