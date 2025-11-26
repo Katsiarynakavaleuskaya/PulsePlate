@@ -5,8 +5,47 @@
 language: en-US
 profile: chill
 
-# Path-based instructions
+# Enable auto-reviews
+auto_review:
+  enabled: true
+  # Review on PR open, sync, and reopened
+  on_pr_events:
+    - opened
+    - synchronize
+    - reopened
+  # Don't review draft PRs
+  draft: false
+
+# Review settings
 reviews:
+  # Request changes for critical issues
+  request_changes_workflow: true
+  # Auto-approve if no issues found
+  auto_approve: false
+  # High-level summary at the top
+  high_level_summary: true
+  # Custom high-level summary instructions (NEW - Nov 2025)
+  high_level_summary_instructions: |
+    Provide a concise summary focusing on:
+    1. Memory optimization changes (fixture scopes, sharding, TDEE fallback)
+    2. Test coverage metrics (current vs 97% target)
+    3. Critical bug fixes (TypeError, MemoryError, callable guards)
+    4. CI/CD workflow improvements (file-based sharding, coverage threshold)
+    5. Code quality issues (mypy errors, dynamic resolution)
+    Format as bullet list with impact assessment.
+  # Show summary in walkthrough section instead of description
+  high_level_summary_in_walkthrough: true
+  # Review entire files for context
+  review_status: true
+  # Poem style summary (fun!)
+  poem: true
+  # Ignore PRs from specific users (NEW - Aug 2025)
+  ignore_usernames:
+    - dependabot
+    - renovate
+    - github-actions[bot]
+
+  # Path-based instructions
   path_instructions:
     - path: "**/*.py"
       instructions: |
@@ -19,6 +58,8 @@ reviews:
         Follow PEP 8 style guidelines.
         Format all Python code with Black using max line length 100.
         Use Pydantic v2 APIs (model_dump(), model_validate()) instead of deprecated v1 methods.
+        Check for memory leaks and ensure proper resource cleanup.
+        Verify callable() checks for dynamically resolved functions/classes.
     - path: "**/*.ts"
       instructions: |
         Follow Apple HIG guidelines for iOS components.
@@ -28,8 +69,69 @@ reviews:
       instructions: |
         Ensure tests use descriptive names and follow pytest best practices.
         Maintain 97% test coverage requirement.
+        Verify proper fixture cleanup and resource management.
+        Check for potential memory issues in test fixtures.
+    - path: ".github/workflows/**"
+      instructions: |
+        Verify memory optimization settings (PYTHONMALLOC, COV_CORE_CONTEXT).
+        Check for proper test sharding configuration.
+        Ensure coverage thresholds are enforced correctly.
+        Verify file-based sharding is used instead of pytest-split.
+        Check that callable() guards are in place for dynamic resolution.
 
 # Code guidelines
 code_guidelines:
   enabled: true
   filePatterns: [".cursorrules", "README.md", "CONTRIBUTING.md"]
+
+# File filters - what to review
+file_filters:
+  # Include these patterns
+  include:
+    - "**/*.py"
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "tests/**"
+    - ".github/workflows/**"
+  # Exclude these patterns
+  exclude:
+    - "**/*.md"
+    - "**/*.txt"
+    - "**/*.json"
+    - "node_modules/**"
+    - "venv/**"
+    - ".venv/**"
+    - "htmlcov/**"
+    - "*.pyc"
+    - "__pycache__/**"
+    - ".pytest_cache/**"
+    - ".mypy_cache/**"
+
+# Chat settings for interactive review
+chat:
+  auto_reply: true
+
+# Tools integration (NEW - 2025 update)
+tools:
+  # Enable OSV-Scanner for vulnerability detection
+  osv-scanner:
+    enabled: true
+  # Enable unit test generation (beta)
+  unit_test_generation:
+    enabled: true
+    # Generate tests for files with <97% coverage
+    coverage_threshold: 97
+
+# Finishing touches - auto-generate unit tests, docstrings, etc.
+finishing_touches:
+  # Auto-generate unit tests for new code
+  unit_tests:
+    enabled: true
+    framework: pytest
+    style: "descriptive names following pytest best practices"
+  # Auto-suggest docstrings for undocumented functions
+  docstrings:
+    enabled: true
+    style: google
