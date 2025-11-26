@@ -196,9 +196,24 @@ jobs:
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
         run: |
-          # Run without xdist parallelization to avoid MemoryError during collection
-          # Simple serial execution works fine for fast test subset
+          # Exclude Bayesian tests to avoid MemoryError (5274 tests -> ~1200 tests)
+          # Bayesian tests are heavy and covered by main CI workflows (test-pr, test-main)
+          # This is a FAST check for PR - full coverage verified in test-pr job
           pytest -m "not slow and not monte_carlo and not demo" \
+            --ignore=tests/test_bayesian_analyzer.py \
+            --ignore=tests/test_bayesian_business_and_utils.py \
+            --ignore=tests/test_bayesian_quality_report.py \
+            --ignore=tests/test_bayesian_script_runner.py \
+            --ignore=tests/test_bayesian_test_analyzer_unit.py \
+            --ignore=tests/test_business_bayesian_analyzer_configs.py \
+            --ignore=tests/test_comprehensive_bayesian_analyzer.py \
+            --ignore=tests/test_integrated_bayesian_analyzer.py \
+            --ignore=tests/test_nutrition_bayesian_analyzer_counters.py \
+            --ignore=tests/test_nutrition_bayesian_analyzer_extra.py \
+            --ignore=tests/test_pytest_bayesian_plugin_coverage.py \
+            --ignore=tests/test_pytest_bayesian_plugin_unit.py \
+            --ignore=tests/test_run_tests_bayesian_coverage.py \
+            --ignore=tests/test_comprehensive_and_integrated_analyzers.py \
             --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
 
       - name: Fetch base branch for diff-cover
