@@ -44,7 +44,9 @@ async def test_api_who_targets_fallback_loss_branch(monkeypatch: pytest.MonkeyPa
     # This ensures the patch works regardless of which module is found first
     for module_name in ("app", "app_module", "__main__"):
         if module_name in sys.modules:
-            monkeypatch.setattr(sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False)
+            monkeypatch.setattr(
+                sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False
+            )
     # Also patch the local app module reference
     monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
 
@@ -80,7 +82,9 @@ async def test_api_who_targets_fallback_gain_branch(monkeypatch: pytest.MonkeyPa
     # This ensures the patch works regardless of which module is found first
     for module_name in ("app", "app_module", "__main__"):
         if module_name in sys.modules:
-            monkeypatch.setattr(sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False)
+            monkeypatch.setattr(
+                sys.modules[module_name], "build_nutrition_targets", failing_builder, raising=False
+            )
     # Also patch the local app module reference
     monkeypatch.setattr(app, "build_nutrition_targets", failing_builder, raising=False)
 
