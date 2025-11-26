@@ -196,11 +196,16 @@ jobs:
           # Ensure conftest.py init_test_database fixture runs for xdist workers
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
         run: |
-          # Disable Bayesian plugin to avoid memory leak during collection
-          # Plugin accumulates test_contexts dict which is not cleared on collection errors
-          pytest -m "not slow and not monte_carlo and not demo" \
+          # PR Tests (Fast): Run ONLY smoke tests for quick feedback
+          # Full test suite (5200+ tests) runs in test-pr and test-main workflows
+          # Smoke suite is small (~5-20 tests) and validates critical paths
+          # This avoids CI memory exhaustion (16GB limit, tests need 32GB+)
+
+          pytest -m smoke \
             -p no:bayesian_plugin \
-            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
+            --maxfail=5 \
+            --tb=short \
+            --cov=. --cov-report=xml --junitxml=junit.xml
 
       - name: Fetch base branch for diff-cover
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'
