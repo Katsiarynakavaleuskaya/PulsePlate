@@ -68,9 +68,9 @@ def init_test_database() -> None:
         import importlib
 
         if "core.db" in sys.modules:
-            core_db = importlib.reload(sys.modules["core.db"])  # type: ignore[assignment]
+            core_db = importlib.reload(sys.modules["core.db"])
         else:
-            import core.db as core_db  # type: ignore[assignment]
+            import core.db as core_db
 
         # Reload or import models to ensure they're registered
         if "core.models" in sys.modules:
