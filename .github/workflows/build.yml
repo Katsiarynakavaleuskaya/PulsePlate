@@ -129,7 +129,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@df409f7d9260372694d2832b14d94c7cab5e9a48 # v4.0.0
         with:
           sarif_file: 'trivy-results.sarif'
 
