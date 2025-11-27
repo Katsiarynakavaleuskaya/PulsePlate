@@ -499,6 +499,36 @@ def fetch_data():
         roi_estimates = analyzer.calculate_roi_potential()
         assert roi_estimates == []
 
+    def test_generate_revenue_optimization_recommendations(self):
+        """Revenue optimization recommendations should reflect diagnosed issues."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                BusinessTestResult(
+                    test_name="t_acq",
+                    success=False,
+                    business_category=BusinessCategory.CUSTOMER_ACQUISITION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                ),
+                BusinessTestResult(
+                    test_name="t_ret",
+                    success=False,
+                    business_category=BusinessCategory.USER_RETENTION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                ),
+                BusinessTestResult(
+                    test_name="t_data",
+                    success=False,
+                    business_category=BusinessCategory.DATA_MONETIZATION,
+                    error_type=BusinessErrorType.DATA_UNDERUTILIZED,
+                ),
+            ]
+        )
+        recs = analyzer.generate_revenue_optimization_recommendations()
+        assert any("онбординг" in r.lower() or "конверсии" in r.lower() for r in recs)
+        assert any("лояль" in r.lower() or "удержание" in r.lower() for r in recs)
+        assert any("api" in r.lower() or "аналит" in r.lower() for r in recs)
+
     def test_revenue_growth_branches(self):
         """Analytics without A/B and personalization without recommendations should be flagged."""
         analyzer = BusinessBayesianAnalyzer()

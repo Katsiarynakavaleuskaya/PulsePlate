@@ -10,18 +10,19 @@ from core.nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
     NutritionTestResult,
     NutritionCategory,
+    NutritionErrorType,
 )
 
 
 class TestNutritionBayesianAnalyzerInit:
     """Test analyzer initialization."""
 
-    def test_init_default(self):
+    def test_init_default(self) -> None:
         """Test default initialization."""
         analyzer = NutritionBayesianAnalyzer()
         assert analyzer.test_results == []
 
-    def test_init_has_default_thresholds(self):
+    def test_init_has_default_thresholds(self) -> None:
         """Test that analyzer initializes with default safety thresholds."""
         analyzer = NutritionBayesianAnalyzer()
         # Should have reasonable defaults
@@ -33,7 +34,7 @@ class TestNutritionBayesianAnalyzerInit:
 class TestNutritionSafetyAnalysis:
     """Test nutrition safety checks."""
 
-    def test_analyze_simple_nutrition_code(self):
+    def test_analyze_simple_nutrition_code(self) -> None:
         """Test analysis of simple nutrition code."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -45,7 +46,7 @@ def test_calories():
         assert isinstance(results, list)
         assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_low_calories(self):
+    def test_detect_low_calories(self) -> None:
         """Test detection of dangerously low calories."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -55,10 +56,10 @@ def test_low_cal():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_low_cal")
         assert isinstance(results, list)
-        # Analyzer processes low calorie values (may or may not flag as issue)
-        assert len(results) >= 0
+        # Verify results are valid NutritionTestResult instances
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_high_calories(self):
+    def test_detect_high_calories(self) -> None:
         """Test detection of excessively high calories."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -68,10 +69,10 @@ def test_high_cal():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_high_cal")
         assert isinstance(results, list)
-        # Analyzer processes high calorie values (may or may not flag as issue)
-        assert len(results) >= 0
+        # Verify results are valid NutritionTestResult instances
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_macronutrient_sum_invalid(self):
+    def test_detect_macronutrient_sum_invalid(self) -> None:
         """Negative macro values should trigger macronutrient sum invalid issue."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -81,11 +82,11 @@ def test_macros():
     carbs = 0
 """
         results = analyzer.analyze_nutrition_safety(code, "test_macros")
-        # Analyzer processes all-zero macros (may or may not flag as invalid sum)
+        # Verify results are valid NutritionTestResult instances
         assert isinstance(results, list)
-        assert len(results) >= 0
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_macro_percent_out_of_bounds(self):
+    def test_detect_macro_percent_out_of_bounds(self) -> None:
         """Macro percentages outside healthy ranges should be flagged per macro."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -99,7 +100,7 @@ def test_macros_pct():
         error_values = {getattr(r.error_type, "value", "") for r in results if r.error_type}
         assert {"protein_too_high", "fat_too_low", "carb_too_low"} & error_values
 
-    def test_detect_fat_too_high(self):
+    def test_detect_fat_too_high(self) -> None:
         """Excessive fat percentage should be flagged."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -113,7 +114,7 @@ def test_fat_high():
             getattr(r.error_type, "value", "") == "fat_too_high" for r in results if r.error_type
         )
 
-    def test_detect_carb_too_high(self):
+    def test_detect_carb_too_high(self) -> None:
         """Excessive carb percentage should be flagged."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -127,11 +128,90 @@ def test_carb_high():
             getattr(r.error_type, "value", "") == "carb_too_high" for r in results if r.error_type
         )
 
+    def test_meal_level_calories_are_skipped(self) -> None:
+        """Meal-level calories should be ignored by the dangerous daily calorie checks."""
+        analyzer = NutritionBayesianAnalyzer()
+        code = """
+def test_meal():
+    breakfast_calories = 500
+"""
+        results = analyzer.analyze_nutrition_safety(code, "test_meal")
+        # Should not flag meal-level calories
+        assert not any(
+            getattr(r.error_type, "value", "").startswith("calorie_")
+            for r in results
+            if r.error_type
+        )
+
+    def test_invalid_calorie_and_bmi_values_do_not_crash(self) -> None:
+        """Non-numeric calorie/BMI values should be safely ignored."""
+        analyzer = NutritionBayesianAnalyzer()
+        code = """
+def test_invalid():
+    calories = not_a_number
+    bmi = bad_value
+"""
+        results = analyzer.analyze_nutrition_safety(code, "test_invalid")
+        # Should not raise and should not produce calorie/bmi errors
+        assert isinstance(results, list)
+        assert not any(
+            getattr(r.error_type, "value", "").startswith("calorie_")
+            for r in results
+            if r.error_type
+        )
+        assert not any(
+            getattr(r.error_type, "value", "").startswith("bmi_") for r in results if r.error_type
+        )
+
+    def test_bmi_dangerous_low(self) -> None:
+        """BMI below dangerous threshold should be flagged."""
+        analyzer = NutritionBayesianAnalyzer()
+        code = "bmi = 10"
+        results = analyzer.analyze_nutrition_safety(code, "test_bmi_low")
+        assert any(
+            getattr(r.error_type, "value", "") == "bmi_dangerous" for r in results if r.error_type
+        )
+
+    def test_calorie_and_bmi_value_error_paths(self, monkeypatch) -> None:
+        """Force ValueError in calorie/BMI parsing to cover exception paths."""
+        analyzer = NutritionBayesianAnalyzer()
+
+        def _raise_value_error(_x):
+            raise ValueError("forced")
+
+        # Monkeypatch float in builtins, not in the module
+        import builtins
+
+        monkeypatch.setattr(builtins, "float", _raise_value_error)
+        assert analyzer._analyze_calorie_calculations("calories = 123", "test_force_cal") == []
+        assert analyzer._analyze_bmi_calculations("bmi = 25", "test_force_bmi") == []
+
+    def test_diagnose_probabilities_with_successful_and_failed_results(self) -> None:
+        """diagnose_nutrition_issues should include only failed results."""
+        analyzer = NutritionBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                NutritionTestResult(
+                    test_name="t_ok",
+                    success=True,
+                    nutrition_category=NutritionCategory.BMI_SAFETY,
+                ),
+                NutritionTestResult(
+                    test_name="t_fail",
+                    success=False,
+                    nutrition_category=NutritionCategory.DATA_PRIVACY,
+                ),
+            ]
+        )
+        probs = analyzer.diagnose_nutrition_issues()
+        assert NutritionCategory.DATA_PRIVACY in probs
+        assert NutritionCategory.BMI_SAFETY not in probs
+
 
 class TestBMIValidation:
     """Test BMI validation."""
 
-    def test_detect_bmi_calculation(self):
+    def test_detect_bmi_calculation(self) -> None:
         """Test detection of BMI calculations."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -141,10 +221,10 @@ def test_bmi():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_bmi")
         assert isinstance(results, list)
-        # BMI in valid range may not trigger issues
-        assert len(results) >= 0
+        # Verify results are valid NutritionTestResult instances
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_invalid_bmi(self):
+    def test_detect_invalid_bmi(self) -> None:
         """Test detection of invalid BMI values."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -169,7 +249,7 @@ def test_bad_bmi():
 class TestMacronutrientChecks:
     """Test macronutrient validation."""
 
-    def test_detect_protein(self):
+    def test_detect_protein(self) -> None:
         """Test detection of protein values."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -179,8 +259,9 @@ def test_protein():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_protein")
         assert isinstance(results, list)
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_carbs(self):
+    def test_detect_carbs(self) -> None:
         """Test detection of carbohydrate values."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -190,8 +271,9 @@ def test_carbs():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_carbs")
         assert isinstance(results, list)
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_fats(self):
+    def test_detect_fats(self) -> None:
         """Test detection of fat values."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -201,12 +283,13 @@ def test_fats():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_fats")
         assert isinstance(results, list)
+        assert all(isinstance(r, NutritionTestResult) for r in results)
 
 
 class TestAllergenDetection:
     """Test allergen-related checks."""
 
-    def test_detect_allergen_keywords(self):
+    def test_detect_allergen_keywords(self) -> None:
         """Test detection of allergen mentions."""
         analyzer = NutritionBayesianAnalyzer()
         code = "peanuts\nmilk\n"
@@ -226,7 +309,7 @@ class TestAllergenDetection:
 class TestNutritionTestResult:
     """Test NutritionTestResult dataclass."""
 
-    def test_nutrition_test_result_creation(self):
+    def test_nutrition_test_result_creation(self) -> None:
         """Test creation of NutritionTestResult."""
         result = NutritionTestResult(
             test_name="test_example",
@@ -243,13 +326,13 @@ class TestNutritionTestResult:
 class TestEdgeCases:
     """Test edge cases."""
 
-    def test_empty_code(self):
+    def test_empty_code(self) -> None:
         """Test analysis of empty code."""
         analyzer = NutritionBayesianAnalyzer()
         results = analyzer.analyze_nutrition_safety("", "test_empty")
         assert isinstance(results, list)
 
-    def test_code_without_nutrition_data(self):
+    def test_code_without_nutrition_data(self) -> None:
         """Test code with no nutrition-related content."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -260,14 +343,14 @@ def test_generic():
         results = analyzer.analyze_nutrition_safety(code, "test_generic")
         assert isinstance(results, list)
 
-    def test_malformed_code(self):
+    def test_malformed_code(self) -> None:
         """Test malformed code handling."""
         analyzer = NutritionBayesianAnalyzer()
         code = "def test_broken(:"
         results = analyzer.analyze_nutrition_safety(code, "test_broken")
         assert isinstance(results, list)
 
-    def test_results_persistence(self):
+    def test_results_persistence(self) -> None:
         """Test that results are persisted."""
         analyzer = NutritionBayesianAnalyzer()
         initial_analyses = analyzer._total_analyses
@@ -280,7 +363,7 @@ def test_generic():
 class TestAdditionalSafetyChecks:
     """Additional coverage for privacy and medical contradiction branches."""
 
-    def test_data_privacy_leak_detection(self):
+    def test_data_privacy_leak_detection(self) -> None:
         """Hardcoded secrets should be flagged as privacy leaks."""
         analyzer = NutritionBayesianAnalyzer()
         code = 'api_key = "secret123"\n'
@@ -291,7 +374,7 @@ class TestAdditionalSafetyChecks:
             for r in results
         )
 
-    def test_medical_contradiction_detection(self):
+    def test_medical_contradiction_detection(self) -> None:
         """Diabetes mention without sugar limit should raise a medical contradiction warning."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -307,7 +390,7 @@ def test_medical():
             for r in results
         )
 
-    def test_medical_no_issue_when_limited(self):
+    def test_medical_no_issue_when_limited(self) -> None:
         """When sugar is limited for diabetes, medical contradiction should not trigger."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
@@ -322,3 +405,135 @@ def test_medical_limit():
             for r in results
             if r.error_type
         )
+
+    def test_add_nutrition_test_result_and_allergen_recommendation(self) -> None:
+        """add_nutrition_test_result should append, and allergen issues should drive recommendations."""
+        analyzer = NutritionBayesianAnalyzer()
+        result = NutritionTestResult(
+            test_name="allergen_missing",
+            success=False,
+            nutrition_category=NutritionCategory.ALLERGEN_SAFETY,
+            error_type=NutritionErrorType.ALLERGEN_MISSING,
+        )
+        analyzer.add_nutrition_test_result(result)
+        assert analyzer.test_results[-1] is result
+
+        # Analyze code with allergen mention but no checks to populate test_results automatically
+        code = "peanuts everywhere"
+        analyzer.analyze_nutrition_safety(code, "test_allergen")
+        recs = analyzer.generate_nutrition_recommendations()
+        assert any("аллерген" in r.lower() for r in recs)
+
+    def test_value_error_paths_for_calories_and_bmi(self) -> None:
+        """Patterns that match but fail float conversion should be ignored safely."""
+        analyzer = NutritionBayesianAnalyzer()
+        bad_cal = analyzer._analyze_calorie_calculations("calories = abc", "test_bad_cal")
+        bad_bmi = analyzer._analyze_bmi_calculations("bmi = notnumber", "test_bad_bmi")
+        assert bad_cal == []
+        assert bad_bmi == []
+
+    def test_generate_recommendations_medical_and_macros(self) -> None:
+        """Medical and macro issues should add corresponding recommendations."""
+        analyzer = NutritionBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                NutritionTestResult(
+                    test_name="t_med",
+                    success=False,
+                    nutrition_category=NutritionCategory.MEDICAL_SAFETY,
+                ),
+                NutritionTestResult(
+                    test_name="t_macro",
+                    success=False,
+                    nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                ),
+            ]
+        )
+        recs = analyzer.generate_nutrition_recommendations()
+        assert any("медицин" in r.lower() for r in recs)
+        assert any("макронутриент" in r.lower() or "баланс" in r.lower() for r in recs)
+
+    def test_get_safety_score_with_penalty_and_failed_analyses(self) -> None:
+        """Safety score should decrease when failed dangerous analyses accumulate."""
+        analyzer = NutritionBayesianAnalyzer()
+        analyzer._total_analyses = 2
+        analyzer._failed_analyses = 2
+        analyzer.test_results.extend(
+            [
+                NutritionTestResult(
+                    test_name="t_danger1",
+                    success=False,
+                    nutrition_category=NutritionCategory.BMI_SAFETY,
+                    safety_level="dangerous",
+                ),
+                NutritionTestResult(
+                    test_name="t_danger2",
+                    success=False,
+                    nutrition_category=NutritionCategory.CALORIE_CALCULATION,
+                    safety_level="dangerous",
+                ),
+            ]
+        )
+        score = analyzer.get_safety_score()
+        assert 0.0 <= score < 1.0
+
+    def test_diagnose_issues_and_recommendations(self) -> None:
+        """Diagnose nutrition issues and generate category-based recommendations."""
+        analyzer = NutritionBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                NutritionTestResult(
+                    test_name="t_cal",
+                    success=False,
+                    nutrition_category=NutritionCategory.CALORIE_CALCULATION,
+                ),
+                NutritionTestResult(
+                    test_name="t_bmi",
+                    success=False,
+                    nutrition_category=NutritionCategory.BMI_SAFETY,
+                ),
+                NutritionTestResult(
+                    test_name="t_privacy",
+                    success=False,
+                    nutrition_category=NutritionCategory.DATA_PRIVACY,
+                ),
+                NutritionTestResult(
+                    test_name="t_macro",
+                    success=False,
+                    nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                ),
+            ]
+        )
+
+        probs = analyzer.diagnose_nutrition_issues()
+        assert NutritionCategory.CALORIE_CALCULATION in probs
+        assert NutritionCategory.BMI_SAFETY in probs
+
+        recs = analyzer.generate_nutrition_recommendations()
+        assert any("калорий" in r or "BMI" in r for r in recs)
+
+    def test_get_safety_score_penalty_capped(self) -> None:
+        """Safety score should apply capped dangerous penalties."""
+        analyzer = NutritionBayesianAnalyzer()
+        analyzer._total_analyses = 4
+        analyzer._failed_analyses = 4
+        analyzer.test_results.extend(
+            [
+                NutritionTestResult(
+                    test_name=f"t{i}",
+                    success=False,
+                    nutrition_category=NutritionCategory.BMI_SAFETY,
+                    safety_level="dangerous",
+                )
+                for i in range(5)
+            ]
+        )
+        score = analyzer.get_safety_score()
+        assert 0.0 <= score <= 1.0
+
+    def test_generate_recommendations_no_issues_and_get_safety_score_no_analyses(self) -> None:
+        """No issues should yield empty recommendations and safety score 1.0 before analyses."""
+        analyzer = NutritionBayesianAnalyzer()
+        recs = analyzer.generate_nutrition_recommendations()
+        assert recs == []
+        assert analyzer.get_safety_score() == 1.0
