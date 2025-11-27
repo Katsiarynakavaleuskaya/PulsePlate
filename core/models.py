@@ -54,13 +54,13 @@ class Recipe(Base):
         CheckConstraint("kcal_per_serving >= 0", name="ck_recipe_kcal_positive"),
         CheckConstraint("kcal_per_serving <= 2000", name="ck_recipe_kcal_max"),
         CheckConstraint("protein_g >= 0", name="ck_recipe_protein_positive"),
-        CheckConstraint("protein_g <= 60", name="ck_recipe_protein_max"),
+        CheckConstraint("protein_g <= 150", name="ck_recipe_protein_max"),  # High-protein meals
         CheckConstraint("fat_g >= 0", name="ck_recipe_fat_positive"),
-        CheckConstraint("fat_g <= 50", name="ck_recipe_fat_max"),
+        CheckConstraint("fat_g <= 100", name="ck_recipe_fat_max"),  # High-fat meals
         CheckConstraint("carbs_g >= 0", name="ck_recipe_carbs_positive"),
-        CheckConstraint("carbs_g <= 150", name="ck_recipe_carbs_max"),
+        CheckConstraint("carbs_g <= 300", name="ck_recipe_carbs_max"),  # High-carb meals
         CheckConstraint("fiber_g >= 0", name="ck_recipe_fiber_positive"),
-        CheckConstraint("fiber_g <= 20", name="ck_recipe_fiber_max"),
+        CheckConstraint("fiber_g <= 50", name="ck_recipe_fiber_max"),  # High-fiber meals
         CheckConstraint("servings > 0", name="ck_recipe_servings_positive"),
         Index("ix_recipes_title", "title"),
         Index("ix_recipes_locale", "locale"),
@@ -123,15 +123,15 @@ class Meal(Base):
     __tablename__ = "meals"
     __table_args__ = (
         CheckConstraint("kcal >= 0", name="ck_meal_kcal_positive"),
-        CheckConstraint("kcal <= 2000", name="ck_meal_kcal_max"),
+        CheckConstraint("kcal <= 3000", name="ck_meal_kcal_max"),  # Large/athletic meals
         CheckConstraint("protein_g >= 0", name="ck_meal_protein_positive"),
-        CheckConstraint("protein_g <= 150", name="ck_meal_protein_max"),
+        CheckConstraint("protein_g <= 200", name="ck_meal_protein_max"),  # Bodybuilding meals
         CheckConstraint("fat_g >= 0", name="ck_meal_fat_positive"),
-        CheckConstraint("fat_g <= 100", name="ck_meal_fat_max"),
+        CheckConstraint("fat_g <= 150", name="ck_meal_fat_max"),  # Keto/high-fat diets
         CheckConstraint("carbs_g >= 0", name="ck_meal_carbs_positive"),
-        CheckConstraint("carbs_g <= 300", name="ck_meal_carbs_max"),
+        CheckConstraint("carbs_g <= 400", name="ck_meal_carbs_max"),  # Endurance athlete meals
         CheckConstraint("fiber_g >= 0", name="ck_meal_fiber_positive"),
-        CheckConstraint("fiber_g <= 50", name="ck_meal_fiber_max"),
+        CheckConstraint("fiber_g <= 80", name="ck_meal_fiber_max"),  # Very high-fiber diets
         Index("ix_meals_user_id", "user_id"),
         Index("ix_meals_recipe_id", "recipe_id"),
         Index("ix_meals_created_at", "created_at"),
@@ -237,9 +237,7 @@ class ContextEntry(Base):
     """RU: Контекстные записи для RAG/диагностики. EN: Context entries for RAG/diagnostics."""
 
     __tablename__ = "context"
-    __table_args__ = (
-        Index("ix_context_locale", "locale"),
-    )
+    __table_args__ = (Index("ix_context_locale", "locale"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     slug: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
