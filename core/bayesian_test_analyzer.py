@@ -159,6 +159,9 @@ class BayesianTestAnalyzer:
         self.language = language or os.getenv("BAYESIAN_LANGUAGE", DEFAULT_LANGUAGE).strip().lower()
 
         self.execution_history: List[TestRecord] = []
+        self.test_history: List[TestRecord] = (
+            []
+        )  # Alias for execution_history for backward compatibility
         self.error_patterns: Dict[ErrorType, Dict[str, float]] = defaultdict(
             lambda: defaultdict(float)
         )

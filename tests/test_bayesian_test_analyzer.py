@@ -45,6 +45,7 @@ def test_async():
     result = mock()  # Missing await
 """
         issues = analyzer.analyze_technical_aspects(code, "test_async")
+        # Should return a list (detection logic may or may not flag AsyncMock)
         assert isinstance(issues, list)
 
     def test_detect_typing_issue(self):
