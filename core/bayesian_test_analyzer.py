@@ -234,7 +234,15 @@ class BayesianTestAnalyzer:
             return 1.0
 
     def load_history(self) -> None:
-        """Загрузить историю выполнения тестов."""
+        """Загрузить историю выполнения тестов.
+
+        Skips loading when persist_enabled is False to ensure CI runs are stateless.
+        """
+        # Skip loading in stateless mode (e.g., CI) to avoid flaky behavior
+        if not self.persist_enabled:
+            logger.info("Persistence disabled, skipping history load")
+            return
+
         try:
             if self.data_file.exists():
                 with open(self.data_file, "r", encoding="utf-8") as f:
