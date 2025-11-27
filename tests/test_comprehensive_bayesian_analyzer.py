@@ -35,7 +35,8 @@ class TestComprehensiveBayesianAnalyzerInit:
         analyzer = ComprehensiveBayesianAnalyzer()
         assert analyzer.system_vision is not None
         assert isinstance(analyzer.system_vision, dict)
-        assert "mission" in analyzer.system_vision or len(analyzer.system_vision) >= 0
+        # System vision should either have a mission key or be a non-empty dict
+        assert "mission" in analyzer.system_vision or len(analyzer.system_vision) > 0
 
 
 class TestComprehensiveAnalysis:
@@ -361,3 +362,41 @@ class TestEdgeCases:
         result_lower = analyzer._has_critical_nutrition_issues(issues_lower)
         assert isinstance(result_upper, bool)
         assert isinstance(result_lower, bool)
+
+    def test_risk_level_and_priority_thresholds(self):
+        """Cover risk level and priority thresholds across critical issue counts and scores."""
+        analyzer = ComprehensiveBayesianAnalyzer()
+
+        # Critical branch
+        assert analyzer._calculate_risk_level(["c1", "c2"], overall_score=0.1) == "critical"
+        # High branch
+        assert analyzer._calculate_risk_level(["c1"], overall_score=0.35) == "high"
+        # Medium branch
+        assert analyzer._calculate_risk_level(["c1"], overall_score=0.65) == "medium"
+        # Low branch
+        assert analyzer._calculate_risk_level([], overall_score=0.9) == "low"
+
+        # Priority branches
+        urgent = analyzer._calculate_priority(["a", "b"], revenue_impact="низкое", health_impact="КРИТИЧЕСКОЕ влияние")
+        high = analyzer._calculate_priority(["a"], revenue_impact="критическое влияние на доход", health_impact="нормальное")
+        medium = analyzer._calculate_priority([], revenue_impact="среднее влияние", health_impact="нормальное")
+        low = analyzer._calculate_priority([], revenue_impact="низкое", health_impact="нет влияния")
+
+        assert urgent == "urgent"
+        assert high == "high"
+        assert medium == "medium"
+        assert low == "low"
+
+    def test_health_and_customer_impact_assessment(self):
+        """Ensure health/customer impact helpers cover all branches."""
+        analyzer = ComprehensiveBayesianAnalyzer()
+
+        # No issues
+        assert analyzer._assess_health_impact([]) == "Нет влияния на здоровье"
+        assert analyzer._assess_customer_impact([], [], []) == "Нет влияния на клиентов"
+
+        # Minimal/medium/critical branches
+        health = analyzer._assess_health_impact(["Опасно для здоровья"])
+        customer = analyzer._assess_customer_impact(["пользователь"], [], ["customer issue"])
+        assert health in {"Минимальное влияние на здоровье", "Среднее влияние на здоровье", "Критическое влияние на здоровье"}
+        assert customer in {"Минимальное влияние на клиентов", "Среднее влияние на клиентов", "Критическое влияние на клиентов"}

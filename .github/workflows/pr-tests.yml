@@ -191,7 +191,7 @@ jobs:
         run: |
           # Temporarily lowered to 0% while adding tests for Bayesian modules (PR #294)
           # TODO: Restore to 97% — see https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
-          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=0
+          diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=70
 
       - name: Upload coverage.xml (PR diagnostics)
         if: always() && github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true'

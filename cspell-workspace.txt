@@ -3985,6 +3985,7 @@ barcodes
 barh
 Bariatric
 basenames
+bayesian
 bbox
 behaviour
 bmax

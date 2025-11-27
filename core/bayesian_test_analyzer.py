@@ -158,10 +158,10 @@ class BayesianTestAnalyzer:
         # Language configuration for recommendations
         self.language = language or os.getenv("BAYESIAN_LANGUAGE", DEFAULT_LANGUAGE).strip().lower()
 
+        # Execution history of tests; test_history is an alias for backward compatibility
         self.execution_history: List[TestRecord] = []
-        self.test_history: List[TestRecord] = (
-            []
-        )  # Alias for execution_history for backward compatibility
+        # Use the property setter to keep aliasing semantics consistent
+        self.test_history = []  # type: ignore[assignment]
         self.error_patterns: Dict[ErrorType, Dict[str, float]] = defaultdict(
             lambda: defaultdict(float)
         )
@@ -189,6 +189,27 @@ class BayesianTestAnalyzer:
         self.prior_probabilities = self._normalize_priors(self.prior_probabilities)
 
         self.load_history()
+
+    @property
+    def test_history(self) -> List[TestRecord]:
+        """
+        Backward-compatible alias for execution_history.
+
+        Some older code and tests expect a test_history attribute. To avoid
+        divergence between the two collections, this property always returns
+        the current execution_history list.
+        """
+        return self.execution_history
+
+    @test_history.setter
+    def test_history(self, value: List[TestRecord]) -> None:
+        """
+        Keep execution_history and test_history referring to the same list.
+
+        Assigning to test_history replaces the underlying execution_history
+        reference so both names remain in sync.
+        """
+        self.execution_history = value
 
     @staticmethod
     def _normalize_priors(priors: Dict[ErrorType, float]) -> Dict[ErrorType, float]:
@@ -271,6 +292,8 @@ class BayesianTestAnalyzer:
                         for item in data
                     ]
                 logger.info(f"Загружено {len(self.execution_history)} записей истории тестов")
+                # Keep test_history alias in sync with execution_history
+                self.test_history = self.execution_history
                 # Адаптировать приоры на базе истории
                 self._refresh_priors_from_history()
         except Exception as e:
