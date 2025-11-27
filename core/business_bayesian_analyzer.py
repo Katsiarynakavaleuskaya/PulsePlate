@@ -591,14 +591,21 @@ class BusinessBayesianAnalyzer:
             tree = None
 
         if tree is not None:
-            # AST-based detection: check for real nested For loops
+            # AST-based detection: check for nested For loops at any depth
+            # This catches patterns like:
+            #   for ...: if ...: for ...:
+            #   for ...: while ...: for ...:
+            #   for ...: try: for ...:
             for node in ast.walk(tree):
                 if isinstance(node, ast.For):
-                    # Check if this for loop contains nested for loops in its body
-                    nested_loops = [child for child in node.body if isinstance(child, ast.For)]
-                    for inner in nested_loops:
-                        # Extract source of inner loop
-                        loop_body_src = ast.get_source_segment(code, inner) or ""
+                    # Walk the entire subtree of this for loop to find ANY nested for loops
+                    # (not just direct children)
+                    for descendant in ast.walk(node):
+                        # Skip the node itself
+                        if descendant is node or not isinstance(descendant, ast.For):
+                            continue
+                        # Found a nested for loop
+                        loop_body_src = ast.get_source_segment(code, descendant) or ""
                         # Check if inner loop lacks break/return and has heavy operations
                         if not re.search(r"\b(break|return)\b", loop_body_src) and any(
                             re.search(pattern, loop_body_src, re.IGNORECASE)
@@ -615,6 +622,8 @@ class BusinessBayesianAnalyzer:
                                     optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
                                 )
                             )
+                            # Only report once per outer loop
+                            break
         else:
             # Fallback to regex for broken code (keeps existing behavior)
             nested_loop_pattern = (

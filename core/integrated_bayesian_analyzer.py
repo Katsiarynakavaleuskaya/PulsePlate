@@ -203,12 +203,15 @@ class IntegratedBayesianAnalyzer:
             return False
 
         class UnsafeOpenChecker(ast.NodeVisitor):
-            """Visitor to check for unsafe open() calls."""
+            """Visitor to check for unsafe open() calls.
+            
+            Only flags open() calls that are NOT used as context managers or wrapped by closing().
+            Removed in_with_context flag to avoid false negatives (e.g., 'with lock: f = open(...)').
+            """
 
             def __init__(self) -> None:
                 self.unsafe_opens: List[ast.Call] = []
                 self.parent_stack: List[ast.AST] = []
-                self.in_with_context = False
 
             def visit(self, node: ast.AST) -> None:
                 """Override visit to track parent nodes."""
@@ -218,31 +221,13 @@ class IntegratedBayesianAnalyzer:
                 visitor(node)
                 self.parent_stack.pop()
 
-            def visit_With(self, node: ast.With) -> None:
-                """Track With nodes and their contents."""
-                # Mark that we're entering a with context
-                # All code inside the with body is considered safe
-                old_in_with = self.in_with_context
-                self.in_with_context = True
-                self.generic_visit(node)
-                self.in_with_context = old_in_with
-
-            def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
-                """Track AsyncWith nodes and their contents."""
-                # Mark that we're entering an async with context
-                # All code inside the async with body is considered safe
-                old_in_with = self.in_with_context
-                self.in_with_context = True
-                self.generic_visit(node)
-                self.in_with_context = old_in_with
-
             def visit_Call(self, node: ast.Call) -> None:
                 """Check if this is an unsafe open() call."""
                 # Check if this is a call to open()
+                # Only safe if it's a context expression OR wrapped by closing()
                 if (
                     isinstance(node.func, ast.Name)
                     and node.func.id == "open"
-                    and not self.in_with_context
                     and not self._is_context_expression(node)
                     and not self._is_wrapped_by_closing(node)
                 ):
@@ -325,26 +310,24 @@ class IntegratedBayesianAnalyzer:
             def visit_Call(self, node: ast.Call) -> None:
                 """Check if this is a logger call with sensitive data."""
                 # Check if this is a logger method call (logger.info, logger.debug, etc.)
-                if isinstance(node.func, ast.Attribute):
-                    # Check if target is a logger-like variable
-                    if isinstance(node.func.value, ast.Name):
-                        logger_name = node.func.value.id.lower()
-                        if logger_name in ["logger", "log"]:
-                            # Check method name (info, debug, error, warning, etc.)
-                            method_name = node.func.attr.lower()
-                            if method_name in [
-                                "info",
-                                "debug",
-                                "error",
-                                "warning",
-                                "critical",
-                                "exception",
-                            ]:
-                                # Check arguments for sensitive data
-                                for arg in node.args:
-                                    if self._contains_sensitive_data(arg):
-                                        self.found_sensitive_logging = True
-                                        return
+                if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                    logger_name = node.func.value.id.lower()
+                    if logger_name in ["logger", "log"]:
+                        # Check method name (info, debug, error, warning, etc.)
+                        method_name = node.func.attr.lower()
+                        if method_name in [
+                            "info",
+                            "debug",
+                            "error",
+                            "warning",
+                            "critical",
+                            "exception",
+                        ]:
+                            # Check arguments for sensitive data
+                            for arg in node.args:
+                                if self._contains_sensitive_data(arg):
+                                    self.found_sensitive_logging = True
+                                    return
 
                 self.generic_visit(node)
 
@@ -356,10 +339,9 @@ class IntegratedBayesianAnalyzer:
                     return any(keyword in name_lower for keyword in self.sensitive_keywords)
 
                 # Check for Constant nodes (string literals)
-                if isinstance(node, ast.Constant):
-                    if isinstance(node.value, str):
-                        value_lower = node.value.lower()
-                        return any(keyword in value_lower for keyword in self.sensitive_keywords)
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    value_lower = node.value.lower()
+                    return any(keyword in value_lower for keyword in self.sensitive_keywords)
 
                 # Check for FormattedValue nodes (f-string parts)
                 if isinstance(node, ast.FormattedValue):

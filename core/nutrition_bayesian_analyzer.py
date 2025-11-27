@@ -214,17 +214,18 @@ class NutritionBayesianAnalyzer:
         results = []
 
         # Поиск расчетов калорий
+        # Support both integer and decimal values (e.g., "kcal = 1234.5")
         calorie_patterns = [
-            r"calories?\s*[=:]\s*(\d+)",
-            r"kcal\s*[=:]\s*(\d+)",
-            r"energy\s*[=:]\s*(\d+)",
+            r"calories?\s*[=:]\s*(\d+(?:\.\d+)?)",
+            r"kcal\s*[=:]\s*(\d+(?:\.\d+)?)",
+            r"energy\s*[=:]\s*(\d+(?:\.\d+)?)",
         ]
 
         for pattern in calorie_patterns:
             matches = re.finditer(pattern, code, re.IGNORECASE)
             for match in matches:
                 try:
-                    calories = int(match.group(1))
+                    calories = float(match.group(1))
 
                     # Extract surrounding context (40 chars before match) to detect meal identifiers
                     context_start = max(0, match.start() - 40)
@@ -402,17 +403,20 @@ class NutritionBayesianAnalyzer:
         results = []
 
         # Поиск макронутриентов
+        # Support decimal values and account for possible reassignments:
+        # use re.findall and take the last occurrence for each macro.
         macro_patterns = {
-            "protein": r"protein\s*[=:]\s*(\d+)",
-            "fat": r"fat\s*[=:]\s*(\d+)",
-            "carbs": r"carbs?\s*[=:]\s*(\d+)",
+            "protein": r"protein\s*[=:]\s*(\d+(?:\.\d+)?)",
+            "fat": r"fat\s*[=:]\s*(\d+(?:\.\d+)?)",
+            "carbs": r"carbs?\s*[=:]\s*(\d+(?:\.\d+)?)",
         }
 
-        macro_values = {}
+        macro_values: Dict[str, float] = {}
         for macro, pattern in macro_patterns.items():
-            match = re.search(pattern, code, re.IGNORECASE)
-            if match:
-                macro_values[macro] = int(match.group(1))
+            matches = re.findall(pattern, code, re.IGNORECASE)
+            if matches:
+                # Take the last occurrence to account for reassignments in the test
+                macro_values[macro] = float(matches[-1])
 
         # Проверка баланса макронутриентов
         if len(macro_values) >= 2:

@@ -237,7 +237,7 @@ class ComprehensiveBayesianAnalyzer:
         # Compute per-test nutrition score from results (not cumulative state)
         # RU: Вычисляем балл питания для этого теста на основе результатов (не накопительный)
         if nutrition_results:
-            successful_checks = sum(1 for r in nutrition_results if r.success)
+            successful_checks = sum(r.success for r in nutrition_results)
             total_checks = len(nutrition_results)
             nutrition_score = successful_checks / total_checks
         else:
