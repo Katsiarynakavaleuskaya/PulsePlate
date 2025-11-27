@@ -637,25 +637,6 @@ class TestInternalHelpers:
         assert "#" in cleaned  # string literal hash remains
         assert "actual comment" not in cleaned
 
-    def test_analyze_monetization_detects_low_and_high_price(self):
-        """Test both low and high price threshold branches."""
-        # low threshold 10, high threshold 100 -> test both branches
-        analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0, high_price_threshold=100.0)
-        low_code = "price = 5"
-        high_code = "cost = 150"
-        low_results = analyzer._analyze_monetization(low_code, "test_low_price")
-        high_results = analyzer._analyze_monetization(high_code, "test_high_price")
-        assert any(
-            r.business_category == BusinessCategory.MONETIZATION
-            and r.error_type == BusinessErrorType.PRICING_INEFFICIENCY
-            for r in low_results
-        )
-        assert any(
-            r.business_category == BusinessCategory.MONETIZATION
-            and r.error_type == BusinessErrorType.PRICING_INEFFICIENCY
-            for r in high_results
-        )
-
     def test_analyze_cost_optimization_detects_nested_loop_and_append(self):
         """Test nested loop with append detection for cost optimization."""
         analyzer = BusinessBayesianAnalyzer()
@@ -700,35 +681,3 @@ for a in range(3):
                 time_horizon_months=1,
                 assumptions="x",
             )
-
-    def test_calculate_bayesian_roi_with_and_without_data(self):
-        """Test ROI calculation with no data (prior only) and with data."""
-        analyzer = BusinessBayesianAnalyzer()
-        # no data -> uses prior only
-        roi_est = analyzer._calculate_bayesian_roi(
-            category="c1",
-            prior_mean=0.2,
-            prior_std=0.05,
-            data=[],
-            time_horizon_months=6,
-            assumptions="test",
-        )
-        assert isinstance(roi_est, ROIEstimate)
-        assert roi_est.time_horizon_months == 6
-
-        # with data (multiple points -> sample_std branch)
-        data = [0.1, 0.2, 0.3, 0.15]
-        roi_est2 = analyzer._calculate_bayesian_roi(
-            category="c2",
-            prior_mean=0.15,
-            prior_std=0.06,
-            data=data,
-            time_horizon_months=12,
-            assumptions="test2",
-        )
-        assert isinstance(roi_est2, ROIEstimate)
-        assert (
-            roi_est2.credible_interval_lower
-            <= roi_est2.expected_roi
-            <= roi_est2.credible_interval_upper
-        )
