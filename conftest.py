@@ -28,24 +28,30 @@ def pytest_configure(config: pytest.Config) -> None:
     os.environ.setdefault("VIP_MODULE_ENABLED", "true")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
+    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
 
     # Configure test database path BEFORE core.db is imported
     # This ensures DATABASE_URL is set before any SQLAlchemy initialization
     db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+    # Handle empty or invalid paths (Sourcery feedback)
+    if not db_path_env or db_path_env == ".":
+        db_path_env = "cache/test_app.sqlite"
     db_path = Path(db_path_env)
 
     # Handle pytest-xdist worker isolation
-    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "")
+    # Prefer config.workerinput API over environment variable (Sourcery feedback)
+    worker_info = getattr(config, "workerinput", {}) or {}
+    worker_id = worker_info.get("workerid", "") or os.environ.get("PYTEST_XDIST_WORKER", "")
     if worker_id:
         import re
 
-        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id)
-        if not safe_worker:
-            safe_worker = "worker"
+        # Use or for fallback (Sourcery suggestion)
+        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
         db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
 
+    # Use pytest's root path instead of cwd for stability (Sourcery feedback)
     if not db_path.is_absolute():
-        db_path = Path.cwd() / db_path
+        db_path = config.rootpath / db_path
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
