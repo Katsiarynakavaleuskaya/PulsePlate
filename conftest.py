@@ -12,6 +12,93 @@ from typing import cast
 from starlette.types import ASGIApp
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Configure pytest environment before test collection.
+
+    This hook runs BEFORE pytest starts collecting tests, ensuring
+    environment variables are set before any modules are imported.
+    This prevents import errors and shell environment instability.
+
+    IMPORTANT: Only runs during actual pytest sessions, not when IDE
+    language servers import this file.
+    """
+    # Guard: Skip if not running in an actual pytest session
+    # This prevents IDE language servers from triggering DB initialization
+    if not hasattr(config, "option"):
+        return
+
+    import importlib
+    import contextlib
+
+    # Set test environment variables BEFORE any imports
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+    os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
+    os.environ.setdefault("VIP_MODULE_ENABLED", "true")
+    os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
+    os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
+    os.environ.setdefault("CLIENT_FINGERPRINT_SALT", "test-salt-for-ci-only-not-for-production")
+
+    # Configure test database path BEFORE core.db is imported
+    # This ensures DATABASE_URL is set before any SQLAlchemy initialization
+    db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+    # Handle empty or invalid paths (Sourcery feedback)
+    if not db_path_env or db_path_env == ".":
+        db_path_env = "cache/test_app.sqlite"
+    db_path = Path(db_path_env)
+
+    # Handle pytest-xdist worker isolation
+    # Prefer config.workerinput API over environment variable (Sourcery feedback)
+    worker_info = getattr(config, "workerinput", {}) or {}
+    worker_id = worker_info.get("workerid", "") or os.environ.get("PYTEST_XDIST_WORKER", "")
+    if worker_id:
+        import re
+
+        # Use or for fallback (Sourcery suggestion)
+        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id) or "worker"
+        db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
+
+    # Use pytest's root path instead of cwd for stability (Sourcery feedback)
+    if not db_path.is_absolute():
+        db_path = config.rootpath / db_path
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["TEST_DB_PATH"] = str(db_path)
+
+    # Remove stale DB file if it exists (prevent conflicts)
+    with contextlib.suppress(OSError):
+        db_path.unlink(missing_ok=True)
+
+    # Initialize database early to prevent module-level import issues
+    # Import/reload core.db to ensure it uses our DATABASE_URL
+    if "core.db" in sys.modules:
+        core_db = importlib.reload(sys.modules["core.db"])
+    else:
+        core_db = importlib.import_module("core.db")
+
+    # Import models that exist in main branch
+    if "core.models" in sys.modules:
+        importlib.reload(sys.modules["core.models"])
+    else:
+        import core.models  # noqa: F401
+
+    # Import User model to ensure it's registered with SQLAlchemy
+    from core.models import User  # noqa: F401
+
+    # Initialize database schema
+    try:
+        core_db.init_db()
+        print(f"✅ Test database initialized in pytest_configure: {db_path}")
+    except Exception as e:
+        print(f"⚠️  Database initialization in pytest_configure failed: {e}")
+        # Continue - init_test_database fixture will retry
+
+    # If app was accidentally loaded, reload it to ensure it uses the initialized DB
+    if "app" in sys.modules:
+        importlib.reload(sys.modules["app"])
+
+
 class AppLoadError(ImportError):
     """Raised when app.py cannot be loaded."""
 
