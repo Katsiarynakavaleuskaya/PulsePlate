@@ -98,7 +98,6 @@ def test_file():
         assert isinstance(result, IntegratedTestResult)
         # Expect safety issues to include hardcoded password detection
         assert len(result.safety_issues) > 0, "Expected hardcoded password to be detected"
-        assert len(result.safety_issues) > 0, "Expected hardcoded password to be detected"
         assert any("password" in str(issue).lower() for issue in result.safety_issues)
 
 

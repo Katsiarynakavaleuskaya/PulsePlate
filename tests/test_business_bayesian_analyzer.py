@@ -273,7 +273,8 @@ class TestRemoveComments:
         analyzer = BusinessBayesianAnalyzer()
         code = 'message = "Use #hashtag"'
         cleaned = analyzer._remove_comments(code)
-        assert "#hashtag" in cleaned or "hashtag" in cleaned
+        # Strict check: # must be preserved within the string
+        assert "#hashtag" in cleaned, "Expected '#hashtag' with # preserved in string"
 
 
 class TestEdgeCases:

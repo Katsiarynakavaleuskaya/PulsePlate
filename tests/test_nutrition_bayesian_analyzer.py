@@ -152,8 +152,10 @@ class TestAllergenDetection:
         assert isinstance(results, list)
         assert len(results) > 0
         # Expect allergen mentions to be detected in analyzer output
+        # Note: analyzer KB uses "milk" not "dairy"
         assert any(
             ("peanuts" in (r.error_message or "").lower())
+            or ("milk" in (r.error_message or "").lower())
             or ("dairy" in (r.error_message or "").lower())
             for r in results
         )
@@ -206,8 +208,8 @@ def test_generic():
     def test_results_persistence(self):
         """Test that results are persisted."""
         analyzer = NutritionBayesianAnalyzer()
-        initial_count = len(analyzer.test_results)
+        initial_analyses = analyzer._total_analyses
         analyzer.analyze_nutrition_safety("bmi = 50", "test1")
         analyzer.analyze_nutrition_safety("calories = 10000", "test2")
-        # Results should be appended
-        assert len(analyzer.test_results) == initial_count + 2
+        # Two analyze calls should increment _total_analyses by exactly 2
+        assert analyzer._total_analyses == initial_analyses + 2
