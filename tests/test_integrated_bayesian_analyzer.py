@@ -93,13 +93,13 @@ def test_file():
     def test_detect_hardcoded_password(self):
         """Test detection of hardcoded passwords."""
         analyzer = IntegratedBayesianAnalyzer()
-        code = """
-def test_auth():
-    password = "hardcoded123"
-    assert password
-"""
+        code = 'password = "hardcoded123"\n'
         result = analyzer.analyze_test_comprehensively(code, "test_auth", "test.py")
         assert isinstance(result, IntegratedTestResult)
+        # Expect safety issues to include hardcoded password detection
+        assert len(result.safety_issues) > 0, "Expected hardcoded password to be detected"
+        assert len(result.safety_issues) > 0, "Expected hardcoded password to be detected"
+        assert any("password" in str(issue).lower() for issue in result.safety_issues)
 
 
 class TestPhilosophyChecks:
@@ -109,12 +109,14 @@ class TestPhilosophyChecks:
         """Test Health First philosophy check."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
-def test_health():
-    bmi = calculate_bmi(70, 175)
-    assert bmi > 0
+def test_health_metric():
+    assert True
 """
-        result = analyzer.analyze_test_comprehensively(code, "test_health", "test.py")
+        result = analyzer.analyze_test_comprehensively(code, "test_health_metric", "test.py")
         assert isinstance(result, IntegratedTestResult)
+        # Philosophy violations should be recorded when health metrics are not validated
+        assert isinstance(result.philosophy_violations, list)
+        assert result.philosophy_violations
 
     def test_philosophy_user_centric(self):
         """Test User-Centric philosophy check."""
@@ -124,8 +126,11 @@ def test_user():
     user = create_user()
     assert user
 """
-        result = analyzer.analyze_test_comprehensively(code, "test_user", "test.py")
+        result = analyzer.analyze_test_comprehensively(code, "test_user_invalid", "test.py")
         assert isinstance(result, IntegratedTestResult)
+        # Philosophy violations should be recorded for user-related tests lacking error handling
+        assert isinstance(result.philosophy_violations, list)
+        assert result.philosophy_violations
 
 
 class TestRiskCalculation:

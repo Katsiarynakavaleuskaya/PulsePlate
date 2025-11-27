@@ -9,7 +9,7 @@ import pytest
 from core.nutrition_bayesian_analyzer import (
     NutritionBayesianAnalyzer,
     NutritionTestResult,
-    NutritionViolationType,
+    NutritionCategory,
 )
 
 
@@ -25,8 +25,9 @@ class TestNutritionBayesianAnalyzerInit:
         """Test initialization with custom thresholds."""
         analyzer = NutritionBayesianAnalyzer()
         # Should have reasonable defaults
-        assert hasattr(analyzer, "MIN_CALORIES")
-        assert hasattr(analyzer, "MAX_CALORIES")
+        assert hasattr(analyzer, "safety_thresholds")
+        assert "calorie_dangerous_low" in analyzer.safety_thresholds
+        assert "calorie_dangerous_high" in analyzer.safety_thresholds
 
 
 class TestNutritionSafetyAnalysis:
@@ -91,6 +92,16 @@ def test_bad_bmi():
 """
         results = analyzer.analyze_nutrition_safety(code, "test_bad_bmi")
         assert isinstance(results, list)
+        assert len(results) > 0
+        # Expect a BMI safety violation to be flagged for unrealistic BMI=50
+        assert any(
+            ("bmi" in (r.error_message or "").lower())
+            or (
+                getattr(r, "error_type", None) is not None
+                and getattr(r.error_type, "value", "").lower() == "bmi_dangerous"
+            )
+            for r in results
+        )
 
 
 class TestMacronutrientChecks:
@@ -136,13 +147,16 @@ class TestAllergenDetection:
     def test_detect_allergen_keywords(self):
         """Test detection of allergen mentions."""
         analyzer = NutritionBayesianAnalyzer()
-        code = """
-def test_allergens():
-    allergens = ["peanuts", "dairy"]
-    assert len(allergens) > 0
-"""
+        code = "peanuts\nmilk\n"
         results = analyzer.analyze_nutrition_safety(code, "test_allergens")
         assert isinstance(results, list)
+        assert len(results) > 0
+        # Expect allergen mentions to be detected in analyzer output
+        assert any(
+            ("peanuts" in (r.error_message or "").lower())
+            or ("dairy" in (r.error_message or "").lower())
+            for r in results
+        )
 
 
 class TestNutritionTestResult:
@@ -153,13 +167,13 @@ class TestNutritionTestResult:
         result = NutritionTestResult(
             test_name="test_example",
             success=True,
-            violation_type=None,
-            error_message=None,
-            calories_value=2000.0,
+            nutrition_category=NutritionCategory.CALORIE_CALCULATION,
+            error_type=None,
+            error_message="",
         )
         assert result.test_name == "test_example"
         assert result.success is True
-        assert result.calories_value == 2000.0
+        assert result.nutrition_category == NutritionCategory.CALORIE_CALCULATION
 
 
 class TestEdgeCases:
@@ -193,7 +207,7 @@ def test_generic():
         """Test that results are persisted."""
         analyzer = NutritionBayesianAnalyzer()
         initial_count = len(analyzer.test_results)
-        analyzer.analyze_nutrition_safety("def test(): pass", "test1")
-        analyzer.analyze_nutrition_safety("calories = 2000", "test2")
+        analyzer.analyze_nutrition_safety("bmi = 50", "test1")
+        analyzer.analyze_nutrition_safety("calories = 10000", "test2")
         # Results should be appended
-        assert len(analyzer.test_results) >= initial_count
+        assert len(analyzer.test_results) == initial_count + 2
