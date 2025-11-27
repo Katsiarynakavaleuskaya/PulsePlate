@@ -7,6 +7,7 @@ EN: Declarative models for core application domain with CHECK constraints.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -81,19 +82,19 @@ class Recipe(Base):
 
     # Recipe metadata
     servings: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    ingredients: Mapped[dict] = mapped_column(
+    ingredients: Mapped[dict[str, float]] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
         default=lambda: {},
         server_default=text("'{}'"),
     )  # {food_id: grams}
-    tags: Mapped[list] = mapped_column(
+    tags: Mapped[list[str]] = mapped_column(
         MutableList.as_mutable(JSON),
         nullable=False,
         default=lambda: [],
         server_default=text("'[]'"),
     )  # App-layer default: []
-    allergens: Mapped[list] = mapped_column(
+    allergens: Mapped[list[str]] = mapped_column(
         MutableList.as_mutable(JSON),
         nullable=False,
         default=lambda: [],
@@ -155,13 +156,13 @@ class Meal(Base):
     fiber_g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     # Ingredient details
-    grams_data: Mapped[dict] = mapped_column(
+    grams_data: Mapped[dict[str, float]] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
         default=lambda: {},
         server_default=text("'{}'"),
     )  # {food_id: grams}
-    micros_data: Mapped[dict] = mapped_column(
+    micros_data: Mapped[dict[str, Any] | None] = mapped_column(
         MutableDict.as_mutable(JSON), nullable=True
     )  # Micronutrients
 
@@ -189,7 +190,7 @@ class FoodItem(Base):
         CheckConstraint("carbs_g_per_100g <= 100", name="ck_food_carbs_max"),
         CheckConstraint("fiber_g_per_100g >= 0", name="ck_food_fiber_positive"),
         CheckConstraint("fiber_g_per_100g <= 100", name="ck_food_fiber_max"),
-        # Note: Explicit index on food_id for optimization (unique constraint also creates implicit index)
+        # Index on canonical_name for food search optimization
         Index("ix_food_items_canonical_name", "canonical_name"),
     )
 
@@ -206,10 +207,12 @@ class FoodItem(Base):
     fiber_g_per_100g: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     # Micronutrients
-    micros_data: Mapped[dict] = mapped_column(MutableDict.as_mutable(JSON), nullable=True)
+    micros_data: Mapped[dict[str, Any] | None] = mapped_column(
+        MutableDict.as_mutable(JSON), nullable=True
+    )
 
     # Metadata (app-layer defaults via Pydantic, not DB-level)
-    flags: Mapped[list] = mapped_column(
+    flags: Mapped[list[str]] = mapped_column(
         MutableList.as_mutable(JSON),
         nullable=False,
         default=lambda: [],
@@ -235,7 +238,6 @@ class ContextEntry(Base):
 
     __tablename__ = "context"
     __table_args__ = (
-        Index("ix_context_slug", "slug", unique=True),
         Index("ix_context_locale", "locale"),
     )
 
@@ -246,7 +248,7 @@ class ContextEntry(Base):
         String(10), nullable=False, default="en", server_default=text("'en'")
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    metadata_json: Mapped[dict] = mapped_column(
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
         MutableDict.as_mutable(JSON),
         nullable=False,
         default=lambda: {},
