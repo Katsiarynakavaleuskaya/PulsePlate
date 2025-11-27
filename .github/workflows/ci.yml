@@ -131,7 +131,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Temporarily lowered threshold to 85% while adding tests for new Bayesian modules
-          # TODO: Restore to 97% once coverage is improved (target: next PR after #294)
+          # TODO: Restore to 97% — see https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=85 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
@@ -212,7 +212,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Temporarily lowered threshold to 85% while adding tests for new Bayesian modules
-          # TODO: Restore to 97% once coverage is improved (target: next PR after #294)
+          # TODO: Restore to 97% — see https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=85 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
@@ -299,7 +299,7 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Temporarily lowered threshold to 85% while adding tests for new Bayesian modules
-          # TODO: Restore to 97% once coverage is improved (target: next PR after #294)
+          # TODO: Restore to 97% — see https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
           python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=85 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
