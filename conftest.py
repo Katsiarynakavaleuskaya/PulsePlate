@@ -19,7 +19,6 @@ def pytest_configure(config: pytest.Config) -> None:
     environment variables are set before any modules are imported.
     This prevents import errors and shell environment instability.
     """
-    import logging
     import importlib
     import contextlib
 
@@ -82,16 +81,14 @@ def pytest_configure(config: pytest.Config) -> None:
     # Initialize database schema
     try:
         core_db.init_db()
-        logging.info("✅ Test database initialized in pytest_configure")
+        print(f"✅ Test database initialized in pytest_configure: {db_path}")
     except Exception as e:
-        logging.warning(f"Database initialization in pytest_configure failed: {e}")
+        print(f"⚠️  Database initialization in pytest_configure failed: {e}")
         # Continue - init_test_database fixture will retry
 
     # If app was accidentally loaded, reload it to ensure it uses the initialized DB
     if "app" in sys.modules:
         importlib.reload(sys.modules["app"])
-
-    logging.info(f"✅ pytest_configure: Set DATABASE_URL to {db_path}")
 
 
 class AppLoadError(ImportError):
