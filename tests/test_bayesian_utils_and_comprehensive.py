@@ -68,7 +68,9 @@ def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
     monkeypatch.setattr(
         BusinessBayesianAnalyzer,
         "_import_yaml_module",
-        staticmethod(lambda: SimpleNamespace(safe_load=lambda f: {"revenue_streams": {"custom": {"foo": 1}}})),
+        staticmethod(
+            lambda: SimpleNamespace(safe_load=lambda f: {"revenue_streams": {"custom": {"foo": 1}}})
+        ),
     )
     analyzer = BusinessBayesianAnalyzer()
     data = analyzer._load_business_knowledge()
@@ -88,7 +90,8 @@ def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path):
         "_import_yaml_module",
         staticmethod(
             lambda: SimpleNamespace(
-                safe_load=lambda f: (_ for _ in ()).throw(ValueError("invalid")), YAMLError=ValueError
+                safe_load=lambda f: (_ for _ in ()).throw(ValueError("invalid")),
+                YAMLError=ValueError,
             )
         ),
     )
@@ -121,9 +124,9 @@ def test_comprehensive_scoring_and_impacts():
     assert any("аллерген" in opt for opt in opportunities)
     assert any("ценообраз" in opt.lower() or "цена" in opt.lower() for opt in opportunities)
 
-    assert analyzer._assess_revenue_impact(tech_issues, nutrition_issues, business_issues).startswith(
-        "Критическое"
-    ) or "влияние" in analyzer._assess_revenue_impact(
+    assert analyzer._assess_revenue_impact(
+        tech_issues, nutrition_issues, business_issues
+    ).startswith("Критическое") or "влияние" in analyzer._assess_revenue_impact(
         tech_issues, nutrition_issues, business_issues
     )
     assert analyzer._assess_cost_impact(tech_issues, nutrition_issues, business_issues) != ""
