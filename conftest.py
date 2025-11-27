@@ -20,6 +20,8 @@ def pytest_configure(config: pytest.Config) -> None:
     This prevents import errors and shell environment instability.
     """
     import logging
+    import importlib
+    import contextlib
 
     # Set test environment variables BEFORE any imports
     os.environ.setdefault("APP_ENV", "test")
@@ -56,6 +58,38 @@ def pytest_configure(config: pytest.Config) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
     os.environ["TEST_DB_PATH"] = str(db_path)
+
+    # Remove stale DB file if it exists (prevent conflicts)
+    with contextlib.suppress(OSError):
+        db_path.unlink(missing_ok=True)
+
+    # Initialize database early to prevent module-level import issues
+    # Import/reload core.db to ensure it uses our DATABASE_URL
+    if "core.db" in sys.modules:
+        core_db = importlib.reload(sys.modules["core.db"])
+    else:
+        core_db = importlib.import_module("core.db")
+
+    # Import models that exist in main branch
+    if "core.models" in sys.modules:
+        importlib.reload(sys.modules["core.models"])
+    else:
+        import core.models  # noqa: F401
+
+    # Import User model to ensure it's registered with SQLAlchemy
+    from core.models import User  # noqa: F401
+
+    # Initialize database schema
+    try:
+        core_db.init_db()
+        logging.info("✅ Test database initialized in pytest_configure")
+    except Exception as e:
+        logging.warning(f"Database initialization in pytest_configure failed: {e}")
+        # Continue - init_test_database fixture will retry
+
+    # If app was accidentally loaded, reload it to ensure it uses the initialized DB
+    if "app" in sys.modules:
+        importlib.reload(sys.modules["app"])
 
     logging.info(f"✅ pytest_configure: Set DATABASE_URL to {db_path}")
 
