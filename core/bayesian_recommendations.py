@@ -11,6 +11,17 @@ from enum import Enum
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
 DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru") or "ru"
 
+# Public API
+__all__ = [
+    "DEFAULT_LANGUAGE",
+    "RECOMMENDATIONS",
+    "get_recommendations",
+    "get_error_type_key",
+    "get_symptom_key",
+    "get_all_error_type_keys",
+    "get_all_symptom_keys",
+]
+
 # Recommendation messages organized by language and error type/symptom
 RECOMMENDATIONS: dict[str, dict[str, list[str]]] = {
     "ru": {

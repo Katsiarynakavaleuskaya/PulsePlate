@@ -93,7 +93,7 @@ class ROIEstimate:
     credible_interval_lower: float  # 95% credible interval lower bound
     credible_interval_upper: float  # 95% credible interval upper bound
     time_horizon_months: int  # Time horizon for ROI calculation
-    assumptions: str | list[str]  # Key assumptions for the estimate
+    assumptions: str  # Key assumptions for the estimate
 
 
 class BusinessBayesianAnalyzer:

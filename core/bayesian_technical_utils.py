@@ -89,8 +89,7 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
 
     Args:
         code: The test code to analyze
-        _test_name: Reserved for future logging/telemetry.
-            TODO: Use for test-specific context in issue messages (issue #TBD)
+        _test_name: Reserved for future logging/telemetry (currently unused).
 
     Returns:
         List of identified technical issues

@@ -455,11 +455,46 @@ class IntegratedBayesianAnalyzer:
         ):
             violations.append("Nutrition test does not validate macronutrients")
 
-        # Accessibility check
+        # Accessibility check - only flag error-oriented tests that lack error handling validation
+        # Intent keywords that suggest the test is checking error/edge cases
+        error_intent_keywords = [
+            "edge",
+            "invalid",
+            "fail",
+            "validation",
+            "raises",
+            "throws",
+            "handles",
+            "rejects",
+            "bad_input",
+            "error",
+            "exception",
+        ]
+        test_name_lower = test_name.lower()
+        code_lower = code.lower()
+
+        # Check if test name suggests error/edge case intent
+        has_error_intent = any(keyword in test_name_lower for keyword in error_intent_keywords)
+
+        # Check if test body contains error assertion constructs
+        has_error_assertion = any(
+            [
+                "pytest.raises" in code,
+                "assertraises" in code_lower,
+                "expect_error" in code_lower,
+                "with raises" in code_lower,
+            ]
+        )
+
+        # Only flag if:
+        # 1. Test name includes "user" AND suggests error/edge case intent
+        # 2. BUT lacks both error keywords in code AND error assertion constructs
         if (
-            "user" in test_name.lower()
-            and "error" not in code.lower()
-            and "exception" not in code.lower()
+            "user" in test_name_lower
+            and has_error_intent
+            and "error" not in code_lower
+            and "exception" not in code_lower
+            and not has_error_assertion
         ):
             violations.append("User-related test does not validate error handling")
 

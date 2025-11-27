@@ -167,7 +167,9 @@ class BayesianTestAnalyzer:
         )
         self.coverage_patterns: Dict[str, List[float]] = defaultdict(list)
 
-        # Априорные вероятности на основе опыта (могут быть адаптированы из истории)
+        # Приорные веса на основе опыта (могут быть адаптированы из истории)
+        # EN: Initial prior weights based on experience (will be normalized to probabilities)
+        # Note: These values sum to 1.25 and are normalized below by _normalize_priors()
         self.prior_probabilities = {
             ErrorType.ASSERTION_ERROR: 0.25,
             ErrorType.IMPORT_ERROR: 0.15,
@@ -180,7 +182,7 @@ class BayesianTestAnalyzer:
             ErrorType.MOCK_ERROR: 0.15,
             ErrorType.ASYNC_ERROR: 0.10,
         }
-        # Нормализуем вероятности, чтобы сумма была равна 1.0
+        # Нормализуем веса, чтобы сумма была равна 1.0 (истинные вероятности)
         self.prior_probabilities = self._normalize_priors(self.prior_probabilities)
 
         self.load_history()
