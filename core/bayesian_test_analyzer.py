@@ -161,7 +161,8 @@ class BayesianTestAnalyzer:
         # Execution history of tests; test_history is an alias for backward compatibility
         self.execution_history: List[TestRecord] = []
         # Use the property setter to keep aliasing semantics consistent
-        self.test_history = []  # type: ignore[assignment]
+        # Initialize with empty list - property setter ensures type consistency
+        self.test_history = self.execution_history
         self.error_patterns: Dict[ErrorType, Dict[str, float]] = defaultdict(
             lambda: defaultdict(float)
         )

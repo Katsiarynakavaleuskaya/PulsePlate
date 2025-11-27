@@ -377,9 +377,15 @@ class TestEdgeCases:
         assert analyzer._calculate_risk_level([], overall_score=0.9) == "low"
 
         # Priority branches
-        urgent = analyzer._calculate_priority(["a", "b"], revenue_impact="низкое", health_impact="КРИТИЧЕСКОЕ влияние")
-        high = analyzer._calculate_priority(["a"], revenue_impact="критическое влияние на доход", health_impact="нормальное")
-        medium = analyzer._calculate_priority([], revenue_impact="среднее влияние", health_impact="нормальное")
+        urgent = analyzer._calculate_priority(
+            ["a", "b"], revenue_impact="низкое", health_impact="КРИТИЧЕСКОЕ влияние"
+        )
+        high = analyzer._calculate_priority(
+            ["a"], revenue_impact="критическое влияние на доход", health_impact="нормальное"
+        )
+        medium = analyzer._calculate_priority(
+            [], revenue_impact="среднее влияние", health_impact="нормальное"
+        )
         low = analyzer._calculate_priority([], revenue_impact="низкое", health_impact="нет влияния")
 
         assert urgent == "urgent"
@@ -398,5 +404,13 @@ class TestEdgeCases:
         # Minimal/medium/critical branches
         health = analyzer._assess_health_impact(["Опасно для здоровья"])
         customer = analyzer._assess_customer_impact(["пользователь"], [], ["customer issue"])
-        assert health in {"Минимальное влияние на здоровье", "Среднее влияние на здоровье", "Критическое влияние на здоровье"}
-        assert customer in {"Минимальное влияние на клиентов", "Среднее влияние на клиентов", "Критическое влияние на клиентов"}
+        assert health in {
+            "Минимальное влияние на здоровье",
+            "Среднее влияние на здоровье",
+            "Критическое влияние на здоровье",
+        }
+        assert customer in {
+            "Минимальное влияние на клиентов",
+            "Среднее влияние на клиентов",
+            "Критическое влияние на клиентов",
+        }

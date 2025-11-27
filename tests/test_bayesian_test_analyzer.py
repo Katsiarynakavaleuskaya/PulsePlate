@@ -329,7 +329,8 @@ class TestInternalsAndEdgeBranches:
         """Context flags should add corresponding symptoms."""
         analyzer = BayesianTestAnalyzer()
         symptoms = analyzer._extract_symptoms(
-            "Random error message", {"is_async": True, "has_mocks": True, "coverage_below_threshold": True}
+            "Random error message",
+            {"is_async": True, "has_mocks": True, "coverage_below_threshold": True},
         )
         assert {"async_context", "mock_context", "coverage_context"}.issubset(symptoms)
 
@@ -436,8 +437,12 @@ class TestInternalsAndEdgeBranches:
                 )
             )
         similar_cases = analyzer._find_similar_cases({"assertion"})
-        evidence = analyzer._gather_evidence({"assertion"}, ErrorType.ASSERTION_ERROR, similar_cases)
+        evidence = analyzer._gather_evidence(
+            {"assertion"}, ErrorType.ASSERTION_ERROR, similar_cases
+        )
         assert any("tests/a.py" in item for item in evidence)
+
+
 class TestOptimizationAndPersistence:
     """Test test ordering optimization and history persistence."""
 

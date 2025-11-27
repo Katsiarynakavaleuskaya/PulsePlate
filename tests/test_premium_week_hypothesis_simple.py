@@ -108,12 +108,12 @@ class TestPremiumWeekHypothesisSimple:
             max_size=20,
         ),
         lang=st.sampled_from(["en", "ru", "es"]),
-    diet_flags=st.lists(
-        st.sampled_from(["VEG", "GF", "DAIRY_FREE", "LOW_COST"]),
-        min_size=0,
-        max_size=3,
-        unique=True,
-    ),
+        diet_flags=st.lists(
+            st.sampled_from(["VEG", "GF", "DAIRY_FREE", "LOW_COST"]),
+            min_size=0,
+            max_size=3,
+            unique=True,
+        ),
     )
     def test_generate_week_plan_with_targets_simple_hypothesis(
         self, targets: Dict[str, float], lang: str, diet_flags: List[str]
@@ -137,6 +137,7 @@ class TestPremiumWeekHypothesisSimple:
                 assert "daily_menus" in data
                 assert "week_summary" in data
 
+    @settings(deadline=None)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -145,14 +146,13 @@ class TestPremiumWeekHypothesisSimple:
         activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
         lang=st.sampled_from(["en", "ru", "es"]),
-    diet_flags=st.lists(
-        st.sampled_from(["VEG", "GF", "DAIRY_FREE", "LOW_COST"]),
-        min_size=0,
-        max_size=3,
-        unique=True,
-    ),
-)
-    @settings(deadline=None)
+        diet_flags=st.lists(
+            st.sampled_from(["VEG", "GF", "DAIRY_FREE", "LOW_COST"]),
+            min_size=0,
+            max_size=3,
+            unique=True,
+        ),
+    )
     def test_generate_week_plan_missing_profile_data_simple_hypothesis(
         self,
         sex: str,
