@@ -103,7 +103,7 @@ def is_meal_level_value(kcal: float, context: str = "") -> bool:
     if kcal < 0:
         raise ValueError(f"kcal must be non-negative, got {kcal}")
 
-    context_lower = context.lower()
+    context_lower = (context or "").lower()
     meal_keywords = ["meal", "breakfast", "lunch", "dinner", "snack", "portion"]
     daily_keywords = ["daily", "total", "day", "tdee", "intake"]
 

@@ -427,36 +427,52 @@ class NutritionBayesianAnalyzer:
 
             total_calories = protein_cals + fat_cals + carb_cals
 
+            # Validate that total_calories is positive and individual values are non-negative
+            # Note: Percentages calculated from calories always sum to ~100% by definition,
+            # so we skip redundant percentage sum validation and instead ensure calorie values are valid
+            if total_calories <= 0:
+                results.append(
+                    NutritionTestResult(
+                        test_name=test_name,
+                        success=False,
+                        nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                        error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
+                        error_message=(
+                            f"Общая калорийность макронутриентов должна быть положительной: "
+                            f"белок={protein_cals}ккал, жиры={fat_cals}ккал, "
+                            f"углеводы={carb_cals}ккал, всего={total_calories}ккал"
+                        ),
+                        business_impact=(
+                            "Некорректные данные о питании могут привести к "
+                            "ошибкам в расчетах калорий и макронутриентов, "
+                            "что влияет на доверие пользователей"
+                        ),
+                        safety_level="dangerous",
+                    )
+                )
+                # Skip further percentage-based checks if total_calories is invalid
+            elif protein_cals < 0 or fat_cals < 0 or carb_cals < 0:
+                results.append(
+                    NutritionTestResult(
+                        test_name=test_name,
+                        success=False,
+                        nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                        error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
+                        error_message=(
+                            f"Калорийность макронутриентов не может быть отрицательной: "
+                            f"белок={protein_cals}ккал, жиры={fat_cals}ккал, "
+                            f"углеводы={carb_cals}ккал"
+                        ),
+                        business_impact="Некорректные данные о питании",
+                        safety_level="dangerous",
+                    )
+                )
+                # Continue to per-macro threshold checks even if some values are negative
+
             if total_calories > 0:
                 protein_pct = protein_cals / total_calories
                 fat_pct = fat_cals / total_calories
                 carb_pct = carb_cals / total_calories
-
-                # Validate that macronutrient percentages sum to approximately 100%
-                # Tolerance is configurable via class constant
-                total_pct = protein_pct + fat_pct + carb_pct
-                if abs(total_pct - 1.0) > self.MACRO_SUM_TOLERANCE:
-                    results.append(
-                        NutritionTestResult(
-                            test_name=test_name,
-                            success=False,
-                            nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
-                            error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
-                            error_message=(
-                                f"Проценты макронутриентов не суммируются до ~100%: "
-                                f"белок={protein_pct:.2%}, жиры={fat_pct:.2%}, "
-                                f"углеводы={carb_pct:.2%}, сумма={total_pct:.2%}"
-                            ),
-                            business_impact=(
-                                "Некорректные данные о питании могут привести к "
-                                "ошибкам в расчетах калорий и макронутриентов, "
-                                "что влияет на доверие пользователей"
-                            ),
-                            safety_level="dangerous",
-                        )
-                    )
-                    # Continue to per-macro threshold checks even if sum is invalid
-                    # This allows users to see both the sum error and any per-macro imbalance errors
 
                 limits = self.nutrition_knowledge_base["nutrient_limits"]
 

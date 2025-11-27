@@ -81,7 +81,7 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
     return _check_node(node)
 
 
-def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[str]:
+def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[str]:  # noqa: ARG001
     """Shared logic for analyzing technical aspects of a test.
 
     This function contains the common technical analysis logic used by
@@ -131,6 +131,46 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
             for node in ast.walk(tree)
         )
 
+        # Check if code contains pytest.raises or assertRaises patterns (test-related exception handling)
+        has_pytest_raises = any(
+            isinstance(node, ast.With)
+            and any(
+                isinstance(item.context_expr, ast.Call)
+                and (
+                    # pytest.raises(...)
+                    (
+                        isinstance(item.context_expr.func, ast.Attribute)
+                        and item.context_expr.func.attr == "raises"
+                        and isinstance(item.context_expr.func.value, ast.Name)
+                        and item.context_expr.func.value.id == "pytest"
+                    )
+                    # Just raises(...) if pytest is imported differently
+                    or (
+                        isinstance(item.context_expr.func, ast.Name)
+                        and item.context_expr.func.id == "raises"
+                    )
+                )
+                for item in node.items
+            )
+            for node in ast.walk(tree)
+        )
+
+        # Check for assertRaises patterns
+        has_assert_raises = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "assertRaises"
+            for node in ast.walk(tree)
+        )
+
+        # Check if any function has a name matching intentional raising patterns
+        has_intentional_raise_function = any(
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and re.match(r"^(raise_|validate_|ensure_).*|.*_error$", node.name, re.IGNORECASE)
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        )
+
         # Async checks
         if has_async_def and not has_await:
             issues.append("Async function without await usage")
@@ -140,7 +180,17 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
             issues.append("Using Mock instead of AsyncMock for async methods")
 
         # Exception handling checks
-        if has_raise and not has_try:
+        # Skip if:
+        # 1. Function name suggests intentional raising (raise_*, validate_*, ensure_*, *_error)
+        # 2. Code contains pytest.raises or assertRaises (test exception handling)
+        # 3. Code has try-except blocks
+        if (
+            has_raise
+            and not has_try
+            and not has_pytest_raises
+            and not has_assert_raises
+            and not has_intentional_raise_function
+        ):
             issues.append("Exception raised without handling")
 
         # Return type hint checks
@@ -155,6 +205,19 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
         asyncmock_present = re.search(r"\bAsyncMock\s*\(", code) is not None
         raise_present = re.search(r"\braise\b", code) is not None
         try_present = re.search(r"\btry\b", code) is not None
+        # Check for pytest.raises or assertRaises patterns
+        pytest_raises_present = (
+            re.search(r"pytest\.raises\s*\(", code) is not None
+            or re.search(r"\braises\s*\(", code) is not None
+            or re.search(r"assertRaises\s*\(", code) is not None
+        )
+        # Check for intentional raising function names
+        intentional_raise_func = (
+            re.search(
+                r"def\s+(raise_\w+|validate_\w+|ensure_\w+|\w+_error)\s*\(", code, re.IGNORECASE
+            )
+            is not None
+        )
         def_present = re.search(r"\bdef\b", code) is not None
         arrow_present = re.search(r"->", code) is not None
         # Check for return with value (not just "return" alone) or yield
@@ -169,7 +232,12 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
             issues.append("Async function without await usage")
         if async_present and mock_present and not asyncmock_present:
             issues.append("Using Mock instead of AsyncMock for async methods")
-        if raise_present and not try_present:
+        if (
+            raise_present
+            and not try_present
+            and not pytest_raises_present
+            and not intentional_raise_func
+        ):
             issues.append("Exception raised without handling")
         if def_present and not arrow_present and has_explicit_return_or_yield:
             issues.append("Missing return type annotations")
