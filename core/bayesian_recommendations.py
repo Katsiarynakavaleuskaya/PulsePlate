@@ -9,7 +9,7 @@ import os
 from enum import Enum
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
-DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru")
+DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru") or "ru"
 
 # Public API
 __all__ = [
@@ -295,7 +295,7 @@ def get_all_error_type_keys() -> list[str]:
     Returns:
         List of all error type keys.
     """
-    lang_dict = RECOMMENDATIONS.get(DEFAULT_LANGUAGE, RECOMMENDATIONS.get("ru", {}))
+    lang_dict = RECOMMENDATIONS.get(DEFAULT_LANGUAGE, {})
     return [key for key in lang_dict.keys() if key.startswith("error_type.")]
 
 
@@ -306,5 +306,5 @@ def get_all_symptom_keys() -> list[str]:
     Returns:
         List of all symptom keys.
     """
-    lang_dict = RECOMMENDATIONS.get(DEFAULT_LANGUAGE, RECOMMENDATIONS.get("ru", {}))
+    lang_dict = RECOMMENDATIONS.get(DEFAULT_LANGUAGE, {})
     return [key for key in lang_dict.keys() if key.startswith("symptom.")]

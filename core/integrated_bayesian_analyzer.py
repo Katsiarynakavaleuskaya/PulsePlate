@@ -123,6 +123,8 @@ class IntegratedBayesianAnalyzer:
             test_name: Test function name.
             file_path: Optional path of the test file (for logging/telemetry).
         """
+        # TODO: Use file_path for logging/telemetry in future implementation
+        _ = file_path  # Explicitly mark as intentionally unused for now
 
         # Technical analysis
         technical_issues = self._analyze_technical_aspects(test_code, test_name)

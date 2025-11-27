@@ -9,10 +9,6 @@ language: en-US
 reviews:
   profile: chill
   path_instructions:
-
-# Path-based instructions
-reviews:
-  path_instructions:
     - path: "**/*.py"
       instructions: |
         Focus on health/nutrition domain best practices.
