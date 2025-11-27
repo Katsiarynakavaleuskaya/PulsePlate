@@ -9,8 +9,10 @@ Tests cover:
 - Cost optimization
 - Revenue growth analysis
 - ROI estimation
+- Input validation and edge cases
 """
 
+import math
 import pytest
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
@@ -345,3 +347,317 @@ def fetch_data():
         assert knowledge and "revenue_streams" in knowledge
         assert strategies and "pricing_models" in strategies
         assert cost_rules and "infrastructure" in cost_rules
+
+    def test_calculate_bayesian_roi_validation(self):
+        """ROI calculator should validate inputs and raise on invalid values."""
+        analyzer = BusinessBayesianAnalyzer()
+        with pytest.raises(ValueError):
+            analyzer._calculate_bayesian_roi(
+                category="cat",
+                prior_mean=-1.0,
+                prior_std=0.1,
+                data=[],
+                time_horizon_months=1,
+                assumptions="x",
+            )
+        with pytest.raises(ValueError):
+            analyzer._calculate_bayesian_roi(
+                category="cat",
+                prior_mean=0.1,
+                prior_std=-0.1,
+                data=[],
+                time_horizon_months=1,
+                assumptions="x",
+            )
+        with pytest.raises(ValueError):
+            analyzer._calculate_bayesian_roi(
+                category="cat",
+                prior_mean=0.1,
+                prior_std=0.1,
+                data=[-1.0],
+                time_horizon_months=1,
+                assumptions="x",
+            )
+
+    def test_calculate_bayesian_roi_no_data_and_with_data(self):
+        """Cover both no-data prior-only and data-informed ROI paths."""
+        analyzer = BusinessBayesianAnalyzer()
+        roi_prior = analyzer._calculate_bayesian_roi(
+            category="c1",
+            prior_mean=0.2,
+            prior_std=0.05,
+            data=[],
+            time_horizon_months=6,
+            assumptions="test",
+        )
+        assert isinstance(roi_prior, ROIEstimate)
+        assert roi_prior.time_horizon_months == 6
+
+        data = [0.1, 0.2, 0.3, 0.15]
+        roi_data = analyzer._calculate_bayesian_roi(
+            category="c2",
+            prior_mean=0.15,
+            prior_std=0.06,
+            data=data,
+            time_horizon_months=12,
+            assumptions="test2",
+        )
+        assert isinstance(roi_data, ROIEstimate)
+        assert (
+            roi_data.credible_interval_lower
+            <= roi_data.expected_roi
+            <= roi_data.credible_interval_upper
+        )
+
+    def test_analyze_monetization_low_and_high_price(self):
+        """Low and high pricing should trigger pricing inefficiency flags."""
+        analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0, high_price_threshold=100.0)
+        low_results = analyzer._analyze_monetization("price = 5", "test_low_price")
+        high_results = analyzer._analyze_monetization("cost = 150", "test_high_price")
+        assert any(
+            r.business_category == BusinessCategory.MONETIZATION
+            and r.error_type == BusinessErrorType.PRICING_INEFFICIENCY
+            for r in low_results
+        )
+        assert any(
+            r.business_category == BusinessCategory.MONETIZATION
+            and r.error_type == BusinessErrorType.PRICING_INEFFICIENCY
+            for r in high_results
+        )
+
+    def test_calculate_bayesian_roi_warning_branch(self, caplog):
+        """Large std should hit the delta-method warning path and still return ROI estimate."""
+        analyzer = BusinessBayesianAnalyzer()
+        roi = analyzer._calculate_bayesian_roi(
+            category="warn",
+            prior_mean=0.1,
+            prior_std=0.5,  # large std triggers warning path
+            data=[0.2, 0.25],
+            time_horizon_months=3,
+            assumptions="test warning",
+        )
+        assert isinstance(roi, ROIEstimate)
+
+    def test_calculate_roi_potential_multiple_categories(self):
+        """ROI potential should include all categories present in diagnosed issues."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                BusinessTestResult(
+                    test_name="t_cost",
+                    success=False,
+                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                ),
+                BusinessTestResult(
+                    test_name="t_monetization",
+                    success=False,
+                    business_category=BusinessCategory.MONETIZATION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                ),
+                BusinessTestResult(
+                    test_name="t_acquisition",
+                    success=False,
+                    business_category=BusinessCategory.CUSTOMER_ACQUISITION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                ),
+                BusinessTestResult(
+                    test_name="t_retention",
+                    success=False,
+                    business_category=BusinessCategory.USER_RETENTION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                ),
+            ]
+        )
+        roi_estimates = analyzer.calculate_roi_potential()
+        categories = {est.category for est in roi_estimates}
+        assert {
+            "cost_optimization",
+            "monetization",
+            "customer_acquisition",
+            "user_retention",
+        } <= categories
+
+    def test_generate_cost_savings_recommendations(self):
+        """Cost savings recommendations should be produced when issues diagnosed."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.append(
+            BusinessTestResult(
+                test_name="t_cost",
+                success=False,
+                business_category=BusinessCategory.COST_OPTIMIZATION,
+                error_type=BusinessErrorType.OPERATIONAL_WASTE,
+            )
+        )
+        recs = analyzer.generate_cost_savings_recommendations()
+        assert any("эконом" in r.lower() or "кэш" in r.lower() for r in recs)
+
+    def test_calculate_roi_potential_no_issues_returns_empty(self):
+        """When no issues diagnosed, ROI potential should be empty."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.clear()
+        roi_estimates = analyzer.calculate_roi_potential()
+        assert roi_estimates == []
+
+    def test_revenue_growth_branches(self):
+        """Analytics without A/B and personalization without recommendations should be flagged."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+def growth():
+    analytics = True
+    revenue = 1000
+    user = current_user
+    personal = True
+"""
+        results = analyzer._analyze_revenue_growth(code, "test_growth")
+        messages = " ".join((r.error_message or "") for r in results)
+        assert "A/B" in messages or "Персонализация" in messages
+
+    def test_customer_retention_branches(self):
+        """Communication without segmentation and feedback without processing should be flagged."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+def retention():
+    notification = send_email()
+    feedback = collect_feedback()
+"""
+        results = analyzer._analyze_customer_retention(code, "test_retention")
+        assert any(r.error_type == BusinessErrorType.CUSTOMER_CHURN for r in results)
+
+    def test_diagnose_business_issues_and_roi_potential(self):
+        """Diagnose issues from stored results and calculate ROI potential."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                BusinessTestResult(
+                    test_name="t1",
+                    success=False,
+                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                ),
+                BusinessTestResult(
+                    test_name="t2",
+                    success=False,
+                    business_category=BusinessCategory.MONETIZATION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                ),
+            ]
+        )
+
+        issues = analyzer.diagnose_business_issues()
+        assert BusinessCategory.COST_OPTIMIZATION in issues
+        assert BusinessCategory.MONETIZATION in issues
+
+        roi_estimates = analyzer.calculate_roi_potential()
+        assert isinstance(roi_estimates, list)
+        assert any(est.category in {"cost_optimization", "monetization"} for est in roi_estimates)
+
+
+class TestInternalHelpers:
+    """Test internal helper methods for coverage."""
+
+    def test_normalize_and_remove_comments_preserves_string_hash(self):
+        """Test that string literals with # are preserved while comments are removed."""
+        analyzer = BusinessBayesianAnalyzer()
+        code_list = ["def foo():", '    s = "value # not a comment"', "    x = 1  # actual comment"]
+        normalized = analyzer._normalize_code_input(code_list)
+        assert isinstance(normalized, str)
+        cleaned = analyzer._remove_comments(normalized)
+        assert "#" in cleaned  # string literal hash remains
+        assert "actual comment" not in cleaned
+
+    def test_analyze_monetization_detects_low_and_high_price(self):
+        """Test both low and high price threshold branches."""
+        # low threshold 10, high threshold 100 -> test both branches
+        analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0, high_price_threshold=100.0)
+        low_code = "price = 5"
+        high_code = "cost = 150"
+        low_results = analyzer._analyze_monetization(low_code, "test_low_price")
+        high_results = analyzer._analyze_monetization(high_code, "test_high_price")
+        assert any(
+            r.business_category == BusinessCategory.MONETIZATION
+            and r.error_type == BusinessErrorType.PRICING_INEFFICIENCY
+            for r in low_results
+        )
+        assert any(
+            r.business_category == BusinessCategory.MONETIZATION
+            and r.error_type == BusinessErrorType.PRICING_INEFFICIENCY
+            for r in high_results
+        )
+
+    def test_analyze_cost_optimization_detects_nested_loop_and_append(self):
+        """Test nested loop with append detection for cost optimization."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+for a in range(3):
+    for b in range(2):
+        lst.append(b)
+"""
+        results = analyzer._analyze_cost_optimization(code, "test_nested_loop")
+        assert any(r.business_category == BusinessCategory.COST_OPTIMIZATION for r in results)
+
+    def test_calculate_bayesian_roi_input_validation(self):
+        """Test input validation for ROI calculation."""
+        analyzer = BusinessBayesianAnalyzer()
+        # invalid prior_mean <= -1
+        with pytest.raises(ValueError):
+            analyzer._calculate_bayesian_roi(
+                "cat",
+                prior_mean=-1.0,
+                prior_std=0.1,
+                data=[],
+                time_horizon_months=1,
+                assumptions="x",
+            )
+        # invalid prior_std < 0
+        with pytest.raises(ValueError):
+            analyzer._calculate_bayesian_roi(
+                "cat",
+                prior_mean=0.1,
+                prior_std=-0.1,
+                data=[],
+                time_horizon_months=1,
+                assumptions="x",
+            )
+        # invalid data value <= -1
+        with pytest.raises(ValueError):
+            analyzer._calculate_bayesian_roi(
+                "cat",
+                prior_mean=0.1,
+                prior_std=0.1,
+                data=[-1.0],
+                time_horizon_months=1,
+                assumptions="x",
+            )
+
+    def test_calculate_bayesian_roi_with_and_without_data(self):
+        """Test ROI calculation with no data (prior only) and with data."""
+        analyzer = BusinessBayesianAnalyzer()
+        # no data -> uses prior only
+        roi_est = analyzer._calculate_bayesian_roi(
+            category="c1",
+            prior_mean=0.2,
+            prior_std=0.05,
+            data=[],
+            time_horizon_months=6,
+            assumptions="test",
+        )
+        assert isinstance(roi_est, ROIEstimate)
+        assert roi_est.time_horizon_months == 6
+
+        # with data (multiple points -> sample_std branch)
+        data = [0.1, 0.2, 0.3, 0.15]
+        roi_est2 = analyzer._calculate_bayesian_roi(
+            category="c2",
+            prior_mean=0.15,
+            prior_std=0.06,
+            data=data,
+            time_horizon_months=12,
+            assumptions="test2",
+        )
+        assert isinstance(roi_est2, ROIEstimate)
+        assert (
+            roi_est2.credible_interval_lower
+            <= roi_est2.expected_roi
+            <= roi_est2.credible_interval_upper
+        )
