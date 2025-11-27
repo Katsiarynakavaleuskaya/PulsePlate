@@ -18,7 +18,15 @@ def pytest_configure(config: pytest.Config) -> None:
     This hook runs BEFORE pytest starts collecting tests, ensuring
     environment variables are set before any modules are imported.
     This prevents import errors and shell environment instability.
+
+    IMPORTANT: Only runs during actual pytest sessions, not when IDE
+    language servers import this file.
     """
+    # Guard: Skip if not running in an actual pytest session
+    # This prevents IDE language servers from triggering DB initialization
+    if not hasattr(config, "option"):
+        return
+
     import importlib
     import contextlib
 
