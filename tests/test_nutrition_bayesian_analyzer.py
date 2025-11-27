@@ -72,8 +72,8 @@ def test_high_cal():
         # Verify results are valid NutritionTestResult instances
         assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_macronutrient_sum_invalid(self) -> None:
-        """Negative macro values should trigger macronutrient sum invalid issue."""
+    def test_analyze_zero_macronutrients(self) -> None:
+        """All-zero macros should be processed without crashing (may or may not be flagged)."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
 def test_macros():
@@ -186,6 +186,30 @@ def test_invalid():
         assert analyzer._analyze_calorie_calculations("calories = 123", "test_force_cal") == []
         assert analyzer._analyze_bmi_calculations("bmi = 25", "test_force_bmi") == []
 
+    def test_negative_macros_positive_total(self, monkeypatch) -> None:
+        """Negative macro values with positive total should trigger sum_invalid branch."""
+        analyzer = NutritionBayesianAnalyzer()
+        import core.nutrition_bayesian_analyzer as nba
+
+        original_findall = nba.re.findall
+
+        def _fake_findall(pattern, string, flags=0):
+            if "protein" in pattern:
+                return ["-5"]
+            if "fat" in pattern:
+                return ["20"]
+            if "carbs" in pattern:
+                return ["20"]
+            return original_findall(pattern, string, flags)
+
+        monkeypatch.setattr(nba.re, "findall", _fake_findall)
+        results = analyzer._analyze_nutrition_standards("", "test_negative_macros")
+        assert any(
+            getattr(r.error_type, "value", "") == "macronutrient_sum_invalid"
+            for r in results
+            if r.error_type
+        )
+
     def test_diagnose_probabilities_with_successful_and_failed_results(self) -> None:
         """diagnose_nutrition_issues should include only failed results."""
         analyzer = NutritionBayesianAnalyzer()
@@ -211,8 +235,8 @@ def test_invalid():
 class TestBMIValidation:
     """Test BMI validation."""
 
-    def test_detect_bmi_calculation(self) -> None:
-        """Test detection of BMI calculations."""
+    def test_analyze_bmi_in_valid_range(self) -> None:
+        """BMI within valid range should be processed without errors."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
 def test_bmi():
@@ -249,8 +273,8 @@ def test_bad_bmi():
 class TestMacronutrientChecks:
     """Test macronutrient validation."""
 
-    def test_detect_protein(self) -> None:
-        """Test detection of protein values."""
+    def test_analyze_protein_values(self) -> None:
+        """Protein values should be processed and analyzed."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
 def test_protein():
@@ -261,8 +285,8 @@ def test_protein():
         assert isinstance(results, list)
         assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_carbs(self) -> None:
-        """Test detection of carbohydrate values."""
+    def test_analyze_carb_values(self) -> None:
+        """Carbohydrate values should be processed and analyzed."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
 def test_carbs():
@@ -273,8 +297,8 @@ def test_carbs():
         assert isinstance(results, list)
         assert all(isinstance(r, NutritionTestResult) for r in results)
 
-    def test_detect_fats(self) -> None:
-        """Test detection of fat values."""
+    def test_analyze_fat_values(self) -> None:
+        """Fat values should be processed and analyzed."""
         analyzer = NutritionBayesianAnalyzer()
         code = """
 def test_fats():

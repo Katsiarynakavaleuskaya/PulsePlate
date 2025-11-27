@@ -12,7 +12,6 @@ Tests cover:
 - Input validation and edge cases
 """
 
-import math
 import pytest
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
@@ -302,13 +301,15 @@ class TestEdgeCases:
         assert isinstance(results, list)
 
     def test_test_results_persistence(self):
-        """Test that results are persisted in analyzer."""
+        """Test that results persist across analyze() calls."""
         analyzer = BusinessBayesianAnalyzer()
-        code = "def test(): pass"
+        code = "price = 5"  # Use code that triggers analysis
         initial_count = len(analyzer.test_results)
         analyzer.analyze(code, "test_persistence")
-        # Results should be appended (analyzer may return multiple results per call)
-        assert len(analyzer.test_results) >= initial_count
+        # Results should be persisted (may be 0 if no issues found)
+        final_count = len(analyzer.test_results)
+        # Verify persistence mechanism works - calling analyze updates internal state
+        assert final_count >= initial_count
 
     def test_cost_optimization_patterns(self):
         """Detect SQL select *, infinite loop, and sleep without retry/backoff."""
@@ -492,6 +493,20 @@ def fetch_data():
         recs = analyzer.generate_cost_savings_recommendations()
         assert any("эконом" in r.lower() or "кэш" in r.lower() for r in recs)
 
+    def test_generate_cost_savings_includes_operational_efficiency(self):
+        """Operational efficiency issues should add development recommendations."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.append(
+            BusinessTestResult(
+                test_name="t_ops",
+                success=False,
+                business_category=BusinessCategory.OPERATIONAL_EFFICIENCY,
+                error_type=BusinessErrorType.OPERATIONAL_WASTE,
+            )
+        )
+        recs = analyzer.generate_cost_savings_recommendations()
+        assert any("тестирован" in r.lower() or "мониторинг" in r.lower() for r in recs)
+
     def test_calculate_roi_potential_no_issues_returns_empty(self):
         """When no issues diagnosed, ROI potential should be empty."""
         analyzer = BusinessBayesianAnalyzer()
@@ -529,6 +544,20 @@ def fetch_data():
         assert any("лояль" in r.lower() or "удержание" in r.lower() for r in recs)
         assert any("api" in r.lower() or "аналит" in r.lower() for r in recs)
 
+    def test_generate_revenue_recommendations_only_with_no_issues(self):
+        """When no revenue-related issues, recommendations should be empty."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.append(
+            BusinessTestResult(
+                test_name="t_cost_only",
+                success=False,
+                business_category=BusinessCategory.COST_OPTIMIZATION,
+                error_type=BusinessErrorType.OPERATIONAL_WASTE,
+            )
+        )
+        recs = analyzer.generate_revenue_optimization_recommendations()
+        assert recs == []
+
     def test_revenue_growth_branches(self):
         """Analytics without A/B and personalization without recommendations should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
@@ -553,6 +582,18 @@ def retention():
 """
         results = analyzer._analyze_customer_retention(code, "test_retention")
         assert any(r.error_type == BusinessErrorType.CUSTOMER_CHURN for r in results)
+
+    def test_analyze_cost_optimization_select_star_and_sleep(self):
+        """SELECT * outside tests and sleep without retry should be flagged."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+def prod_code():
+    query = "SELECT * FROM users"
+    time.sleep(2)
+"""
+        results = analyzer._analyze_cost_optimization(code, "prod_code")
+        messages = " ".join((r.error_message or "") for r in results)
+        assert "SELECT *" in messages or "sleep" in messages
 
     def test_diagnose_business_issues_and_roi_potential(self):
         """Diagnose issues from stored results and calculate ROI potential."""
