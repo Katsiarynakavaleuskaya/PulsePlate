@@ -12,6 +12,48 @@ from typing import cast
 from starlette.types import ASGIApp
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Configure pytest environment before test collection.
+
+    This hook runs BEFORE pytest starts collecting tests, ensuring
+    environment variables are set before any modules are imported.
+    This prevents import errors and shell environment instability.
+    """
+    import logging
+
+    # Set test environment variables BEFORE any imports
+    os.environ.setdefault("APP_ENV", "test")
+    os.environ.setdefault("ENVIRONMENT", "test")
+    os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
+    os.environ.setdefault("VIP_MODULE_ENABLED", "true")
+    os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
+    os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
+
+    # Configure test database path BEFORE core.db is imported
+    # This ensures DATABASE_URL is set before any SQLAlchemy initialization
+    db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
+    db_path = Path(db_path_env)
+
+    # Handle pytest-xdist worker isolation
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "")
+    if worker_id:
+        import re
+
+        safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id)
+        if not safe_worker:
+            safe_worker = "worker"
+        db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
+
+    if not db_path.is_absolute():
+        db_path = Path.cwd() / db_path
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["TEST_DB_PATH"] = str(db_path)
+
+    logging.info(f"✅ pytest_configure: Set DATABASE_URL to {db_path}")
+
+
 class AppLoadError(ImportError):
     """Raised when app.py cannot be loaded."""
 
