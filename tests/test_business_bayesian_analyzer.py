@@ -305,5 +305,43 @@ class TestEdgeCases:
         code = "def test(): pass"
         initial_count = len(analyzer.test_results)
         analyzer.analyze(code, "test_persistence")
-        # Results should be appended
+        # Results should be appended (analyzer may return multiple results per call)
         assert len(analyzer.test_results) >= initial_count
+
+    def test_cost_optimization_patterns(self):
+        """Detect SQL select *, infinite loop, and sleep without retry/backoff."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+def expensive_operation():
+    query = "SELECT * FROM users"
+    while True:
+        process()
+    time.sleep(5)
+"""
+        results = analyzer.analyze(code, "expensive_operation")
+        messages = " ".join((r.error_message or "") for r in results)
+        assert "SELECT *" in messages or "while True" in messages or "sleep" in messages
+
+    def test_missing_cache_detection(self):
+        """Lack of caching on data access should be flagged as operational waste."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+def fetch_data():
+    data = database.get_all()
+    return data
+"""
+        results = analyzer.analyze(code, "fetch_data")
+        assert any("кэширование" in (r.error_message or "") for r in results)
+
+    def test_loader_fallbacks_without_yaml(self, monkeypatch):
+        """Loader helpers should fall back to defaults when yaml is unavailable."""
+        analyzer = BusinessBayesianAnalyzer()
+        monkeypatch.setattr(analyzer, "_import_yaml_module", lambda: None)
+
+        knowledge = analyzer._load_business_knowledge()
+        strategies = analyzer._load_monetization_strategies(locale="fr")
+        cost_rules = analyzer._load_cost_optimization_rules()
+
+        assert knowledge and "revenue_streams" in knowledge
+        assert strategies and "pricing_models" in strategies
+        assert cost_rules and "infrastructure" in cost_rules
