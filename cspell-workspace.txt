@@ -4318,6 +4318,7 @@ Ollama
 OLLAMA
 omni
 onchange
+onupdate
 opcional
 openai
 openapi
@@ -4539,6 +4540,8 @@ whtr
 wicg
 wmax
 wmin
+workerid
+workerinput
 wpdf
 writeheader
 writerow
