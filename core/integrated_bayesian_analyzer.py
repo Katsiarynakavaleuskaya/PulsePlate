@@ -204,7 +204,7 @@ class IntegratedBayesianAnalyzer:
 
         class UnsafeOpenChecker(ast.NodeVisitor):
             """Visitor to check for unsafe open() calls.
-            
+
             Only flags open() calls that are NOT used as context managers or wrapped by closing().
             Removed in_with_context flag to avoid false negatives (e.g., 'with lock: f = open(...)').
             """
