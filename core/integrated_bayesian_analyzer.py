@@ -178,16 +178,17 @@ class IntegratedBayesianAnalyzer:
 
     def _is_in_test_or_mock_context(self, code: str) -> bool:
         """Check if code is in a test or mock context."""
-        test_markers = [
+        # Normalize markers to lowercase for consistent case-insensitive matching
+        test_markers_lower = [
             "@pytest.fixture",
             "def test_",
-            "class Test",
-            "Mock(",
+            "class test",
+            "mock(",
             "unittest.mock",
             "@mock",
         ]
         code_lower = code.lower()
-        return any(marker.lower() in code_lower for marker in test_markers)
+        return any(marker in code_lower for marker in test_markers_lower)
 
     def _check_unsafe_file_opens(self, code: str) -> bool:
         """
@@ -476,14 +477,14 @@ class IntegratedBayesianAnalyzer:
         # Check if test name suggests error/edge case intent
         has_error_intent = any(keyword in test_name_lower for keyword in error_intent_keywords)
 
-        # Check if test body contains error assertion constructs
+        # Check if test body contains error assertion constructs (use generator for lazy evaluation)
         has_error_assertion = any(
-            [
+            (
                 "pytest.raises" in code,
                 "assertraises" in code_lower,
                 "expect_error" in code_lower,
                 "with raises" in code_lower,
-            ]
+            )
         )
 
         # Only flag if:
@@ -700,7 +701,10 @@ class IntegratedBayesianAnalyzer:
         }
 
     def _generate_system_recommendations(self) -> List[str]:
-        """Генерирует системные рекомендации."""
+        """Генерирует системные рекомендации / Generate system-wide recommendations.
+
+        Returns bilingual recommendations (RU / EN) based on issue frequency.
+        """
         recommendations = []
 
         # Count test records with at least one issue of each type
@@ -709,17 +713,26 @@ class IntegratedBayesianAnalyzer:
         num_safety_tests = sum(1 for r in self.integrated_results if r.safety_issues)
         num_philosophy_tests = sum(1 for r in self.integrated_results if r.philosophy_violations)
 
-        # Рекомендации на основе частых проблем
+        # Рекомендации на основе частых проблем (bilingual output)
         if num_technical_tests > len(self.integrated_results) * self.TECHNICAL_THRESHOLD:
-            recommendations.append("Провести технический рефакторинг тестов")
+            recommendations.append(
+                "Провести технический рефакторинг тестов / Conduct technical test refactoring"
+            )
 
         if num_nutrition_tests > len(self.integrated_results) * self.NUTRITION_THRESHOLD:
-            recommendations.append("Усилить проверки безопасности питания")
+            recommendations.append(
+                "Усилить проверки безопасности питания / Strengthen nutrition safety checks"
+            )
 
         if num_safety_tests > len(self.integrated_results) * self.SAFETY_THRESHOLD:
-            recommendations.append("Провести аудит безопасности данных")
+            recommendations.append(
+                "Провести аудит безопасности данных / Conduct data security audit"
+            )
 
         if num_philosophy_tests > len(self.integrated_results) * self.PHILOSOPHY_THRESHOLD:
-            recommendations.append("Обновить тесты в соответствии с философией системы")
+            recommendations.append(
+                "Обновить тесты в соответствии с философией системы / "
+                "Update tests to align with system philosophy"
+            )
 
         return recommendations

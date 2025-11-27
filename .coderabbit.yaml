@@ -4,7 +4,11 @@
 
 # Basic settings
 language: en-US
-review_profile: chill
+
+# Path-based instructions
+reviews:
+  profile: chill
+  path_instructions:
 
 # Path-based instructions
 reviews:

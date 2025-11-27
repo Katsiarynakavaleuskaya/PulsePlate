@@ -220,10 +220,9 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
         def_present = re.search(r"\bdef\b", code) is not None
         arrow_present = re.search(r"->", code) is not None
         # Check for return with value (not just "return" alone) or yield
-        # Pattern: "return" followed by whitespace and a non-whitespace, non-comment character
-        # Negative lookahead (?![#\n]) excludes "return # comment" and "return\n"
-        # \S ensures at least one non-whitespace token follows (excludes "return   ")
-        return_with_value = re.search(r"return\s+(?![#\n])\S", code) is not None
+        # Pattern ensures first non-whitespace char after 'return' is not # or newline
+        # This avoids false positives like "return   # comment" or "return\n"
+        return_with_value = re.search(r"return\s+(?=[^#\n])", code) is not None
         yield_present = re.search(r"\byield\b", code) is not None
         has_explicit_return_or_yield = return_with_value or yield_present
 

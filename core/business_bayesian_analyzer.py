@@ -259,8 +259,15 @@ class BusinessBayesianAnalyzer:
 
             normalized_locale: str = normalize_lang(locale) if locale else "en"
         except ImportError:
-            # Fallback if i18n module not available
-            normalized_locale = str(locale) if locale in {"en", "ru", "es"} else "en"
+            # Fallback if i18n module not available - validate against supported locales
+            try:
+                from core.bayesian_recommendations import RECOMMENDATIONS
+
+                SUPPORTED_LOCALES = set(RECOMMENDATIONS.keys())
+                normalized_locale = str(locale) if locale in SUPPORTED_LOCALES else "en"
+            except ImportError:
+                # Ultimate fallback if recommendations module not available
+                normalized_locale = str(locale) if locale in {"en", "ru", "es"} else "en"
 
         config_dir = Path(__file__).parent.parent / "config"
 
@@ -418,8 +425,7 @@ class BusinessBayesianAnalyzer:
     def _remove_comments(self, code: str | list[str]) -> str:
         """Remove inline comments while preserving '#' inside string literals."""
         code_str = self._normalize_code_input(code)
-        if not isinstance(code_str, str):
-            code_str = str(code_str)
+        # _normalize_code_input always returns str, no need for redundant check
 
         try:
             tokens: list[tokenize.TokenInfo] = []

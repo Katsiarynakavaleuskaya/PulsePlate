@@ -83,24 +83,6 @@ class NutritionTestResult:
 class NutritionBayesianAnalyzer:
     """Байесовский анализатор для питания и здоровья."""
 
-    # Macronutrient validation tolerance
-    # RU: Допустимое отклонение суммы процентов макронутриентов от 100%
-    # EN: Tolerance for macronutrient percentage sum validation
-    # Rationale for 0.01 (1%) tolerance:
-    # - Rounding of input percentages: Nutrition labels and user inputs often round
-    #   values, causing small deviations from exact 100% sums
-    # - Measurement imprecision: Laboratory measurements and food composition databases
-    #   have inherent precision limits that accumulate in percentage calculations
-    # - Fiber caloric difference: Dietary fiber contributes ~2 kcal/g vs 4 kcal/g for
-    #   other carbohydrates, which can skew percentage sums when fiber is included
-    # - Nutrient labeling conventions: Different labeling standards (e.g., EU vs US)
-    #   may handle certain nutrients differently, affecting total percentages
-    # - Missing micronutrients: Some nutrient databases may omit trace components,
-    #   leading to sums slightly below 100%
-    # This value is conservative and configurable; callers can increase tolerance
-    # if they expect larger deviations from their data sources.
-    MACRO_SUM_TOLERANCE = 0.01  # Default tolerance 1% (0.01)
-
     # Safety score penalty constants
     # RU: Константы штрафов для балла безопасности
     # EN: Penalty values for safety score calculation

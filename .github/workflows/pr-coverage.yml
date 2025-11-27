@@ -49,7 +49,11 @@ jobs:
       - name: Fetch base branch
         if: github.event_name == 'pull_request'
         run: |
-          git fetch --no-tags --prune --depth=1 origin "${{ github.base_ref }}":"${{ github.base_ref }}"
+          # Fetch base branch with full history so diff-cover can calculate diffs
+          # --depth=0 ensures all commits are fetched (no shallow clone)
+          git fetch --no-tags --prune origin "${{ github.base_ref }}":"${{ github.base_ref }}" --depth=0
+          # Create local branch pointing to base ref for reliable diff-cover comparison
+          git branch --force base "${{ github.base_ref }}"
 
       - name: Enforce diff coverage >= 97%
         if: github.event_name == 'pull_request'

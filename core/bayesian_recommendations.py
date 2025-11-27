@@ -9,7 +9,7 @@ import os
 from enum import Enum
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
-DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru") or "ru"
+DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru")
 
 # Public API
 __all__ = [
