@@ -100,20 +100,20 @@ PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
 if [ ! -z "$PYTHON_CHANGES" ]; then
     echo "🐍 Python changes detected, running basic checks..."
 
-    # Auto-format with Black
-    echo "🎨 Auto-formatting Python code with Black..."
-    if command -v black > /dev/null 2>&1; then
-        black --line-length 100 $PYTHON_CHANGES
+    # Auto-format with Ruff (replaces Black)
+    echo "🎨 Auto-formatting Python code with Ruff..."
+    if command -v ruff > /dev/null 2>&1; then
+        ruff format $PYTHON_CHANGES
         if [ $? -eq 0 ]; then
-            echo "✅ Black formatting applied"
+            echo "✅ Ruff formatting applied"
             # Re-stage formatted files
             git add $PYTHON_CHANGES
         else
-            echo "⚠️  Warning: Black formatting failed, continuing..."
+            echo "⚠️  Warning: Ruff formatting failed, continuing..."
         fi
     else
-        echo "⚠️  Warning: Black not found, skipping auto-formatting"
-        echo "   Install with: pip install black"
+        echo "⚠️  Warning: Ruff not found, skipping auto-formatting"
+        echo "   Install with: pip install ruff"
     fi
 
     # Check Python syntax

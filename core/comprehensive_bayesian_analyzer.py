@@ -475,7 +475,10 @@ class ComprehensiveBayesianAnalyzer:
             return "Критическое влияние на доходы"
 
     def _assess_cost_impact(
-        self, technical: List[str], _nutrition: List[str], business: List[str]  # noqa: ARG002
+        self,
+        technical: List[str],
+        _nutrition: List[str],
+        business: List[str],  # noqa: ARG002
     ) -> str:
         """Оценивает влияние на затраты."""
         cost_issues = 0
@@ -688,7 +691,7 @@ class ComprehensiveBayesianAnalyzer:
         if diagnosis["critical_tests"]:
             action_plan["immediate_actions"].extend(
                 [
-                    f"Исправить критические тесты: {', '.join(diagnosis['critical_tests'][:self.ACTION_PLAN_CRITICAL_TESTS_DISPLAY_LIMIT])}",
+                    f"Исправить критические тесты: {', '.join(diagnosis['critical_tests'][: self.ACTION_PLAN_CRITICAL_TESTS_DISPLAY_LIMIT])}",
                     "Провести экстренный аудит безопасности",
                     "Временно отключить проблемные функции",
                 ]
