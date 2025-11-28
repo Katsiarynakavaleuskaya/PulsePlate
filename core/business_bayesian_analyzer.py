@@ -273,10 +273,12 @@ class BusinessBayesianAnalyzer:
                 from core.bayesian_recommendations import RECOMMENDATIONS
 
                 SUPPORTED_LOCALES = set(RECOMMENDATIONS.keys())
-                normalized_locale = str(locale) if locale in SUPPORTED_LOCALES else "en"
+                # Guard against None to prevent str(None) -> "None" literal
+                normalized_locale = str(locale) if locale and locale in SUPPORTED_LOCALES else "en"
             except ImportError:
                 # Ultimate fallback if recommendations module not available
-                normalized_locale = str(locale) if locale in {"en", "ru", "es"} else "en"
+                # Guard against None to prevent str(None) -> "None" literal
+                normalized_locale = str(locale) if locale and locale in {"en", "ru", "es"} else "en"
 
         config_dir = Path(__file__).parent.parent / "config"
 

@@ -412,7 +412,8 @@ class ComprehensiveBayesianAnalyzer:
         for issue in business:
             if any(keyword in issue.lower() for keyword in self.CRITICAL_BUSINESS_KEYWORDS):
                 # Prefix ensures _has_critical_business_issues() can detect these issues
-                critical.append(f"{self.BUSINESS_MARKER_PREFIX} {issue}")
+                # No space after colon to match the startswith check in _has_critical_business_issues()
+                critical.append(f"{self.BUSINESS_MARKER_PREFIX}{issue}")
 
         return critical
 

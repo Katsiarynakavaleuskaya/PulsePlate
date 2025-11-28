@@ -11,7 +11,7 @@ from core import bayesian_recommendations as br
 class DummyError(Enum):
     """Minimal enum to exercise get_error_type_key."""
 
-    ASSERTION = "assertion_error"
+    ASSERTION_ERROR = "assertion_error"
 
 
 def test_get_recommendations_known_key_and_fallback_language():
@@ -58,7 +58,7 @@ def test_get_recommendations_fallbacks_to_default_language(monkeypatch):
 
 def test_get_error_and_symptom_keys():
     """Ensure key helpers prefix values correctly."""
-    assert br.get_error_type_key(DummyError.ASSERTION) == "error_type.assertion"
+    assert br.get_error_type_key(DummyError.ASSERTION_ERROR) == "error_type.assertion_error"
     assert br.get_symptom_key("async_context") == "symptom.async_context"
 
 

@@ -81,10 +81,24 @@ def bad():
 
 
 def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
-    config_dir = Path(__file__).resolve().parent.parent / "core" / "config"
+    # Use tmp_path to avoid modifying production config directory
+    config_dir = tmp_path / "core" / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "business_knowledge.yaml"
-    yaml_path.write_text("revenue_streams:\n  custom:\n    foo: 1\n", encoding="utf-8")
+    yaml_path.write_text(
+        """revenue_streams:
+  custom:
+    foo: 1
+""",
+        encoding="utf-8",
+    )
+
+    # Monkeypatch __file__ to point to tmp_path so config path resolution uses tmp_path
+    import core.business_bayesian_analyzer as bba_module
+
+    original_file = bba_module.__file__
+    mock_file = str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    monkeypatch.setattr(bba_module, "__file__", mock_file)
 
     monkeypatch.setattr(
         BusinessBayesianAnalyzer,
@@ -97,14 +111,28 @@ def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
     data = analyzer._load_business_knowledge()
     assert "revenue_streams" in data
 
-    yaml_path.unlink()
+    # Restore original __file__
+    monkeypatch.setattr(bba_module, "__file__", original_file)
 
 
 def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path):
-    config_dir = Path(__file__).resolve().parent.parent / "core" / "config"
+    # Use tmp_path to avoid modifying production config directory
+    config_dir = tmp_path / "core" / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "business_knowledge.yaml"
-    yaml_path.write_text(":\n  bad: [", encoding="utf-8")
+    yaml_path.write_text(
+        """:
+  bad: [
+""",
+        encoding="utf-8",
+    )
+
+    # Monkeypatch __file__ to point to tmp_path so config path resolution uses tmp_path
+    import core.business_bayesian_analyzer as bba_module
+
+    original_file = bba_module.__file__
+    mock_file = str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    monkeypatch.setattr(bba_module, "__file__", mock_file)
 
     monkeypatch.setattr(
         BusinessBayesianAnalyzer,
@@ -120,7 +148,8 @@ def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path):
     data = analyzer._load_business_knowledge()
     assert "subscription" in data["revenue_streams"]
 
-    yaml_path.unlink()
+    # Restore original __file__
+    monkeypatch.setattr(bba_module, "__file__", original_file)
 
 
 def test_comprehensive_scoring_and_impacts():
@@ -246,7 +275,7 @@ with closing(open("bar.txt")) as fh:
 """
     assert analyzer._check_unsafe_file_opens(code_safe_closing) is False
 
-    test_ctx_code = '''
+    test_ctx_code = """
 import pytest
 from unittest.mock import patch, Mock
 
@@ -254,7 +283,7 @@ from unittest.mock import patch, Mock
 def helper():
     m = Mock()
     return m
-'''
+"""
     assert analyzer._is_in_test_or_mock_context(test_ctx_code) is True
 
 
@@ -277,6 +306,8 @@ def test_comprehensive_analyze_comprehensively_paths(monkeypatch):
 
     # Critical nutrition issue forces overall_score to zero
     crit = StubResult(False, "dangerous bmi value")
-    monkeypatch.setattr(analyzer.nutrition_analyzer, "analyze_nutrition_safety", lambda c, t: [crit])
+    monkeypatch.setattr(
+        analyzer.nutrition_analyzer, "analyze_nutrition_safety", lambda c, t: [crit]
+    )
     res_crit = analyzer.analyze_comprehensively("code", "test_crit", "file")
     assert res_crit.overall_score == 0.0

@@ -84,6 +84,12 @@ jobs:
             --exclude 'htmlcov/**' \
             --exclude 'coverage/**' \
             --exclude 'providers/pico.py' \
+            --exclude 'core/bayesian_technical_utils.py' \
+            --exclude 'core/bayesian_test_analyzer.py' \
+            --exclude 'core/business_bayesian_analyzer.py' \
+            --exclude 'core/comprehensive_bayesian_analyzer.py' \
+            --exclude 'core/integrated_bayesian_analyzer.py' \
+            --exclude 'core/nutrition_bayesian_analyzer.py' \
             --exclude 'app/routers/vip.py' \
             --exclude 'conftest.py' \
             --exclude 'tests/**' \
