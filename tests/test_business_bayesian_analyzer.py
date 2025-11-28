@@ -623,7 +623,7 @@ def prod_code():
         assert isinstance(roi_estimates, list)
         assert any(est.category in {"cost_optimization", "monetization"} for est in roi_estimates)
 
-    def test_generate_revenue_optimization_recommendations(self):
+    def test_generate_revenue_optimization_recommendations_with_additional_cases(self):
         """Ensure revenue/retention/data monetization branches produce recommendations."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.extend(

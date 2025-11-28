@@ -295,8 +295,12 @@ class BayesianTestAnalyzer:
                 logger.info(f"Загружено {len(self.execution_history)} записей истории тестов")
                 # Адаптировать приоры на базе истории
                 self._refresh_priors_from_history()
-        except Exception as e:
+        except FileNotFoundError:
+            logger.debug(f"History file not found: {self.data_file}")
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.warning(f"Не удалось загрузить историю тестов: {e}")
+        except Exception as e:
+            logger.exception(f"Unexpected error loading test history: {e}")
 
     def save_history(self) -> None:
         """Сохранить историю выполнения тестов."""
@@ -804,7 +808,7 @@ class BayesianTestAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Анализирует технические аспекты теста."""
-        return analyze_technical_aspects_common(code, test_name)
+        return analyze_technical_aspects_common(code)
 
     def analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Public wrapper for analyzing technical aspects of a test.

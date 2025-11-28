@@ -141,7 +141,13 @@ class ComprehensiveBayesianAnalyzer:
     # Business issue severity keywords (bilingual: Russian and English)
     # RU: Ключевые слова для определения серьезности бизнес-проблем
     # EN: Used in _calculate_business_score and _identify_critical_issues for consistent scoring
-    CRITICAL_BUSINESS_KEYWORDS = ("доход", "revenue", "income", "клиент", "customer")
+    
+    # Revenue-related critical keywords
+    CRITICAL_REVENUE_KEYWORDS = ("доход", "revenue", "income")
+    # Customer-related important keywords  
+    IMPORTANT_CUSTOMER_KEYWORDS = ("клиент", "customer", "client")
+    # Combined for backward compatibility and critical issues identification
+    CRITICAL_BUSINESS_KEYWORDS = CRITICAL_REVENUE_KEYWORDS + IMPORTANT_CUSTOMER_KEYWORDS
 
     # Standardized business marker prefix for critical business issues
     # RU: Стандартизированный префикс маркера для критических бизнес-проблем
@@ -369,16 +375,12 @@ class ComprehensiveBayesianAnalyzer:
 
         # Use centralized keyword constants for consistent scoring
         # RU: Используем централизованные константы ключевых слов для согласованной оценки
-        # Separate critical (revenue) from important (customer) keywords
-        critical_revenue_keywords = ("доход", "revenue", "income")
-        important_customer_keywords = ("клиент", "customer", "client")
-
         penalty = 0.0
         for issue in issues:
             issue_lower = issue.lower()
-            if any(keyword in issue_lower for keyword in critical_revenue_keywords):
+            if any(keyword in issue_lower for keyword in self.CRITICAL_REVENUE_KEYWORDS):
                 penalty += self.BUSINESS_PENALTY_CRITICAL  # Критические бизнес-проблемы
-            elif any(keyword in issue_lower for keyword in important_customer_keywords):
+            elif any(keyword in issue_lower for keyword in self.IMPORTANT_CUSTOMER_KEYWORDS):
                 penalty += self.BUSINESS_PENALTY_IMPORTANT  # Важные проблемы
             else:
                 penalty += self.BUSINESS_PENALTY_NORMAL  # Обычные проблемы
@@ -473,7 +475,7 @@ class ComprehensiveBayesianAnalyzer:
             return "Критическое влияние на доходы"
 
     def _assess_cost_impact(
-        self, technical: List[str], nutrition: List[str], business: List[str]
+        self, technical: List[str], _nutrition: List[str], business: List[str]  # noqa: ARG002
     ) -> str:
         """Оценивает влияние на затраты."""
         cost_issues = 0

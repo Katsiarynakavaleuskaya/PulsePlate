@@ -299,11 +299,11 @@ class BusinessBayesianAnalyzer:
                 try:
                     with open(config_path, "r", encoding="utf-8") as f:
                         loaded = yaml_module.safe_load(f) or {}
-                except (OSError, yaml_error) as load_error:
+                except (OSError, yaml_error):
                     logger.warning(
                         "Failed to load monetization strategies from %s",
                         config_path,
-                        exc_info=load_error,
+                        exc_info=True,
                     )
                     load_failed = True
                 if load_failed:

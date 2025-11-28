@@ -14,7 +14,7 @@ class DummyError(Enum):
     ASSERTION_ERROR = "assertion_error"
 
 
-def test_get_recommendations_known_key_and_fallback_language():
+def test_get_recommendations_known_key_and_fallback_language() -> None:
     """Known key with unknown language should fall back to DEFAULT_LANGUAGE."""
     default_lang = br.DEFAULT_LANGUAGE
     expected = br.RECOMMENDATIONS[default_lang]["error_type.assertion_error"]
@@ -25,21 +25,21 @@ def test_get_recommendations_known_key_and_fallback_language():
     assert isinstance(recs, list)
 
 
-def test_get_recommendations_missing_key_returns_fallback():
+def test_get_recommendations_missing_key_returns_fallback() -> None:
     """Unknown recommendation key should return provided fallback list."""
     fallback = ["Default recommendation"]
     recs = br.get_recommendations("nonexistent.key", language="ru", fallback=fallback)
     assert recs == fallback
 
 
-def test_get_recommendations_uses_default_language_when_none():
+def test_get_recommendations_uses_default_language_when_none() -> None:
     """None language should default to DEFAULT_LANGUAGE."""
     expected = br.RECOMMENDATIONS[br.DEFAULT_LANGUAGE]["error_type.assertion_error"]
     recs = br.get_recommendations("error_type.assertion_error", language=None)
     assert recs == expected
 
 
-def test_get_recommendations_fallbacks_to_default_language(monkeypatch):
+def test_get_recommendations_fallbacks_to_default_language(monkeypatch) -> None:
     """
     If the requested language lacks a key, recommendations should fall back to the default language.
     """
@@ -56,13 +56,13 @@ def test_get_recommendations_fallbacks_to_default_language(monkeypatch):
     assert recs == br.RECOMMENDATIONS[default_lang][missing_key]
 
 
-def test_get_error_and_symptom_keys():
+def test_get_error_and_symptom_keys() -> None:
     """Ensure key helpers prefix values correctly."""
     assert br.get_error_type_key(DummyError.ASSERTION_ERROR) == "error_type.assertion_error"
     assert br.get_symptom_key("async_context") == "symptom.async_context"
 
 
-def test_get_all_keys_nonempty_and_prefixed():
+def test_get_all_keys_nonempty_and_prefixed() -> None:
     """All exported keys should be prefixed appropriately and non-empty."""
     error_keys = br.get_all_error_type_keys()
     symptom_keys = br.get_all_symptom_keys()

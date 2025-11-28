@@ -81,7 +81,7 @@ def _has_explicit_return_or_yield(node: Union[ast.FunctionDef, ast.AsyncFunction
     return _check_node(node)
 
 
-def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[str]:  # noqa: ARG001
+def analyze_technical_aspects_common(code: str) -> List[str]:
     """Shared logic for analyzing technical aspects of a test.
 
     This function contains the common technical analysis logic used by
@@ -89,7 +89,6 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
 
     Args:
         code: The test code to analyze
-        _test_name: Reserved for future logging/telemetry (currently unused).
 
     Returns:
         List of identified technical issues

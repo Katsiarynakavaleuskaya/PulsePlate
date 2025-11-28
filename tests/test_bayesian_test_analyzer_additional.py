@@ -13,7 +13,7 @@ from core.bayesian_test_analyzer import (
 )
 
 
-def test_diagnose_test_failure_defaults_and_confidence_single_entry():
+def test_diagnose_test_failure_defaults_and_confidence_single_entry() -> None:
     analyzer = BayesianTestAnalyzer()
     diagnosis = analyzer.diagnose_test_failure("t1", "some error")
     assert diagnosis is not None
@@ -21,7 +21,8 @@ def test_diagnose_test_failure_defaults_and_confidence_single_entry():
     assert math.isclose(analyzer._calculate_confidence({ErrorType.RUNTIME_ERROR: 1.0}), 1.0)
 
 
-def test_calculate_likelihood_empty_symptoms_and_history_similarity():
+def test_calculate_likelihood_empty_symptoms_and_history_similarity() -> None:
+    """Test likelihood calculation with empty symptoms via public API."""
     analyzer = BayesianTestAnalyzer()
     record = TestRecord(
         test_name="t2",
@@ -33,12 +34,14 @@ def test_calculate_likelihood_empty_symptoms_and_history_similarity():
     )
     analyzer.execution_history.append(record)
 
-    # Empty symptoms + empty error_message should hit similarity shortcut branch
-    prob = analyzer._calculate_likelihood(set(), ErrorType.RUNTIME_ERROR, similar_cases=[])
-    assert 0.0 < prob <= 1.0
+    # Test via public API: diagnose_test_failure with empty error message
+    # This exercises the empty symptoms path through the public interface
+    diagnosis = analyzer.diagnose_test_failure("t2", "")
+    assert diagnosis is not None
+    assert diagnosis.most_likely_cause in ErrorType
 
 
-def test_record_and_reset_global_analyzer():
+def test_record_and_reset_global_analyzer() -> None:
     # Use module-level helpers to cover get_analyzer/reset_analyzer paths
     record_test_execution(
         "t3",

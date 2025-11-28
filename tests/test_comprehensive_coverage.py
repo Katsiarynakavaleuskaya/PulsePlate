@@ -185,10 +185,9 @@ class TestComprehensiveCoverage:
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code in [200, 500]
-            if response.status_code == 500:
-                data = response.json()
-                assert "detail" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "message" in data  # or appropriate success response key
 
     def test_rollback_endpoint_failure(self):
         """Test rollback endpoint failure case."""

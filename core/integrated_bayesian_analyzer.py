@@ -176,7 +176,7 @@ class IntegratedBayesianAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze technical aspects of the test."""
-        return analyze_technical_aspects_common(code, test_name)
+        return analyze_technical_aspects_common(code)
 
     def _is_in_test_or_mock_context(self, code: str) -> bool:
         """

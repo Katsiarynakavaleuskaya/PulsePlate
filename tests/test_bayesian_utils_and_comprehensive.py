@@ -53,7 +53,7 @@ def with_try():
     assert tech_utils._has_explicit_return_or_yield(func) is True
 
 
-def test_has_explicit_return_in_except_only_triggers_handlers_walk():
+def test_has_explicit_return_in_except_only_triggers_handlers_walk() -> None:
     code = """
 def only_except():
     try:
@@ -75,13 +75,13 @@ import asyncio
 async def fetch():
     Mock()
 """
-    issues_ast = tech_utils.analyze_technical_aspects_common(code_ast, "ast_path")
+    issues_ast = tech_utils.analyze_technical_aspects_common(code_ast)
     assert "Async function without await usage" in issues_ast
     assert "Using Mock instead of AsyncMock for async methods" in issues_ast
 
     # Regex fallback path triggered via syntax error
     bad_code = "async def broken(:\n    Mock()\n"
-    issues_regex = tech_utils.analyze_technical_aspects_common(bad_code, "regex_path")
+    issues_regex = tech_utils.analyze_technical_aspects_common(bad_code)
     assert "Async function without await usage" in issues_regex
     assert "Using Mock instead of AsyncMock for async methods" in issues_regex
 
@@ -90,7 +90,7 @@ async def fetch():
 def bad():
     raise ValueError("oops")
 """
-    issues_raise = tech_utils.analyze_technical_aspects_common(raise_code, "raise_path")
+    issues_raise = tech_utils.analyze_technical_aspects_common(raise_code)
     assert "Exception raised without handling" in issues_raise
 
     # Missing return type annotation (AST path)
@@ -98,12 +98,12 @@ def bad():
 def foo():
     return 1
 """
-    issues_missing = tech_utils.analyze_technical_aspects_common(missing_return, "miss_ret")
+    issues_missing = tech_utils.analyze_technical_aspects_common(missing_return)
     assert "Missing return type annotations" in issues_missing
 
     # Missing return type annotation (regex fallback path)
     bad_syntax = "def broken(:\n    return 1\n"
-    issues_fallback = tech_utils.analyze_technical_aspects_common(bad_syntax, "fallback")
+    issues_fallback = tech_utils.analyze_technical_aspects_common(bad_syntax)
     assert "Missing return type annotations" in issues_fallback
 
 

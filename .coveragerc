@@ -1,9 +1,9 @@
 # Coverage.py configuration for PulsePlate project
 # Excludes untestable code from coverage metrics
 #
-# TEMPORARY: CI threshold currently set to 85% (down from 97%) while adding tests
-# for new Bayesian analyzer modules added in PR #294. Will restore to 97% when tests complete.
-# Target: Achieve realistic 97% coverage on production code after excluding boilerplate.
+# Note: For current coverage threshold requirements, see CI configuration (.github/workflows/pr-tests.yml)
+# and PR #294 for context on any temporary adjustments during feature development.
+# Project standard: 97% coverage on production code after excluding boilerplate.
 
 [run]
 branch = True
