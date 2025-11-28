@@ -623,6 +623,36 @@ def prod_code():
         assert isinstance(roi_estimates, list)
         assert any(est.category in {"cost_optimization", "monetization"} for est in roi_estimates)
 
+    def test_generate_revenue_optimization_recommendations(self):
+        """Ensure revenue/retention/data monetization branches produce recommendations."""
+        analyzer = BusinessBayesianAnalyzer()
+        analyzer.test_results.extend(
+            [
+                BusinessTestResult(
+                    test_name="t_acq",
+                    success=False,
+                    business_category=BusinessCategory.CUSTOMER_ACQUISITION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                ),
+                BusinessTestResult(
+                    test_name="t_ret",
+                    success=False,
+                    business_category=BusinessCategory.USER_RETENTION,
+                    error_type=BusinessErrorType.CUSTOMER_CHURN,
+                ),
+                BusinessTestResult(
+                    test_name="t_data",
+                    success=False,
+                    business_category=BusinessCategory.DATA_MONETIZATION,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                ),
+            ]
+        )
+        recs = analyzer.generate_revenue_optimization_recommendations()
+        joined = " ".join(recs)
+        assert "онбординга" in joined or "loyalty" in joined.lower()
+        assert "API" in joined or "аналитические отчеты" in joined
+
 
 class TestInternalHelpers:
     """Test internal helper methods for coverage."""
@@ -681,3 +711,17 @@ for a in range(3):
                 time_horizon_months=1,
                 assumptions="x",
             )
+
+    def test_calculate_bayesian_roi_high_variance_branch(self):
+        """High variance should hit delta-method variance branch without errors."""
+        analyzer = BusinessBayesianAnalyzer()
+        estimate = analyzer._calculate_bayesian_roi(
+            category="var_branch",
+            prior_mean=0.1,
+            prior_std=1.5,  # large std to trigger relative_variance threshold
+            data=[0.2, 0.4],
+            time_horizon_months=6,
+            assumptions="test",
+        )
+        assert isinstance(estimate, ROIEstimate)
+        assert estimate.expected_roi > -1

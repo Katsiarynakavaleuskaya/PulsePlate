@@ -40,6 +40,19 @@ def outer():
     assert tech_utils._has_explicit_return_or_yield(funcs["outer"]) is False
 
 
+def test_has_explicit_return_or_yield_with_handlers():
+    code = """
+def with_try():
+    try:
+        return 1
+    except Exception:
+        return 2
+"""
+    tree = tech_utils.ast.parse(code)
+    func = tree.body[0]
+    assert tech_utils._has_explicit_return_or_yield(func) is True
+
+
 def test_analyze_technical_aspects_common_regex_fallback_and_ast_branch():
     # AST path: async without await + Mock instead of AsyncMock
     code_ast = """
@@ -57,6 +70,14 @@ async def fetch():
     issues_regex = tech_utils.analyze_technical_aspects_common(bad_code, "regex_path")
     assert "Async function without await usage" in issues_regex
     assert "Using Mock instead of AsyncMock for async methods" in issues_regex
+
+    # Exception without handling should be reported
+    raise_code = """
+def bad():
+    raise ValueError("oops")
+"""
+    issues_raise = tech_utils.analyze_technical_aspects_common(raise_code, "raise_path")
+    assert "Exception raised without handling" in issues_raise
 
 
 def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
@@ -115,7 +136,7 @@ def test_comprehensive_scoring_and_impacts():
     critical = analyzer._identify_critical_issues(tech_issues, nutrition_issues, business_issues)
     assert any(item.startswith("TECH") for item in critical)
     assert any(item.startswith("HEALTH") for item in critical)
-    assert any(item.startswith("BUSINESS") for item in critical)
+    assert any(item.lower().startswith("business:") for item in critical)
 
     opportunities = analyzer._identify_optimization_opportunities(
         ["cache layer", "async calls"], ["аллерген найден", "BMI high"], ["price high", "customer"]
@@ -170,6 +191,7 @@ def test_comprehensive_get_diagnosis_and_action_plan():
     action_plan = analyzer.generate_action_plan()
     assert "immediate_actions" in action_plan
     assert "cost_optimization" in action_plan
+    assert analyzer._has_critical_nutrition_issues(["dangerous calories"]) is True
 
 
 @pytest.mark.parametrize(
@@ -210,3 +232,51 @@ with closing(open("bar")) as fh:
 """
     # open() without context manager should be flagged
     assert analyzer._check_unsafe_file_opens(code_safe) is True
+
+    code_safe_context = """
+with open("foo.txt") as fh:
+    fh.read()
+"""
+    assert analyzer._check_unsafe_file_opens(code_safe_context) is False
+
+    code_safe_closing = """
+from contextlib import closing
+with closing(open("bar.txt")) as fh:
+    fh.read()
+"""
+    assert analyzer._check_unsafe_file_opens(code_safe_closing) is False
+
+    test_ctx_code = '''
+import pytest
+from unittest.mock import patch, Mock
+
+@patch("mod.fn")
+def helper():
+    m = Mock()
+    return m
+'''
+    assert analyzer._is_in_test_or_mock_context(test_ctx_code) is True
+
+
+def test_comprehensive_analyze_comprehensively_paths(monkeypatch):
+    analyzer = ComprehensiveBayesianAnalyzer()
+
+    class StubResult:
+        def __init__(self, success: bool, error_message: str | None = None) -> None:
+            self.success = success
+            self.error_message = error_message
+
+    # Stub technical and business analyzers
+    monkeypatch.setattr(analyzer.technical_analyzer, "analyze_technical_aspects", lambda c, t: [])
+    monkeypatch.setattr(analyzer.business_analyzer, "analyze_business_logic", lambda c, t: [])
+
+    # No nutrition results -> fallback contribution branch
+    monkeypatch.setattr(analyzer.nutrition_analyzer, "analyze_nutrition_safety", lambda c, t: [])
+    res_empty = analyzer.analyze_comprehensively("code", "test_no_nutrition", "file")
+    assert res_empty.nutrition_score == 1.0
+
+    # Critical nutrition issue forces overall_score to zero
+    crit = StubResult(False, "dangerous bmi value")
+    monkeypatch.setattr(analyzer.nutrition_analyzer, "analyze_nutrition_safety", lambda c, t: [crit])
+    res_crit = analyzer.analyze_comprehensively("code", "test_crit", "file")
+    assert res_crit.overall_score == 0.0

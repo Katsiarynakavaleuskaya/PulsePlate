@@ -226,24 +226,21 @@ class IntegratedBayesianAnalyzer:
             # Check for pytest.fixture or mock decorators
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 for decorator in node.decorator_list:
-                    # @pytest.fixture
                     if isinstance(decorator, ast.Attribute):
+                        # @pytest.fixture
                         if (
                             isinstance(decorator.value, ast.Name)
                             and decorator.value.id == "pytest"
                             and decorator.attr == "fixture"
                         ):
                             return True
-                    # @fixture (from pytest import fixture)
+                        # @mock.patch or @mock.*
+                        if isinstance(decorator.value, ast.Name) and decorator.value.id == "mock":
+                            return True
+                    # @fixture (from pytest import fixture) or @patch (from unittest.mock import patch)
                     elif isinstance(decorator, ast.Name):
                         if decorator.id in {"fixture", "pytest_fixture"}:
                             return True
-                    # @mock.patch or @mock.*
-                    elif isinstance(decorator, ast.Attribute):
-                        if isinstance(decorator.value, ast.Name) and decorator.value.id == "mock":
-                            return True
-                    # @patch (from unittest.mock import patch)
-                    elif isinstance(decorator, ast.Name):
                         # Narrow check: only @patch is a clear test/mock decorator
                         # Note: "mock" alone is too generic (could be any custom decorator)
                         if decorator.id == "patch":
@@ -445,10 +442,9 @@ class IntegratedBayesianAnalyzer:
                     return any(keyword in value_lower for keyword in self.sensitive_keywords)
 
                 # Check for FormattedValue nodes (f-string parts)
-                if isinstance(node, ast.FormattedValue):
-                    if isinstance(node.value, ast.Name):
-                        name_lower = node.value.id.lower()
-                        return any(keyword in name_lower for keyword in self.sensitive_keywords)
+                if isinstance(node, ast.FormattedValue) and isinstance(node.value, ast.Name):
+                    name_lower = node.value.id.lower()
+                    return any(keyword in name_lower for keyword in self.sensitive_keywords)
 
                 # Check for JoinedStr nodes (f-strings)
                 if isinstance(node, ast.JoinedStr):
