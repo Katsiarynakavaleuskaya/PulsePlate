@@ -50,8 +50,8 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           # Fetch base branch with full history so diff-cover can calculate diffs
-          # --unshallow ensures all commits are fetched (no shallow clone)
-          git fetch --no-tags --prune origin "${{ github.base_ref }}":"${{ github.base_ref }}" --unshallow
+          # fetch-depth: 0 in checkout already ensures complete clone
+          git fetch --no-tags --prune origin "${{ github.base_ref }}":"${{ github.base_ref }}"
           # Create local branch pointing to base ref for reliable diff-cover comparison
           git branch --force base "${{ github.base_ref }}"
 
