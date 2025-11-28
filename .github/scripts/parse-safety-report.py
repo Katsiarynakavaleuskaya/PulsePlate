@@ -9,6 +9,7 @@ and exits with appropriate status codes:
 - 10: High/Critical/Unknown severity vulnerabilities found (unknown treated as high risk)
 - 99: Safety report JSON was not generated or could not be parsed
 """
+
 import json
 import sys
 from pathlib import Path

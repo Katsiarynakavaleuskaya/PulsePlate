@@ -100,7 +100,7 @@ def _log_validation_error(
         stderr[:CONSOLE_PREVIEW_LIMIT] if len(stderr) > CONSOLE_PREVIEW_LIMIT else stderr
     )
 
-    msg = f"{error_type}. {error_details} " f"stdout ({len(stdout)} chars): {stdout_preview}"
+    msg = f"{error_type}. {error_details} stdout ({len(stdout)} chars): {stdout_preview}"
     if len(stdout) > CONSOLE_PREVIEW_LIMIT:
         msg += "... (truncated, see full log)"
     if stderr:

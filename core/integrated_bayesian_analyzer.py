@@ -187,6 +187,7 @@ class IntegratedBayesianAnalyzer:
         - Classes inheriting from unittest.TestCase
         - pytest.fixture or mock decorators
         - Explicit mock module imports/usage
+        - External 'mock' library patterns (import mock, @mock.patch)
 
         Falls back to regex if AST parsing fails.
         """
@@ -203,8 +204,24 @@ class IntegratedBayesianAnalyzer:
                 r"\bunittest\.mock\b",  # unittest.mock usage
                 r"\bMock\(",  # Mock instantiation
                 r"\bMagicMock\(",  # MagicMock instantiation
+                r"^\s*import\s+mock\b",  # import mock (external library)
+                r"^\s*from\s+mock\s+import\b",  # from mock import ...
             ]
             return any(re.search(pattern, code, re.MULTILINE) for pattern in regex_patterns)
+
+        # Check for external 'mock' library import at module level
+        for node in ast.walk(tree):
+            # import mock (external library)
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "mock":
+                        # Found 'import mock' - check if @mock.patch or similar is used
+                        if re.search(r"@mock\.", code):
+                            return True
+            # from mock import ... (external library)
+            if isinstance(node, ast.ImportFrom):
+                if node.module == "mock":
+                    return True
 
         # AST-based detection for precise matching
         for node in ast.walk(tree):
@@ -227,14 +244,14 @@ class IntegratedBayesianAnalyzer:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 for decorator in node.decorator_list:
                     if isinstance(decorator, ast.Attribute):
-                        # @pytest.fixture
+                        # @pytest.fixture or @pytest.mark.*
                         if (
                             isinstance(decorator.value, ast.Name)
                             and decorator.value.id == "pytest"
-                            and decorator.attr == "fixture"
+                            and decorator.attr in {"fixture", "mark"}
                         ):
                             return True
-                        # @mock.patch or @mock.*
+                        # @mock.patch or @mock.* (including external 'mock' library)
                         if isinstance(decorator.value, ast.Name) and decorator.value.id == "mock":
                             return True
                     # @fixture (from pytest import fixture) or @patch (from unittest.mock import patch)

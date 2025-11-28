@@ -129,6 +129,15 @@ class BusinessBayesianAnalyzer:
     RELATIVE_VARIANCE_THRESHOLD: float = 0.1
     VAR_RATIO_THRESHOLD: float = 0.01
 
+    # Maximum credible upper bound for ROI estimates
+    # RU: Максимальная верхняя граница доверительного интервала для оценок ROI
+    # EN: Prevents astronomically large/misleading upper bounds due to high posterior variance.
+    #     Value: 10.0 (1000% ROI) - reasonable upper limit for business projections
+    #     Rationale: ROI > 1000% is unrealistic for most business optimizations and likely
+    #     indicates high uncertainty rather than genuine potential.
+    #     This constant is configurable for domains expecting higher returns.
+    MAX_CREDIBLE_UPPER_ROI: float = 10.0
+
     def __init__(
         self,
         low_price_threshold: float | None = None,
@@ -208,7 +217,12 @@ class BusinessBayesianAnalyzer:
         config_path: Path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
         if config_path.exists():
             yaml_module: ModuleType | None = self._import_yaml_module()
-            if yaml_module is not None:
+            if yaml_module is None:
+                logger.warning(
+                    "PyYAML not installed - cannot load business_knowledge.yaml. "
+                    "Using hardcoded defaults. Install PyYAML with: pip install pyyaml"
+                )
+            else:
                 yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
                 try:
                     with open(config_path, "r", encoding="utf-8") as file:
@@ -1217,11 +1231,21 @@ class BusinessBayesianAnalyzer:
         try:
             credible_interval_lower = max(-1.0, math.exp(lower_log) - 1)  # ROI может быть до -100%
             credible_interval_upper = math.exp(upper_log) - 1
-        except OverflowError as e:
-            raise ValueError(
-                f"Overflow error computing credible interval for category '{category}': "
-                f"lower_log={lower_log}, upper_log={upper_log}. Values too large."
-            ) from e
+        except OverflowError:
+            # On overflow, use clamped maximum to avoid misleading infinite ROI
+            credible_interval_lower = (
+                max(-1.0, math.exp(lower_log) - 1) if lower_log < 100 else -1.0
+            )
+            credible_interval_upper = self.MAX_CREDIBLE_UPPER_ROI
+            logger.warning(
+                f"Overflow computing credible interval for category '{category}': "
+                f"upper_log={upper_log:.2f}. Clamping upper bound to {self.MAX_CREDIBLE_UPPER_ROI}."
+            )
+
+        # Clamp upper bound to prevent misleading astronomically large values
+        # Ensure clamped value is at least >= lower bound
+        credible_interval_upper = min(credible_interval_upper, self.MAX_CREDIBLE_UPPER_ROI)
+        credible_interval_upper = max(credible_interval_upper, credible_interval_lower)
 
         return ROIEstimate(
             category=category,

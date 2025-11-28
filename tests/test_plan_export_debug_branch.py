@@ -20,7 +20,7 @@ def test_build_pdf_week_debug_branch(
     for i in range(days_count):
         days.append(
             {
-                "date": f"2025-01-0{i+1}",
+                "date": f"2025-01-0{i + 1}",
                 "meals": [
                     {
                         "title": "Meal",
@@ -95,6 +95,6 @@ def test_build_pdf_week_debug_branch(
         assert isinstance(body, (bytes, bytearray)) and len(body) > 0
 
     # Assert that the debug message about story components was emitted
-    assert any(
-        "Story components count=" in rec.getMessage() for rec in caplog.records
-    ), "Expected debug message with story component counts not found"
+    assert any("Story components count=" in rec.getMessage() for rec in caplog.records), (
+        "Expected debug message with story component counts not found"
+    )

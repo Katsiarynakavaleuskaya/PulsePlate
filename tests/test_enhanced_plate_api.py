@@ -254,9 +254,9 @@ class TestEnhancedPlateAPI:
         assert 40 <= macros["fat_g"] <= 150
         assert 100 <= macros["carbs_g"] <= 600  # Allow higher carbs for very active individuals
         # fiber_g can vary based on targets or calculations; accept reasonable range
-        assert (
-            25 <= macros["fiber_g"] <= 50
-        ), f"Expected fiber_g between 25-50, got {macros['fiber_g']}"
+        assert 25 <= macros["fiber_g"] <= 50, (
+            f"Expected fiber_g between 25-50, got {macros['fiber_g']}"
+        )
 
         # Verify calorie calculation consistency (4/4/9 rule)
         calculated_kcal = (

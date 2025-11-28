@@ -420,7 +420,17 @@ class TestInternalsAndEdgeBranches:
                 )
             )
         report = analyzer.generate_test_report()
-        assert any("падающих тестов" in rec or "ошибка" in rec for rec in report["recommendations"])
+        # Locale-independent structural checks: verify recommendations exist and reference the failure
+        assert len(report["recommendations"]) > 0, (
+            "Report should contain recommendations for failing tests"
+        )
+        # Check that at least one recommendation mentions the test name, error type, or error message
+        recommendations_text = " ".join(report["recommendations"]).lower()
+        assert (
+            "test_failure" in recommendations_text
+            or "mock" in recommendations_text
+            or "error" in recommendations_text
+        ), "Recommendations should reference the failing test or error type"
 
     def test_gather_evidence_includes_file_stats(self):
         """Evidence should include file frequency when failures exist."""

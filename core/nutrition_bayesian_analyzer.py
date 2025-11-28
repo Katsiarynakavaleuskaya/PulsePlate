@@ -216,7 +216,7 @@ class NutritionBayesianAnalyzer:
 
                     # Extract surrounding context (40 chars before match) to detect meal identifiers
                     context_start = max(0, match.start() - 40)
-                    context_snippet = f"{test_name} {code[context_start:match.end()]}"
+                    context_snippet = f"{test_name} {code[context_start : match.end()]}"
 
                     # Skip meal-level values (detect via keywords and heuristics)
                     # Only flag daily totals as dangerous

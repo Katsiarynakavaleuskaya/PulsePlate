@@ -316,9 +316,9 @@ class TestSchedulerAdditionalCoverage:
             assert scheduler is not None, "Scheduler should be available after start"
 
             # Verify that multiple log messages were generated (indicates proper startup sequence)
-            assert (
-                mock_logger.info.call_count >= 2
-            ), "Expected multiple log messages during startup sequence"
+            assert mock_logger.info.call_count >= 2, (
+                "Expected multiple log messages during startup sequence"
+            )
 
     @pytest.mark.asyncio
     async def test_stop_background_updates_logging(self):
@@ -338,9 +338,9 @@ class TestSchedulerAdditionalCoverage:
             # and that logging occurred as expected
 
             # Verify that multiple log messages were generated (indicates proper shutdown sequence)
-            assert (
-                mock_logger.info.call_count >= 2
-            ), "Expected multiple log messages during shutdown sequence"
+            assert mock_logger.info.call_count >= 2, (
+                "Expected multiple log messages during shutdown sequence"
+            )
 
 
 if __name__ == "__main__":

@@ -501,13 +501,13 @@ class TestPlateTargetsMicroCoverage:
             for nutrient in target_micros:
                 target_value = targets_data["priority_micros"][nutrient]
 
-                assert (
-                    target_value > 0
-                ), f"Target {nutrient} should be positive for profile {profile}"
+                assert target_value > 0, (
+                    f"Target {nutrient} should be positive for profile {profile}"
+                )
 
                 # Check plate value if nutrient exists there
                 if nutrient in plate_micros:
                     plate_value = plate_data["day_micros"][nutrient]
-                    assert (
-                        plate_value >= 0
-                    ), f"Plate {nutrient} should be non-negative for profile {profile}"
+                    assert plate_value >= 0, (
+                        f"Plate {nutrient} should be non-negative for profile {profile}"
+                    )
