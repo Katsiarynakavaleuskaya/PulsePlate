@@ -130,11 +130,9 @@ jobs:
           API_KEY: "test_key"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          # TEMPORARY: Lowered threshold from 97% to 85% while adding tests for new Bayesian modules (PR #294)
-          # Restoration plan tracked in issue #295 (target: Sprint 2025-Q1, restore by 2025-12-15)
-          # TODO: Restore to --cov-fail-under=97 once Bayesian module coverage reaches 97%
-          # See: https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=85 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          # Project standard: maintain 97% coverage for PR branches before merge
+          # See .github/copilot-instructions.md and .cursorrules for coverage requirements
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -213,11 +211,9 @@ jobs:
           API_KEY: "test_key"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
-          # TEMPORARY: Lowered threshold from 97% to 85% while adding tests for new Bayesian modules (PR #294)
-          # Restoration plan tracked in issue #295 (target: Sprint 2025-Q1, restore by 2025-12-15)
-          # TODO: Restore to --cov-fail-under=97 once Bayesian module coverage reaches 97%
-          # See: https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=85 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          # Project standard: maintain 97% coverage for feature branches before merge
+          # See .github/copilot-instructions.md and .cursorrules for coverage requirements
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
 
       - name: Clean Python cache (post-test)
         if: always()
