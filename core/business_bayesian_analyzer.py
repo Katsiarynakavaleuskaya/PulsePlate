@@ -463,7 +463,6 @@ class BusinessBayesianAnalyzer:
     def _remove_comments(self, code: str | list[str]) -> str:
         """Remove inline comments while preserving '#' inside string literals."""
         code_str = self._normalize_code_input(code)
-        # _normalize_code_input always returns str, no need for redundant check
 
         try:
             tokens: list[tokenize.TokenInfo] = []
@@ -472,17 +471,90 @@ class BusinessBayesianAnalyzer:
                 for token in tokenize.generate_tokens(StringIO(code_str).readline)
                 if token.type != tokenize.COMMENT
             )
+            # tokenize.untokenize always returns str in Python 3
+            return str(tokenize.untokenize(tokens))
         except tokenize.TokenError:
+            # Fallback: character-level parsing that tracks string literals
             cleaned_lines = []
             for line in code_str.splitlines():
-                if "#" in line:
-                    cleaned_lines.append(line.split("#", 1)[0])
-                else:
-                    cleaned_lines.append(line)
+                cleaned_line = self._remove_comment_from_line(line)
+                cleaned_lines.append(cleaned_line)
             return "\n".join(cleaned_lines)
 
-        result = tokenize.untokenize(tokens)
-        return result.decode("utf-8") if isinstance(result, bytes) else str(result)
+    def _remove_comment_from_line(self, line: str) -> str:
+        """Remove comment from a single line, respecting string literals.
+
+        Tracks single/double/triple-quoted strings and only treats '#' as
+        comment start when not inside any string literal.
+        """
+        in_single_quote = False
+        in_double_quote = False
+        in_triple_single = False
+        in_triple_double = False
+        i = 0
+
+        while i < len(line):
+            # Check for triple quotes first (longer match)
+            if i + 2 < len(line):
+                three_chars = line[i : i + 3]
+
+                # Triple single quotes
+                if three_chars == "'''" and not in_double_quote and not in_triple_double:
+                    in_triple_single = not in_triple_single
+                    i += 3
+                    continue
+
+                # Triple double quotes
+                if three_chars == '"""' and not in_single_quote and not in_triple_single:
+                    in_triple_double = not in_triple_double
+                    i += 3
+                    continue
+
+            char = line[i]
+
+            # Check for escape sequences
+            if char == "\\" and i + 1 < len(line):
+                # Skip escaped character (including escaped quotes)
+                i += 2
+                continue
+
+            # Check for single quote (only if not in any other quote type)
+            if (
+                char == "'"
+                and not in_double_quote
+                and not in_triple_single
+                and not in_triple_double
+            ):
+                in_single_quote = not in_single_quote
+                i += 1
+                continue
+
+            # Check for double quote (only if not in any other quote type)
+            if (
+                char == '"'
+                and not in_single_quote
+                and not in_triple_single
+                and not in_triple_double
+            ):
+                in_double_quote = not in_double_quote
+                i += 1
+                continue
+
+            # Check for comment start (only if not in any string)
+            if (
+                char == "#"
+                and not in_single_quote
+                and not in_double_quote
+                and not in_triple_single
+                and not in_triple_double
+            ):
+                # Found comment start - return everything before it
+                return line[:i].rstrip()
+
+            i += 1
+
+        # No comment found, return entire line
+        return line
 
     def _analyze_monetization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует стратегии монетизации."""
