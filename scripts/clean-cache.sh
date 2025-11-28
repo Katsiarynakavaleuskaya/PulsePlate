@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/opt/homebrew/bin/bash
 set -euo pipefail
 
 # Enhanced Python cache cleanup script

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/opt/homebrew/bin/bash
 set -euo pipefail
 
 # Enhanced pre-commit hook with comprehensive checks
@@ -92,6 +92,22 @@ PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
 
 if [ ! -z "$PYTHON_CHANGES" ]; then
     echo "🐍 Python changes detected, running basic checks..."
+
+    # Auto-format with Black
+    echo "🎨 Auto-formatting Python code with Black..."
+    if command -v black > /dev/null 2>&1; then
+        black --line-length 100 $PYTHON_CHANGES
+        if [ $? -eq 0 ]; then
+            echo "✅ Black formatting applied"
+            # Re-stage formatted files
+            git add $PYTHON_CHANGES
+        else
+            echo "⚠️  Warning: Black formatting failed, continuing..."
+        fi
+    else
+        echo "⚠️  Warning: Black not found, skipping auto-formatting"
+        echo "   Install with: pip install black"
+    fi
 
     # Check Python syntax
     for file in $PYTHON_CHANGES; do
