@@ -125,6 +125,23 @@ class ComprehensiveBayesianAnalyzer:
         "опасно",
     )
 
+    # Technical issue severity keywords (bilingual: Russian and English)
+    # RU: Ключевые слова для определения серьезности технических проблем
+    # EN: Used in _calculate_technical_score and _identify_critical_issues for consistent scoring
+    CRITICAL_TECHNICAL_KEYWORDS = (
+        "asyncmock",
+        "исключен",
+        "exception",
+        "исключение",
+        "безопасность",
+    )
+    MAJOR_TECHNICAL_KEYWORDS = ("типизац", "typing", "type", "await")
+
+    # Business issue severity keywords (bilingual: Russian and English)
+    # RU: Ключевые слова для определения серьезности бизнес-проблем
+    # EN: Used in _calculate_business_score and _identify_critical_issues for consistent scoring
+    CRITICAL_BUSINESS_KEYWORDS = ("доход", "revenue", "income", "клиент", "customer")
+
     # Standardized business marker prefix for critical business issues
     # RU: Стандартизированный префикс маркера для критических бизнес-проблем
     BUSINESS_MARKER_PREFIX = "business:"
@@ -330,16 +347,14 @@ class ComprehensiveBayesianAnalyzer:
         if not issues:
             return 1.0
 
-        # Штрафы за разные типы проблем (билингвальные ключевые слова)
-        critical_keywords = ("asyncmock", "исключен", "exception")
-        major_keywords = ("типизац", "typing", "type", "await")
-
+        # Use centralized keyword constants for consistent scoring
+        # RU: Используем централизованные константы ключевых слов для согласованной оценки
         penalty = 0.0
         for issue in issues:
             issue_lower = issue.lower()
-            if any(keyword in issue_lower for keyword in critical_keywords):
+            if any(keyword in issue_lower for keyword in self.CRITICAL_TECHNICAL_KEYWORDS):
                 penalty += self.CRITICAL_PENALTY  # Критические проблемы
-            elif any(keyword in issue_lower for keyword in major_keywords):
+            elif any(keyword in issue_lower for keyword in self.MAJOR_TECHNICAL_KEYWORDS):
                 penalty += self.MAJOR_PENALTY  # Важные проблемы
             else:
                 penalty += self.MINOR_PENALTY  # Обычные проблемы
@@ -351,16 +366,18 @@ class ComprehensiveBayesianAnalyzer:
         if not issues:
             return 1.0
 
-        # Билингвальные ключевые слова для критичных и важных проблем
-        critical_keywords = ("доход", "revenue", "income")
-        important_keywords = ("клиент", "customer", "client")
+        # Use centralized keyword constants for consistent scoring
+        # RU: Используем централизованные константы ключевых слов для согласованной оценки
+        # Separate critical (revenue) from important (customer) keywords
+        critical_revenue_keywords = ("доход", "revenue", "income")
+        important_customer_keywords = ("клиент", "customer", "client")
 
         penalty = 0.0
         for issue in issues:
             issue_lower = issue.lower()
-            if any(keyword in issue_lower for keyword in critical_keywords):
+            if any(keyword in issue_lower for keyword in critical_revenue_keywords):
                 penalty += self.BUSINESS_PENALTY_CRITICAL  # Критические бизнес-проблемы
-            elif any(keyword in issue_lower for keyword in important_keywords):
+            elif any(keyword in issue_lower for keyword in important_customer_keywords):
                 penalty += self.BUSINESS_PENALTY_IMPORTANT  # Важные проблемы
             else:
                 penalty += self.BUSINESS_PENALTY_NORMAL  # Обычные проблемы
@@ -373,11 +390,10 @@ class ComprehensiveBayesianAnalyzer:
         """Идентифицирует критические проблемы."""
         critical = []
 
-        # Критические технические проблемы
+        # Критические технические проблемы - use centralized keywords
+        # RU: Используем централизованные ключевые слова из CRITICAL_TECHNICAL_KEYWORDS
         for issue in technical:
-            if any(
-                keyword in issue.lower() for keyword in ["asyncmock", "исключение", "безопасность"]
-            ):
+            if any(keyword in issue.lower() for keyword in self.CRITICAL_TECHNICAL_KEYWORDS):
                 critical.append(f"TECH: {issue}")
 
         # Критические проблемы питания
@@ -385,12 +401,13 @@ class ComprehensiveBayesianAnalyzer:
             if any(keyword in issue.lower() for keyword in ["опасно", "dangerous", "критично"]):
                 critical.append(f"HEALTH: {issue}")
 
-        # Критические бизнес-проблемы
+        # Критические бизнес-проблемы - use centralized keywords
+        # RU: Помечаем критические бизнес-проблемы стандартным префиксом для дальнейшей фильтрации
+        # EN: Tag critical business issues with marker prefix for downstream filtering via _has_critical_business_issues()
         for issue in business:
-            if any(
-                keyword in issue.lower() for keyword in ["доход", "revenue", "клиент", "customer"]
-            ):
-                critical.append(f"BUSINESS: {issue}")
+            if any(keyword in issue.lower() for keyword in self.CRITICAL_BUSINESS_KEYWORDS):
+                # Prefix ensures _has_critical_business_issues() can detect these issues
+                critical.append(f"{self.BUSINESS_MARKER_PREFIX} {issue}")
 
         return critical
 

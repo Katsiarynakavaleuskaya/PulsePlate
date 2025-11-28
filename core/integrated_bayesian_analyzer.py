@@ -194,8 +194,7 @@ class IntegratedBayesianAnalyzer:
             tree = ast.parse(code)
         except (SyntaxError, ValueError):
             # Fallback to regex-based detection with word boundaries
-            import re
-
+            # Note: re module already imported at module level
             regex_patterns = [
                 r"^\s*@pytest\.fixture\b",  # pytest fixture decorator
                 r"^\s*@mock\.",  # mock decorators
@@ -237,7 +236,7 @@ class IntegratedBayesianAnalyzer:
                             return True
                     # @fixture (from pytest import fixture)
                     elif isinstance(decorator, ast.Name):
-                        if decorator.id == "fixture":
+                        if decorator.id in {"fixture", "pytest_fixture"}:
                             return True
                     # @mock.patch or @mock.*
                     elif isinstance(decorator, ast.Attribute):
@@ -245,7 +244,9 @@ class IntegratedBayesianAnalyzer:
                             return True
                     # @patch (from unittest.mock import patch)
                     elif isinstance(decorator, ast.Name):
-                        if decorator.id in {"patch", "mock"}:
+                        # Narrow check: only @patch is a clear test/mock decorator
+                        # Note: "mock" alone is too generic (could be any custom decorator)
+                        if decorator.id == "patch":
                             return True
 
             # Check for Mock/MagicMock instantiation
@@ -257,6 +258,26 @@ class IntegratedBayesianAnalyzer:
                 elif isinstance(node.func, ast.Attribute):
                     if node.func.attr in {"Mock", "MagicMock", "AsyncMock"}:
                         return True
+
+            # Check for variable names containing 'fixture', 'mock', or 'test_data'
+            # This helps catch: test_password = "secret123", mock_user = {...}, fixture_data = {...}
+            if isinstance(node, ast.Name):
+                name_lower = node.id.lower()
+                if any(
+                    marker in name_lower for marker in ["fixture", "mock", "test_data", "test_"]
+                ):
+                    return True
+
+            # Check for assignments with fixture/mock/test_data variable names
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        name_lower = target.id.lower()
+                        if any(
+                            marker in name_lower
+                            for marker in ["fixture", "mock", "test_data", "test_"]
+                        ):
+                            return True
 
         return False
 

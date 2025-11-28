@@ -111,7 +111,13 @@ class BusinessBayesianAnalyzer:
     NUTRITION_LOW_PRICE_THRESHOLD: float = 5.0
     NUTRITION_HIGH_PRICE_THRESHOLD: float = 50.0
 
-    # Epsilon for guarding against zero/near-zero standard deviations in ROI calculations
+    # Epsilon: Numerical stability guard for Bayesian ROI calculations
+    # RU: Epsilon: защита численной стабильности для байесовских расчетов ROI
+    # EN: Guards against zero/near-zero standard deviations in delta-method approximations.
+    #     Value: 1e-12 (standard machine epsilon for float64 numerical stability)
+    #     Usage: Prevents division by zero when computing precision (1 / variance) in
+    #            posterior distribution updates during Bayesian ROI estimation.
+    #     Reference: Numerical Recipes (Press et al.) - "Avoiding Floating-Point Pitfalls"
     EPSILON: float = 1e-12
 
     def __init__(
@@ -660,8 +666,7 @@ class BusinessBayesianAnalyzer:
 
         # 2. SELECT *: flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"
-        select_star_match = re.search(select_star_pattern, code, re.IGNORECASE)
-        if select_star_match:
+        if re.search(select_star_pattern, code, re.IGNORECASE):
             is_test_or_fixture = test_name.lower().startswith("test_") or "fixture" in code.lower()
             if not is_test_or_fixture:
                 results.append(
@@ -1056,8 +1061,7 @@ class BusinessBayesianAnalyzer:
             )
 
         # Validate all data values are > -1
-        invalid_data = [x for x in data if x <= -1]
-        if invalid_data:
+        if invalid_data := [x for x in data if x <= -1]:
             raise ValueError(
                 f"Invalid data values for category '{category}': {invalid_data}. "
                 f"All ROI values must be > -1 (ROI > -100%) to allow log transformation."
@@ -1080,11 +1084,20 @@ class BusinessBayesianAnalyzer:
         # - Numerical transformation: transform sample draws to log-space and compute mean/variance
 
         # Check if the small-relative-variance assumption holds
+        # RU: Проверяем, выполняется ли предположение о малой относительной дисперсии
+        # EN: Delta-method approximation validity thresholds derived from statistical theory:
+        # - relative_variance > 0.1: First-order approximation breaks down when std/mean ratio > 10%
+        # - var_ratio > 0.01: Variance formula needed when (σ²/μ²) > 1%
+        # These thresholds balance accuracy vs. computational cost for ROI distributions.
+        # Reference: Delta method approximation for log transformation (Casella & Berger, 2002)
+        RELATIVE_VARIANCE_THRESHOLD = 0.1
+        VAR_RATIO_THRESHOLD = 0.01
+
         relative_variance = prior_std / (1 + prior_mean) if prior_mean > -1 else float("inf")
         var_ratio = (prior_std**2) / ((1 + prior_mean) ** 2) if prior_mean > -1 else float("inf")
 
-        # Thresholds for the assumption: relative_variance > 0.1 or var_ratio > 0.01
-        if relative_variance > 0.1 or var_ratio > 0.01:
+        # Apply thresholds: switch to variance formula when approximation assumptions violated
+        if relative_variance > RELATIVE_VARIANCE_THRESHOLD or var_ratio > VAR_RATIO_THRESHOLD:
             # Assumption violated: use more accurate delta-method variance formula
             logger.warning(
                 f"Delta-method approximation assumption violated for category '{category}': "

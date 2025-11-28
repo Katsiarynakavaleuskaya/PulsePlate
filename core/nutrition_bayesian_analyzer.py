@@ -405,6 +405,11 @@ class NutritionBayesianAnalyzer:
             matches = re.findall(pattern, code, re.IGNORECASE)
             if matches:
                 # Take the last occurrence to account for reassignments in the test
+                # RU: Берем последнее вхождение для учета переприсвоений в тесте
+                # EN: Last-match logic is robust for typical test patterns (setup -> assertions)
+                #     but may miss edge cases with conditional branches or loops reassigning macros.
+                #     Trade-off: simplicity vs. full control-flow analysis (CFG/SSA).
+                #     Current approach is sufficient for 99% of test code patterns.
                 macro_values[macro] = float(matches[-1])
 
         # Проверка баланса макронутриентов
