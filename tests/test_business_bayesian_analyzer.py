@@ -426,6 +426,42 @@ def fetch_data():
             for r in high_results
         )
 
+    def test_analyze_monetization_payment_without_strategy(self):
+        """Payments without monetization strategy should produce revenue leak."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = "payment=True\nbilling=True\n"
+        results = analyzer._analyze_monetization(code, "payment_no_strategy")
+        assert any(r.error_type == BusinessErrorType.REVENUE_LEAK for r in results)
+
+    def test_analyze_cost_optimization_while_true_without_break(self):
+        """while True without break/return should be flagged."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+while True:
+    x = do_work()
+"""
+        results = analyzer._analyze_cost_optimization(code, "while_true")
+        assert any(
+            r.error_type == BusinessErrorType.OPERATIONAL_WASTE
+            and "while True" in (r.error_message or "")
+            for r in results
+        )
+
+    def test_analyze_customer_acquisition_validation_and_onboarding(self):
+        """Registration without validation and onboarding should raise churn issues."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = "register_user(); new_user = True"
+        results = analyzer._analyze_customer_acquisition(code, "acq_test")
+        messages = " ".join((r.error_message or "") for r in results)
+        assert "валидации" in messages or "онбординга" in messages
+
+    def test_analyze_monetization_invalid_price_valueerror_branch(self):
+        """Non-numeric price should be safely skipped without crashing."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = "price = 'abc'"
+        results = analyzer._analyze_monetization(code, "bad_price")
+        assert isinstance(results, list)
+
     def test_calculate_bayesian_roi_warning_branch(self, caplog):
         """Large std should hit the delta-method warning path and still return ROI estimate."""
         analyzer = BusinessBayesianAnalyzer()
@@ -594,6 +630,27 @@ def prod_code():
         results = analyzer._analyze_cost_optimization(code, "prod_code")
         messages = " ".join((r.error_message or "") for r in results)
         assert "SELECT *" in messages or "sleep" in messages
+
+    def test_analyze_monetization_payment_without_strategy(self):
+        """Payments without monetization strategy should produce revenue leak."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = "payment=True\nbilling=True\n"
+        results = analyzer._analyze_monetization(code, "payment_no_strategy")
+        assert any(r.error_type == BusinessErrorType.REVENUE_LEAK for r in results)
+
+    def test_analyze_cost_optimization_while_true_without_break(self):
+        """while True without break/return should be flagged."""
+        analyzer = BusinessBayesianAnalyzer()
+        code = """
+while True:
+    x = do_work()
+"""
+        results = analyzer._analyze_cost_optimization(code, "while_true")
+        assert any(
+            r.error_type == BusinessErrorType.OPERATIONAL_WASTE
+            and "while True" in (r.error_message or "")
+            for r in results
+        )
 
     def test_diagnose_business_issues_and_roi_potential(self):
         """Diagnose issues from stored results and calculate ROI potential."""

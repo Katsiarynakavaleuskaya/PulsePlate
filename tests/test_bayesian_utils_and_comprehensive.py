@@ -216,6 +216,35 @@ def test_comprehensive_scoring_and_impacts():
     priority = analyzer._calculate_priority(critical, "критическое влияние", "минимальное влияние")
     assert priority in {"urgent", "high", "medium", "low"}
 
+    # Zero-issue branches for assess_* helpers
+    assert analyzer._assess_revenue_impact([], [], []) == "Нет влияния на доходы"
+    assert analyzer._assess_cost_impact([], [], []) == "Нет влияния на затраты"
+    assert analyzer._assess_customer_impact([], [], []) == "Нет влияния на клиентов"
+    assert analyzer._assess_health_impact([]) == "Нет влияния на здоровье"
+    assert analyzer._has_critical_business_issues(["business: revenue"]) is True
+
+    # Medium and critical impact branches
+    med_revenue = analyzer._assess_revenue_impact(
+        ["производительность", "производительность"], ["безопасность"], ["revenue"]
+    )
+    assert "Среднее" in med_revenue
+
+    crit_revenue = analyzer._assess_revenue_impact(
+        ["производительность"] * 6, ["безопасность"] * 2, ["revenue"]
+    )
+    assert "Критическое" in crit_revenue
+
+    med_cost = analyzer._assess_cost_impact(["неэффективность", "неэффективность"], [], ["cost"])
+    assert "Среднее" in med_cost
+
+    crit_customer = analyzer._assess_customer_impact(
+        ["пользователь"] * 3, ["здоровье"] * 3, ["customer"]
+    )
+    assert "Критическое" in crit_customer
+
+    crit_health = analyzer._assess_health_impact(["опасно"] * 6)
+    assert "Критическое" in crit_health
+
 
 def test_comprehensive_get_diagnosis_and_action_plan():
     analyzer = ComprehensiveBayesianAnalyzer()
