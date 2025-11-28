@@ -44,12 +44,26 @@ def test_has_explicit_return_or_yield_with_handlers():
     code = """
 def with_try():
     try:
-        return 1
-    except Exception:
         return 2
+    except Exception:
+        return 1
 """
     tree = tech_utils.ast.parse(code)
     func = tree.body[0]
+    assert tech_utils._has_explicit_return_or_yield(func) is True
+
+
+def test_has_explicit_return_in_except_only_triggers_handlers_walk():
+    code = """
+def only_except():
+    try:
+        pass
+    except Exception:
+        return 3
+"""
+    tree = tech_utils.ast.parse(code)
+    func = tree.body[0]
+    # Return lives in except handler, so handler traversal must occur
     assert tech_utils._has_explicit_return_or_yield(func) is True
 
 
@@ -78,6 +92,19 @@ def bad():
 """
     issues_raise = tech_utils.analyze_technical_aspects_common(raise_code, "raise_path")
     assert "Exception raised without handling" in issues_raise
+
+    # Missing return type annotation (AST path)
+    missing_return = """
+def foo():
+    return 1
+"""
+    issues_missing = tech_utils.analyze_technical_aspects_common(missing_return, "miss_ret")
+    assert "Missing return type annotations" in issues_missing
+
+    # Missing return type annotation (regex fallback path)
+    bad_syntax = "def broken(:\n    return 1\n"
+    issues_fallback = tech_utils.analyze_technical_aspects_common(bad_syntax, "fallback")
+    assert "Missing return type annotations" in issues_fallback
 
 
 def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
