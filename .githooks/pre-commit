@@ -115,13 +115,13 @@ if [ -n "$PYTHON_CHANGES" ]; then
     echo "🎨 Auto-formatting Python code with Ruff..."
     if command -v ruff > /dev/null 2>&1; then
         # Filter to only existing files
-        EXISTING_PY_FILES=""
+        EXISTING_PY_FILES=()
         for f in $PYTHON_CHANGES; do
-            [ -f "$f" ] && EXISTING_PY_FILES="$EXISTING_PY_FILES $f"
+            [ -f "$f" ] && EXISTING_PY_FILES+=("$f")
         done
-        if [ -n "$EXISTING_PY_FILES" ] && ruff format $EXISTING_PY_FILES; then
+        if [ ${#EXISTING_PY_FILES[@]} -gt 0 ] && ruff format "${EXISTING_PY_FILES[@]}"; then
             echo "✅ Ruff formatting applied"
-            git add $EXISTING_PY_FILES
+            git add "${EXISTING_PY_FILES[@]}"
         else
             echo "⚠️  Warning: Ruff formatting failed, continuing..."
         fi

@@ -477,8 +477,8 @@ class ComprehensiveBayesianAnalyzer:
     def _assess_cost_impact(
         self,
         technical: List[str],
-        _nutrition: List[str],
-        business: List[str],  # noqa: ARG002
+        _nutrition: List[str],  # noqa: ARG002
+        business: List[str],
     ) -> str:
         """Оценивает влияние на затраты."""
         cost_issues = 0

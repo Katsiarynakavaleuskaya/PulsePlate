@@ -334,7 +334,9 @@ async def test_api_premium_plate_fallback_aligns_targets(
     # When targets are available, they should override computed values
     assert response.macros["fat_g"] in {60, 72}
     assert response.macros["protein_g"] in {120, 128}
-    assert response.macros["carbs_g"] in {180, response.macros["carbs_g"]}
+    assert response.macros["carbs_g"] >= 0, (
+        f"Expected carbs_g >= 0, got {response.macros['carbs_g']}"
+    )
     assert response.macros["fiber_g"] >= app.FIBER_MIN_G
     assert response.kcal > 0
 

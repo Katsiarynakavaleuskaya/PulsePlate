@@ -66,14 +66,12 @@ exclude_lines =
     if TYPE_CHECKING:
 
     # Don't complain about abstract methods
-    @abstract
     @abstractmethod
 
     # Don't complain about dataclass auto-generated methods
     @dataclass
 
     # Don't complain about protocol definitions
-    @Protocol
 
     # Skip type checking blocks
     if typing.TYPE_CHECKING:

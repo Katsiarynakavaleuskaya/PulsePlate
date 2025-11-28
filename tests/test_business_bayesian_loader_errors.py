@@ -11,40 +11,62 @@ def _write_invalid_yaml(path: Path) -> None:
     path.write_text(":\n  bad: [", encoding="utf-8")
 
 
-def test_load_business_knowledge_invalid_yaml_fallback():
-    config_dir = Path(__file__).resolve().parent.parent / "core" / "config"
+def test_load_business_knowledge_invalid_yaml_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test fallback to defaults when business_knowledge.yaml is invalid."""
+    config_dir = tmp_path / "core" / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "business_knowledge.yaml"
     _write_invalid_yaml(yaml_path)
-    try:
-        analyzer = BusinessBayesianAnalyzer()
-        data = analyzer._load_business_knowledge()
-        assert "subscription" in data["revenue_streams"]
-    finally:
-        if yaml_path.exists():
-            yaml_path.unlink()
+
+    # Monkeypatch __file__ to point analyzer to tmp_path instead of production config
+    import core.business_bayesian_analyzer as bba_module
+
+    monkeypatch.setattr(
+        bba_module, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    )
+
+    analyzer = BusinessBayesianAnalyzer()
+    data = analyzer._load_business_knowledge()
+    assert "subscription" in data["revenue_streams"]
 
 
-def test_load_monetization_strategies_invalid_yaml():
-    config_dir = Path(__file__).resolve().parent.parent / "core" / "config"
+def test_load_monetization_strategies_invalid_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test fallback to defaults when monetization_strategies.{locale}.yaml is invalid."""
+    config_dir = tmp_path / "core" / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "monetization_strategies.zz.yaml"
     _write_invalid_yaml(yaml_path)
-    try:
-        analyzer = BusinessBayesianAnalyzer()
-        data = analyzer._load_monetization_strategies("zz")
-        assert "pricing_models" in data
-    finally:
-        if yaml_path.exists():
-            yaml_path.unlink()
+
+    import core.business_bayesian_analyzer as bba_module
+
+    monkeypatch.setattr(
+        bba_module, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    )
+
+    analyzer = BusinessBayesianAnalyzer()
+    data = analyzer._load_monetization_strategies("zz")
+    assert "pricing_models" in data
 
 
-def test_load_cost_optimization_rules_invalid_yaml():
-    config_dir = Path(__file__).resolve().parent.parent / "core" / "config"
+def test_load_cost_optimization_rules_invalid_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test fallback to defaults when cost_optimization_rules.yaml is invalid."""
+    config_dir = tmp_path / "core" / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "cost_optimization_rules.yaml"
     _write_invalid_yaml(yaml_path)
-    try:
-        analyzer = BusinessBayesianAnalyzer()
-        data = analyzer._load_cost_optimization_rules()
-        assert "infrastructure" in data
-    finally:
-        if yaml_path.exists():
-            yaml_path.unlink()
+
+    import core.business_bayesian_analyzer as bba_module
+
+    monkeypatch.setattr(
+        bba_module, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    )
+
+    analyzer = BusinessBayesianAnalyzer()
+    data = analyzer._load_cost_optimization_rules()
+    assert "infrastructure" in data
