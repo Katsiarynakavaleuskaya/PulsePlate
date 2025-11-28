@@ -141,10 +141,10 @@ class ComprehensiveBayesianAnalyzer:
     # Business issue severity keywords (bilingual: Russian and English)
     # RU: Ключевые слова для определения серьезности бизнес-проблем
     # EN: Used in _calculate_business_score and _identify_critical_issues for consistent scoring
-    
+
     # Revenue-related critical keywords
     CRITICAL_REVENUE_KEYWORDS = ("доход", "revenue", "income")
-    # Customer-related important keywords  
+    # Customer-related important keywords
     IMPORTANT_CUSTOMER_KEYWORDS = ("клиент", "customer", "client")
     # Combined for backward compatibility and critical issues identification
     CRITICAL_BUSINESS_KEYWORDS = CRITICAL_REVENUE_KEYWORDS + IMPORTANT_CUSTOMER_KEYWORDS
