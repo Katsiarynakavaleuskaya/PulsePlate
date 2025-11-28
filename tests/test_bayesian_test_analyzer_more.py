@@ -1,4 +1,3 @@
-import math
 from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
 
 

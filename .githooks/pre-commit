@@ -1,5 +1,16 @@
-#!/opt/homebrew/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
+
+# Bash version check: require 4.3+ for advanced features (nameref, etc.)
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || \
+   ([ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]); then
+    echo "❌ Error: This script requires Bash 4.3 or higher" >&2
+    echo "   Current version: ${BASH_VERSION}" >&2
+    echo "" >&2
+    echo "   On macOS, install a newer bash:" >&2
+    echo "     brew install bash" >&2
+    exit 1
+fi
 
 # Enhanced pre-commit hook with comprehensive checks
 echo "🔍 Running pre-commit checks..."
@@ -20,7 +31,7 @@ fi
 # 2. Check if any cache files are staged
 CACHE_FILES=$(git diff --cached --name-only | grep -E '(__pycache__|\.pyc$|\.pyo$|\.pyd$|\.pytest_cache/|\.mypy_cache/|\.ruff_cache/|\.hypothesis/)' || true)
 
-if [ ! -z "$CACHE_FILES" ]; then
+if [ -n "$CACHE_FILES" ]; then
     echo "❌ Cache files detected in staged changes:"
     echo "$CACHE_FILES"
     echo ""
@@ -32,7 +43,7 @@ fi
 # 3. Check for frontend changes and run tests
 FRONTEND_CHANGES=$(git diff --cached --name-only | grep -E "^frontend/(src/|package\.json)" || true)
 
-if [ ! -z "$FRONTEND_CHANGES" ]; then
+if [ -n "$FRONTEND_CHANGES" ]; then
     echo "🎨 Frontend changes detected, running tests..."
 
     # Check if we're in the right directory
@@ -97,17 +108,20 @@ fi
 # 4. Check for Python changes and run basic checks
 PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
 
-if [ ! -z "$PYTHON_CHANGES" ]; then
+if [ -n "$PYTHON_CHANGES" ]; then
     echo "🐍 Python changes detected, running basic checks..."
 
     # Auto-format with Ruff (replaces Black)
     echo "🎨 Auto-formatting Python code with Ruff..."
     if command -v ruff > /dev/null 2>&1; then
-        ruff format $PYTHON_CHANGES
-        if [ $? -eq 0 ]; then
+        # Filter to only existing files
+        EXISTING_PY_FILES=""
+        for f in $PYTHON_CHANGES; do
+            [ -f "$f" ] && EXISTING_PY_FILES="$EXISTING_PY_FILES $f"
+        done
+        if [ -n "$EXISTING_PY_FILES" ] && ruff format $EXISTING_PY_FILES; then
             echo "✅ Ruff formatting applied"
-            # Re-stage formatted files
-            git add $PYTHON_CHANGES
+            git add $EXISTING_PY_FILES
         else
             echo "⚠️  Warning: Ruff formatting failed, continuing..."
         fi

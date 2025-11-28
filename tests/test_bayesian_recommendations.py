@@ -39,7 +39,7 @@ def test_get_recommendations_uses_default_language_when_none() -> None:
     assert recs == expected
 
 
-def test_get_recommendations_fallbacks_to_default_language(monkeypatch) -> None:
+def test_get_recommendations_fallbacks_to_default_language(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     If the requested language lacks a key, recommendations should fall back to the default language.
     """

@@ -1989,6 +1989,7 @@
 окружения
 оливковое
 Оливковое
+онбординга
 операций
 описание
 Описание
@@ -4174,6 +4175,7 @@ HSTS
 htmlcov
 httpx
 IFPA
+IGNORECASE
 iloc
 imageset
 Immer
@@ -4185,6 +4187,7 @@ infantil
 ings
 inplace
 Intermedio
+internationalizable
 isalnum
 isawaitable
 iscoroutine
@@ -4530,6 +4533,7 @@ uvicorn
 Uvicorn
 validkey
 válido
+valueerror
 venv
 vip
 VIP

@@ -336,7 +336,7 @@ def fetch_data():
         results = analyzer.analyze(code, "fetch_data")
         assert any("кэширование" in (r.error_message or "") for r in results)
 
-    def test_loader_fallbacks_without_yaml(self, monkeypatch):
+    def test_loader_fallbacks_without_yaml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Loader helpers should fall back to defaults when yaml is unavailable."""
         analyzer = BusinessBayesianAnalyzer()
         monkeypatch.setattr(analyzer, "_import_yaml_module", lambda: None)
@@ -441,7 +441,7 @@ def fetch_data():
         results = analyzer._analyze_monetization(code, "bad_price")
         assert isinstance(results, list)
 
-    def test_calculate_bayesian_roi_warning_branch(self, caplog):
+    def test_calculate_bayesian_roi_warning_branch(self, caplog: pytest.LogCaptureFixture) -> None:
         """Large std should hit the delta-method warning path and still return ROI estimate."""
         analyzer = BusinessBayesianAnalyzer()
         roi = analyzer._calculate_bayesian_roi(

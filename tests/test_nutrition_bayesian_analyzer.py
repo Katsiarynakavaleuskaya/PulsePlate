@@ -187,7 +187,14 @@ def test_invalid():
         assert analyzer._analyze_bmi_calculations("bmi = 25", "test_force_bmi") == []
 
     def test_negative_macros_positive_total(self, monkeypatch) -> None:
-        """Negative macro values with positive total should trigger sum_invalid branch."""
+        """Negative macro values with positive total should trigger sum_invalid branch.
+
+        NOTE: This test monkeypatches re.findall based on regex pattern substrings,
+        coupling it to implementation details. If regex patterns change in
+        nutrition_bayesian_analyzer._analyze_nutrition_standards, this test may break.
+        Alternative: Extract validation logic into a testable function accepting
+        parsed macro values directly.
+        """
         analyzer = NutritionBayesianAnalyzer()
         import core.nutrition_bayesian_analyzer as nba
 

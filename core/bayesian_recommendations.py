@@ -9,7 +9,8 @@ import os
 from enum import Enum
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
-DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "ru") or "ru"
+# Empty string in env var falls back to "ru" (prevents BAYESIAN_DEFAULT_LANGUAGE="" from breaking)
+DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE") or "ru"
 
 # Public API
 __all__ = [
@@ -270,7 +271,16 @@ def get_error_type_key(error_type: Enum) -> str:
 
     Returns:
         Recommendation key string (e.g., "error_type.assertion_error").
+
+    Raises:
+        TypeError: If error_type is not an Enum instance with a .name attribute.
     """
+    if not isinstance(error_type, Enum):
+        raise TypeError(
+            f"Expected Enum type for error_type, got {type(error_type).__name__}: {error_type!r}"
+        )
+    if not hasattr(error_type, "name"):
+        raise TypeError(f"Enum instance {error_type!r} missing required 'name' attribute")
     error_name = error_type.name.lower()
     return f"error_type.{error_name}"
 

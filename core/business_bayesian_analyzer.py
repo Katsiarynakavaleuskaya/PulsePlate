@@ -6,7 +6,6 @@ RU: Байесовский анализатор для бизнес-логики
 EN: Analyzes tests from the perspective of business model, revenue, and cost optimization.
 """
 
-
 import ast
 import importlib
 import logging
@@ -120,6 +119,16 @@ class BusinessBayesianAnalyzer:
     #     Reference: Numerical Recipes (Press et al.) - "Avoiding Floating-Point Pitfalls"
     EPSILON: float = 1e-12
 
+    # Delta-method approximation thresholds for ROI estimation
+    # RU: Пороги аппроксимации дельта-метода для оценки ROI
+    # EN: These thresholds determine when to switch from first-order to variance-formula
+    #     approximation in log-space transformations for ROI distributions.
+    #     - RELATIVE_VARIANCE_THRESHOLD: When std/mean ratio > 10%, first-order breaks down
+    #     - VAR_RATIO_THRESHOLD: When (σ²/μ²) > 1%, variance formula needed for accuracy
+    #     Reference: Delta method approximation for log transformation (Casella & Berger, 2002)
+    RELATIVE_VARIANCE_THRESHOLD: float = 0.1
+    VAR_RATIO_THRESHOLD: float = 0.01
+
     def __init__(
         self,
         low_price_threshold: float | None = None,
@@ -200,13 +209,14 @@ class BusinessBayesianAnalyzer:
         if config_path.exists():
             yaml_module: ModuleType | None = self._import_yaml_module()
             if yaml_module is not None:
+                yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
                 try:
                     with open(config_path, "r", encoding="utf-8") as file:
                         data = yaml_module.safe_load(file)
                     if isinstance(data, dict) and data:
                         return data
-                except Exception:
-                    # If YAML is invalid, fall back to defaults (continue execution)
+                except (yaml_error, UnicodeDecodeError):
+                    # If YAML is invalid or encoding is bad, fall back to defaults
                     logger.warning(
                         "Failed to parse business_knowledge.yaml; falling back to defaults",
                         exc_info=True,
@@ -354,7 +364,10 @@ class BusinessBayesianAnalyzer:
                         loaded = yaml_module.safe_load(f) or {}
                 except (OSError, yaml_error_type):
                     loaded = {}
-                if loaded:
+                # Validate structure: must contain infrastructure/development/operations blocks
+                if loaded and all(
+                    key in loaded for key in ("infrastructure", "development", "operations")
+                ):
                     return loaded
 
         # Fallback defaults (same as original hardcoded values)
@@ -427,8 +440,8 @@ class BusinessBayesianAnalyzer:
         self.test_results.extend(business_logic_results)
         return business_logic_results
 
-    def _normalize_code_input(self, code: str | list[str]) -> str:
-        """Convert test code input (str or list) to a single string."""
+    def _normalize_code_input(self, code: str | list[str] | tuple[str, ...]) -> str:
+        """Convert test code input (str, list, or tuple) to a single string."""
         if isinstance(code, (list, tuple)):
             return "\n".join(str(line) for line in code)
         return str(code)
@@ -726,8 +739,7 @@ class BusinessBayesianAnalyzer:
                         business_category=BusinessCategory.COST_OPTIMIZATION,
                         error_type=BusinessErrorType.OPERATIONAL_WASTE,
                         error_message=(
-                            "Использование sleep() без контекста retry/backoff: "
-                            f"{match.group(0)}"
+                            f"Использование sleep() без контекста retry/backoff: {match.group(0)}"
                         ),
                         cost_impact="Блокирующие задержки",
                         optimization_potential="Использовать асинхронные операции или retry-логику",
@@ -1087,19 +1099,15 @@ class BusinessBayesianAnalyzer:
 
         # Check if the small-relative-variance assumption holds
         # RU: Проверяем, выполняется ли предположение о малой относительной дисперсии
-        # EN: Delta-method approximation validity thresholds derived from statistical theory:
-        # - relative_variance > 0.1: First-order approximation breaks down when std/mean ratio > 10%
-        # - var_ratio > 0.01: Variance formula needed when (σ²/μ²) > 1%
-        # These thresholds balance accuracy vs. computational cost for ROI distributions.
-        # Reference: Delta method approximation for log transformation (Casella & Berger, 2002)
-        RELATIVE_VARIANCE_THRESHOLD = 0.1
-        VAR_RATIO_THRESHOLD = 0.01
-
+        # EN: Delta-method approximation validity check using class-level thresholds
         relative_variance = prior_std / (1 + prior_mean) if prior_mean > -1 else float("inf")
         var_ratio = (prior_std**2) / ((1 + prior_mean) ** 2) if prior_mean > -1 else float("inf")
 
         # Apply thresholds: switch to variance formula when approximation assumptions violated
-        if relative_variance > RELATIVE_VARIANCE_THRESHOLD or var_ratio > VAR_RATIO_THRESHOLD:
+        if (
+            relative_variance > self.RELATIVE_VARIANCE_THRESHOLD
+            or var_ratio > self.VAR_RATIO_THRESHOLD
+        ):
             # Assumption violated: use more accurate delta-method variance formula
             logger.warning(
                 f"Delta-method approximation assumption violated for category '{category}': "

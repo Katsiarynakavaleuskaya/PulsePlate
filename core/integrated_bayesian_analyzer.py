@@ -256,16 +256,9 @@ class IntegratedBayesianAnalyzer:
                     if node.func.attr in {"Mock", "MagicMock", "AsyncMock"}:
                         return True
 
-            # Check for variable names containing 'fixture', 'mock', or 'test_data'
-            # This helps catch: test_password = "secret123", mock_user = {...}, fixture_data = {...}
-            if isinstance(node, ast.Name):
-                name_lower = node.id.lower()
-                if any(
-                    marker in name_lower for marker in ["fixture", "mock", "test_data", "test_"]
-                ):
-                    return True
-
             # Check for assignments with fixture/mock/test_data variable names
+            # Removed broad ast.Name check to avoid false positives (e.g., test_data usage in production code)
+            # Only assignment targets (left-hand side) are checked to detect fixture/mock/test_data definitions
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name):

@@ -1,7 +1,9 @@
-from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer
+"""Integration tests for IntegratedBayesianAnalyzer behavior and edge cases."""
+
+from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, NormalizedIssueType
 
 
-def test_is_in_test_or_mock_context_variants():
+def test_is_in_test_or_mock_context_variants() -> None:
     analyzer = IntegratedBayesianAnalyzer()
 
     # AST path: class inheriting from TestCase
@@ -18,7 +20,7 @@ class TestFoo(unittest.TestCase):
     assert analyzer._is_in_test_or_mock_context(bad_code) is True
 
 
-def test_check_unsafe_file_opens_variants():
+def test_check_unsafe_file_opens_variants() -> None:
     analyzer = IntegratedBayesianAnalyzer()
 
     # SyntaxError path should return False
@@ -26,7 +28,7 @@ def test_check_unsafe_file_opens_variants():
     assert analyzer._check_unsafe_file_opens(bad_code) is False
 
 
-def test_check_sensitive_data_logging_regex_fallback():
+def test_check_sensitive_data_logging_regex_fallback() -> None:
     analyzer = IntegratedBayesianAnalyzer()
     bad_code = "logger.info('secret"
     assert analyzer._check_sensitive_data_logging(bad_code) is True
@@ -39,7 +41,7 @@ logger.info(f\"token={token}\")
     assert analyzer._check_sensitive_data_logging(code_ast) is True
 
 
-def test_analyze_safety_aspects_password_sql_and_context():
+def test_analyze_safety_aspects_password_sql_and_context() -> None:
     analyzer = IntegratedBayesianAnalyzer()
     # Non-test context: should flag both password and SQL injection
     code = 'password = "abc"\nquery = "SELECT * FROM users" + user_input'
@@ -56,7 +58,7 @@ def test_password():
     assert all("password" not in msg.lower() for msg in issues_test)
 
 
-def test_analyze_philosophy_compliance_branches():
+def test_analyze_philosophy_compliance_branches() -> None:
     analyzer = IntegratedBayesianAnalyzer()
 
     # Health metric validation missing -> violation
@@ -81,7 +83,7 @@ def test_analyze_philosophy_compliance_branches():
     assert any("personalization" in msg.lower() for msg in personal)
 
 
-def test_is_in_test_or_mock_context_more_branches():
+def test_is_in_test_or_mock_context_more_branches() -> None:
     analyzer = IntegratedBayesianAnalyzer()
 
     # AST decorator attribute @pytest.fixture should be detected
@@ -133,7 +135,7 @@ def fx3():
     assert analyzer._is_in_test_or_mock_context(code_mock_attr) is True
 
 
-def test_assess_business_impact_levels():
+def test_assess_business_impact_levels() -> None:
     analyzer = IntegratedBayesianAnalyzer()
     assert analyzer._assess_business_impact([], [], [], []) == "No business impact"
     assert (
@@ -153,10 +155,9 @@ def test_assess_business_impact_levels():
     )
 
 
-def test_normalize_issue_type_keywords():
+def test_normalize_issue_type_keywords() -> None:
     analyzer = IntegratedBayesianAnalyzer()
     issue = "SQL injection with hardcoded password leads to vulnerability and safety risk"
-    from core.integrated_bayesian_analyzer import NormalizedIssueType
 
     types = analyzer._normalize_issue_type(issue)
     assert NormalizedIssueType.INJECTION in types

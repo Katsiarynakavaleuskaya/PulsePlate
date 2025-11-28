@@ -299,8 +299,8 @@ class BayesianTestAnalyzer:
             logger.debug(f"History file not found: {self.data_file}")
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.warning(f"Не удалось загрузить историю тестов: {e}")
-        except Exception as e:
-            logger.exception(f"Unexpected error loading test history: {e}")
+        except Exception:
+            logger.exception("Unexpected error loading test history")
 
     def save_history(self) -> None:
         """Сохранить историю выполнения тестов."""
