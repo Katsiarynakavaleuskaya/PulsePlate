@@ -134,6 +134,7 @@ class ComprehensiveBayesianAnalyzer:
         "exception",
         "исключение",
         "безопасность",
+        "security",
     )
     MAJOR_TECHNICAL_KEYWORDS = ("типизац", "typing", "type", "await")
 
@@ -396,9 +397,13 @@ class ComprehensiveBayesianAnalyzer:
             if any(keyword in issue.lower() for keyword in self.CRITICAL_TECHNICAL_KEYWORDS):
                 critical.append(f"TECH: {issue}")
 
-        # Критические проблемы питания
+        # Критические проблемы питания - include English equivalents
+        # RU: Включаем английские эквиваленты для поддержки двуязычных сообщений
         for issue in nutrition:
-            if any(keyword in issue.lower() for keyword in ["опасно", "dangerous", "критично"]):
+            if any(
+                keyword in issue.lower()
+                for keyword in ["опасно", "dangerous", "критично", "critical"]
+            ):
                 critical.append(f"HEALTH: {issue}")
 
         # Критические бизнес-проблемы - use centralized keywords

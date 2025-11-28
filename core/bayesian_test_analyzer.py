@@ -293,8 +293,6 @@ class BayesianTestAnalyzer:
                         for item in data
                     ]
                 logger.info(f"Загружено {len(self.execution_history)} записей истории тестов")
-                # Keep test_history alias in sync with execution_history
-                self.test_history = self.execution_history
                 # Адаптировать приоры на базе истории
                 self._refresh_priors_from_history()
         except Exception as e:
