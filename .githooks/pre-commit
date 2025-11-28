@@ -18,8 +18,11 @@ echo "🔍 Running pre-commit checks..."
 # 1. Clean Python cache files
 echo "🧹 Cleaning cache files..."
 # Use Homebrew bash explicitly to support nameref (requires Bash 4.3+)
+# Check Apple Silicon (/opt/homebrew), then Intel (/usr/local), then system bash
 if [ -x /opt/homebrew/bin/bash ]; then
     BASH_BIN=/opt/homebrew/bin/bash
+elif [ -x /usr/local/bin/bash ]; then
+    BASH_BIN=/usr/local/bin/bash
 else
     BASH_BIN=bash
 fi

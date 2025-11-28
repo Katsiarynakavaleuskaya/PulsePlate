@@ -103,12 +103,13 @@ def analyze_technical_aspects_common(code: str) -> List[str]:
         has_await = any(isinstance(node, ast.Await) for node in ast.walk(tree))
         has_raise = any(isinstance(node, ast.Raise) for node in ast.walk(tree))
         has_try = any(isinstance(node, ast.Try) for node in ast.walk(tree))
-        # Check only top-level function nodes, not nested functions
+        # Check all function definitions including class methods (use ast.walk instead of iter_child_nodes)
+        # to inspect FunctionDef/AsyncFunctionDef inside ClassDef bodies
         missing_return_annotation = any(
             node.returns is None
             and not getattr(node, "name", "").startswith("test_")
             and _has_explicit_return_or_yield(node)
-            for node in ast.iter_child_nodes(tree)
+            for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         )
         has_mock_call = any(

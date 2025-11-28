@@ -22,7 +22,7 @@ from core.comprehensive_bayesian_analyzer import (
 class TestComprehensiveBayesianAnalyzerInit:
     """Test analyzer initialization."""
 
-    def test_init_creates_sub_analyzers(self):
+    def test_init_creates_sub_analyzers(self) -> None:
         """Test that initialization creates all sub-analyzers."""
         analyzer = ComprehensiveBayesianAnalyzer()
         assert analyzer.technical_analyzer is not None
@@ -30,7 +30,7 @@ class TestComprehensiveBayesianAnalyzerInit:
         assert analyzer.business_analyzer is not None
         assert analyzer.comprehensive_results == []
 
-    def test_init_loads_system_vision(self):
+    def test_init_loads_system_vision(self) -> None:
         """Test that system vision is loaded."""
         analyzer = ComprehensiveBayesianAnalyzer()
         assert analyzer.system_vision is not None

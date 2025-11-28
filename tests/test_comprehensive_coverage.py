@@ -3,24 +3,12 @@ Comprehensive tests to improve coverage to 97%+.
 """
 
 import os
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 class TestComprehensiveCoverage:
@@ -187,7 +175,9 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code == 200
             data = response.json()
-            assert "message" in data  # or appropriate success response key
+            assert "message" in data, (
+                "API response must contain 'message' key per rollback endpoint contract"
+            )
 
     def test_rollback_endpoint_failure(self):
         """Test rollback endpoint failure case."""

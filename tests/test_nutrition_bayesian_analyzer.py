@@ -173,13 +173,19 @@ def test_invalid():
         )
 
     def test_calorie_and_bmi_value_error_paths(self, monkeypatch) -> None:
-        """Force ValueError in calorie/BMI parsing to cover exception paths."""
+        """Force ValueError in calorie/BMI parsing to cover exception paths.
+
+        WARNING: This test monkeypatches builtins.float globally, which affects all
+        code running during the test. Alternative approach: Mock re.findall to return
+        non-numeric strings, triggering ValueError in float() calls naturally without
+        global monkeypatching.
+        """
         analyzer = NutritionBayesianAnalyzer()
 
         def _raise_value_error(_x):
             raise ValueError("forced")
 
-        # Monkeypatch float in builtins, not in the module
+        # Monkeypatch float in builtins (global scope - use with caution)
         import builtins
 
         monkeypatch.setattr(builtins, "float", _raise_value_error)

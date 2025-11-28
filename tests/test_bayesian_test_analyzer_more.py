@@ -1,14 +1,14 @@
 from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType
 
 
-def test_calculate_confidence_edge_cases():
+def test_calculate_confidence_edge_cases() -> None:
     analyzer = BayesianTestAnalyzer()
     assert analyzer._calculate_confidence({}) == 0.0
     # Zero total path
     assert analyzer._calculate_confidence({"a": 0.0, "b": 0.0}) == 0.0
 
 
-def test_calculate_evidence_no_symptoms_and_with_prior_sum_zero():
+def test_calculate_evidence_no_symptoms_and_with_prior_sum_zero() -> None:
     analyzer = BayesianTestAnalyzer()
     # No symptoms -> evidence 1.0
     assert analyzer._calculate_evidence(set(), []) == 1.0
