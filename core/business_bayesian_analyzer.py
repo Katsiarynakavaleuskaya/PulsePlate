@@ -111,6 +111,9 @@ class BusinessBayesianAnalyzer:
     NUTRITION_LOW_PRICE_THRESHOLD: float = 5.0
     NUTRITION_HIGH_PRICE_THRESHOLD: float = 50.0
 
+    # Epsilon for guarding against zero/near-zero standard deviations in ROI calculations
+    EPSILON: float = 1e-12
+
     def __init__(
         self,
         low_price_threshold: float | None = None,
@@ -1060,9 +1063,6 @@ class BusinessBayesianAnalyzer:
                 f"All ROI values must be > -1 (ROI > -100%) to allow log transformation."
             )
 
-        # Epsilon for guarding against zero/near-zero standard deviations
-        EPSILON = 1e-12
-
         # Преобразуем ROI в log-returns для нормального распределения
         # ROI = (benefit - cost) / cost, поэтому log_return = log(1 + ROI)
         try:
@@ -1094,14 +1094,14 @@ class BusinessBayesianAnalyzer:
             )
             # Use delta-method variance formula: var_log ≈ prior_std**2 / (1 + prior_mean)**2
             var_log = var_ratio
-            prior_log_std = math.sqrt(var_log) if var_log > 0 else EPSILON
+            prior_log_std = math.sqrt(var_log) if var_log > 0 else self.EPSILON
         else:
             # Assumption holds: use first-order approximation
             prior_log_std = prior_std / (1 + prior_mean)
 
         # Guard against zero/near-zero std before computing precision
         if prior_log_std <= 0:
-            prior_log_std = EPSILON
+            prior_log_std = self.EPSILON
 
         # Если есть данные, обновляем апостериорное распределение
         if data:
@@ -1140,7 +1140,7 @@ class BusinessBayesianAnalyzer:
                 sample_log_std = sample_std / (1 + sample_mean)
                 # Guard against zero/near-zero std before computing precision
                 if sample_log_std <= 0:
-                    sample_log_std = EPSILON
+                    sample_log_std = self.EPSILON
             else:
                 sample_log_std = prior_log_std
 

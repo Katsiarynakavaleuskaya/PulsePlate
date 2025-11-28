@@ -55,12 +55,26 @@ jobs:
           # Create local branch pointing to base ref for reliable diff-cover comparison
           git branch --force base "${{ github.base_ref }}"
 
+      - name: Create diff-cover HTML report (debug)
+        if: github.event_name == 'pull_request'
+        run: |
+          diff-cover coverage.xml --compare-branch "${{ github.base_ref }}" --html-report diff-coverage.html || true
+
+      - name: Upload diff-cover report
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: diff-coverage-report
+          path: diff-coverage.html
+
       - name: Enforce diff coverage >= 97%
         if: github.event_name == 'pull_request'
+        env:
+          COVERAGE_THRESHOLD: 97
         run: |
           diff-cover coverage.xml \
             --compare-branch "${{ github.base_ref }}" \
-            --fail-under 97 \
+            --fail-under "${{ env.COVERAGE_THRESHOLD }}" \
             --exclude 'frontend/**' \
             --exclude 'alembic/**' \
             --exclude 'releases/**' \

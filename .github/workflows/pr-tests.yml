@@ -189,7 +189,7 @@ jobs:
       - name: Diff coverage on changed lines (PR)
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
         run: |
-          # Temporarily lowered to 0% while adding tests for Bayesian modules (PR #294)
+          # Temporarily lowered to 70% while adding tests for Bayesian modules (PR #294)
           # TODO: Restore to 97% — see https://github.com/Katsiarynakavaleuskaya/PulsePlate/issues/295
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=70
 

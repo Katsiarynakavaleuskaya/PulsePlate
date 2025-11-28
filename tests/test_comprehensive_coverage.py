@@ -47,9 +47,9 @@ class TestComprehensiveCoverage:
             data = response.json()
             assert "FEATURE_INSIGHT" in data
             assert "LLM_PROVIDER" in data
-        assert "GROK_MODEL" in data
-        assert "GROK_ENDPOINT" in data
-        assert "insight_enabled" in data
+            assert "GROK_MODEL" in data
+            assert "GROK_ENDPOINT" in data
+            assert "insight_enabled" in data
 
     def test_database_status_endpoint_success(self):
         """Test database status endpoint success case."""
@@ -303,7 +303,7 @@ class TestComprehensiveCoverage:
                     data = response.json()
                     assert "kcal" in data
                     assert "macros" in data
-                assert "portions" in data
+                    assert "portions" in data
         finally:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
@@ -396,7 +396,7 @@ class TestComprehensiveCoverage:
                     data = response.json()
                     assert "kcal_daily" in data
                     assert "macros" in data
-                assert "water_ml" in data
+                    assert "water_ml" in data
 
     def test_who_targets_endpoint_value_error(self):
         """Test WHO targets endpoint with ValueError returns fallback (200)."""
@@ -488,7 +488,7 @@ class TestComprehensiveCoverage:
                 data = response.json()
                 assert "week_summary" in data
                 assert "daily_menus" in data
-            assert "weekly_coverage" in data
+                assert "weekly_coverage" in data
 
     def test_weekly_menu_endpoint_value_error(self):
         """Test weekly menu endpoint with ValueError."""

@@ -106,8 +106,7 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
         has_try = any(isinstance(node, ast.Try) for node in ast.walk(tree))
         # Check only top-level function nodes, not nested functions
         missing_return_annotation = any(
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.returns is None
+            node.returns is None
             and not getattr(node, "name", "").startswith("test_")
             and _has_explicit_return_or_yield(node)
             for node in ast.iter_child_nodes(tree)
@@ -162,10 +161,13 @@ def analyze_technical_aspects_common(code: str, _test_name: str = "") -> List[st
             for node in ast.walk(tree)
         )
 
+        # Precompile regex for efficiency
+        intentional_raise_pattern = re.compile(
+            r"^(raise_|validate_|ensure_).*|.*_error$", re.IGNORECASE
+        )
         # Check if any function has a name matching intentional raising patterns
         has_intentional_raise_function = any(
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and re.match(r"^(raise_|validate_|ensure_).*|.*_error$", node.name, re.IGNORECASE)
+            intentional_raise_pattern.match(node.name)
             for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         )

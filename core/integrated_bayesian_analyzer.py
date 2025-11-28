@@ -179,18 +179,86 @@ class IntegratedBayesianAnalyzer:
         return analyze_technical_aspects_common(code, test_name)
 
     def _is_in_test_or_mock_context(self, code: str) -> bool:
-        """Check if code is in a test or mock context."""
-        # Normalize markers to lowercase for consistent case-insensitive matching
-        test_markers_lower = [
-            "@pytest.fixture",
-            "def test_",
-            "class test",
-            "mock(",
-            "unittest.mock",
-            "@mock",
-        ]
-        code_lower = code.lower()
-        return any(marker in code_lower for marker in test_markers_lower)
+        """
+        Check if code is in a test or mock context using precise AST-based detection.
+
+        Returns True if code contains test-related patterns:
+        - Functions starting with "test_"
+        - Classes inheriting from unittest.TestCase
+        - pytest.fixture or mock decorators
+        - Explicit mock module imports/usage
+
+        Falls back to regex if AST parsing fails.
+        """
+        try:
+            tree = ast.parse(code)
+        except (SyntaxError, ValueError):
+            # Fallback to regex-based detection with word boundaries
+            import re
+
+            regex_patterns = [
+                r"^\s*@pytest\.fixture\b",  # pytest fixture decorator
+                r"^\s*@mock\.",  # mock decorators
+                r"^\s*def\s+test_[A-Za-z0-9_]+\b",  # test function definitions
+                r"^\s*class\s+Test[A-Za-z0-9_]+\b",  # test class definitions
+                r"\bunittest\.mock\b",  # unittest.mock usage
+                r"\bMock\(",  # Mock instantiation
+                r"\bMagicMock\(",  # MagicMock instantiation
+            ]
+            return any(re.search(pattern, code, re.MULTILINE) for pattern in regex_patterns)
+
+        # AST-based detection for precise matching
+        for node in ast.walk(tree):
+            # Check for test function definitions (def test_*)
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                return True
+
+            # Check for classes inheriting from unittest.TestCase
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    # TestCase or unittest.TestCase
+                    if isinstance(base, ast.Attribute):
+                        if base.attr == "TestCase":
+                            return True
+                    elif isinstance(base, ast.Name):
+                        if base.id == "TestCase":
+                            return True
+
+            # Check for pytest.fixture or mock decorators
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                for decorator in node.decorator_list:
+                    # @pytest.fixture
+                    if isinstance(decorator, ast.Attribute):
+                        if (
+                            isinstance(decorator.value, ast.Name)
+                            and decorator.value.id == "pytest"
+                            and decorator.attr == "fixture"
+                        ):
+                            return True
+                    # @fixture (from pytest import fixture)
+                    elif isinstance(decorator, ast.Name):
+                        if decorator.id == "fixture":
+                            return True
+                    # @mock.patch or @mock.*
+                    elif isinstance(decorator, ast.Attribute):
+                        if isinstance(decorator.value, ast.Name) and decorator.value.id == "mock":
+                            return True
+                    # @patch (from unittest.mock import patch)
+                    elif isinstance(decorator, ast.Name):
+                        if decorator.id in {"patch", "mock"}:
+                            return True
+
+            # Check for Mock/MagicMock instantiation
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    if node.func.id in {"Mock", "MagicMock", "AsyncMock"}:
+                        return True
+                # unittest.mock.Mock or mock.Mock
+                elif isinstance(node.func, ast.Attribute):
+                    if node.func.attr in {"Mock", "MagicMock", "AsyncMock"}:
+                        return True
+
+        return False
 
     def _check_unsafe_file_opens(self, code: str) -> bool:
         """
@@ -292,7 +360,16 @@ class IntegratedBayesianAnalyzer:
             True if sensitive data appears to be logged, False otherwise
         """
         # Sensitive keywords to detect
-        sensitive_keywords = ["password", "token", "key", "secret", "api_key", "auth"]
+        sensitive_keywords = [
+            "password",
+            "token",
+            "key",
+            "secret",
+            "api_key",
+            "auth",
+            "credential",
+            "bearer",
+        ]
 
         try:
             tree = ast.parse(code)
@@ -395,7 +472,9 @@ class IntegratedBayesianAnalyzer:
         if any(
             re.search(pattern, code, re.IGNORECASE | re.DOTALL) for pattern in sql_concat_patterns
         ):
-            issues.append("Potential SQL injection vulnerability")
+            # Only flag if not in test/mock context (same as hardcoded password check)
+            if not self._is_in_test_or_mock_context(code):
+                issues.append("Potential SQL injection vulnerability")
 
         # Unsafe file handling - AST-based check for precise detection
         if self._check_unsafe_file_opens(code):
@@ -480,14 +559,8 @@ class IntegratedBayesianAnalyzer:
         has_error_intent = any(keyword in test_name_lower for keyword in error_intent_keywords)
 
         # Check if test body contains error assertion constructs (use generator for lazy evaluation)
-        has_error_assertion = any(
-            (
-                "pytest.raises" in code,
-                "assertraises" in code_lower,
-                "expect_error" in code_lower,
-                "with raises" in code_lower,
-            )
-        )
+        error_assertion_patterns = ["pytest.raises", "assertraises", "expect_error", "with raises"]
+        has_error_assertion = any(pattern in code_lower for pattern in error_assertion_patterns)
 
         # Only flag if:
         # 1. Test name includes "user" AND suggests error/edge case intent

@@ -855,3 +855,30 @@ def record_test_execution(
         line_number=line_number,
     )
     bayesian_analyzer.record_test_execution(execution)
+
+
+def get_analyzer() -> BayesianTestAnalyzer:
+    """
+    Get the global singleton analyzer instance.
+
+    Returns:
+        The module-level BayesianTestAnalyzer singleton.
+
+    Note:
+        Each pytest-xdist worker has its own singleton instance.
+    """
+    return bayesian_analyzer
+
+
+def reset_analyzer() -> None:
+    """
+    Reset the global singleton analyzer to a fresh instance.
+
+    Useful for testing or resetting learned priors between test runs.
+
+    Note:
+        Resets only the current process/worker's singleton.
+        Does not affect other pytest-xdist workers.
+    """
+    global bayesian_analyzer
+    bayesian_analyzer = BayesianTestAnalyzer()

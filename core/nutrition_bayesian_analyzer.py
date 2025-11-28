@@ -8,7 +8,7 @@
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from core.nutrition_constants import (
     BMI_DANGEROUS_HIGH,
@@ -64,6 +64,11 @@ class NutritionErrorType(Enum):
     MACRONUTRIENT_SUM_INVALID = "macronutrient_sum_invalid"
 
 
+# Type aliases for safety_level and data_sensitivity fields
+SafetyLevel = Literal["safe", "warning", "dangerous"]
+DataSensitivity = Literal["low", "medium", "high"]
+
+
 @dataclass
 class NutritionTestResult:
     """Результат теста с точки зрения питания."""
@@ -76,8 +81,8 @@ class NutritionTestResult:
     execution_time: float = 0.0
     file_path: str = ""
     business_impact: str = ""  # Описание влияния на бизнес
-    safety_level: str = "safe"  # safe, warning, dangerous
-    data_sensitivity: str = "low"  # low, medium, high
+    safety_level: SafetyLevel = "safe"  # safe, warning, dangerous
+    data_sensitivity: DataSensitivity = "low"  # low, medium, high
 
 
 class NutritionBayesianAnalyzer:
@@ -387,6 +392,8 @@ class NutritionBayesianAnalyzer:
         # Поиск макронутриентов
         # Support decimal values and account for possible reassignments:
         # use re.findall and take the last occurrence for each macro.
+        # Note: Patterns match only positive numbers (\d+). Negative macronutrient values
+        # are not expected in valid nutritional data, so we validate positivity below.
         macro_patterns = {
             "protein": r"protein\s*[=:]\s*(\d+(?:\.\d+)?)",
             "fat": r"fat\s*[=:]\s*(\d+(?:\.\d+)?)",
@@ -437,6 +444,10 @@ class NutritionBayesianAnalyzer:
                     )
                 )
                 # Skip further percentage-based checks if total_calories is invalid
+            # Note: Since regex patterns match only \d+ (positive numbers), protein_cals,
+            # fat_cals, and carb_cals are always >= 0. The check below (lines 445-456)
+            # for negative calories is unreachable but kept for robustness in case
+            # regex patterns are modified in the future to accept negative values.
             elif protein_cals < 0 or fat_cals < 0 or carb_cals < 0:
                 results.append(
                     NutritionTestResult(

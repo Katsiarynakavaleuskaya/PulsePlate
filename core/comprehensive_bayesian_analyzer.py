@@ -330,12 +330,16 @@ class ComprehensiveBayesianAnalyzer:
         if not issues:
             return 1.0
 
-        # Штрафы за разные типы проблем
+        # Штрафы за разные типы проблем (билингвальные ключевые слова)
+        critical_keywords = ("asyncmock", "исключен", "exception")
+        major_keywords = ("типизац", "typing", "type", "await")
+
         penalty = 0.0
         for issue in issues:
-            if "AsyncMock" in issue or "исключение" in issue:
+            issue_lower = issue.lower()
+            if any(keyword in issue_lower for keyword in critical_keywords):
                 penalty += self.CRITICAL_PENALTY  # Критические проблемы
-            elif "типизация" in issue or "await" in issue:
+            elif any(keyword in issue_lower for keyword in major_keywords):
                 penalty += self.MAJOR_PENALTY  # Важные проблемы
             else:
                 penalty += self.MINOR_PENALTY  # Обычные проблемы
@@ -347,11 +351,16 @@ class ComprehensiveBayesianAnalyzer:
         if not issues:
             return 1.0
 
+        # Билингвальные ключевые слова для критичных и важных проблем
+        critical_keywords = ("доход", "revenue", "income")
+        important_keywords = ("клиент", "customer", "client")
+
         penalty = 0.0
         for issue in issues:
-            if "доход" in issue.lower() or "revenue" in issue.lower():
+            issue_lower = issue.lower()
+            if any(keyword in issue_lower for keyword in critical_keywords):
                 penalty += self.BUSINESS_PENALTY_CRITICAL  # Критические бизнес-проблемы
-            elif "клиент" in issue.lower() or "customer" in issue.lower():
+            elif any(keyword in issue_lower for keyword in important_keywords):
                 penalty += self.BUSINESS_PENALTY_IMPORTANT  # Важные проблемы
             else:
                 penalty += self.BUSINESS_PENALTY_NORMAL  # Обычные проблемы
