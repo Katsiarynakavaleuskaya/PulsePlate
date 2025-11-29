@@ -113,7 +113,7 @@ class BusinessBayesianAnalyzer:
     # Epsilon: Numerical stability guard for Bayesian ROI calculations
     # RU: Epsilon: защита численной стабильности для байесовских расчетов ROI
     # EN: Guards against zero/near-zero standard deviations in delta-method approximations.
-    #     Value: 1e-12 (standard machine epsilon for float64 numerical stability)
+    #     Value: 1e-12 (small positive constant chosen for numerical stability)
     #     Usage: Prevents division by zero when computing precision (1 / variance) in
     #            posterior distribution updates during Bayesian ROI estimation.
     #     Reference: Numerical Recipes (Press et al.) - "Avoiding Floating-Point Pitfalls"
