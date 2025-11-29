@@ -282,6 +282,20 @@ def test_bad_bmi():
             for r in results
         )
 
+    def test_bmi_exactly_at_dangerous_threshold(self) -> None:
+        """BMI exactly at dangerous high threshold (30.0) should be flagged as dangerous."""
+        analyzer = NutritionBayesianAnalyzer()
+        # BMI_DANGEROUS_HIGH = 30.0, test that >= comparison catches exact boundary
+        code = "bmi = 30.0"
+        results = analyzer.analyze_nutrition_safety(code, "test_bmi_boundary")
+        # Should flag BMI=30.0 as dangerous (obesity class I threshold)
+        assert any(
+            r.nutrition_category == NutritionCategory.BMI_SAFETY
+            and getattr(r.error_type, "value", "") == "bmi_dangerous"
+            and r.safety_level == "dangerous"
+            for r in results
+        ), "BMI=30.0 should be flagged as dangerous (>= threshold)"
+
 
 class TestMacronutrientChecks:
     """Test macronutrient validation."""
@@ -460,9 +474,9 @@ def test_medical_limit():
         analyzer.analyze_nutrition_safety(code, "test_allergen")
         recs = analyzer.generate_nutrition_recommendations()
         # Locale-independent: check for allergen-related recommendation by category
+        issues = analyzer.diagnose_nutrition_issues()
         assert (
-            any(NutritionCategory.ALLERGEN_SAFETY in analyzer.diagnose_nutrition_issues())
-            or len(recs) > 0
+            NutritionCategory.ALLERGEN_SAFETY in issues or len(recs) > 0
         ), "Should generate allergen recommendations"
 
     def test_value_error_paths_for_calories_and_bmi(self) -> None:

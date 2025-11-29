@@ -279,7 +279,7 @@ class NutritionBayesianAnalyzer:
                                 safety_level="dangerous",
                             )
                         )
-                    elif bmi > self.safety_thresholds["bmi_dangerous_high"]:
+                    elif bmi >= self.safety_thresholds["bmi_dangerous_high"]:
                         results.append(
                             NutritionTestResult(
                                 test_name=test_name,

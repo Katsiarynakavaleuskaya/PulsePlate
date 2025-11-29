@@ -133,7 +133,9 @@ class IntegratedBayesianAnalyzer:
         nutrition_results: List[NutritionTestResult] = (
             self.nutrition_analyzer.analyze_nutrition_safety(test_code, test_name)
         )
-        nutrition_issues = [r.error_message for r in nutrition_results if not r.success]
+        nutrition_issues = [
+            r.error_message for r in nutrition_results if not r.success and r.error_message
+        ]
 
         # Safety analysis
         safety_issues = self._analyze_safety_aspects(test_code, test_name)
