@@ -635,6 +635,11 @@ class IntegratedBayesianAnalyzer:
         Maps issue descriptions to normalized types regardless of language.
         Returns a set of normalized types found in the issue.
         """
+        # Guard against non-string issues
+        if not isinstance(issue, str):
+            # Ignore non-string issues for normalization purposes
+            return set()
+
         issue_lower = issue.lower()
         normalized_types: Set[NormalizedIssueType] = set()
 

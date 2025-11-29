@@ -175,9 +175,9 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code == 200
             data = response.json()
-            assert "message" in data, (
-                "API response must contain 'message' key per rollback endpoint contract"
-            )
+            assert (
+                "message" in data
+            ), "API response must contain 'message' key per rollback endpoint contract"
 
     def test_rollback_endpoint_failure(self):
         """Test rollback endpoint failure case."""

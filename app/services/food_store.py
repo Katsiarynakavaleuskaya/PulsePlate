@@ -402,7 +402,9 @@ def search_foods(query: str, limit: int | str = 20, offset: int | str = 0) -> Li
           FROM foods f
           JOIN foods_fts ff ON ff.rowid = f.rowid
           WHERE """
-            + " OR ".join(["ff.canonical_name MATCH ?"] * len(terms))  # nosec B608: safe - only clause count is dynamic, all values use placeholders
+            + " OR ".join(
+                ["ff.canonical_name MATCH ?"] * len(terms)
+            )  # nosec B608: safe - only clause count is dynamic, all values use placeholders
             + " LIMIT ? OFFSET ?"
         )
         params = [*terms, limit, offset]

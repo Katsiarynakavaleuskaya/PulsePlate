@@ -59,9 +59,9 @@ def test_plate_targets_integration_workflow():
     target_kcal = targets_data["kcal_daily"]
 
     # Allow 10% deviation
-    assert abs(plate_kcal - target_kcal) / target_kcal <= 0.1, (
-        f"Plate kcal {plate_kcal} vs target {target_kcal}"
-    )
+    assert (
+        abs(plate_kcal - target_kcal) / target_kcal <= 0.1
+    ), f"Plate kcal {plate_kcal} vs target {target_kcal}"
 
     # Check macro alignment
     plate_macros = plate_data["macros"]
@@ -72,9 +72,9 @@ def test_plate_targets_integration_workflow():
             plate_val = plate_macros[macro]
             target_val = target_macros[macro]
             # Allow 15% deviation for macros
-            assert abs(plate_val - target_val) / target_val <= 0.15, (
-                f"{macro}: plate {plate_val} vs target {target_val}"
-            )
+            assert (
+                abs(plate_val - target_val) / target_val <= 0.15
+            ), f"{macro}: plate {plate_val} vs target {target_val}"
 
 
 def test_plate_targets_micros_coverage():

@@ -227,12 +227,12 @@ async def test_api_premium_plate_fallback_portions_structure(
     # Verify portions structure and types
     assert isinstance(response.portions, dict), "portions should be a dict"
     expected_portion_keys = {"protein_palm", "carb_cups", "veg_cups", "fat_thumbs"}
-    assert set(response.portions.keys()) == expected_portion_keys, (
-        f"Expected portion keys {expected_portion_keys}, got {set(response.portions.keys())}"
-    )
-    assert all(isinstance(v, (int, float)) and v >= 0 for v in response.portions.values()), (
-        "Portion values should be non-negative numbers"
-    )
+    assert (
+        set(response.portions.keys()) == expected_portion_keys
+    ), f"Expected portion keys {expected_portion_keys}, got {set(response.portions.keys())}"
+    assert all(
+        isinstance(v, (int, float)) and v >= 0 for v in response.portions.values()
+    ), "Portion values should be non-negative numbers"
 
 
 @pytest.mark.asyncio
@@ -249,9 +249,9 @@ async def test_api_premium_plate_fallback_layout_structure(
     assert isinstance(response.layout, list), "layout should be a list"
     assert len(response.layout) > 0, "layout should contain at least one VisualShape"
     for shape in response.layout:
-        assert isinstance(shape, app.VisualShape), (
-            f"Each layout item should be VisualShape, got {type(shape)}"
-        )
+        assert isinstance(
+            shape, app.VisualShape
+        ), f"Each layout item should be VisualShape, got {type(shape)}"
         assert shape.kind in {"plate_sector", "bowl", "marker"}, f"Invalid shape kind: {shape.kind}"
         assert 0 <= shape.fraction <= 1, f"Fraction should be between 0 and 1, got {shape.fraction}"
 
@@ -274,16 +274,16 @@ async def test_api_premium_plate_fallback_meals_structure(
         assert "title" in meal, "Meal should have 'title' field"
         assert "kcal" in meal, "Meal should have 'kcal' field"
         assert isinstance(meal["kcal"], int), "Meal kcal should be an integer"
-        assert 0 < meal["kcal"] < response.kcal, (
-            f"Meal kcal ({meal['kcal']}) should be less than daily kcal ({response.kcal})"
-        )
+        assert (
+            0 < meal["kcal"] < response.kcal
+        ), f"Meal kcal ({meal['kcal']}) should be less than daily kcal ({response.kcal})"
         if "macros" in meal:
             assert isinstance(meal["macros"], dict), "Meal macros should be a dict"
             for macro_key in ["protein_g", "carbs_g", "fat_g"]:
                 if macro_key in meal["macros"]:
-                    assert isinstance(meal["macros"][macro_key], int), (
-                        f"Meal {macro_key} should be an integer"
-                    )
+                    assert isinstance(
+                        meal["macros"][macro_key], int
+                    ), f"Meal {macro_key} should be an integer"
 
 
 @pytest.mark.asyncio
@@ -298,9 +298,9 @@ async def test_api_premium_plate_fallback_macros_structure(
 
     # Verify macros structure contains all expected keys
     expected_macro_keys = {"protein_g", "fat_g", "carbs_g", "fiber_g"}
-    assert set(response.macros.keys()) == expected_macro_keys, (
-        f"Expected macro keys {expected_macro_keys}, got {set(response.macros.keys())}"
-    )
+    assert (
+        set(response.macros.keys()) == expected_macro_keys
+    ), f"Expected macro keys {expected_macro_keys}, got {set(response.macros.keys())}"
 
 
 @pytest.mark.asyncio
@@ -334,9 +334,9 @@ async def test_api_premium_plate_fallback_aligns_targets(
     # When targets are available, they should override computed values
     assert response.macros["fat_g"] in {60, 72}
     assert response.macros["protein_g"] in {120, 128}
-    assert response.macros["carbs_g"] >= 0, (
-        f"Expected carbs_g >= 0, got {response.macros['carbs_g']}"
-    )
+    assert (
+        response.macros["carbs_g"] >= 0
+    ), f"Expected carbs_g >= 0, got {response.macros['carbs_g']}"
     assert response.macros["fiber_g"] >= app.FIBER_MIN_G
     assert response.kcal > 0
 

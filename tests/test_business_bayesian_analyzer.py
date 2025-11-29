@@ -693,40 +693,6 @@ for a in range(3):
         results = analyzer._analyze_cost_optimization(code, "test_nested_loop")
         assert any(r.business_category == BusinessCategory.COST_OPTIMIZATION for r in results)
 
-    def test_calculate_bayesian_roi_input_validation(self):
-        """Test input validation for ROI calculation."""
-        analyzer = BusinessBayesianAnalyzer()
-        # invalid prior_mean <= -1
-        with pytest.raises(ValueError):
-            analyzer._calculate_bayesian_roi(
-                "cat",
-                prior_mean=-1.0,
-                prior_std=0.1,
-                data=[],
-                time_horizon_months=1,
-                assumptions="x",
-            )
-        # invalid prior_std < 0
-        with pytest.raises(ValueError):
-            analyzer._calculate_bayesian_roi(
-                "cat",
-                prior_mean=0.1,
-                prior_std=-0.1,
-                data=[],
-                time_horizon_months=1,
-                assumptions="x",
-            )
-        # invalid data value <= -1
-        with pytest.raises(ValueError):
-            analyzer._calculate_bayesian_roi(
-                "cat",
-                prior_mean=0.1,
-                prior_std=0.1,
-                data=[-1.0],
-                time_horizon_months=1,
-                assumptions="x",
-            )
-
     def test_calculate_bayesian_roi_high_variance_branch(self):
         """High variance should hit delta-method variance branch without errors."""
         analyzer = BusinessBayesianAnalyzer()

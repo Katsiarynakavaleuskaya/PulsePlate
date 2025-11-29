@@ -118,9 +118,9 @@ class TestConftestEnvironmentCoverage:
         required_dirs = ["core", "app", "tests"]
         path_segments = pythonpath.split(os.pathsep)
         for dir_name in required_dirs:  # sourcery skip: no-loop-in-tests
-            assert any(dir_name in segment for segment in path_segments), (
-                f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
-            )
+            assert any(
+                dir_name in segment for segment in path_segments
+            ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
 
     def test_conftest_sys_modules_coverage(self):
         """Тест покрытия conftest.py sys.modules"""

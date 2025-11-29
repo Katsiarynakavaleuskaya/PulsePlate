@@ -134,9 +134,9 @@ class TestPremiumWeekCombined:
             assert "detail" in data, f"Expected 'detail' in response, got {data}"
             error_text = str(data["detail"])
             # Check for missing required fields in error message
-            assert "height_cm" in error_text or "weight_kg" in error_text, (
-                f"Expected missing field error for 'height_cm' or 'weight_kg', got: {error_text}"
-            )
+            assert (
+                "height_cm" in error_text or "weight_kg" in error_text
+            ), f"Expected missing field error for 'height_cm' or 'weight_kg', got: {error_text}"
         elif response.status_code == 403:
             # Optionally check for forbidden error message
             data = response.json()
