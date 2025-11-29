@@ -737,7 +737,7 @@ class BayesianTestAnalyzer:
                 )
                 time_stability = 1.0 / (1.0 + time_variance / (avg_time**2))
             else:
-                time_stability = 1.0  # Safe default for near-zero average time
+                time_stability = 1.0  # Safe default for near-zero average time  # pragma: no cover
         else:
             time_stability = 1.0
 

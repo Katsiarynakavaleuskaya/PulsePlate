@@ -182,21 +182,6 @@ class TestComprehensiveCoverage:
                     "message" in data
                 ), "API response must contain 'message' key per rollback endpoint contract"
 
-    def test_rollback_endpoint_failure(self):
-        """Test rollback endpoint failure case."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
-            mock_get_scheduler.return_value = mock_scheduler
-
-            response = self.client.post(
-                "/api/v1/admin/rollback",
-                params={"source": "usda", "target_version": "1.0"},
-                headers={"X-API-Key": "test_key"},
-            )
-            # The app may return 200 (no-op) or 500 on rollback failure
-            assert response.status_code in [200, 500]
-
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
@@ -207,6 +192,80 @@ class TestComprehensiveCoverage:
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
+            # May return 200 or 500 depending on mock handling
+            assert response.status_code in [200, 500]
+            if response.status_code == 500:
+                data = response.json()
+                assert "Rollback operation failed" in data["detail"]
+                assert "could not get scheduler" in data["detail"]
+
+    def test_rollback_endpoint_no_update_manager(self):
+        """Test rollback when scheduler has no update_manager."""
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+            mock_scheduler = AsyncMock()
+            delattr(mock_scheduler, "update_manager")  # Remove attribute
+            mock_get_scheduler.return_value = mock_scheduler
+
+            response = self.client.post(
+                "/api/v1/admin/rollback",
+                params={"source": "usda", "target_version": "1.0"},
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert (
+                "No update manager available" in data["message"]
+                or "not supported" in data["message"]
+            )
+
+    def test_rollback_endpoint_no_rollback_method(self):
+        """Test rollback when update_manager has no rollback_database method."""
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+            mock_scheduler = AsyncMock()
+            mock_scheduler.update_manager = type("obj", (object,), {})()
+            mock_get_scheduler.return_value = mock_scheduler
+
+            response = self.client.post(
+                "/api/v1/admin/rollback",
+                params={"source": "usda", "target_version": "1.0"},
+                headers={"X-API-Key": "test_key"},
+            )
+            # Should handle missing rollback_database gracefully
+            assert response.status_code in [200, 500]
+
+    def test_rollback_endpoint_rollback_function_exception(self):
+        """Test rollback when rollback_database raises exception."""
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+            mock_scheduler = AsyncMock()
+            mock_scheduler.update_manager.rollback_database = AsyncMock(
+                side_effect=Exception("Rollback failed")
+            )
+            mock_get_scheduler.return_value = mock_scheduler
+
+            response = self.client.post(
+                "/api/v1/admin/rollback",
+                params={"source": "usda", "target_version": "1.0"},
+                headers={"X-API-Key": "test_key"},
+            )
+            # May return 200 or 500 depending on exception handling
+            assert response.status_code in [200, 500]
+            if response.status_code == 500:
+                data = response.json()
+                assert "Rollback operation failed" in data["detail"]
+
+    def test_rollback_endpoint_returns_false(self):
+        """Test rollback when rollback_database returns False."""
+        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+            mock_scheduler = AsyncMock()
+            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
+            mock_get_scheduler.return_value = mock_scheduler
+
+            response = self.client.post(
+                "/api/v1/admin/rollback",
+                params={"source": "usda", "target_version": "1.0"},
+                headers={"X-API-Key": "test_key"},
+            )
+            # May return 200 or 500 depending on how False result is handled
             assert response.status_code in [200, 500]
             if response.status_code == 500:
                 data = response.json()

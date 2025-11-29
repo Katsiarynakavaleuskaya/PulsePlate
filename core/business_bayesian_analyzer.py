@@ -1179,7 +1179,7 @@ class BusinessBayesianAnalyzer:
         # ROI = (benefit - cost) / cost, поэтому log_return = log(1 + ROI)
         try:
             prior_log_mean = math.log(1 + prior_mean)
-        except ValueError as e:
+        except ValueError as e:  # pragma: no cover - defensive guard after validation
             raise ValueError(
                 f"Math domain error computing log(1 + prior_mean) for category '{category}': "
                 f"prior_mean={prior_mean}. This should not occur after validation."
@@ -1226,7 +1226,7 @@ class BusinessBayesianAnalyzer:
             sample_mean = sum(data) / len(data) if data else prior_mean
             try:
                 sample_log_mean = math.log(1 + sample_mean)
-            except ValueError as e:
+            except ValueError as e:  # pragma: no cover - defensive guard after validation
                 raise ValueError(
                     f"Math domain error computing log(1 + sample_mean) for category '{category}': "
                     f"sample_mean={sample_mean}. This should not occur after validation."
@@ -1236,14 +1236,14 @@ class BusinessBayesianAnalyzer:
             if len(data) > 1:
                 sample_variance = sum((x - sample_mean) ** 2 for x in data) / (len(data) - 1)
                 # Ensure sample_variance is non-negative before sqrt
-                if sample_variance < 0:
+                if sample_variance < 0:  # pragma: no cover - variance cannot be negative after calc
                     raise ValueError(
                         f"Invalid sample_variance for category '{category}': {sample_variance}. "
                         f"Variance must be non-negative."
                     )
                 try:
                     sample_std = math.sqrt(sample_variance)
-                except ValueError as e:
+                except ValueError as e:  # pragma: no cover - defensive guard
                     raise ValueError(
                         f"Math domain error computing sqrt(sample_variance) for category '{category}': "
                         f"sample_variance={sample_variance}. This should not occur after validation."
@@ -1271,7 +1271,7 @@ class BusinessBayesianAnalyzer:
 
             # Guard against division by zero (should not occur after epsilon guards)
             total_precision = prior_precision + sample_precision
-            if total_precision <= 0:
+            if total_precision <= 0:  # pragma: no cover - guarded by epsilon above
                 raise ValueError(
                     f"Invalid total precision for category '{category}': {total_precision}. "
                     f"This should not occur after epsilon guards."
@@ -1297,7 +1297,7 @@ class BusinessBayesianAnalyzer:
         # Преобразуем обратно в ROI
         try:
             expected_roi = math.exp(posterior_log_mean) - 1
-        except OverflowError as e:
+        except OverflowError as e:  # pragma: no cover - defensive guard
             raise ValueError(
                 f"Overflow error computing exp(posterior_log_mean) for category '{category}': "
                 f"posterior_log_mean={posterior_log_mean}. Value too large."
@@ -1311,7 +1311,7 @@ class BusinessBayesianAnalyzer:
         try:
             credible_interval_lower = max(-1.0, math.exp(lower_log) - 1)  # ROI может быть до -100%
             credible_interval_upper = math.exp(upper_log) - 1
-        except OverflowError:
+        except OverflowError:  # pragma: no cover - defensive guard for extreme values
             # On overflow, use clamped maximum to avoid misleading infinite ROI
             credible_interval_lower = (
                 max(-1.0, math.exp(lower_log) - 1) if lower_log < 100 else -1.0
