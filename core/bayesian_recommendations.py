@@ -279,8 +279,7 @@ def get_error_type_key(error_type: Enum) -> str:
         raise TypeError(
             f"Expected Enum type for error_type, got {type(error_type).__name__}: {error_type!r}"
         )
-    if not hasattr(error_type, "name"):
-        raise TypeError(f"Enum instance {error_type!r} missing required 'name' attribute")
+    # All Enum instances have 'name' attribute by definition; no hasattr check needed
     error_name = error_type.name.lower()
     return f"error_type.{error_name}"
 
