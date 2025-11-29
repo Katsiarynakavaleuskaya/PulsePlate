@@ -12,6 +12,7 @@ Tests cover:
 - Input validation and edge cases
 """
 
+from pathlib import Path
 import pytest
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
@@ -453,30 +454,20 @@ def fetch_data():
         results = analyzer._analyze_monetization(code, "bad_price")
         assert isinstance(results, list)
 
-    def test_load_business_knowledge_custom_yaml(self, monkeypatch):
+    def test_load_business_knowledge_custom_yaml(self, tmp_path, monkeypatch):
         """Cover YAML success branch for business_knowledge."""
-        import io
-        import builtins
         import yaml
         import core.business_bayesian_analyzer as bmod
 
-        yaml_text = "revenue_streams:\\n  custom:\\n    price_range: [2, 4]\\n"
-        target = str((bmod.Path(__file__).parent.parent / "config" / "business_knowledge.yaml"))
-        real_exists = bmod.Path.exists
-        real_open = builtins.open
-
-        def fake_exists(self):
-            if str(self) == target:
-                return True
-            return real_exists(self)
-
-        def fake_open(file, *args, **kwargs):
-            if str(file) == target:
-                return io.StringIO(yaml_text)
-            return real_open(file, *args, **kwargs)
-
-        monkeypatch.setattr(bmod.Path, "exists", fake_exists)
-        monkeypatch.setattr(builtins, "open", fake_open)
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        yaml_path = config_dir / "business_knowledge.yaml"
+        yaml_path.write_text(
+            "revenue_streams:\n  custom:\n    price_range: [2, 4]\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(
+            bmod, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py")
+        )
         monkeypatch.setattr(
             BusinessBayesianAnalyzer, "_import_yaml_module", staticmethod(lambda: yaml)
         )
@@ -485,33 +476,19 @@ def fetch_data():
         data = analyzer._load_business_knowledge()
         assert data["revenue_streams"]["custom"]["price_range"] == [2, 4]
 
-    def test_load_monetization_strategies_custom_yaml(self, monkeypatch):
+    def test_load_monetization_strategies_custom_yaml(self, tmp_path, monkeypatch):
         """Cover YAML success branch for monetization_strategies locale."""
-        import io
-        import builtins
         import yaml
         import core.business_bayesian_analyzer as bmod
         import core.i18n as i18n
 
-        yaml_text = "pricing_models:\\n  custom: ok\\n"
-        target = str(
-            (bmod.Path(__file__).parent.parent / "config" / "monetization_strategies.zz.yaml")
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        yaml_path = config_dir / "monetization_strategies.zz.yaml"
+        yaml_path.write_text("pricing_models:\n  custom: ok\n", encoding="utf-8")
+        monkeypatch.setattr(
+            bmod, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py")
         )
-        real_exists = bmod.Path.exists
-        real_open = builtins.open
-
-        def fake_exists(self):
-            if str(self) == target:
-                return True
-            return real_exists(self)
-
-        def fake_open(file, *args, **kwargs):
-            if str(file) == target:
-                return io.StringIO(yaml_text)
-            return real_open(file, *args, **kwargs)
-
-        monkeypatch.setattr(bmod.Path, "exists", fake_exists)
-        monkeypatch.setattr(builtins, "open", fake_open)
         monkeypatch.setattr(i18n, "normalize_lang", lambda loc=None: "zz")
         monkeypatch.setattr(
             BusinessBayesianAnalyzer, "_import_yaml_module", staticmethod(lambda: yaml)
@@ -521,36 +498,21 @@ def fetch_data():
         data = analyzer._load_monetization_strategies("zz")
         assert data["pricing_models"]["custom"] == "ok"
 
-    def test_load_cost_optimization_rules_custom_yaml(self, monkeypatch):
+    def test_load_cost_optimization_rules_custom_yaml(self, tmp_path, monkeypatch):
         """Cover YAML success branch for cost_optimization_rules."""
-        import io
-        import builtins
         import yaml
         import core.business_bayesian_analyzer as bmod
 
-        yaml_text = (
-            "infrastructure:\\n  auto_scaling: present\\n"
-            "development:\\n  testing: important\\n"
-            "operations:\\n  support: yes\\n"
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        yaml_path = config_dir / "cost_optimization_rules.yaml"
+        yaml_path.write_text(
+            "infrastructure:\n  auto_scaling: present\ndevelopment:\n  testing: important\noperations:\n  support: yes\n",
+            encoding="utf-8",
         )
-        target = str(
-            (bmod.Path(__file__).parent.parent / "config" / "cost_optimization_rules.yaml")
+        monkeypatch.setattr(
+            bmod, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py")
         )
-        real_exists = bmod.Path.exists
-        real_open = builtins.open
-
-        def fake_exists(self):
-            if str(self) == target:
-                return True
-            return real_exists(self)
-
-        def fake_open(file, *args, **kwargs):
-            if str(file) == target:
-                return io.StringIO(yaml_text)
-            return real_open(file, *args, **kwargs)
-
-        monkeypatch.setattr(bmod.Path, "exists", fake_exists)
-        monkeypatch.setattr(builtins, "open", fake_open)
         monkeypatch.setattr(
             BusinessBayesianAnalyzer, "_import_yaml_module", staticmethod(lambda: yaml)
         )
