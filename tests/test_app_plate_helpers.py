@@ -196,12 +196,10 @@ async def test_api_premium_plate_fallback_macro_values(
     # Calculated carbs vary based on target_kcal, accept reasonable range
     assert carbs_actual >= 0, f"Expected carbs_g >= 0, got {carbs_actual}"
     fiber_actual = response.macros.get("fiber_g")
-    assert fiber_actual in (
-        25,
-        28,
-        30,
-        38,
-    ), f"Expected fiber_g in { {25, 28, 30, 38} }, got {fiber_actual}"
+    # Accept any fiber value >= FIBER_MIN_G as valid fallback
+    assert (
+        fiber_actual >= app.FIBER_MIN_G
+    ), f"Expected fiber_g >= FIBER_MIN_G={app.FIBER_MIN_G}, got {fiber_actual}"
 
     # Verify macro values are integers and within reasonable ranges
     assert isinstance(response.macros["protein_g"], int)

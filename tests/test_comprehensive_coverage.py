@@ -319,7 +319,7 @@ class TestComprehensiveCoverage:
                 response = self.client.post(
                     "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
                 )
-                # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
+                # ValueError is caught and returns 400 (not 422 which is for schema validation)
                 assert response.status_code == 400
         finally:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:

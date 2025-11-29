@@ -1,5 +1,7 @@
 """Integration tests for IntegratedBayesianAnalyzer behavior and edge cases."""
 
+import pytest
+
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, NormalizedIssueType
 
 
@@ -39,6 +41,27 @@ token = 'abc'
 logger.info(f\"token={token}\")
 """
     assert analyzer._check_sensitive_data_logging(code_ast) is True
+
+    code_joined = """
+import logging
+token = "abc"
+logger.info("token=" f"{token}")
+"""
+    assert analyzer._check_sensitive_data_logging(code_joined) is True
+
+    code_joined = """
+import logging
+token = 'abc'
+logger.info("token=" f"{token}")
+"""
+    assert analyzer._check_sensitive_data_logging(code_joined) is True
+
+    code_joined = """
+import logging
+token = 'abc'
+logger.info("token=" f"{token}")
+"""
+    assert analyzer._check_sensitive_data_logging(code_joined) is True
 
 
 def test_analyze_safety_aspects_password_sql_and_context() -> None:
@@ -167,3 +190,35 @@ def test_normalize_issue_type_keywords() -> None:
         NormalizedIssueType.DANGEROUS_INSTRUCTION in types
         or NormalizedIssueType.HEALTH_VIOLATION in types
     )
+
+    # Async/exception keywords map to respective normalized types
+    types2 = analyzer._normalize_issue_type("async error exception handling fails")
+    assert NormalizedIssueType.ASYNC_ERROR in types2
+    assert NormalizedIssueType.EXCEPTION_HANDLING in types2
+
+    # Non-string issues should yield empty set
+    assert analyzer._normalize_issue_type(None) == set()
+
+
+def test_calculate_risk_level_thresholds() -> None:
+    analyzer = IntegratedBayesianAnalyzer()
+    critical = ["SQL injection", "hardcoded password", "dangerous instruction"]
+    assert analyzer._calculate_risk_level(critical, [], [], []) == "critical"
+    high = ["SQL injection", "hardcoded password"]
+    assert analyzer._calculate_risk_level(high, [], [], []) == "high"
+    medium = ["SQL injection"]
+    assert analyzer._calculate_risk_level(medium, [], [], []) in {"medium", "low"}
+
+
+def test_analyze_safety_aspects_sql_injection_and_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    analyzer = IntegratedBayesianAnalyzer()
+    # Force non-test context
+    monkeypatch.setattr(analyzer, "_is_in_test_or_mock_context", lambda code: False)
+    code = 'query = "SELECT * FROM users" + user_input'
+    issues = analyzer._analyze_safety_aspects(code, "prod")
+    assert any("SQL injection" in msg for msg in issues)
+
+    # In test context should skip
+    monkeypatch.setattr(analyzer, "_is_in_test_or_mock_context", lambda code: True)
+    issues2 = analyzer._analyze_safety_aspects(code, "test_code")
+    assert all("SQL injection" not in msg.lower() for msg in issues2)

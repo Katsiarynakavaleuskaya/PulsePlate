@@ -2912,7 +2912,10 @@ async def rollback_database(source: str, target_version: str):
     try:
         scheduler = await get_update_scheduler()
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to get scheduler: {exc}") from exc
+        raise HTTPException(
+            status_code=500,
+            detail=f"Rollback operation failed: could not get scheduler: {exc}",
+        ) from exc
 
     # Defensive: check if update_manager exists (supports mocks)
     update_manager = getattr(scheduler, "update_manager", None)

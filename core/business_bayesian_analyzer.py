@@ -377,6 +377,11 @@ class BusinessBayesianAnalyzer:
                     with open(config_path, "r", encoding="utf-8") as f:
                         loaded = yaml_module.safe_load(f) or {}
                 except (OSError, yaml_error_type):
+                    logger.warning(
+                        "Failed to load cost_optimization_rules from %s",
+                        config_path,
+                        exc_info=True,
+                    )
                     loaded = {}
                 # Validate structure: must contain infrastructure/development/operations blocks
                 if loaded and all(
@@ -707,18 +712,21 @@ class BusinessBayesianAnalyzer:
             tree = None
 
         if tree is not None:
-            # AST-based detection: check for nested For loops at any depth
+            # AST-based detection: check for nested (sync/async) for-loops at any depth
+            # AsyncFor available in Python 3.5+ for async for loops
             # This catches patterns like:
             #   for ...: if ...: for ...:
+            #   async for ...: for ...:
             #   for ...: while ...: for ...:
             #   for ...: try: for ...:
+            loop_node_types = (ast.For, getattr(ast, "AsyncFor", ()))
             for node in ast.walk(tree):
-                if isinstance(node, ast.For):
+                if isinstance(node, loop_node_types):
                     # Walk the entire subtree of this for loop to find ANY nested for loops
                     # (not just direct children)
                     for descendant in ast.walk(node):
                         # Skip the node itself
-                        if descendant is node or not isinstance(descendant, ast.For):
+                        if descendant is node or not isinstance(descendant, loop_node_types):
                             continue
                         # Found a nested for loop
                         loop_body_src = ast.get_source_segment(code, descendant) or ""

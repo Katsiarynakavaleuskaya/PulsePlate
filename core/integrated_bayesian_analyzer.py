@@ -387,13 +387,15 @@ class IntegratedBayesianAnalyzer:
         Returns:
             True if sensitive data appears to be logged, False otherwise
         """
-        # Sensitive keywords to detect
+        # Sensitive keywords to detect (avoid bare "key" to reduce false positives like monkey_id)
         sensitive_keywords = [
             "password",
             "token",
-            "key",
             "secret",
             "api_key",
+            "secret_key",
+            "access_key",
+            "auth_token",
             "auth",
             "credential",
             "bearer",
@@ -727,11 +729,14 @@ class IntegratedBayesianAnalyzer:
         all_issues = technical + nutrition + safety + philosophy
         for issue in all_issues:
             normalized = self._normalize_issue_type(issue)
-            # Critical types: injection, password leak, dangerous instruction
+            # Critical types: injection, password leak, dangerous instruction, safety/health violations
+            # Health/safety violations drive risk in nutrition domain
             critical_types = {
                 NormalizedIssueType.INJECTION,
                 NormalizedIssueType.PASSWORD_LEAK,
                 NormalizedIssueType.DANGEROUS_INSTRUCTION,
+                NormalizedIssueType.SAFETY_VIOLATION,
+                NormalizedIssueType.HEALTH_VIOLATION,
             }
             critical_issue_types.update(normalized & critical_types)
 

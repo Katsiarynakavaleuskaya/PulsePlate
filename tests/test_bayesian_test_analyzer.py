@@ -31,8 +31,8 @@ class TestBayesianTestAnalyzerInit:
         """Test that prior probabilities are normalized."""
         analyzer = BayesianTestAnalyzer()
         total = sum(analyzer.prior_probabilities.values())
-        # Should be normalized to 1.0
-        assert 0.9 < total <= 1.1  # Allow small floating point errors
+        # Should be normalized to exactly 1.0
+        assert total == pytest.approx(1.0, rel=1e-9)
 
     def test_test_history_aliases_execution_history(self):
         """test_history should be a live alias for execution_history."""
