@@ -114,23 +114,23 @@ PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
 if [ -n "$PYTHON_CHANGES" ]; then
     echo "🐍 Python changes detected, running basic checks..."
 
-    # Auto-format with Ruff (replaces Black)
-    echo "🎨 Auto-formatting Python code with Ruff..."
-    if command -v ruff > /dev/null 2>&1; then
+    # Auto-format with Black (project standard)
+    echo "🎨 Auto-formatting Python code with Black..."
+    if command -v black > /dev/null 2>&1; then
         # Filter to only existing files
         EXISTING_PY_FILES=()
         for f in $PYTHON_CHANGES; do
             [ -f "$f" ] && EXISTING_PY_FILES+=("$f")
         done
-        if [ ${#EXISTING_PY_FILES[@]} -gt 0 ] && ruff format "${EXISTING_PY_FILES[@]}"; then
-            echo "✅ Ruff formatting applied"
+        if [ ${#EXISTING_PY_FILES[@]} -gt 0 ] && black "${EXISTING_PY_FILES[@]}"; then
+            echo "✅ Black formatting applied"
             git add "${EXISTING_PY_FILES[@]}"
         else
-            echo "⚠️  Warning: Ruff formatting failed, continuing..."
+            echo "⚠️  Warning: Black formatting failed, continuing..."
         fi
     else
-        echo "⚠️  Warning: Ruff not found, skipping auto-formatting"
-        echo "   Install with: pip install ruff"
+        echo "⚠️  Warning: Black not found, skipping auto-formatting"
+        echo "   Install with: pip install black"
     fi
 
     # Check Python syntax
