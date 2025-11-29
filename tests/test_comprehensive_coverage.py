@@ -174,14 +174,14 @@ class TestComprehensiveCoverage:
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            # Accept both 200 (success) and 500 (mock configuration issues in CI)
-            # CI environment may handle AsyncMock differently than local env
-            assert response.status_code in [200, 500], f"Unexpected status: {response.status_code}"
-            if response.status_code == 200:
-                data = response.json()
-                assert (
-                    "message" in data
-                ), "API response must contain 'message' key per rollback endpoint contract"
+            # When rollback_database returns True, endpoint should return 200
+            assert (
+                response.status_code == 200
+            ), f"Rollback success should return 200, got {response.status_code}"
+            data = response.json()
+            assert (
+                "message" in data
+            ), "API response must contain 'message' key per rollback endpoint contract"
 
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
@@ -260,11 +260,10 @@ class TestComprehensiveCoverage:
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            # May return 200 or 500 depending on how False result is handled
-            assert response.status_code in [200, 500]
-            if response.status_code == 500:
-                data = response.json()
-                assert "Rollback operation failed" in data["detail"]
+            # When rollback_database returns False, endpoint should raise 500
+            assert response.status_code == 500
+            data = response.json()
+            assert "Rollback operation failed" in data["detail"]
 
     def test_premium_plate_endpoint_success(self):
         """Test premium plate endpoint success case."""

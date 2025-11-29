@@ -303,16 +303,13 @@ class TestEdgeCases:
 
     def test_test_results_persistence(self):
         """Test that results persist across analyze() calls."""
-        analyzer = BusinessBayesianAnalyzer()
-        code = "price = 5"  # Use code that triggers analysis
+        # Use code that definitively triggers a pricing issue
+        analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0)
+        code = "price = 5"  # Below threshold, should trigger PRICING_INEFFICIENCY
         initial_count = len(analyzer.test_results)
         analyzer.analyze(code, "test_persistence")
-        # Results should be persisted (may be 0 if no issues found)
         final_count = len(analyzer.test_results)
-        # Verify analyze was called - internal state should be valid
-        assert isinstance(analyzer.test_results, list)
-        # test_results should not shrink after analyze() call
-        assert final_count >= initial_count
+        assert final_count > initial_count, "Analysis should persist at least one result"
 
     def test_cost_optimization_patterns(self):
         """Detect SQL select *, infinite loop, and sleep without retry/backoff."""
