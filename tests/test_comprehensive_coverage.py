@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+import app as app_mod
 from app import app
 
 
@@ -199,39 +200,33 @@ class TestComprehensiveCoverage:
                 assert "Rollback operation failed" in data["detail"]
                 assert "could not get scheduler" in data["detail"]
 
-    def test_rollback_endpoint_no_update_manager(self):
+    @pytest.mark.asyncio
+    async def test_rollback_endpoint_no_update_manager(self):
         """Test rollback when scheduler has no update_manager."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            delattr(mock_scheduler, "update_manager")  # Remove attribute
-            mock_get_scheduler.return_value = mock_scheduler
+        from types import SimpleNamespace
 
-            response = self.client.post(
-                "/api/v1/admin/rollback",
-                params={"source": "usda", "target_version": "1.0"},
-                headers={"X-API-Key": "test_key"},
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert (
-                "No update manager available" in data["message"]
-                or "not supported" in data["message"]
-            )
+        async def fake_scheduler():
+            return SimpleNamespace(update_manager=None)
 
-    def test_rollback_endpoint_no_rollback_method(self):
+        with patch.dict(
+            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
+        ):
+            data = await app_mod.rollback_database("usda", "1.0")
+        assert "No update manager available" in data["message"]
+
+    @pytest.mark.asyncio
+    async def test_rollback_endpoint_no_rollback_method(self):
         """Test rollback when update_manager has no rollback_database method."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager = type("obj", (object,), {})()
-            mock_get_scheduler.return_value = mock_scheduler
+        from types import SimpleNamespace
 
-            response = self.client.post(
-                "/api/v1/admin/rollback",
-                params={"source": "usda", "target_version": "1.0"},
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should handle missing rollback_database gracefully
-            assert response.status_code in [200, 500]
+        async def fake_scheduler():
+            return SimpleNamespace(update_manager=SimpleNamespace())
+
+        with patch.dict(
+            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
+        ):
+            data = await app_mod.rollback_database("usda", "1.0")
+        assert "not supported" in data["message"]
 
     def test_rollback_endpoint_rollback_function_exception(self):
         """Test rollback when rollback_database raises exception."""
@@ -559,7 +554,7 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
+            # ValueError is caught and may return 200 (fallback), 500 (error), or 503 (unavailable)
             assert response.status_code in [200, 500, 503]
 
     def test_weekly_menu_endpoint_general_exception(self):

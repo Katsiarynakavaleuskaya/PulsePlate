@@ -385,6 +385,13 @@ class BayesianTestAnalyzer:
                 posterior = (likelihood * prior) / evidence
                 # Ограничить вероятность до 1.0
                 cause_probabilities[error_type] = min(1.0, posterior)
+
+        # Defensive: ensure we never call max() on an empty dict
+        if not cause_probabilities:
+            # Fallback to uniform distribution if no posteriors were calculated
+            uniform_prob = 1.0 / len(ErrorType)
+            cause_probabilities = {et: uniform_prob for et in ErrorType}
+
         # Найти наиболее вероятную причину
         most_likely_cause = max(cause_probabilities.items(), key=lambda x: x[1])
 

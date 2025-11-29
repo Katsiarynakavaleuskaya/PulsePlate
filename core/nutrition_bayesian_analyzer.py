@@ -449,27 +449,6 @@ class NutritionBayesianAnalyzer:
                     )
                 )
                 # Skip further percentage-based checks if total_calories is invalid
-            # Note: Since regex patterns match only \d+ (positive numbers), protein_cals,
-            # fat_cals, and carb_cals are always >= 0. The check below (lines 445-456)
-            # for negative calories is unreachable but kept for robustness in case
-            # regex patterns are modified in the future to accept negative values.
-            elif protein_cals < 0 or fat_cals < 0 or carb_cals < 0:
-                results.append(
-                    NutritionTestResult(
-                        test_name=test_name,
-                        success=False,
-                        nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
-                        error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
-                        error_message=(
-                            f"Калорийность макронутриентов не может быть отрицательной: "
-                            f"белок={protein_cals}ккал, жиры={fat_cals}ккал, "
-                            f"углеводы={carb_cals}ккал"
-                        ),
-                        business_impact="Некорректные данные о питании",
-                        safety_level="dangerous",
-                    )
-                )
-                # Continue to per-macro threshold checks even if some values are negative
 
             if total_calories > 0:
                 protein_pct = protein_cals / total_calories
