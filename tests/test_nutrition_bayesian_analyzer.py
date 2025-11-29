@@ -205,7 +205,7 @@ def test_invalid():
         Alternative: Extract validation logic into a testable function accepting
         parsed macro values directly.
 
-        Patterns matched: r"protein\s*[=:]\s*(\d+(?:\.\d+)?)", r"fat\s*...", r"carbs?\s*..."
+        Patterns matched: r"protein\\s*[=:]\\s*(\\d+(?:\\.\\d+)?)", r"fat\\s*...", r"carbs?\\s*..."
         """
         analyzer = NutritionBayesianAnalyzer()
         import core.nutrition_bayesian_analyzer as nba
