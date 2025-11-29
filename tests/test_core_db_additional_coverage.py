@@ -30,7 +30,8 @@ def test_engine_compat_connection_close_on_error() -> None:
     with pytest.raises(Exception):
         with engine.connect() as conn:
             # Invalid SQL to cause exception
-            conn.execute(text("SELECT * FROM nonexistent_table WHERE invalid syntax"))  # type: ignore[arg-type]
+            sql = "SELECT * FROM nonexistent_table WHERE invalid syntax"
+            conn.execute(text(sql))  # type: ignore[arg-type]
 
 
 def test_engine_compat_result_cleanup() -> None:

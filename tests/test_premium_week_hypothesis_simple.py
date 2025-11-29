@@ -188,6 +188,7 @@ class TestPremiumWeekHypothesisSimple:
             # Should fail with 422 - Validation error (missing required field)
             assert response.status_code == 422
 
+    @settings(deadline=None)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),

@@ -309,11 +309,10 @@ class TestEdgeCases:
         analyzer.analyze(code, "test_persistence")
         # Results should be persisted (may be 0 if no issues found)
         final_count = len(analyzer.test_results)
-        # Verify analyze was called - even if no issues found, internal state should be valid
+        # Verify analyze was called - internal state should be valid
         assert isinstance(analyzer.test_results, list)
-        # If issues were found, count should increase
-        if final_count > initial_count:
-            assert final_count > initial_count
+        # test_results should not shrink after analyze() call
+        assert final_count >= initial_count
 
     def test_cost_optimization_patterns(self):
         """Detect SQL select *, infinite loop, and sleep without retry/backoff."""
@@ -340,9 +339,8 @@ def fetch_data():
         results = analyzer.analyze(code, "fetch_data")
         # Locale-independent: check for OPERATIONAL_WASTE error type instead of Russian text
         assert any(
-            r.error_type == BusinessErrorType.OPERATIONAL_WASTE and "database" in code.lower()
-            for r in results
-        )
+            r.error_type == BusinessErrorType.OPERATIONAL_WASTE for r in results
+        ), "Expected OPERATIONAL_WASTE error for uncached database access"
 
     def test_loader_fallbacks_without_yaml(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Loader helpers should fall back to defaults when yaml is unavailable."""

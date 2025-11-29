@@ -49,20 +49,6 @@ logger.info("token=" f"{token}")
 """
     assert analyzer._check_sensitive_data_logging(code_joined) is True
 
-    code_joined = """
-import logging
-token = 'abc'
-logger.info("token=" f"{token}")
-"""
-    assert analyzer._check_sensitive_data_logging(code_joined) is True
-
-    code_joined = """
-import logging
-token = 'abc'
-logger.info("token=" f"{token}")
-"""
-    assert analyzer._check_sensitive_data_logging(code_joined) is True
-
 
 def test_analyze_safety_aspects_password_sql_and_context() -> None:
     analyzer = IntegratedBayesianAnalyzer()

@@ -5,11 +5,18 @@ Additional gap-closing tests for Bayesian analyzers.
 
 import builtins
 import io
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from core.bayesian_test_analyzer import BayesianTestAnalyzer, TestRecord, TestStatus, ErrorType
+from core.bayesian_test_analyzer import (
+    BayesianTestAnalyzer,
+    TestRecord,
+    TestStatus,
+    ErrorType,
+    TestCategory,
+)
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
     BusinessCategory,
@@ -33,13 +40,17 @@ def test_bayesian_test_analyzer_health_score_zero_time(monkeypatch: pytest.Monke
     analyzer = BayesianTestAnalyzer()
     rec = TestRecord(
         test_name="t1",
-        category=ErrorType.ASSERTION_ERROR,
+        category=TestCategory.UNIT,
         result=TestStatus.PASSED,
         error_type=None,
         error_message=None,
         execution_time=0.0,
         coverage_percentage=90.0,
-        timestamp=analyzer._current_timestamp() if hasattr(analyzer, "_current_timestamp") else __import__("datetime").datetime.now(__import__("datetime").timezone.utc),  # type: ignore[attr-defined]
+        timestamp=(
+            analyzer._current_timestamp()
+            if hasattr(analyzer, "_current_timestamp")
+            else datetime.now(timezone.utc)
+        ),
     )
     analyzer.execution_history.append(rec)
     assert analyzer.get_test_health_score("t1") >= 0.0
