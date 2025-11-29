@@ -2921,7 +2921,7 @@ async def rollback_database(source: str, target_version: str):
 
     # Defensive: check if rollback_database method exists
     rollback_fn = getattr(update_manager, "rollback_database", None)
-    if rollback_fn is None:
+    if rollback_fn is None or not callable(rollback_fn):
         return {"message": "Rollback operation not supported by update manager"}
 
     # Call and await if necessary (supports AsyncMock / coroutine / sync)
