@@ -95,6 +95,8 @@ class TestRecord:
 class BayesianDiagnosis:
     """Байесовский диагноз проблемы."""
 
+    __test__ = False  # Tell pytest this is not a test class
+
     most_likely_cause: str
     probability: float
     confidence: float

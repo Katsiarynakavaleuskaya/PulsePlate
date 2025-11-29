@@ -26,7 +26,7 @@ from core.business_bayesian_analyzer import (
 class TestBusinessBayesianAnalyzerInit:
     """Test analyzer initialization and configuration."""
 
-    def test_init_default_nutrition_domain(self):
+    def test_init_default_nutrition_domain(self) -> None:
         """Test initialization with default nutrition domain."""
         analyzer = BusinessBayesianAnalyzer()
         assert (
@@ -37,7 +37,7 @@ class TestBusinessBayesianAnalyzerInit:
         )
         assert analyzer.test_results == []
 
-    def test_init_generic_domain(self):
+    def test_init_generic_domain(self) -> None:
         """Test initialization with generic domain uses default thresholds."""
         analyzer = BusinessBayesianAnalyzer(domain="generic")
         assert analyzer.low_price_threshold == BusinessBayesianAnalyzer.DEFAULT_LOW_PRICE_THRESHOLD
@@ -45,25 +45,25 @@ class TestBusinessBayesianAnalyzerInit:
             analyzer.high_price_threshold == BusinessBayesianAnalyzer.DEFAULT_HIGH_PRICE_THRESHOLD
         )
 
-    def test_init_custom_thresholds(self):
+    def test_init_custom_thresholds(self) -> None:
         """Test initialization with custom price thresholds."""
         analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0, high_price_threshold=500.0)
         assert analyzer.low_price_threshold == 10.0
         assert analyzer.high_price_threshold == 500.0
 
-    def test_init_injected_business_knowledge(self):
+    def test_init_injected_business_knowledge(self) -> None:
         """Test initialization with injected business knowledge."""
         custom_knowledge = {"test_key": "test_value"}
         analyzer = BusinessBayesianAnalyzer(business_knowledge=custom_knowledge)
         assert analyzer.business_knowledge_base == custom_knowledge
 
-    def test_init_injected_monetization_strategies(self):
+    def test_init_injected_monetization_strategies(self) -> None:
         """Test initialization with injected monetization strategies."""
         custom_strategies = {"pricing_models": {"test": "value"}}
         analyzer = BusinessBayesianAnalyzer(monetization_strategies=custom_strategies)
         assert analyzer.monetization_strategies == custom_strategies
 
-    def test_init_injected_cost_optimization_rules(self):
+    def test_init_injected_cost_optimization_rules(self) -> None:
         """Test initialization with injected cost optimization rules."""
         custom_rules = {"infrastructure": {"test": "rule"}}
         analyzer = BusinessBayesianAnalyzer(cost_optimization_rules=custom_rules)
@@ -73,7 +73,7 @@ class TestBusinessBayesianAnalyzerInit:
 class TestBusinessLogicAnalysis:
     """Test business logic analysis functionality."""
 
-    def test_analyze_empty_code(self):
+    def test_analyze_empty_code(self) -> None:
         """Test analysis of empty code returns empty results."""
         analyzer = BusinessBayesianAnalyzer()
         results = analyzer.analyze("", "test_empty")
@@ -81,7 +81,7 @@ class TestBusinessLogicAnalysis:
         # Empty code may return empty results or minimal analysis
         assert all(isinstance(r, BusinessTestResult) for r in results)
 
-    def test_analyze_simple_code(self):
+    def test_analyze_simple_code(self) -> None:
         """Test analysis of simple test code."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -93,7 +93,7 @@ def test_user_subscription():
         assert isinstance(results, list)
         assert all(isinstance(r, BusinessTestResult) for r in results)
 
-    def test_analyze_monetization_code(self):
+    def test_analyze_monetization_code(self) -> None:
         """Test detection of monetization patterns."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -106,7 +106,7 @@ def test_pricing():
         assert isinstance(results, list)
         # Should detect pricing-related business logic
 
-    def test_analyze_code_with_revenue_keywords(self):
+    def test_analyze_code_with_revenue_keywords(self) -> None:
         """Test detection of revenue-related patterns."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -117,7 +117,7 @@ def test_revenue_calculation():
         results = analyzer.analyze(code, "test_revenue_calculation")
         assert isinstance(results, list)
 
-    def test_analyze_public_entry_point(self):
+    def test_analyze_public_entry_point(self) -> None:
         """Test public analyze() method delegates to analyze_business_logic()."""
         analyzer = BusinessBayesianAnalyzer()
         code = "def test_example(): pass"
@@ -128,7 +128,7 @@ def test_revenue_calculation():
 class TestMonetizationAnalysis:
     """Test monetization detection and analysis."""
 
-    def test_detect_price_pattern(self):
+    def test_detect_price_pattern(self) -> None:
         """Test detection of price assignments."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -139,7 +139,7 @@ def test_product_price():
         results = analyzer.analyze(code, "test_product_price")
         assert isinstance(results, list)
 
-    def test_detect_subscription_keywords(self):
+    def test_detect_subscription_keywords(self) -> None:
         """Test detection of subscription-related code."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -154,7 +154,7 @@ def test_subscription_renewal():
 class TestCostOptimization:
     """Test cost optimization analysis."""
 
-    def test_analyze_cost_keywords(self):
+    def test_analyze_cost_keywords(self) -> None:
         """Test detection of cost-related patterns."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -169,7 +169,7 @@ def test_infrastructure_cost():
 class TestRevenueGrowth:
     """Test revenue growth analysis."""
 
-    def test_analyze_revenue_growth_patterns(self):
+    def test_analyze_revenue_growth_patterns(self) -> None:
         """Test detection of revenue growth patterns."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -186,7 +186,7 @@ def test_revenue_increase():
 class TestCustomerRetention:
     """Test customer retention analysis."""
 
-    def test_analyze_retention_keywords(self):
+    def test_analyze_retention_keywords(self) -> None:
         """Test detection of customer retention patterns."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -201,7 +201,7 @@ def test_user_retention():
 class TestROIEstimate:
     """Test ROI estimation dataclass."""
 
-    def test_roi_estimate_creation(self):
+    def test_roi_estimate_creation(self) -> None:
         """Test creation of ROIEstimate."""
         roi = ROIEstimate(
             category="infrastructure",
@@ -222,7 +222,7 @@ class TestROIEstimate:
 class TestBusinessTestResult:
     """Test BusinessTestResult dataclass."""
 
-    def test_business_test_result_creation(self):
+    def test_business_test_result_creation(self) -> None:
         """Test creation of BusinessTestResult."""
         result = BusinessTestResult(
             test_name="test_example",
@@ -241,14 +241,14 @@ class TestBusinessTestResult:
 class TestNormalizeCodeInput:
     """Test code normalization helper."""
 
-    def test_normalize_string_input(self):
+    def test_normalize_string_input(self) -> None:
         """Test normalization of string input."""
         analyzer = BusinessBayesianAnalyzer()
         code = "def test(): pass"
         normalized = analyzer._normalize_code_input(code)
         assert normalized == code
 
-    def test_normalize_list_input(self):
+    def test_normalize_list_input(self) -> None:
         """Test normalization of list input."""
         analyzer = BusinessBayesianAnalyzer()
         code_lines = ["def test():", "    pass"]
@@ -261,7 +261,7 @@ class TestNormalizeCodeInput:
 class TestRemoveComments:
     """Test comment removal functionality."""
 
-    def test_remove_inline_comments(self):
+    def test_remove_inline_comments(self) -> None:
         """Test removal of inline comments."""
         analyzer = BusinessBayesianAnalyzer()
         code = "price = 10  # dollars"
@@ -270,7 +270,7 @@ class TestRemoveComments:
         assert "price" in cleaned
         assert "10" in cleaned
 
-    def test_preserve_hash_in_strings(self):
+    def test_preserve_hash_in_strings(self) -> None:
         """Test that # inside strings is preserved."""
         analyzer = BusinessBayesianAnalyzer()
         code = 'message = "Use #hashtag"'
@@ -282,7 +282,7 @@ class TestRemoveComments:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_analyze_with_list_input(self):
+    def test_analyze_with_list_input(self) -> None:
         """Test analysis with list of code lines."""
         analyzer = BusinessBayesianAnalyzer()
         code_lines = [
@@ -293,7 +293,7 @@ class TestEdgeCases:
         results = analyzer.analyze(code_lines, "test_subscription")
         assert isinstance(results, list)
 
-    def test_analyze_malformed_code(self):
+    def test_analyze_malformed_code(self) -> None:
         """Test analysis handles malformed code gracefully."""
         analyzer = BusinessBayesianAnalyzer()
         code = "def test_broken(:"  # Invalid syntax
@@ -301,7 +301,7 @@ class TestEdgeCases:
         # Should not crash, returns results
         assert isinstance(results, list)
 
-    def test_test_results_persistence(self):
+    def test_test_results_persistence(self) -> None:
         """Test that results persist across analyze() calls."""
         # Use code that definitively triggers a pricing issue
         analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0)
@@ -311,7 +311,7 @@ class TestEdgeCases:
         final_count = len(analyzer.test_results)
         assert final_count > initial_count, "Analysis should persist at least one result"
 
-    def test_cost_optimization_patterns(self):
+    def test_cost_optimization_patterns(self) -> None:
         """Detect SQL select *, infinite loop, and sleep without retry/backoff."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -325,7 +325,7 @@ def expensive_operation():
         messages = " ".join((r.error_message or "") for r in results)
         assert "SELECT *" in messages or "while True" in messages or "sleep" in messages
 
-    def test_missing_cache_detection(self):
+    def test_missing_cache_detection(self) -> None:
         """Lack of caching on data access should be flagged as operational waste."""
         analyzer = BusinessBayesianAnalyzer(locale="ru")
         code = """
@@ -352,7 +352,7 @@ def fetch_data():
         assert strategies and "pricing_models" in strategies
         assert cost_rules and "infrastructure" in cost_rules
 
-    def test_calculate_bayesian_roi_validation(self):
+    def test_calculate_bayesian_roi_validation(self) -> None:
         """ROI calculator should validate inputs and raise on invalid values."""
         analyzer = BusinessBayesianAnalyzer()
         with pytest.raises(ValueError):
@@ -383,7 +383,7 @@ def fetch_data():
                 assumptions="x",
             )
 
-    def test_calculate_bayesian_roi_no_data_and_with_data(self):
+    def test_calculate_bayesian_roi_no_data_and_with_data(self) -> None:
         """Cover both no-data prior-only and data-informed ROI paths."""
         analyzer = BusinessBayesianAnalyzer()
         roi_prior = analyzer._calculate_bayesian_roi(
@@ -413,7 +413,7 @@ def fetch_data():
             <= roi_data.credible_interval_upper
         )
 
-    def test_analyze_monetization_low_and_high_price(self):
+    def test_analyze_monetization_low_and_high_price(self) -> None:
         """Low and high pricing should trigger pricing inefficiency flags."""
         analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0, high_price_threshold=100.0)
         low_results = analyzer._analyze_monetization("price = 5", "test_low_price")
@@ -429,7 +429,7 @@ def fetch_data():
             for r in high_results
         )
 
-    def test_analyze_customer_acquisition_validation_and_onboarding(self):
+    def test_analyze_customer_acquisition_validation_and_onboarding(self) -> None:
         """Registration without validation and onboarding should raise churn issues."""
         analyzer = BusinessBayesianAnalyzer(locale="ru")
         code = "register_user(); new_user = True"
@@ -442,7 +442,7 @@ def fetch_data():
         )
         assert len(results) >= 1  # Should have at least validation or onboarding issue
 
-    def test_analyze_monetization_invalid_price_valueerror_branch(self):
+    def test_analyze_monetization_invalid_price_valueerror_branch(self) -> None:
         """Non-numeric price should be safely skipped without crashing."""
         analyzer = BusinessBayesianAnalyzer()
         code = "price = 'abc'"
@@ -529,7 +529,7 @@ def fetch_data():
         )
         assert isinstance(roi, ROIEstimate)
 
-    def test_calculate_roi_potential_multiple_categories(self):
+    def test_calculate_roi_potential_multiple_categories(self) -> None:
         """ROI potential should include all categories present in diagnosed issues."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.extend(
@@ -569,7 +569,7 @@ def fetch_data():
             "user_retention",
         } <= categories
 
-    def test_generate_cost_savings_recommendations(self):
+    def test_generate_cost_savings_recommendations(self) -> None:
         """Cost savings recommendations should be produced when issues diagnosed."""
         analyzer = BusinessBayesianAnalyzer(locale="ru")
         analyzer.test_results.append(
@@ -584,7 +584,7 @@ def fetch_data():
         # Locale-independent: check that recommendations are non-empty for cost optimization
         assert len(recs) > 0, "Should generate recommendations for cost optimization issues"
 
-    def test_generate_cost_savings_includes_operational_efficiency(self):
+    def test_generate_cost_savings_includes_operational_efficiency(self) -> None:
         """Operational efficiency issues should add development recommendations."""
         analyzer = BusinessBayesianAnalyzer(locale="ru")
         analyzer.test_results.append(
@@ -599,14 +599,14 @@ def fetch_data():
         # Locale-independent: check that recommendations are non-empty for operational efficiency
         assert len(recs) > 0, "Should generate recommendations for operational efficiency issues"
 
-    def test_calculate_roi_potential_no_issues_returns_empty(self):
+    def test_calculate_roi_potential_no_issues_returns_empty(self) -> None:
         """When no issues diagnosed, ROI potential should be empty."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.clear()
         roi_estimates = analyzer.calculate_roi_potential()
         assert roi_estimates == []
 
-    def test_generate_revenue_optimization_recommendations(self):
+    def test_generate_revenue_optimization_recommendations(self) -> None:
         """Revenue optimization recommendations should reflect diagnosed issues."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.extend(
@@ -637,7 +637,7 @@ def fetch_data():
             len(recs) >= 3
         ), "Should generate recommendations for customer acquisition, retention, and data monetization"
 
-    def test_generate_revenue_recommendations_only_with_no_issues(self):
+    def test_generate_revenue_recommendations_only_with_no_issues(self) -> None:
         """When no revenue-related issues, recommendations should be empty."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.append(
@@ -651,7 +651,7 @@ def fetch_data():
         recs = analyzer.generate_revenue_optimization_recommendations()
         assert recs == []
 
-    def test_revenue_growth_branches(self):
+    def test_revenue_growth_branches(self) -> None:
         """Analytics without A/B and personalization without recommendations should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -665,7 +665,7 @@ def growth():
         # Locale-independent: check that issues were detected
         assert len(results) > 0, "Should detect revenue growth issues"
 
-    def test_customer_retention_branches(self):
+    def test_customer_retention_branches(self) -> None:
         """Communication without segmentation and feedback without processing should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -676,7 +676,7 @@ def retention():
         results = analyzer._analyze_customer_retention(code, "test_retention")
         assert any(r.error_type == BusinessErrorType.CUSTOMER_CHURN for r in results)
 
-    def test_analyze_cost_optimization_select_star_and_sleep(self):
+    def test_analyze_cost_optimization_select_star_and_sleep(self) -> None:
         """SELECT * outside tests and sleep without retry should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -690,7 +690,7 @@ def prod_code():
             r.error_type == BusinessErrorType.OPERATIONAL_WASTE for r in results
         ), "Should detect cost optimization issues"
 
-    def test_diagnose_business_issues_and_roi_potential(self):
+    def test_diagnose_business_issues_and_roi_potential(self) -> None:
         """Diagnose issues from stored results and calculate ROI potential."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.extend(
@@ -718,7 +718,7 @@ def prod_code():
         assert isinstance(roi_estimates, list)
         assert any(est.category in {"cost_optimization", "monetization"} for est in roi_estimates)
 
-    def test_generate_revenue_optimization_recommendations_with_additional_cases(self):
+    def test_generate_revenue_optimization_recommendations_with_additional_cases(self) -> None:
         """Ensure revenue/retention/data monetization branches produce recommendations."""
         analyzer = BusinessBayesianAnalyzer()
         analyzer.test_results.extend(
@@ -753,7 +753,7 @@ def prod_code():
 class TestInternalHelpers:
     """Test internal helper methods for coverage."""
 
-    def test_normalize_and_remove_comments_preserves_string_hash(self):
+    def test_normalize_and_remove_comments_preserves_string_hash(self) -> None:
         """Test that string literals with # are preserved while comments are removed."""
         analyzer = BusinessBayesianAnalyzer()
         code_list = ["def foo():", '    s = "value # not a comment"', "    x = 1  # actual comment"]
@@ -763,7 +763,7 @@ class TestInternalHelpers:
         assert "#" in cleaned  # string literal hash remains
         assert "actual comment" not in cleaned
 
-    def test_analyze_cost_optimization_detects_nested_loop_and_append(self):
+    def test_analyze_cost_optimization_detects_nested_loop_and_append(self) -> None:
         """Test nested loop with append detection for cost optimization."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -774,7 +774,7 @@ for a in range(3):
         results = analyzer._analyze_cost_optimization(code, "test_nested_loop")
         assert any(r.business_category == BusinessCategory.COST_OPTIMIZATION for r in results)
 
-    def test_calculate_bayesian_roi_high_variance_branch(self):
+    def test_calculate_bayesian_roi_high_variance_branch(self) -> None:
         """High variance should hit delta-method variance branch without errors."""
         analyzer = BusinessBayesianAnalyzer()
         estimate = analyzer._calculate_bayesian_roi(
