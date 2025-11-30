@@ -2906,12 +2906,23 @@ async def rollback_database(source: str, target_version: str):
     Returns:
         Success status and rollback details
     """
-    import inspect
+    import inspect as _inspect
+    import sys as _sys
 
-    # Defensive: get scheduler with error handling
+    # Defensive: get scheduler with error handling and dynamic lookup (so tests can patch)
     try:
-        scheduler = await get_update_scheduler()
+        _pkg = _sys.modules.get(__name__) or _sys.modules.get("app")
+        _getter = getattr(_pkg, "get_update_scheduler", get_update_scheduler)
+        scheduler = None
+        if callable(_getter):
+            maybe_scheduler = _getter()
+            scheduler = (
+                await maybe_scheduler if _inspect.isawaitable(maybe_scheduler) else maybe_scheduler
+            )
+    except HTTPException:
+        raise
     except Exception as exc:
+        logger.exception("Rollback scheduler acquisition failed")
         raise HTTPException(
             status_code=500,
             detail=f"Rollback operation failed: could not get scheduler: {exc}",
@@ -2930,16 +2941,20 @@ async def rollback_database(source: str, target_version: str):
     # Call and await if necessary (supports AsyncMock / coroutine / sync)
     try:
         result = rollback_fn(source, target_version)
-        if inspect.isawaitable(result):
+        if _inspect.isawaitable(result):
             result = await result
+    except HTTPException:
+        raise
     except Exception as exc:
+        logger.exception("Rollback operation failed during execution")
         raise HTTPException(status_code=500, detail=f"Rollback operation failed: {exc}") from exc
 
     # Interpret truthy result as success (supporting tests that return True)
     if result:
         return {"message": f"Successfully rolled back {source} to version {target_version}"}
-    else:
-        raise HTTPException(status_code=500, detail="Rollback operation failed")
+
+    # Explicit 500 when rollback returns falsy (coverage tests expect 500)
+    raise HTTPException(status_code=500, detail="Rollback operation failed")
 
 
 # Export Endpoints
