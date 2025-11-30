@@ -104,7 +104,8 @@ def test_pricing():
 """
         results = analyzer.analyze(code, "test_pricing")
         assert isinstance(results, list)
-        # Should detect pricing-related business logic
+        # Verify pricing-related business logic may be detected
+        # (detection depends on specific patterns and thresholds)
 
     def test_analyze_code_with_revenue_keywords(self) -> None:
         """Test detection of revenue-related patterns."""
@@ -290,7 +291,9 @@ class TestEdgeCases:
             "    price = 9.99",
             "    assert price > 0",
         ]
-        results = analyzer.analyze(code_lines, "test_subscription")
+        # Join lines into a single string for analysis
+        code = "\n".join(code_lines)
+        results = analyzer.analyze(code, "test_subscription")
         assert isinstance(results, list)
 
     def test_analyze_malformed_code(self) -> None:
@@ -449,7 +452,9 @@ def fetch_data():
         results = analyzer._analyze_monetization(code, "bad_price")
         assert isinstance(results, list)
 
-    def test_load_business_knowledge_custom_yaml(self, tmp_path, monkeypatch):
+    def test_load_business_knowledge_custom_yaml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Cover YAML success branch for business_knowledge."""
         import yaml
         import core.business_bayesian_analyzer as bmod
@@ -471,7 +476,9 @@ def fetch_data():
         data = analyzer._load_business_knowledge()
         assert data["revenue_streams"]["custom"]["price_range"] == [2, 4]
 
-    def test_load_monetization_strategies_custom_yaml(self, tmp_path, monkeypatch):
+    def test_load_monetization_strategies_custom_yaml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Cover YAML success branch for monetization_strategies locale."""
         import yaml
         import core.business_bayesian_analyzer as bmod
@@ -493,7 +500,9 @@ def fetch_data():
         data = analyzer._load_monetization_strategies("zz")
         assert data["pricing_models"]["custom"] == "ok"
 
-    def test_load_cost_optimization_rules_custom_yaml(self, tmp_path, monkeypatch):
+    def test_load_cost_optimization_rules_custom_yaml(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Cover YAML success branch for cost_optimization_rules."""
         import yaml
         import core.business_bayesian_analyzer as bmod

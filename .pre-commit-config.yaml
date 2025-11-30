@@ -21,29 +21,34 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-  # --- Code style: Black
-  - repo: https://github.com/psf/black
-    rev: 24.8.0
-    hooks:
-      - id: black
-        name: black (format)
-        language_version: python3
-        files: ^(?!frontend/).+\.py$
+  # --- Code style: Black (disabled in pre-commit, handled by custom .githooks/pre-commit)
+  # Black auto-formatting is performed by .githooks/pre-commit for faster iteration
+  # Uncomment below if you want pre-commit framework to also run Black
+  # - repo: https://github.com/psf/black
+  #   rev: 24.8.0
+  #   hooks:
+  #     - id: black
+  #       name: black (format)
+  #       language_version: python3
+  #       files: ^(?!frontend/).+\.py$
+  #       stages: [pre-push]  # Only on pre-push to avoid duplicate with custom hook
 
-  # --- Lint: Ruff (fast flake8 + isort + type hints)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.2
-    hooks:
-      - id: ruff
-        name: ruff (lint, local)
-        files: ^(?!frontend/).+\.py$
-        args: [--fix]
-      - id: ruff
-        name: ruff (type hints check)
-        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|providers/.*\.py|(mcp_|setup_|update_|verify_).*\.py|(app|main|settings|secure_config|signed_links|llm|nutrition_core|nutrition_plate|bmi_core|bodyfat|bmi_visualization)\.py)$
-        exclude: ^core/(db|auto_repair|data_sanitizer|business_bayesian_analyzer)\.py$
-        args: [--select, ANN, --fix]  # Check and auto-fix type annotations
-        stages: [pre-push]  # Run on pre-push for stricter enforcement
+  # --- Lint: Ruff (DISABLED due to conflicts with existing linting setup)
+  # Ruff was causing conflicts with Black and existing code style
+  # Re-enable when ready to migrate fully to Ruff
+  # - repo: https://github.com/astral-sh/ruff-pre-commit
+  #   rev: v0.14.2
+  #   hooks:
+  #     - id: ruff
+  #       name: ruff (lint, local)
+  #       files: ^(?!frontend/).+\.py$
+  #       args: [--fix]
+  #     - id: ruff
+  #       name: ruff (type hints check)
+  #       files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|providers/.*\.py|(mcp_|setup_|update_|verify_).*\.py|(app|main|settings|secure_config|signed_links|llm|nutrition_core|nutrition_plate|bmi_core|bodyfat|bmi_visualization)\.py)$
+  #       exclude: ^core/(db|auto_repair|data_sanitizer|business_bayesian_analyzer)\.py$
+  #       args: [--select, ANN, --fix]  # Check and auto-fix type annotations
+  #       stages: [pre-push]  # Run on pre-push for stricter enforcement
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy

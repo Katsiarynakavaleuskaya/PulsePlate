@@ -203,8 +203,8 @@ def test_invalid():
         assert analyzer._analyze_calorie_calculations("calories = bad", "test") == []
         assert analyzer._analyze_bmi_calculations("bmi = bad", "test") == []
 
-    def test_negative_macros_positive_total(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Negative macro values with positive total should trigger sum_invalid branch.
+    def test_negative_macros_handled_gracefully(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Negative macro values should be handled without triggering sum_invalid error.
 
         NOTE: This test monkeypatches re.findall based on regex pattern substrings,
         coupling it to implementation details. If regex patterns change in

@@ -4287,6 +4287,7 @@ monday
 Monitorea
 monkeypatch
 monkeypatched
+monkeypatches
 monkeypatching
 mountpoint
 MOUNTPOINT

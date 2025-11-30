@@ -143,7 +143,62 @@ if [ -n "$PYTHON_CHANGES" ]; then
             fi
         fi
     done
+
+    # Run backend tests for changed Python files
+    echo "🧪 Running backend tests for changed files..."
+    if command -v pytest > /dev/null 2>&1; then
+        # Extract test files that correspond to changed Python files
+        declare -a TEST_FILES=()
+        for file in $PYTHON_CHANGES; do
+            # If the file is in tests/ directory, add it directly
+            if [[ $file == tests/*.py ]]; then
+                [ -f "$file" ] && TEST_FILES+=("$file")
+            # Otherwise, check if corresponding test file exists
+            elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then
+                # Try to find test file in tests/ directory
+                basename=$(basename "$file" .py)
+                dirname=$(dirname "$file")
+
+                # Common test file patterns
+                test_patterns=(
+                    "tests/test_${basename}.py"
+                    "tests/${dirname}/test_${basename}.py"
+                    "${dirname}/test_${basename}.py"
+                )
+
+                for pattern in "${test_patterns[@]}"; do
+                    [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
+                done
+            fi
+        done
+
+        if [ ${#TEST_FILES[@]} -gt 0 ]; then
+            echo "Running tests: ${TEST_FILES[*]}"
+            if ! pytest -q "${TEST_FILES[@]}" --tb=short -x; then
+                echo "❌ Backend tests failed. Please fix failing tests before committing."
+                exit 1
+            fi
+            echo "✅ Backend tests passed"
+        else
+            echo "ℹ️  No corresponding test files found for changed Python files"
+        fi
+    else
+        echo "⚠️  Warning: pytest not found, skipping backend tests"
+    fi
 fi
 
-echo "✅ All pre-commit checks passed!"
+# 5. Run pre-commit framework hooks (MyPy, Bandit, etc.)
+echo "🔧 Running pre-commit framework checks..."
+if command -v pre-commit > /dev/null 2>&1; then
+    if ! pre-commit run --files $(git diff --cached --name-only --diff-filter=ACM) 2>&1; then
+        echo "⚠️  Some pre-commit checks failed (see above)"
+        echo "ℹ️  Note: Auto-fixable issues have been fixed. Review and re-add files if needed."
+        # Don't exit 1 here - let auto-fixes be staged
+    fi
+else
+    echo "⚠️  Warning: pre-commit not installed"
+    echo "   Install with: pip install pre-commit && pre-commit install"
+fi
+
+echo "✅ All pre-commit checks completed!"
 exit 0

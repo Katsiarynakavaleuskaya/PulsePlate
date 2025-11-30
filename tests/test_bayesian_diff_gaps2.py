@@ -60,7 +60,8 @@ def test_bayesian_test_analyzer_health_score_zero_time(monkeypatch: pytest.Monke
         ),
     )
     analyzer.execution_history.append(rec)
-    assert analyzer.get_test_health_score("t1") >= 0.0
+    score = analyzer.get_test_health_score("t1")
+    assert 0.0 <= score <= 1.0, "Health score should be in range [0, 1]"
 
 
 def test_business_load_knowledge_unicode_error(
@@ -131,7 +132,7 @@ def test_business_valueerror_price_parsing_branch() -> None:
 
 def test_business_data_monetization_recommendations() -> None:
     """Trigger all recommendation buckets in revenue optimization."""
-    analyzer = BusinessBayesianAnalyzer()
+    analyzer = BusinessBayesianAnalyzer(locale="ru")  # Explicitly set Russian locale
     analyzer.test_results = [
         BusinessTestResult(
             test_name="acq",
