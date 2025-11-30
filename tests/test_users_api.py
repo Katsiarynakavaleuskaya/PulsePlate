@@ -6,8 +6,9 @@ from typing import Generator, cast
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
 from starlette.types import ASGIApp
 
 import app
@@ -28,6 +29,14 @@ def _cleanup_users() -> Generator[None, None, None]:
     try:
         _truncate()
     except OperationalError:
+        # Recreate an in-memory engine to avoid disk I/O issues in CI
+        engine = create_engine(
+            "sqlite:///:memory:", future=True, connect_args={"check_same_thread": False}
+        )
+        db_module._RAW_ENGINE = engine  # type: ignore[attr-defined]
+        db_module.SessionLocal = sessionmaker(  # type: ignore[attr-defined]
+            autocommit=False, autoflush=False, bind=engine, future=True
+        )
         db_module.init_db()
         _truncate()
 

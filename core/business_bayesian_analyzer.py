@@ -200,7 +200,7 @@ class BusinessBayesianAnalyzer:
         else:
             self.high_price_threshold = self.DEFAULT_HIGH_PRICE_THRESHOLD
 
-    def analyze(self, test_code: str, test_name: str) -> list[BusinessTestResult]:
+    def analyze(self, test_code: str | list[str], test_name: str) -> list[BusinessTestResult]:
         """Public entry point for business logic analysis.
         Публичная точка входа для анализа бизнес-логики.
         """

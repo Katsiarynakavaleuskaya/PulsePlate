@@ -181,20 +181,27 @@ def test_invalid():
         analyzer = NutritionBayesianAnalyzer()
         import core.nutrition_bayesian_analyzer as nba
 
-        original_findall = nba.re.findall
+        class FakeMatch:
+            def __init__(self, text: str):
+                self._text = text
 
-        def fake_findall(pattern, string, flags=0):
-            # Return strings that will fail float() conversion
-            if "calories" in pattern.lower() or "kcal" in pattern.lower():
-                return ["not_a_number"]
-            if "bmi" in pattern.lower():
-                return ["invalid"]
-            return original_findall(pattern, string, flags)
+            def group(self, idx: int):
+                return self._text
 
-        monkeypatch.setattr(nba.re, "findall", fake_findall)
+            def start(self):
+                return 0
+
+            def end(self):
+                return len(self._text)
+
+        def fake_finditer(pattern, string, flags=0):
+            # Always yield a match that will raise ValueError when converted to float
+            yield FakeMatch("not_a_number")
+
+        monkeypatch.setattr(nba.re, "finditer", fake_finditer)
         # These should return empty lists due to ValueError in float()
-        assert analyzer._analyze_calorie_calculations("calories = abc", "test") == []
-        assert analyzer._analyze_bmi_calculations("bmi = xyz", "test") == []
+        assert analyzer._analyze_calorie_calculations("calories = bad", "test") == []
+        assert analyzer._analyze_bmi_calculations("bmi = bad", "test") == []
 
     def test_negative_macros_positive_total(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Negative macro values with positive total should trigger sum_invalid branch.

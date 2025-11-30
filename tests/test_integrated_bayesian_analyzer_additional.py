@@ -143,6 +143,15 @@ def fx3():
 """
     assert analyzer._is_in_test_or_mock_context(code_mock_attr) is True
 
+    # Class inheriting from TestCase via Name base
+    code_name_base = """
+from unittest import TestCase
+class MyTest(TestCase):
+    def test_ok(self):
+        pass
+"""
+    assert analyzer._is_in_test_or_mock_context(code_name_base) is True
+
 
 def test_assess_business_impact_levels() -> None:
     analyzer = IntegratedBayesianAnalyzer()

@@ -55,3 +55,24 @@ async def test_rollback_no_rollback_fn(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     resp = await app_mod.rollback_database("usda", "v1")
     assert resp == {"message": "Rollback operation not supported by update manager"}
+
+
+@pytest.mark.asyncio
+async def test_rollback_raises_inside_method(monkeypatch: pytest.MonkeyPatch) -> None:
+    class DummyManager:
+        async def rollback_database(self, source, target_version):
+            raise RuntimeError("boom")
+
+    class DummyScheduler:
+        update_manager = DummyManager()
+
+    async def fake_scheduler():
+        return DummyScheduler()
+
+    monkeypatch.setitem(
+        app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
+    )
+    with pytest.raises(HTTPException) as exc:
+        await app_mod.rollback_database("usda", "v1")
+    assert exc.value.status_code == 500
+    assert "Rollback operation failed" in exc.value.detail

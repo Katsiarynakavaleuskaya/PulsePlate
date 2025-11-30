@@ -35,6 +35,13 @@ def test_bayesian_test_analyzer_invalid_json(
     assert analyzer.execution_history == []
 
 
+def test_bayesian_test_analyzer_file_not_found(tmp_path: Path) -> None:
+    """Missing history file should hit FileNotFoundError branch."""
+    missing = tmp_path / "missing.json"
+    analyzer = BayesianTestAnalyzer(data_file=missing)
+    assert analyzer.execution_history == []
+
+
 def test_bayesian_test_analyzer_health_score_zero_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """Single execution with no time should still yield bounded health score."""
     analyzer = BayesianTestAnalyzer()
@@ -166,3 +173,13 @@ def test_integrated_sensitive_logging_formatted_value_and_joined() -> None:
     analyzer = IntegratedBayesianAnalyzer()
     code = 'import logging\nlogger.info(f"pwd={password}")\nlogger.info("token=" f"{token}")\n'
     assert analyzer._check_sensitive_data_logging(code) is True
+
+
+def test_bayesian_test_analyzer_uniform_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When evidence is zero, cause_probabilities should fall back to uniform."""
+    analyzer = BayesianTestAnalyzer()
+
+    monkeypatch.setattr(analyzer, "_extract_symptoms", lambda msg, ctx: [])
+    monkeypatch.setattr(analyzer, "_calculate_evidence", lambda symptoms, cases: 0.0)
+    diagnosis = analyzer.diagnose_test_failure("t", "", {})
+    assert diagnosis.most_likely_cause in [et.value for et in ErrorType]
