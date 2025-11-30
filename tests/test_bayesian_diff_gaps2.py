@@ -123,7 +123,8 @@ def test_business_remove_comments_triple_quotes() -> None:
     assert "inline comment" not in cleaned
 
 
-def test_business_valueerror_price_parsing_branch() -> None:
+def test_business_price_parsing_robustness() -> None:
+    """Non-standard price formats should be handled gracefully."""
     analyzer = BusinessBayesianAnalyzer()
     code = "price = 12efoo\n"
     results = analyzer._analyze_monetization(code, "bad_price")

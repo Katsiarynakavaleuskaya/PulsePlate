@@ -167,7 +167,7 @@ class TestComprehensiveCoverage:
         # Use patch.dict to patch the function's global namespace directly
         from types import SimpleNamespace
 
-        async def fake_scheduler():
+        async def fake_scheduler() -> SimpleNamespace:
             # Return a scheduler with update_manager.rollback_database that returns True
             mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=True))
             return SimpleNamespace(update_manager=mock_update_manager)
@@ -193,7 +193,7 @@ class TestComprehensiveCoverage:
         """Test rollback endpoint exception handling."""
 
         # Use patch.dict to properly intercept get_update_scheduler
-        async def fake_scheduler_error():
+        async def fake_scheduler_error() -> None:
             raise Exception("Test error")
 
         with patch.dict(

@@ -38,8 +38,12 @@ def _cleanup_users() -> Generator[None, None, None]:
     try:
         with db_module.session_scope() as session:
             session.execute(text("DELETE FROM users"))
-    except OperationalError:
+    except OperationalError as e:
         # Gracefully handle cleanup failure in isolated test environments
+        # Note: Repeated failures may indicate DB/schema issues requiring investigation
+        import logging
+
+        logging.warning(f"Test cleanup failed (non-critical in isolated envs): {e}")
         pass
 
 

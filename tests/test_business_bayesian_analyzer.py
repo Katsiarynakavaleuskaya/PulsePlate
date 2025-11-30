@@ -326,7 +326,10 @@ def expensive_operation():
 """
         results = analyzer.analyze(code, "expensive_operation")
         messages = " ".join((r.error_message or "") for r in results)
-        assert "SELECT *" in messages or "while True" in messages or "sleep" in messages
+        # Verify all cost optimization patterns are detected
+        assert "SELECT *" in messages, "Should detect SELECT * pattern"
+        assert "while True" in messages, "Should detect infinite loop pattern"
+        assert "sleep" in messages, "Should detect sleep pattern"
 
     def test_missing_cache_detection(self) -> None:
         """Lack of caching on data access should be flagged as operational waste."""

@@ -13,7 +13,7 @@ from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer
 from core.nutrition_constants import is_meal_level_value
 
 
-def test_has_explicit_return_or_yield_variants():
+def test_has_explicit_return_or_yield_variants() -> None:
     code = """
 def with_return():
     return 1
@@ -39,7 +39,7 @@ def outer():
     assert tech_utils._has_explicit_return_or_yield(funcs["outer"]) is False
 
 
-def test_has_explicit_return_or_yield_with_handlers():
+def test_has_explicit_return_or_yield_with_handlers() -> None:
     code = """
 def with_try():
     try:
@@ -66,7 +66,7 @@ def only_except():
     assert tech_utils._has_explicit_return_or_yield(func) is True
 
 
-def test_analyze_technical_aspects_common_regex_fallback_and_ast_branch():
+def test_analyze_technical_aspects_common_regex_fallback_and_ast_branch() -> None:
     # AST path: async without await + Mock instead of AsyncMock
     code_ast = """
 import asyncio
@@ -106,7 +106,7 @@ def foo():
     assert "Missing return type annotations" in issues_fallback
 
 
-def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
+def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch) -> None:
     # Use tmp_path to avoid modifying production config directory
     config_dir = tmp_path / "core" / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -141,7 +141,7 @@ def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch):
     monkeypatch.setattr(bba_module, "__file__", original_file)
 
 
-def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path):
+def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path) -> None:
     # Use tmp_path to avoid modifying production config directory
     config_dir = tmp_path / "core" / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -178,7 +178,7 @@ def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path):
     monkeypatch.setattr(bba_module, "__file__", original_file)
 
 
-def test_comprehensive_scoring_and_impacts():
+def test_comprehensive_scoring_and_impacts() -> None:
     analyzer = ComprehensiveBayesianAnalyzer()
 
     tech_issues = ["AsyncMock missing", "производительность низкая", "типизация отсутствует"]
@@ -245,7 +245,7 @@ def test_comprehensive_scoring_and_impacts():
     assert "Критическое" in crit_health
 
 
-def test_comprehensive_get_diagnosis_and_action_plan():
+def test_comprehensive_get_diagnosis_and_action_plan() -> None:
     analyzer = ComprehensiveBayesianAnalyzer()
     empty = analyzer.get_comprehensive_diagnosis()
     assert empty["status"] == "no_data"
@@ -286,11 +286,11 @@ def test_comprehensive_get_diagnosis_and_action_plan():
         (50, "", True),
     ],
 )
-def test_is_meal_level_value_basic(value, context, expected):
+def test_is_meal_level_value_basic(value, context, expected) -> None:
     assert is_meal_level_value(value, context) is expected
 
 
-def test_is_meal_level_value_validation_errors():
+def test_is_meal_level_value_validation_errors() -> None:
     with pytest.raises(TypeError):
         is_meal_level_value("not_number")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
@@ -299,7 +299,7 @@ def test_is_meal_level_value_validation_errors():
         is_meal_level_value(-5)
 
 
-def test_integrated_analyzer_sensitive_logging_and_unsafe_open():
+def test_integrated_analyzer_sensitive_logging_and_unsafe_open() -> None:
     analyzer = IntegratedBayesianAnalyzer()
 
     code_sensitive = """
@@ -342,7 +342,7 @@ def helper():
     assert analyzer._is_in_test_or_mock_context(test_ctx_code) is True
 
 
-def test_comprehensive_analyze_comprehensively_paths(monkeypatch):
+def test_comprehensive_analyze_comprehensively_paths(monkeypatch) -> None:
     analyzer = ComprehensiveBayesianAnalyzer()
 
     class StubResult:

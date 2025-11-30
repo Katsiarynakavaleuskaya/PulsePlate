@@ -333,10 +333,12 @@ async def test_api_premium_plate_fallback_aligns_targets(
     assert response.macros["fat_g"] in {60, 72}
     assert response.macros["protein_g"] in {120, 128}
     assert (
-        response.macros["carbs_g"] >= 0
-    ), f"Expected carbs_g >= 0, got {response.macros['carbs_g']}"
-    assert response.macros["fiber_g"] >= app.FIBER_MIN_G
-    assert response.kcal > 0
+        0 <= response.macros["carbs_g"] <= 800
+    ), f"Expected 0 <= carbs_g <= 800, got {response.macros['carbs_g']}"
+    assert (
+        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 200
+    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 200, got {response.macros['fiber_g']}"
+    assert 0 < response.kcal <= 5000, f"Expected 0 < kcal <= 5000, got {response.kcal}"
 
 
 @pytest.mark.asyncio
@@ -357,11 +359,19 @@ async def test_api_premium_plate_fallback_handles_target_error(
 
     response = await app.api_premium_plate(request)
 
-    assert response.kcal > 0
-    assert response.macros["protein_g"] > 0
-    assert response.macros["fat_g"] > 0
-    assert response.macros["carbs_g"] > 0
-    assert response.macros["fiber_g"] >= app.FIBER_MIN_G
+    assert 0 < response.kcal <= 10000, f"Expected 0 < kcal <= 10000, got {response.kcal}"
+    assert (
+        0 < response.macros["protein_g"] <= 1000
+    ), f"Expected 0 < protein_g <= 1000, got {response.macros['protein_g']}"
+    assert (
+        0 < response.macros["fat_g"] <= 1000
+    ), f"Expected 0 < fat_g <= 1000, got {response.macros['fat_g']}"
+    assert (
+        0 < response.macros["carbs_g"] <= 2000
+    ), f"Expected 0 < carbs_g <= 2000, got {response.macros['carbs_g']}"
+    assert (
+        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 500
+    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 500, got {response.macros['fiber_g']}"
 
 
 @pytest.mark.asyncio

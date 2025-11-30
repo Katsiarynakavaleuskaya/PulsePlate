@@ -17,7 +17,7 @@ from core.integrated_bayesian_analyzer import (
 class TestIntegratedBayesianAnalyzerInit:
     """Test analyzer initialization."""
 
-    def test_init_creates_sub_analyzers(self):
+    def test_init_creates_sub_analyzers(self) -> None:
         """Test that initialization creates all required analyzers."""
         analyzer = IntegratedBayesianAnalyzer()
         assert analyzer.technical_analyzer is not None
@@ -25,7 +25,7 @@ class TestIntegratedBayesianAnalyzerInit:
         assert hasattr(analyzer, "_analyze_safety_aspects")
         assert analyzer.integrated_results == []
 
-    def test_init_loads_system_philosophy(self):
+    def test_init_loads_system_philosophy(self) -> None:
         """Test that system philosophy is loaded."""
         analyzer = IntegratedBayesianAnalyzer()
         assert analyzer.system_philosophy is not None
@@ -35,7 +35,7 @@ class TestIntegratedBayesianAnalyzerInit:
 class TestIntegratedAnalysis:
     """Test integrated analysis functionality."""
 
-    def test_analyze_integrated_simple_code(self):
+    def test_analyze_integrated_simple_code(self) -> None:
         """Test analysis of simple test code."""
         analyzer = IntegratedBayesianAnalyzer()
         code = "def test_simple(): assert True"
@@ -47,7 +47,7 @@ class TestIntegratedAnalysis:
         assert isinstance(result.safety_issues, list)
         assert isinstance(result.philosophy_violations, list)
 
-    def test_analyze_integrated_with_technical_issue(self):
+    def test_analyze_integrated_with_technical_issue(self) -> None:
         """Test detection of technical issues."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -58,7 +58,7 @@ def test_async_issue():
         result = analyzer.analyze_test_comprehensively(code, "test_async_issue", "test.py")
         assert isinstance(result, IntegratedTestResult)
 
-    def test_analyze_integrated_with_nutrition_code(self):
+    def test_analyze_integrated_with_nutrition_code(self) -> None:
         """Test analysis of nutrition-related code."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -69,7 +69,7 @@ def test_calories():
         result = analyzer.analyze_test_comprehensively(code, "test_calories", "test.py")
         assert isinstance(result, IntegratedTestResult)
 
-    def test_analyze_integrated_empty_code(self):
+    def test_analyze_integrated_empty_code(self) -> None:
         """Test analysis of empty code."""
         analyzer = IntegratedBayesianAnalyzer()
         result = analyzer.analyze_test_comprehensively("", "test_empty", "test.py")
@@ -79,7 +79,7 @@ def test_calories():
 class TestSafetyChecks:
     """Test safety violation detection."""
 
-    def test_detect_unsafe_file_open(self):
+    def test_detect_unsafe_file_open(self) -> None:
         """Test detection of unsafe file operations."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -90,7 +90,7 @@ def test_file():
         result = analyzer.analyze_test_comprehensively(code, "test_file", "test.py")
         assert isinstance(result, IntegratedTestResult)
 
-    def test_detect_hardcoded_password(self):
+    def test_detect_hardcoded_password(self) -> None:
         """Test detection of hardcoded passwords."""
         analyzer = IntegratedBayesianAnalyzer()
         code = 'password = "hardcoded123"\n'
@@ -104,7 +104,7 @@ def test_file():
 class TestPhilosophyChecks:
     """Test philosophy violation detection."""
 
-    def test_philosophy_health_first(self):
+    def test_philosophy_health_first(self) -> None:
         """Test Health First philosophy check."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -117,7 +117,7 @@ def test_health_metric():
         assert isinstance(result.philosophy_violations, list)
         assert result.philosophy_violations
 
-    def test_philosophy_user_centric(self):
+    def test_philosophy_user_centric(self) -> None:
         """Test User-Centric philosophy check."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -135,14 +135,14 @@ def test_user():
 class TestRiskCalculation:
     """Test risk level calculation."""
 
-    def test_calculate_risk_level_low(self):
+    def test_calculate_risk_level_low(self) -> None:
         """Test low risk calculation."""
         analyzer = IntegratedBayesianAnalyzer()
         code = "def test_safe(): pass"
         result = analyzer.analyze_test_comprehensively(code, "test_safe", "test.py")
         assert result.overall_risk_level in ["low", "medium", "high", "critical"]
 
-    def test_calculate_risk_level_with_issues(self):
+    def test_calculate_risk_level_with_issues(self) -> None:
         """Test risk increases with issues."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -157,14 +157,14 @@ def test_risky():
 class TestBusinessImpact:
     """Test business impact assessment."""
 
-    def test_assess_business_impact_none(self):
+    def test_assess_business_impact_none(self) -> None:
         """Test business impact with no issues."""
         analyzer = IntegratedBayesianAnalyzer()
         code = "def test(): pass"
         result = analyzer.analyze_test_comprehensively(code, "test", "test.py")
         assert isinstance(result.business_impact, str)
 
-    def test_assess_business_impact_with_issues(self):
+    def test_assess_business_impact_with_issues(self) -> None:
         """Test business impact with multiple issues."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -179,19 +179,19 @@ def test_business():
 class TestNormalizedIssueTypes:
     """Test normalized issue type detection."""
 
-    def test_normalize_issue_type_injection(self):
+    def test_normalize_issue_type_injection(self) -> None:
         """Test injection detection."""
         analyzer = IntegratedBayesianAnalyzer()
         issue_types = analyzer._normalize_issue_type("SQL injection detected")
         assert NormalizedIssueType.INJECTION in issue_types
 
-    def test_normalize_issue_type_password(self):
+    def test_normalize_issue_type_password(self) -> None:
         """Test password leak detection."""
         analyzer = IntegratedBayesianAnalyzer()
         issue_types = analyzer._normalize_issue_type("Hardcoded password found")
         assert NormalizedIssueType.PASSWORD_LEAK in issue_types
 
-    def test_normalize_issue_type_multiple(self):
+    def test_normalize_issue_type_multiple(self) -> None:
         """Test multiple issue types in one string."""
         analyzer = IntegratedBayesianAnalyzer()
         issue_types = analyzer._normalize_issue_type("Dangerous SQL injection vulnerability")
@@ -201,14 +201,14 @@ class TestNormalizedIssueTypes:
 class TestRecommendations:
     """Test recommendation generation."""
 
-    def test_generate_integrated_recommendations_empty(self):
+    def test_generate_integrated_recommendations_empty(self) -> None:
         """Test recommendations with no issues."""
         analyzer = IntegratedBayesianAnalyzer()
         analyzer.analyze_test_comprehensively("def test(): pass", "test", "test.py")
         # Recommendations are part of result
         assert len(analyzer.integrated_results) > 0
 
-    def test_generate_integrated_recommendations_with_issues(self):
+    def test_generate_integrated_recommendations_with_issues(self) -> None:
         """Test recommendations with various issues."""
         analyzer = IntegratedBayesianAnalyzer()
         code = """
@@ -220,16 +220,16 @@ def test_issues():
         assert isinstance(result, IntegratedTestResult)
 
 
-class TestComprehensiveDiagnosis:
-    """Test comprehensive diagnosis."""
+class TestDiagnostics:
+    """Test diagnostic functionality."""
 
-    def test_get_comprehensive_diagnosis_no_data(self):
+    def test_get_comprehensive_diagnosis_no_data(self) -> None:
         """Test diagnosis with no results."""
         analyzer = IntegratedBayesianAnalyzer()
         diagnosis = analyzer.get_comprehensive_diagnosis()
         assert isinstance(diagnosis, dict)
 
-    def test_get_comprehensive_diagnosis_with_data(self):
+    def test_get_comprehensive_diagnosis_with_data(self) -> None:
         """Test diagnosis with results."""
         analyzer = IntegratedBayesianAnalyzer()
         analyzer.analyze_test_comprehensively("def test1(): pass", "test1", "test.py")
@@ -238,10 +238,10 @@ class TestComprehensiveDiagnosis:
         assert isinstance(diagnosis, dict)
 
 
-class TestIntegratedTestResult:
+class TestResultDataClass:
     """Test IntegratedTestResult dataclass."""
 
-    def test_integrated_test_result_creation(self):
+    def test_integrated_test_result_creation(self) -> None:
         """Test creation of IntegratedTestResult."""
         result = IntegratedTestResult(
             test_name="test_example",
@@ -260,16 +260,16 @@ class TestIntegratedTestResult:
 
 
 class TestEdgeCases:
-    """Test edge cases and error handling."""
+    """Test edge cases."""
 
-    def test_analyze_malformed_code(self):
+    def test_analyze_malformed_code(self) -> None:
         """Test analysis handles malformed code gracefully."""
         analyzer = IntegratedBayesianAnalyzer()
         code = "def test_broken(:"
         result = analyzer.analyze_test_comprehensively(code, "test_broken", "test.py")
         assert isinstance(result, IntegratedTestResult)
 
-    def test_results_persistence(self):
+    def test_results_persistence(self) -> None:
         """Test that results are persisted."""
         analyzer = IntegratedBayesianAnalyzer()
         initial_count = len(analyzer.integrated_results)
@@ -277,7 +277,7 @@ class TestEdgeCases:
         analyzer.analyze_test_comprehensively("def test2(): pass", "test2", "test.py")
         assert len(analyzer.integrated_results) == initial_count + 2
 
-    def test_empty_issues_lists(self):
+    def test_empty_issues_lists(self) -> None:
         """Test handling of empty issue lists."""
         analyzer = IntegratedBayesianAnalyzer()
         code = "def test_clean(): assert True"
