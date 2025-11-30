@@ -164,11 +164,17 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_success(self):
         """Test rollback endpoint success case."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
-            mock_get_scheduler.return_value = mock_scheduler
+        # Use patch.dict to patch the function's global namespace directly
+        from types import SimpleNamespace
 
+        async def fake_scheduler():
+            # Return a scheduler with update_manager.rollback_database that returns True
+            mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=True))
+            return SimpleNamespace(update_manager=mock_update_manager)
+
+        with patch.dict(
+            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
+        ):
             response = self.client.post(
                 "/api/v1/admin/rollback",
                 params={"source": "usda", "target_version": "1.0"},
@@ -185,19 +191,24 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_get_scheduler.side_effect = Exception("Test error")
 
+        # Use patch.dict to properly intercept get_update_scheduler
+        async def fake_scheduler_error():
+            raise Exception("Test error")
+
+        with patch.dict(
+            app_mod.rollback_database.__globals__,
+            {"get_update_scheduler": fake_scheduler_error},
+        ):
             response = self.client.post(
                 "/api/v1/admin/rollback",
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            # May return 200 or 500 depending on whether the mock is applied in TestClient context
-            assert response.status_code in [200, 500]
-            if response.status_code == 500:
-                data = response.json()
-                assert "Rollback operation failed" in data["detail"]
+            # Should return 500 when get_update_scheduler raises exception
+            assert response.status_code == 500
+            data = response.json()
+            assert "Rollback operation failed" in data["detail"]
 
     @pytest.mark.asyncio
     async def test_rollback_endpoint_no_update_manager(self):
@@ -229,31 +240,43 @@ class TestComprehensiveCoverage:
 
     def test_rollback_endpoint_rollback_function_exception(self):
         """Test rollback when rollback_database raises exception."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(
-                side_effect=Exception("Rollback failed")
-            )
-            mock_get_scheduler.return_value = mock_scheduler
+        # Use patch.dict to properly intercept get_update_scheduler
+        from types import SimpleNamespace
 
+        async def fake_scheduler():
+            # Return a scheduler whose rollback_database raises an exception
+            async def failing_rollback(source, target_version):
+                raise Exception("Rollback failed")
+
+            mock_update_manager = SimpleNamespace(rollback_database=failing_rollback)
+            return SimpleNamespace(update_manager=mock_update_manager)
+
+        with patch.dict(
+            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
+        ):
             response = self.client.post(
                 "/api/v1/admin/rollback",
                 params={"source": "usda", "target_version": "1.0"},
                 headers={"X-API-Key": "test_key"},
             )
-            # May return 200 or 500 depending on exception handling
-            assert response.status_code in [200, 500]
-            if response.status_code == 500:
-                data = response.json()
-                assert "Rollback operation failed" in data["detail"]
+            # Should return 500 when rollback_database raises exception
+            assert response.status_code == 500
+            data = response.json()
+            assert "Rollback operation failed" in data["detail"]
 
     def test_rollback_endpoint_returns_false(self):
         """Test rollback when rollback_database returns False."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
-            mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
-            mock_get_scheduler.return_value = mock_scheduler
+        # Use patch.dict to properly intercept get_update_scheduler
+        from types import SimpleNamespace
 
+        async def fake_scheduler():
+            # Return a scheduler whose rollback_database returns False
+            mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=False))
+            return SimpleNamespace(update_manager=mock_update_manager)
+
+        with patch.dict(
+            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
+        ):
             response = self.client.post(
                 "/api/v1/admin/rollback",
                 params={"source": "usda", "target_version": "1.0"},
