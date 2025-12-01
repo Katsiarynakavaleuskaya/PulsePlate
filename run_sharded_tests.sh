@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
 # Tenant-based test sharding runner for PulsePlate
 # Prevents memory errors by running shards sequentially or with limited parallelism
+# Requires Bash 4.3+ for nameref support (-n)
 
 set -euo pipefail
+
+# Check Bash version
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -lt 3 ]; }; then
+    echo "Error: This script requires Bash 4.3+ for nameref support."
+    echo "Current version: ${BASH_VERSION}"
+    echo "On macOS, install via: brew install bash"
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -152,7 +161,12 @@ case $MODE in
             shard3=$((batch+3))
 
             if [ $shard1 -le $TOTAL_SHARDS ]; then
-                echo -e "${BLUE}▶ Running Shards $shard1, $shard2, $shard3 in parallel...${NC}"
+                # Build message with only valid shards
+                msg="▶ Running Shard $shard1"
+                [ $shard2 -le $TOTAL_SHARDS ] && msg+=", $shard2"
+                [ $shard3 -le $TOTAL_SHARDS ] && msg+=", $shard3"
+                msg+=" in parallel..."
+                echo -e "${BLUE}$msg${NC}"
 
                 pids=()
                 declare -a cmd1

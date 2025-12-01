@@ -5,6 +5,7 @@ pytest-cov>=7.0.0
 pytest-asyncio>=1.2.0
 pytest-xdist>=3.5.0
 pytest-picked>=0.5.0
+hypothesis>=6.148.4
 # coverage and diff-cover: allow patch releases with bug fixes
 coverage>=7.12.0
 diff-cover>=9.7.2
