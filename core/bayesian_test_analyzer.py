@@ -538,7 +538,9 @@ class BayesianTestAnalyzer:
         prob = (weighted_num + self.LAPLACE_ALPHA) / (weighted_den + 2 * self.LAPLACE_ALPHA)
         return float(max(0.01, min(0.99, prob)))
 
-    def _calculate_evidence(self, symptoms: Set[str], similar_cases: Optional[List[Any]] = None) -> float:
+    def _calculate_evidence(
+        self, symptoms: Set[str], similar_cases: Optional[List[Any]] = None
+    ) -> float:
         """Вычислить P(симптомы) = Σ_e P(симптомы|e)·P(e).
 
         Args:
@@ -762,7 +764,10 @@ class BayesianTestAnalyzer:
         ]
 
         if coverage_scores:
-            coverage_stability = 1.0 - (max(coverage_scores) - min(coverage_scores)) / 100.0
+            # Clamp coverage_stability to [0.0, 1.0] to handle coverage > 100%
+            coverage_stability = max(
+                0.0, min(1.0, 1.0 - (max(coverage_scores) - min(coverage_scores)) / 100.0)
+            )
         else:
             coverage_stability = 1.0
 

@@ -52,7 +52,9 @@ class TestLocaleNormalization:
         strategies = analyzer._load_monetization_strategies(None)
         assert "pricing_models" in strategies
 
-    def test_locale_unsupported_falls_back_to_en(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_locale_unsupported_falls_back_to_en(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Unsupported locale should fall back to 'en'."""
         import core.business_bayesian_analyzer as bba_module
 
@@ -74,10 +76,9 @@ class TestLocaleNormalization:
 
     def test_locale_with_i18n_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When i18n module unavailable, should use fallback locale validation."""
-        # Simulate ImportError for i18n module by monkeypatching sys.modules
+        # Simulate ImportError for i18n module by removing it from sys.modules
         import sys
 
-        original_modules = sys.modules.copy()
         if "core.i18n" in sys.modules:
             monkeypatch.delitem(sys.modules, "core.i18n")
 

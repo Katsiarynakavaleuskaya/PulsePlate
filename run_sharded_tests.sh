@@ -63,12 +63,13 @@ echo -e "Mode: ${YELLOW}$MODE${NC}"
 echo -e "Coverage: ${YELLOW}$COVERAGE${NC}"
 echo ""
 
-# Build pytest command
+# Build pytest command (returns array elements as string for eval)
 build_cmd() {
     local shard=$1
     local cmd="python -m pytest --shard-id=$shard tests/ -q"
     if [ "$COVERAGE" = true ]; then
-        cmd="$cmd --cov=. --cov-report=term --cov-append"
+        # Scope coverage to source directories only (not entire repo)
+        cmd="$cmd --cov=core --cov=app --cov-report=term --cov-append"
     fi
     echo "$cmd"
 }
@@ -92,18 +93,18 @@ case $MODE in
             echo -e "${GREEN}✓ Shard $shard completed${NC}\n"
         done
         ;;
-        
+
     parallel-2)
         echo -e "${GREEN}Running 2 shards in parallel (memory-safe)${NC}\n"
         for batch in $(seq 0 2 $((TOTAL_SHARDS-1))); do
             shard1=$((batch+1))
             shard2=$((batch+2))
-            
+
             if [ $shard1 -le $TOTAL_SHARDS ]; then
                 echo -e "${BLUE}▶ Running Shards $shard1 and $shard2 in parallel...${NC}"
                 cmd1=$(build_cmd $shard1)
                 cmd2=$(build_cmd $shard2)
-                
+
                 # Run in background and wait for each individually
                 eval "$cmd1 &"
                 pid1=$!
@@ -133,48 +134,58 @@ case $MODE in
             fi
         done
         ;;
-        
+
     parallel-3)
         echo -e "${YELLOW}⚠ Running 3 shards in parallel (may cause memory issues)${NC}\n"
         for batch in $(seq 0 3 $((TOTAL_SHARDS-1))); do
             shard1=$((batch+1))
             shard2=$((batch+2))
             shard3=$((batch+3))
-            
+
             if [ $shard1 -le $TOTAL_SHARDS ]; then
                 echo -e "${BLUE}▶ Running Shards $shard1, $shard2, $shard3 in parallel...${NC}"
-                
+
                 pids=()
                 cmd1=$(build_cmd $shard1)
                 eval "$cmd1 &"
                 pids+=($!)
-                
+
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
                     cmd2=$(build_cmd $shard2)
                     eval "$cmd2 &"
                     pids+=($!)
                 fi
-                
+
                 if [ $shard3 -le $TOTAL_SHARDS ]; then
                     cmd3=$(build_cmd $shard3)
                     eval "$cmd3 &"
                     pids+=($!)
                 fi
                 
+                failed=0
                 for pid in "${pids[@]}"; do
-                    wait $pid || { echo -e "${RED}✗ Parallel batch failed${NC}"; exit 1; }
+                    wait $pid || failed=1
                 done
+                if [ $failed -ne 0 ]; then
+                    echo -e "${RED}✗ Parallel batch failed${NC}"
+                    exit 1
+                fi
                 echo -e "${GREEN}✓ Batch completed${NC}\n"
             fi
         done
         ;;
-        
+
     all-at-once)
         echo -e "${RED}⚠⚠ Running ALL shards simultaneously (HIGH MEMORY RISK)${NC}\n"
         pids=()
-        for shard in $(seq 1 $TOTAL_SHARDS); do
-            cmd=$(build_cmd $shard)
-            eval "$cmd &"
+        failed=0
+        for pid in "${pids[@]}"; do
+            wait $pid || failed=1
+        done
+        if [ $failed -ne 0 ]; then
+            echo -e "${RED}✗ Parallel execution failed${NC}"
+            exit 1
+        fi
             pids+=($!)
         done
         for pid in "${pids[@]}"; do

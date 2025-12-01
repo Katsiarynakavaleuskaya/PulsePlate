@@ -302,24 +302,24 @@ def get_symptom_key(symptom: str) -> str:
 
     Returns:
         Recommendation key string (e.g., "symptom.async_context").
-    
+
     Raises:
         ValueError: If symptom is None, empty, or not a string.
     """
     # Defensive validation: ensure symptom is a non-empty string
     if symptom is None:
         raise ValueError("Symptom cannot be None")
-    
+
     if not isinstance(symptom, str):
         raise ValueError(
             f"Symptom must be a string, got {type(symptom).__name__}: {symptom!r}"
         )
-    
+
     # Strip whitespace and validate length
     symptom_clean = symptom.strip()
     if len(symptom_clean) == 0:
         raise ValueError("Symptom cannot be empty or whitespace-only")
-    
+
     return f"symptom.{symptom_clean}"
 
 

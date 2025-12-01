@@ -389,20 +389,20 @@ class NutritionBayesianAnalyzer:
         self, test_name: str, protein_grams: float, fat_grams: float, carb_grams: float
     ) -> List[NutritionTestResult]:
         """Validate macronutrient values and balance.
-        
+
         Extracted helper for testing macronutrient validation logic without regex coupling.
-        
+
         Args:
             test_name: Test name for result identification
             protein_grams: Protein amount in grams
             fat_grams: Fat amount in grams
             carb_grams: Carbohydrate amount in grams
-            
+
         Returns:
             List of NutritionTestResult for any validation errors found
         """
         results = []
-        
+
         # Calculate calories for each macro (protein/carbs = 4 cal/g, fat = 9 cal/g)
         protein_cals = protein_grams * 4
         fat_cals = fat_grams * 9
@@ -520,7 +520,7 @@ class NutritionBayesianAnalyzer:
                     safety_level="dangerous",
                 )
             )
-        
+
         return results
 
     def _analyze_nutrition_standards(self, code: str, test_name: str) -> List[NutritionTestResult]:
@@ -556,7 +556,7 @@ class NutritionBayesianAnalyzer:
             protein_grams = macro_values.get("protein", 0)
             fat_grams = macro_values.get("fat", 0)
             carb_grams = macro_values.get("carbs", 0)
-            
+
             results.extend(
                 self._validate_macronutrients(test_name, protein_grams, fat_grams, carb_grams)
             )

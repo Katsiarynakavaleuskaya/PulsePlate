@@ -9,7 +9,7 @@ import app as app_mod
 async def test_rollback_scheduler_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     called = {}
 
-    async def fake_scheduler():
+    async def fake_scheduler() -> None:
         called["hit"] = True
         raise RuntimeError("boom")
 

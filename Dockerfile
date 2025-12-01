@@ -54,7 +54,7 @@ COPY --chown=pulseplate:pulseplate app/ ./app/
 COPY --chown=pulseplate:pulseplate core/ ./core/
 COPY --chown=pulseplate:pulseplate app.py main.py settings.py ./
 COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
-COPY --chown=pulseplate:pulseplate alembic.ini conftest.py ./
+COPY --chown=pulseplate:pulseplate alembic.ini ./
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/cache/food_db /app/data /app/logs && \

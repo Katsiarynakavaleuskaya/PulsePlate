@@ -106,7 +106,9 @@ def foo():
     assert "Missing return type annotations" in issues_fallback
 
 
-def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch) -> None:
+def test_business_load_business_knowledge_from_yaml(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Use tmp_path to avoid modifying production config directory
     config_dir = tmp_path / "core" / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -135,7 +137,6 @@ def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch) -> No
     analyzer = BusinessBayesianAnalyzer()
     data = analyzer._load_business_knowledge()
     assert "revenue_streams" in data
-
 
 def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path) -> None:
     # Use tmp_path to avoid modifying production config directory

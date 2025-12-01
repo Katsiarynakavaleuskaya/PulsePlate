@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 🔀 Unified Pre-Commit Hook
+# Combines custom checks from .githooks/pre-commit with pre-commit framework
+# Ensures mypy, bandit, black run before every commit
+
+echo "🔍 Running unified pre-commit checks..."
+
+# 1. Run pre-commit framework checks (Black, Bandit, etc.)
+echo "📋 Step 1/2: Pre-commit framework (Black, Bandit, yaml, etc.)"
+if command -v pre-commit > /dev/null 2>&1; then
+    # Temporarily unset hooksPath to allow pre-commit to run
+    ORIGINAL_HOOKS_PATH=$(git config core.hooksPath || echo "")
+    git config --unset-all core.hooksPath || true
+    
+    # Run pre-commit checks
+    if ! pre-commit run --files $(git diff --cached --name-only --diff-filter=ACM); then
+        # Restore hooksPath
+        if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
+            git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
+        fi
+        echo "❌ Pre-commit checks failed (Black, Bandit, etc.)"
+        echo "ℹ️  Fix the issues above, then re-stage and commit"
+        exit 1
+    fi
+    
+    # Restore hooksPath
+    if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
+        git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
+    fi
+else
+    echo "⚠️  Warning: pre-commit not installed"
+    echo "   Install with: pip install pre-commit"
+fi
+
+# 2. Run custom checks from original .githooks/pre-commit
+echo ""
+echo "📋 Step 2/2: Custom checks (Python syntax, backend tests)"
+
+# Get Python changes
+PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
+
+if [ -n "$PYTHON_CHANGES" ]; then
+    # Check Python syntax
+    echo "🐍 Checking Python syntax..."
+    for file in $PYTHON_CHANGES; do
+        if [ -f "$file" ]; then
+            if ! python -m py_compile "$file" 2>&1; then
+                echo "❌ Python syntax error in $file"
+                exit 1
+            fi
+        fi
+    done
+    echo "✅ Python syntax OK"
+    
+    # Run backend tests for changed files
+    echo ""
+    echo "🧪 Running backend tests for changed files..."
+    if command -v pytest > /dev/null 2>&1; then
+        # Extract test files that correspond to changed Python files
+        declare -a TEST_FILES=()
+        for file in $PYTHON_CHANGES; do
+            # If the file is in tests/ directory, add it directly
+            if [[ $file == tests/*.py ]]; then
+                [ -f "$file" ] && TEST_FILES+=("$file")
+            # Otherwise, check if corresponding test file exists
+            elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then
+                basename=$(basename "$file" .py)
+                dirname=$(dirname "$file")
+                dirname=${dirname#./}
+                
+                # Common test file patterns
+                test_patterns=(
+                    "tests/test_${basename}.py"
+                    "tests/${dirname}/test_${basename}.py"
+                    "${dirname}/test_${basename}.py"
+                )
+                
+                for pattern in "${test_patterns[@]}"; do
+                    [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
+                done
+                
+                # Fallback: search recursively
+                if [ ${#TEST_FILES[@]} -eq 0 ]; then
+                    while IFS= read -r test_file; do
+                        [ -f "$test_file" ] && TEST_FILES+=("$test_file")
+                    done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)
+                fi
+            fi
+        done
+        
+        if [ ${#TEST_FILES[@]} -gt 0 ]; then
+            echo "Running tests: ${TEST_FILES[*]}"
+            if ! pytest -q "${TEST_FILES[@]}" --tb=short -x --maxfail=3; then
+                echo "❌ Backend tests failed"
+                echo "ℹ️  Fix failing tests or commit with --no-verify to skip"
+                exit 1
+            fi
+            echo "✅ Backend tests passed"
+        else
+            echo "ℹ️  No corresponding test files found"
+        fi
+    else
+        echo "⚠️  Warning: pytest not found, skipping tests"
+    fi
+fi
+
+echo ""
+echo "✅ All pre-commit checks passed!"
+exit 0

@@ -4,8 +4,8 @@ pytest-cov==7.0.0
 pytest-asyncio==1.2.0
 pytest-xdist>=3.5.0
 pytest-picked>=0.5.0
-# coverage and diff-cover use >= to ensure CI picks up patch releases with bug fixes
-# Tested with: coverage==7.12.0, diff-cover==9.7.2 (verified compatibility)
+# coverage and diff-cover use >= to allow patch releases with bug fixes
+# Compatible with: coverage>=7.12.0, diff-cover>=9.7.2
 coverage>=7.12.0
 # flake8==7.3.0  # Replaced by ruff (faster, modern linter)
 bandit==1.8.6

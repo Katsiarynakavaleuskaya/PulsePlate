@@ -138,6 +138,18 @@ class BusinessBayesianAnalyzer:
     #     This constant is configurable for domains expecting higher returns.
     MAX_CREDIBLE_UPPER_ROI: float = 10.0
 
+    # Severity to ROI mapping for failed tests
+    # Maps error severity levels to ROI impact (benefit/cost ratio)
+    # Lower severity = lower ROI (less urgent), higher severity = higher ROI (more urgent)
+    # TODO: Replace with actual metrics from telemetry/analytics once available
+    SEVERITY_TO_ROI: dict[str, float] = {
+        "critical": 0.5,  # High-impact failures (50% ROI)
+        "high": 0.3,  # Significant failures (30% ROI)
+        "medium": 0.2,  # Moderate failures (20% ROI)
+        "low": 0.1,  # Minor failures (10% ROI)
+    }
+    DEFAULT_FAILURE_ROI: float = 0.1  # Fallback ROI for unknown severity
+
     def __init__(
         self,
         low_price_threshold: float | None = None,
@@ -1117,16 +1129,31 @@ class BusinessBayesianAnalyzer:
         category_data: dict[str, list[float]] = {}
 
         # Извлекаем информацию из результатов тестов
-        # В реальном сценарии здесь можно использовать исторические данные проекта
+        # ROI оценивается на основе severity/impact (если доступно) или категории ошибки
+        # TODO: Integrate actual telemetry/metrics once available (e.g., error frequency, fix time)
         for result in self.test_results:
             if not result.success:
                 category_key = result.business_category.value
-                # Оцениваем benefit/cost на основе типа ошибки
-                # Это упрощенная модель; в реальности нужны фактические метрики
                 if category_key not in category_data:
                     category_data[category_key] = []
-                # Примерная оценка: используем консервативные значения
-                category_data[category_key].append(0.1)  # Минимальный ROI для проблемы
+
+                # Determine ROI based on error severity/impact if available
+                # Try to extract severity from error message or use error_type mapping
+                roi = self.DEFAULT_FAILURE_ROI  # Start with fallback
+
+                # Check if error_message contains severity indicators
+                error_msg = (result.error_message or "").lower()
+                if "critical" in error_msg or "high impact" in error_msg:
+                    roi = self.SEVERITY_TO_ROI.get("critical", roi)
+                elif "high" in error_msg or "important" in error_msg:
+                    roi = self.SEVERITY_TO_ROI.get("high", roi)
+                elif "medium" in error_msg or "moderate" in error_msg:
+                    roi = self.SEVERITY_TO_ROI.get("medium", roi)
+                elif "low" in error_msg or "minor" in error_msg:
+                    roi = self.SEVERITY_TO_ROI.get("low", roi)
+                # else: use DEFAULT_FAILURE_ROI
+
+                category_data[category_key].append(roi)
 
         return category_data
 

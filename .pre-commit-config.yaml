@@ -21,17 +21,15 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
-  # --- Code style: Black (disabled in pre-commit, handled by custom .githooks/pre-commit)
-  # Black auto-formatting is performed by .githooks/pre-commit for faster iteration
-  # Uncomment below if you want pre-commit framework to also run Black
-  # - repo: https://github.com/psf/black
-  #   rev: 24.8.0
-  #   hooks:
-  #     - id: black
-  #       name: black (format)
-  #       language_version: python3
-  #       files: ^(?!frontend/).+\.py$
-  #       stages: [pre-push]  # Only on pre-push to avoid duplicate with custom hook
+  # --- Code style: Black
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        name: black (format)
+        language_version: python3
+        args: [--line-length=100]
+        files: ^(?!frontend/).+\.py$
 
   # --- Lint: Ruff (DISABLED due to conflicts with existing linting setup)
   # Ruff was causing conflicts with Black and existing code style

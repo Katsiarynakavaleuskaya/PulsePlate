@@ -21,20 +21,20 @@ from core.bayesian_test_analyzer import (
 class TestBayesianTestAnalyzerInit:
     """Test analyzer initialization."""
 
-    def test_init_default(self):
+    def test_init_default(self) -> None:
         """Test default initialization."""
         analyzer = BayesianTestAnalyzer()
         assert analyzer.prior_probabilities is not None
         assert analyzer.test_history == []
 
-    def test_prior_probabilities_sum(self):
+    def test_prior_probabilities_sum(self) -> None:
         """Test that prior probabilities are normalized."""
         analyzer = BayesianTestAnalyzer()
         total = sum(analyzer.prior_probabilities.values())
         # Should be normalized to exactly 1.0
         assert total == pytest.approx(1.0, rel=1e-9)
 
-    def test_test_history_aliases_execution_history(self):
+    def test_test_history_aliases_execution_history(self) -> None:
         """test_history should be a live alias for execution_history."""
         analyzer = BayesianTestAnalyzer()
         assert analyzer.test_history == []
@@ -54,7 +54,6 @@ class TestBayesianTestAnalyzerInit:
         assert analyzer.test_history is analyzer.execution_history
         assert len(analyzer.test_history) == 1
         assert analyzer.test_history[0].test_name == "test_alias"
-
 
 class TestTechnicalAspectAnalysis:
     """Test technical aspect detection."""

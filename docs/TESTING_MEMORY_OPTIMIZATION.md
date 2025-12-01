@@ -26,7 +26,7 @@
 pytest --shard-id=1 tests/
 
 # Последовательный запуск всех шардов (CI)
-for i in {1..6}; do 
+for i in {1..6}; do
     pytest --shard-id=$i tests/ --cov --cov-append
 done
 
@@ -147,11 +147,11 @@ def teardown_module():
     """Очистка после модуля тестов."""
     # Удаляем временные файлы
     shutil.rmtree("temp_data", ignore_errors=True)
-    
+
     # Очищаем глобальные кэши
     import gc
     gc.collect()
-    
+
     # Закрываем соединения
     close_all_database_connections()
 ```
@@ -165,7 +165,7 @@ def test_embedding():
 # ✅ Хорошо - mock для быстрых unit-тестов
 @pytest.mark.unit
 def test_embedding_processing(monkeypatch):
-    monkeypatch.setattr("openai.Embedding.create", 
+    monkeypatch.setattr("openai.Embedding.create",
                        Mock(return_value={"data": [...]}))
     # Быстро, без сети, без API rate limits
 ```
@@ -195,7 +195,7 @@ done
     free -h  # До тестов
     pytest tests/ --maxfail=1
     free -h  # После тестов
-    
+
 - name: Test duration report
   run: |
     pytest --durations=20 --durations-min=1.0
@@ -227,7 +227,7 @@ done
     pytest --shard-id=1 tests/ &
     pytest --shard-id=2 tests/ &
     wait
-    
+
     pytest --shard-id=3 tests/ &
     pytest --shard-id=4 tests/ &
     wait

@@ -190,7 +190,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 # Try to find test file in tests/ directory
                 basename=$(basename "$file" .py)
                 dirname=$(dirname "$file")
-                
+
                 # Normalize dirname (strip leading ./ if present)
                 dirname=${dirname#./}
 
@@ -204,7 +204,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 for pattern in "${test_patterns[@]}"; do
                     [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
                 done
-                
+
                 # Fallback: search recursively only if no test files were found
                 if [ ${#TEST_FILES[@]} -eq 0 ]; then
                     # Use find to locate test files matching basename in tests/ tree

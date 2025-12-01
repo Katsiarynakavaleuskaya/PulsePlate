@@ -394,10 +394,10 @@ class ComprehensiveBayesianAnalyzer:
 
         Leverages structured nutrition severity metadata (safety_level='dangerous')
         instead of substring matching for health-first logic.
-        
+
         Args:
             technical: List of technical issues
-            nutrition: List of nutrition issues  
+            nutrition: List of nutrition issues
             business: List of business issues
             test_name: Current test name to filter nutrition results (optional)
         """

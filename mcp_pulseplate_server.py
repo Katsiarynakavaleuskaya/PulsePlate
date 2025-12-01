@@ -16,17 +16,17 @@ import openai
 class PulsePlateMCPServer:
     """MCP Server for PulsePlate project with ChatGPT integration"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
 
         self.client = openai.OpenAI(api_key=self.api_key)
-        
+
         # Configurable model - defaults to gpt-4 if not set (coverage tests expect gpt-4)
         # Can be overridden via MCP_OPENAI_MODEL environment variable
-        self.model = os.getenv("MCP_OPENAI_MODEL", "gpt-4")
-        
+        self.model: str = os.getenv("MCP_OPENAI_MODEL", "gpt-4")
+
         self.project_context = self._load_project_context()
 
     def _load_project_context(self) -> Dict[str, Any]:
