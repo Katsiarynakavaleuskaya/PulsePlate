@@ -2493,18 +2493,23 @@ def calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, 
     protein and fat are proportionally scaled down to their target ratio while
     ensuring total calories match final_kcal and carbs remain at least 1g.
 
+    SAFETY: Enforces minimum 1200 kcal floor to prevent Very Low Calorie Diet (VLCD)
+    macros, which can be medically risky without supervision.
+
     References:
     - IOM Dietary Reference Intakes (2005)
     - WHO Technical Report 916 (2003)
     - https://www.ncbi.nlm.nih.gov/books/NBK56068/
 
     Args:
-        final_kcal: Target daily calorie intake
+        final_kcal: Target daily calorie intake (will be clamped to >= 1200)
         weight_kg: Body weight in kilograms
 
     Returns:
         Tuple of (protein_g, fat_g, carbs_g) in grams
     """
+    # SAFETY: Enforce minimum 1200 kcal floor to prevent risky VLCD macros
+    final_kcal = max(final_kcal, 1200)
     # Calculate raw protein and fat grams and their calories
     prot_raw = 1.6 * weight_kg
     fat_raw = 0.9 * weight_kg
@@ -2584,10 +2589,10 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             activity_factor = get_activity_factor(req.activity)
             tdee_val = int(base_bmr * activity_factor)
 
-            # Goal adjustment
+            # Goal adjustment with SAFETY: 1200 kcal minimum floor
             if req.goal == "loss":
                 pct = req.deficit_pct if req.deficit_pct is not None else 15.0
-                target_kcal = max(800, int(tdee_val * (1.0 - pct / 100.0)))
+                target_kcal = max(1200, int(tdee_val * (1.0 - pct / 100.0)))
             elif req.goal == "gain":
                 pct = req.surplus_pct if req.surplus_pct is not None else 10.0
                 target_kcal = int(tdee_val * (1.0 + pct / 100.0))
@@ -3465,7 +3470,10 @@ def _generate_who_targets_response(
         ) from e
 
 
-@app.post("/premium_targets")
+@app.post(
+    "/premium_targets",
+    dependencies=[Depends(_get_api_key_dynamic)],
+)
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy endpoint for WHO targets (backwards compatibility)."""
     return _generate_who_targets_response(req, allow_backend_fallback=False)
@@ -3800,21 +3808,40 @@ async def check_for_updates() -> JSONResponse:
     """
     try:
         import sys as _sys
+        import inspect as _inspect
 
-        pkg = _sys.modules.get("app")
-        _getter = getattr(pkg, "get_update_scheduler", get_update_scheduler)
-        scheduler = await _getter()
-        available_updates = await scheduler.update_manager.check_for_updates()
+        _pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
+        _getter = getattr(_pkg, "get_update_scheduler", get_update_scheduler)
+
+        scheduler = None
+        if callable(_getter):
+            result = _getter()
+            scheduler = await result if _inspect.isawaitable(result) else result
+
+        if scheduler is None:
+            raise RuntimeError("Scheduler resolved to None")
+
+        update_manager = getattr(scheduler, "update_manager", None)
+        if update_manager is None or not hasattr(update_manager, "check_for_updates"):
+            raise RuntimeError("Update manager missing or check_for_updates not supported")
+
+        available_updates = await update_manager.check_for_updates()
+
+        updates_available = available_updates or {}
+        total_sources_with_updates = sum(1 for v in updates_available.values() if bool(v))
 
         response = {
             "message": "Update check completed",
-            "updates_available": available_updates,
-            "total_sources_with_updates": sum(available_updates.values()),
+            "updates_available": updates_available,
+            "total_sources_with_updates": int(total_sources_with_updates),
         }
 
         return JSONResponse(content=response)
 
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Update check failed")
         raise HTTPException(status_code=500, detail=f"Update check failed: {str(e)}") from e
 
 
@@ -3832,11 +3859,20 @@ async def rollback_database(source: str, target_version: str) -> Any:
         Success status and rollback details
     """
     try:
-        # Direct call to get_update_scheduler (monkeypatch.setitem patches the name in __globals__)
-        scheduler = await get_update_scheduler()
+        # Resolve via package to honor monkeypatching in tests (app.get_update_scheduler)
+        import sys as _sys
+        import inspect as _inspect
+
+        pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
+        _getter = getattr(pkg, "get_update_scheduler", get_update_scheduler)
+        scheduler = None
+        if callable(_getter):
+            _res = _getter()
+            scheduler = await _res if _inspect.isawaitable(_res) else _res
         if scheduler is None:
             raise ValueError("Scheduler returned None")
     except Exception as e:
+        logger.exception("Rollback: could not get scheduler")
         raise HTTPException(
             status_code=500, detail=f"Rollback operation failed: could not get scheduler ({str(e)})"
         ) from e
@@ -3851,10 +3887,16 @@ async def rollback_database(source: str, target_version: str) -> Any:
         return {"message": "Rollback operation not supported by update manager"}
 
     try:
-        success = await rollback_callable(source, target_version)  # type: ignore[misc]
+        import inspect as _inspect
+
+        if _inspect.iscoroutinefunction(rollback_callable):
+            success = await rollback_callable(source, target_version)  # type: ignore[misc]
+        else:
+            success = await run_in_threadpool(rollback_callable, source, target_version)
     except HTTPException:
         raise  # Preserve original status code
     except Exception as e:
+        logger.exception("Rollback callable raised")
         raise HTTPException(status_code=500, detail=f"Rollback operation failed: {str(e)}") from e
 
     if success:

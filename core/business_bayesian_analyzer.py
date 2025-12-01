@@ -1251,8 +1251,8 @@ class BusinessBayesianAnalyzer:
 
         # Если есть данные, обновляем апостериорное распределение
         if data:
-            # Вычисляем выборочное среднее и стандартное отклонение
-            sample_mean = sum(data) / len(data) if data else prior_mean
+            # Вычисляем выборочное среднее (data is guaranteed non-empty here)
+            sample_mean = sum(data) / len(data)
             try:
                 sample_log_mean = math.log(1 + sample_mean)
             except ValueError as e:  # pragma: no cover - defensive guard after validation
