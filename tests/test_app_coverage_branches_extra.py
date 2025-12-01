@@ -1,0 +1,87 @@
+import pytest
+
+import app
+
+
+def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover start/stop background update wrappers when no event loop is running."""
+
+    called: list[str | int] = []
+
+    async def fake_start(update_interval_hours: int = 24) -> None:
+        called.append(update_interval_hours)
+
+    async def fake_stop() -> None:
+        called.append("stop")
+
+    def _raise_no_loop():
+        raise RuntimeError("no loop")
+
+    monkeypatch.setattr(app.asyncio, "get_running_loop", _raise_no_loop, raising=True)
+    monkeypatch.setattr(
+        app.app_module, "_scheduler_start_background_updates", fake_start, raising=True
+    )
+    monkeypatch.setattr(
+        app.app_module, "_scheduler_stop_background_updates", fake_stop, raising=True
+    )
+
+    app.start_background_updates(update_interval_hours=12)
+    app.stop_background_updates()
+
+    assert 12 in called
+    assert "stop" in called
+
+
+def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure wrappers raise ImportError when their dependencies are missing."""
+    monkeypatch.setattr(app.app_module, "calculate_all_bmr", None, raising=False)
+    with pytest.raises(ImportError):
+        app._calculate_all_bmr_wrapper(70, 175, 30, "male")
+
+    monkeypatch.setattr(app.app_module, "calculate_all_tdee", None, raising=False)
+    with pytest.raises(ImportError):
+        app._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
+
+
+def test_targets_disabled_container_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """targets_disabled returns True when build_nutrition_targets_fn is unset."""
+    original_fn = app._plate_deps.build_nutrition_targets_fn
+    try:
+        app._plate_deps.build_nutrition_targets_fn = None
+        app.reset_targets_cache()
+        assert app.targets_disabled() is True
+    finally:
+        app._plate_deps.build_nutrition_targets_fn = original_fn
+        app.reset_targets_cache()
+
+
+def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    """targets_disabled detects None in app module attributes."""
+    original_fn = app._plate_deps.build_nutrition_targets_fn
+    original_app_attr = getattr(app, "build_nutrition_targets", None)
+
+    try:
+        app._plate_deps.build_nutrition_targets_fn = lambda *_args, **_kwargs: "ok"  # type: ignore[assignment]
+        app.build_nutrition_targets = None  # type: ignore[assignment]
+        app.reset_targets_cache()
+        assert app.targets_disabled() is True
+    finally:
+        app._plate_deps.build_nutrition_targets_fn = original_fn
+        if original_app_attr is None:
+            delattr(app, "build_nutrition_targets")
+        else:
+            app.build_nutrition_targets = original_app_attr  # type: ignore[assignment]
+        app.reset_targets_cache()
+
+
+def test_who_targets_request_goal_normalization() -> None:
+    """WHOTargetsRequest normalizes goal synonyms via validator."""
+    req = app.WHOTargetsRequest(
+        sex="male",
+        age=30,
+        height_cm=180,
+        weight_kg=80,
+        activity="moderate",
+        goal="lose",
+    )
+    assert req.goal == "loss"

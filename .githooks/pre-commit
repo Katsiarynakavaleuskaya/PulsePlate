@@ -142,9 +142,9 @@ if [ -n "$PYTHON_CHANGES" ]; then
     if command -v black > /dev/null 2>&1; then
         # Filter to only existing files
         EXISTING_PY_FILES=()
-        for f in $PYTHON_CHANGES; do
+        while IFS= read -r f; do
             [ -f "$f" ] && EXISTING_PY_FILES+=("$f")
-        done
+        done <<< "$PYTHON_CHANGES"
         if [ ${#EXISTING_PY_FILES[@]} -gt 0 ]; then
             # Use --check with --diff to show what will be changed
             if ! black --check --diff "${EXISTING_PY_FILES[@]}" 2>/dev/null; then
@@ -168,7 +168,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
     fi
 
     # Check Python syntax
-    for file in $PYTHON_CHANGES; do
+    while IFS= read -r file; do
         if [ -f "$file" ]; then
             echo "Checking syntax: $file"
             if ! python -m py_compile "$file"; then
@@ -176,14 +176,14 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 exit 1
             fi
         fi
-    done
+    done <<< "$PYTHON_CHANGES"
 
     # Run backend tests for changed Python files
     echo "🧪 Running backend tests for changed files..."
     if command -v pytest > /dev/null 2>&1; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
-        for file in $PYTHON_CHANGES; do
+        while IFS= read -r file; do
             # Per-file test discovery: reset for each changed file
             declare -a FOUND_FOR_FILE=()
             
@@ -222,7 +222,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
             
             # Append per-file results to global TEST_FILES array
             TEST_FILES+=("${FOUND_FOR_FILE[@]}")
-        done
+        done <<< "$PYTHON_CHANGES"
 
         if [ ${#TEST_FILES[@]} -gt 0 ]; then
             echo "Running tests: ${TEST_FILES[*]}"

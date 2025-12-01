@@ -2,7 +2,7 @@
 # Optimized for production with minimal image size and security
 
 # Stage 1: Build stage
-FROM python:3.12-slim AS builder
+FROM python:3.13.5-slim AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -26,7 +26,7 @@ RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
-FROM python:3.12-slim AS production
+FROM python:3.13.5-slim AS production
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -54,7 +54,7 @@ COPY --chown=pulseplate:pulseplate app/ ./app/
 COPY --chown=pulseplate:pulseplate core/ ./core/
 COPY --chown=pulseplate:pulseplate app.py main.py settings.py ./
 # Copy root-level modules that app.py imports
-COPY --chown=pulseplate:pulseplate bmi_core.py bmi_visualization.py nutrition_core.py ./
+COPY --chown=pulseplate:pulseplate bmi_core.py bmi_visualization.py nutrition_core.py signed_links.py ./
 COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
 COPY --chown=pulseplate:pulseplate alembic.ini ./
 
