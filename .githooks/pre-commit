@@ -205,9 +205,10 @@ if [ -n "$PYTHON_CHANGES" ]; then
                     [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
                 done
                 
-                # Fallback: search recursively for matching test files
-                if [ ${#TEST_FILES[@]} -eq 0 ] || [[ ! " ${TEST_FILES[*]} " =~ ${basename} ]]; then
+                # Fallback: search recursively only if no test files were found
+                if [ ${#TEST_FILES[@]} -eq 0 ]; then
                     # Use find to locate test files matching basename in tests/ tree
+                    # -name matches basename only, but find searches recursively through all subdirs
                     while IFS= read -r test_file; do
                         [ -f "$test_file" ] && TEST_FILES+=("$test_file")
                     done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)

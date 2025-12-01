@@ -13,6 +13,7 @@ Targets uncovered lines from CI coverage report:
 - Lines 981-1320: Revenue growth and retention analysis
 """
 
+from pathlib import Path
 import pytest
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
@@ -24,7 +25,7 @@ from core.business_bayesian_analyzer import (
 class TestYAMLImportFailure:
     """Test YAML module import failure paths."""
 
-    def test_yaml_module_none_fallback(self, monkeypatch):
+    def test_yaml_module_none_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When PyYAML not available, should fall back to defaults."""
         analyzer = BusinessBayesianAnalyzer()
         # Simulate yaml module unavailable
@@ -45,13 +46,13 @@ class TestYAMLImportFailure:
 class TestLocaleNormalization:
     """Test locale normalization edge cases."""
 
-    def test_locale_none_defaults_to_en(self):
+    def test_locale_none_defaults_to_en(self) -> None:
         """When locale is None, should default to 'en'."""
         analyzer = BusinessBayesianAnalyzer(locale=None)
         strategies = analyzer._load_monetization_strategies(None)
         assert "pricing_models" in strategies
 
-    def test_locale_unsupported_falls_back_to_en(self, tmp_path, monkeypatch):
+    def test_locale_unsupported_falls_back_to_en(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Unsupported locale should fall back to 'en'."""
         import core.business_bayesian_analyzer as bba_module
 
@@ -71,7 +72,7 @@ class TestLocaleNormalization:
         strategies = analyzer._load_monetization_strategies("xx")
         assert "pricing_models" in strategies
 
-    def test_locale_with_i18n_unavailable(self, monkeypatch):
+    def test_locale_with_i18n_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When i18n module unavailable, should use fallback locale validation."""
         # Simulate ImportError for i18n module by monkeypatching sys.modules
         import sys
@@ -89,7 +90,7 @@ class TestLocaleNormalization:
 class TestMonetizationAnalysis:
     """Test monetization analysis branches."""
 
-    def test_payment_without_monetization_strategy(self):
+    def test_payment_without_monetization_strategy(self) -> None:
         """Payment mentions without strategy should flag revenue leak."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -105,14 +106,14 @@ def process_payment():
             for r in results
         )
 
-    def test_low_price_detection(self):
+    def test_low_price_detection(self) -> None:
         """Prices below threshold should be flagged."""
         analyzer = BusinessBayesianAnalyzer(low_price_threshold=10.0)
         code = "price = 5.0"
         results = analyzer._analyze_monetization(code, "test_low_price")
         assert any(r.error_type == BusinessErrorType.PRICING_INEFFICIENCY for r in results)
 
-    def test_high_price_detection(self):
+    def test_high_price_detection(self) -> None:
         """Prices above threshold should be flagged."""
         analyzer = BusinessBayesianAnalyzer(high_price_threshold=100.0)
         code = "price = 150.0"
@@ -123,7 +124,7 @@ def process_payment():
 class TestCustomerAcquisitionAnalysis:
     """Test customer acquisition analysis."""
 
-    def test_registration_without_validation(self):
+    def test_registration_without_validation(self) -> None:
         """Registration without validation should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -134,7 +135,7 @@ def register_user():
         results = analyzer._analyze_customer_acquisition(code, "test_registration")
         assert any(r.business_category == BusinessCategory.CUSTOMER_ACQUISITION for r in results)
 
-    def test_registration_without_onboarding(self):
+    def test_registration_without_onboarding(self) -> None:
         """Registration without onboarding should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = "register_user(); new_user = True"
@@ -145,7 +146,7 @@ def register_user():
 class TestCostOptimizationAnalysis:
     """Test cost optimization analysis."""
 
-    def test_nested_loops_with_append(self):
+    def test_nested_loops_with_append(self) -> None:
         """Nested loops with heavy operations should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -156,14 +157,14 @@ for i in range(100):
         results = analyzer._analyze_cost_optimization(code, "test_nested")
         assert any(r.error_type == BusinessErrorType.OPERATIONAL_WASTE for r in results)
 
-    def test_select_star_in_production(self):
+    def test_select_star_in_production(self) -> None:
         """SELECT * outside test context should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = 'query = "SELECT * FROM users"'
         results = analyzer._analyze_cost_optimization(code, "production_query")
         assert any("SELECT *" in (r.error_message or "") for r in results)
 
-    def test_while_true_without_break(self):
+    def test_while_true_without_break(self) -> None:
         """while True without break/return should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -173,14 +174,14 @@ while True:
         results = analyzer._analyze_cost_optimization(code, "test_while")
         assert any(r.error_type == BusinessErrorType.OPERATIONAL_WASTE for r in results)
 
-    def test_sleep_without_retry_context(self):
+    def test_sleep_without_retry_context(self) -> None:
         """sleep() without retry context should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = "time.sleep(5)"
         results = analyzer._analyze_cost_optimization(code, "test_sleep")
         assert any("sleep" in (r.error_message or "").lower() for r in results)
 
-    def test_database_access_without_caching(self):
+    def test_database_access_without_caching(self) -> None:
         """Database access without caching should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = "data = database.query()"
@@ -191,7 +192,7 @@ while True:
 class TestRevenueGrowthAnalysis:
     """Test revenue growth analysis."""
 
-    def test_analytics_without_ab_testing(self):
+    def test_analytics_without_ab_testing(self) -> None:
         """Analytics without A/B testing should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -202,7 +203,7 @@ def track_metrics():
         results = analyzer._analyze_revenue_growth(code, "test_analytics")
         assert any(r.business_category == BusinessCategory.REVENUE_GROWTH for r in results)
 
-    def test_personalization_without_recommendations(self):
+    def test_personalization_without_recommendations(self) -> None:
         """Personalization without recommendations should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -217,7 +218,7 @@ def personalize():
 class TestCustomerRetentionAnalysis:
     """Test customer retention analysis."""
 
-    def test_communication_without_segmentation(self):
+    def test_communication_without_segmentation(self) -> None:
         """Communication without segmentation should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -227,7 +228,7 @@ def send_notification():
         results = analyzer._analyze_customer_retention(code, "test_comm")
         assert any(r.business_category == BusinessCategory.USER_RETENTION for r in results)
 
-    def test_feedback_without_processing(self):
+    def test_feedback_without_processing(self) -> None:
         """Feedback collection without processing should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = "feedback = collect_feedback()"
@@ -238,7 +239,7 @@ def send_notification():
 class TestDataMonetizationAnalysis:
     """Test data monetization analysis."""
 
-    def test_data_collection_without_monetization(self):
+    def test_data_collection_without_monetization(self) -> None:
         """Data collection without monetization should be flagged."""
         analyzer = BusinessBayesianAnalyzer()
         code = """
@@ -254,7 +255,7 @@ def collect_user_data():
 class TestROICalculation:
     """Test ROI calculation edge cases."""
 
-    def test_roi_with_empty_data(self):
+    def test_roi_with_empty_data(self) -> None:
         """ROI calculation with empty data should use prior only."""
         analyzer = BusinessBayesianAnalyzer()
         roi = analyzer._calculate_bayesian_roi(
@@ -267,7 +268,7 @@ class TestROICalculation:
         )
         assert roi.expected_roi > 0
 
-    def test_roi_with_high_variance(self):
+    def test_roi_with_high_variance(self) -> None:
         """ROI calculation with high variance should trigger warning path."""
         analyzer = BusinessBayesianAnalyzer()
         roi = analyzer._calculate_bayesian_roi(
@@ -284,13 +285,13 @@ class TestROICalculation:
 class TestRecommendations:
     """Test recommendation generation."""
 
-    def test_revenue_recommendations_empty_when_no_issues(self):
+    def test_revenue_recommendations_empty_when_no_issues(self) -> None:
         """No revenue issues should produce empty recommendations."""
         analyzer = BusinessBayesianAnalyzer()
         recs = analyzer.generate_revenue_optimization_recommendations()
         assert recs == []
 
-    def test_cost_recommendations_empty_when_no_issues(self):
+    def test_cost_recommendations_empty_when_no_issues(self) -> None:
         """No cost issues should produce empty recommendations."""
         analyzer = BusinessBayesianAnalyzer()
         recs = analyzer.generate_cost_savings_recommendations()

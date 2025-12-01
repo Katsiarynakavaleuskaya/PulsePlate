@@ -359,19 +359,19 @@ async def test_api_premium_plate_fallback_handles_target_error(
 
     response = await app.api_premium_plate(request)
 
-    assert 0 < response.kcal <= 10000, f"Expected 0 < kcal <= 10000, got {response.kcal}"
+    assert 1500 <= response.kcal <= 3500, f"Expected 1500 <= kcal <= 3500, got {response.kcal}"
     assert (
-        0 < response.macros["protein_g"] <= 1000
-    ), f"Expected 0 < protein_g <= 1000, got {response.macros['protein_g']}"
+        50 <= response.macros["protein_g"] <= 250
+    ), f"Expected 50 <= protein_g <= 250, got {response.macros['protein_g']}"
     assert (
-        0 < response.macros["fat_g"] <= 1000
-    ), f"Expected 0 < fat_g <= 1000, got {response.macros['fat_g']}"
+        30 <= response.macros["fat_g"] <= 150
+    ), f"Expected 30 <= fat_g <= 150, got {response.macros['fat_g']}"
     assert (
-        0 < response.macros["carbs_g"] <= 2000
-    ), f"Expected 0 < carbs_g <= 2000, got {response.macros['carbs_g']}"
+        100 <= response.macros["carbs_g"] <= 500
+    ), f"Expected 100 <= carbs_g <= 500, got {response.macros['carbs_g']}"
     assert (
-        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 500
-    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 500, got {response.macros['fiber_g']}"
+        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 60
+    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 60, got {response.macros['fiber_g']}"
 
 
 @pytest.mark.asyncio

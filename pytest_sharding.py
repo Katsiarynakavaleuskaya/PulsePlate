@@ -16,6 +16,10 @@ Usage:
     pytest --shard-id=1 tests/ & pytest --shard-id=2 tests/ & wait
 """
 
+import pytest
+from _pytest.nodes import Item
+from typing import List
+
 # Tenant-based shard mapping: organized by functional domain
 SHARD_MAP = {
     1: {
@@ -63,8 +67,13 @@ def pytest_addoption(parser):
     )
 
 
-def pytest_collection_modifyitems(config, items):
-    """Filter tests based on shard selection."""
+def pytest_collection_modifyitems(config: pytest.Config, items: List[Item]) -> None:
+    """Filter tests based on shard selection.
+    
+    Args:
+        config: Pytest configuration object
+        items: List of collected test items to filter
+    """
     shard_id = config.getoption("--shard-id")
     
     if shard_id is None:
@@ -82,12 +91,12 @@ def pytest_collection_modifyitems(config, items):
     patterns = shard_config["patterns"]
     
     # Filter items: keep only tests matching shard patterns
-    selected_items = []
-    deselected_items = []
+    selected_items: List[Item] = []
+    deselected_items: List[Item] = []
     
     for item in items:
-        # Get test file name from item's fspath
-        test_file = item.fspath.basename
+        # Get test file name from item's path (pytest 7+ compatible)
+        test_file = item.path.name
         
         # Check if test file matches any pattern in this shard
         if any(test_file.startswith(pattern) for pattern in patterns):

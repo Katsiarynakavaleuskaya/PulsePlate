@@ -486,8 +486,19 @@ class BayesianTestAnalyzer:
     ) -> float:
         """Вычислить P(симптомы|причина) с учетом сглаживания и давности.
 
-        Note: similar_cases parameter removed as it was unused - method works directly
-        with self.execution_history for better encapsulation.
+        Args:
+            symptoms: Set of symptom strings extracted from error message
+            error_type: ErrorType enum to calculate likelihood for
+            similar_cases: Optional list of TestRecord to use as source instead of
+                self.execution_history. When None, falls back to self.execution_history.
+
+        Returns:
+            Float between 0.01 and 0.99 representing likelihood with Laplace smoothing
+            and recency weighting (1-week half-life). Returns 0.1 if no history available.
+
+        Note:
+            Applies Laplace smoothing (controlled by LAPLACE_ALPHA) and recency weighting
+            to avoid extreme probabilities and prioritize recent test failures.
         """
         # Если нет истории — возвращаем сглаженную базу
         source_cases = similar_cases if similar_cases is not None else self.execution_history
@@ -530,8 +541,18 @@ class BayesianTestAnalyzer:
     def _calculate_evidence(self, symptoms: Set[str], similar_cases: Optional[List[Any]] = None) -> float:
         """Вычислить P(симптомы) = Σ_e P(симптомы|e)·P(e).
 
-        Note: similar_cases parameter removed as it was unused - method calls
-        _calculate_likelihood which works with self.execution_history.
+        Args:
+            symptoms: Set of symptom strings to calculate evidence for
+            similar_cases: Optional list to pass through to _calculate_likelihood.
+                When None, _calculate_likelihood uses self.execution_history.
+
+        Returns:
+            Float between 1e-6 and 1.0 representing total evidence via law of total probability.
+            Returns 1.0 if symptoms set is empty.
+
+        Note:
+            Normalizes priors before calculation and passes similar_cases to _calculate_likelihood
+            for consistent source selection. Applies minimum threshold to avoid division by zero.
         """
         if not symptoms:
             return 1.0
@@ -542,7 +563,7 @@ class BayesianTestAnalyzer:
         prior_sum = sum(self.prior_probabilities.values()) or 1.0
         for error_type in ErrorType:
             prior = self.prior_probabilities.get(error_type, 0.0) / prior_sum
-            like = self._calculate_likelihood(symptoms, error_type)
+            like = self._calculate_likelihood(symptoms, error_type, similar_cases)
             total += like * prior
 
         # Минимальный нижний порог, чтобы избежать деления на ~0

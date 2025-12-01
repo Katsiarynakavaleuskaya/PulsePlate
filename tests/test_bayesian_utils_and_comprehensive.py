@@ -122,7 +122,6 @@ def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch) -> No
     # Monkeypatch __file__ to point to tmp_path so config path resolution uses tmp_path
     import core.business_bayesian_analyzer as bba_module
 
-    original_file = bba_module.__file__
     mock_file = str(tmp_path / "core" / "business_bayesian_analyzer.py")
     monkeypatch.setattr(bba_module, "__file__", mock_file)
 
@@ -153,7 +152,6 @@ def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path) ->
     # Monkeypatch __file__ to point to tmp_path so config path resolution uses tmp_path
     import core.business_bayesian_analyzer as bba_module
 
-    original_file = bba_module.__file__
     mock_file = str(tmp_path / "core" / "business_bayesian_analyzer.py")
     monkeypatch.setattr(bba_module, "__file__", mock_file)
 

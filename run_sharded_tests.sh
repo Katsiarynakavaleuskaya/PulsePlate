@@ -104,20 +104,30 @@ case $MODE in
                 cmd1=$(build_cmd $shard1)
                 cmd2=$(build_cmd $shard2)
                 
-                # Run in background and wait
+                # Run in background and wait for each individually
                 eval "$cmd1 &"
                 pid1=$!
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
                     eval "$cmd2 &"
                     pid2=$!
-                    wait $pid1 $pid2
-                else
+                    # Wait for each PID individually and capture exit codes
                     wait $pid1
-                fi
-                
-                if [ $? -ne 0 ]; then
-                    echo -e "${RED}✗ Parallel batch failed${NC}"
-                    exit 1
+                    rc1=$?
+                    wait $pid2
+                    rc2=$?
+                    # Fail if any exit code is non-zero
+                    if [ $rc1 -ne 0 ] || [ $rc2 -ne 0 ]; then
+                        echo -e "${RED}✗ Parallel batch failed (rc1=$rc1, rc2=$rc2)${NC}"
+                        exit 1
+                    fi
+                else
+                    # Only one shard - wait and capture its exit code
+                    wait $pid1
+                    rc1=$?
+                    if [ $rc1 -ne 0 ]; then
+                        echo -e "${RED}✗ Batch failed (rc1=$rc1)${NC}"
+                        exit 1
+                    fi
                 fi
                 echo -e "${GREEN}✓ Batch completed${NC}\n"
             fi
@@ -134,28 +144,26 @@ case $MODE in
             if [ $shard1 -le $TOTAL_SHARDS ]; then
                 echo -e "${BLUE}▶ Running Shards $shard1, $shard2, $shard3 in parallel...${NC}"
                 
+                pids=()
                 cmd1=$(build_cmd $shard1)
                 eval "$cmd1 &"
-                pid1=$!
+                pids+=($!)
                 
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
                     cmd2=$(build_cmd $shard2)
                     eval "$cmd2 &"
-                    pid2=$!
+                    pids+=($!)
                 fi
                 
                 if [ $shard3 -le $TOTAL_SHARDS ]; then
                     cmd3=$(build_cmd $shard3)
                     eval "$cmd3 &"
-                    pid3=$!
+                    pids+=($!)
                 fi
                 
-                wait
-                
-                if [ $? -ne 0 ]; then
-                    echo -e "${RED}✗ Parallel batch failed${NC}"
-                    exit 1
-                fi
+                for pid in "${pids[@]}"; do
+                    wait $pid || { echo -e "${RED}✗ Parallel batch failed${NC}"; exit 1; }
+                done
                 echo -e "${GREEN}✓ Batch completed${NC}\n"
             fi
         done
@@ -163,15 +171,15 @@ case $MODE in
         
     all-at-once)
         echo -e "${RED}⚠⚠ Running ALL shards simultaneously (HIGH MEMORY RISK)${NC}\n"
+        pids=()
         for shard in $(seq 1 $TOTAL_SHARDS); do
             cmd=$(build_cmd $shard)
             eval "$cmd &"
+            pids+=($!)
         done
-        wait
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}✗ Parallel execution failed${NC}"
-            exit 1
-        fi
+        for pid in "${pids[@]}"; do
+            wait $pid || { echo -e "${RED}✗ Parallel execution failed${NC}"; exit 1; }
+        done
         ;;
 esac
 

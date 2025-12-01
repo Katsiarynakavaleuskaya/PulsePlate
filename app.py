@@ -2884,17 +2884,6 @@ async def rollback_database(source: str, target_version: str):
     """
     import inspect as _inspect
 
-    # Ensure deterministic behavior for exception-path coverage tests when the scheduler
-    # getter is monkeypatched to fail or return falsy values.
-    test_name = os.getenv("PYTEST_CURRENT_TEST", "") or ""
-    forced_failure_tests = {
-        "test_rollback_endpoint_exception",
-        "test_rollback_endpoint_rollback_function_exception",
-        "test_rollback_endpoint_returns_false",
-    }
-    if any(marker in test_name for marker in forced_failure_tests):
-        raise HTTPException(status_code=500, detail="Rollback operation failed")
-
     # Defensive: get scheduler with error handling (direct call is patch-friendly)
     try:
         getter = rollback_database.__globals__.get("get_update_scheduler", get_update_scheduler)
