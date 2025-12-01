@@ -72,7 +72,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
     if command -v pytest > /dev/null 2>&1; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
-        for file in "$PYTHON_CHANGES"; do
+        while IFS= read -r file; do
             # Per-file test discovery: reset for each changed file
             declare -a FOUND_FOR_FILE=()
             
@@ -106,7 +106,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
             
             # Append per-file results to global TEST_FILES array
             TEST_FILES+=("${FOUND_FOR_FILE[@]}")
-        done
+        done <<< "$PYTHON_CHANGES"
 
         if [ ${#TEST_FILES[@]} -gt 0 ]; then
             echo "Running tests: ${TEST_FILES[*]}"
