@@ -1,5 +1,7 @@
 """
 Shared pytest fixtures for the PulsePlate test suite.
+
+Includes tenant-based sharding configuration for memory-efficient parallel testing.
 """
 
 import importlib
@@ -17,6 +19,24 @@ from fastapi.testclient import TestClient
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# TENANT-BASED SHARDING CONFIGURATION
+# ============================================================================
+# Imported from pytest_sharding.py to enable memory-efficient parallel testing
+# Usage: pytest --shard-id=1 tests/
+# ============================================================================
+
+_sharding_module_path = Path(__file__).parent.parent / "pytest_sharding.py"
+if _sharding_module_path.exists():
+    _spec = importlib.util.spec_from_file_location("pytest_sharding", _sharding_module_path)
+    if _spec and _spec.loader:
+        _sharding = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_sharding)
+        # Register sharding hooks globally
+        pytest_addoption = _sharding.pytest_addoption  # type: ignore[misc]
+        pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems  # type: ignore[misc]
 
 
 @pytest.fixture(scope="session", autouse=True)
