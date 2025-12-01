@@ -86,7 +86,7 @@ case $MODE in
         for shard in $(seq 1 $TOTAL_SHARDS); do
             echo -e "${BLUE}▶ Running Shard $shard/$TOTAL_SHARDS...${NC}"
             cmd=$(build_cmd $shard)
-            if ! eval $cmd; then
+            if ! eval "$cmd"; then
                 echo -e "${RED}✗ Shard $shard failed${NC}"
                 exit 1
             fi

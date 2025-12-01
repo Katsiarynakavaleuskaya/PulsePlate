@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from typing import Generator, cast
 
 import pytest
@@ -13,36 +12,6 @@ from starlette.types import ASGIApp
 
 import app
 from core import db as db_module
-
-
-@pytest.fixture(autouse=True)
-def _cleanup_users() -> Generator[None, None, None]:
-    """RU: Очищает таблицу пользователей между тестами.
-
-    EN: Ensure users table is cleared between tests.
-    """
-
-    def _truncate() -> None:
-        with db_module.session_scope() as session:
-            session.execute(text("DELETE FROM users"))
-
-    try:
-        _truncate()
-    except OperationalError as e:
-        # Fail the test if database is not accessible during setup
-        # Database should be initialized by conftest.py fixture
-        pytest.fail(f"Database not accessible during test setup: {e}")
-
-    yield
-
-    # Cleanup after test - fail on errors to surface cleanup failures
-    try:
-        with db_module.session_scope() as session:
-            session.execute(text("DELETE FROM users"))
-    except OperationalError as e:
-        # Re-raise to fail the test on cleanup errors
-        # This prevents test pollution and flakiness
-        pytest.fail(f"Test cleanup failed - database not accessible: {e}")
 
 
 def _client() -> TestClient:

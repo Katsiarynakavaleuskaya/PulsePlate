@@ -151,8 +151,9 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 # Files need formatting - apply it
                 if black "${EXISTING_PY_FILES[@]}"; then
                     echo "✅ Black formatting applied"
-                    echo "ℹ️  Files were reformatted. Please review and re-stage if needed."
-                    exit 1
+                    echo "ℹ️  Files were reformatted and re-staged."
+                    # Auto-stage the formatted files since Black is deterministic
+                    git add "${EXISTING_PY_FILES[@]}"
                 else
                     echo "⚠️  Warning: Black formatting failed, continuing..."
                 fi
@@ -182,8 +183,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
         for file in $PYTHON_CHANGES; do
-            # If the file is in tests/ directory, add it directly
-            if [[ $file == tests/*.py ]]; then
+            # If the file is in tests/ directory (including nested), add it directly
+            if [[ $file == tests/**/*.py ]] || [[ $file == tests/*.py ]]; then
                 [ -f "$file" ] && TEST_FILES+=("$file")
             # Otherwise, check if corresponding test file exists
             elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then

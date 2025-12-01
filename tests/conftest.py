@@ -1,5 +1,4 @@
-"""
-Shared pytest fixtures for the PulsePlate test suite.
+"""Shared pytest fixtures for the PulsePlate test suite.
 
 Includes tenant-based sharding configuration for memory-efficient parallel testing.
 """
@@ -16,6 +15,10 @@ from typing import Any, Generator, cast
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
+
+from core import db as db_module
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
@@ -239,3 +242,33 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("METRICS_ENABLED", "true")
     yield
     # Cleanup is automatic with monkeypatch
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_users() -> Generator[None, None, None]:
+    """RU: Очищает таблицу пользователей между тестами.
+
+    EN: Ensure users table is cleared between tests.
+    """
+
+    def _truncate() -> None:
+        with db_module.session_scope() as session:
+            session.execute(text("DELETE FROM users"))
+
+    try:
+        _truncate()
+    except OperationalError as e:
+        # Fail the test if database is not accessible during setup
+        # Database should be initialized by conftest.py fixture
+        pytest.fail(f"Database not accessible during test setup: {e}")
+
+    yield
+
+    # Cleanup after test - fail on errors to surface cleanup failures
+    try:
+        with db_module.session_scope() as session:
+            session.execute(text("DELETE FROM users"))
+    except OperationalError as e:
+        # Re-raise to fail the test on cleanup errors
+        # This prevents test pollution and flakiness
+        pytest.fail(f"Test cleanup failed - database not accessible: {e}")

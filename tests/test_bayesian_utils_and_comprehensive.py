@@ -138,7 +138,10 @@ def test_business_load_business_knowledge_from_yaml(
     data = analyzer._load_business_knowledge()
     assert "revenue_streams" in data
 
-def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path) -> None:
+
+def test_business_load_business_knowledge_invalid_yaml(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     # Use tmp_path to avoid modifying production config directory
     config_dir = tmp_path / "core" / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -279,7 +282,7 @@ def test_comprehensive_get_diagnosis_and_action_plan() -> None:
         (50, "", True),
     ],
 )
-def test_is_meal_level_value_basic(value, context, expected) -> None:
+def test_is_meal_level_value_basic(value: float | int, context: str, expected: bool) -> None:
     assert is_meal_level_value(value, context) is expected
 
 
@@ -335,7 +338,7 @@ def helper():
     assert analyzer._is_in_test_or_mock_context(test_ctx_code) is True
 
 
-def test_comprehensive_analyze_comprehensively_paths(monkeypatch) -> None:
+def test_comprehensive_analyze_comprehensively_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     analyzer = ComprehensiveBayesianAnalyzer()
 
     class StubResult:

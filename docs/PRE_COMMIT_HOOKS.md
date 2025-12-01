@@ -22,14 +22,16 @@
 
 ### Что проверяет:
 
-**Step 1: Pre-commit framework**
+### Step 1: Pre-commit framework
+
 - ✅ Black formatting (--line-length=100)
 - ✅ Bandit security scan
 - ✅ YAML syntax
 - ✅ Trailing whitespace
 - ✅ End-of-file fixer
 
-**Step 2: Custom checks**
+### Step 2: Custom checks
+
 - ✅ Python syntax (py_compile)
 - ✅ Backend tests for changed files
 - ✅ Recursive test discovery
