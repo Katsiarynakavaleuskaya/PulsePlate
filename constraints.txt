@@ -1,24 +1,25 @@
 # Constraints file for reproducible dev environments
 # Use with: pip install -r requirements-dev.txt -c constraints.txt
+# Strategy: Use >= for flexibility, allowing pip to resolve compatible versions
 
-# Testing
-pytest==8.4.2
-pytest-cov==7.0.0
-pytest-asyncio==1.2.0
-coverage==7.11.0
+# Testing - allow minor/patch updates for bug fixes
+pytest>=8.4.2
+pytest-cov>=7.0.0
+pytest-asyncio>=1.2.0
+coverage>=7.12.0  # Must match requirements-dev.txt minimum
 
-# Code quality
-black==25.9.0
-flake8==7.3.0
-mypy==1.18.2
-ruff>=0.14.2,<0.15.0  # Narrow range for reproducible builds; upgrade to newer minor versions only after testing new lint rules
+# Code quality - allow updates for new features/fixes
+black>=25.9.0
+flake8>=7.3.0  # Note: flake8 replaced by ruff in requirements-dev.txt
+mypy>=1.13.0  # Downgraded from 1.18.2 for stability (stable version on PyPI)
+ruff>=0.14.7  # Updated to match requirements-dev.txt
 
-# Security
-bandit==1.8.6
-# safety==3.6.1b0  # Disabled due to typer compatibility
+# Security - allow patch updates for vulnerability fixes
+bandit>=1.8.6
+# safety>=3.6.2  # Match requirements-dev.txt if needed
 
-# Dev tools
-pre-commit==4.3.0
-sourcery==2.0.0
-asgi-lifespan==2.1.0
-diff-cover==9.0.0
+# Dev tools - allow minor updates
+pre-commit>=4.3.0
+sourcery>=2.0.0
+asgi-lifespan>=2.1.0
+diff-cover>=9.7.2  # Updated to match requirements-dev.txt
