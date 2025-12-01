@@ -1,85 +1,61 @@
 {
-  "files.trimTrailingWhitespace": true,
-  "files.insertFinalNewline": true,
-  "editor.rulers": [100],
+  // Optimize GPU usage and performance
+  "editor.renderWhitespace": "selection",
+  "editor.minimap.enabled": false,
+  "editor.codeLens": false,
+  "breadcrumbs.enabled": false,
 
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestArgs": ["-q", "tests"],
-
-  "python.linting.enabled": true,
-  "python.linting.flake8Enabled": true,
-  "python.linting.pylintEnabled": false,
-
-  "python.analysis.typeCheckingMode": "off",
-  "python.analysis.extraPaths": ["app", "core", "tests"],
-
-  "isort.args": ["--profile", "black", "--line-length", "100"],
-
+  // Python formatting: Use Black (project standard)
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter",
     "editor.formatOnSave": true
   },
-  "cSpell.words": [
-    "Гарантирует",
-    "Генерировать",
-    "гите",
-    "изображение",
-    "корневого",
-    "ломать",
-    "напоминание",
-    "персистентности",
-    "платного",
-    "подключает",
-    "премиальных",
-    "Сгенерировать",
-    "Alertmanager",
-    "BMIAPI",
-    "nosniff",
-    "openssl",
-    "pesc",
-    "pppull",
-    "sanitise",
-    "shoplist",
-    "urlopen",
-    "xdist"
-  ],
-  "coderabbit.agentType": "Native",
-  "coderabbit.autoReviewMode": "auto",
-  "cursorpyright.analysis.extraPaths": [
-    "app",
-    "core",
-    "tests"
-  ],
-  "cursorpyright.analysis.typeCheckingMode": "basic",
-  "workbench.editor.wrapTabs": true,
-  "workbench.editor.limit.excludeDirty": true,
-  "workbench.editor.limit.perEditorGroup": true,
-  "workbench.editor.defaultBinaryEditor": "default",
-  "workbench.editor.closeOnFileDelete": true,
-  "workbench.editor.autoLockGroups": {
-    "default": true,
-    "jupyter-notebook": true,
-    "repl": true,
-    "workbench.editors.gettingStartedInput": true,
-    "workbench.editorinputs.searchEditorInput": true,
-    "notebookOutputEditor": true,
-    "imagePreview.previewEditor": true,
-    "vscode.videoPreview": true
+
+  // Disable redundant linters (keep only what's needed)
+  "python.linting.enabled": false,
+  "python.linting.flake8Enabled": false,
+  "python.linting.pylintEnabled": false,
+
+  // Type checking: Disable in editor (handled by mypy in pre-commit)
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.memory.keepLibraryAst": false,
+
+  // Disable heavy features
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
+    "**/cache/**": true,
+    "**/htmlcov/**": true,
+    "**/__pycache__/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/frontend/build/**": true,
+    "**/frontend/dist/**": true
   },
-  "workbench.editor.alwaysShowEditorActions": true,
-  "workbench.editor.enablePreviewFromCodeNavigation": true,
-  "workbench.editor.enablePreviewFromQuickOpen": true,
-  "workbench.editor.highlightModifiedTabs": true,
-  "workbench.editor.sharedViewState": true,
-  "workbench.editor.scrollToSwitchTabs": true,
-  "github.copilot.nextEditSuggestions.enabled": true,
-  "claudeCodeChat.permissions.yoloMode": true,
-  "editor.tabCompletion": "on",
-  "diffEditor.codeLens": true,
-  "MutableAI.upsell": true,
-  "github.copilot.enable": {
-    "markdown": true,
-    "plaintext": true
-  }
+
+  // Reduce search scope
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/cache": true,
+    "**/htmlcov": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.mypy_cache": true,
+    "**/.ruff_cache": true,
+    "**/frontend/build": true
+  },
+
+  // Disable git decorations for better performance
+  "git.decorations.enabled": false,
+  "git.autorefresh": false,
+
+  // Optimize terminal (disable GPU acceleration)
+  "terminal.integrated.gpuAcceleration": "off",
+
+  // Python testing
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false
 }

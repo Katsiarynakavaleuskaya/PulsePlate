@@ -4039,6 +4039,7 @@ claude
 cloudflared
 Cobalamin
 codepoint
+commitizen
 completa
 completado
 compras

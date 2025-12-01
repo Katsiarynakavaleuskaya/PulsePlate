@@ -5,13 +5,32 @@ These endpoints are used for testing rate limiting and other infrastructure feat
 Should NOT be included in production builds.
 """
 
+import os
 from datetime import datetime, timezone
 from typing import Dict, Any
 
-from fastapi import APIRouter, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/v1/test", tags=["test"])
+
+def _ensure_non_production():
+    """
+    Guard test routes from being used in production.
+
+    This is evaluated per-request so tests that toggle APP_ENV still work even
+    if the router was included earlier in the process lifecycle.
+    """
+    env = (os.getenv("APP_ENV", "") or "").strip().lower()
+    if env == "production":
+        raise HTTPException(status_code=404, detail="Test endpoints disabled in production")
+    return True
+
+
+router = APIRouter(
+    prefix="/api/v1/test",
+    tags=["test"],
+    dependencies=[Depends(_ensure_non_production)],
+)
 
 
 class TestResponse(BaseModel):

@@ -194,9 +194,9 @@ if command -v pre-commit > /dev/null 2>&1; then
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
     if [ ${#STAGED_FILES[@]} -gt 0 ]; then
         if ! pre-commit run --files "${STAGED_FILES[@]}" 2>&1; then
-            echo "⚠️  Some pre-commit checks failed (see above)"
-            echo "ℹ️  Note: Auto-fixable issues have been fixed. Review and re-add files if needed."
-            # Don't exit 1 here - let auto-fixes be staged
+            echo "❌ Pre-commit checks failed (see above)"
+            echo "ℹ️  If only formatting was fixed, re-add files and commit again."
+            exit 1
         fi
     fi
 else
