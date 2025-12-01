@@ -13,7 +13,9 @@ Tests cover:
 """
 
 from pathlib import Path
+
 import pytest
+
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
     BusinessCategory,
