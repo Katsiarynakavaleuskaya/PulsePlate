@@ -4,7 +4,6 @@ Additional gap-closing tests for Bayesian analyzers.
 """
 
 import builtins
-import io
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,9 +24,7 @@ from core.business_bayesian_analyzer import (
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer
 
 
-def test_bayesian_test_analyzer_invalid_json(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_bayesian_test_analyzer_invalid_json(tmp_path: Path) -> None:
     """Invalid history JSON should trigger JSONDecodeError path."""
     history = tmp_path / "history.json"
     history.write_text("{bad json", encoding="utf-8")
