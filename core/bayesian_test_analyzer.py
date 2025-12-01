@@ -271,30 +271,29 @@ class BayesianTestAnalyzer:
             return
 
         try:
-            if self.data_file.exists():
-                with open(self.data_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.execution_history = [
-                        TestRecord(
-                            test_name=item["test_name"],
-                            category=TestCategory(item["category"]),
-                            result=TestStatus(item["result"]),
-                            error_type=(
-                                ErrorType(item["error_type"]) if item.get("error_type") else None
-                            ),
-                            error_message=item.get("error_message"),
-                            execution_time=item.get("execution_time", 0.0),
-                            coverage_percentage=item.get("coverage_percentage"),
-                            timestamp=datetime.fromisoformat(item["timestamp"]),
-                            dependencies=item.get("dependencies", []),
-                            file_path=item.get("file_path", ""),
-                            line_number=item.get("line_number"),
-                        )
-                        for item in data
-                    ]
-                logger.info(f"Загружено {len(self.execution_history)} записей истории тестов")
-                # Адаптировать приоры на базе истории
-                self._refresh_priors_from_history()
+            with open(self.data_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                self.execution_history = [
+                    TestRecord(
+                        test_name=item["test_name"],
+                        category=TestCategory(item["category"]),
+                        result=TestStatus(item["result"]),
+                        error_type=(
+                            ErrorType(item["error_type"]) if item.get("error_type") else None
+                        ),
+                        error_message=item.get("error_message"),
+                        execution_time=item.get("execution_time", 0.0),
+                        coverage_percentage=item.get("coverage_percentage"),
+                        timestamp=datetime.fromisoformat(item["timestamp"]),
+                        dependencies=item.get("dependencies", []),
+                        file_path=item.get("file_path", ""),
+                        line_number=item.get("line_number"),
+                    )
+                    for item in data
+                ]
+            logger.info(f"Загружено {len(self.execution_history)} записей истории тестов")
+            # Адаптировать приоры на базе истории
+            self._refresh_priors_from_history()
         except FileNotFoundError:
             logger.debug(f"History file not found: {self.data_file}")
         except (json.JSONDecodeError, ValueError, KeyError) as e:
@@ -370,7 +369,7 @@ class BayesianTestAnalyzer:
 
         # P(симптомы) - общая вероятность симптомов (нормализация Байеса)
         # Вычисляем один раз, так как зависит только от symptoms и similar_cases
-        evidence = self._calculate_evidence(symptoms)
+        evidence = self._calculate_evidence(symptoms, similar_cases)
 
         # Вычислить байесовские вероятности для каждой возможной причины
         cause_probabilities = {}
@@ -479,14 +478,20 @@ class BayesianTestAnalyzer:
 
         return similar_cases
 
-    def _calculate_likelihood(self, symptoms: Set[str], error_type: ErrorType) -> float:
+    def _calculate_likelihood(
+        self,
+        symptoms: Set[str],
+        error_type: ErrorType,
+        similar_cases: Optional[List[TestRecord]] = None,
+    ) -> float:
         """Вычислить P(симптомы|причина) с учетом сглаживания и давности.
 
         Note: similar_cases parameter removed as it was unused - method works directly
         with self.execution_history for better encapsulation.
         """
         # Если нет истории — возвращаем сглаженную базу
-        if not self.execution_history:
+        source_cases = similar_cases if similar_cases is not None else self.execution_history
+        if not source_cases:
             return 0.1
 
         # Параметры сглаживания и давности
@@ -494,7 +499,7 @@ class BayesianTestAnalyzer:
         half_life_hours = 24 * 7  # полураспад 1 неделя
 
         # Все случаи данного типа
-        type_all = [case for case in self.execution_history if case.error_type == error_type]
+        type_all = [case for case in source_cases if case.error_type == error_type]
         if not type_all:
             return 0.1
 
@@ -522,7 +527,7 @@ class BayesianTestAnalyzer:
         prob = (weighted_num + self.LAPLACE_ALPHA) / (weighted_den + 2 * self.LAPLACE_ALPHA)
         return float(max(0.01, min(0.99, prob)))
 
-    def _calculate_evidence(self, symptoms: Set[str]) -> float:
+    def _calculate_evidence(self, symptoms: Set[str], similar_cases: Optional[List[Any]] = None) -> float:
         """Вычислить P(симптомы) = Σ_e P(симптомы|e)·P(e).
 
         Note: similar_cases parameter removed as it was unused - method calls

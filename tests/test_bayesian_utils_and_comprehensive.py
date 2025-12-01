@@ -137,9 +137,6 @@ def test_business_load_business_knowledge_from_yaml(tmp_path, monkeypatch) -> No
     data = analyzer._load_business_knowledge()
     assert "revenue_streams" in data
 
-    # Restore original __file__
-    monkeypatch.setattr(bba_module, "__file__", original_file)
-
 
 def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path) -> None:
     # Use tmp_path to avoid modifying production config directory
@@ -173,9 +170,6 @@ def test_business_load_business_knowledge_invalid_yaml(monkeypatch, tmp_path) ->
     analyzer = BusinessBayesianAnalyzer()
     data = analyzer._load_business_knowledge()
     assert "subscription" in data["revenue_streams"]
-
-    # Restore original __file__
-    monkeypatch.setattr(bba_module, "__file__", original_file)
 
 
 def test_comprehensive_scoring_and_impacts() -> None:

@@ -86,14 +86,9 @@ exclude_lines =
     # Don't complain about abstract methods
     @abstractmethod
 
-    # Don't complain about dataclass/protocol auto-generated methods
-    def __init__
-    def __eq__
-    def __hash__
-    def __lt__
-    def __le__
-    def __gt__
-    def __ge__
+    # For auto-generated methods, add "# pragma: no cover" in source code
+    # Coverage tracks __init__, __eq__, etc. to ensure custom implementations are tested
+    # Only exclude clearly auto-generated methods with explicit pragma comments
 
     # Skip type checking blocks
     if typing.TYPE_CHECKING:

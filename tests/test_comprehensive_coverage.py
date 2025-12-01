@@ -29,7 +29,7 @@ class TestComprehensiveCoverage:
         if "FEATURE_PREMIUM_NUTRITION" in os.environ:
             del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def test_debug_env_endpoint(self):
+    def test_debug_env_endpoint(self) -> None:
         """Test debug_env endpoint."""
         response = self.client.get("/debug_env")
         assert response.status_code in [200, 500, 503]

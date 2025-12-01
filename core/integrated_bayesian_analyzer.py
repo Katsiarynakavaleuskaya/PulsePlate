@@ -401,6 +401,8 @@ class IntegratedBayesianAnalyzer:
             "auth",
             "credential",
             "bearer",
+            "private_key",  # Added: private keys are sensitive
+            "ssn",  # Added: Social Security Numbers are sensitive
         ]
 
         try:
@@ -710,7 +712,18 @@ class IntegratedBayesianAnalyzer:
             normalized_types.add(NormalizedIssueType.ASYNC_ERROR)
 
         # Health violation detection
-        health_keywords = ["health", "здоровье", "nutrition", "питание", "bmi", "calorie", "калори"]
+        health_keywords = [
+            "health",
+            "здоровье",
+            "nutrition",
+            "питание",
+            "bmi",
+            "calorie",
+            "калори",
+            "risk",
+            "риск",
+            "safety",
+        ]
         if any(keyword in issue_lower for keyword in health_keywords):
             normalized_types.add(NormalizedIssueType.HEALTH_VIOLATION)
 

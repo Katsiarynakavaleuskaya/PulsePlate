@@ -210,9 +210,9 @@ def test_analyze_safety_aspects_sql_injection_and_context(monkeypatch: pytest.Mo
     monkeypatch.setattr(analyzer, "_is_in_test_or_mock_context", lambda code: False)
     code = 'query = "SELECT * FROM users" + user_input'
     issues = analyzer._analyze_safety_aspects(code, "prod")
-    assert any("SQL injection" in msg for msg in issues)
+    assert any("sql injection" in msg.lower() for msg in issues)
 
     # In test context should skip
     monkeypatch.setattr(analyzer, "_is_in_test_or_mock_context", lambda code: True)
     issues2 = analyzer._analyze_safety_aspects(code, "test_code")
-    assert all("SQL injection" not in msg.lower() for msg in issues2)
+    assert all("sql injection" not in msg.lower() for msg in issues2)

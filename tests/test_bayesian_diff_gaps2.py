@@ -75,10 +75,12 @@ def test_business_load_knowledge_unicode_error(
     yaml_path = config_dir / "business_knowledge.yaml"
     yaml_path.write_text("dummy: 1", encoding="utf-8")
 
+    real_open = builtins.open
+
     def fake_open(file, *args, **kwargs):
         if Path(file) == yaml_path:
             raise UnicodeDecodeError("utf-8", b"bad", 0, 1, "bad")
-        return builtins.open(file, *args, **kwargs)
+        return real_open(file, *args, **kwargs)
 
     monkeypatch.setattr(bmod, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py"))
     monkeypatch.setattr(builtins, "open", fake_open)
@@ -101,10 +103,12 @@ def test_business_monetization_oserror(monkeypatch: pytest.MonkeyPatch, tmp_path
     yaml_path = config_dir / "monetization_strategies.en.yaml"
     yaml_path.write_text("pricing_models:\n  basic: 1", encoding="utf-8")
 
+    real_open = builtins.open
+
     def fake_open(file, *args, **kwargs):
         if Path(file) == yaml_path:
             raise OSError("cannot read")
-        return builtins.open(file, *args, **kwargs)
+        return real_open(file, *args, **kwargs)
 
     monkeypatch.setattr(bmod, "__file__", str(tmp_path / "core" / "business_bayesian_analyzer.py"))
     monkeypatch.setattr(builtins, "open", fake_open)

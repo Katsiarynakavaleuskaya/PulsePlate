@@ -145,12 +145,20 @@ if [ -n "$PYTHON_CHANGES" ]; then
         for f in $PYTHON_CHANGES; do
             [ -f "$f" ] && EXISTING_PY_FILES+=("$f")
         done
-        if [ ${#EXISTING_PY_FILES[@]} -gt 0 ] && black "${EXISTING_PY_FILES[@]}"; then
-            echo "✅ Black formatting applied"
-            echo "ℹ️  Files were reformatted. Please review and re-stage if needed."
-            exit 1
-        else
-            echo "⚠️  Warning: Black formatting failed, continuing..."
+        if [ ${#EXISTING_PY_FILES[@]} -gt 0 ]; then
+            # Use --check first to see if formatting is needed
+            if ! black --check --quiet "${EXISTING_PY_FILES[@]}" 2>/dev/null; then
+                # Files need formatting - apply it
+                if black "${EXISTING_PY_FILES[@]}"; then
+                    echo "✅ Black formatting applied"
+                    echo "ℹ️  Files were reformatted. Please review and re-stage if needed."
+                    exit 1
+                else
+                    echo "⚠️  Warning: Black formatting failed, continuing..."
+                fi
+            else
+                echo "✅ Black formatting check passed (no changes needed)"
+            fi
         fi
     else
         echo "⚠️  Warning: Black not found, skipping auto-formatting"
@@ -182,6 +190,9 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 # Try to find test file in tests/ directory
                 basename=$(basename "$file" .py)
                 dirname=$(dirname "$file")
+                
+                # Normalize dirname (strip leading ./ if present)
+                dirname=${dirname#./}
 
                 # Common test file patterns
                 test_patterns=(
@@ -193,6 +204,14 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 for pattern in "${test_patterns[@]}"; do
                     [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
                 done
+                
+                # Fallback: search recursively for matching test files
+                if [ ${#TEST_FILES[@]} -eq 0 ] || [[ ! " ${TEST_FILES[*]} " =~ ${basename} ]]; then
+                    # Use find to locate test files matching basename in tests/ tree
+                    while IFS= read -r test_file; do
+                        [ -f "$test_file" ] && TEST_FILES+=("$test_file")
+                    done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)
+                fi
             fi
         done
 

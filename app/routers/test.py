@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 
-def _ensure_non_production():
+def _ensure_non_production() -> bool:
     """
     Guard test routes from being used in production.
 
@@ -24,7 +24,6 @@ def _ensure_non_production():
     if env == "production":
         raise HTTPException(status_code=404, detail="Test endpoints disabled in production")
     return True
-
 
 router = APIRouter(
     prefix="/api/v1/test",

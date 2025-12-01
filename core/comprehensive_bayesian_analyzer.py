@@ -288,7 +288,7 @@ class ComprehensiveBayesianAnalyzer:
 
         # Критические проблемы
         critical_issues = self._identify_critical_issues(
-            technical_issues, nutrition_issues, business_issues
+            technical_issues, nutrition_issues, business_issues, test_name
         )
 
         # Health First policy: critical nutrition issues force failure
@@ -388,12 +388,18 @@ class ComprehensiveBayesianAnalyzer:
         return max(0.0, 1.0 - penalty)
 
     def _identify_critical_issues(
-        self, technical: List[str], nutrition: List[str], business: List[str]
+        self, technical: List[str], nutrition: List[str], business: List[str], test_name: str = ""
     ) -> List[str]:
         """Идентифицирует критические проблемы.
 
         Leverages structured nutrition severity metadata (safety_level='dangerous')
         instead of substring matching for health-first logic.
+        
+        Args:
+            technical: List of technical issues
+            nutrition: List of nutrition issues  
+            business: List of business issues
+            test_name: Current test name to filter nutrition results (optional)
         """
         critical = []
 
@@ -405,19 +411,29 @@ class ComprehensiveBayesianAnalyzer:
 
         # Критические проблемы питания - prioritize structured metadata from NutritionBayesianAnalyzer
         # RU: Приоритет структурированным метаданным от NutritionBayesianAnalyzer
+        health_added = False
+
         if hasattr(self, "nutrition_analyzer") and hasattr(self.nutrition_analyzer, "test_results"):
             # Use structured safety_level from NutritionTestResult for precision
+            # Filter to current test if test_name provided to prevent leakage from past tests
             for result in self.nutrition_analyzer.test_results:
-                if not result.success and result.safety_level == "dangerous":
+                # Only consider dangerous results for current test to avoid past-test contamination
+                if (
+                    not result.success
+                    and result.safety_level == "dangerous"
+                    and (not test_name or result.test_name == test_name)
+                ):
                     critical.append(f"HEALTH: {result.error_message}")
-        else:
-            # Fallback to substring matching if structured data unavailable
+                    health_added = True
+        # Fallback to substring matching if structured data unavailable OR no structured hits found
+        if not health_added:
             for issue in nutrition:
                 if any(
                     keyword in issue.lower()
-                    for keyword in ["опасно", "dangerous", "критично", "critical"]
+                    for keyword in ["опасно", "dangerous", "критично", "critical", "риск", "risk"]
                 ):
                     critical.append(f"HEALTH: {issue}")
+                    health_added = True
 
         # Критические бизнес-проблемы - use centralized keywords
         # RU: Помечаем критические бизнес-проблемы стандартным префиксом для дальнейшей фильтрации
