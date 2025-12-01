@@ -3,6 +3,7 @@ Comprehensive tests to improve coverage to 97%+.
 """
 
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -162,10 +163,11 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code in [200, 500, 503]
 
+    @pytest.mark.serial
     def test_rollback_endpoint_success(self):
         """Test rollback endpoint success case."""
         # Use patch.dict to patch the function's global namespace directly
-        from types import SimpleNamespace
+        # Note: Using patch.dict on __globals__ for precise control over dependency injection
 
         async def fake_scheduler() -> SimpleNamespace:
             # Return a scheduler with update_manager.rollback_database that returns True
@@ -189,6 +191,7 @@ class TestComprehensiveCoverage:
                 "message" in data
             ), "API response must contain 'message' key per rollback endpoint contract"
 
+    @pytest.mark.serial
     def test_rollback_endpoint_exception(self):
         """Test rollback endpoint exception handling."""
 
@@ -211,9 +214,9 @@ class TestComprehensiveCoverage:
             assert "Rollback operation failed" in data["detail"]
 
     @pytest.mark.asyncio
-    async def test_rollback_endpoint_no_update_manager(self):
-        """Test rollback when scheduler has no update_manager."""
-        from types import SimpleNamespace
+    @pytest.mark.serial
+    async def test_rollback_function_no_update_manager(self):
+        """Test rollback_database function when scheduler has no update_manager."""
 
         async def fake_scheduler():
             return SimpleNamespace(update_manager=None)
@@ -225,9 +228,9 @@ class TestComprehensiveCoverage:
         assert "No update manager available" in data["message"]
 
     @pytest.mark.asyncio
-    async def test_rollback_endpoint_no_rollback_method(self):
-        """Test rollback when update_manager has no rollback_database method."""
-        from types import SimpleNamespace
+    @pytest.mark.serial
+    async def test_rollback_function_no_rollback_method(self):
+        """Test rollback_database function when update_manager lacks rollback method."""
 
         async def fake_scheduler():
             return SimpleNamespace(update_manager=SimpleNamespace())
@@ -238,10 +241,10 @@ class TestComprehensiveCoverage:
             data = await app_mod.rollback_database("usda", "1.0")
         assert "not supported" in data["message"]
 
+    @pytest.mark.serial
     def test_rollback_endpoint_rollback_function_exception(self):
         """Test rollback when rollback_database raises exception."""
         # Use patch.dict to properly intercept get_update_scheduler
-        from types import SimpleNamespace
 
         async def fake_scheduler():
             # Return a scheduler whose rollback_database raises an exception
@@ -264,10 +267,10 @@ class TestComprehensiveCoverage:
             data = response.json()
             assert "Rollback operation failed" in data["detail"]
 
+    @pytest.mark.serial
     def test_rollback_endpoint_returns_false(self):
         """Test rollback when rollback_database returns False."""
         # Use patch.dict to properly intercept get_update_scheduler
-        from types import SimpleNamespace
 
         async def fake_scheduler():
             # Return a scheduler whose rollback_database returns False

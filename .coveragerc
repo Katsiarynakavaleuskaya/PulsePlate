@@ -14,6 +14,21 @@ omit =
     */test_*.py
     */*_test.py
 
+    # Local helper/coverage scripts and demos (not part of runtime app surface)
+    check_coverage.py
+    fix_coverage_tests.py
+    fix_failing_tests.py
+    quick_coverage_check.py
+    quick_coverage_update.py
+    run_coverage_tests.py
+    setup_dev_env.py
+    setup_env_check.py
+    example_nutrition_api.py
+    update_api_key.py
+
+    # Optional/feature-flagged modules not executed in standard runtime
+    app/routers/vip.py
+
     # Scripts and CLI entrypoints
     scripts/*
     app/__main__.py

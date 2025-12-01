@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Generator, cast
 
 import pytest
@@ -41,10 +42,7 @@ def _cleanup_users() -> Generator[None, None, None]:
     except OperationalError as e:
         # Gracefully handle cleanup failure in isolated test environments
         # Note: Repeated failures may indicate DB/schema issues requiring investigation
-        import logging
-
         logging.warning(f"Test cleanup failed (non-critical in isolated envs): {e}")
-        pass
 
 
 def _client() -> TestClient:
