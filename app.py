@@ -329,13 +329,17 @@ app.include_router(premium_week_router, dependencies=[protected_dependency])
 
 # Conditionally include test router for non-production environments
 _app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
-try:
-    from app.routers import test as test_router
+_enable_test_router = _app_env in {"", "local", "dev", "development", "test"} or str(
+    os.getenv("FEATURE_TEST_ROUTER", "")
+).strip().lower() in {"1", "true", "yes", "on"}
+if _enable_test_router:
+    try:
+        from app.routers import test as test_router
 
-    app.include_router(test_router.router)
-    logger.info("Test endpoints enabled (env=%s, guarded per request)", _app_env or "local")
-except ImportError:
-    logger.debug("Test router not available")
+        app.include_router(test_router.router)
+        logger.info("Test endpoints enabled (env=%s, guarded per request)", _app_env or "local")
+    except ImportError:
+        logger.debug("Test router not available")
 
 start_time = time.time()
 

@@ -86,10 +86,14 @@ exclude_lines =
     # Don't complain about abstract methods
     @abstractmethod
 
-    # Don't complain about dataclass auto-generated methods
-    @dataclass
-
-    # Don't complain about protocol definitions
+    # Don't complain about dataclass/protocol auto-generated methods
+    def __init__
+    def __eq__
+    def __hash__
+    def __lt__
+    def __le__
+    def __gt__
+    def __ge__
 
     # Skip type checking blocks
     if typing.TYPE_CHECKING:

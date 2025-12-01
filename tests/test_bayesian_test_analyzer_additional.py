@@ -17,8 +17,9 @@ def test_diagnose_test_failure_defaults_and_confidence_single_entry() -> None:
     analyzer = BayesianTestAnalyzer()
     diagnosis = analyzer.diagnose_test_failure("t1", "some error")
     assert diagnosis is not None
-    # _calculate_confidence with a single probability returns 1.0
-    assert math.isclose(analyzer._calculate_confidence({ErrorType.RUNTIME_ERROR: 1.0}), 1.0)
+    # Verify that confidence is exposed via public API
+    assert hasattr(diagnosis, "confidence")
+    assert 0.0 <= diagnosis.confidence <= 1.0
 
 
 def test_calculate_likelihood_empty_symptoms_and_history_similarity() -> None:

@@ -488,9 +488,13 @@ def test_medical_limit():
         recs = analyzer.generate_nutrition_recommendations()
         # Locale-independent: check for allergen-related recommendation by category
         issues = analyzer.diagnose_nutrition_issues()
-        assert (
-            NutritionCategory.ALLERGEN_SAFETY in issues or len(recs) > 0
-        ), "Should generate allergen recommendations"
+        # Verify allergen issues are diagnosed or recommendations are generated
+        has_allergen_diagnosis = NutritionCategory.ALLERGEN_SAFETY in issues
+        has_recommendations = len(recs) > 0
+        assert has_allergen_diagnosis or has_recommendations, (
+            f"Should generate allergen diagnosis or recommendations. "
+            f"Issues: {issues}, Recommendations: {recs}"
+        )
 
     def test_generate_recommendations_medical_and_macros(self) -> None:
         """Medical and macro issues should add corresponding recommendations."""

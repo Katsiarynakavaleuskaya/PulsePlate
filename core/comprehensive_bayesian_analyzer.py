@@ -390,7 +390,11 @@ class ComprehensiveBayesianAnalyzer:
     def _identify_critical_issues(
         self, technical: List[str], nutrition: List[str], business: List[str]
     ) -> List[str]:
-        """Идентифицирует критические проблемы."""
+        """Идентифицирует критические проблемы.
+
+        Leverages structured nutrition severity metadata (safety_level='dangerous')
+        instead of substring matching for health-first logic.
+        """
         critical = []
 
         # Критические технические проблемы - use centralized keywords
@@ -399,14 +403,21 @@ class ComprehensiveBayesianAnalyzer:
             if any(keyword in issue.lower() for keyword in self.CRITICAL_TECHNICAL_KEYWORDS):
                 critical.append(f"TECH: {issue}")
 
-        # Критические проблемы питания - include English equivalents
-        # RU: Включаем английские эквиваленты для поддержки двуязычных сообщений
-        for issue in nutrition:
-            if any(
-                keyword in issue.lower()
-                for keyword in ["опасно", "dangerous", "критично", "critical"]
-            ):
-                critical.append(f"HEALTH: {issue}")
+        # Критические проблемы питания - prioritize structured metadata from NutritionBayesianAnalyzer
+        # RU: Приоритет структурированным метаданным от NutritionBayesianAnalyzer
+        if hasattr(self, "nutrition_analyzer") and hasattr(self.nutrition_analyzer, "test_results"):
+            # Use structured safety_level from NutritionTestResult for precision
+            for result in self.nutrition_analyzer.test_results:
+                if not result.success and result.safety_level == "dangerous":
+                    critical.append(f"HEALTH: {result.error_message}")
+        else:
+            # Fallback to substring matching if structured data unavailable
+            for issue in nutrition:
+                if any(
+                    keyword in issue.lower()
+                    for keyword in ["опасно", "dangerous", "критично", "critical"]
+                ):
+                    critical.append(f"HEALTH: {issue}")
 
         # Критические бизнес-проблемы - use centralized keywords
         # RU: Помечаем критические бизнес-проблемы стандартным префиксом для дальнейшей фильтрации

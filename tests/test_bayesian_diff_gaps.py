@@ -19,7 +19,13 @@ import pytest
 
 from core.bayesian_recommendations import get_error_type_key
 from core.bayesian_technical_utils import analyze_technical_aspects_common
-from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType, TestRecord, TestStatus
+from core.bayesian_test_analyzer import (
+    BayesianTestAnalyzer,
+    ErrorType,
+    TestCategory,
+    TestRecord,
+    TestStatus,
+)
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
     BusinessCategory,
@@ -54,7 +60,7 @@ def test_test_history_setter_keeps_alias() -> None:
     analyzer = BayesianTestAnalyzer()
     execution = TestRecord(
         test_name="t",
-        category=ErrorType.ASSERTION_ERROR,
+        category=TestCategory.UNIT,
         result=TestStatus.PASSED,
         error_type=None,
         error_message=None,

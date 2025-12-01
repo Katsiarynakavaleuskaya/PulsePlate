@@ -16,13 +16,13 @@ from app import app
 class TestComprehensiveCoverage:
     """Comprehensive tests to improve coverage."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
@@ -578,8 +578,8 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            # ValueError is caught and may return 200 (fallback), 500 (error), or 503 (unavailable)
-            assert response.status_code in [200, 500, 503]
+            # ValueError is caught by app.py L2684 and returns 400 (HTTPException)
+            assert response.status_code == 400
 
     def test_weekly_menu_endpoint_general_exception(self):
         """Test weekly menu endpoint with general exception."""

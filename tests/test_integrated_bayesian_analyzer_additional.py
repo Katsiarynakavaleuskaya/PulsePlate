@@ -181,10 +181,9 @@ def test_normalize_issue_type_keywords() -> None:
     assert NormalizedIssueType.INJECTION in types
     assert NormalizedIssueType.PASSWORD_LEAK in types
     assert NormalizedIssueType.SAFETY_VIOLATION in types
-    assert (
-        NormalizedIssueType.DANGEROUS_INSTRUCTION in types
-        or NormalizedIssueType.HEALTH_VIOLATION in types
-    )
+    # Both types should be present in a comprehensive safety violation
+    assert NormalizedIssueType.DANGEROUS_INSTRUCTION in types
+    assert NormalizedIssueType.HEALTH_VIOLATION in types
 
     # Async/exception keywords map to respective normalized types
     types2 = analyzer._normalize_issue_type("async error exception handling fails")

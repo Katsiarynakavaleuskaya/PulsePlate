@@ -44,7 +44,12 @@ def test_get_recommendations_fallbacks_to_default_language(monkeypatch: pytest.M
     If the requested language lacks a key, recommendations should fall back to the default language.
     """
     default_lang = br.DEFAULT_LANGUAGE
-    other_lang = next(lang for lang in br.RECOMMENDATIONS if lang != default_lang)
+    # Check if there's another language available
+    other_langs = [lang for lang in br.RECOMMENDATIONS if lang != default_lang]
+    if not other_langs:
+        pytest.skip("Only default language available, cannot test fallback")
+
+    other_lang = other_langs[0]
     missing_key = "error_type.attribute_error"
 
     # Remove the key from the other language to force default-language fallback

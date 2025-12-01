@@ -140,7 +140,8 @@ class TestRiskCalculation:
         analyzer = IntegratedBayesianAnalyzer()
         code = "def test_safe(): pass"
         result = analyzer.analyze_test_comprehensively(code, "test_safe", "test.py")
-        assert result.overall_risk_level in ["low", "medium", "high", "critical"]
+        # Safe code should be low or at most medium risk
+        assert result.overall_risk_level in ["low", "medium"]
 
     def test_calculate_risk_level_with_issues(self) -> None:
         """Test risk increases with issues."""
@@ -151,7 +152,11 @@ def test_risky():
     eval("dangerous")
 """
         result = analyzer.analyze_test_comprehensively(code, "test_risky", "test.py")
-        assert result.overall_risk_level in ["low", "medium", "high", "critical"]
+        # Risky code should be at least medium risk
+        risk_levels = ["low", "medium", "high", "critical"]
+        assert result.overall_risk_level in risk_levels
+        risk_index = risk_levels.index(result.overall_risk_level)
+        assert risk_index >= risk_levels.index("medium")
 
 
 class TestBusinessImpact:

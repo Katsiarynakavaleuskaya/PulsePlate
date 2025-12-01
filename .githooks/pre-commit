@@ -27,6 +27,29 @@ else
     BASH_BIN=bash
 fi
 
+# Verify Bash version (requires 4.3+ for nameref support)
+BASH_VERSION_OUTPUT=$($BASH_BIN --version 2>&1 | head -n1)
+if [[ $BASH_VERSION_OUTPUT =~ version\ ([0-9]+)\.([0-9]+) ]]; then
+    BASH_MAJOR="${BASH_REMATCH[1]}"
+    BASH_MINOR="${BASH_REMATCH[2]}"
+    if [ "$BASH_MAJOR" -lt 4 ] || { [ "$BASH_MAJOR" -eq 4 ] && [ "$BASH_MINOR" -lt 3 ]; }; then
+        echo "❌ Error: Bash version $BASH_MAJOR.$BASH_MINOR is too old (requires 4.3+)"
+        echo "   Current: $BASH_BIN --version => $BASH_VERSION_OUTPUT"
+        echo ""
+        echo "   Install newer bash:"
+        echo "   - macOS: brew install bash"
+        echo "   - Linux: check your package manager"
+        echo ""
+        echo "   Then ensure Homebrew bash is in PATH:"
+        echo "   - Apple Silicon: /opt/homebrew/bin/bash"
+        echo "   - Intel: /usr/local/bin/bash"
+        exit 1
+    fi
+else
+    echo "⚠️  Warning: Could not parse bash version from: $BASH_VERSION_OUTPUT"
+    echo "   Attempting to continue anyway..."
+fi
+
 if ! $BASH_BIN ./scripts/clean-cache.sh > /dev/null 2>&1; then
     echo "⚠️  Warning: Cache cleanup script failed"
 fi
@@ -124,7 +147,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
         done
         if [ ${#EXISTING_PY_FILES[@]} -gt 0 ] && black "${EXISTING_PY_FILES[@]}"; then
             echo "✅ Black formatting applied"
-            git add "${EXISTING_PY_FILES[@]}"
+            echo "ℹ️  Files were reformatted. Please review and re-stage if needed."
+            exit 1
         else
             echo "⚠️  Warning: Black formatting failed, continuing..."
         fi

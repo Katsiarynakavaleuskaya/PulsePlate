@@ -244,7 +244,7 @@ class TestPlateTargetsMicrosHypothesis:
             if any(micro in key.lower() for key in day_micros.keys())
         ]
         assert found_micros, (
-            f"Should have at least some common micronutrients, " f"found: {list(day_micros.keys())}"
+            "Should have at least some common micronutrients, " f"found: {list(day_micros.keys())}"
         )
 
     @given(

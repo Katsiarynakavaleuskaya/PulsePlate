@@ -370,7 +370,7 @@ class BayesianTestAnalyzer:
 
         # P(симптомы) - общая вероятность симптомов (нормализация Байеса)
         # Вычисляем один раз, так как зависит только от symptoms и similar_cases
-        evidence = self._calculate_evidence(symptoms, similar_cases)
+        evidence = self._calculate_evidence(symptoms)
 
         # Вычислить байесовские вероятности для каждой возможной причины
         cause_probabilities = {}
@@ -380,7 +380,7 @@ class BayesianTestAnalyzer:
             prior = self.prior_probabilities[error_type]
 
             # P(симптомы|причина) - вероятность симптомов при данной причине
-            likelihood = self._calculate_likelihood(symptoms, error_type, similar_cases)
+            likelihood = self._calculate_likelihood(symptoms, error_type)
 
             # P(причина|симптомы) = P(симптомы|причина) * P(причина) / P(симптомы)
             if evidence > 0:
@@ -479,10 +479,12 @@ class BayesianTestAnalyzer:
 
         return similar_cases
 
-    def _calculate_likelihood(
-        self, symptoms: Set[str], error_type: ErrorType, similar_cases: List[TestRecord]
-    ) -> float:
-        """Вычислить P(симптомы|причина) с учетом сглаживания и давности."""
+    def _calculate_likelihood(self, symptoms: Set[str], error_type: ErrorType) -> float:
+        """Вычислить P(симптомы|причина) с учетом сглаживания и давности.
+
+        Note: similar_cases parameter removed as it was unused - method works directly
+        with self.execution_history for better encapsulation.
+        """
         # Если нет истории — возвращаем сглаженную базу
         if not self.execution_history:
             return 0.1
@@ -520,8 +522,12 @@ class BayesianTestAnalyzer:
         prob = (weighted_num + self.LAPLACE_ALPHA) / (weighted_den + 2 * self.LAPLACE_ALPHA)
         return float(max(0.01, min(0.99, prob)))
 
-    def _calculate_evidence(self, symptoms: Set[str], similar_cases: List[TestRecord]) -> float:
-        """Вычислить P(симптомы) = Σ_e P(симптомы|e)·P(e)."""
+    def _calculate_evidence(self, symptoms: Set[str]) -> float:
+        """Вычислить P(симптомы) = Σ_e P(симптомы|e)·P(e).
+
+        Note: similar_cases parameter removed as it was unused - method calls
+        _calculate_likelihood which works with self.execution_history.
+        """
         if not symptoms:
             return 1.0
 
@@ -531,7 +537,7 @@ class BayesianTestAnalyzer:
         prior_sum = sum(self.prior_probabilities.values()) or 1.0
         for error_type in ErrorType:
             prior = self.prior_probabilities.get(error_type, 0.0) / prior_sum
-            like = self._calculate_likelihood(symptoms, error_type, similar_cases)
+            like = self._calculate_likelihood(symptoms, error_type)
             total += like * prior
 
         # Минимальный нижний порог, чтобы избежать деления на ~0

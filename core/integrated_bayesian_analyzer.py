@@ -724,8 +724,23 @@ class IntegratedBayesianAnalyzer:
     def _calculate_risk_level(
         self, technical: List[str], nutrition: List[str], safety: List[str], philosophy: List[str]
     ) -> str:
-        """Calculate overall risk level using language-agnostic normalized issue types."""
+        """Calculate overall risk level using structured nutrition metadata and language-agnostic normalized types.
+
+        Leverages structured NutritionTestResult severity data (safety_level, error_type)
+        instead of substring matching for health-first accuracy.
+        """
         critical_issue_types: Set[NormalizedIssueType] = set()
+
+        # Check if we have access to structured nutrition analyzer results
+        # If available, prioritize structured metadata over text parsing
+        dangerous_nutrition_count = 0
+        if hasattr(self, "nutrition_analyzer") and hasattr(self.nutrition_analyzer, "test_results"):
+            # Count dangerous findings directly from structured results
+            dangerous_nutrition_count = sum(
+                1
+                for result in self.nutrition_analyzer.test_results
+                if not result.success and result.safety_level == "dangerous"
+            )
 
         # Normalize all issues and collect critical types
         all_issues = technical + nutrition + safety + philosophy
@@ -742,8 +757,8 @@ class IntegratedBayesianAnalyzer:
             }
             critical_issue_types.update(normalized & critical_types)
 
-        # Count unique critical issue types
-        critical_count = len(critical_issue_types)
+        # Count unique critical issue types plus structured dangerous nutrition findings
+        critical_count = len(critical_issue_types) + dangerous_nutrition_count
 
         if critical_count >= self.RISK_THRESHOLD_CRITICAL:
             return "critical"

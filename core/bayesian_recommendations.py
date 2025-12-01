@@ -7,10 +7,14 @@ and symptoms. Supports multiple languages with fallback to default (Russian).
 
 import os
 from enum import Enum
+from typing import Dict, List, Literal
+
+# Supported language codes
+Language = Literal["en", "ru", "es"]
 
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
 # Empty string in env var falls back to "ru" (prevents BAYESIAN_DEFAULT_LANGUAGE="" from breaking)
-DEFAULT_LANGUAGE = os.getenv("BAYESIAN_DEFAULT_LANGUAGE") or "ru"
+DEFAULT_LANGUAGE: Language = os.getenv("BAYESIAN_DEFAULT_LANGUAGE") or "ru"  # type: ignore[assignment]
 
 # Public API
 __all__ = [
@@ -24,7 +28,7 @@ __all__ = [
 ]
 
 # Recommendation messages organized by language and error type/symptom
-RECOMMENDATIONS: dict[str, dict[str, list[str]]] = {
+RECOMMENDATIONS: Dict[Language, Dict[str, List[str]]] = {
     "ru": {
         # Error type recommendations
         "error_type.assertion_error": [
@@ -218,8 +222,8 @@ RECOMMENDATIONS: dict[str, dict[str, list[str]]] = {
 
 
 def get_recommendations(
-    key: str, language: str | None = None, fallback: list[str] | None = None
-) -> list[str]:
+    key: str, language: Language | None = None, fallback: List[str] | None = None
+) -> List[str]:
     """
     Get recommendations for a given key and language.
 

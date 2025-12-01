@@ -22,7 +22,7 @@ class TestPremiumWeekHypothesisSimple:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app_mod.app)
 
-    @settings(deadline=None)
+    @settings(deadline=10_000)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -76,7 +76,7 @@ class TestPremiumWeekHypothesisSimple:
             assert "daily_menus" in data
             assert "week_summary" in data
 
-    @settings(deadline=None)
+    @settings(deadline=10_000)
     @given(
         targets=st.dictionaries(
             keys=st.sampled_from(
@@ -137,7 +137,7 @@ class TestPremiumWeekHypothesisSimple:
                 assert "daily_menus" in data
                 assert "week_summary" in data
 
-    @settings(deadline=None)
+    @settings(deadline=10_000)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -188,7 +188,7 @@ class TestPremiumWeekHypothesisSimple:
             # Should fail with 422 - Validation error (missing required field)
             assert response.status_code == 422
 
-    @settings(deadline=None)
+    @settings(deadline=10_000)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
