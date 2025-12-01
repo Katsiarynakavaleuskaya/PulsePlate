@@ -49,11 +49,15 @@ RUN groupadd -r pulseplate && useradd -r -g pulseplate pulseplate
 # Create app directory
 WORKDIR /app
 
-# Copy application code
-COPY --chown=pulseplate:pulseplate . .
+# Copy only necessary application files (exclude frontend, tests, docs)
+COPY --chown=pulseplate:pulseplate app/ ./app/
+COPY --chown=pulseplate:pulseplate core/ ./core/
+COPY --chown=pulseplate:pulseplate app.py main.py settings.py ./
+COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
+COPY --chown=pulseplate:pulseplate alembic.ini conftest.py ./
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /app/cache /app/data /app/logs && \
+RUN mkdir -p /app/cache/food_db /app/data /app/logs && \
     chown -R pulseplate:pulseplate /app/cache /app/data /app/logs
 
 # Switch to non-root user
