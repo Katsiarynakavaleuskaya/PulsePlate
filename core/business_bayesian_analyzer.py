@@ -6,6 +6,8 @@ RU: Байесовский анализатор для бизнес-логики
 EN: Analyzes tests from the perspective of business model, revenue, and cost optimization.
 """
 
+from __future__ import annotations
+
 import ast
 import importlib
 import logging
