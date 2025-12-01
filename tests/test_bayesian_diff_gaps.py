@@ -72,7 +72,7 @@ def test_test_history_setter_keeps_alias() -> None:
     assert analyzer.execution_history == [execution]
 
 
-def test_load_history_file_not_found(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_load_history_file_not_found(tmp_path: Path) -> None:
     """Missing history file should be handled quietly (FileNotFoundError branch)."""
     missing = tmp_path / "no_history.json"
     analyzer = BayesianTestAnalyzer(data_file=missing)

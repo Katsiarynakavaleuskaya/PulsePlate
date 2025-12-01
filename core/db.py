@@ -59,6 +59,7 @@ ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production")
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
+    env_provided = "DATABASE_URL" in os.environ
     database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
     # Only create directory for file-based SQLite databases
@@ -70,12 +71,24 @@ def _build_engine_url() -> str:
             os.makedirs(db_dir, exist_ok=True)
 
     # Use file-based SQLite by default so the data survives across runs.
+    # Ensure read-write-create mode for SQLite file URLs to avoid readonly errors during tests
+    if (
+        not env_provided
+        and database_url.startswith("sqlite:///")
+        and not database_url.endswith(":memory:")
+    ):
+        if "?" not in database_url:
+            database_url = f"{database_url}?mode=rwc&uri=true"
     return database_url
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
     """Provide SQLite-specific connection args when needed."""
-    return {"check_same_thread": False} if url.startswith("sqlite") else {}
+    args: dict[str, object] = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    if url.startswith("sqlite") and "?" in url:
+        # Treat URL as SQLite URI so query parameters (e.g., mode=rwc) are honored
+        args["uri"] = True
+    return args
 
 
 def _derive_async_url(sync_url: str) -> Optional[str]:

@@ -6,6 +6,7 @@ from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, Normal
 
 
 def test_is_in_test_or_mock_context_variants() -> None:
+    """Verify detection of test/mock contexts via AST and regex fallback."""
     analyzer = IntegratedBayesianAnalyzer()
 
     # AST path: class inheriting from TestCase

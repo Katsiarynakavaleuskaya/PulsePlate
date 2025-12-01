@@ -311,9 +311,7 @@ def get_symptom_key(symptom: str) -> str:
         raise ValueError("Symptom cannot be None")
 
     if not isinstance(symptom, str):
-        raise ValueError(
-            f"Symptom must be a string, got {type(symptom).__name__}: {symptom!r}"
-        )
+        raise ValueError(f"Symptom must be a string, got {type(symptom).__name__}: {symptom!r}")
 
     # Strip whitespace and validate length
     symptom_clean = symptom.strip()

@@ -9,7 +9,10 @@ import app as app_mod
 async def test_rollback_scheduler_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     called = {}
 
-    async def fake_scheduler() -> None:
+    class DummyScheduler:
+        pass
+
+    async def fake_scheduler() -> DummyScheduler:
         called["hit"] = True
         raise RuntimeError("boom")
 
@@ -29,7 +32,7 @@ async def test_rollback_no_update_manager(monkeypatch: pytest.MonkeyPatch) -> No
     class DummyScheduler:
         update_manager = None
 
-    async def fake_scheduler():
+    async def fake_scheduler() -> DummyScheduler:
         return DummyScheduler()
 
     monkeypatch.setitem(
@@ -47,7 +50,7 @@ async def test_rollback_no_rollback_fn(monkeypatch: pytest.MonkeyPatch) -> None:
     class DummyScheduler:
         update_manager = DummyManager()
 
-    async def fake_scheduler():
+    async def fake_scheduler() -> DummyScheduler:
         return DummyScheduler()
 
     monkeypatch.setitem(
@@ -66,7 +69,7 @@ async def test_rollback_raises_inside_method(monkeypatch: pytest.MonkeyPatch) ->
     class DummyScheduler:
         update_manager = DummyManager()
 
-    async def fake_scheduler():
+    async def fake_scheduler() -> DummyScheduler:
         return DummyScheduler()
 
     monkeypatch.setitem(

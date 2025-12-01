@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Tenant-based test sharding runner for PulsePlate
 # Prevents memory errors by running shards sequentially or with limited parallelism
 
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -66,12 +66,12 @@ echo ""
 # Build pytest command (returns array elements as string for eval)
 build_cmd() {
     local shard=$1
-    local cmd="python -m pytest --shard-id=$shard tests/ -q"
+    local -n out=$2
+    out=(python -m pytest --shard-id "$shard" tests/ -q)
     if [ "$COVERAGE" = true ]; then
         # Scope coverage to source directories only (not entire repo)
-        cmd="$cmd --cov=core --cov=app --cov-report=term --cov-append"
+        out+=(--cov=core --cov=app --cov-report=term --cov-append)
     fi
-    echo "$cmd"
 }
 
 # Clean old coverage data
@@ -85,8 +85,9 @@ case $MODE in
         echo -e "${GREEN}Running shards sequentially (memory-safe)${NC}\n"
         for shard in $(seq 1 $TOTAL_SHARDS); do
             echo -e "${BLUE}▶ Running Shard $shard/$TOTAL_SHARDS...${NC}"
-            cmd=$(build_cmd $shard)
-            if ! eval "$cmd"; then
+            declare -a cmd
+            build_cmd "$shard" cmd
+            if ! "${cmd[@]}"; then
                 echo -e "${RED}✗ Shard $shard failed${NC}"
                 exit 1
             fi
@@ -102,14 +103,16 @@ case $MODE in
 
             if [ $shard1 -le $TOTAL_SHARDS ]; then
                 echo -e "${BLUE}▶ Running Shards $shard1 and $shard2 in parallel...${NC}"
-                cmd1=$(build_cmd $shard1)
-                cmd2=$(build_cmd $shard2)
+                declare -a cmd1
+                declare -a cmd2
+                build_cmd "$shard1" cmd1
+                build_cmd "$shard2" cmd2
 
                 # Run in background and wait for each individually
-                eval "$cmd1 &"
+                "${cmd1[@]}" &
                 pid1=$!
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
-                    eval "$cmd2 &"
+                    "${cmd2[@]}" &
                     pid2=$!
                     # Wait for each PID individually and capture exit codes
                     wait $pid1
@@ -146,22 +149,25 @@ case $MODE in
                 echo -e "${BLUE}▶ Running Shards $shard1, $shard2, $shard3 in parallel...${NC}"
 
                 pids=()
-                cmd1=$(build_cmd $shard1)
-                eval "$cmd1 &"
+                declare -a cmd1
+                build_cmd "$shard1" cmd1
+                "${cmd1[@]}" &
                 pids+=($!)
 
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
-                    cmd2=$(build_cmd $shard2)
-                    eval "$cmd2 &"
+                    declare -a cmd2
+                    build_cmd "$shard2" cmd2
+                    "${cmd2[@]}" &
                     pids+=($!)
                 fi
 
                 if [ $shard3 -le $TOTAL_SHARDS ]; then
-                    cmd3=$(build_cmd $shard3)
-                    eval "$cmd3 &"
+                    declare -a cmd3
+                    build_cmd "$shard3" cmd3
+                    "${cmd3[@]}" &
                     pids+=($!)
                 fi
-                
+
                 failed=0
                 for pid in "${pids[@]}"; do
                     wait $pid || failed=1
@@ -179,11 +185,12 @@ case $MODE in
         echo -e "${RED}⚠⚠ Running ALL shards simultaneously (HIGH MEMORY RISK)${NC}\n"
         pids=()
         for shard in $(seq 1 $TOTAL_SHARDS); do
-            cmd=$(build_cmd $shard)
-            eval "$cmd &"
+            declare -a cmd
+            build_cmd "$shard" cmd
+            "${cmd[@]}" &
             pids+=($!)
         done
-        
+
         failed=0
         for pid in "${pids[@]}"; do
             wait $pid || failed=1

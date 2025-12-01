@@ -146,14 +146,15 @@ if [ -n "$PYTHON_CHANGES" ]; then
             [ -f "$f" ] && EXISTING_PY_FILES+=("$f")
         done
         if [ ${#EXISTING_PY_FILES[@]} -gt 0 ]; then
-            # Use --check first to see if formatting is needed
-            if ! black --check --quiet "${EXISTING_PY_FILES[@]}" 2>/dev/null; then
-                # Files need formatting - apply it
+            # Use --check with --diff to show what will be changed
+            if ! black --check --diff "${EXISTING_PY_FILES[@]}" 2>/dev/null; then
+                echo "⚠️  Black would reformat the following files (diff shown above)"
+                # Apply formatting
                 if black "${EXISTING_PY_FILES[@]}"; then
-                    echo "✅ Black formatting applied"
-                    echo "ℹ️  Files were reformatted and re-staged."
-                    # Auto-stage the formatted files since Black is deterministic
+                    echo "✅ Black formatting applied. Files re-staged."
                     git add "${EXISTING_PY_FILES[@]}"
+                    # Exit 1 to force user review and re-run hooks, matching pipeline behavior
+                    exit 1
                 else
                     echo "⚠️  Warning: Black formatting failed, continuing..."
                 fi

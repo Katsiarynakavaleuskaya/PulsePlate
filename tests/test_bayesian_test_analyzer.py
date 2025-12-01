@@ -55,6 +55,7 @@ class TestBayesianTestAnalyzerInit:
         assert len(analyzer.test_history) == 1
         assert analyzer.test_history[0].test_name == "test_alias"
 
+
 class TestTechnicalAspectAnalysis:
     """Test technical aspect detection."""
 
@@ -63,7 +64,7 @@ class TestTechnicalAspectAnalysis:
         analyzer = BayesianTestAnalyzer()
         code = "def test_simple(): assert True"
         issues = analyzer.analyze_technical_aspects(code, "test_simple")
-        assert isinstance(issues, list)
+        assert issues == []
 
     def test_detect_asyncmock_issue(self):
         """Test detection of AsyncMock without await."""

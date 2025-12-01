@@ -13,18 +13,23 @@ if command -v pre-commit > /dev/null 2>&1; then
     # Temporarily unset hooksPath to allow pre-commit to run
     ORIGINAL_HOOKS_PATH=$(git config core.hooksPath || echo "")
     git config --unset-all core.hooksPath || true
-    
+
     # Run pre-commit checks
-    if ! git diff --cached --name-only --diff-filter=ACM | xargs -r pre-commit run --files; then
-        # Restore hooksPath
-        if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
-            git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
+    # Capture staged files and avoid GNU-only xargs -r for macOS compatibility
+    ORIGINAL_HOOKS_PATH=$(git config core.hooksPath || echo "")
+    git config --unset-all core.hooksPath || true
+    mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
+    if [ ${#STAGED_FILES[@]} -gt 0 ]; then
+        if ! pre-commit run --files "${STAGED_FILES[@]}"; then
+            # Restore hooksPath
+            if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
+                git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
+            fi
+            echo "❌ Pre-commit checks failed (Black, Bandit, etc.)"
+            echo "ℹ️  Fix the issues above, then re-stage and commit"
+            exit 1
         fi
-        echo "❌ Pre-commit checks failed (Black, Bandit, etc.)"
-        echo "ℹ️  Fix the issues above, then re-stage and commit"
-        exit 1
     fi
-    
     # Restore hooksPath
     if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
         git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
@@ -53,7 +58,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
         fi
     done
     echo "✅ Python syntax OK"
-    
+
     # Run backend tests for changed files
     echo ""
     echo "🧪 Running backend tests for changed files..."
@@ -69,18 +74,18 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 basename=$(basename "$file" .py)
                 dirname=$(dirname "$file")
                 dirname=${dirname#./}
-                
+
                 # Common test file patterns
                 test_patterns=(
                     "tests/test_${basename}.py"
                     "tests/${dirname}/test_${basename}.py"
                     "${dirname}/test_${basename}.py"
                 )
-                
+
                 for pattern in "${test_patterns[@]}"; do
                     [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
                 done
-                
+
                 # Fallback: search recursively
                 if [ ${#TEST_FILES[@]} -eq 0 ]; then
                     while IFS= read -r test_file; do
@@ -89,7 +94,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 fi
             fi
         done
-        
+
         if [ ${#TEST_FILES[@]} -gt 0 ]; then
             echo "Running tests: ${TEST_FILES[*]}"
             # Fail fast on first error (-x flag)

@@ -279,7 +279,7 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
     return _scheduler_instance
 
 
-async def start_background_updates(update_interval_hours: int = 24):
+async def start_background_updates(update_interval_hours: int = 24) -> None:
     """
     RU: Запускает фоновые обновления баз данных.
     EN: Start background database updates.
@@ -290,7 +290,7 @@ async def start_background_updates(update_interval_hours: int = 24):
         logger.info(f"Background database updates started (every {update_interval_hours}h)")
 
 
-async def stop_background_updates():
+async def stop_background_updates() -> None:
     """
     RU: Останавливает фоновые обновления баз данных.
     EN: Stop background database updates.

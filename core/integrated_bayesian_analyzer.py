@@ -85,6 +85,7 @@ class IntegratedBayesianAnalyzer:
         self.nutrition_analyzer = NutritionBayesianAnalyzer()
         self.integrated_results: List[IntegratedTestResult] = []
         self.system_philosophy = self._load_system_philosophy()
+        self._last_nutrition_results: List[NutritionTestResult] = []
 
     def _load_system_philosophy(self) -> Dict[str, Any]:
         """Load PulsePlate system philosophy."""
@@ -133,6 +134,8 @@ class IntegratedBayesianAnalyzer:
         nutrition_results: List[NutritionTestResult] = (
             self.nutrition_analyzer.analyze_nutrition_safety(test_code, test_name)
         )
+        # Track current-test structured nutrition results to avoid leaking global history
+        self._last_nutrition_results = nutrition_results
         nutrition_issues = [
             r.error_message for r in nutrition_results if not r.success and r.error_message
         ]
@@ -747,11 +750,11 @@ class IntegratedBayesianAnalyzer:
         # Check if we have access to structured nutrition analyzer results
         # If available, prioritize structured metadata over text parsing
         dangerous_nutrition_count = 0
-        if hasattr(self, "nutrition_analyzer") and hasattr(self.nutrition_analyzer, "test_results"):
-            # Count dangerous findings directly from structured results
+        # Count dangerous findings only for current test from tracked structured results
+        if hasattr(self, "_last_nutrition_results"):
             dangerous_nutrition_count = sum(
                 1
-                for result in self.nutrition_analyzer.test_results
+                for result in self._last_nutrition_results
                 if not result.success and result.safety_level == "dangerous"
             )
 

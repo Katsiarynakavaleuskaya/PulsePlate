@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Utilities for generating pseudonymous client fingerprints.
 
 The goal is to provide a stable identifier for a client (e.g. hashed IP) without
@@ -8,6 +6,8 @@ lookups and is loaded from an environment variable when available, otherwise a
 local salt file is created under ``cache/`` to keep fingerprints stable across
 process restarts during development and tests.
 """
+
+from __future__ import annotations
 
 import hashlib
 import os
@@ -32,6 +32,10 @@ def _load_salt_from_file(path: Path) -> str | None:
         path.parent.mkdir(parents=True, exist_ok=True)
         generated = secrets.token_hex(16)
         path.write_text(generated)
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
         return generated
     except Exception:
         # Fallback handled by caller

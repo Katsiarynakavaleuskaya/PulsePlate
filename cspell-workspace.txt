@@ -4031,6 +4031,7 @@ carb
 CARB
 carbohidratos
 cartesian
+Casella
 cellvalues
 celsius
 Cena
@@ -4161,6 +4162,7 @@ Freenom
 fromisoformat
 fromlist
 fspath
+functools
 ganar
 generada
 Género
@@ -4415,6 +4417,7 @@ prometheus
 prot
 proteína
 prueba
+Pseudonymized
 psycopg
 puberal
 puede

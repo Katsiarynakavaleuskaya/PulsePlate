@@ -491,10 +491,10 @@ def test_medical_limit():
         # Verify allergen issues are diagnosed or recommendations are generated
         has_allergen_diagnosis = NutritionCategory.ALLERGEN_SAFETY in issues
         has_recommendations = len(recs) > 0
-        assert has_allergen_diagnosis or has_recommendations, (
-            f"Should generate allergen diagnosis or recommendations. "
-            f"Issues: {issues}, Recommendations: {recs}"
-        )
+        assert has_allergen_diagnosis, f"Expected allergen diagnosis. Issues: {issues}"
+        assert (
+            has_recommendations
+        ), f"Expected recommendations for allergen issues. Recommendations: {recs}"
 
     def test_generate_recommendations_medical_and_macros(self) -> None:
         """Medical and macro issues should add corresponding recommendations."""

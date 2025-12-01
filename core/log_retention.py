@@ -1,6 +1,8 @@
 """Log retention policy management for GDPR/privacy compliance.
 
 Manages automatic cleanup of logs based on data classification and retention periods.
+
+Note: cleanup_expired_logs is not implemented yet and will raise NotImplementedError.
 """
 
 from enum import Enum
@@ -34,6 +36,31 @@ class LogRetentionManager:
             DataClass.SENSITIVE: 90,  # 3 months for sensitive data
         }
 
+    # Backwards-compatible properties used by the app/tests:
+    @property
+    def pseudonymous_retention_days(self) -> int:
+        return int(self.retention_periods.get(DataClass.PSEUDONYMOUS, 0))
+
+    @pseudonymous_retention_days.setter
+    def pseudonymous_retention_days(self, days: int) -> None:
+        self.retention_periods[DataClass.PSEUDONYMOUS] = int(days)
+
+    @property
+    def public_retention_days(self) -> int:
+        return int(self.retention_periods.get(DataClass.PUBLIC, 0))
+
+    @public_retention_days.setter
+    def public_retention_days(self, days: int) -> None:
+        self.retention_periods[DataClass.PUBLIC] = int(days)
+
+    @property
+    def sensitive_retention_days(self) -> int:
+        return int(self.retention_periods.get(DataClass.SENSITIVE, 0))
+
+    @sensitive_retention_days.setter
+    def sensitive_retention_days(self, days: int) -> None:
+        self.retention_periods[DataClass.SENSITIVE] = int(days)
+
     def cleanup_expired_logs(self, data_class: Optional[DataClass] = None) -> int:
         """Clean up expired log files based on retention policy.
 
@@ -45,8 +72,8 @@ class LogRetentionManager:
         """
         # Placeholder implementation - actual log cleanup logic would go here
         # In production: scan log directory, check timestamps, delete expired files
-        deleted_count = 0
-        return deleted_count
+        # Explicitly raise to avoid silent success during development
+        raise NotImplementedError("log cleanup not implemented yet")
 
 
 # Global singleton instance

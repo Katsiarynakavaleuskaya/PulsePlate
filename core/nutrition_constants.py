@@ -41,7 +41,9 @@ MEAL_KCAL_THRESHOLD = 450
 # BMI Safety Thresholds
 # Based on WHO classification and medical supervision requirements
 BMI_DANGEROUS_LOW = 16.0  # Below this requires immediate medical attention
-BMI_DANGEROUS_HIGH = 30.0  # Above this indicates obesity (class I+)
+BMI_OBESITY_THRESHOLD = 30.0  # Above this indicates obesity (class I+)
+# Deprecated alias for backward compatibility
+BMI_DANGEROUS_HIGH = BMI_OBESITY_THRESHOLD
 
 # Macronutrient Percentage Ranges (% of total calories)
 # Based on USDA Dietary Guidelines 2020-2025 and WHO recommendations
@@ -132,6 +134,7 @@ __all__ = [
     "KCAL_MAX_SAFE",
     "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
+    "BMI_OBESITY_THRESHOLD",
     "BMI_DANGEROUS_HIGH",
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",

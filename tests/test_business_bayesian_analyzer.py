@@ -533,6 +533,9 @@ def fetch_data():
     def test_calculate_bayesian_roi_warning_branch(self, caplog: pytest.LogCaptureFixture) -> None:
         """Large std should hit the delta-method warning path and still return ROI estimate."""
         analyzer = BusinessBayesianAnalyzer()
+        import logging
+
+        caplog.set_level(logging.WARNING)
         roi = analyzer._calculate_bayesian_roi(
             category="warn",
             prior_mean=0.1,
@@ -542,6 +545,7 @@ def fetch_data():
             assumptions="test warning",
         )
         assert isinstance(roi, ROIEstimate)
+        assert any("Delta-method" in record.message for record in caplog.records)
 
     def test_calculate_roi_potential_multiple_categories(self) -> None:
         """ROI potential should include all categories present in diagnosed issues."""
