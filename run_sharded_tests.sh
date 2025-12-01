@@ -178,6 +178,12 @@ case $MODE in
     all-at-once)
         echo -e "${RED}⚠⚠ Running ALL shards simultaneously (HIGH MEMORY RISK)${NC}\n"
         pids=()
+        for shard in $(seq 1 $TOTAL_SHARDS); do
+            cmd=$(build_cmd $shard)
+            eval "$cmd &"
+            pids+=($!)
+        done
+        
         failed=0
         for pid in "${pids[@]}"; do
             wait $pid || failed=1
@@ -186,11 +192,6 @@ case $MODE in
             echo -e "${RED}✗ Parallel execution failed${NC}"
             exit 1
         fi
-            pids+=($!)
-        done
-        for pid in "${pids[@]}"; do
-            wait $pid || { echo -e "${RED}✗ Parallel execution failed${NC}"; exit 1; }
-        done
         ;;
 esac
 

@@ -50,6 +50,7 @@ from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.fingerprint_security import compute_fingerprint
 from core.log_retention import (
     DATA_CLASS_PSEUDONYMOUS,
+    DataClass,
     get_retention_manager,
     LogRetentionManager,
 )
@@ -1368,11 +1369,9 @@ async def cleanup_expired_logs(
     """
     retention_manager = get_retention_manager()
 
-    # Map input string to DataClass Enum if provided, else None.
+    # Map input string to DataClass Enum if provided, else None
     data_class_enum = None
     if data_class is not None:
-        from .models import DataClass  # adjust import according to project structure
-
         try:
             data_class_enum = DataClass(data_class)
         except ValueError:

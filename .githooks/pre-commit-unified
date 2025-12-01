@@ -15,7 +15,7 @@ if command -v pre-commit > /dev/null 2>&1; then
     git config --unset-all core.hooksPath || true
     
     # Run pre-commit checks
-    if ! pre-commit run --files $(git diff --cached --name-only --diff-filter=ACM); then
+    if ! git diff --cached --name-only --diff-filter=ACM | xargs -r pre-commit run --files; then
         # Restore hooksPath
         if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
             git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
@@ -39,7 +39,7 @@ echo ""
 echo "📋 Step 2/2: Custom checks (Python syntax, backend tests)"
 
 # Get Python changes
-PYTHON_CHANGES=$(git diff --cached --name-only | grep "\.py$" || true)
+PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" || true)
 
 if [ -n "$PYTHON_CHANGES" ]; then
     # Check Python syntax
@@ -92,7 +92,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
         
         if [ ${#TEST_FILES[@]} -gt 0 ]; then
             echo "Running tests: ${TEST_FILES[*]}"
-            if ! pytest -q "${TEST_FILES[@]}" --tb=short -x --maxfail=3; then
+            # Fail fast on first error (-x flag)
+            if ! pytest -q "${TEST_FILES[@]}" --tb=short -x; then
                 echo "❌ Backend tests failed"
                 echo "ℹ️  Fix failing tests or commit with --no-verify to skip"
                 exit 1
