@@ -72,7 +72,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
     if command -v pytest > /dev/null 2>&1; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
-        for file in $PYTHON_CHANGES; do
+        for file in "$PYTHON_CHANGES"; do
             # Per-file test discovery: reset for each changed file
             declare -a FOUND_FOR_FILE=()
             

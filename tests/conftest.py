@@ -64,8 +64,9 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     os.environ["TEST_DB_PATH"] = str(resolved_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
-    db_module = importlib.import_module("core.db")
-    db_module = importlib.reload(db_module)
+    # Reload db module to pick up new DATABASE_URL
+    db_module_reloaded = importlib.import_module("core.db")
+    db_module_reloaded = importlib.reload(db_module_reloaded)
 
     models_module = importlib.import_module("core.models")
     importlib.reload(models_module)
@@ -80,13 +81,13 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    db_module.init_db()
+    db_module_reloaded.init_db()
 
     # Ensure SQLite file is writable for tests
     try:
         resolved_path.chmod(0o666)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Could not set permissions on test database: {e}")
 
     if "app" in sys.modules:
         importlib.reload(sys.modules["app"])
@@ -97,26 +98,26 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     try:
         # Close database connections if available
         # First, close the raw engine if it exists
-        if hasattr(db_module, "_RAW_ENGINE") and db_module._RAW_ENGINE:
+        if hasattr(db_module_reloaded, "_RAW_ENGINE") and db_module_reloaded._RAW_ENGINE:
             try:
-                db_module._RAW_ENGINE.dispose()
+                db_module_reloaded._RAW_ENGINE.dispose()
                 logger.debug(f"Disposed raw database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing raw database engine: {e}")
 
-        if hasattr(db_module, "engine") and db_module.engine:
+        if hasattr(db_module_reloaded, "engine") and db_module_reloaded.engine:
             try:
-                db_module.engine.dispose()
+                db_module_reloaded.engine.dispose()
                 logger.debug(f"Disposed database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing database engine: {e}")
 
         # Close any active sessions - SessionLocal is a sessionmaker, not a session
         # The sessionmaker doesn't have sessions to close, but we can clear the engine binding
-        if hasattr(db_module, "SessionLocal"):
+        if hasattr(db_module_reloaded, "SessionLocal"):
             try:
                 # Clear the bind to prevent any new sessions from being created
-                db_module.SessionLocal.configure(bind=None)
+                db_module_reloaded.SessionLocal.configure(bind=None)
                 logger.debug(f"Cleared SessionLocal binding for worker {worker_id}")
             except Exception as e:
                 logger.debug(f"Error clearing SessionLocal binding: {e}")
