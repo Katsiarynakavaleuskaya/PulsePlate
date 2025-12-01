@@ -557,7 +557,7 @@ def update_food_database(
     # Fast-fail check: validate build script exists before entering retry loop
     if not os.path.isfile(build_script):
         error_msg = (
-            f"Build script not found: {build_script}. Cannot proceed with food database update."
+            f"Build script not found: {build_script}. " f"Cannot proceed with food database update."
         )
         logger.error(error_msg)
         metrics.record_failure(error_msg, return_code=None)
