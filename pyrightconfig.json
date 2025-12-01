@@ -1,15 +1,6 @@
 {
   "pythonVersion": "3.13",
-  "reportMissingImports": false,
-  "pythonPath": ".",
   "typeCheckingMode": "basic",
-  "diagnosticSeverityOverrides": {
-    "reportUnnecessaryAwait": "none",
-    "reportUnknownMemberType": "warning",
-    "reportUnknownArgumentType": "warning",
-    "reportUnknownVariableType": "warning",
-    "reportMissingTypeStubs": "none"
-  },
   "include": [
     "**/*.py"
   ],
