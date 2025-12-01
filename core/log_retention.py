@@ -2,7 +2,7 @@
 
 Manages automatic cleanup of logs based on data classification and retention periods.
 
-Note: cleanup_expired_logs is not implemented yet and will raise NotImplementedError.
+Note: cleanup_expired_logs is a stub that logs a warning and returns 0 (no files deleted).
 """
 
 from enum import Enum

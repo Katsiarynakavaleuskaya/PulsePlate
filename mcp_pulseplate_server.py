@@ -23,9 +23,11 @@ class PulsePlateMCPServer:
 
         self.client = openai.OpenAI(api_key=self.api_key)
 
-        # Configurable model - defaults to gpt-4 if not set (coverage tests expect gpt-4)
-        # Can be overridden via MCP_OPENAI_MODEL environment variable
+        # Configurable model via MCP_OPENAI_MODEL environment variable
         self.model: str = os.getenv("MCP_OPENAI_MODEL", "gpt-4")
+        # Validate model name
+        if not isinstance(self.model, str) or not self.model.strip():
+            raise ValueError(f"Invalid model name: {self.model}")
 
         self.project_context = self._load_project_context()
 

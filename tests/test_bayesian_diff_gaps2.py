@@ -182,7 +182,7 @@ def test_bayesian_test_analyzer_uniform_fallback(monkeypatch: pytest.MonkeyPatch
     """When evidence is zero, cause_probabilities should fall back to uniform."""
     analyzer = BayesianTestAnalyzer()
 
-    monkeypatch.setattr(analyzer, "_extract_symptoms", lambda msg, ctx: [])
+    monkeypatch.setattr(analyzer, "_extract_symptoms", lambda msg, ctx: set())
     monkeypatch.setattr(analyzer, "_calculate_evidence", lambda symptoms, cases: 0.0)
     diagnosis = analyzer.diagnose_test_failure("t", "", {})
     assert diagnosis.most_likely_cause in [et.value for et in ErrorType]

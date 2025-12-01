@@ -22,7 +22,12 @@ DEFAULT_SALT_PATH: Final[Path] = Path("cache") / "fingerprint_salt.txt"
 
 
 def _load_salt_from_file(path: Path) -> str | None:
-    """Return the salt stored on disk, creating it if necessary."""
+    """Return the salt stored on disk, creating it if necessary.
+    
+    Note: Potential TOCTOU race between path.exists() and path.write_text(),
+    but acceptable for this use case as concurrent writes will result in the
+    same stable salt being used process-wide via lru_cache.
+    """
     try:
         if path.exists():
             saved = path.read_text().strip()
@@ -31,7 +36,17 @@ def _load_salt_from_file(path: Path) -> str | None:
 
         path.parent.mkdir(parents=True, exist_ok=True)
         generated = secrets.token_hex(16)
-        path.write_text(generated)
+        # Use 'x' mode to fail if file exists (mitigates TOCTOU)
+        try:
+            with path.open('x') as f:
+                f.write(generated)
+        except FileExistsError:
+            # Another process created it, read the existing value
+            saved = path.read_text().strip()
+            if saved:
+                return saved
+            # Fall through to return generated if file is empty
+        
         try:
             path.chmod(0o600)
         except OSError:

@@ -271,12 +271,12 @@ def _cleanup_users() -> Generator[None, None, None]:
 
     yield
 
-    # Cleanup after test - fail on errors to surface cleanup failures
+    # Cleanup after test - re-raise on errors to surface cleanup failures
     try:
         with db_module.session_scope() as session:
             session.execute(text("DELETE FROM users"))
     except OperationalError as e:
         # Re-raise to fail the test on cleanup errors
         # This prevents test pollution and flakiness
-        logger.warning(f"Test cleanup failed - database not accessible: {e}")
+        logger.error(f"Test cleanup failed - database not accessible: {e}")
         raise

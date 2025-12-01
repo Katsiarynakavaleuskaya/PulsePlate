@@ -190,7 +190,7 @@ class TestComprehensiveCoverage:
 
     @pytest.mark.serial
     def test_rollback_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch):
-        """Test rollback endpoint exception handling."""
+        """Test rollback endpoint exception handling with deterministic mock."""
 
         # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
         async def fake_scheduler_error():
@@ -203,11 +203,9 @@ class TestComprehensiveCoverage:
             headers={"X-API-Key": "test_key"},
         )
         # Should return 500 when get_update_scheduler raises exception
-        # However, FastAPI TestClient may invoke real scheduler - accept 200/500
-        assert response.status_code in [200, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "Rollback operation failed" in data["detail"]
+        assert response.status_code == 500
+        data = response.json()
+        assert "Rollback operation failed" in data["detail"]
 
     @pytest.mark.asyncio
     @pytest.mark.serial

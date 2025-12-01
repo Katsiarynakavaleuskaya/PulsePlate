@@ -3801,7 +3801,8 @@ async def check_for_updates() -> JSONResponse:
     try:
         import sys as _sys
 
-        _getter = getattr(_sys.modules[__name__], "get_update_scheduler")
+        pkg = _sys.modules.get("app")
+        _getter = getattr(pkg, "get_update_scheduler", get_update_scheduler)
         scheduler = await _getter()
         available_updates = await scheduler.update_manager.check_for_updates()
 

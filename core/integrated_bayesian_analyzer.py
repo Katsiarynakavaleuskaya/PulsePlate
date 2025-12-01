@@ -302,7 +302,7 @@ class IntegratedBayesianAnalyzer:
         """
         try:
             tree = ast.parse(code)
-        except SyntaxError:
+        except (SyntaxError, ValueError):
             # If code cannot be parsed, fall back to safe assumption
             return False
 
