@@ -7,14 +7,19 @@ and symptoms. Supports multiple languages with fallback to default (Russian).
 
 import os
 from enum import Enum
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, cast
 
 # Supported language codes
 Language = Literal["en", "ru", "es"]
 
+# Valid language codes for runtime validation
+_VALID_LANGUAGES: set[str] = {"en", "ru", "es"}
+
 # Default language (fallback) - configurable via BAYESIAN_DEFAULT_LANGUAGE env var
-# Empty string in env var falls back to "ru" (prevents BAYESIAN_DEFAULT_LANGUAGE="" from breaking)
-DEFAULT_LANGUAGE: Language = os.getenv("BAYESIAN_DEFAULT_LANGUAGE") or "ru"  # type: ignore[assignment]
+# Validates env value and falls back to "ru" if invalid or empty
+_env_lang = os.getenv("BAYESIAN_DEFAULT_LANGUAGE", "").strip().lower()
+# cast() is safe here because we validate _env_lang is in _VALID_LANGUAGES before assignment
+DEFAULT_LANGUAGE: Language = cast(Language, _env_lang if _env_lang in _VALID_LANGUAGES else "ru")
 
 # Public API
 __all__ = [

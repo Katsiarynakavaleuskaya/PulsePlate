@@ -22,6 +22,11 @@ class PulsePlateMCPServer:
             raise ValueError("OPENAI_API_KEY environment variable not set")
 
         self.client = openai.OpenAI(api_key=self.api_key)
+        
+        # Configurable model - defaults to gpt-4o-2024-11-20 if not set
+        # Can be overridden via MCP_OPENAI_MODEL environment variable
+        self.model = os.getenv("MCP_OPENAI_MODEL", "gpt-4o-2024-11-20")
+        
         self.project_context = self._load_project_context()
 
     def _load_project_context(self) -> Dict[str, Any]:
@@ -148,7 +153,7 @@ Please provide a helpful response considering the PulsePlate project context.
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-5-codex",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -186,7 +191,7 @@ Please provide:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-5-codex",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -222,7 +227,7 @@ Requirements:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-5-codex",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
