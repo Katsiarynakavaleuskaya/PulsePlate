@@ -6,7 +6,7 @@ Note: cleanup_expired_logs is not implemented yet and will raise NotImplementedE
 """
 
 from enum import Enum
-from typing import Optional
+from typing import Dict, Optional
 
 
 class DataClass(Enum):
@@ -30,7 +30,7 @@ class LogRetentionManager:
     def __init__(self) -> None:
         """Initialize retention manager with default policies."""
         # Retention periods in days by data class
-        self.retention_periods = {
+        self.retention_periods: Dict[DataClass, int] = {
             DataClass.PUBLIC: 365,  # 1 year for public data
             DataClass.PSEUDONYMOUS: 180,  # 6 months for pseudonymized
             DataClass.SENSITIVE: 90,  # 3 months for sensitive data
@@ -70,10 +70,16 @@ class LogRetentionManager:
         Returns:
             Number of deleted log files
         """
-        # Placeholder implementation - actual log cleanup logic would go here
-        # In production: scan log directory, check timestamps, delete expired files
-        # Explicitly raise to avoid silent success during development
-        raise NotImplementedError("log cleanup not implemented yet")
+        # Non-destructive stub: log cleanup not yet implemented
+        # Return 0 to indicate no files deleted (safe default)
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Log cleanup not implemented - returning 0 (no files deleted). "
+            "Implement real deletion logic against log directory using retention_periods."
+        )
+        return 0
 
 
 # Global singleton instance

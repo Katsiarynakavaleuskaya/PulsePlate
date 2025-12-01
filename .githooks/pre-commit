@@ -184,9 +184,12 @@ if [ -n "$PYTHON_CHANGES" ]; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
         for file in $PYTHON_CHANGES; do
+            # Per-file test discovery: reset for each changed file
+            declare -a FOUND_FOR_FILE=()
+            
             # If the file is in tests/ directory (including nested), add it directly
             if [[ $file == tests/**/*.py ]] || [[ $file == tests/*.py ]]; then
-                [ -f "$file" ] && TEST_FILES+=("$file")
+                [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
             # Otherwise, check if corresponding test file exists
             elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then
                 # Try to find test file in tests/ directory
@@ -204,18 +207,21 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 )
 
                 for pattern in "${test_patterns[@]}"; do
-                    [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
+                    [ -f "$pattern" ] && FOUND_FOR_FILE+=("$pattern") && break
                 done
 
-                # Fallback: search recursively only if no test files were found
-                if [ ${#TEST_FILES[@]} -eq 0 ]; then
+                # Fallback: search recursively only if no test files were found for this file
+                if [ ${#FOUND_FOR_FILE[@]} -eq 0 ]; then
                     # Use find to locate test files matching basename in tests/ tree
                     # -name matches basename only, but find searches recursively through all subdirs
                     while IFS= read -r test_file; do
-                        [ -f "$test_file" ] && TEST_FILES+=("$test_file")
+                        [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
                     done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)
                 fi
             fi
+            
+            # Append per-file results to global TEST_FILES array
+            TEST_FILES+=("${FOUND_FOR_FILE[@]}")
         done
 
         if [ ${#TEST_FILES[@]} -gt 0 ]; then

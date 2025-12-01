@@ -279,3 +279,4 @@ def _cleanup_users() -> Generator[None, None, None]:
         # Re-raise to fail the test on cleanup errors
         # This prevents test pollution and flakiness
         logger.warning(f"Test cleanup failed - database not accessible: {e}")
+        raise

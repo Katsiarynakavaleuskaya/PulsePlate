@@ -3506,15 +3506,12 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
     """
     try:
-        # Guard VIP feature flag at runtime to support tests that toggle env without full reload
-        # Block VIP when VIP_MODULE_ENABLED is falsy, except: allow tests to run if PYTEST_CURRENT_TEST
-        # is present and VIP_MODULE_ENABLED was not explicitly set (unset env allows pytest bypass)
-        if str(os.getenv("VIP_MODULE_ENABLED", "")).strip().lower() not in {
-            "1",
-            "true",
-            "on",
-            "yes",
-        }:
+        # Guard VIP feature flag at runtime to support tests that toggle env without full reload.
+        # If env var is set explicitly and falsy -> disable; otherwise fall back to module flag.
+        _vip_env = os.getenv("VIP_MODULE_ENABLED")
+        if _vip_env is not None and _vip_env.strip().lower() not in {"1", "true", "on", "yes"}:
+            raise HTTPException(status_code=503, detail="VIP module is disabled")
+        if _vip_env is None and not VIP_MODULE_ENABLED:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
         # Resolve make_weekly_menu with preference for package-level patching in tests
@@ -3548,25 +3545,51 @@ async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
         # Generate weekly menu via core.menu_engine
         week_menu = _make_weekly_menu(profile)
 
+        weekly_coverage = getattr(week_menu, "weekly_coverage", {}) or {}
+        if not isinstance(weekly_coverage, dict):
+            weekly_coverage = {}
+
+        shopping_list = getattr(week_menu, "shopping_list", {}) or {}
+        if not isinstance(shopping_list, dict):
+            shopping_list = {}
+
+        total_cost_raw = getattr(week_menu, "total_cost", 0.0)
+        total_cost = float(total_cost_raw) if isinstance(total_cost_raw, (int, float)) else 0.0
+
+        adherence_raw = getattr(week_menu, "adherence_score", 0.0)
+        adherence_score = float(adherence_raw) if isinstance(adherence_raw, (int, float)) else 0.0
+
+        daily_menus = getattr(week_menu, "daily_menus", []) or []
+        daily_menus_payload = []
+        for menu in daily_menus:
+            meals = getattr(menu, "meals", []) or []
+            if not isinstance(meals, (list, tuple)):
+                meals = []
+            date_value = getattr(menu, "date", "")
+            if not isinstance(date_value, str):
+                date_value = str(date_value)
+            daily_cost_raw = getattr(menu, "estimated_cost", 0.0)
+            daily_cost = float(daily_cost_raw) if isinstance(daily_cost_raw, (int, float)) else 0.0
+            daily_menus_payload.append(
+                {
+                    "date": date_value,
+                    "meals": meals,
+                    "total_kcal": sum(meal.get("kcal", 0) for meal in meals) if meals else 0,
+                    "daily_cost": daily_cost,
+                }
+            )
+
         return WeeklyMenuResponse(
             week_summary={
-                "week_start": week_menu.week_start,
-                "total_days": len(week_menu.daily_menus),
-                "avg_daily_cost": round(week_menu.total_cost / 7, 2),
+                "week_start": getattr(week_menu, "week_start", ""),
+                "total_days": len(daily_menus_payload),
+                "avg_daily_cost": round(total_cost / 7, 2) if total_cost else 0.0,
             },
-            daily_menus=[
-                {
-                    "date": menu.date,
-                    "meals": menu.meals,
-                    "total_kcal": sum(meal.get("kcal", 0) for meal in menu.meals),
-                    "daily_cost": menu.estimated_cost,
-                }
-                for menu in week_menu.daily_menus
-            ],
-            weekly_coverage=week_menu.weekly_coverage,
-            shopping_list=week_menu.shopping_list,
-            total_cost=week_menu.total_cost,
-            adherence_score=week_menu.adherence_score,
+            daily_menus=daily_menus_payload,
+            weekly_coverage=weekly_coverage,
+            shopping_list=shopping_list,
+            total_cost=total_cost,
+            adherence_score=adherence_score,
         )
 
     except HTTPException:

@@ -16,8 +16,6 @@ if command -v pre-commit > /dev/null 2>&1; then
 
     # Run pre-commit checks
     # Capture staged files and avoid GNU-only xargs -r for macOS compatibility
-    ORIGINAL_HOOKS_PATH=$(git config core.hooksPath || echo "")
-    git config --unset-all core.hooksPath || true
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
     if [ ${#STAGED_FILES[@]} -gt 0 ]; then
         if ! pre-commit run --files "${STAGED_FILES[@]}"; then
@@ -49,14 +47,14 @@ PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" 
 if [ -n "$PYTHON_CHANGES" ]; then
     # Check Python syntax
     echo "🐍 Checking Python syntax..."
-    for file in $PYTHON_CHANGES; do
+    while IFS= read -r file; do
         if [ -f "$file" ]; then
             if ! python -m py_compile "$file" 2>&1; then
                 echo "❌ Python syntax error in $file"
                 exit 1
             fi
         fi
-    done
+    done <<< "$PYTHON_CHANGES"
     echo "✅ Python syntax OK"
 
     # Run backend tests for changed files
@@ -66,9 +64,12 @@ if [ -n "$PYTHON_CHANGES" ]; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
         for file in $PYTHON_CHANGES; do
+            # Per-file test discovery: reset for each changed file
+            declare -a FOUND_FOR_FILE=()
+            
             # If the file is in tests/ directory, add it directly
             if [[ $file == tests/*.py ]]; then
-                [ -f "$file" ] && TEST_FILES+=("$file")
+                [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
             # Otherwise, check if corresponding test file exists
             elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then
                 basename=$(basename "$file" .py)
@@ -83,16 +84,19 @@ if [ -n "$PYTHON_CHANGES" ]; then
                 )
 
                 for pattern in "${test_patterns[@]}"; do
-                    [ -f "$pattern" ] && TEST_FILES+=("$pattern") && break
+                    [ -f "$pattern" ] && FOUND_FOR_FILE+=("$pattern") && break
                 done
 
-                # Fallback: search recursively
-                if [ ${#TEST_FILES[@]} -eq 0 ]; then
+                # Fallback: search recursively only if no tests found for this file
+                if [ ${#FOUND_FOR_FILE[@]} -eq 0 ]; then
                     while IFS= read -r test_file; do
-                        [ -f "$test_file" ] && TEST_FILES+=("$test_file")
+                        [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
                     done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)
                 fi
             fi
+            
+            # Append per-file results to global TEST_FILES array
+            TEST_FILES+=("${FOUND_FOR_FILE[@]}")
         done
 
         if [ ${#TEST_FILES[@]} -gt 0 ]; then

@@ -64,6 +64,9 @@ def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
         return ""
 
     salt = _get_salt().encode("utf-8")
+    # Blake2s key is limited to 32 bytes; hash longer salts
+    if len(salt) > 32:
+        salt = hashlib.blake2s(salt, digest_size=32).digest()
     data = source.encode("utf-8")
 
     digest = hashlib.blake2s(data, key=salt).hexdigest()
