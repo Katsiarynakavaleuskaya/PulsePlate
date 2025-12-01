@@ -129,7 +129,8 @@ FROM production AS development
 USER root
 
 # Install development dependencies
-COPY requirements-dev.txt ./
+# Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
+COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
 # Install additional development tools
