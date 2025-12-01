@@ -28,21 +28,21 @@ def _cleanup_users() -> Generator[None, None, None]:
 
     try:
         _truncate()
-    except OperationalError:
-        # Skip cleanup if database is not accessible
+    except OperationalError as e:
+        # Fail the test if database is not accessible during setup
         # Database should be initialized by conftest.py fixture
-        pytest.skip("Database not accessible, skipping user cleanup")
+        pytest.fail(f"Database not accessible during test setup: {e}")
 
     yield
 
-    # Cleanup after test
+    # Cleanup after test - fail on errors to surface cleanup failures
     try:
         with db_module.session_scope() as session:
             session.execute(text("DELETE FROM users"))
     except OperationalError as e:
-        # Gracefully handle cleanup failure in isolated test environments
-        # Note: Repeated failures may indicate DB/schema issues requiring investigation
-        logging.warning(f"Test cleanup failed (non-critical in isolated envs): {e}")
+        # Re-raise to fail the test on cleanup errors
+        # This prevents test pollution and flakiness
+        pytest.fail(f"Test cleanup failed - database not accessible: {e}")
 
 
 def _client() -> TestClient:
