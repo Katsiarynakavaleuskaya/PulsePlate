@@ -148,7 +148,7 @@ Please provide a helpful response considering the PulsePlate project context.
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5-codex",
                 messages=[
                     {
                         "role": "system",
@@ -156,7 +156,7 @@ Please provide a helpful response considering the PulsePlate project context.
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=1000,
+                max_tokens=2000,
                 temperature=0.7,
             )
 
@@ -186,7 +186,7 @@ Please provide:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5-codex",
                 messages=[
                     {
                         "role": "system",
@@ -194,7 +194,7 @@ Please provide:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=1500,
+                max_tokens=3000,
                 temperature=0.3,
             )
 
@@ -222,7 +222,7 @@ Requirements:
 
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-5-codex",
                 messages=[
                     {
                         "role": "system",
@@ -230,7 +230,7 @@ Requirements:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                max_tokens=2000,
+                max_tokens=4000,
                 temperature=0.5,
             )
 
