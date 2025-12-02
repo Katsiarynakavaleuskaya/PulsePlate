@@ -63,6 +63,10 @@ from core.utils import get_activity_factor, resolve_attr
 import core.utils as core_utils
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 
+# Preserve import-time references so later monkeypatching does not mask availability checks
+_BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
+_BASELINE_CALCULATE_ALL_TDEE = calculate_all_tdee
+
 try:
     from core.food_apis.scheduler import (
         start_background_updates as _scheduler_start_background_updates,
@@ -3160,9 +3164,11 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             else _calculate_all_tdee_wrapper
         )
 
-        # Determine baseline availability and runtime patching state
-        baseline_bmr = calculate_all_bmr
-        baseline_tdee = calculate_all_tdee
+        # Determine baseline availability and runtime patching state.
+        # Use import-time baselines so runtime monkeypatching (e.g., None) does not
+        # incorrectly flag the core functionality as missing.
+        baseline_bmr = _BASELINE_CALCULATE_ALL_BMR
+        baseline_tdee = _BASELINE_CALCULATE_ALL_TDEE
         baseline_missing = (baseline_bmr is None) or (baseline_tdee is None)
 
         app_bmr = (
@@ -4030,10 +4036,7 @@ async def rollback_database(source: str, target_version: str) -> Any:
         import sys as _sys
         import inspect as _inspect
 
-        global_map = (
-            rollback_database.__globals__
-        )  # use function globals for monkeypatch.setitem paths
-        global_override = global_map.get("get_update_scheduler")
+        global_override = rollback_database.__globals__.get("get_update_scheduler", None)
         pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
         pkg_override = getattr(pkg, "get_update_scheduler", None)
 
@@ -4042,7 +4045,7 @@ async def rollback_database(source: str, target_version: str) -> Any:
         elif pkg_override is not None and pkg_override is not _DEFAULT_GET_UPDATE_SCHEDULER:
             _getter = pkg_override
         else:
-            _getter = _DEFAULT_GET_UPDATE_SCHEDULER
+            _getter = pkg_override or global_override or _DEFAULT_GET_UPDATE_SCHEDULER
         scheduler = None
         if callable(_getter):
             _res = _getter()
@@ -4071,6 +4074,10 @@ async def rollback_database(source: str, target_version: str) -> Any:
             success = await rollback_callable(source, target_version)  # type: ignore[misc]
         else:
             success = await run_in_threadpool(rollback_callable, source, target_version)
+
+        # AsyncMock may return an awaitable even when not detected as coroutinefunction
+        if _inspect.isawaitable(success):
+            success = await success
     except HTTPException:
         raise  # Preserve original status code
     except Exception as e:

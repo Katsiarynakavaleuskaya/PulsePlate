@@ -180,7 +180,9 @@ if [ -n "$PYTHON_CHANGES" ]; then
 
     # Run backend tests for changed Python files
     echo "🧪 Running backend tests for changed files..."
-    if command -v pytest > /dev/null 2>&1; then
+    if [ "${SKIP_TESTS:-0}" = "1" ]; then
+        echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
+    elif command -v pytest > /dev/null 2>&1; then
         # Extract test files that correspond to changed Python files
         declare -a TEST_FILES=()
         while IFS= read -r file; do

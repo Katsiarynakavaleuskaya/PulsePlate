@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 import app
@@ -34,11 +36,24 @@ def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyP
 
 def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure wrappers raise ImportError when their dependencies are missing."""
-    monkeypatch.setattr(app.app_module, "calculate_all_bmr", None, raising=False)
+    # Null out all visible locations so wrappers raise ImportError deterministically
+    for target in (
+        (app, "calculate_all_bmr"),
+        (app.app_module, "calculate_all_bmr"),
+        (sys.modules.get("app_module"), "calculate_all_bmr"),
+    ):
+        monkeypatch.setattr(*target, value=None, raising=False)
+    monkeypatch.setitem(app._calculate_all_bmr_wrapper.__globals__, "calculate_all_bmr", None)
     with pytest.raises(ImportError):
         app._calculate_all_bmr_wrapper(70, 175, 30, "male")
 
-    monkeypatch.setattr(app.app_module, "calculate_all_tdee", None, raising=False)
+    for target in (
+        (app, "calculate_all_tdee"),
+        (app.app_module, "calculate_all_tdee"),
+        (sys.modules.get("app_module"), "calculate_all_tdee"),
+    ):
+        monkeypatch.setattr(*target, value=None, raising=False)
+    monkeypatch.setitem(app._calculate_all_tdee_wrapper.__globals__, "calculate_all_tdee", None)
     with pytest.raises(ImportError):
         app._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
 
@@ -62,7 +77,8 @@ def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     None on the primary `app` module signals that targets are disabled.
     """
     original_fn = app._plate_deps.build_nutrition_targets_fn
-    original_app_attr = getattr(app, "build_nutrition_targets", None)
+    _had_attr = hasattr(app, "build_nutrition_targets")
+    original_app_attr = getattr(app, "build_nutrition_targets", None) if _had_attr else None
 
     try:
         # Keep container configured but null out the primary module attribute
@@ -72,8 +88,9 @@ def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
         assert app.targets_disabled() is True
     finally:
         app._plate_deps.build_nutrition_targets_fn = original_fn
-        if original_app_attr is None:
-            delattr(app, "build_nutrition_targets")
+        if not _had_attr:
+            if hasattr(app, "build_nutrition_targets"):
+                delattr(app, "build_nutrition_targets")
         else:
             app.build_nutrition_targets = original_app_attr
         app.reset_targets_cache()

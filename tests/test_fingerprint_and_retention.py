@@ -96,7 +96,6 @@ def test_fingerprint_long_salt_hashed() -> None:
     """Salt longer than 32 bytes is hashed before use in blake2s."""
     # Force a very long salt via environment
     long_salt = "a" * 100
-    import os
 
     os.environ[fingerprint_security.SALT_ENV_VAR] = long_salt
     fingerprint_security._get_salt.cache_clear()

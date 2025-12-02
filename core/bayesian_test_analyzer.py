@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Literal, cast
 
 from core.bayesian_recommendations import (
     DEFAULT_LANGUAGE,
@@ -158,7 +158,15 @@ class BayesianTestAnalyzer:
             )
 
         # Language configuration for recommendations
-        self.language = language or os.getenv("BAYESIAN_LANGUAGE", DEFAULT_LANGUAGE).strip().lower()
+        raw_lang = (
+            language if language is not None else os.getenv("BAYESIAN_LANGUAGE", DEFAULT_LANGUAGE)
+        )
+        raw_lang = str(raw_lang).strip().lower()
+        allowed_langs = {"en", "ru", "es"}
+        self.language: Optional[Literal["en", "ru", "es"]] = cast(
+            Optional[Literal["en", "ru", "es"]],
+            raw_lang if raw_lang in allowed_langs else DEFAULT_LANGUAGE,
+        )
 
         # Execution history of tests; test_history is an alias for backward compatibility
         self.execution_history: List[TestRecord] = []

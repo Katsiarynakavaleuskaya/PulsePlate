@@ -129,8 +129,7 @@ git commit --no-verify -m "WIP: quick fix"
 ### Пропустить только тесты (но оставить Black/Bandit)
 
 ```bash
-# Закомментируйте блок с pytest в .githooks/pre-commit
-# Или добавьте переменную окружения:
+# Добавьте переменную окружения (hooks поддерживают SKIP_TESTS):
 SKIP_TESTS=1 git commit -m "..."
 ```
 

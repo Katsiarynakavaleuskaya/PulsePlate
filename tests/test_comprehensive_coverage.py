@@ -204,11 +204,7 @@ class TestComprehensiveCoverage:
             params={"source": "usda", "target_version": "1.0"},
             headers={"X-API-Key": "test_key"},
         )
-        # Should return 500 when get_update_scheduler raises exception
-        # However, depending on scheduler wiring, tests may hit the real
-        # scheduler implementation and return 200; accept both to avoid
-        # flakiness while still asserting rollback-specific error detail
-        # when 500 is returned.
+        # Monkeypatch may not affect already-loaded endpoint; accept 200 or 500
         assert response.status_code in [200, 500]
         if response.status_code == 500:
             data = response.json()
@@ -261,8 +257,7 @@ class TestComprehensiveCoverage:
             params={"source": "usda", "target_version": "1.0"},
             headers={"X-API-Key": "test_key"},
         )
-        # Should return 500 when rollback_database raises exception
-        # However, FastAPI TestClient may invoke real scheduler - accept 200/500
+        # Monkeypatch may not affect already-loaded endpoint; accept 200 or 500
         assert response.status_code in [200, 500]
         if response.status_code == 500:
             data = response.json()
@@ -284,8 +279,7 @@ class TestComprehensiveCoverage:
             params={"source": "usda", "target_version": "1.0"},
             headers={"X-API-Key": "test_key"},
         )
-        # When rollback_database returns False, endpoint should raise 500
-        # However, FastAPI TestClient may invoke real scheduler - accept 200/500
+        # Monkeypatch may not affect already-loaded endpoint; accept 200 or 500
         assert response.status_code in [200, 500]
         if response.status_code == 500:
             data = response.json()
@@ -300,17 +294,16 @@ class TestComprehensiveCoverage:
                 patch("app.calculate_all_bmr") as mock_calc_bmr,
                 patch("app.calculate_all_tdee") as mock_calc_tdee,
             ):
-                self._extracted_from_test_premium_plate_endpoint_success_10(
+                self._setup_premium_plate_mocks_and_test(
                     mock_calc_bmr, mock_calc_tdee, mock_make_plate
                 )
         finally:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    # TODO Rename this here and in `test_premium_plate_endpoint_success`
-    def _extracted_from_test_premium_plate_endpoint_success_10(
+    def _setup_premium_plate_mocks_and_test(
         self, mock_calc_bmr, mock_calc_tdee, mock_make_plate
-    ):
+    ) -> None:
         mock_calc_bmr.return_value = {"mifflin": 1500}
         mock_calc_tdee.return_value = {"mifflin": 2000}
 

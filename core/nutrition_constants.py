@@ -34,8 +34,9 @@ KCAL_MAX_SAFE = 6000  # Elite athletes/special populations only
 
 # Meal-level detection threshold (kcal)
 # Values ≤ this threshold are considered single meals rather than daily totals
-# Set to 450 kcal to align with average adult meal ranges (400-600 kcal per NHS/USDA guidance)
-# and prevent typical main meals (~400-500 kcal) from being misclassified as daily totals
+# Set to 450 kcal to capture most smaller meals (~400–450 kcal)
+# Larger meals (~500–600 kcal) require meal-context keywords to be classified as meals,
+# avoiding false positives for daily totals
 MEAL_KCAL_THRESHOLD = 450
 
 # BMI Safety Thresholds

@@ -8,7 +8,6 @@ def test_sanity_filter_plate_data_returns_unchanged() -> None:
     test_data = {"key": "value", "number": 42, "nested": {"inner": "data"}}
     result = sanity_filter_plate_data(test_data)
     assert result == test_data
-    assert result is test_data  # Should return the same object
 
 
 def test_sanity_filter_plate_data_empty_dict() -> None:

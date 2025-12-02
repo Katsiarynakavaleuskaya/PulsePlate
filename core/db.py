@@ -23,6 +23,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
@@ -77,8 +78,32 @@ def _build_engine_url() -> str:
         and database_url.startswith("sqlite:///")
         and not database_url.endswith(":memory:")
     ):
-        if "?" not in database_url:
-            database_url = f"{database_url}?mode=rwc&uri=true"
+        parsed = urlparse(database_url)
+        q = parse_qs(parsed.query, keep_blank_values=True)
+        if "mode" not in q:
+            q["mode"] = ["rwc"]
+        if "uri" not in q:
+            q["uri"] = ["true"]
+        new_query = urlencode(q, doseq=True)
+
+        if database_url.startswith("sqlite:///"):
+            # urlunparse drops one of the slashes for sqlite file URLs; build manually
+            # to keep the sqlite:/// prefix intact.
+            path_part = parsed.path.lstrip("/")
+            database_url = f"sqlite:///{path_part}"
+            if new_query:
+                database_url = f"{database_url}?{new_query}"
+        else:
+            database_url = urlunparse(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    parsed.params,
+                    new_query,
+                    parsed.fragment,
+                )
+            )
     return database_url
 
 

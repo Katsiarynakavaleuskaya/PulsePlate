@@ -76,5 +76,5 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
 
     # Fiber should equal minimum when fallback is triggered
     assert response.macros["fiber_g"] == app.FIBER_MIN_G
-    # kcal should be within reasonable fallback range (around 2100 default target)
-    assert 1500 <= response.kcal <= 3000
+    # kcal should be near expected fallback target (narrow range)
+    assert 1800 <= response.kcal <= 2400

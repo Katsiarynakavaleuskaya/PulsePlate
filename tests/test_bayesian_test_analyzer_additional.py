@@ -21,8 +21,8 @@ def test_diagnose_test_failure_defaults_and_confidence_single_entry() -> None:
     assert 0.0 <= diagnosis.confidence <= 1.0
 
 
-def test_calculate_likelihood_empty_symptoms_and_history_similarity() -> None:
-    """Test likelihood calculation with empty symptoms via public API."""
+def test_diagnose_test_failure_empty_symptoms_with_history() -> None:
+    """Test diagnose_test_failure with empty symptoms using history via public API."""
     analyzer = BayesianTestAnalyzer()
     record = TestRecord(
         test_name="t2",

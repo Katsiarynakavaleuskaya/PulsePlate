@@ -89,36 +89,25 @@ class TestAppErrorPaths97:
         assert callable(result)
         assert result() == "default"
 
-    def test_reset_safety_failure_count(self) -> None:
+    def test_reset_safety_failure_count(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test reset_safety_failure_count resets the global counter."""
         import app
 
         # Increment counter (simulate failures)
-        original = app._safety_failure_count
-        app._safety_failure_count = 5
+        monkeypatch.setattr(app, "_safety_failure_count", 5)
 
         app.reset_safety_failure_count()
         assert app._safety_failure_count == 0
 
-        # Restore
-        app._safety_failure_count = original
-
-    def test_reset_targets_cache(self) -> None:
+    def test_reset_targets_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test reset_targets_cache clears the cache."""
         import app
 
         # Set cache values
-        original_cache = app._targets_disabled_cache
-        original_time = app._targets_disabled_cache_time
-
-        app._targets_disabled_cache = True
-        app._targets_disabled_cache_time = 123.0
+        monkeypatch.setattr(app, "_targets_disabled_cache", True)
+        monkeypatch.setattr(app, "_targets_disabled_cache_time", 123.0)
 
         app.reset_targets_cache()
 
         assert app._targets_disabled_cache is None
         assert app._targets_disabled_cache_time == 0.0
-
-        # Restore
-        app._targets_disabled_cache = original_cache
-        app._targets_disabled_cache_time = original_time

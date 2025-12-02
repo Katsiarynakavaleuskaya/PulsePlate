@@ -15,11 +15,8 @@ from core import db as db_module
 
 
 def _client() -> TestClient:
-    # Ensure schema exists even if app was imported before test DB fixture configured
-    try:
-        db_module.init_db()
-    except Exception:
-        pass
+    # Ensure schema exists even if app was imported before test DB fixture configured.
+    db_module.init_db()
     return TestClient(cast(ASGIApp, app.app))
 
 

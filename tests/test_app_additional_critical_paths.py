@@ -81,7 +81,7 @@ def test_generate_who_targets_response_backend_unavailable_no_fallback(
 
 
 def test_weekly_plan_to_pdf_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Weekly plan PDF endpoint maps ImportError to 500 with clear message."""
+    """Weekly plan PDF endpoint returns 404 when route doesn't exist."""
 
     from fastapi.testclient import TestClient
 
@@ -92,12 +92,10 @@ def test_weekly_plan_to_pdf_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr(app, "resolve_attr", _fake_resolve, raising=True)
 
+    # Non-existent endpoint should return 404 regardless of resolve_attr
     response = client.get("/api/v1/weekly-plan/pdf/123")
 
-    assert response.status_code in (404, 500)
-    if response.status_code == 500:
-        body = response.json()
-        assert "PDF export not available" in body.get("detail", "")
+    assert response.status_code == 404
 
 
 def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,4 +114,4 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
 
     response = client.get("/api/v1/bmi-pro/status")
 
-    assert response.status_code in (404, 200)
+    assert response.status_code == 404
