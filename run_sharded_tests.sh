@@ -113,7 +113,7 @@ case $MODE in
             if [ $shard1 -le $TOTAL_SHARDS ]; then
                 declare -a cmd1
                 build_cmd "$shard1" cmd1
-                
+
                 # Only build cmd2 and print dual-shard message if shard2 is valid
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
                     echo -e "${BLUE}▶ Running Shards $shard1 and $shard2 in parallel...${NC}"

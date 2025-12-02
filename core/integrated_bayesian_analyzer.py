@@ -512,6 +512,14 @@ class IntegratedBayesianAnalyzer:
             if not self._is_in_test_or_mock_context(code):
                 issues.append("Potential SQL injection vulnerability")
 
+        # Command injection via os.system/subprocess in non-test contexts
+        command_injection_patterns = [
+            r"os\.system\(",
+            r"subprocess\.(run|call|popen)\(",
+        ]
+        if any(re.search(pattern, code, re.IGNORECASE) for pattern in command_injection_patterns):
+            issues.append("Potential command injection risk")
+
         # Unsafe file handling - AST-based check for precise detection
         if self._check_unsafe_file_opens(code):
             issues.append("Unsafe file open without context manager")

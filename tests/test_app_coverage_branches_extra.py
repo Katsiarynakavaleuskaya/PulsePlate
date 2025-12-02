@@ -56,13 +56,18 @@ def test_targets_disabled_container_override(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
-    """targets_disabled detects None in app module attributes."""
+    """targets_disabled detects None on primary app module attribute.
+
+    The container remains configured (function not None), but an explicit
+    None on the primary `app` module signals that targets are disabled.
+    """
     original_fn = app._plate_deps.build_nutrition_targets_fn
     original_app_attr = getattr(app, "build_nutrition_targets", None)
 
     try:
-        app._plate_deps.build_nutrition_targets_fn = lambda *_args, **_kwargs: "ok"  # type: ignore[assignment]
-        app.build_nutrition_targets = None  # type: ignore[assignment]
+        # Keep container configured but null out the primary module attribute
+        app._plate_deps.build_nutrition_targets_fn = original_fn
+        app.build_nutrition_targets = None
         app.reset_targets_cache()
         assert app.targets_disabled() is True
     finally:
@@ -70,7 +75,7 @@ def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
         if original_app_attr is None:
             delattr(app, "build_nutrition_targets")
         else:
-            app.build_nutrition_targets = original_app_attr  # type: ignore[assignment]
+            app.build_nutrition_targets = original_app_attr
         app.reset_targets_cache()
 
 

@@ -230,24 +230,26 @@ def test_analyze_safety_aspects_sql_injection_context(
     expected_other_checks: bool,
 ) -> None:
     """Test SQL injection detection respects test/mock context.
-    
+
     In non-test context, SQL injection should be detected.
     In test context, SQL injection checks are skipped but other safety checks remain active.
     """
     analyzer = IntegratedBayesianAnalyzer()
     monkeypatch.setattr(analyzer, "_is_in_test_or_mock_context", lambda code: is_test_context)
-    
+
     issues = analyzer._analyze_safety_aspects(code, "test_code" if is_test_context else "prod")
-    
+
     has_sql_injection = any("sql injection" in msg.lower() for msg in issues)
     assert has_sql_injection == expected_sql_injection, (
         f"Expected SQL injection={'present' if expected_sql_injection else 'absent'} "
         f"in {'test' if is_test_context else 'non-test'} context, but got {issues}"
     )
-    
+
     # Ensure other safety checks are still active (non-vacuous test)
     if expected_other_checks:
         # Test with code that should trigger other checks (e.g., command injection)
         other_code = 'os.system("rm -rf " + user_input)'
-        other_issues = analyzer._analyze_safety_aspects(other_code, "test_code" if is_test_context else "prod")
+        other_issues = analyzer._analyze_safety_aspects(
+            other_code, "test_code" if is_test_context else "prod"
+        )
         assert len(other_issues) > 0, "Other safety checks should remain active"

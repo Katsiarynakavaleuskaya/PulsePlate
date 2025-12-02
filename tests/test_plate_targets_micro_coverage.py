@@ -9,14 +9,14 @@ import os
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.types import ASGIApp
+from typing import cast
 from tests.test_helpers import skip_if_no_plate_micros
 
 try:
     import app as app_mod
 except Exception as exc:  # pragma: no cover
     pytest.skip(f"FastAPI app import failed: {exc}", allow_module_level=True)
-
-client = TestClient(app_mod.app)  # type: ignore
 
 
 class TestPlateTargetsMicroCoverage:
@@ -27,7 +27,7 @@ class TestPlateTargetsMicroCoverage:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_plate_targets_micro_consistency(self):
+    def test_plate_targets_micro_consistency(self, client: TestClient):
         """Test that plate and targets endpoints return consistent micronutrient data"""
         payload = {
             "sex": "female",
@@ -79,7 +79,7 @@ class TestPlateTargetsMicroCoverage:
                 f"got: {day_micros_raw}"
             )
 
-    def test_plate_micros_meet_minimum_thresholds(self):
+    def test_plate_micros_meet_minimum_thresholds(self, client: TestClient):
         """Test that plate micronutrients meet minimum thresholds from targets"""
         payload = {
             "sex": "female",
@@ -128,7 +128,7 @@ class TestPlateTargetsMicroCoverage:
             # plate_micros[nutrient] >= target_micros[nutrient] * 0.8
             # But for now, we just verify the data structure is consistent
 
-    def test_iron_coverage_plate_targets(self):
+    def test_iron_coverage_plate_targets(self, client: TestClient):
         """Test iron (Fe) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -169,7 +169,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_iron, (int, float)), "Target iron should be numeric"
         assert isinstance(plate_iron, (int, float)), "Plate iron should be numeric"
 
-    def test_calcium_coverage_plate_targets(self):
+    def test_calcium_coverage_plate_targets(self, client: TestClient):
         """Test calcium (Ca) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -209,7 +209,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_calcium, (int, float)), "Target calcium should be numeric"
         assert isinstance(plate_calcium, (int, float)), "Plate calcium should be numeric"
 
-    def test_magnesium_coverage_plate_targets(self):
+    def test_magnesium_coverage_plate_targets(self, client: TestClient):
         """Test magnesium (Mg) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -249,7 +249,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_magnesium, (int, float)), "Target magnesium should be numeric"
         assert isinstance(plate_magnesium, (int, float)), "Plate magnesium should be numeric"
 
-    def test_potassium_coverage_plate_targets(self):
+    def test_potassium_coverage_plate_targets(self, client: TestClient):
         """Test potassium (K) coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -289,7 +289,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_potassium, (int, float)), "Target potassium should be numeric"
         assert isinstance(plate_potassium, (int, float)), "Plate potassium should be numeric"
 
-    def test_vitamin_d_coverage_plate_targets(self):
+    def test_vitamin_d_coverage_plate_targets(self, client: TestClient):
         """Test vitamin D coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -329,7 +329,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_vitd, (int, float)), "Target vitamin D should be numeric"
         assert isinstance(plate_vitd, (int, float)), "Plate vitamin D should be numeric"
 
-    def test_b12_coverage_plate_targets(self):
+    def test_b12_coverage_plate_targets(self, client: TestClient):
         """Test B12 coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -369,7 +369,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_b12, (int, float)), "Target B12 should be numeric"
         assert isinstance(plate_b12, (int, float)), "Plate B12 should be numeric"
 
-    def test_folate_coverage_plate_targets(self):
+    def test_folate_coverage_plate_targets(self, client: TestClient):
         """Test folate coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -409,7 +409,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_folate, (int, float)), "Target folate should be numeric"
         assert isinstance(plate_folate, (int, float)), "Plate folate should be numeric"
 
-    def test_iodine_coverage_plate_targets(self):
+    def test_iodine_coverage_plate_targets(self, client: TestClient):
         """Test iodine coverage between plate and targets"""
         payload = {
             "sex": "female",
@@ -449,7 +449,7 @@ class TestPlateTargetsMicroCoverage:
         assert isinstance(target_iodine, (int, float)), "Target iodine should be numeric"
         assert isinstance(plate_iodine, (int, float)), "Plate iodine should be numeric"
 
-    def test_micro_coverage_different_profiles(self):
+    def test_micro_coverage_different_profiles(self, client: TestClient):
         """Test micronutrient coverage consistency across different user profiles"""
         profiles = [
             {"sex": "male", "age": 25, "life_stage": "adult"},

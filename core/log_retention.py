@@ -21,7 +21,7 @@ class DataClass(Enum):
 
 
 # Default data class for logs without explicit classification
-DATA_CLASS_PSEUDONYMOUS = DataClass.PSEUDONYMOUS
+DATA_CLASS_PSEUDONYMOUS: DataClass = DataClass.PSEUDONYMOUS
 
 
 class LogRetentionManager:

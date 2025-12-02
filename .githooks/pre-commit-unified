@@ -75,7 +75,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
         while IFS= read -r file; do
             # Per-file test discovery: reset for each changed file
             declare -a FOUND_FOR_FILE=()
-            
+
             # If the file is in tests/ directory, add it directly
             if [[ $file == tests/*.py ]]; then
                 [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
@@ -103,7 +103,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
                     done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)
                 fi
             fi
-            
+
             # Append per-file results to global TEST_FILES array
             TEST_FILES+=("${FOUND_FOR_FILE[@]}")
         done <<< "$PYTHON_CHANGES"

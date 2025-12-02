@@ -223,15 +223,24 @@ def test_cost_savings_recommendations_cover_all_categories() -> None:
     # OPERATIONAL_EFFICIENCY recommendations should mention automation/testing
     # MONETIZATION recommendations should mention pricing models/tiers
     has_cost_opt = any(
-        any(keyword in r.lower() for keyword in ["pricing", "spot", "infrastructure", "инстанс", "ценообразован"])
+        any(
+            keyword in r.lower()
+            for keyword in ["pricing", "spot", "infrastructure", "инстанс", "ценообразован"]
+        )
         for r in recs
     )
     has_ops_efficiency = any(
-        any(keyword in r.lower() for keyword in ["automat", "testing", "тестирован", "автоматизиров"])
+        any(
+            keyword in r.lower()
+            for keyword in ["automat", "testing", "тестирован", "автоматизиров"]
+        )
         for r in recs
     )
     has_monetization = any(
-        any(keyword in r.lower() for keyword in ["tier", "pricing model", "многоуровнев", "ценообразован"])
+        any(
+            keyword in r.lower()
+            for keyword in ["tier", "pricing model", "многоуровнев", "ценообразован"]
+        )
         for r in recs
     )
     assert has_cost_opt, "Expected COST_OPTIMIZATION recommendation"
@@ -326,7 +335,10 @@ def test_generate_strategy_recommendations_thresholds() -> None:
     recs = analyzer._generate_system_recommendations()
     # Locale-agnostic assertions: check for both English and Russian keywords
     has_technical = any(
-        any(keyword in r.lower() for keyword in ["technical refactor", "технический рефакторинг", "refactor"])
+        any(
+            keyword in r.lower()
+            for keyword in ["technical refactor", "технический рефакторинг", "refactor"]
+        )
         for r in recs
     )
     has_nutrition = any(
@@ -338,8 +350,7 @@ def test_generate_strategy_recommendations_thresholds() -> None:
         for r in recs
     )
     has_philosophy = any(
-        any(keyword in r.lower() for keyword in ["philosophy", "философ"])
-        for r in recs
+        any(keyword in r.lower() for keyword in ["philosophy", "философ"]) for r in recs
     )
     assert has_technical, "Expected technical refactoring recommendation"
     assert has_nutrition, "Expected nutrition safety recommendation"
