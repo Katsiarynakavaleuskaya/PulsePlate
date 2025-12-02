@@ -244,6 +244,6 @@ done
 
 ## 📚 Дополнительные ресурсы
 
-- [Pytest Memory Profiling](https://github.com/bloomberg/memray)
+- [Memray — Python memory profiler](https://github.com/bloomberg/memray)
 - [GitHub Actions Memory Limits](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners)
 - [File-Based Sharding Pattern](https://engineering.atspotify.com/2020/01/test-sharding-at-spotify/)

@@ -219,6 +219,8 @@ def analyze_technical_aspects_common(code: str) -> List[str]:
             )
             is not None
         )
+        # Check for test functions (exclude from return type annotation checks)
+        is_test_function = re.search(r"def\s+test_\w+\s*\(", code) is not None
         def_present = re.search(r"\bdef\b", code) is not None
         arrow_present = re.search(r"->", code) is not None
         # Check for return with value (not just "return" alone) or yield
@@ -239,7 +241,13 @@ def analyze_technical_aspects_common(code: str) -> List[str]:
             and not intentional_raise_func
         ):
             issues.append("Exception raised without handling")
-        if def_present and not arrow_present and has_explicit_return_or_yield:
+        # Skip return type check for test functions (matching AST path behavior)
+        if (
+            def_present
+            and not arrow_present
+            and has_explicit_return_or_yield
+            and not is_test_function
+        ):
             issues.append("Missing return type annotations")
 
     return issues

@@ -81,16 +81,11 @@ def test_generate_who_targets_response_backend_unavailable_no_fallback(
 
 
 def test_weekly_plan_to_pdf_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Weekly plan PDF endpoint returns 404 when route doesn't exist."""
+    """Weekly plan PDF endpoint returns 404 when the route is not registered."""
 
     from fastapi.testclient import TestClient
 
     client = TestClient(app.app)
-
-    def _fake_resolve(*_args, **_kwargs):  # pragma: no cover - defensive branch
-        raise ImportError("reportlab missing")
-
-    monkeypatch.setattr(app, "resolve_attr", _fake_resolve, raising=True)
 
     # Non-existent endpoint should return 404 regardless of resolve_attr
     response = client.get("/api/v1/weekly-plan/pdf/123")
