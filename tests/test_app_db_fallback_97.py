@@ -33,28 +33,26 @@ class TestAppDBFallback97:
                     truthy=truthy,
                 )
 
-    def test_attempt_db_fallback_production_no_override(self) -> None:
+    def test_attempt_db_fallback_production_no_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Production rejects fallback when ALLOW_DB_PERSISTENT_FALLBACK not set."""
         import app
 
-        with patch.dict(
-            os.environ,
-            {"DB_FALLBACK_URL": "sqlite:///./fallback.db"},
-            clear=False,
-        ):
-            # Ensure ALLOW_DB_PERSISTENT_FALLBACK is NOT set
-            os.environ.pop("ALLOW_DB_PERSISTENT_FALLBACK", None)
+        monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./fallback.db")
+        # Ensure ALLOW_DB_PERSISTENT_FALLBACK is NOT set
+        monkeypatch.delenv("ALLOW_DB_PERSISTENT_FALLBACK", raising=False)
 
-            mock_err = Exception("Primary DB failed")
-            truthy = {"1", "true", "yes", "on"}
+        mock_err = Exception("Primary DB failed")
+        truthy = {"1", "true", "yes", "on"}
 
-            with pytest.raises(Exception, match="Primary DB failed"):
-                app._attempt_db_fallback(
-                    env_name="production",
-                    is_production=True,
-                    db_err=mock_err,
-                    truthy=truthy,
-                )
+        with pytest.raises(Exception, match="Primary DB failed"):
+            app._attempt_db_fallback(
+                env_name="production",
+                is_production=True,
+                db_err=mock_err,
+                truthy=truthy,
+            )
 
     def test_attempt_db_fallback_production_persistent_allowed(
         self, monkeypatch: pytest.MonkeyPatch

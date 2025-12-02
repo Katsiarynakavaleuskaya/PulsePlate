@@ -21,6 +21,15 @@ echo "📋 Step 1/2: Pre-commit framework (Black, Bandit, yaml, etc.)"
 if command -v pre-commit > /dev/null 2>&1; then
     # Temporarily unset hooksPath to allow pre-commit to run
     ORIGINAL_HOOKS_PATH=$(git config core.hooksPath || echo "")
+
+    # Ensure hooksPath is restored on exit
+    restore_hooks_path() {
+        if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
+            git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
+        fi
+    }
+    trap restore_hooks_path EXIT
+
     git config --unset-all core.hooksPath || true
 
     # Run pre-commit checks
@@ -28,19 +37,12 @@ if command -v pre-commit > /dev/null 2>&1; then
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
     if [ ${#STAGED_FILES[@]} -gt 0 ]; then
         if ! pre-commit run --files "${STAGED_FILES[@]}"; then
-            # Restore hooksPath
-            if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
-                git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
-            fi
             echo "❌ Pre-commit checks failed (Black, Bandit, etc.)"
             echo "ℹ️  Fix the issues above, then re-stage and commit"
             exit 1
         fi
     fi
-    # Restore hooksPath
-    if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
-        git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
-    fi
+    # Trap will handle restoration on exit
 else
     echo "⚠️  Warning: pre-commit not installed"
     echo "   Install with: pip install pre-commit"

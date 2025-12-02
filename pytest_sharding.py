@@ -134,11 +134,15 @@ def pytest_collection_modifyitems(config: pytest.Config, items: List[Item]) -> N
     items[:] = selected_items
 
     # Log shard info
+    tw = config.get_terminal_writer()
     if selected_items:
-        tw = config.get_terminal_writer()
         tw.line(
             f"\n📦 Shard {shard_id} ({shard_config['name']}): "
             f"{len(selected_items)} tests selected"
         )
         tw.line(f"   Description: {shard_config['description']}")
         tw.line(f"   Patterns: {', '.join(patterns)}\n")
+
+    # Log deselected tests for observability
+    if deselected_items:
+        tw.line(f"   ℹ️  Deselected {len(deselected_items)} tests from other shards")

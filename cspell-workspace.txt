@@ -4313,7 +4313,7 @@ Mujer
 mult
 mypy
 mysql
-nтекст
+текст
 nameref
 NASM
 ndjson

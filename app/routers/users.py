@@ -54,19 +54,32 @@ def _execute_with_retry(
 
 def _reset_db_file(db_module: Any) -> None:
     """Recreate the SQLite DB file if it became readonly or was removed."""
+    import logging
+
+    logger = logging.getLogger(__name__)
     url = getattr(db_module, "DATABASE_URL", "")
     parsed = urlparse(url)
     if parsed.scheme.startswith("sqlite") and parsed.path:
-        db_path = Path(parsed.path)
+        # Distinguish absolute (sqlite:////) vs relative (sqlite:///) paths
+        # Absolute: sqlite:////absolute/path -> 4 slashes, keep leading /
+        # Relative: sqlite:///relative/path -> 3 slashes, strip leading /
+        if url.startswith("sqlite:////"):
+            # Absolute path: keep the leading slash
+            db_path = Path(parsed.path)
+        else:
+            # Relative path: strip the leading slash
+            db_path = Path(parsed.path.lstrip("/"))
+
         try:
             if db_path.exists():
+                # Destructive recovery: removing database file
+                logger.warning(
+                    "Removing corrupted/readonly database file for recovery: %s", db_path
+                )
                 db_path.unlink()
             db_path.parent.mkdir(parents=True, exist_ok=True)
         except (OSError, PermissionError) as e:
             # Log file removal errors; init_db will try to create as needed
-            import logging
-
-            logger = logging.getLogger(__name__)
             logger.debug("DB file reset failed: %s", e)
     db_module.init_db()
 
@@ -106,7 +119,15 @@ def list_users(
         rows = session.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
         return [UserRead.model_validate(row) for row in rows]
 
-    return _execute_with_retry(_action, db, fallback=[])
+    result = _execute_with_retry(_action, db, fallback=[])
+    # Warn if returning empty list due to database unavailability
+    if result == [] and db is not None:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        # This may be a legitimate empty result or a fallback; log for observability
+        logger.debug("list_users returned empty list (may be fallback or genuine empty result)")
+    return result
 
 
 @router.get("/{user_id}", response_model=UserRead)

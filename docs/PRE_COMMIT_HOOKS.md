@@ -6,9 +6,8 @@
 
 1. **Pre-commit framework** (`.pre-commit-config.yaml`)
    - Стандартный подход с YAML конфигурацией
-   - Проверяет: Black, Bandit, mypy, yaml, trailing spaces
+   - Проверяет: Black, Bandit, yaml, trailing spaces (mypy на pre-push)
    - Устанавливается: `pre-commit install`
-
 2. **Кастомный `.githooks/pre-commit`**
    - Bash-скрипт с кастомными проверками
    - Проверяет: Python syntax, backend tests, Black

@@ -245,7 +245,8 @@ async def test_async_engine_import_error_fallback(monkeypatch: pytest.MonkeyPatc
 
     # This is tested by the module-level fallback logic
     # When sqlalchemy.ext.asyncio is not available, _ASYNC_ENGINE should be None
-    assert db.async_engine is None or db.async_engine is not None  # Either state is valid
+    # When async is unavailable, engine should be None; when available, it should exist
+    # This is tested by module-level configuration; no assertion needed here
 
 
 @pytest.mark.asyncio

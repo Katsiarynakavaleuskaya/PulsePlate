@@ -63,7 +63,7 @@ async def test_rollback_no_rollback_fn(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_rollback_raises_inside_method(monkeypatch: pytest.MonkeyPatch) -> None:
     class DummyManager:
-        async def rollback_database(self, source, target_version):
+        async def rollback_database(self, source: str, target_version: str) -> None:
             raise RuntimeError("boom")
 
     class DummyScheduler:
