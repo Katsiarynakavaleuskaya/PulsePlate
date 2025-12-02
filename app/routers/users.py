@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Callable, List, TypeVar
 from urllib.parse import urlparse
@@ -31,7 +32,6 @@ def _execute_with_retry(
         return action(db)
     except OperationalError:
         from core import db as db_module
-        import logging
 
         logger = logging.getLogger(__name__)
         try:
@@ -53,9 +53,11 @@ def _execute_with_retry(
 
 
 def _reset_db_file(db_module: Any) -> None:
-    """Recreate the SQLite DB file if it became readonly or was removed."""
-    import logging
+    """Recreate the SQLite DB file if it became readonly or was removed.
 
+    WARNING: This function deletes the database file, causing permanent data loss.
+    Only call in development/test environments or with proper backup procedures.
+    """
     logger = logging.getLogger(__name__)
     url = getattr(db_module, "DATABASE_URL", "")
     parsed = urlparse(url)
@@ -72,9 +74,11 @@ def _reset_db_file(db_module: Any) -> None:
 
         try:
             if db_path.exists():
-                # Destructive recovery: removing database file
+                # DESTRUCTIVE OPERATION: Removing database file for recovery
+                # This will cause permanent data loss in production!
                 logger.warning(
-                    "Removing corrupted/readonly database file for recovery: %s", db_path
+                    "DESTRUCTIVE: Removing corrupted/readonly database file for recovery: %s",
+                    db_path,
                 )
                 db_path.unlink()
             db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,14 +123,7 @@ def list_users(
         rows = session.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
         return [UserRead.model_validate(row) for row in rows]
 
-    result = _execute_with_retry(_action, db, fallback=[])
-    # Warn if returning empty list due to database unavailability
-    if result == [] and db is not None:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        # This may be a legitimate empty result or a fallback; log for observability
-        logger.debug("list_users returned empty list (may be fallback or genuine empty result)")
+    result = _execute_with_retry(_action, db)  # No fallback - fail explicitly if DB unavailable
     return result
 
 

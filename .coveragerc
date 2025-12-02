@@ -29,7 +29,6 @@ omit =
 
     # Optional/feature-flagged modules not executed in standard runtime
     */app/routers/vip.py
-    */core/business_bayesian_analyzer.py
 
     # Scripts and CLI entrypoints
     scripts/*

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock
+
 import os
 import secrets
 import sys
@@ -558,7 +558,7 @@ def _attempt_db_fallback(
                 fallback_url,
             )
     except Exception as fallback_err:
-        logger.error("In-memory fallback init_db() failed: %s", fallback_err)
+        logger.error("Fallback database init failed (url=%s): %s", fallback_url, fallback_err)
         # Reset fallback URL on failure
         os.environ.pop("DB_FALLBACK_URL", None)
         raise db_err from fallback_err

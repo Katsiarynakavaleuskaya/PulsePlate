@@ -35,11 +35,16 @@ _sharding_module_path = Path(__file__).parent.parent / "pytest_sharding.py"
 if _sharding_module_path.exists():
     _spec = importlib.util.spec_from_file_location("pytest_sharding", _sharding_module_path)
     if _spec and _spec.loader:
-        _sharding = importlib.util.module_from_spec(_spec)
-        _spec.loader.exec_module(_sharding)
-        # Register sharding hooks globally
-        pytest_addoption = _sharding.pytest_addoption  # type: ignore[misc]
-        pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems  # type: ignore[misc]
+        try:
+            _sharding = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_sharding)
+            # Register sharding hooks globally
+            pytest_addoption = _sharding.pytest_addoption  # type: ignore[misc]
+            pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems  # type: ignore[misc]
+        except Exception as e:
+            import warnings
+
+            warnings.warn(f"Failed to load pytest_sharding.py: {e}. Sharding disabled.")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -271,8 +276,8 @@ def _cleanup_users() -> Generator[None, None, None]:
         logger.warning(f"Database not accessible during test setup: {e}")
         try:
             db_module.init_db()
-        except Exception:
-            pass
+        except Exception as init_err:
+            logger.debug(f"init_db during cleanup setup failed: {init_err}")
 
     yield
 

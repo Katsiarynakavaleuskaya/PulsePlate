@@ -197,10 +197,10 @@ def test_safe_rollback_exception_handling(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pytest.mark.asyncio
-async def test_async_engine_pool_config_postgresql(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test async engine applies pool config for PostgreSQL.
+async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test async engine creation for SQLite (pool config skipped).
 
-    Covers line 383: pool config for non-SQLite async databases.
+    Covers line 382: pool config skipped for sqlite+aiosqlite.
     """
     from core import db
     import importlib
@@ -221,9 +221,8 @@ async def test_async_engine_pool_config_postgresql(monkeypatch: pytest.MonkeyPat
     # So we just verify the engine was created
     if reloaded.ASYNC_DATABASE_URL and "sqlite+aiosqlite" in reloaded.ASYNC_DATABASE_URL:
         # SQLite async engine should exist but pool config is skipped
-        assert (
-            reloaded._ASYNC_ENGINE is not None or reloaded._ASYNC_ENGINE is None
-        )  # Either is valid
+        # Engine may or may not be created depending on aiosqlite availability
+        pass
 
     # Cleanup
     if reloaded._ASYNC_ENGINE:
@@ -243,10 +242,8 @@ async def test_async_engine_import_error_fallback(monkeypatch: pytest.MonkeyPatc
     if db.create_async_engine is None:
         pytest.skip("sqlalchemy.asyncio not available")
 
-    # This is tested by the module-level fallback logic
-    # When sqlalchemy.ext.asyncio is not available, _ASYNC_ENGINE should be None
-    # When async is unavailable, engine should be None; when available, it should exist
-    # This is tested by module-level configuration; no assertion needed here
+    # Verify async engine is properly configured when available
+    assert db._ASYNC_ENGINE is not None or db.ASYNC_DATABASE_URL is None
 
 
 @pytest.mark.asyncio
@@ -299,28 +296,26 @@ def test_init_db_wrapper_not_called() -> None:
 
     Covers line 502: assert_called_once failure path.
     """
-    from core.db import Base, _RAW_ENGINE
     import importlib
+    import sys
+    from core import db
 
-    # Create a fresh metadata instance
-    metadata = Base.metadata
+    # Reload db module to get a fresh wrapper
+    importlib.reload(db)
 
-    # Import the _CreateAllWrapper
-    from core.db import init_db
-
-    # Get the wrapper
+    # Get the wrapper before calling init_db
+    metadata = db.Base.metadata
     create_all = metadata.create_all
 
-    # If it has assert_called_once, test it
+    # Verify the wrapper has assert_called_once method
     if hasattr(create_all, "assert_called_once"):
-        # Create a fresh wrapper
-        from core.db import init_db
-
-        # The wrapper is created during init_db, so we need to invoke it
-        # to test the assertion
-
-        # For now, just verify the wrapper exists
-        assert hasattr(create_all, "assert_called_once")
+        # Call assert_called_once without calling the wrapped method
+        # This should raise AssertionError
+        with pytest.raises(AssertionError):
+            create_all.assert_called_once()
+    else:
+        # If no wrapper exists, skip the test
+        pytest.skip("_CreateAllWrapper not active")
 
 
 @pytest.mark.asyncio

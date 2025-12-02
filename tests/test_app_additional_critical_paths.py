@@ -102,16 +102,29 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
     """BMI Pro router inclusion is controlled by FEATURE_BMI_PRO_ENABLED flag."""
 
     from fastapi.testclient import TestClient
-
-    monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
     import importlib
-
+    import sys
     import app as app_module
 
-    importlib.reload(app_module)
+    # Save original module state
+    original_app_module = sys.modules.get("app")
 
-    client = TestClient(app_module.app)
+    try:
+        monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
 
-    response = client.get("/api/v1/bmi-pro/status")
+        # Reload app module with feature flag disabled
+        importlib.reload(app_module)
 
-    assert response.status_code == 404
+        client = TestClient(app_module.app)
+        response = client.get("/api/v1/bmi-pro/status")
+
+        assert response.status_code == 404
+
+    finally:
+        # Restore original module state
+        if original_app_module is not None:
+            sys.modules["app"] = original_app_module
+            importlib.reload(app_module)
+        else:
+            # If app wasn't in sys.modules before, remove it
+            sys.modules.pop("app", None)

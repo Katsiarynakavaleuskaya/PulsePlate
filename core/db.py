@@ -86,24 +86,12 @@ def _build_engine_url() -> str:
             q["uri"] = ["true"]
         new_query = urlencode(q, doseq=True)
 
-        if database_url.startswith("sqlite:///"):
-            # urlunparse drops one of the slashes for sqlite file URLs; build manually
-            # to keep the sqlite:/// prefix intact.
-            path_part = parsed.path.lstrip("/")
-            database_url = f"sqlite:///{path_part}"
-            if new_query:
-                database_url = f"{database_url}?{new_query}"
-        else:
-            database_url = urlunparse(
-                (
-                    parsed.scheme,
-                    parsed.netloc,
-                    parsed.path,
-                    parsed.params,
-                    new_query,
-                    parsed.fragment,
-                )
-            )
+        # urlunparse drops one of the slashes for sqlite file URLs; build manually
+        # to keep the sqlite:/// prefix intact.
+        path_part = parsed.path.lstrip("/")
+        database_url = f"sqlite:///{path_part}"
+        if new_query:
+            database_url = f"{database_url}?{new_query}"
     return database_url
 
 

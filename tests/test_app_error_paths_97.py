@@ -18,6 +18,7 @@ import pytest
 class TestAppErrorPaths97:
     """Tests for app.py error paths and edge cases."""
 
+    @pytest.mark.asyncio
     async def test_get_update_scheduler_late_import(self) -> None:
         """Test get_update_scheduler when _scheduler_getter is None (late import path)."""
         import app
@@ -31,6 +32,7 @@ class TestAppErrorPaths97:
         finally:
             app._scheduler_getter = original_getter
 
+    @pytest.mark.asyncio
     async def test_get_update_scheduler_test_override(self) -> None:
         """Test get_update_scheduler with _test_scheduler_override set."""
         import app
