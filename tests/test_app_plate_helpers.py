@@ -333,12 +333,12 @@ async def test_api_premium_plate_fallback_aligns_targets(
     assert response.macros["fat_g"] in {60, 72}
     assert response.macros["protein_g"] in {120, 128}
     assert (
-        0 <= response.macros["carbs_g"] <= 800
-    ), f"Expected 0 <= carbs_g <= 800, got {response.macros['carbs_g']}"
+        100 <= response.macros["carbs_g"] <= 400
+    ), f"Expected 100 <= carbs_g <= 400, got {response.macros['carbs_g']}"
     assert (
-        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 200
-    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 200, got {response.macros['fiber_g']}"
-    assert 0 < response.kcal <= 5000, f"Expected 0 < kcal <= 5000, got {response.kcal}"
+        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 60
+    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 60, got {response.macros['fiber_g']}"
+    assert 1500 <= response.kcal <= 3500, f"Expected 1500 <= kcal <= 3500, got {response.kcal}"
 
 
 @pytest.mark.asyncio

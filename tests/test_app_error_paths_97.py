@@ -9,7 +9,6 @@ Focuses on:
 """
 
 import asyncio
-import os
 from unittest.mock import AsyncMock, patch
 
 import pytest

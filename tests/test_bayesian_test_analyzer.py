@@ -59,14 +59,14 @@ class TestBayesianTestAnalyzerInit:
 class TestTechnicalAspectAnalysis:
     """Test technical aspect detection."""
 
-    def test_analyze_simple_code(self):
+    def test_analyze_simple_code(self) -> None:
         """Test analysis of simple code."""
         analyzer = BayesianTestAnalyzer()
         code = "def test_simple(): assert True"
         issues = analyzer.analyze_technical_aspects(code, "test_simple")
         assert issues == []
 
-    def test_detect_asyncmock_issue(self):
+    def test_detect_asyncmock_issue(self) -> None:
         """Test detection of AsyncMock without await."""
         analyzer = BayesianTestAnalyzer()
         code = """
@@ -78,7 +78,7 @@ def test_async():
         # Should return a list (detection logic may or may not flag AsyncMock)
         assert isinstance(issues, list)
 
-    def test_detect_typing_issue(self):
+    def test_detect_typing_issue(self) -> None:
         """Test detection of typing issues."""
         analyzer = BayesianTestAnalyzer()
         code = """
@@ -92,7 +92,7 @@ def test_types():
 class TestTestCategoryClassification:
     """Test test category classification."""
 
-    def test_classify_unit_test(self):
+    def test_classify_unit_test(self) -> None:
         """Test classification of unit tests."""
         analyzer = BayesianTestAnalyzer()
         code = """
@@ -103,7 +103,7 @@ def test_unit_function():
         issues = analyzer.analyze_technical_aspects(code, "test_unit_function")
         assert isinstance(issues, list)
 
-    def test_classify_integration_test(self):
+    def test_classify_integration_test(self) -> None:
         """Test classification of integration tests."""
         analyzer = BayesianTestAnalyzer()
         code = """
@@ -118,7 +118,7 @@ def test_integration_api():
 class TestPriorProbabilityUpdates:
     """Test Bayesian prior updates."""
 
-    def test_update_priors_after_analysis(self):
+    def test_update_priors_after_analysis(self) -> None:
         """Test that priors can be updated."""
         analyzer = BayesianTestAnalyzer()
         initial_priors = analyzer.prior_probabilities.copy()
@@ -270,7 +270,7 @@ class TestInternalsAndEdgeBranches:
         """Type errors in recency calculation should return safe default of 1.0."""
         analyzer = BayesianTestAnalyzer()
         # Passing an invalid timestamp triggers the exception path
-        weight = analyzer._calculate_recency_weight(timestamp=None)  # type: ignore[arg-type]
+        weight = analyzer._calculate_recency_weight(timestamp=None)
         assert weight == pytest.approx(1.0)
 
     def test_load_history_handles_invalid_json(self, tmp_path):

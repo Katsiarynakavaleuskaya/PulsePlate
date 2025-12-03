@@ -12,6 +12,7 @@ import json
 import logging
 import math
 import os
+import threading
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -28,6 +29,10 @@ from core.bayesian_recommendations import (
 from core.bayesian_technical_utils import analyze_technical_aspects_common
 
 logger = logging.getLogger(__name__)
+
+# Thread-safe lock for global analyzer access
+# Protects bayesian_analyzer singleton from race conditions in multi-threaded tests
+_analyzer_lock = threading.Lock()
 
 
 class TestStatus(Enum):
@@ -882,7 +887,8 @@ def diagnose_test_failure(
     test_name: str, error_message: str, context: Optional[Dict[str, Any]] = None
 ) -> BayesianDiagnosis:
     """Удобная функция для диагностики падения теста."""
-    return bayesian_analyzer.diagnose_test_failure(test_name, error_message, context)
+    with _analyzer_lock:
+        return bayesian_analyzer.diagnose_test_failure(test_name, error_message, context)
 
 
 def record_test_execution(
@@ -908,7 +914,8 @@ def record_test_execution(
         file_path=file_path,
         line_number=line_number,
     )
-    bayesian_analyzer.record_test_execution(execution)
+    with _analyzer_lock:
+        bayesian_analyzer.record_test_execution(execution)
 
 
 def get_analyzer() -> BayesianTestAnalyzer:
@@ -920,8 +927,10 @@ def get_analyzer() -> BayesianTestAnalyzer:
 
     Note:
         Each pytest-xdist worker has its own singleton instance.
+        Access is thread-safe via module-level lock.
     """
-    return bayesian_analyzer
+    with _analyzer_lock:
+        return bayesian_analyzer
 
 
 def reset_analyzer() -> None:
@@ -933,6 +942,8 @@ def reset_analyzer() -> None:
     Note:
         Resets only the current process/worker's singleton.
         Does not affect other pytest-xdist workers.
+        Thread-safe via module-level lock.
     """
     global bayesian_analyzer
-    bayesian_analyzer = BayesianTestAnalyzer()
+    with _analyzer_lock:
+        bayesian_analyzer = BayesianTestAnalyzer()

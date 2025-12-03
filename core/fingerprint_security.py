@@ -2,9 +2,15 @@
 
 The goal is to provide a stable identifier for a client (e.g. hashed IP) without
 ever logging or storing the raw value. A secret salt is used to prevent reverse
-lookups and is loaded from an environment variable when available, otherwise a
-local salt file is created under ``cache/`` to keep fingerprints stable across
-process restarts during development and tests.
+lookups and is loaded from an environment variable when available. If the env var
+is absent, the module attempts to use a cache file under ``cache/`` to persist the
+salt across process restarts.
+
+If both the environment variable and cache file are unavailable (e.g., file creation
+fails or is disabled), a process-local salt is generated as a last-resort fallback.
+Note that this process-local salt is NOT persisted across restarts, so fingerprints
+will not be stable between processes unless a persistent salt is provided via
+environment variable or a successfully written cache file.
 """
 
 from __future__ import annotations

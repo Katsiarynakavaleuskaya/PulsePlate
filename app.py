@@ -2764,9 +2764,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 target_kcal = max(1200, int(tdee_val * (1.0 - pct / 100.0)))
             elif req.goal == "gain":
                 pct = req.surplus_pct if req.surplus_pct is not None else 10.0
-                target_kcal = int(tdee_val * (1.0 + pct / 100.0))
+                target_kcal = max(1200, int(tdee_val * (1.0 + pct / 100.0)))
             else:
-                target_kcal = tdee_val
+                target_kcal = max(1200, int(tdee_val))
 
             # Simple macro split
             protein_g = int(round(1.6 * req.weight_kg))
@@ -3297,7 +3297,12 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             notes.append(t(req.lang, "bmr_katch_note"))
 
         # Calculate recommended intake (using Mifflin as primary)
-        primary_tdee_value_raw: Any = tdee_results.get("mifflin", list(tdee_results.values())[0])
+        # Defensively handle empty tdee_results dict
+        primary_tdee_value_raw: Any = (
+            tdee_results.get("mifflin") or next(iter(tdee_results.values()), None)
+            if tdee_results
+            else None
+        )
         primary_tdee_value: int = (
             int(primary_tdee_value_raw)
             if isinstance(primary_tdee_value_raw, (int, float))
@@ -3372,7 +3377,12 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
         else:
             notes = []
 
-        primary_tdee = tdee_results.get("mifflin", list(tdee_results.values())[0])
+        primary_tdee_raw = (
+            tdee_results.get("mifflin") or next(iter(tdee_results.values()), None)
+            if tdee_results
+            else None
+        )
+        primary_tdee = int(primary_tdee_raw) if isinstance(primary_tdee_raw, (int, float)) else 2000
         recommended_intake = {
             "maintenance": primary_tdee,
             "weight_loss": primary_tdee * 0.8,

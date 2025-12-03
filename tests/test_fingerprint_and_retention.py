@@ -75,15 +75,17 @@ def test_fingerprint_falls_back_when_salt_file_load_fails(
         fingerprint_security, "_load_salt_from_file", return_value=None
     ) as mock_loader:
         salt = fingerprint_security._get_salt()
-        fingerprint_security._get_salt.cache_clear()
+        assert mock_loader.called
+        assert isinstance(salt, str)
+        assert len(salt) > 0
 
-    assert mock_loader.called
-    assert isinstance(salt, str)
-    assert len(salt) > 0
+        # Compute fingerprint while mock is still active
+        fp = fingerprint_security.compute_fingerprint("client-ip", truncate=8)
+        assert isinstance(fp, str)
+        assert fp != ""
 
-    fp = fingerprint_security.compute_fingerprint("client-ip", truncate=8)
-    assert isinstance(fp, str)
-    assert fp != ""
+    # Clear cache after all assertions that depend on the mocked loader
+    fingerprint_security._get_salt.cache_clear()
 
 
 def test_fingerprint_empty_source_returns_empty_string() -> None:
