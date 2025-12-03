@@ -81,7 +81,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
             declare -a FOUND_FOR_FILE=()
 
             # If the file is in tests/ directory, add it directly
-            if [[ $file == tests/*.py ]]; then
+            if [[ $file =~ ^tests/.*\.py$ ]]; then
                 [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
             # Otherwise, check if corresponding test file exists
             elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then
@@ -113,6 +113,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
         done <<< "$PYTHON_CHANGES"
 
         if [ ${#TEST_FILES[@]} -gt 0 ]; then
+            # Deduplicate test files
+            mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
             echo "Running tests: ${TEST_FILES[*]}"
             # Fail fast on first error (-x flag)
             if ! pytest -q "${TEST_FILES[@]}" --tb=short -x; then

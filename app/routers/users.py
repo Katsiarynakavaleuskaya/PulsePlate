@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, Callable, List, TypeVar
-from urllib.parse import urlparse
+import time
+from typing import Callable, List, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
@@ -24,68 +23,81 @@ T = TypeVar("T")
 def _execute_with_retry(
     action: Callable[[Session], T], db: Session, fallback: T | None = None
 ) -> T:
-    """Execute a DB action with a one-time retry after reinitializing schema.
+    """Execute a DB action with non-destructive retry on transient failures.
 
-    If both attempts fail and a fallback is provided, return it to keep endpoints responsive.
-    """
-    try:
-        return action(db)
-    except OperationalError:
-        from core import db as db_module
+    Attempts the action first with the injected DI session. On OperationalError,
+    retries up to 3 times with fresh sessions and exponential backoff, without
+    touching the original session or performing any destructive operations.
 
-        logger = logging.getLogger(__name__)
-        try:
-            db.close()
-        except Exception as e:
-            # Session may already be closed; log and continue
-            logger.debug("Session close failed (likely already closed): %s", e)
+    Args:
+        action: Database operation to execute
+        db: FastAPI-injected session (never closed or modified)
+        fallback: Optional value to return if all retries fail
 
-        _reset_db_file(db_module)
-        retry_session = db_module.SessionLocal()
-        try:
-            return action(retry_session)
-        except OperationalError as exc:
-            if fallback is not None:
-                return fallback
-            raise HTTPException(status_code=503, detail="Database unavailable") from exc
-        finally:
-            retry_session.close()
+    Returns:
+        Result of the action or fallback value
 
-
-def _reset_db_file(db_module: Any) -> None:
-    """Recreate the SQLite DB file if it became readonly or was removed.
-
-    WARNING: This function deletes the database file, causing permanent data loss.
-    Only call in development/test environments or with proper backup procedures.
+    Raises:
+        HTTPException: 503 with original error if all retries fail and no fallback
     """
     logger = logging.getLogger(__name__)
-    url = getattr(db_module, "DATABASE_URL", "")
-    parsed = urlparse(url)
-    if parsed.scheme.startswith("sqlite") and parsed.path:
-        # Distinguish absolute (sqlite:////) vs relative (sqlite:///) paths
-        # Absolute: sqlite:////absolute/path -> 4 slashes, keep leading /
-        # Relative: sqlite:///relative/path -> 3 slashes, strip leading /
-        if url.startswith("sqlite:////"):
-            # Absolute path: keep the leading slash
-            db_path = Path(parsed.path)
-        else:
-            # Relative path: strip the leading slash
-            db_path = Path(parsed.path.lstrip("/"))
+    max_retries = 3
+    base_delay = 0.1  # 100ms base delay
 
-        try:
-            if db_path.exists():
-                # DESTRUCTIVE OPERATION: Removing database file for recovery
-                # This will cause permanent data loss in production!
-                logger.warning(
-                    "DESTRUCTIVE: Removing corrupted/readonly database file for recovery: %s",
-                    db_path,
-                )
-                db_path.unlink()
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-        except (OSError, PermissionError) as e:
-            # Log file removal errors; init_db will try to create as needed
-            logger.debug("DB file reset failed: %s", e)
-    db_module.init_db()
+    # First attempt with injected session
+    try:
+        return action(db)
+    except OperationalError as initial_error:
+        logger.warning(
+            "Database operation failed, attempting non-destructive retry: %s",
+            initial_error,
+        )
+
+        from core import db as db_module
+
+        # Non-destructive retry with fresh sessions and exponential backoff
+        last_error = initial_error
+        for attempt in range(1, max_retries + 1):
+            # Exponential backoff: 100ms, 200ms, 400ms
+            delay = base_delay * (2 ** (attempt - 1))
+            logger.debug(f"Retry attempt {attempt}/{max_retries} after {delay}s delay")
+            time.sleep(delay)
+
+            # Create fresh session for retry (DI session remains untouched)
+            retry_session = db_module.SessionLocal()
+            try:
+                result = action(retry_session)
+                logger.info(f"Database operation succeeded on retry attempt {attempt}")
+                return result
+            except OperationalError as retry_error:
+                last_error = retry_error
+                logger.warning(f"Retry attempt {attempt}/{max_retries} failed: {retry_error}")
+            finally:
+                # Always close the retry session we created
+                retry_session.close()
+
+        # All retries exhausted
+        logger.error(
+            f"Database operation failed after {max_retries} retries. Last error: {last_error}"
+        )
+
+        if fallback is not None:
+            logger.info("Returning fallback value after retry exhaustion")
+            return fallback
+
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database unavailable after {max_retries} retries: {str(last_error)}",
+        ) from last_error
+
+
+# NOTE: Destructive database reset operations have been removed from automatic retry logic.
+# Any database schema resets or file deletions must be performed out-of-band via:
+# - Dedicated admin endpoint with proper authentication and confirmation
+# - Maintenance scripts run by operators with explicit data backup procedures
+# - Manual intervention during development/testing
+#
+# Automatic deletion of database files in request handlers is unsafe and has been eliminated.
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)

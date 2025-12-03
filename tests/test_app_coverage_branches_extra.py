@@ -27,6 +27,9 @@ def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyP
         app.app_module, "_scheduler_stop_background_updates", fake_stop, raising=True
     )
 
+    # Ensure we don't take the pytest force_sync shortcut path
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
     app.start_background_updates(update_interval_hours=12)
     app.stop_background_updates()
 
@@ -37,22 +40,24 @@ def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyP
 def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure wrappers raise ImportError when their dependencies are missing."""
     # Null out all visible locations so wrappers raise ImportError deterministically
-    for target in (
-        (app, "calculate_all_bmr"),
-        (app.app_module, "calculate_all_bmr"),
-        (sys.modules.get("app_module"), "calculate_all_bmr"),
+    for module in (
+        app,
+        app.app_module,
+        sys.modules.get("app_module"),
     ):
-        monkeypatch.setattr(*target, value=None, raising=False)
+        if module is not None:
+            monkeypatch.setattr(module, "calculate_all_bmr", None, raising=False)
     monkeypatch.setitem(app._calculate_all_bmr_wrapper.__globals__, "calculate_all_bmr", None)
     with pytest.raises(ImportError):
         app._calculate_all_bmr_wrapper(70, 175, 30, "male")
 
-    for target in (
-        (app, "calculate_all_tdee"),
-        (app.app_module, "calculate_all_tdee"),
-        (sys.modules.get("app_module"), "calculate_all_tdee"),
+    for module in (
+        app,
+        app.app_module,
+        sys.modules.get("app_module"),
     ):
-        monkeypatch.setattr(*target, value=None, raising=False)
+        if module is not None:
+            monkeypatch.setattr(module, "calculate_all_tdee", None, raising=False)
     monkeypatch.setitem(app._calculate_all_tdee_wrapper.__globals__, "calculate_all_tdee", None)
     with pytest.raises(ImportError):
         app._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")

@@ -84,10 +84,6 @@ exclude_lines =
     # Don't complain about abstract methods
     @abstractmethod
 
-    # For auto-generated methods, add "# pragma: no cover" in source code
-    # Coverage tracks __init__, __eq__, etc. to ensure custom implementations are tested
-    # Only exclude clearly auto-generated methods with explicit pragma comments
-
     # Skip type checking blocks
     if typing.TYPE_CHECKING:
 

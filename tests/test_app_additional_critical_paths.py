@@ -32,11 +32,17 @@ def test_calculate_heuristic_macros_enforces_1200_floor(
     assert abs(total_kcal - clamped_kcal) <= 1
 
 
-def test_generate_who_targets_response_backend_unavailable_fallback() -> None:
+def test_generate_who_targets_response_backend_unavailable_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """_generate_who_targets_response returns fallback when backend missing.
 
     Covers allow_backend_fallback=True branch when build_nutrition_targets is not callable.
     """
+    # Force backend to be unavailable by setting it to None
+    monkeypatch.setattr(app._plate_deps, "build_nutrition_targets_fn", None)
+    monkeypatch.setattr(app, "build_nutrition_targets", None)
+    app.reset_targets_cache()
 
     req = app.WHOTargetsRequest(
         sex="male",
@@ -80,8 +86,11 @@ def test_generate_who_targets_response_backend_unavailable_no_fallback(
     assert isinstance(resp.warnings, list)
 
 
-def test_weekly_plan_to_pdf_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Weekly plan PDF endpoint returns 404 when the route is not registered."""
+def test_weekly_plan_pdf_endpoint_not_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Weekly plan PDF endpoint returns 404 when the route is not registered.
+
+    This test verifies that non-existent endpoints properly return 404.
+    """
 
     from fastapi.testclient import TestClient
 
@@ -116,7 +125,8 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
         assert response.status_code == 404
 
     finally:
-        # Restore original module state
+        # Restore original module state for other tests
+        monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
         if original_app_module is not None:
             sys.modules["app"] = original_app_module
             importlib.reload(app_module)

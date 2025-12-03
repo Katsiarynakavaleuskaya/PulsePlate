@@ -43,7 +43,7 @@ class TestComprehensiveCoverage:
             assert "GROK_ENDPOINT" in data
             assert "insight_enabled" in data
 
-    def test_database_status_endpoint_success(self):
+    def test_database_status_endpoint_success(self) -> None:
         """Test database status endpoint success case."""
         # Mock the update manager to return valid status
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
@@ -68,7 +68,7 @@ class TestComprehensiveCoverage:
                 assert "scheduler" in data
                 assert "databases" in data
 
-    def test_database_status_endpoint_exception(self):
+    def test_database_status_endpoint_exception(self) -> None:
         """Test database status endpoint exception handling."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
@@ -76,7 +76,7 @@ class TestComprehensiveCoverage:
             response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             assert response.status_code in [200, 500, 503]
 
-    def test_force_update_endpoint_success(self):
+    def test_force_update_endpoint_success(self) -> None:
         """Test force update endpoint success case."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
@@ -101,7 +101,7 @@ class TestComprehensiveCoverage:
                 assert "message" in data
                 assert "results" in data
 
-    def test_force_update_endpoint_with_source(self):
+    def test_force_update_endpoint_with_source(self) -> None:
         """Test force update endpoint with specific source."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
@@ -127,7 +127,7 @@ class TestComprehensiveCoverage:
                 assert "message" in data
                 assert "results" in data
 
-    def test_force_update_endpoint_exception(self):
+    def test_force_update_endpoint_exception(self) -> None:
         """Test force update endpoint exception handling."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
@@ -137,7 +137,7 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code in [200, 500, 503]
 
-    def test_check_updates_endpoint_success(self):
+    def test_check_updates_endpoint_success(self) -> None:
         """Test check updates endpoint success case."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
@@ -155,7 +155,7 @@ class TestComprehensiveCoverage:
                 assert "message" in data
                 assert "updates_available" in data
 
-    def test_check_updates_endpoint_exception(self):
+    def test_check_updates_endpoint_exception(self) -> None:
         """Test check updates endpoint exception handling."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
@@ -166,7 +166,7 @@ class TestComprehensiveCoverage:
             assert response.status_code in [200, 500, 503]
 
     @pytest.mark.serial
-    def test_rollback_endpoint_success(self, monkeypatch: pytest.MonkeyPatch):
+    def test_rollback_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test rollback endpoint success case."""
         # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
 
@@ -191,24 +191,28 @@ class TestComprehensiveCoverage:
         ), "API response must contain 'message' key per rollback endpoint contract"
 
     @pytest.mark.serial
-    def test_rollback_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch):
+    def test_rollback_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test rollback endpoint exception handling with deterministic mock."""
 
-        # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
+        # Patch get_update_scheduler to raise an exception
         async def fake_scheduler_error():
-            raise Exception("Test error")
+            raise Exception("Test scheduler error")
 
+        # Patch both the module attribute and globals to ensure the endpoint sees it
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler_error)
+
         response = self.client.post(
             "/api/v1/admin/rollback",
             params={"source": "usda", "target_version": "1.0"},
             headers={"X-API-Key": "test_key"},
         )
-        # Monkeypatch may not affect already-loaded endpoint; accept 200 or 500
-        assert response.status_code in [200, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "Rollback operation failed" in data["detail"]
+
+        # Assert deterministic 500 error response
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
+        assert "Rollback operation failed" in data["detail"]
+        assert "could not get scheduler" in data["detail"]
 
     @pytest.mark.asyncio
     @pytest.mark.serial
@@ -218,9 +222,7 @@ class TestComprehensiveCoverage:
         async def fake_scheduler():
             return SimpleNamespace(update_manager=None)
 
-        with patch.dict(
-            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
-        ):
+        with patch("app.get_update_scheduler", new=fake_scheduler):
             data = await app_mod.rollback_database("usda", "1.0")
         assert "No update manager available" in data["message"]
 
@@ -232,17 +234,17 @@ class TestComprehensiveCoverage:
         async def fake_scheduler():
             return SimpleNamespace(update_manager=SimpleNamespace())
 
-        with patch.dict(
-            app_mod.rollback_database.__globals__, {"get_update_scheduler": fake_scheduler}
-        ):
+        with patch("app.get_update_scheduler", new=fake_scheduler):
             data = await app_mod.rollback_database("usda", "1.0")
         assert "not supported" in data["message"]
 
     @pytest.mark.serial
-    def test_rollback_endpoint_rollback_function_exception(self, monkeypatch: pytest.MonkeyPatch):
+    def test_rollback_endpoint_rollback_function_exception(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test rollback when rollback_database raises exception."""
-        # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
 
+        # Patch get_update_scheduler to return a scheduler with failing rollback
         async def fake_scheduler():
             # Return a scheduler whose rollback_database raises an exception
             async def failing_rollback(source, target_version):
@@ -251,41 +253,50 @@ class TestComprehensiveCoverage:
             mock_update_manager = SimpleNamespace(rollback_database=failing_rollback)
             return SimpleNamespace(update_manager=mock_update_manager)
 
+        # Patch both the module attribute and globals to ensure the endpoint sees it
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+
         response = self.client.post(
             "/api/v1/admin/rollback",
             params={"source": "usda", "target_version": "1.0"},
             headers={"X-API-Key": "test_key"},
         )
-        # Monkeypatch may not affect already-loaded endpoint; accept 200 or 500
-        assert response.status_code in [200, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "Rollback operation failed" in data["detail"]
+
+        # Assert deterministic 500 error response
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
+        assert "Rollback operation failed" in data["detail"]
+        assert "Rollback failed" in data["detail"]
 
     @pytest.mark.serial
-    def test_rollback_endpoint_returns_false(self, monkeypatch: pytest.MonkeyPatch):
+    def test_rollback_endpoint_returns_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test rollback when rollback_database returns False."""
-        # Use monkeypatch.setattr to patch module-level function for FastAPI endpoints
 
+        # Patch get_update_scheduler to return a scheduler with rollback returning False
         async def fake_scheduler():
             # Return a scheduler whose rollback_database returns False
             mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=False))
             return SimpleNamespace(update_manager=mock_update_manager)
 
+        # Patch both the module attribute and globals to ensure the endpoint sees it
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+
         response = self.client.post(
             "/api/v1/admin/rollback",
             params={"source": "usda", "target_version": "1.0"},
             headers={"X-API-Key": "test_key"},
         )
-        # Monkeypatch may not affect already-loaded endpoint; accept 200 or 500
-        assert response.status_code in [200, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "Rollback operation failed" in data["detail"]
 
-    def test_premium_plate_endpoint_success(self):
+        # Assert deterministic 500 error response when rollback returns False
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
+        assert "Rollback operation failed" in data["detail"]
+        assert "usda" in data["detail"]
+        assert "1.0" in data["detail"]
+
+    def test_premium_plate_endpoint_success(self) -> None:
         """Test premium plate endpoint success case."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         try:
@@ -294,16 +305,12 @@ class TestComprehensiveCoverage:
                 patch("app.calculate_all_bmr") as mock_calc_bmr,
                 patch("app.calculate_all_tdee") as mock_calc_tdee,
             ):
-                self._setup_premium_plate_mocks_and_test(
-                    mock_calc_bmr, mock_calc_tdee, mock_make_plate
-                )
+                self._assert_premium_plate_success(mock_calc_bmr, mock_calc_tdee, mock_make_plate)
         finally:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def _setup_premium_plate_mocks_and_test(
-        self, mock_calc_bmr, mock_calc_tdee, mock_make_plate
-    ) -> None:
+    def _assert_premium_plate_success(self, mock_calc_bmr, mock_calc_tdee, mock_make_plate) -> None:
         mock_calc_bmr.return_value = {"mifflin": 1500}
         mock_calc_tdee.return_value = {"mifflin": 2000}
 
@@ -380,7 +387,7 @@ class TestComprehensiveCoverage:
             assert "macros" in data
             assert "portions" in data
 
-    def test_premium_plate_endpoint_value_error(self):
+    def test_premium_plate_endpoint_value_error(self) -> None:
         """Test premium plate endpoint with ValueError."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         try:
@@ -405,7 +412,7 @@ class TestComprehensiveCoverage:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def test_premium_plate_endpoint_general_exception(self):
+    def test_premium_plate_endpoint_general_exception(self) -> None:
         """Test premium plate endpoint with general exception."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.make_plate") as mock_make_plate:
@@ -425,7 +432,7 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code == 500
 
-    def test_who_targets_endpoint_success(self):
+    def test_who_targets_endpoint_success(self) -> None:
         """Test WHO targets endpoint success case."""
         with patch("app.build_nutrition_targets") as mock_build_targets:
             mock_targets = MagicMock()
@@ -470,7 +477,7 @@ class TestComprehensiveCoverage:
                     assert "macros" in data
                     assert "water_ml" in data
 
-    def test_who_targets_endpoint_value_error(self):
+    def test_who_targets_endpoint_value_error(self) -> None:
         """Test WHO targets endpoint with ValueError returns fallback (200)."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.build_nutrition_targets") as mock_build_targets:
@@ -495,7 +502,7 @@ class TestComprehensiveCoverage:
             assert "macros" in data
             assert "kcal_daily" in data
 
-    def test_who_targets_endpoint_general_exception(self):
+    def test_who_targets_endpoint_general_exception(self) -> None:
         """Test WHO targets endpoint with general exception returns fallback (200)."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         with patch("app.build_nutrition_targets") as mock_build_targets:
@@ -520,7 +527,7 @@ class TestComprehensiveCoverage:
             assert "macros" in data
             assert "kcal_daily" in data
 
-    def test_weekly_menu_endpoint_success(self):
+    def test_weekly_menu_endpoint_success(self) -> None:
         """Test weekly menu endpoint success case."""
         with patch("app.make_weekly_menu") as mock_make_menu:
             mock_week_menu = MagicMock()
@@ -562,7 +569,7 @@ class TestComprehensiveCoverage:
                 assert "daily_menus" in data
                 assert "weekly_coverage" in data
 
-    def test_weekly_menu_endpoint_value_error(self):
+    def test_weekly_menu_endpoint_value_error(self) -> None:
         """Test weekly menu endpoint with ValueError."""
         with patch("app.make_weekly_menu") as mock_make_menu:
             mock_make_menu.side_effect = ValueError("Invalid input")
@@ -583,7 +590,7 @@ class TestComprehensiveCoverage:
             # ValueError is caught by app.py L2684 and returns 400 (HTTPException)
             assert response.status_code == 400
 
-    def test_weekly_menu_endpoint_general_exception(self):
+    def test_weekly_menu_endpoint_general_exception(self) -> None:
         """Test weekly menu endpoint with general exception."""
         with patch("app.make_weekly_menu") as mock_make_menu:
             mock_make_menu.side_effect = Exception("Test error")
@@ -603,7 +610,7 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code in [200, 500, 503]
 
-    def test_nutrient_gaps_endpoint_success(self):
+    def test_nutrient_gaps_endpoint_success(self) -> None:
         """Test nutrient gaps endpoint success case."""
         with (
             patch("app.analyze_nutrient_gaps") as mock_analyze,
@@ -665,7 +672,7 @@ class TestComprehensiveCoverage:
                     assert "food_recommendations" in data
                     assert "adherence_score" in data
 
-    def test_nutrient_gaps_endpoint_value_error(self):
+    def test_nutrient_gaps_endpoint_value_error(self) -> None:
         """Test nutrient gaps endpoint with ValueError."""
         payload = {
             "consumed_nutrients": {"protein_g": 80, "fat_g": 60, "carbs_g": 200},
@@ -685,7 +692,7 @@ class TestComprehensiveCoverage:
         # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
         assert response.status_code in [400, 422]
 
-    def test_nutrient_gaps_endpoint_general_exception(self):
+    def test_nutrient_gaps_endpoint_general_exception(self) -> None:
         """Test nutrient gaps endpoint with general exception."""
         with patch("app.analyze_nutrient_gaps") as mock_analyze:
             mock_analyze.side_effect = Exception("Test error")
