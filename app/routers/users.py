@@ -48,6 +48,10 @@ def _execute_with_retry(
     # First attempt with injected session
     try:
         return action(db)
+    except IntegrityError:
+        # Non-retriable conflict (e.g., duplicate email) - propagate as HTTPException/409 from action
+        db.rollback()
+        raise
     except OperationalError as initial_error:
         logger.warning(
             "Database operation failed, attempting non-destructive retry: %s",
@@ -70,6 +74,10 @@ def _execute_with_retry(
                 result = action(retry_session)
                 logger.info("Database operation succeeded on retry attempt %s", attempt)
                 return result
+            except IntegrityError:
+                retry_session.rollback()
+                # Surface immediately; IntegrityError is not retriable in this flow
+                raise
             except OperationalError as retry_error:
                 last_error = retry_error
                 logger.warning("Retry attempt %s/%s failed: %s", attempt, max_retries, retry_error)

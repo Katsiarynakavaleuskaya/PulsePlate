@@ -44,7 +44,7 @@ def test_scheduler_signal_handler_invocation(monkeypatch: pytest.MonkeyPatch):
     # Intercept create_task to avoid running real stop
     created = {}
 
-    def fake_create_task(coro: Any):  # noqa: D401
+    def fake_create_task(coro: Any) -> None:  # noqa: D401
         created["task"] = coro
         # Run coroutine immediately to avoid unawaited warnings
         asyncio.run(coro)

@@ -35,7 +35,7 @@ def create_selective_error(
     target_path: Path,
     error_class: type[BaseException],
     message: str,
-) -> Callable[[Path, Any, Any], Any]:
+) -> Callable[..., Any]:
     """Return a function that raises only for the target path and delegates otherwise."""
 
     def selective_error(self: Path, *args: Any, **kwargs: Any) -> Any:

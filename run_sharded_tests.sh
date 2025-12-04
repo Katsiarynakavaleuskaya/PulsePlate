@@ -78,6 +78,7 @@ build_cmd() {
     local -n out=$2
     # Use per-shard database file to avoid cross-shard write conflicts
     local shard_db="cache/test_app_shard_${shard}.sqlite"
+    mkdir -p "$(dirname "$shard_db")"
     out=(env TEST_DB_PATH="$shard_db" DATABASE_URL="sqlite:///${shard_db}" python -m pytest --shard-id "$shard" tests/ -q)
     if [ "$COVERAGE" = true ]; then
         # Scope coverage to source directories only (not entire repo)

@@ -368,7 +368,7 @@ class TestAppSpecificCoverage96:
         )
         assert response.status_code == 422
 
-    def test_root_endpoint_html_content(self):
+    def test_root_endpoint_html_content(self) -> None:
         """Test root endpoint returns proper HTML content."""
         response = self.client.get("/")
         assert response.status_code == 200
@@ -377,31 +377,31 @@ class TestAppSpecificCoverage96:
         assert "BMI Calculator" in html_content
         assert "html" in html_content.lower()
 
-    def test_favicon_endpoint(self):
+    def test_favicon_endpoint(self) -> None:
         """Test favicon endpoint."""
         response = self.client.get("/favicon.ico")
         # Should return 404 or some response
         assert response.status_code in [200, 404, 204]
 
-    def test_debug_env_endpoint(self):
+    def test_debug_env_endpoint(self) -> None:
         """Test debug environment endpoint."""
         response = self.client.get("/debug_env")
         # Should return some response (might be 404 if not implemented)
         assert response.status_code in [200, 404]
 
-    def test_plan_endpoint(self):
+    def test_plan_endpoint(self) -> None:
         """Test plan endpoint."""
         response = self.client.get("/plan")
         # Should return some response (might be 404 or 405 if not implemented)
         assert response.status_code in [200, 404, 405]
 
-    def test_insight_endpoint(self):
+    def test_insight_endpoint(self) -> None:
         """Test insight endpoint."""
         response = self.client.get("/insight")
         # Should return some response (might be 404 or 405 if not implemented)
         assert response.status_code in [200, 404, 405]
 
-    def test_api_v1_bmi_endpoint(self):
+    def test_api_v1_bmi_endpoint(self) -> None:
         """Test API v1 BMI endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -421,7 +421,7 @@ class TestAppSpecificCoverage96:
             assert "bmi" in data
             assert "category" in data
 
-    def test_api_v1_bmi_pro_endpoint(self):
+    def test_api_v1_bmi_pro_endpoint(self) -> None:
         """Test API v1 BMI Pro endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -437,7 +437,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403, or 422 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_bodyfat_endpoint(self):
+    def test_api_v1_bodyfat_endpoint(self) -> None:
         """Test API v1 bodyfat endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -453,7 +453,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404 if not implemented)
         assert response.status_code in [200, 404]
 
-    def test_api_v1_insight_endpoint(self):
+    def test_api_v1_insight_endpoint(self) -> None:
         """Test API v1 insight endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -469,7 +469,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_premium_bmr_endpoint(self):
+    def test_api_v1_premium_bmr_endpoint(self) -> None:
         """Test API v1 premium BMR endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -485,7 +485,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_premium_targets_endpoint(self):
+    def test_api_v1_premium_targets_endpoint(self) -> None:
         """Test API v1 premium targets endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -501,7 +501,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_premium_plate_endpoint(self):
+    def test_api_v1_premium_plate_endpoint(self) -> None:
         """Test API v1 premium plate endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -517,7 +517,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_premium_plan_week_endpoint(self):
+    def test_api_v1_premium_plan_week_endpoint(self) -> None:
         """Test API v1 premium plan week endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -533,7 +533,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_premium_gaps_endpoint(self):
+    def test_api_v1_premium_gaps_endpoint(self) -> None:
         """Test API v1 premium gaps endpoint."""
         payload = {
             "weight_kg": 70.0,
@@ -549,7 +549,7 @@ class TestAppSpecificCoverage96:
         # Should return some response (might be 404, 403 if not implemented)
         assert response.status_code in [200, 404, 403, 422]
 
-    def test_api_v1_admin_endpoints(self):
+    def test_api_v1_admin_endpoints(self) -> None:
         """Test API v1 admin endpoints."""
         # Test various admin endpoints
         admin_endpoints = [
@@ -564,7 +564,7 @@ class TestAppSpecificCoverage96:
             # Should return some response (might be 404, 405, 401, 403 if not implemented)
             assert response.status_code in [200, 404, 405, 401, 403]
 
-    def test_premium_export_endpoints(self):
+    def test_premium_export_endpoints(self) -> None:
         """Test premium export endpoints."""
         # Test with a dummy plan_id
         plan_id = "test_plan_123"

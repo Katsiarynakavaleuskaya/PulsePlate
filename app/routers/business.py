@@ -62,7 +62,7 @@ async def analyze_business_code(
 
     try:
         # Initialize business analyzer
-        analyzer = BusinessBayesianAnalyzer()
+        analyzer = BusinessBayesianAnalyzer(locale=request.locale)
 
         # Perform business analysis
         results = analyzer.analyze(request.code, request.test_name)

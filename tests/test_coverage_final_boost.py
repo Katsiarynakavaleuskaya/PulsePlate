@@ -2,9 +2,11 @@
 Test coverage boost to reach 97%
 """
 
+import asyncio
 import importlib
+import inspect
 from contextlib import suppress
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -21,15 +23,25 @@ class TestCoverageFinalBoost:
     def test_mcp_pulseplate_server_coverage(self):
         """Test mcp_pulseplate_server.py coverage"""
         with suppress(ImportError):
+            import os
             import mcp_pulseplate_server
 
             # Test main function if it exists
             if hasattr(mcp_pulseplate_server, "main"):
-                with patch("mcp_pulseplate_server.main", new_callable=MagicMock) as mock_main:
-                    mock_main.return_value = None
-                    # Call the mocked function
-                    _ = mock_main()
-                    mock_main.assert_called_once()
+                # Mock external dependencies that main() might use
+                with (
+                    patch("builtins.print"),
+                    patch("mcp_pulseplate_server.PulsePlateMCPServer") as mock_server,
+                    patch("mcp_pulseplate_server.sys.stdin.readline", side_effect=[""]),
+                ):
+                    mock_instance = mock_server.return_value
+                    mock_instance.handle_request = AsyncMock(return_value={})
+                    main_fn = mcp_pulseplate_server.main
+                    with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
+                        if inspect.iscoroutinefunction(main_fn):
+                            asyncio.run(main_fn())
+                        else:
+                            main_fn()
 
     def test_setup_custom_mcp_coverage(self):
         """Test setup_custom_mcp.py coverage"""

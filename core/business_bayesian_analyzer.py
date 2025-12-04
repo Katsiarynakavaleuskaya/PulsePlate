@@ -244,13 +244,16 @@ class BusinessBayesianAnalyzer:
                 with config_path.open("r", encoding="utf-8") as fh:
                     data = yaml_mod.safe_load(fh) or {}
                     if isinstance(data, dict):
-                        return data
+                        if "revenue_streams" in data:
+                            return data
+                        # If YAML missing expected keys, fall back to defaults
             except Exception:
                 logging.debug("Failed to load business_knowledge.yaml", exc_info=True)
 
         # Fallback defaults
         return {
             "revenue_streams": {
+                "subscription": {"price_range": [5, 50]},
                 "subscriptions": {"price_range": [5, 50]},
                 "ads": {"price_range": [0.01, 5]},
             },

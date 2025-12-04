@@ -214,9 +214,6 @@ Please provide a helpful response considering the PulsePlate project context.
         prompt = f"""
 Review this {language} code for the PulsePlate project:
 
-``{language}
-{code}
-```
 
 Please provide:
 1. Code quality assessment

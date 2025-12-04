@@ -96,9 +96,7 @@ def get_retention_manager() -> LogRetentionManager:
         Global LogRetentionManager singleton
     """
     global _retention_manager
-    if _retention_manager is None:
-        with _lock:
-            # Double-checked locking pattern
-            if _retention_manager is None:
-                _retention_manager = LogRetentionManager()
+    with _lock:
+        if _retention_manager is None:
+            _retention_manager = LogRetentionManager()
     return _retention_manager

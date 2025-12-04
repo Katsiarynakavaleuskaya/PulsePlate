@@ -220,26 +220,36 @@ class TestComprehensiveCoverage:
 
     @pytest.mark.asyncio
     @pytest.mark.serial
-    async def test_rollback_function_no_update_manager(self) -> None:
+    async def test_rollback_function_no_update_manager(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test rollback_database function when scheduler has no update_manager."""
 
         async def fake_scheduler():
             return SimpleNamespace(update_manager=None)
 
-        with patch("app.get_update_scheduler", new=fake_scheduler):
-            data = await app_mod.rollback_database("usda", "1.0")
+        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setitem(
+            app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
+        )
+        data = await app_mod.rollback_database("usda", "1.0")
         assert "No update manager available" in data["message"]
 
     @pytest.mark.asyncio
     @pytest.mark.serial
-    async def test_rollback_function_no_rollback_method(self) -> None:
+    async def test_rollback_function_no_rollback_method(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test rollback_database function when update_manager lacks rollback method."""
 
         async def fake_scheduler():
             return SimpleNamespace(update_manager=SimpleNamespace())
 
-        with patch("app.get_update_scheduler", new=fake_scheduler):
-            data = await app_mod.rollback_database("usda", "1.0")
+        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setitem(
+            app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
+        )
+        data = await app_mod.rollback_database("usda", "1.0")
         assert "not supported" in data["message"]
 
     @pytest.mark.serial

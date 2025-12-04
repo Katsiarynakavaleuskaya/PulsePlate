@@ -10,27 +10,7 @@ import pytest
 
 
 class TestSimpleCoverageBoost:
-    """Простые тесты для увеличе            if hasattr(auto_repair_module, 'auto_repair_week_plan'):
-        try:
-            # Создаем минимальные targets для теста
-            from core.targets import MicronutrientTargets
-            targets = MicronutrientTargets()
-            result = auto_repair_module.auto_repair_week_plan({}, targets)
-            assert isinstance(result, (dict, type(None)))
-        except Exception as e:
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            pass
-
-    if hasattr(auto_repair_module, 'suggest_manual_fixes'):
-        try:
-            # Создаем минимальные targets для теста
-            from core.targets import MicronutrientTargets
-            targets = MicronutrientTargets()
-            suggestions = auto_repair_module.suggest_manual_fixes({}, targets)
-            assert isinstance(suggestions, list)
-        except Exception as e:
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            passдулей"""
+    """Простые тесты для увеличения покрытия модулей"""
 
     def test_targets_module_coverage(self):
         """Покрытие core/targets.py (93% -> 97%+)"""
@@ -498,13 +478,10 @@ class TestSimpleCoverageBoost:
             # Импортируем модуль для покрытия
             assert hasattr(unified_db_module, "get_unified_food_db")
 
-            # Тест функции с моком для избежания реальных DB операций
-            with patch("sqlite3.connect") as mock_connect:
-                mock_connect.return_value = None
-                result = await unified_db_module.get_unified_food_db()
-                # Должен обработать None gracefully
-                # Assert that no exception was raised and result is a UnifiedFoodDatabase instance
-                assert isinstance(result, unified_db_module.UnifiedFoodDatabase)
+            # Тест функции без мока - используем реальные файловые операции
+            result = await unified_db_module.get_unified_food_db()
+            # Assert that no exception was raised and result is a UnifiedFoodDatabase instance
+            assert isinstance(result, unified_db_module.UnifiedFoodDatabase)
 
         except ImportError:
             pytest.skip("unified_db module not available")

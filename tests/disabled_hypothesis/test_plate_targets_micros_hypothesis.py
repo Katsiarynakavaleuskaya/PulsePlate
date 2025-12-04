@@ -243,9 +243,9 @@ class TestPlateTargetsMicrosHypothesis:
             for micro in common_micros
             if any(micro in key.lower() for key in day_micros.keys())
         ]
-        assert found_micros, (
-            "Should have at least some common micronutrients, " f"found: {list(day_micros.keys())}"
-        )
+        assert (
+            found_micros
+        ), f"Should have at least some common micronutrients, found: {list(day_micros.keys())}"
 
     @given(
         sex=st.sampled_from(["male", "female"]),

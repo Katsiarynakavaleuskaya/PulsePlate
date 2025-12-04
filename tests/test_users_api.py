@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Generator, cast
+import tempfile
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,12 +18,23 @@ import importlib
 
 
 def _client() -> TestClient:
-    # Reload the db module to ensure we're using the test database
+    # Use an isolated SQLite DB per test client to avoid cross-test interference
+    db_dir = Path(tempfile.mkdtemp(prefix="users_api_db_", dir="cache"))
+    db_path = db_dir / "test_app.sqlite"
+    os.environ["TEST_DB_PATH"] = str(db_path)
+    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+
     db_module = importlib.import_module("core.db")
     importlib.reload(db_module)
-    # Ensure schema exists even if app was imported before test DB fixture configured.
+    app_mod = importlib.reload(app)
+
+    # Ensure schema exists after reload with the new DATABASE_URL
     db_module.init_db()
-    return TestClient(cast(ASGIApp, app.app))
+    from core import models as models_module
+
+    models_module.Base.metadata.create_all(bind=db_module.engine)
+
+    return TestClient(cast(ASGIApp, app_mod.app))
 
 
 def test_create_and_get_user() -> None:
