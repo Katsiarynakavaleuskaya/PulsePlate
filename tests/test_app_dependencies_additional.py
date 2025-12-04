@@ -9,9 +9,11 @@ import app.dependencies as deps
 
 
 def test_validate_template_dir_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """validate_template_dir should raise when directory does not exist."""
+    """validate_template_dir should raise when directory does not exist in strict mode."""
     missing_dir = tmp_path / "does_not_exist"
     monkeypatch.setattr(deps, "TEMPLATE_DIR", str(missing_dir), raising=False)
+    # Enable strict mode to enforce directory existence check
+    monkeypatch.setenv("STRICT_TEMPLATE_VALIDATION", "1")
     with pytest.raises(RuntimeError):
         deps.validate_template_dir()
 

@@ -258,13 +258,6 @@ def stop_background_updates() -> None:
                 )
             else:
                 raise
-        except Exception as e:
-            # Catch any other cleanup-related exceptions that might occur
-            import logging
-
-            logging.getLogger(__name__).debug(
-                "Suppressed exception during background update stop cleanup: %s", type(e).__name__
-            )
     else:
         loop.create_task(stopper())
     return None
