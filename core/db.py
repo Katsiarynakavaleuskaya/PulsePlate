@@ -23,7 +23,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from urllib.parse import urlparse, parse_qs, urlencode
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING

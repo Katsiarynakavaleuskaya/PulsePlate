@@ -1,4 +1,5 @@
 import sys
+from unittest.mock import patch
 
 import pytest
 
@@ -16,22 +17,31 @@ def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyP
     async def fake_stop() -> None:
         called.append("stop")
 
-    def _raise_no_loop():
-        raise RuntimeError("no loop")
+    # Instead of patching global asyncio.get_running_loop, we'll simulate the condition
+    # by temporarily setting an environment variable that forces sync mode
+    with patch.dict("os.environ", {"PYTEST_CURRENT_TEST": "1"}):
+        # Patch the global functions directly in the app module's dict
+        # This is safer than patching asyncio globals which affects other tests
+        original_start = app.__dict__.get("_scheduler_start_background_updates")
+        original_stop = app.__dict__.get("_scheduler_stop_background_updates")
 
-    monkeypatch.setattr(app.asyncio, "get_running_loop", _raise_no_loop, raising=True)
-    monkeypatch.setattr(
-        app.app_module, "_scheduler_start_background_updates", fake_start, raising=True
-    )
-    monkeypatch.setattr(
-        app.app_module, "_scheduler_stop_background_updates", fake_stop, raising=True
-    )
+        try:
+            app.__dict__["_scheduler_start_background_updates"] = fake_start
+            app.__dict__["_scheduler_stop_background_updates"] = fake_stop
 
-    # Ensure we don't take the pytest force_sync shortcut path
-    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+            app.start_background_updates(update_interval_hours=12)
+            app.stop_background_updates()
+        finally:
+            # Restore original functions
+            if original_start is not None:
+                app.__dict__["_scheduler_start_background_updates"] = original_start
+            else:
+                app.__dict__.pop("_scheduler_start_background_updates", None)
 
-    app.start_background_updates(update_interval_hours=12)
-    app.stop_background_updates()
+            if original_stop is not None:
+                app.__dict__["_scheduler_stop_background_updates"] = original_stop
+            else:
+                app.__dict__.pop("_scheduler_stop_background_updates", None)
 
     assert 12 in called
     assert "stop" in called

@@ -5,6 +5,8 @@ Unit tests for BayesianTestAnalyzer.
 Covers the technical test analyzer for code quality checks.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 import builtins
 import core.bayesian_test_analyzer as bayesian_test_analyzer
@@ -553,3 +555,136 @@ class TestEdgeCases:
         long_name = "test_" + "very_long_" * 50 + "name"
         issues = analyzer.analyze_technical_aspects("def test(): pass", long_name)
         assert isinstance(issues, list)
+
+
+class TestTimestampParsing:
+    """Test timezone-aware timestamp parsing."""
+
+    def test_parse_timestamp_with_timezone(self) -> None:
+        """Test parsing ISO timestamp with timezone information."""
+        analyzer = BayesianTestAnalyzer()
+
+        # ISO timestamp with explicit UTC timezone
+        ts_str = "2024-01-15T10:30:00+00:00"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo is not None
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+        assert result.hour == 10
+        assert result.minute == 30
+
+    def test_parse_timestamp_naive_becomes_utc(self) -> None:
+        """Test that naive timestamps are converted to UTC."""
+        analyzer = BayesianTestAnalyzer()
+
+        # ISO timestamp without timezone (naive)
+        ts_str = "2024-01-15T10:30:00"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo is not None
+        assert result.tzinfo == timezone.utc
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
+
+    def test_parse_timestamp_with_z_suffix(self) -> None:
+        """Test parsing ISO timestamp with Z (Zulu/UTC) suffix."""
+        analyzer = BayesianTestAnalyzer()
+
+        # ISO timestamp with Z suffix (UTC)
+        ts_str = "2024-01-15T10:30:00Z"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo is not None
+        # Z should be parsed as UTC
+        assert result.year == 2024
+
+    def test_parse_timestamp_with_offset(self) -> None:
+        """Test parsing ISO timestamp with timezone offset."""
+        analyzer = BayesianTestAnalyzer()
+
+        # ISO timestamp with positive offset
+        ts_str = "2024-01-15T10:30:00+05:30"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo is not None
+        assert result.year == 2024
+
+    def test_parse_timestamp_arithmetic_with_now(self) -> None:
+        """Test that parsed timestamps can be used in arithmetic with timezone-aware now()."""
+        analyzer = BayesianTestAnalyzer()
+
+        # Parse a naive timestamp
+        ts_str = "2024-01-15T10:30:00"
+        parsed_dt = analyzer._parse_timestamp(ts_str)
+
+        # This should NOT raise TypeError about naive/aware datetime subtraction
+        now = datetime.now(timezone.utc)
+        try:
+            time_diff = now - parsed_dt
+            assert time_diff.total_seconds() >= 0  # now should be after parsed time
+        except TypeError as e:
+            pytest.fail(f"Arithmetic failed between aware datetimes: {e}")
+
+    def test_parse_timestamp_with_microseconds(self) -> None:
+        """Test parsing ISO timestamp with microseconds."""
+        analyzer = BayesianTestAnalyzer()
+
+        # ISO timestamp with microseconds
+        ts_str = "2024-01-15T10:30:00.123456"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo is not None
+        assert result.tzinfo == timezone.utc
+        assert result.microsecond == 123456
+
+    def test_parse_timestamp_preserves_timezone(self) -> None:
+        """Test that explicit timezone information is preserved."""
+        analyzer = BayesianTestAnalyzer()
+
+        # ISO timestamp with explicit timezone offset
+        ts_str = "2024-01-15T10:30:00+02:00"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo is not None
+        # Should preserve the +02:00 offset (not convert to UTC)
+        assert result.year == 2024
+        assert result.hour == 10  # Hour should remain 10 in +02:00 timezone
+
+    def test_parse_timestamp_edge_case_year_boundary(self) -> None:
+        """Test parsing timestamp at year boundary."""
+        analyzer = BayesianTestAnalyzer()
+
+        # New Year's Eve timestamp
+        ts_str = "2023-12-31T23:59:59"
+        result = analyzer._parse_timestamp(ts_str)
+
+        assert isinstance(result, datetime)
+        assert result.tzinfo == timezone.utc
+        assert result.year == 2023
+        assert result.month == 12
+        assert result.day == 31
+
+    def test_parse_timestamp_ensures_no_naive_datetimes(self) -> None:
+        """Test that all parsed timestamps are timezone-aware."""
+        analyzer = BayesianTestAnalyzer()
+
+        test_cases = [
+            "2024-01-15T10:30:00",  # Naive
+            "2024-01-15T10:30:00Z",  # UTC
+            "2024-01-15T10:30:00+00:00",  # Explicit UTC
+            "2024-01-15T10:30:00+05:30",  # Offset
+            "2024-01-15T10:30:00-08:00",  # Negative offset
+        ]
+
+        for ts_str in test_cases:
+            result = analyzer._parse_timestamp(ts_str)
+            assert result.tzinfo is not None, f"Timestamp {ts_str} resulted in naive datetime"

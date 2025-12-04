@@ -62,7 +62,8 @@ def test_get_user_not_found() -> None:
     assert response.status_code == 404
 
 
-def test_delete_user_success_and_not_found() -> None:
+def test_delete_user_success_and_idempotent() -> None:
+    """DELETE should be idempotent - return 204 even if user doesn't exist."""
     with _client() as client:
         created = client.post("/api/v1/users", json={"email": "del@example.com", "name": "Del"})
         user_id = created.json()["id"]
@@ -70,8 +71,9 @@ def test_delete_user_success_and_not_found() -> None:
         delete_resp = client.delete(f"/api/v1/users/{user_id}")
         assert delete_resp.status_code == 204
 
+        # Second delete should also return 204 (idempotent behavior)
         missing = client.delete(f"/api/v1/users/{user_id}")
-        assert missing.status_code == 404
+        assert missing.status_code == 204
 
 
 def test_create_user_validation_error() -> None:

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch
 
 from core import fingerprint_security
 from core import log_retention
@@ -51,13 +51,27 @@ def test_fingerprint_handles_file_exists_race_and_chmod_error(
     salt_file.parent.mkdir(parents=True, exist_ok=True)
     salt_file.touch()
 
-    with patch.object(Path, "chmod", side_effect=OSError("no chmod")) as mock_chmod:
+    # Store the original chmod for targeted patching
+    original_chmod = Path.chmod
+    chmod_call_count = 0
+
+    def selective_chmod_error(self: Path, mode: int) -> None:
+        """Raise OSError only for the specific salt_file, allow others."""
+        nonlocal chmod_call_count
+        chmod_call_count += 1
+        if self == salt_file:
+            raise OSError("no chmod")
+        # Allow chmod to proceed for other Path instances
+        original_chmod(self, mode)
+
+    # Patch Path.chmod but only affect the specific salt_file
+    with patch.object(Path, "chmod", selective_chmod_error):
         first = fingerprint_security.compute_fingerprint("client-ip", truncate=8)
         fingerprint_security._get_salt.cache_clear()
         second = fingerprint_security.compute_fingerprint("client-ip", truncate=8)
 
     assert first == second
-    assert mock_chmod.called
+    assert chmod_call_count > 0, "chmod should have been called"
     fingerprint_security._get_salt.cache_clear()
 
 

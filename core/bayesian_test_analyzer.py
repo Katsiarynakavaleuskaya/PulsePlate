@@ -273,6 +273,29 @@ class BayesianTestAnalyzer:
             )
             return 1.0
 
+    def _parse_timestamp(self, ts_str: str) -> datetime:
+        """
+        Parse ISO format timestamp string and ensure timezone awareness.
+
+        RU: Парсинг временной метки ISO формата с обеспечением timezone-aware datetime.
+        EN: Parse ISO timestamp ensuring result is timezone-aware (UTC if naive).
+
+        Args:
+            ts_str: ISO format timestamp string
+
+        Returns:
+            Timezone-aware datetime object (UTC if original was naive)
+
+        Note:
+            This prevents arithmetic errors when subtracting from timezone-aware now().
+            All loaded timestamps are normalized to UTC to ensure consistency.
+        """
+        dt: datetime = datetime.fromisoformat(ts_str)
+        # If timestamp is timezone-naive, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
     def load_history(self) -> None:
         """Загрузить историю выполнения тестов.
 
@@ -297,7 +320,7 @@ class BayesianTestAnalyzer:
                         error_message=item.get("error_message"),
                         execution_time=item.get("execution_time", 0.0),
                         coverage_percentage=item.get("coverage_percentage"),
-                        timestamp=datetime.fromisoformat(item["timestamp"]),
+                        timestamp=self._parse_timestamp(item["timestamp"]),
                         dependencies=item.get("dependencies", []),
                         file_path=item.get("file_path", ""),
                         line_number=item.get("line_number"),

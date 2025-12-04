@@ -6,6 +6,9 @@ from core.recipe_synth import RecipeSynthesizer, get_recipe_synthesizer as get_s
 # Read environment variable once at module load
 TEMPLATE_DIR: str = os.getenv("RECIPE_TEMPLATES_DIR", "data/recipe_templates")
 
+# Truthy string values for environment variable parsing
+_TRUTHY_STRINGS: set[str] = {"1", "true", "yes", "on"}
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,18 +27,14 @@ def validate_template_dir() -> None:
 
     Note:
         This function should be called during FastAPI startup lifecycle to fail fast
-        on misconfiguration rather than raising errors during request handling.
+        on misconfiguration when strict mode is enabled, rather than raising errors
+        during request handling.
 
         If TEMPLATE_DIR doesn't exist, RecipeSynthesizer will create default templates
         automatically, so strict validation is only enforced in production/strict mode.
         Set STRICT_TEMPLATE_VALIDATION=1 to enforce strict directory existence checks.
     """
-    strict_mode = os.getenv("STRICT_TEMPLATE_VALIDATION", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    strict_mode = os.getenv("STRICT_TEMPLATE_VALIDATION", "").strip().lower() in _TRUTHY_STRINGS
 
     # If directory exists, verify it's actually a directory (not a file)
     if os.path.exists(TEMPLATE_DIR) and not os.path.isdir(TEMPLATE_DIR):

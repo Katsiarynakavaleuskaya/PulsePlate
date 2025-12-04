@@ -100,24 +100,46 @@ def _execute_with_retry(
 # Automatic deletion of database files in request handlers is unsafe and has been eliminated.
 
 
-@router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> UserRead:
-    """RU: Создаёт нового пользователя. EN: Create a new user entry."""
+@router.post("", response_model=UserRead)
+def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> Response:
+    """RU: Создаёт нового пользователя. EN: Create a new user entry.
+
+    Returns:
+        - HTTP 201 (Created) when a new user is successfully created
+        - HTTP 409 (Conflict) when a user with the same email already exists
+
+    Raises:
+        HTTPException: 409 if email already exists (duplicate creation attempt)
+    """
 
     def _action(session: Session) -> UserRead:
+        # Check for existing user
         existing = session.execute(
             select(User).where(User.email == payload.email)
         ).scalar_one_or_none()
         if existing:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+            # Email already exists - return 409 Conflict
+            # This prevents duplicate user creation and makes the API semantically correct
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already exists",
+            )
 
+        # Create new user
         user = User(email=payload.email, name=payload.name)
         session.add(user)
         session.commit()
         session.refresh(user)
         return UserRead.model_validate(user)
 
-    return _execute_with_retry(_action, db)
+    user_data = _execute_with_retry(_action, db)
+
+    # Successfully created - return 201
+    return Response(
+        content=user_data.model_dump_json(),
+        media_type="application/json",
+        status_code=status.HTTP_201_CREATED,
+    )
 
 
 @router.get("", response_model=List[UserRead])
@@ -162,7 +184,9 @@ def delete_user(user_id: int, db: Session = Depends(get_session)) -> Response:
     def _action(session: Session) -> Response:
         user = session.get(User, user_id)
         if user is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            # Idempotent: user already deleted (or never existed)
+            # Return 204 instead of 404 to make retries safe
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         session.delete(user)
         session.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)

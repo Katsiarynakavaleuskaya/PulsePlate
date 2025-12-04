@@ -394,14 +394,45 @@ class NutritionBayesianAnalyzer:
 
         Args:
             test_name: Test name for result identification
-            protein_grams: Protein amount in grams
-            fat_grams: Fat amount in grams
-            carb_grams: Carbohydrate amount in grams
+            protein_grams: Protein amount in grams (must be non-negative)
+            fat_grams: Fat amount in grams (must be non-negative)
+            carb_grams: Carbohydrate amount in grams (must be non-negative)
 
         Returns:
             List of NutritionTestResult for any validation errors found
         """
         results = []
+
+        # Explicitly check for negative values before calculating calories
+        # This prevents negative values from being masked by positive values in other macros
+        negative_macros = []
+        if protein_grams < 0:
+            negative_macros.append(f"белок={protein_grams}г")
+        if fat_grams < 0:
+            negative_macros.append(f"жиры={fat_grams}г")
+        if carb_grams < 0:
+            negative_macros.append(f"углеводы={carb_grams}г")
+
+        if negative_macros:
+            results.append(
+                NutritionTestResult(
+                    test_name=test_name,
+                    success=False,
+                    nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
+                    error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
+                    error_message=(
+                        f"Макронутриенты не могут быть отрицательными: "
+                        f"{', '.join(negative_macros)}"
+                    ),
+                    business_impact=(
+                        "Отрицательные значения макронутриентов указывают на ошибки в данных, "
+                        "что может привести к неверным расчетам калорий и рекомендаций"
+                    ),
+                    safety_level="dangerous",
+                )
+            )
+            # Skip further checks when negative values are present
+            return results
 
         # Calculate calories for each macro (protein/carbs = 4 cal/g, fat = 9 cal/g)
         protein_cals = protein_grams * 4
@@ -410,7 +441,7 @@ class NutritionBayesianAnalyzer:
 
         total_calories = protein_cals + fat_cals + carb_cals
 
-        # Validate that total_calories is positive and individual values are non-negative
+        # Validate that total_calories is positive
         # Note: Percentages calculated from calories always sum to ~100% by definition,
         # so we skip redundant percentage sum validation and instead ensure calorie values are valid
         if total_calories <= 0:

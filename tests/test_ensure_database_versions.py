@@ -80,8 +80,18 @@ class TestEnsureDatabaseVersions:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_path = Path(temp_dir) / "database_versions.json"
 
-            # Mock mkdir to raise OSError
-            with patch.object(Path, "mkdir", side_effect=OSError("Permission denied")):
+            # Store original mkdir for targeted patching
+            original_mkdir = Path.mkdir
+
+            def selective_mkdir_error(self: Path, *args, **kwargs) -> None:
+                """Raise OSError only for the specific path's parent, allow others."""
+                if self == test_path.parent:
+                    raise OSError("Permission denied")
+                # Allow mkdir to proceed for other Path instances
+                original_mkdir(self, *args, **kwargs)
+
+            # Patch Path.mkdir but only affect the specific path
+            with patch.object(Path, "mkdir", selective_mkdir_error):
                 with pytest.raises(OSError, match="Permission denied"):
                     ensure_versions_file(test_path)
 
@@ -90,8 +100,18 @@ class TestEnsureDatabaseVersions:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_path = Path(temp_dir) / "database_versions.json"
 
-            # Mock write_text to raise OSError
-            with patch.object(Path, "write_text", side_effect=OSError("Disk full")):
+            # Store original write_text for targeted patching
+            original_write_text = Path.write_text
+
+            def selective_write_error(self: Path, *args, **kwargs) -> None:
+                """Raise OSError only for the specific test_path, allow others."""
+                if self == test_path:
+                    raise OSError("Disk full")
+                # Allow write_text to proceed for other Path instances
+                original_write_text(self, *args, **kwargs)
+
+            # Patch Path.write_text but only affect the specific path
+            with patch.object(Path, "write_text", selective_write_error):
                 with pytest.raises(OSError, match="Disk full"):
                     ensure_versions_file(test_path)
 
@@ -100,8 +120,18 @@ class TestEnsureDatabaseVersions:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_path = Path(temp_dir) / "database_versions.json"
 
-            # Mock write_text to raise PermissionError
-            with patch.object(Path, "write_text", side_effect=PermissionError("Access denied")):
+            # Store original write_text for targeted patching
+            original_write_text = Path.write_text
+
+            def selective_permission_error(self: Path, *args, **kwargs) -> None:
+                """Raise PermissionError only for the specific test_path, allow others."""
+                if self == test_path:
+                    raise PermissionError("Access denied")
+                # Allow write_text to proceed for other Path instances
+                original_write_text(self, *args, **kwargs)
+
+            # Patch Path.write_text but only affect the specific path
+            with patch.object(Path, "write_text", selective_permission_error):
                 with pytest.raises(PermissionError, match="Access denied"):
                     ensure_versions_file(test_path)
 

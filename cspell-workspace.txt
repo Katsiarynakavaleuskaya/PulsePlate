@@ -3452,7 +3452,7 @@
 Технологический
 типа
 типами
-типизац
+типизация
 типизированными
 типичная
 типов
@@ -4495,6 +4495,7 @@ shutil
 Sidi
 signum
 Sigue
+simplefilter
 skipif
 slowapi
 sobreestimar

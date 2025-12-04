@@ -204,13 +204,16 @@ def test_invalid():
         assert analyzer._analyze_bmi_calculations("bmi = bad", "test") == []
 
     def test_negative_macros_handled_gracefully(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Negative macro values should be handled without triggering sum_invalid error.
+        """Negative macro values should be explicitly detected and reported.
 
-        NOTE: This test monkeypatches re.findall based on regex pattern substrings,
-        coupling it to implementation details. If regex patterns change in
-        nutrition_bayesian_analyzer._analyze_nutrition_standards, this test may break.
-        Alternative: Extract validation logic into a testable function accepting
-        parsed macro values directly.
+        Updated to expect error for negative protein values, matching the improved
+        validation logic that explicitly checks each macro before calculating calories.
+        This test ensures negative macros are caught before they can be masked by
+        positive values in other macros.
+
+        Validates that _validate_macronutrients() properly detects negative protein=-5
+        and returns an error, rather than allowing it to pass because fat=20 + carbs=20
+        result in positive total calories.
 
         Patterns matched: r"protein\\s*[=:]\\s*(\\d+(?:\\.\\d+)?)", r"fat\\s*...", r"carbs?\\s*..."
         """
@@ -230,11 +233,12 @@ def test_invalid():
 
         monkeypatch.setattr(nba.re, "findall", _fake_findall)
         results = analyzer._analyze_nutrition_standards("", "test_negative_macros")
-        assert not any(
+        # Should now detect negative protein and return macronutrient_sum_invalid error
+        assert any(
             getattr(r.error_type, "value", "") == "macronutrient_sum_invalid"
             for r in results
             if r.error_type
-        )
+        ), "Expected error for negative protein value"
 
     def test_diagnose_probabilities_with_successful_and_failed_results(self) -> None:
         """diagnose_nutrition_issues should include only failed results."""

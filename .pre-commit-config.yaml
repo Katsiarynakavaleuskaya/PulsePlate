@@ -23,7 +23,7 @@ repos:
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
-    rev: 25.11.0  # Pin to tested version to avoid accidental reformat
+    rev: 24.8.0  # Pin to stable version (pre-25.x) to avoid breaking formatting changes
     hooks:
       - id: black
         name: black (format)

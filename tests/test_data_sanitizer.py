@@ -406,6 +406,8 @@ def test_sanity_filter_default_values() -> None:
     }
 
     result = sanity_filter_plate_data(minimal_data)
-    # day_micros should be omitted (exclude_none=True)
+    # day_micros validator returns empty dict for None input (line 237-238 in data_sanitizer.py)
+    # but model_dump(exclude_none=True) treats empty dict as None for Optional fields
+    # and excludes it from the output
     assert "day_micros" not in result or result["day_micros"] is None
     assert result["meals_per_day"] == 3  # Default value

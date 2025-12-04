@@ -129,7 +129,35 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
         monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
         if original_app_module is not None:
             sys.modules["app"] = original_app_module
-            importlib.reload(app_module)
+            # Reload the actual restored module, not the test-time reference
+            importlib.reload(sys.modules["app"])
         else:
             # If app wasn't in sys.modules before, remove it
             sys.modules.pop("app", None)
+
+
+def test_module_state_restored_after_feature_flag_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that module state is properly restored after feature flag toggle test.
+
+    This test should run after test_bmi_pro_router_feature_flag_toggle to verify
+    that the app module was fully restored and is functioning correctly.
+    """
+    from fastapi.testclient import TestClient
+    import sys
+
+    # Verify app module is in expected state
+    assert "app" in sys.modules
+    assert hasattr(app, "app")
+    assert app.app is not None
+
+    # Verify API endpoints work correctly after module restoration
+    client = TestClient(app.app)
+    response = client.get("/health")
+    assert response.status_code == 200
+
+    # Verify core functionality is intact
+    weight_kg = 70.0
+    prot_g, fat_g, carbs_g = app.calculate_heuristic_macros(1500, weight_kg)
+    assert prot_g > 0
+    assert fat_g > 0
+    assert carbs_g > 0
