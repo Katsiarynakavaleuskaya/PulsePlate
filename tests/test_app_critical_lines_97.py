@@ -19,7 +19,7 @@ class TestAppCriticalLines97:
         # Отправляем невалидный JSON на существующий endpoint
         response = client.post(
             "/api/v1/bmi",
-            data="{'invalid': json}",  # Невалидный JSON
+            content="{'invalid': json}",  # Невалидный JSON
             headers={"Content-Type": "application/json", "X-API-Key": "test-key"},
         )
         assert response.status_code in [422, 400, 500]
@@ -91,7 +91,7 @@ class TestAppCriticalLines97:
 
         # Тест с неправильным Content-Type
         response = client.post(
-            "/api/v1/bmi/calculate", data="test data", headers={"Content-Type": "text/plain"}
+            "/api/v1/bmi/calculate", content="test data", headers={"Content-Type": "text/plain"}
         )
         assert response.status_code in [422, 415]
 

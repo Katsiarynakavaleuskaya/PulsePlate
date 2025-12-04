@@ -89,6 +89,15 @@ def test_file():
 """
         result = analyzer.analyze_test_comprehensively(code, "test_file", "test.py")
         assert isinstance(result, IntegratedTestResult)
+        # Expect safety issues to include unsafe file handling detection
+        assert len(result.safety_issues) > 0, "Expected unsafe file operation to be detected"
+        assert any(
+            "unsafe" in str(issue).lower()
+            or "open(" in str(issue).lower()
+            or "missing context manager" in str(issue).lower()
+            or "file.txt" in str(issue).lower()
+            for issue in result.safety_issues
+        )
 
     def test_detect_hardcoded_password(self) -> None:
         """Test detection of hardcoded passwords."""

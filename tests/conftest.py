@@ -70,8 +70,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
     # Reload db module to pick up new DATABASE_URL
-    db_module_reloaded = importlib.import_module("core.db")
-    db_module_reloaded = importlib.reload(db_module_reloaded)
+    db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
 
     models_module = importlib.import_module("core.models")
     importlib.reload(models_module)
@@ -277,7 +276,8 @@ def _cleanup_users() -> Generator[None, None, None]:
         try:
             db_module.init_db()
         except Exception as init_err:
-            logger.debug(f"init_db during cleanup setup failed: {init_err}")
+            logger.error(f"init_db during cleanup setup failed: {init_err}")
+            raise
 
     yield
 

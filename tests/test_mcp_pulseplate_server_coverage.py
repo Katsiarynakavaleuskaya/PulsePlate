@@ -38,7 +38,7 @@ class TestMcpPulseplateServerCoverage:
             with pytest.raises(ValueError, match="OPENAI_API_KEY environment variable not set"):
                 _ = mcp_pulseplate_server.PulsePlateMCPServer()
 
-    def test_pulseplate_mcp_server_default_model(self):
+    def test_pulseplate_mcp_server_default_model(self) -> None:
         """Test PulsePlateMCPServer uses default model when MCP_OPENAI_MODEL is unset"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
             with patch("openai.OpenAI") as mock_openai:
@@ -51,7 +51,7 @@ class TestMcpPulseplateServerCoverage:
                 assert server.model == "gpt-4o"
                 assert server.model == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
 
-    def test_pulseplate_mcp_server_custom_model(self, monkeypatch: pytest.MonkeyPatch):
+    def test_pulseplate_mcp_server_custom_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test PulsePlateMCPServer accepts custom model via MCP_OPENAI_MODEL"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "gpt-4-turbo")
@@ -65,7 +65,9 @@ class TestMcpPulseplateServerCoverage:
             # Verify custom model is set
             assert server.model == "gpt-4-turbo"
 
-    def test_pulseplate_mcp_server_invalid_model_empty(self, monkeypatch: pytest.MonkeyPatch):
+    def test_pulseplate_mcp_server_invalid_model_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test PulsePlateMCPServer falls back to default when empty model string is set
 
         Empty string is treated as falsy, so DEFAULT_MODEL is used (correct behavior).
@@ -83,7 +85,9 @@ class TestMcpPulseplateServerCoverage:
             assert server.model == "gpt-4o"
             assert server.model == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
 
-    def test_pulseplate_mcp_server_invalid_model_whitespace(self, monkeypatch: pytest.MonkeyPatch):
+    def test_pulseplate_mcp_server_invalid_model_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test PulsePlateMCPServer raises ValueError for whitespace-only model string"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "   ")
@@ -94,7 +98,7 @@ class TestMcpPulseplateServerCoverage:
 
     def test_pulseplate_mcp_server_invalid_model_not_in_whitelist(
         self, monkeypatch: pytest.MonkeyPatch
-    ):
+    ) -> None:
         """Test PulsePlateMCPServer raises ValueError for models not in whitelist"""
         invalid_models = [
             "gpt-5",  # Non-existent model
@@ -114,7 +118,7 @@ class TestMcpPulseplateServerCoverage:
 
             monkeypatch.delenv("MCP_OPENAI_MODEL", raising=False)
 
-    def test_pulseplate_mcp_server_class_constants(self):
+    def test_pulseplate_mcp_server_class_constants(self) -> None:
         """Test PulsePlateMCPServer class constants are properly defined"""
         # Verify DEFAULT_MODEL constant
         assert hasattr(mcp_pulseplate_server.PulsePlateMCPServer, "DEFAULT_MODEL")
@@ -142,7 +146,7 @@ class TestMcpPulseplateServerCoverage:
 
     def test_pulseplate_mcp_server_whitelist_validation_message(
         self, monkeypatch: pytest.MonkeyPatch
-    ):
+    ) -> None:
         """Test that whitelist validation provides helpful error messages"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "invalid-model-xyz")
@@ -162,7 +166,9 @@ class TestMcpPulseplateServerCoverage:
                 for model in mcp_pulseplate_server.PulsePlateMCPServer.ALLOWED_MODELS
             )
 
-    def test_pulseplate_mcp_server_valid_custom_models(self, monkeypatch: pytest.MonkeyPatch):
+    def test_pulseplate_mcp_server_valid_custom_models(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test PulsePlateMCPServer accepts various valid custom model names from whitelist"""
         # Test models from the ALLOWED_MODELS whitelist
         valid_models = [
@@ -194,7 +200,7 @@ class TestMcpPulseplateServerCoverage:
             monkeypatch.delenv("MCP_OPENAI_MODEL", raising=False)
 
     @pytest.mark.asyncio
-    async def test_custom_model_passed_to_api(self, monkeypatch: pytest.MonkeyPatch):
+    async def test_custom_model_passed_to_api(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that custom model is passed to OpenAI API calls"""
         custom_model = "gpt-4-turbo"  # Use valid model from whitelist
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -218,7 +224,7 @@ class TestMcpPulseplateServerCoverage:
             call_args = mock_client.chat.completions.create.call_args
             assert call_args[1]["model"] == custom_model
 
-    def test_load_project_context(self):
+    def test_load_project_context(self) -> None:
         """Test _load_project_context method"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
@@ -235,7 +241,7 @@ class TestMcpPulseplateServerCoverage:
                 assert len(context["key_features"]) > 0
 
     @pytest.mark.asyncio
-    async def test_handle_request_tools_list(self):
+    async def test_handle_request_tools_list(self) -> None:
         """Test handle_request with tools/list method"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI"):
@@ -599,9 +605,13 @@ class TestMcpPulseplateServerCoverage:
                 assert "integrations" in architecture
 
     @pytest.mark.asyncio
-    async def test_chatgpt_query_prompt_building(self):
+    async def test_chatgpt_query_prompt_building(self) -> None:
         """Test ChatGPT query prompt building"""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "test-key", "MCP_OPENAI_MODEL": ""},
+            clear=True,
+        ):
             with patch("openai.OpenAI") as mock_openai:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
@@ -619,7 +629,9 @@ class TestMcpPulseplateServerCoverage:
                 mock_client.chat.completions.create.assert_called_once()
                 call_args = mock_client.chat.completions.create.call_args
 
-                assert call_args[1]["model"] == "gpt-4o"
+                assert (
+                    call_args[1]["model"] == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
+                )
                 assert call_args[1]["max_tokens"] == 1000
                 assert call_args[1]["temperature"] == 0.7
                 assert len(call_args[1]["messages"]) == 2
@@ -627,9 +639,13 @@ class TestMcpPulseplateServerCoverage:
                 assert call_args[1]["messages"][1]["role"] == "user"
 
     @pytest.mark.asyncio
-    async def test_code_review_prompt_building(self):
+    async def test_code_review_prompt_building(self) -> None:
         """Test code review prompt building"""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "test-key", "MCP_OPENAI_MODEL": ""},
+            clear=True,
+        ):
             with patch("openai.OpenAI") as mock_openai:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
@@ -648,14 +664,20 @@ class TestMcpPulseplateServerCoverage:
 
                 # Verify the API was called with proper parameters
                 call_args = mock_client.chat.completions.create.call_args
-                assert call_args[1]["model"] == "gpt-4o"
+                assert (
+                    call_args[1]["model"] == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
+                )
                 assert call_args[1]["max_tokens"] == 1500
                 assert call_args[1]["temperature"] == 0.3
 
     @pytest.mark.asyncio
-    async def test_generate_code_prompt_building(self):
+    async def test_generate_code_prompt_building(self) -> None:
         """Test code generation prompt building"""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "test-key", "MCP_OPENAI_MODEL": ""},
+            clear=True,
+        ):
             with patch("openai.OpenAI") as mock_openai:
                 mock_client = MagicMock()
                 mock_response = MagicMock()
@@ -671,6 +693,8 @@ class TestMcpPulseplateServerCoverage:
 
                 # Verify the API was called with proper parameters
                 call_args = mock_client.chat.completions.create.call_args
-                assert call_args[1]["model"] == "gpt-4o"
+                assert (
+                    call_args[1]["model"] == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
+                )
                 assert call_args[1]["max_tokens"] == 2000
                 assert call_args[1]["temperature"] == 0.5

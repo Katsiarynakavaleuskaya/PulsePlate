@@ -16,6 +16,7 @@ environment variable or a successfully written cache file.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import secrets
 from functools import lru_cache
@@ -42,17 +43,21 @@ def _load_salt_from_file(path: Path) -> str | None:
 
         path.parent.mkdir(parents=True, exist_ok=True)
         generated = secrets.token_hex(16)
-        # Use 'x' mode to fail if file exists (mitigates TOCTOU)
         try:
             with path.open("x") as f:
                 f.write(generated)
         except FileExistsError:
             # Another process created it, read the existing value
-            saved = path.read_text().strip()
-            if saved:
-                return saved
-            # If the file exists but is still empty, persist our generated salt now
-            path.write_text(generated)
+            try:
+                saved = path.read_text().strip()
+                if saved:
+                    return saved
+                # If the file exists but is still empty, persist our generated salt now
+                path.write_text(generated)
+            except Exception:
+                # If we can't read or write the file, return our generated salt
+                # but don't persist it
+                logging.debug("Could not read/write fingerprint salt file", exc_info=True)
 
         try:
             path.chmod(0o600)

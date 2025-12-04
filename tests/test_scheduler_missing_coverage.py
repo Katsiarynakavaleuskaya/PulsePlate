@@ -56,6 +56,8 @@ class TestSchedulerMissingCoverage:
             assert scheduler.is_running is True
             # Should log that scheduler started
             mock_logger.info.assert_called()
+        # Ensure background task is cleaned up
+        await scheduler.stop()
 
     @pytest.mark.asyncio
     async def test_stop_not_running(self):

@@ -3,6 +3,7 @@
 Фокус: безопасные импорты и тестирование реально существующих функций
 """
 
+import asyncio
 import logging
 from unittest.mock import patch
 
@@ -500,7 +501,7 @@ class TestSimpleCoverageBoost:
             # Тест функции с моком для избежания реальных DB операций
             with patch("sqlite3.connect") as mock_connect:
                 mock_connect.return_value = None
-                _ = unified_db_module.get_unified_food_db()
+                _ = asyncio.run(unified_db_module.get_unified_food_db())
                 # Должен обработать None gracefully
 
         except ImportError:

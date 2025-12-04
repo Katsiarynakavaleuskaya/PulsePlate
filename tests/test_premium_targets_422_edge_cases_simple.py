@@ -183,7 +183,7 @@ class TestPremiumTargets422EdgeCasesSimple:
         )
         resp = client.post(
             "/api/v1/premium/targets",
-            data=malformed_json,
+            content=malformed_json,
             headers={"X-API-Key": "test_key", "Content-Type": "application/json"},
         )
 

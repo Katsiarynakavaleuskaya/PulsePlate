@@ -364,7 +364,7 @@ class TestAppSpecificCoverage96:
     def test_bmi_endpoint_malformed_json(self):
         """Test BMI endpoint with malformed JSON."""
         response = self.client.post(
-            "/bmi", data="invalid json", headers={"Content-Type": "application/json"}
+            "/bmi", content="invalid json", headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 422
 

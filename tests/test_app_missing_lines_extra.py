@@ -185,6 +185,9 @@ class TestAppMissingLinesExtra:
             headers={"X-API-Key": "test_key"},
         )
         # Export endpoints may not be fully implemented, expect 200, 500, or 503
+        # TODO: Tighten status code validation once export endpoints are fully implemented
+        #       Remove 503 from allowed status codes after exports return expected responses in CI
+        #       or when feature-complete flag is set
         assert r.status_code in [200, 500, 503]
 
         r = self.client.get(
@@ -192,4 +195,7 @@ class TestAppMissingLinesExtra:
             headers={"X-API-Key": "test_key"},
         )
         # Export endpoints may not be fully implemented, expect 200, 500, or 503
+        # TODO: Tighten status code validation once export endpoints are fully implemented
+        #       Remove 503 from allowed status codes after exports return expected responses in CI
+        #       or when feature-complete flag is set
         assert r.status_code in [200, 500, 503]

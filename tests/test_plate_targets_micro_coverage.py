@@ -21,10 +21,11 @@ except Exception as exc:  # pragma: no cover
 class TestPlateTargetsMicroCoverage:
     """Tests for micronutrient coverage between Plate and Targets endpoints"""
 
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
+    @pytest.fixture(autouse=True)
+    def setup_env(self, monkeypatch):
+        """Setup test environment using monkeypatch to avoid state leakage"""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
     def test_plate_targets_micro_consistency(self, client: TestClient):
         """Test that plate and targets endpoints return consistent micronutrient data"""

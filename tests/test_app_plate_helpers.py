@@ -338,7 +338,7 @@ async def test_api_premium_plate_fallback_aligns_targets(
     assert (
         app.FIBER_MIN_G <= response.macros["fiber_g"] <= 60
     ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 60, got {response.macros['fiber_g']}"
-    assert 1500 <= response.kcal <= 3500, f"Expected 1500 <= kcal <= 3500, got {response.kcal}"
+    assert 2000 <= response.kcal <= 2400, f"Expected 2000 <= kcal <= 2400, got {response.kcal}"
 
 
 @pytest.mark.asyncio
@@ -359,7 +359,7 @@ async def test_api_premium_plate_fallback_handles_target_error(
 
     response = await app.api_premium_plate(request)
 
-    assert 1500 <= response.kcal <= 3500, f"Expected 1500 <= kcal <= 3500, got {response.kcal}"
+    assert 2000 <= response.kcal <= 2400, f"Expected 2000 <= kcal <= 2400, got {response.kcal}"
     assert (
         50 <= response.macros["protein_g"] <= 250
     ), f"Expected 50 <= protein_g <= 250, got {response.macros['protein_g']}"

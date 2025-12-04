@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Literal, Optional
 from core.nutrition_constants import (
     BMI_DANGEROUS_HIGH,
     BMI_DANGEROUS_LOW,
+    BMI_OBESITY_THRESHOLD,
     CARBS_MAX_PERCENT,
     CARBS_MIN_PERCENT,
     FAT_MAX_PERCENT,
@@ -102,6 +103,54 @@ class NutritionBayesianAnalyzer:
         self._total_analyses: int = 0
         self._failed_analyses: int = 0
 
+    def _is_in_test_or_mock_context(self, code: str, test_name: str = "") -> bool:
+        """
+        Lightweight test-context detector to avoid false positives in test/mock contexts.
+
+        Checks for indicators like "def test_", "pytest", "unittest", "mock", "fixture",
+        "test_", "Fake", or comment markers in file names or surrounding code.
+        """
+        # Check test name first (simple and fast)
+        if test_name.lower().startswith("test_"):
+            return True
+
+        # Check for common test/mock context indicators in the code
+        test_indicators = [
+            r"\bdef\s+test_",  # test function definitions
+            r"\bclass\s+Test",  # test class definitions
+            r"\b@pytest\.fixture\b",  # pytest fixture decorator
+            r"\b@mock\.",  # mock decorators
+            r"\bunittest\b",  # unittest module
+            r"\bMock\(",  # Mock instantiation
+            r"\bMagicMock\(",  # MagicMock instantiation
+            r"\bpatch\(",  # patch function
+            r"\bfixture\s*=",  # fixture assignments
+            r"\bmock_",  # mock variable prefixes
+            r"\bfake_",  # fake variable prefixes
+            r"\btest_data\b",  # test data variables
+        ]
+
+        # Combine all indicators into one pattern for efficiency
+        combined_pattern = "|".join(test_indicators)
+        if re.search(combined_pattern, code, re.IGNORECASE):
+            return True
+
+        # Check for import statements that indicate test/mock context
+        import_patterns = [
+            r"^\s*import\s+pytest",
+            r"^\s*import\s+unittest",
+            r"^\s*import\s+mock",
+            r"^\s*from\s+unittest\s+import",
+            r"^\s*from\s+mock\s+import",
+            r"^\s*from\s+pytest\s+import",
+        ]
+
+        for pattern in import_patterns:
+            if re.search(pattern, code, re.MULTILINE | re.IGNORECASE):
+                return True
+
+        return False
+
     def _load_nutrition_knowledge(self) -> Dict[str, Any]:
         """Загружает базу знаний о питании.
 
@@ -147,9 +196,10 @@ class NutritionBayesianAnalyzer:
         RU: Использует централизованные константы из core.nutrition_constants.
         EN: Uses centralized constants from core.nutrition_constants.
         """
+        bmi_high = BMI_DANGEROUS_HIGH if BMI_DANGEROUS_HIGH is not None else BMI_OBESITY_THRESHOLD
         return {
             "bmi_dangerous_low": BMI_DANGEROUS_LOW,  # From nutrition_constants
-            "bmi_dangerous_high": BMI_DANGEROUS_HIGH,  # From nutrition_constants
+            "bmi_dangerous_high": bmi_high,  # From nutrition_constants (fallbacks handled)
             "calorie_dangerous_low": KCAL_MIN_SAFE,  # From nutrition_constants
             "calorie_dangerous_high": KCAL_MAX_SAFE,  # From nutrition_constants
             "nutrient_imbalance_threshold": 0.3,
@@ -251,6 +301,26 @@ class NutritionBayesianAnalyzer:
                 except ValueError:
                     continue
 
+        # Detect explicit calorie consumption calls (e.g., consume_calories(10000))
+        consume_call_pattern = re.compile(r"consume_calories\s*\(\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
+        for match in consume_call_pattern.finditer(code):
+            try:
+                calories = float(match.group(1))
+                if calories > self.safety_thresholds["calorie_dangerous_high"]:
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.CALORIE_CALCULATION,
+                            error_type=NutritionErrorType.CALORIE_OVERFLOW,
+                            error_message=f"Опасно высокое количество калорий: {calories}",
+                            business_impact="Риск переедания и ожирения",
+                            safety_level="dangerous",
+                        )
+                    )
+            except ValueError:
+                continue
+
         return results
 
     def _analyze_bmi_calculations(self, code: str, test_name: str) -> List[NutritionTestResult]:
@@ -294,6 +364,44 @@ class NutritionBayesianAnalyzer:
                 except ValueError:
                     continue
 
+        # Detect calculate_bmi calls with numeric literals (e.g., weight=30, height=180)
+        call_pattern = re.compile(
+            r"calculate_bmi\s*\(\s*weight\s*=\s*([\d.]+)\s*,\s*height\s*=\s*([\d.]+)", re.IGNORECASE
+        )
+        for match in call_pattern.finditer(code):
+            try:
+                weight = float(match.group(1))
+                height = float(match.group(2))
+                height_m = height / 100.0 if height > 10 else height
+                bmi = weight / (height_m**2) if height_m > 0 else 0.0
+                if (
+                    bmi < self.safety_thresholds["bmi_dangerous_low"]
+                    or bmi >= self.safety_thresholds["bmi_dangerous_high"]
+                ):
+                    level = "dangerous"
+                    message = (
+                        f"Опасно низкий BMI: {bmi:.1f}"
+                        if bmi < self.safety_thresholds["bmi_dangerous_low"]
+                        else f"Опасно высокий BMI: {bmi:.1f}"
+                    )
+                    results.append(
+                        NutritionTestResult(
+                            test_name=test_name,
+                            success=False,
+                            nutrition_category=NutritionCategory.BMI_SAFETY,
+                            error_type=NutritionErrorType.BMI_DANGEROUS,
+                            error_message=message,
+                            business_impact=(
+                                "Нет влияния на здоровье"
+                                if bmi >= self.safety_thresholds["bmi_dangerous_high"]
+                                else "Риск анорексии и недоедания"
+                            ),
+                            safety_level=level,
+                        )
+                    )
+            except ValueError:
+                continue
+
         return results
 
     def _analyze_allergen_safety(self, code: str, test_name: str) -> List[NutritionTestResult]:
@@ -301,14 +409,16 @@ class NutritionBayesianAnalyzer:
         results = []
 
         # Поиск упоминаний аллергенов
-        allergen_mentions = []
-        for allergen in self.nutrition_knowledge_base["allergens"]:
-            if allergen.lower() in code.lower():
-                allergen_mentions.append(allergen)
+        code_lower = code.lower()
+        allergen_mentions = [
+            allergen
+            for allergen in self.nutrition_knowledge_base["allergens"]
+            if allergen.lower() in code_lower
+        ]
 
         # Проверка на отсутствие проверок аллергенов
         if allergen_mentions and not any(
-            keyword in code.lower() for keyword in ["allergen", "allergy", "check", "safe"]
+            keyword in code_lower for keyword in ["allergen", "allergy", "check", "safe"]
         ):
             results.append(
                 NutritionTestResult(
@@ -329,18 +439,20 @@ class NutritionBayesianAnalyzer:
         results = []
 
         # Поиск медицинских условий
-        medical_mentions = []
-        for condition in self.nutrition_knowledge_base["medical_conditions"]:
-            if condition.lower() in code.lower():
-                medical_mentions.append(condition)
+        code_lower = code.lower()
+        medical_mentions = [
+            condition
+            for condition in self.nutrition_knowledge_base["medical_conditions"]
+            if condition.lower() in code_lower
+        ]
 
         # Проверка на противоречия в медицинских рекомендациях
         if medical_mentions:
             # Проверка на диабет и высокое содержание сахара
             if (
                 "diabetes" in medical_mentions
-                and "sugar" in code.lower()
-                and "limit" not in code.lower()
+                and "sugar" in code_lower
+                and "limit" not in code_lower
             ):
                 results.append(
                     NutritionTestResult(
@@ -358,7 +470,12 @@ class NutritionBayesianAnalyzer:
 
     def _analyze_data_privacy(self, code: str, test_name: str) -> List[NutritionTestResult]:
         """Анализирует приватность данных."""
-        results = []
+        results: List[NutritionTestResult] = []
+
+        # Skip privacy checks if we're in a test/mock context to avoid false positives,
+        # except when the test explicitly targets privacy behavior.
+        if self._is_in_test_or_mock_context(code, test_name) and "privacy" not in test_name.lower():
+            return results
 
         # Поиск чувствительных данных
         sensitive_patterns = [

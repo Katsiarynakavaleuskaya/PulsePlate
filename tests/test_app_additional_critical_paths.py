@@ -4,7 +4,7 @@ import app
 
 
 @pytest.mark.parametrize(
-    "final_kcal, expected_floor",
+    "final_kcal, expected_kcal",
     [
         (800, 1200),  # below safety floor should be clamped
         (1200, 1200),  # at floor remains unchanged
@@ -12,7 +12,7 @@ import app
     ],
 )
 def test_calculate_heuristic_macros_enforces_1200_floor(
-    final_kcal: int, expected_floor: int
+    final_kcal: int, expected_kcal: int
 ) -> None:
     """calculate_heuristic_macros must enforce a 1200 kcal minimum.
 
@@ -25,7 +25,7 @@ def test_calculate_heuristic_macros_enforces_1200_floor(
     # The function clamps the input to >= 1200 but rounding can lead to
     # total_kcal being off by 1 kcal. We assert both the clamped input
     # and that total_kcal stays within a small tolerance of the target.
-    clamped_kcal = max(final_kcal, expected_floor)
+    clamped_kcal = expected_kcal
     total_kcal = app._macros_to_kcal({"protein_g": prot_g, "fat_g": fat_g, "carbs_g": carbs_g})
 
     assert total_kcal is not None
@@ -53,6 +53,9 @@ def test_generate_who_targets_response_backend_unavailable_fallback(
         goal="maintain",
     )
 
+    # Testing private method directly because there's no public API endpoint
+    # for this specific functionality. The private method is tested to ensure
+    # proper fallback behavior when the backend is unavailable.
     resp = app._generate_who_targets_response(req, allow_backend_fallback=True)
 
     assert resp.kcal_daily > 0
@@ -60,9 +63,7 @@ def test_generate_who_targets_response_backend_unavailable_fallback(
     assert isinstance(resp.warnings, list)
 
 
-def test_generate_who_targets_response_backend_unavailable_no_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_generate_who_targets_response_strict_backend_available() -> None:
     """When allow_backend_fallback=False and backend is available, we still get a valid response.
 
     In CI the backend is wired and callable, so this test asserts the strict
@@ -79,6 +80,9 @@ def test_generate_who_targets_response_backend_unavailable_no_fallback(
         goal="maintain",
     )
 
+    # Testing private method directly because there's no public API endpoint
+    # for this specific functionality. The private method is tested to ensure
+    # proper behavior when the backend is available and fallback is disabled.
     resp = app._generate_who_targets_response(req, allow_backend_fallback=False)
 
     assert resp.kcal_daily > 0
@@ -86,7 +90,7 @@ def test_generate_who_targets_response_backend_unavailable_no_fallback(
     assert isinstance(resp.warnings, list)
 
 
-def test_weekly_plan_pdf_endpoint_not_registered(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_weekly_plan_pdf_endpoint_not_registered() -> None:
     """Weekly plan PDF endpoint returns 404 when the route is not registered.
 
     This test verifies that non-existent endpoints properly return 404.
@@ -96,7 +100,7 @@ def test_weekly_plan_pdf_endpoint_not_registered(monkeypatch: pytest.MonkeyPatch
 
     client = TestClient(app.app)
 
-    # Non-existent endpoint should return 404 regardless of resolve_attr
+    # Non-existent endpoint should return 404 when the route is not registered
     response = client.get("/api/v1/weekly-plan/pdf/123")
 
     assert response.status_code == 404
@@ -110,8 +114,11 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
     import sys
     import app as app_module
 
-    # Save original module state
+    # Save original module and feature flag state
     original_app_module = sys.modules.get("app")
+    import os
+
+    original_flag = os.environ.get("FEATURE_BMI_PRO_ENABLED")
 
     try:
         monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
@@ -125,8 +132,11 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
         assert response.status_code == 404
 
     finally:
-        # Restore original module state for other tests
-        monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+        # Restore original feature flag for other tests
+        if original_flag is None:
+            monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+        else:
+            monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", original_flag)
         if original_app_module is not None:
             sys.modules["app"] = original_app_module
             # Reload the actual restored module, not the test-time reference

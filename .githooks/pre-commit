@@ -18,6 +18,7 @@ echo "🔍 Running pre-commit checks..."
 # 1. Clean Python cache files
 echo "🧹 Cleaning cache files..."
 # Use Homebrew bash explicitly to support nameref (requires Bash 4.3+)
+# Selects the preferred Bash interpreter (Apple Silicon/Homebrew/system)
 # Check Apple Silicon (/opt/homebrew), then Intel (/usr/local), then system bash
 if [ -x /opt/homebrew/bin/bash ]; then
     BASH_BIN=/opt/homebrew/bin/bash
@@ -28,6 +29,8 @@ else
 fi
 
 # Verify Bash version (requires 4.3+ for nameref support)
+# Validates the selected binary's version (they can differ)
+# Both checks are necessary because the running shell and targeted bash binary may not be the same
 BASH_VERSION_OUTPUT=$($BASH_BIN --version 2>&1 | head -n1)
 if [[ $BASH_VERSION_OUTPUT =~ version\ ([0-9]+)\.([0-9]+) ]]; then
     BASH_MAJOR="${BASH_REMATCH[1]}"

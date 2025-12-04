@@ -27,8 +27,6 @@ JS_EVENT_PATTERN = re.compile(r"on\w+\s*=\s*['\"].*?['\"]|javascript:", re.IGNOR
 class ValidationError(ValueError):
     """Custom validation error for plate data sanitization."""
 
-    pass
-
 
 class VisualShapeSchema(BaseModel):
     """Schema for visual layout items (plate sectors, bowls, markers)."""
@@ -44,8 +42,6 @@ class VisualShapeSchema(BaseModel):
     @classmethod
     def sanitize_strings(cls, v: str) -> str:
         """Strip HTML/JS tags and escape dangerous characters."""
-        if not isinstance(v, str):
-            raise ValueError("Must be a string")
         # Strip HTML tags
         v = HTML_TAG_PATTERN.sub("", v)
         # Strip JS event handlers
@@ -73,8 +69,6 @@ class MealSchema(BaseModel):
     @classmethod
     def sanitize_title(cls, v: str) -> str:
         """Strip HTML/JS tags and escape dangerous characters."""
-        if not isinstance(v, str):
-            raise ValueError("Title must be a string")
         # Strip HTML tags
         v = HTML_TAG_PATTERN.sub("", v)
         # Strip JS event handlers
@@ -288,7 +282,10 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
         # Validate using Pydantic schema
         validated = PlateDataSchema.model_validate(data)
         # Return cleaned dictionary (Pydantic already handles SQL-safe output)
-        return validated.model_dump(exclude_none=True)
+        result = validated.model_dump(exclude_none=True)
+        # Ensure day_micros is present as an empty dict when omitted in input
+        result.setdefault("day_micros", {})
+        return result
     except Exception as e:
         # Convert Pydantic validation errors to our custom ValidationError
         raise ValidationError(f"Plate data validation failed: {str(e)}") from e

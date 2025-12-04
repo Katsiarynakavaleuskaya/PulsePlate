@@ -230,8 +230,12 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
         # If already in a running event loop (e.g., FastAPI TestClient), skip async calls
         try:
             asyncio.get_running_loop()
+            # Already inside a running loop – skip async DB load to avoid nested loop errors
             raise RuntimeError("running event loop; skip async food DB load")
-        except RuntimeError:
+        except RuntimeError as loop_err:
+            if "running event loop" in str(loop_err):
+                # Defer to the fallback mock DB below when a loop is already running
+                raise
             # No running loop – safe to create a temporary event loop
             loop = asyncio.new_event_loop()
             try:

@@ -99,78 +99,79 @@ def analyze_technical_aspects_common(code: str) -> List[str]:
     try:
         tree = ast.parse(code)
 
-        has_async_def = any(isinstance(node, ast.AsyncFunctionDef) for node in ast.walk(tree))
-        has_await = any(isinstance(node, ast.Await) for node in ast.walk(tree))
-        has_raise = any(isinstance(node, ast.Raise) for node in ast.walk(tree))
-        has_try = any(isinstance(node, ast.Try) for node in ast.walk(tree))
-        # Check all function definitions including class methods (use ast.walk instead of iter_child_nodes)
-        # to inspect FunctionDef/AsyncFunctionDef inside ClassDef bodies
-        missing_return_annotation = any(
-            node.returns is None
-            and not getattr(node, "name", "").startswith("test_")
-            and _has_explicit_return_or_yield(node)
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        )
-        has_mock_call = any(
-            isinstance(node, ast.Call)
-            and (
-                (isinstance(node.func, ast.Name) and node.func.id == "Mock")
-                or (isinstance(node.func, ast.Attribute) and node.func.attr == "Mock")
-            )
-            for node in ast.walk(tree)
-        )
-        has_asyncmock_call = any(
-            isinstance(node, ast.Call)
-            and (
-                (isinstance(node.func, ast.Name) and node.func.id == "AsyncMock")
-                or (isinstance(node.func, ast.Attribute) and node.func.attr == "AsyncMock")
-            )
-            for node in ast.walk(tree)
-        )
-
-        # Check if code contains pytest.raises or assertRaises patterns (test-related exception handling)
-        has_pytest_raises = any(
-            isinstance(node, ast.With)
-            and any(
-                isinstance(item.context_expr, ast.Call)
-                and (
-                    # pytest.raises(...)
-                    (
-                        isinstance(item.context_expr.func, ast.Attribute)
-                        and item.context_expr.func.attr == "raises"
-                        and isinstance(item.context_expr.func.value, ast.Name)
-                        and item.context_expr.func.value.id == "pytest"
-                    )
-                    # Just raises(...) if pytest is imported differently
-                    or (
-                        isinstance(item.context_expr.func, ast.Name)
-                        and item.context_expr.func.id == "raises"
-                    )
-                )
-                for item in node.items
-            )
-            for node in ast.walk(tree)
-        )
-
-        # Check for assertRaises patterns
-        has_assert_raises = any(
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "assertRaises"
-            for node in ast.walk(tree)
-        )
+        # Single AST walk to collect all needed information for better performance
+        has_async_def = False
+        has_await = False
+        has_raise = False
+        has_try = False
+        missing_return_annotation = False
+        has_mock_call = False
+        has_asyncmock_call = False
+        has_pytest_raises = False
+        has_assert_raises = False
+        has_intentional_raise_function = False
 
         # Precompile regex for efficiency
         intentional_raise_pattern = re.compile(
             r"^(raise_|validate_|ensure_).*|.*_error$", re.IGNORECASE
         )
-        # Check if any function has a name matching intentional raising patterns
-        has_intentional_raise_function = any(
-            intentional_raise_pattern.match(node.name)
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        )
+
+        # Walk the AST once and collect all information
+        for node in ast.walk(tree):
+            # Collect basic node type information
+            if isinstance(node, ast.AsyncFunctionDef):
+                has_async_def = True
+            elif isinstance(node, ast.Await):
+                has_await = True
+            elif isinstance(node, ast.Raise):
+                has_raise = True
+            elif isinstance(node, ast.Try):
+                has_try = True
+            elif isinstance(node, ast.Call):
+                # Check for Mock calls
+                if (isinstance(node.func, ast.Name) and node.func.id == "Mock") or (
+                    isinstance(node.func, ast.Attribute) and node.func.attr == "Mock"
+                ):
+                    has_mock_call = True
+                # Check for AsyncMock calls
+                elif (isinstance(node.func, ast.Name) and node.func.id == "AsyncMock") or (
+                    isinstance(node.func, ast.Attribute) and node.func.attr == "AsyncMock"
+                ):
+                    has_asyncmock_call = True
+                # Check for assertRaises patterns
+                elif isinstance(node.func, ast.Attribute) and node.func.attr == "assertRaises":
+                    has_assert_raises = True
+            elif isinstance(node, ast.With):
+                # Check for pytest.raises patterns
+                for item in node.items:
+                    if isinstance(item.context_expr, ast.Call):
+                        # pytest.raises(...)
+                        if (
+                            isinstance(item.context_expr.func, ast.Attribute)
+                            and item.context_expr.func.attr == "raises"
+                            and isinstance(item.context_expr.func.value, ast.Name)
+                            and item.context_expr.func.value.id == "pytest"
+                        ):
+                            has_pytest_raises = True
+                        # Just raises(...) if pytest is imported differently
+                        elif (
+                            isinstance(item.context_expr.func, ast.Name)
+                            and item.context_expr.func.id == "raises"
+                        ):
+                            has_pytest_raises = True
+            # Check function definitions for return annotations and intentional raise patterns
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                # Check for missing return annotations
+                if (
+                    node.returns is None
+                    and not getattr(node, "name", "").startswith("test_")
+                    and _has_explicit_return_or_yield(node)
+                ):
+                    missing_return_annotation = True
+
+                # Check if any function has a name matching intentional raising patterns
+                if intentional_raise_pattern.match(node.name):
+                    has_intentional_raise_function = True
 
         # Async checks
         if has_async_def and not has_await:

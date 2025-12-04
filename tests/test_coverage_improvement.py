@@ -4,7 +4,7 @@ Additional tests to improve coverage to 97%+.
 
 import os
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -125,7 +125,7 @@ class TestCoverageImprovement:
 
         # Test scheduler start when already running
         with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
+            mock_scheduler = MagicMock()
             mock_scheduler.is_running = True
             mock_get_scheduler.return_value = mock_scheduler
 

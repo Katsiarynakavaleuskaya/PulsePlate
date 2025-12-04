@@ -9,6 +9,9 @@ import sys
 from importlib.machinery import ModuleSpec
 from typing import Optional, cast
 
+# Capture reference to this package module early for cross-module fallbacks
+_this_module = sys.modules[__name__]
+
 # Import FastAPI app and functions from the main module
 
 # Add parent directory to path for imports
@@ -32,6 +35,8 @@ else:
     # Register module in sys.modules BEFORE executing to handle circular refs
     sys.modules["app_module"] = _app_module
     spec.loader.exec_module(_app_module)
+    # Allow app.py (app_module) to reach back to this package wrapper when needed
+    setattr(_app_module, "_APP_PACKAGE_REF", _this_module)
     app = _app_module.app
     get_api_key = _app_module.get_api_key
     get_update_scheduler = _app_module.get_update_scheduler
@@ -44,8 +49,6 @@ else:
     _mod = _app_module
 
 # Create a module spec for this package
-# Capture reference to this module BEFORE any potential monkeypatching
-_this_module = sys.modules[__name__]
 
 
 class _RebindingModuleSpec(ModuleSpec):

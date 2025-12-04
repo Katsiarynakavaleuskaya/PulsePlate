@@ -16,6 +16,8 @@ import pytest
 class TestAppDBFallback97:
     """Tests for app.py DB fallback logic to achieve 97% coverage."""
 
+    TRUTHY = {"1", "true", "yes", "on"}
+
     def test_attempt_db_fallback_production_inmemory_rejected(self) -> None:
         """Production environment rejects in-memory DB fallback."""
         import app
@@ -23,14 +25,13 @@ class TestAppDBFallback97:
         # Simulate production environment with in-memory fallback
         with patch.dict(os.environ, {"DB_FALLBACK_URL": "sqlite:///:memory:"}):
             mock_err = Exception("Primary DB failed")
-            truthy = {"1", "true", "yes", "on"}
 
             with pytest.raises(Exception, match="Primary DB failed"):
                 app._attempt_db_fallback(
                     env_name="production",
                     is_production=True,
                     db_err=mock_err,
-                    truthy=truthy,
+                    truthy=self.TRUTHY,
                 )
 
     def test_attempt_db_fallback_production_no_override(
@@ -44,14 +45,13 @@ class TestAppDBFallback97:
         monkeypatch.delenv("ALLOW_DB_PERSISTENT_FALLBACK", raising=False)
 
         mock_err = Exception("Primary DB failed")
-        truthy = {"1", "true", "yes", "on"}
 
         with pytest.raises(Exception, match="Primary DB failed"):
             app._attempt_db_fallback(
                 env_name="production",
                 is_production=True,
                 db_err=mock_err,
-                truthy=truthy,
+                truthy=self.TRUTHY,
             )
 
     def test_attempt_db_fallback_production_persistent_allowed(
@@ -64,7 +64,6 @@ class TestAppDBFallback97:
         monkeypatch.setenv("ALLOW_DB_PERSISTENT_FALLBACK", "1")
 
         mock_err = Exception("Primary DB failed")
-        truthy = {"1", "true", "yes", "on"}
 
         # Mock SQLAlchemy engine creation to avoid actual DB operations
         with (
@@ -82,7 +81,7 @@ class TestAppDBFallback97:
                 env_name="production",
                 is_production=True,
                 db_err=mock_err,
-                truthy=truthy,
+                truthy=self.TRUTHY,
             )
 
             # Verify fallback was attempted
@@ -99,7 +98,6 @@ class TestAppDBFallback97:
         monkeypatch.delenv("ALLOW_DB_INMEMORY_FALLBACK", raising=False)
 
         mock_err = OSError("Primary DB failed")
-        truthy = {"1", "true", "yes", "on"}
 
         with (
             patch("sqlalchemy.create_engine") as mock_create_engine,
@@ -114,7 +112,7 @@ class TestAppDBFallback97:
                 env_name="local",
                 is_production=False,
                 db_err=mock_err,
-                truthy=truthy,
+                truthy=self.TRUTHY,
             )
 
             mock_create_engine.assert_called_once()
@@ -129,7 +127,6 @@ class TestAppDBFallback97:
         monkeypatch.setenv("ALLOW_DB_INMEMORY_FALLBACK", "true")
 
         mock_err = Exception("Generic DB error")
-        truthy = {"1", "true", "yes", "on"}
 
         with (
             patch("sqlalchemy.create_engine") as mock_create_engine,
@@ -143,7 +140,7 @@ class TestAppDBFallback97:
                 env_name="dev",
                 is_production=False,
                 db_err=mock_err,
-                truthy=truthy,
+                truthy=self.TRUTHY,
             )
 
             mock_create_engine.assert_called_once()
@@ -154,7 +151,6 @@ class TestAppDBFallback97:
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///:memory:")
         mock_err = OSError("Primary DB failed")
-        truthy = {"1", "true", "yes", "on"}
 
         with patch("sqlalchemy.create_engine", side_effect=Exception("Fallback failed")):
             # Should raise original error when fallback fails
@@ -163,5 +159,5 @@ class TestAppDBFallback97:
                     env_name="local",
                     is_production=False,
                     db_err=mock_err,
-                    truthy=truthy,
+                    truthy=self.TRUTHY,
                 )

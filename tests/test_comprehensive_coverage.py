@@ -31,19 +31,24 @@ class TestComprehensiveCoverage:
         if "FEATURE_PREMIUM_NUTRITION" in os.environ:
             del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def test_debug_env_endpoint(self) -> None:
-        """Test debug_env endpoint."""
-        response = self.client.get("/debug_env")
-        assert response.status_code in [200, 500, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "FEATURE_INSIGHT" in data
-            assert "LLM_PROVIDER" in data
-            assert "GROK_MODEL" in data
-            assert "GROK_ENDPOINT" in data
-            assert "insight_enabled" in data
+    def test_debug_env_endpoint(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test debug_env endpoint with deterministic response."""
+        # Mock environment variables to ensure consistent response
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("LLM_PROVIDER", "grok")
+        monkeypatch.setenv("GROK_MODEL", "grok-1")
+        monkeypatch.setenv("GROK_ENDPOINT", "https://api.x.ai/v1/chat/completions")
 
-    def test_database_status_endpoint_success(self) -> None:
+        response = self.client.get("/debug_env")
+        assert response.status_code == 200
+        data = response.json()
+        assert "FEATURE_INSIGHT" in data
+        assert "LLM_PROVIDER" in data
+        assert "GROK_MODEL" in data
+        assert "GROK_ENDPOINT" in data
+        assert "insight_enabled" in data
+
+    def test_database_status_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test database status endpoint success case."""
         # Mock the update manager to return valid status
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
@@ -62,11 +67,10 @@ class TestComprehensiveCoverage:
             mock_get_scheduler.return_value = mock_scheduler
 
             response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
-            assert response.status_code in [200, 500, 503]
-            if response.status_code == 200:
-                data = response.json()
-                assert "scheduler" in data
-                assert "databases" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "scheduler" in data
+            assert "databases" in data
 
     def test_database_status_endpoint_exception(self) -> None:
         """Test database status endpoint exception handling."""
@@ -216,7 +220,7 @@ class TestComprehensiveCoverage:
 
     @pytest.mark.asyncio
     @pytest.mark.serial
-    async def test_rollback_function_no_update_manager(self):
+    async def test_rollback_function_no_update_manager(self) -> None:
         """Test rollback_database function when scheduler has no update_manager."""
 
         async def fake_scheduler():
@@ -228,7 +232,7 @@ class TestComprehensiveCoverage:
 
     @pytest.mark.asyncio
     @pytest.mark.serial
-    async def test_rollback_function_no_rollback_method(self):
+    async def test_rollback_function_no_rollback_method(self) -> None:
         """Test rollback_database function when update_manager lacks rollback method."""
 
         async def fake_scheduler():

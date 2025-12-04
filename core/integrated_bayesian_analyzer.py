@@ -181,7 +181,13 @@ class IntegratedBayesianAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze technical aspects of the test."""
-        return analyze_technical_aspects_common(code)
+        issues = analyze_technical_aspects_common(code)
+        code_lower = code.lower()
+        if "password" in code_lower:
+            issues.append("Password leak detected")
+        if "eval(" in code_lower:
+            issues.append("Dangerous eval usage")
+        return issues
 
     def _is_in_test_or_mock_context(self, code: str) -> bool:
         """
@@ -518,6 +524,7 @@ class IntegratedBayesianAnalyzer:
             r"subprocess\.(run|call|popen)\(",
         ]
         if any(re.search(pattern, code, re.IGNORECASE) for pattern in command_injection_patterns):
+            # Keep command injection detection active even in test contexts to ensure safety checks
             issues.append("Potential command injection risk")
 
         # Unsafe file handling - AST-based check for precise detection

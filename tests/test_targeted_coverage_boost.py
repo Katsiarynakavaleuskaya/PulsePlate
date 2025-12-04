@@ -5,7 +5,7 @@ Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 import logging
 import os
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -140,7 +140,7 @@ class TestTargetedCoverageBoost:
     def test_scheduler_py_lines_135_137(self):
         """Test lines 135-137 in scheduler.py (stop method when not running)."""
         with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
+            mock_scheduler = MagicMock()
             mock_scheduler.is_running = False  # Not running
             mock_get_scheduler.return_value = mock_scheduler
 

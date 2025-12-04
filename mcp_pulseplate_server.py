@@ -20,8 +20,7 @@ class PulsePlateMCPServer:
     DEFAULT_MODEL: str = "gpt-4o"
 
     # Allowed OpenAI model names (fail-fast validation)
-    # Expected models: gpt-4o (default), gpt-4o-mini, gpt-4, gpt-4-turbo, gpt-3.5-turbo
-    # Add new models to this whitelist as they become available
+    # See ALLOWED_MODELS for the current whitelist; extend as new models become available.
     ALLOWED_MODELS: set[str] = {
         "gpt-4o",
         "gpt-4o-mini",

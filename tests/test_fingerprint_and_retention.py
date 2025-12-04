@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -108,21 +108,18 @@ def test_fingerprint_empty_source_returns_empty_string() -> None:
     assert fingerprint_security.compute_fingerprint("", truncate=16) == ""
 
 
-def test_fingerprint_long_salt_hashed() -> None:
+def test_fingerprint_long_salt_hashed(monkeypatch: pytest.MonkeyPatch) -> None:
     """Salt longer than 32 bytes is hashed before use in blake2s."""
     # Force a very long salt via environment
     long_salt = "a" * 100
 
-    os.environ[fingerprint_security.SALT_ENV_VAR] = long_salt
+    monkeypatch.setenv(fingerprint_security.SALT_ENV_VAR, long_salt)
     fingerprint_security._get_salt.cache_clear()
 
-    try:
-        fp = fingerprint_security.compute_fingerprint("test-source", truncate=12)
-        assert isinstance(fp, str)
-        assert len(fp) == 12
-    finally:
-        del os.environ[fingerprint_security.SALT_ENV_VAR]
-        fingerprint_security._get_salt.cache_clear()
+    fp = fingerprint_security.compute_fingerprint("test-source", truncate=12)
+    assert isinstance(fp, str)
+    assert len(fp) == 12
+    fingerprint_security._get_salt.cache_clear()
 
 
 def test_fingerprint_file_read_exception_fallback(

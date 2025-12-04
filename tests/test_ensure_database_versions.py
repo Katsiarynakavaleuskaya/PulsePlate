@@ -8,6 +8,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch, mock_open
 import pytest
 import importlib.util
@@ -27,6 +28,19 @@ sys.modules["scripts.ensure_database_versions"] = ensure_database_versions
 ensure_versions_file = ensure_database_versions.ensure_versions_file
 main = ensure_database_versions.main
 DEFAULT_META = ensure_database_versions.DEFAULT_META
+
+
+def create_selective_error(
+    original_method, target_path: Path, error_class: type[BaseException], message: str
+):
+    """Return a function that raises only for the target path and delegates otherwise."""
+
+    def selective_error(self: Path, *args: Any, **kwargs: Any):
+        if self == target_path:
+            raise error_class(message)
+        return original_method(self, *args, **kwargs)
+
+    return selective_error
 
 
 class TestEnsureDatabaseVersions:
@@ -80,17 +94,9 @@ class TestEnsureDatabaseVersions:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_path = Path(temp_dir) / "database_versions.json"
 
-            # Store original mkdir for targeted patching
-            original_mkdir = Path.mkdir
-
-            def selective_mkdir_error(self: Path, *args, **kwargs) -> None:
-                """Raise OSError only for the specific path's parent, allow others."""
-                if self == test_path.parent:
-                    raise OSError("Permission denied")
-                # Allow mkdir to proceed for other Path instances
-                original_mkdir(self, *args, **kwargs)
-
-            # Patch Path.mkdir but only affect the specific path
+            selective_mkdir_error = create_selective_error(
+                Path.mkdir, test_path.parent, OSError, "Permission denied"
+            )
             with patch.object(Path, "mkdir", selective_mkdir_error):
                 with pytest.raises(OSError, match="Permission denied"):
                     ensure_versions_file(test_path)
@@ -100,17 +106,9 @@ class TestEnsureDatabaseVersions:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_path = Path(temp_dir) / "database_versions.json"
 
-            # Store original write_text for targeted patching
-            original_write_text = Path.write_text
-
-            def selective_write_error(self: Path, *args, **kwargs) -> None:
-                """Raise OSError only for the specific test_path, allow others."""
-                if self == test_path:
-                    raise OSError("Disk full")
-                # Allow write_text to proceed for other Path instances
-                original_write_text(self, *args, **kwargs)
-
-            # Patch Path.write_text but only affect the specific path
+            selective_write_error = create_selective_error(
+                Path.write_text, test_path, OSError, "Disk full"
+            )
             with patch.object(Path, "write_text", selective_write_error):
                 with pytest.raises(OSError, match="Disk full"):
                     ensure_versions_file(test_path)
@@ -120,17 +118,9 @@ class TestEnsureDatabaseVersions:
         with tempfile.TemporaryDirectory() as temp_dir:
             test_path = Path(temp_dir) / "database_versions.json"
 
-            # Store original write_text for targeted patching
-            original_write_text = Path.write_text
-
-            def selective_permission_error(self: Path, *args, **kwargs) -> None:
-                """Raise PermissionError only for the specific test_path, allow others."""
-                if self == test_path:
-                    raise PermissionError("Access denied")
-                # Allow write_text to proceed for other Path instances
-                original_write_text(self, *args, **kwargs)
-
-            # Patch Path.write_text but only affect the specific path
+            selective_permission_error = create_selective_error(
+                Path.write_text, test_path, PermissionError, "Access denied"
+            )
             with patch.object(Path, "write_text", selective_permission_error):
                 with pytest.raises(PermissionError, match="Access denied"):
                     ensure_versions_file(test_path)

@@ -7,7 +7,7 @@ Covers:
 - /privacy endpoint
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,7 +35,7 @@ class TestAppEndpoints1383_1401:
         """/privacy returns complete privacy policy structure."""
         response = client.get("/privacy")
         assert response.status_code == 200
-        data: Dict[str, Any] = response.json()
+        data: dict[str, Any] = response.json()
 
         # Verify top-level keys
         assert "privacy_policy" in data

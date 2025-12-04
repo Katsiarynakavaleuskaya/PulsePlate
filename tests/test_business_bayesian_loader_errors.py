@@ -6,6 +6,14 @@ from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
 
 
 def _write_invalid_yaml(path: Path) -> None:
+    """Write an intentionally invalid YAML file at the provided Path for testing YAML parse errors.
+
+    Args:
+        path: Path where the invalid YAML file should be written
+
+    Returns:
+        None
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(":\n  bad: [", encoding="utf-8")
 

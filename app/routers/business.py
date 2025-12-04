@@ -1,0 +1,100 @@
+import logging
+import os
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+
+from app.routers.api_key import api_key_header
+from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
+
+# Business feature flag: enable/disable business module via env or default True
+BUSINESS_MODULE_ENABLED = os.getenv("BUSINESS_MODULE_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1/business", tags=["business"])
+
+
+class BusinessAnalysisRequest(BaseModel):
+    """Request model for business analysis."""
+
+    code: str
+    test_name: str = "business_analysis"
+    locale: Optional[str] = None
+
+
+class BusinessAnalysisResponse(BaseModel):
+    """Response model for business analysis."""
+
+    test_name: str
+    success: bool
+    business_category: str
+    error_type: str
+    error_message: Optional[str]
+    revenue_impact: str
+    cost_impact: str
+    customer_impact: str
+    optimization_potential: Optional[str]
+
+
+@router.post("/analyze", response_model=list[BusinessAnalysisResponse])
+async def analyze_business_code(
+    request: BusinessAnalysisRequest,
+    api_key: str = Depends(api_key_header),
+) -> list[BusinessAnalysisResponse]:
+    """
+    Analyze code from a business perspective.
+
+    Provides business insights on monetization strategies, cost optimization,
+    customer acquisition, revenue growth, and customer retention.
+    """
+    if not BUSINESS_MODULE_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Business analysis module is disabled",
+        )
+
+    try:
+        # Initialize business analyzer
+        analyzer = BusinessBayesianAnalyzer()
+
+        # Perform business analysis
+        results = analyzer.analyze(request.code, request.test_name)
+
+        # Convert results to response format
+        response_items = []
+        for result in results:
+            response_items.append(
+                BusinessAnalysisResponse(
+                    test_name=result.test_name,
+                    success=result.success,
+                    business_category=result.business_category.value,
+                    error_type=result.error_type.value if result.error_type else "unknown",
+                    error_message=result.error_message,
+                    revenue_impact=result.revenue_impact,
+                    cost_impact=result.cost_impact,
+                    customer_impact=result.customer_impact,
+                    optimization_potential=result.optimization_potential,
+                )
+            )
+
+        return response_items
+
+    except Exception as e:
+        logger.error(f"Business analysis failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Business analysis failed: {str(e)}",
+        )
+
+
+@router.get("/status")
+async def business_status() -> dict[str, Any]:
+    """Check if the business module is enabled."""
+    return {"enabled": BUSINESS_MODULE_ENABLED, "module": "business_analysis"}

@@ -7,6 +7,11 @@ Note: cleanup_expired_logs is a stub that logs a warning and returns 0 (no files
 
 from enum import Enum
 from typing import Dict, Optional
+import logging
+import threading
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 
 class DataClass(Enum):
@@ -72,9 +77,6 @@ class LogRetentionManager:
         """
         # Non-destructive stub: log cleanup not yet implemented
         # Return 0 to indicate no files deleted (safe default)
-        import logging
-
-        logger = logging.getLogger(__name__)
         logger.warning(
             "Log cleanup not implemented - returning 0 (no files deleted). "
             "Implement real deletion logic against log directory using retention_periods."
@@ -84,6 +86,7 @@ class LogRetentionManager:
 
 # Global singleton instance
 _retention_manager: Optional[LogRetentionManager] = None
+_lock = threading.Lock()
 
 
 def get_retention_manager() -> LogRetentionManager:
@@ -94,5 +97,8 @@ def get_retention_manager() -> LogRetentionManager:
     """
     global _retention_manager
     if _retention_manager is None:
-        _retention_manager = LogRetentionManager()
+        with _lock:
+            # Double-checked locking pattern
+            if _retention_manager is None:
+                _retention_manager = LogRetentionManager()
     return _retention_manager

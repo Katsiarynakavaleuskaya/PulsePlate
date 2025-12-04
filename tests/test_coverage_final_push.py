@@ -257,7 +257,7 @@ class TestFinalCoveragePush:
 
         # Test malformed JSON (handled by FastAPI automatically)
         response = client.post(
-            "/bmi", data=b"invalid json", headers={"Content-Type": "application/json"}
+            "/bmi", content=b"invalid json", headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 422
 

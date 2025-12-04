@@ -7,6 +7,7 @@ import time
 from typing import Callable, List, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -16,6 +17,7 @@ from core.db import get_session
 from core.models import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -40,7 +42,6 @@ def _execute_with_retry(
     Raises:
         HTTPException: 503 with original error if all retries fail and no fallback
     """
-    logger = logging.getLogger(__name__)
     max_retries = 3
     base_delay = 0.1  # 100ms base delay
 
@@ -60,25 +61,25 @@ def _execute_with_retry(
         for attempt in range(1, max_retries + 1):
             # Exponential backoff: 100ms, 200ms, 400ms
             delay = base_delay * (2 ** (attempt - 1))
-            logger.debug(f"Retry attempt {attempt}/{max_retries} after {delay}s delay")
+            logger.debug("Retry attempt %s/%s after %ss delay", attempt, max_retries, delay)
             time.sleep(delay)
 
             # Create fresh session for retry (DI session remains untouched)
             retry_session = db_module.SessionLocal()
             try:
                 result = action(retry_session)
-                logger.info(f"Database operation succeeded on retry attempt {attempt}")
+                logger.info("Database operation succeeded on retry attempt %s", attempt)
                 return result
             except OperationalError as retry_error:
                 last_error = retry_error
-                logger.warning(f"Retry attempt {attempt}/{max_retries} failed: {retry_error}")
+                logger.warning("Retry attempt %s/%s failed: %s", attempt, max_retries, retry_error)
             finally:
                 # Always close the retry session we created
                 retry_session.close()
 
         # All retries exhausted
         logger.error(
-            f"Database operation failed after {max_retries} retries. Last error: {last_error}"
+            "Database operation failed after %s retries. Last error: %s", max_retries, last_error
         )
 
         if fallback is not None:
@@ -100,8 +101,8 @@ def _execute_with_retry(
 # Automatic deletion of database files in request handlers is unsafe and has been eliminated.
 
 
-@router.post("", response_model=UserRead)
-def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> Response:
+@router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+async def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> UserRead:
     """RU: Создаёт нового пользователя. EN: Create a new user entry.
 
     Returns:
@@ -132,18 +133,12 @@ def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> Resp
         session.refresh(user)
         return UserRead.model_validate(user)
 
-    user_data = _execute_with_retry(_action, db)
-
-    # Successfully created - return 201
-    return Response(
-        content=user_data.model_dump_json(),
-        media_type="application/json",
-        status_code=status.HTTP_201_CREATED,
-    )
+    user_data = await run_in_threadpool(_execute_with_retry, _action, db)
+    return user_data
 
 
 @router.get("", response_model=List[UserRead])
-def list_users(
+async def list_users(
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_session),
@@ -157,12 +152,14 @@ def list_users(
         rows = session.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
         return [UserRead.model_validate(row) for row in rows]
 
-    result = _execute_with_retry(_action, db)  # No fallback - fail explicitly if DB unavailable
+    result = await run_in_threadpool(
+        _execute_with_retry, _action, db
+    )  # No fallback - fail explicitly if DB unavailable
     return result
 
 
 @router.get("/{user_id}", response_model=UserRead)
-def get_user(user_id: int, db: Session = Depends(get_session)) -> UserRead:
+async def get_user(user_id: int, db: Session = Depends(get_session)) -> UserRead:
     """RU: Получить пользователя по идентификатору.
 
     EN: Retrieve a user by identifier.
@@ -174,11 +171,11 @@ def get_user(user_id: int, db: Session = Depends(get_session)) -> UserRead:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return UserRead.model_validate(user)
 
-    return _execute_with_retry(_action, db)
+    return await run_in_threadpool(_execute_with_retry, _action, db)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: Session = Depends(get_session)) -> Response:
+async def delete_user(user_id: int, db: Session = Depends(get_session)) -> Response:
     """RU: Удаляет пользователя. EN: Delete a user by identifier."""
 
     def _action(session: Session) -> Response:
@@ -191,4 +188,4 @@ def delete_user(user_id: int, db: Session = Depends(get_session)) -> Response:
         session.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    return _execute_with_retry(_action, db)
+    return await run_in_threadpool(_execute_with_retry, _action, db)

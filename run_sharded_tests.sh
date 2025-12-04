@@ -169,20 +169,20 @@ case $MODE in
                 echo -e "${BLUE}$msg${NC}"
 
                 pids=()
-                declare -a cmd1
+                local -a cmd1=()
                 build_cmd "$shard1" cmd1
                 "${cmd1[@]}" &
                 pids+=($!)
 
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
-                    declare -a cmd2
+                    local -a cmd2=()
                     build_cmd "$shard2" cmd2
                     "${cmd2[@]}" &
                     pids+=($!)
                 fi
 
                 if [ $shard3 -le $TOTAL_SHARDS ]; then
-                    declare -a cmd3
+                    local -a cmd3=()
                     build_cmd "$shard3" cmd3
                     "${cmd3[@]}" &
                     pids+=($!)
@@ -205,7 +205,7 @@ case $MODE in
         echo -e "${RED}⚠⚠ Running ALL shards simultaneously (HIGH MEMORY RISK)${NC}\n"
         pids=()
         for shard in $(seq 1 $TOTAL_SHARDS); do
-            declare -a cmd
+            local -a cmd=()
             build_cmd "$shard" cmd
             "${cmd[@]}" &
             pids+=($!)

@@ -10,6 +10,7 @@ Covers:
 
 from unittest.mock import patch
 
+import app
 import pytest
 from fastapi.testclient import TestClient
 
@@ -19,7 +20,6 @@ class TestAppLines3304_3315:
 
     def test_premium_bmr_legacy_import_error(self, client: TestClient) -> None:
         """/premium_bmr returns 503 when BMR calculation module unavailable."""
-        import app
 
         # Patch wrapper to raise ImportError
         with patch.object(
@@ -42,7 +42,6 @@ class TestAppLines3304_3315:
 
     def test_premium_bmr_legacy_value_error(self, client: TestClient) -> None:
         """/premium_bmr returns 400 for invalid input values."""
-        import app
 
         # Patch wrapper to raise ValueError
         with patch.object(
@@ -66,7 +65,6 @@ class TestAppLines3304_3315:
 
     def test_premium_bmr_legacy_generic_exception(self, client: TestClient) -> None:
         """/premium_bmr returns 500 for unexpected errors."""
-        import app
 
         # Patch wrapper to raise generic exception
         with patch.object(

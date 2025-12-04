@@ -253,9 +253,9 @@ def test_week_start_prefers_first_day() -> None:
 
 
 def test_week_start_defaults_today() -> None:
-    from datetime import datetime
+    from datetime import datetime, timezone
 
-    assert plan._week_start({}) == str(datetime.utcnow().date())
+    assert plan._week_start({}) == str(datetime.now(timezone.utc).date())
 
 
 def test_draw_footer_writes_left_text() -> None:

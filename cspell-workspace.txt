@@ -1401,6 +1401,7 @@
 логировать
 логируем
 Логируем
+Логирует
 ложка
 локалей
 локализацией
@@ -3958,6 +3959,7 @@ Años
 apfel
 appicon
 appiconset
+appmod
 apppkg
 apropiadas
 Ardle
@@ -4065,9 +4067,11 @@ contenteditable
 contextlib
 contextmanager
 coro
+coroutinefunction
 coveragerc
 cpus
 csvfile
+currentframe
 Databonsai
 dataclass
 dataclasses
@@ -4208,6 +4212,7 @@ internationalizable
 isalnum
 isawaitable
 iscoroutine
+iscoroutinefunction
 isdir
 isfinite
 isinstance
@@ -4412,6 +4417,7 @@ Predeclare
 prefs
 preg
 Principiante
+Prioritise
 probs
 profesional
 prometheus
@@ -4567,6 +4573,7 @@ Visualización
 visx
 vitamina
 vitd
+VLCD
 WCAG
 whitesmoke
 whtr

@@ -220,7 +220,7 @@ def test_sanity_filter_oversized_strings() -> None:
 
 
 def test_sanity_filter_unexpected_keys() -> None:
-    """Test that unexpected keys are dropped (extra='forbid')."""
+    """Test that unexpected keys are rejected (extra='forbid')."""
     data_with_extra = {
         "kcal": 2000,
         "macros": {
@@ -406,8 +406,7 @@ def test_sanity_filter_default_values() -> None:
     }
 
     result = sanity_filter_plate_data(minimal_data)
-    # day_micros validator returns empty dict for None input (line 237-238 in data_sanitizer.py)
-    # but model_dump(exclude_none=True) treats empty dict as None for Optional fields
-    # and excludes it from the output
-    assert "day_micros" not in result or result["day_micros"] is None
+    # day_micros validator returns empty dict for None input
+    # model_dump(exclude_none=True) only excludes None values, not empty dicts
+    assert result.get("day_micros") == {}
     assert result["meals_per_day"] == 3  # Default value

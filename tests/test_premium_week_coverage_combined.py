@@ -232,7 +232,7 @@ class TestPremiumWeekCoverageCombined:
 
         response = premium_client.post(
             "/api/v1/premium/plan/week",
-            data=malformed_json,
+            content=malformed_json,
             headers={
                 "X-API-Key": "test_key",
                 "Content-Type": "application/json",

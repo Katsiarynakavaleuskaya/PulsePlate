@@ -493,12 +493,94 @@ class BusinessBayesianAnalyzer:
             # tokenize.untokenize always returns str in Python 3
             return str(tokenize.untokenize(tokens))
         except tokenize.TokenError:
-            # Fallback: character-level parsing that tracks string literals
-            cleaned_lines = []
-            for line in code_str.splitlines():
-                cleaned_line = self._remove_comment_from_line(line)
-                cleaned_lines.append(cleaned_line)
-            return "\n".join(cleaned_lines)
+            # Fallback: character-level parsing that tracks string literals across lines
+            return self._remove_comments_fallback(code_str)
+
+    def _remove_comments_fallback(self, code_str: str) -> str:
+        """Remove comments while preserving '#' inside string literals across multiple lines.
+
+        Maintains state between lines to properly handle multiline strings.
+        """
+        in_single_quote = False
+        in_double_quote = False
+        in_triple_single = False
+        in_triple_double = False
+        cleaned_lines = []
+
+        for line in code_str.splitlines():
+            cleaned_line = ""
+            i = 0
+
+            while i < len(line):
+                # Check for triple quotes first (longer match)
+                if i + 2 < len(line):
+                    three_chars = line[i : i + 3]
+
+                    # Triple single quotes
+                    if three_chars == "'''" and not in_double_quote and not in_triple_double:
+                        in_triple_single = not in_triple_single
+                        cleaned_line += three_chars
+                        i += 3
+                        continue
+
+                    # Triple double quotes
+                    if three_chars == '"""' and not in_single_quote and not in_triple_single:
+                        in_triple_double = not in_triple_double
+                        cleaned_line += three_chars
+                        i += 3
+                        continue
+
+                char = line[i]
+
+                # Check for escape sequences
+                if char == "\\" and i + 1 < len(line):
+                    # Skip escaped character (including escaped quotes)
+                    cleaned_line += line[i : i + 2]
+                    i += 2
+                    continue
+
+                # Check for single quote (only if not in any other quote type)
+                if (
+                    char == "'"
+                    and not in_double_quote
+                    and not in_triple_single
+                    and not in_triple_double
+                ):
+                    in_single_quote = not in_single_quote
+                    cleaned_line += char
+                    i += 1
+                    continue
+
+                # Check for double quote (only if not in any other quote type)
+                if (
+                    char == '"'
+                    and not in_single_quote
+                    and not in_triple_single
+                    and not in_triple_double
+                ):
+                    in_double_quote = not in_double_quote
+                    cleaned_line += char
+                    i += 1
+                    continue
+
+                # Check for comment start (only if not in any string)
+                if (
+                    char == "#"
+                    and not in_single_quote
+                    and not in_double_quote
+                    and not in_triple_single
+                    and not in_triple_double
+                ):
+                    # Found comment start - stop processing this line
+                    break
+
+                cleaned_line += char
+                i += 1
+
+            # Add the cleaned line (without trailing whitespace)
+            cleaned_lines.append(cleaned_line.rstrip())
+
+        return "\n".join(cleaned_lines)
 
     def _remove_comment_from_line(self, line: str) -> str:
         """Remove comment from a single line, respecting string literals.
@@ -733,7 +815,8 @@ class BusinessBayesianAnalyzer:
             #   async for ...: for ...:
             #   for ...: while ...: for ...:
             #   for ...: try: for ...:
-            loop_node_types = (ast.For, getattr(ast, "AsyncFor", ()))
+            async_for = getattr(ast, "AsyncFor", None)
+            loop_node_types = (ast.For, async_for) if async_for is not None else (ast.For,)
             for node in ast.walk(tree):
                 if isinstance(node, loop_node_types):
                     # Walk the entire subtree of this for loop to find ANY nested for loops
@@ -877,6 +960,23 @@ class BusinessBayesianAnalyzer:
     def _analyze_revenue_growth(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует возможности роста доходов."""
         results = []
+
+        # Обнаружение явных утечек дохода (отрицательные платежи)
+        negative_payment_pattern = re.compile(
+            r"process_payment\s*\(.*amount\s*=\s*-\s*[\d.]+", re.IGNORECASE | re.DOTALL
+        )
+        if negative_payment_pattern.search(code):
+            results.append(
+                BusinessTestResult(
+                    test_name=test_name,
+                    success=False,
+                    business_category=BusinessCategory.REVENUE_GROWTH,
+                    error_type=BusinessErrorType.REVENUE_LEAK,
+                    error_message="Обнаружена утечка дохода: отрицательная сумма платежа",
+                    revenue_impact="Непосредственная потеря дохода",
+                    optimization_potential="Валидировать суммы платежей и отклонять отрицательные значения",
+                )
+            )
 
         # Поиск упоминаний аналитики и метрик
         analytics_keywords = ["analytics", "metrics", "tracking", "conversion", "revenue"]

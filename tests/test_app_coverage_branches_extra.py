@@ -6,8 +6,10 @@ import pytest
 import app
 
 
-def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover start/stop background update wrappers when no event loop is running."""
+def test_background_updates_wrappers_force_sync_under_pytest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover start/stop background update wrappers in pytest force-sync mode."""
 
     called: list[str | int] = []
 
@@ -20,28 +22,12 @@ def test_background_updates_wrappers_no_running_loop(monkeypatch: pytest.MonkeyP
     # Instead of patching global asyncio.get_running_loop, we'll simulate the condition
     # by temporarily setting an environment variable that forces sync mode
     with patch.dict("os.environ", {"PYTEST_CURRENT_TEST": "1"}):
-        # Patch the global functions directly in the app module's dict
-        # This is safer than patching asyncio globals which affects other tests
-        original_start = app.__dict__.get("_scheduler_start_background_updates")
-        original_stop = app.__dict__.get("_scheduler_stop_background_updates")
+        # Use monkeypatch to safely set and automatically restore the functions
+        monkeypatch.setitem(app.__dict__, "_scheduler_start_background_updates", fake_start)
+        monkeypatch.setitem(app.__dict__, "_scheduler_stop_background_updates", fake_stop)
 
-        try:
-            app.__dict__["_scheduler_start_background_updates"] = fake_start
-            app.__dict__["_scheduler_stop_background_updates"] = fake_stop
-
-            app.start_background_updates(update_interval_hours=12)
-            app.stop_background_updates()
-        finally:
-            # Restore original functions
-            if original_start is not None:
-                app.__dict__["_scheduler_start_background_updates"] = original_start
-            else:
-                app.__dict__.pop("_scheduler_start_background_updates", None)
-
-            if original_stop is not None:
-                app.__dict__["_scheduler_stop_background_updates"] = original_stop
-            else:
-                app.__dict__.pop("_scheduler_stop_background_updates", None)
+        app.start_background_updates(update_interval_hours=12)
+        app.stop_background_updates()
 
     assert 12 in called
     assert "stop" in called
@@ -75,14 +61,10 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_targets_disabled_container_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """targets_disabled returns True when build_nutrition_targets_fn is unset."""
-    original_fn = app._plate_deps.build_nutrition_targets_fn
-    try:
-        app._plate_deps.build_nutrition_targets_fn = None
-        app.reset_targets_cache()
-        assert app.targets_disabled() is True
-    finally:
-        app._plate_deps.build_nutrition_targets_fn = original_fn
-        app.reset_targets_cache()
+    # Use monkeypatch to safely set and automatically restore the function
+    monkeypatch.setattr(app._plate_deps, "build_nutrition_targets_fn", None, raising=False)
+    app.reset_targets_cache()
+    assert app.targets_disabled() is True
 
 
 def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -91,24 +73,12 @@ def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     The container remains configured (function not None), but an explicit
     None on the primary `app` module signals that targets are disabled.
     """
+    # Keep container configured but null out the primary module attribute
     original_fn = app._plate_deps.build_nutrition_targets_fn
-    _had_attr = hasattr(app, "build_nutrition_targets")
-    original_app_attr = getattr(app, "build_nutrition_targets", None) if _had_attr else None
-
-    try:
-        # Keep container configured but null out the primary module attribute
-        app._plate_deps.build_nutrition_targets_fn = original_fn
-        app.build_nutrition_targets = None
-        app.reset_targets_cache()
-        assert app.targets_disabled() is True
-    finally:
-        app._plate_deps.build_nutrition_targets_fn = original_fn
-        if not _had_attr:
-            if hasattr(app, "build_nutrition_targets"):
-                delattr(app, "build_nutrition_targets")
-        else:
-            app.build_nutrition_targets = original_app_attr
-        app.reset_targets_cache()
+    monkeypatch.setattr(app._plate_deps, "build_nutrition_targets_fn", original_fn)
+    monkeypatch.setattr(app, "build_nutrition_targets", None, raising=False)
+    app.reset_targets_cache()
+    assert app.targets_disabled() is True
 
 
 def test_who_targets_request_goal_normalization() -> None:

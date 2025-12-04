@@ -15,6 +15,7 @@ All values represent daily totals unless otherwise specified.
 from __future__ import annotations
 
 import math
+import warnings
 
 # Calorie Safety Thresholds (kcal/day)
 # Based on WHO/USDA guidelines and medical supervision requirements
@@ -43,8 +44,37 @@ MEAL_KCAL_THRESHOLD = 450
 # Based on WHO classification and medical supervision requirements
 BMI_DANGEROUS_LOW = 16.0  # Below this requires immediate medical attention
 BMI_OBESITY_THRESHOLD = 30.0  # Above this indicates obesity (class I+)
-# Deprecated alias for backward compatibility
-BMI_DANGEROUS_HIGH = BMI_OBESITY_THRESHOLD
+# Deprecated alias for backward compatibility - will emit a warning when accessed
+_BMI_DANGEROUS_HIGH_VALUE = BMI_OBESITY_THRESHOLD
+
+
+class _DeprecatedBMIAlias:
+    """Accessor for deprecated BMI_DANGEROUS_HIGH alias that emits a warning when accessed."""
+
+    def __getattr__(self, name):
+        if name == "BMI_DANGEROUS_HIGH":
+            warnings.warn(
+                "BMI_DANGEROUS_HIGH is deprecated and will be removed in a future release. "
+                "Use BMI_OBESITY_THRESHOLD instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return _BMI_DANGEROUS_HIGH_VALUE
+        raise AttributeError(f"module 'nutrition_constants' has no attribute '{name}'")
+
+
+# Create an instance to handle deprecated attribute access
+_deprecated_alias_handler = _DeprecatedBMIAlias()
+
+
+# Override __getattr__ at module level to intercept deprecated alias access
+def __getattr__(name):
+    return getattr(_deprecated_alias_handler, name)
+
+
+# For backward compatibility, define the deprecated alias directly
+# This will be intercepted by __getattr__ when accessed
+BMI_DANGEROUS_HIGH = None  # Will be handled by __getattr__
 
 # Macronutrient Percentage Ranges (% of total calories)
 # Based on USDA Dietary Guidelines 2020-2025 and WHO recommendations
@@ -98,6 +128,9 @@ def is_meal_level_value(kcal: float, context: str = "") -> bool:
         ValueError: If kcal is NaN, Infinity, or negative
     """
     # Input validation: fail fast on invalid inputs
+    # Explicitly reject boolean values since bool is a subclass of int
+    if isinstance(kcal, bool):
+        raise TypeError(f"kcal must be a number (int or float), got boolean value {kcal}")
     if not isinstance(kcal, (int, float)):
         raise TypeError(f"kcal must be a number (int or float), got {type(kcal).__name__}")
 
@@ -136,6 +169,8 @@ __all__ = [
     "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
     "BMI_OBESITY_THRESHOLD",
+    # BMI_DANGEROUS_HIGH is deprecated, but kept for backward compatibility
+    # Access will emit a DeprecationWarning
     "BMI_DANGEROUS_HIGH",
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",

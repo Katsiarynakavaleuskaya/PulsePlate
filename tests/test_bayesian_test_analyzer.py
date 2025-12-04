@@ -132,13 +132,13 @@ class TestPriorProbabilityUpdates:
 class TestPredictionAndHealthScore:
     """Test failure probability prediction and health scoring."""
 
-    def test_predict_failure_probability_new_test(self):
+    def test_predict_failure_probability_new_test(self) -> None:
         """New tests without history should use the base probability."""
         analyzer = BayesianTestAnalyzer()
         probability = analyzer.predict_test_failure_probability("test_new")
         assert probability == pytest.approx(0.1)
 
-    def test_predict_failure_probability_with_context(self):
+    def test_predict_failure_probability_with_context(self) -> None:
         """Context flags should increase failure probability but keep it <= 1.0."""
         analyzer = BayesianTestAnalyzer()
         # 1 failure, 2 successes for the same test
@@ -176,7 +176,7 @@ class TestPredictionAndHealthScore:
         assert 0.0 < base_prob < 1.0
         assert base_prob <= ctx_prob <= 1.0
 
-    def test_get_test_health_score_branches(self):
+    def test_get_test_health_score_branches(self) -> None:
         """Exercise health score calculation for empty and populated history."""
         analyzer = BayesianTestAnalyzer()
         # No history → neutral score

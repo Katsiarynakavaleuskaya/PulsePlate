@@ -383,7 +383,7 @@ class TestAppMissingCoverage96:
     def test_error_handling_paths(self):
         """Test various error handling paths."""
         # Test with invalid JSON
-        response = self.client.post("/bmi", data="invalid json")
+        response = self.client.post("/bmi", content="invalid json")
         assert response.status_code == 422
 
         # Test with missing required fields
