@@ -133,3 +133,28 @@ class TestAppUnitTests:
         # Test advanced level (high experience and frequency)
         assert estimate_level(3, 5.0, "en") == "advanced"
         assert estimate_level(3, 5.0, "ru") == "продвинутый"
+
+    def test_get_api_key_requires_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """API key matching should be strict by default."""
+        from fastapi import HTTPException
+
+        from app import get_api_key
+
+        monkeypatch.setenv("API_KEY", "abc_def")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY_NORMALIZE", "false")
+
+        with pytest.raises(HTTPException):
+            get_api_key(api_key="abc-def")
+
+        assert get_api_key(api_key="abc_def") == "abc_def"
+
+    def test_get_api_key_dev_normalize_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Optional dev-only normalization can be enabled explicitly."""
+        from app import get_api_key
+
+        monkeypatch.setenv("API_KEY", "abc_def")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY_NORMALIZE", "true")
+
+        assert get_api_key(api_key="abc-def") == "abc_def"

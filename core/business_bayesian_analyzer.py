@@ -218,7 +218,7 @@ class BusinessBayesianAnalyzer:
     def _import_yaml_module():
         """Attempt to import PyYAML, returning None if unavailable."""
         try:
-            import yaml
+            import yaml  # type: ignore[import-untyped]
         except Exception:
             return None
         return yaml
@@ -730,28 +730,31 @@ class BusinessBayesianAnalyzer:
                             # Only report once per outer loop
                             break
         else:
-            # Fallback to regex for broken code (keeps existing behavior)
-            # Fixed ReDoS vulnerability by limiting repetitions and input length
-            nested_loop_pattern = r"for\s+(\w+)\s+in\s+[^:\n]+:\s*(?:[^\n]{0,200}\n){0,10}?\s*for\s+(\w+)\s+in\s+[^:\n]+:"
-            nested_matches = re.finditer(nested_loop_pattern, code_for_regex, re.MULTILINE)
-            for match in nested_matches:
-                loop_start = match.end()
-                lines_after = code_for_regex[loop_start:].split("\n")[:20]
-                loop_body = "\n".join(lines_after)
-                if not re.search(r"\b(break|return)\b", loop_body) and any(
-                    re.search(pattern, loop_body, re.IGNORECASE) for pattern in heavy_indicators
-                ):
-                    results.append(
-                        BusinessTestResult(
-                            test_name=test_name,
-                            success=False,
-                            business_category=BusinessCategory.COST_OPTIMIZATION,
-                            error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                            error_message="Вложенные циклы без break/return",
-                            cost_impact="Повышенное потребление ресурсов",
-                            optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
-                        )
-                    )
+            # Fallback heuristic without heavy regex to avoid ReDoS risk
+            lines = code_for_regex.splitlines()
+            for idx, line in enumerate(lines):
+                if not re.match(r"\s*for\s+\w+\s+in\s+[^:]+:", line):
+                    continue
+                lookahead = lines[idx + 1 : idx + 11]
+                for inner in lookahead:
+                    if re.match(r"\s*for\s+\w+\s+in\s+[^:]+:", inner):
+                        loop_body = "\n".join(lookahead)
+                        if not re.search(r"\b(break|return)\b", loop_body) and any(
+                            re.search(pattern, loop_body, re.IGNORECASE)
+                            for pattern in heavy_indicators
+                        ):
+                            results.append(
+                                BusinessTestResult(
+                                    test_name=test_name,
+                                    success=False,
+                                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                                    error_message="Вложенные циклы без break/return",
+                                    cost_impact="Повышенное потребление ресурсов",
+                                    optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
+                                )
+                            )
+                        break
 
         # 2. SELECT *: flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"

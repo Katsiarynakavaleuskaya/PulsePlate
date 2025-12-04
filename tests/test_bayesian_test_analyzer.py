@@ -6,6 +6,7 @@ Covers the technical test analyzer for code quality checks.
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 import builtins
@@ -218,14 +219,14 @@ class TestPredictionAndHealthScore:
 class TestDiagnosisAndReporting:
     """Test diagnosis and reporting helpers."""
 
-    def test_generate_test_report_empty_history(self):
+    def test_generate_test_report_empty_history(self) -> None:
         """Report should return a sentinel message when no data is available."""
         analyzer = BayesianTestAnalyzer()
         report = analyzer.generate_test_report()
         assert isinstance(report, dict)
         assert report.get("message")
 
-    def test_diagnose_and_generate_report_with_history(self):
+    def test_diagnose_and_generate_report_with_history(self) -> None:
         """Diagnose failures and generate report from populated history."""
         analyzer = BayesianTestAnalyzer()
         # Create a mix of passed and failed executions for one test
@@ -262,20 +263,21 @@ class TestDiagnosisAndReporting:
 class TestInternalsAndEdgeBranches:
     """Cover additional internal branches and error handling paths."""
 
-    def test_normalize_priors_zero_sum_uniform(self):
+    def test_normalize_priors_zero_sum_uniform(self) -> None:
         """Zero-sum priors should normalize to a uniform distribution."""
         zeros = {et: 0.0 for et in ErrorType}
         normalized = BayesianTestAnalyzer._normalize_priors(zeros)
         assert all(val == pytest.approx(1 / len(ErrorType)) for val in normalized.values())
 
-    def test_calculate_recency_weight_exception_fallback(self):
+    def test_calculate_recency_weight_exception_fallback(self) -> None:
         """Type errors in recency calculation should return safe default of 1.0."""
         analyzer = BayesianTestAnalyzer()
-        # Passing an invalid timestamp triggers the exception path
-        weight = analyzer._calculate_recency_weight(timestamp=None)
+        # Create a datetime without timezone to trigger exception path
+        naive_datetime = datetime.now()  # This will be naive (no timezone)
+        weight = analyzer._calculate_recency_weight(timestamp=naive_datetime)
         assert weight == pytest.approx(1.0)
 
-    def test_load_history_handles_invalid_json(self, tmp_path):
+    def test_load_history_handles_invalid_json(self, tmp_path: Path) -> None:
         """load_history should swallow JSON errors and keep history empty."""
         bad_file = tmp_path / "bad.json"
         bad_file.write_text("not-json")
@@ -283,7 +285,7 @@ class TestInternalsAndEdgeBranches:
         # Should not raise and should leave history empty
         assert analyzer.execution_history == []
 
-    def test_save_history_handles_io_errors(self, tmp_path, monkeypatch):
+    def test_save_history_handles_io_errors(self, tmp_path: Path, monkeypatch) -> None:
         """save_history should log errors and not raise when writing fails."""
         history_file = tmp_path / "history.json"
         analyzer = BayesianTestAnalyzer(data_file=history_file)
@@ -304,7 +306,7 @@ class TestInternalsAndEdgeBranches:
         # Should not propagate the exception
         analyzer.save_history()
 
-    def test_calculate_likelihood_no_history_or_no_type(self):
+    def test_calculate_likelihood_no_history_or_no_type(self) -> None:
         """Likelihood should fall back to smoothed base values when history is missing."""
         analyzer = BayesianTestAnalyzer()
         no_history = analyzer._calculate_likelihood(set(), ErrorType.ASSERTION_ERROR, [])
@@ -536,13 +538,13 @@ class TestOptimizationAndPersistence:
 class TestEdgeCases:
     """Test edge cases."""
 
-    def test_empty_code(self):
+    def test_empty_code(self) -> None:
         """Test analysis of empty code."""
         analyzer = BayesianTestAnalyzer()
         issues = analyzer.analyze_technical_aspects("", "test_empty")
         assert isinstance(issues, list)
 
-    def test_malformed_code(self):
+    def test_malformed_code(self) -> None:
         """Test analysis of malformed code."""
         analyzer = BayesianTestAnalyzer()
         code = "def test_broken(:"

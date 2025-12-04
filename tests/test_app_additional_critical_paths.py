@@ -114,8 +114,10 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
     from fastapi.testclient import TestClient
     from typing import cast
     from starlette.types import ASGIApp
+    from fastapi.testclient import TestClient
+    from typing import cast
+    from starlette.types import ASGIApp
     import importlib
-    import sys
 
     # Save original feature flag state
     import os

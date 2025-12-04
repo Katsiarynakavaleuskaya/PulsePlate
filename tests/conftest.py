@@ -185,13 +185,19 @@ def app_module() -> ModuleType:
     repo_root = Path(__file__).parent.parent
     sys.path.insert(0, str(repo_root))
 
+    # Reuse already-loaded app module when available to keep patches in sync
+    existing_app = sys.modules.get("app")
+    if existing_app is not None:
+        return existing_app
+
     app_path = repo_root / "app.py"
-    spec = importlib.util.spec_from_file_location("app_module", str(app_path))
+    spec = importlib.util.spec_from_file_location("app", str(app_path))
     if spec is None or spec.loader is None:
         pytest.skip("Cannot load app.py", allow_module_level=True)
 
     # At this point we know spec and spec.loader are not None due to the check above
     app_module = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = app_module
     spec.loader.exec_module(app_module)
     return app_module
 

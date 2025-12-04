@@ -376,7 +376,7 @@ class NutritionBayesianAnalyzer:
                     bmi < self.safety_thresholds["bmi_dangerous_low"]
                     or bmi >= self.safety_thresholds["bmi_dangerous_high"]
                 ):
-                    level = "dangerous"
+                    level: SafetyLevel = "dangerous"
                     message = (
                         f"Опасно низкий BMI: {bmi:.1f}"
                         if bmi < self.safety_thresholds["bmi_dangerous_low"]

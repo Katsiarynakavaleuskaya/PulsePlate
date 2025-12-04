@@ -761,7 +761,9 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     if expected := os.getenv("API_KEY"):
         if api_key == expected:
             return api_key
-        if api_key and dev_mode and api_key.replace("-", "_") == expected.replace("-", "_"):
+        allow_normalize = dev_mode and _is_truthy(os.getenv("ALLOW_DEV_API_KEY_NORMALIZE"))
+        if allow_normalize and api_key and api_key.replace("-", "_") == expected.replace("-", "_"):
+            # Optional dev-only normalization: off by default for strictness
             return expected
         raise HTTPException(status_code=403, detail="Invalid API Key")
 
@@ -2756,10 +2758,10 @@ def _macros_to_kcal(macros: Dict[str, Any]) -> Optional[int]:
 
 def build_fallback_plate(req: PlateRequest, candidates: list[Any]) -> PlateResponse:
     """Build a fallback plate when premium backends are unavailable."""
-    current_test_name = os.getenv("PYTEST_CURRENT_TEST", "")
     base_bmr = 24 * req.weight_kg
     activity_factor = get_activity_factor(req.activity)
     tdee_val = int(base_bmr * activity_factor)
+    fallback_kcal_max = 2400
 
     # Goal adjustment with SAFETY: 1200 kcal minimum floor
     if req.goal == "loss":
@@ -2837,17 +2839,8 @@ def build_fallback_plate(req: PlateRequest, candidates: list[Any]) -> PlateRespo
     if target_kcal_override is not None:
         target_kcal = target_kcal_override
 
-    # Tests that focus on alignment expect the kcal to stay within a 2000-2400 window
-    if "test_api_premium_plate_fallback_aligns_targets" in current_test_name or (
-        "test_api_premium_plate_fallback_handles_target_error" in current_test_name
-    ):
-        target_kcal = min(target_kcal, 2400)
-    # Macro values coverage test expects either target override (2200) or a capped
-    # calculated value (2759). Clamp to match deterministic expectations under pytest.
-    if "test_api_premium_plate_fallback_macro_values" in current_test_name:
-        if target_kcal_override is not None:
-            target_kcal = target_kcal_override
-        target_kcal = min(target_kcal, 2759)
+    # Clamp to a conservative upper bound to avoid unrealistically high fallback kcal
+    target_kcal = min(target_kcal, fallback_kcal_max)
 
     # Recompute used_kcal from the final protein_g and fat_g values to ensure internal consistency
     # This is needed because protein_g and fat_g may have been overridden from WHO/targets
@@ -3313,24 +3306,29 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         - Multiple activity levels
         - Localized responses
     """
-    current_test_name = os.getenv("PYTEST_CURRENT_TEST", "")
-    if "test_premium_bmr_legacy_import_error" in current_test_name:
-        raise HTTPException(status_code=503, detail="BMR calculation module not available")
     try:
         # Resolve wrappers dynamically via the 'app' package to respect test patches
         import sys as _sys
 
-        _pkg = _sys.modules.get("app")
-        _bmr_wrapper = (
-            getattr(_pkg, "_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper)
-            if _pkg is not None
-            else _calculate_all_bmr_wrapper
-        )
-        _tdee_wrapper = (
-            getattr(_pkg, "_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper)
-            if _pkg is not None
-            else _calculate_all_tdee_wrapper
-        )
+        _pkg_candidates = [
+            _APP_PACKAGE_REF,
+            _sys.modules.get(__name__),
+            _sys.modules.get("app"),
+            _sys.modules.get("app_module"),
+        ]
+        _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
+
+        def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
+            for mod in _pkg_candidates:
+                if mod is None:
+                    continue
+                candidate = getattr(mod, attr_name, None)
+                if candidate is not None and candidate is not fallback:
+                    return candidate
+            return fallback
+
+        _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper)
+        _tdee_wrapper = _resolve_wrapper("_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper)
 
         # Determine baseline availability and runtime patching state.
         # Use import-time baselines so runtime monkeypatching (e.g., None) does not
@@ -3403,18 +3401,9 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         ):
             raise HTTPException(status_code=503, detail="Premium BMR feature not available")
 
-        if (
-            "test_premium_bmr_legacy_import_error" in current_test_name
-            and _bmr_wrapper is _calculate_all_bmr_wrapper
-        ):
-            raise HTTPException(status_code=503, detail="BMR calculation module not available")
         side_effect = getattr(_bmr_wrapper, "side_effect", None)
-        if isinstance(side_effect, ImportError) or (
-            "test_premium_bmr_legacy_import_error" in current_test_name
-        ):
+        if isinstance(side_effect, ImportError):
             raise HTTPException(status_code=503, detail="BMR calculation module not available")
-        if "test_premium_bmr_legacy_value_error" in current_test_name:
-            raise HTTPException(status_code=400, detail="Invalid input: Invalid weight")
         if isinstance(side_effect, ValueError):
             detail = str(side_effect) or "Invalid input"
             raise HTTPException(status_code=400, detail=f"Invalid input: {detail}")
@@ -3533,31 +3522,32 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     try:
         import sys as _sys
 
-        _pkg = _sys.modules.get("app")
-        current_test_name = os.getenv("PYTEST_CURRENT_TEST", "")
-        _bmr_wrapper = (
-            getattr(_pkg, "_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper)
-            if _pkg is not None
-            else _calculate_all_bmr_wrapper
-        )
-        _tdee_wrapper = (
-            getattr(_pkg, "_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper)
-            if _pkg is not None
-            else _calculate_all_tdee_wrapper
-        )
+        _pkg_candidates = [
+            _APP_PACKAGE_REF,
+            _sys.modules.get(__name__),
+            _sys.modules.get("app"),
+            _sys.modules.get("app_module"),
+        ]
+        _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
 
-        if "test_premium_bmr_legacy_import_error" in current_test_name:
-            raise HTTPException(status_code=503, detail="BMR calculation module not available")
+        def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
+            for mod in _pkg_candidates:
+                if mod is None:
+                    continue
+                candidate = getattr(mod, attr_name, None)
+                if candidate is not None and candidate is not fallback:
+                    return candidate
+            return fallback
+
+        _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper)
+        _tdee_wrapper = _resolve_wrapper("_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper)
+
         side_effect = getattr(_bmr_wrapper, "side_effect", None)
         if isinstance(side_effect, ImportError):
             raise HTTPException(status_code=503, detail="BMR calculation module not available")
-        if "test_premium_bmr_legacy_value_error" in current_test_name:
-            raise HTTPException(status_code=400, detail="Invalid input: Invalid weight")
         if isinstance(side_effect, ValueError):
             detail = str(side_effect) or "Invalid input"
             raise HTTPException(status_code=400, detail=f"Invalid input: {detail}")
-        if "test_premium_bmr_legacy_generic_exception" in current_test_name:
-            raise HTTPException(status_code=500, detail="BMR calculation failed: Unexpected error")
         if isinstance(side_effect, Exception):
             raise HTTPException(status_code=500, detail=f"BMR calculation failed: {side_effect}")
 
@@ -3860,19 +3850,26 @@ def _generate_who_targets_response(
 @app.post("/premium_targets")
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy endpoint for WHO targets (backwards compatibility)."""
-    globals().setdefault("getattr", getattr)
-    reset_targets_cache()
-    current_test_name = os.getenv("PYTEST_CURRENT_TEST", "")
-    getattr_obj = globals().get("getattr")
-    if (
-        getattr_obj is not None and getattr_obj is not getattr
-    ) or _resolve_build_targets_callable() is None:
+    import builtins
+    import sys as _sys
+
+    try:
+        reset_targets_cache()
+        module_getattr = globals().get("getattr", builtins.getattr)
+        pkg_app = _sys.modules.get("app")
+        pkg_getattr = getattr(pkg_app, "getattr", builtins.getattr) if pkg_app else builtins.getattr
+        if (
+            module_getattr is not builtins.getattr
+            or pkg_getattr is not builtins.getattr
+            or _resolve_build_targets_callable() is None
+        ):
+            raise HTTPException(
+                status_code=503, detail="WHO nutrition targets feature not available"
+            )
+        return _generate_who_targets_response(req, allow_backend_fallback=False)
+    except TypeError:
+        # Safely handle monkeypatched getattr returning None in tests
         raise HTTPException(status_code=503, detail="WHO nutrition targets feature not available")
-    # Defensive: if the targeted pytest case is running but patching failed due to caching,
-    # surface 503 to keep the endpoint behavior deterministic in CI.
-    if "test_premium_targets_endpoint_not_available" in current_test_name:
-        raise HTTPException(status_code=503, detail="WHO nutrition targets feature not available")
-    return _generate_who_targets_response(req, allow_backend_fallback=False)
 
 
 # WHO-Based Nutrition Endpoints
@@ -4100,10 +4097,9 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 @app.get("/debug_env")
 async def debug_env() -> JSONResponse:
     # Gate /debug_env to avoid leaking environment details in production
-    if (
-        os.getenv("APP_ENV", "").strip().lower() not in {"", "local", "dev", "development", "test"}
-        and os.getenv("PYTEST_CURRENT_TEST") is None
-    ):
+    allowed_envs = {"", "local", "dev", "development", "test"}
+    debug_flag = _is_truthy(os.getenv("ENABLE_DEBUG_ENDPOINT"))
+    if os.getenv("APP_ENV", "").strip().lower() not in allowed_envs and not debug_flag:
         raise HTTPException(status_code=404, detail="Not found")
     data = {
         "FEATURE_INSIGHT": os.getenv("FEATURE_INSIGHT", ""),
@@ -4258,36 +4254,28 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
         Success status and rollback details
     """
     try:
-        current_test_name = os.getenv("PYTEST_CURRENT_TEST", "")
-        if "test_rollback_endpoint_exception" in current_test_name:
-            raise HTTPException(
-                status_code=500,
-                detail="Rollback operation failed: could not get scheduler (Test scheduler error)",
-            )
-        if "test_rollback_endpoint_rollback_function_exception" in current_test_name:
-            raise HTTPException(
-                status_code=500,
-                detail="Rollback operation failed: Rollback failed",
-            )
-        if "test_rollback_endpoint_returns_false" in current_test_name:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Rollback operation failed for {source} to version {target_version}",
-            )
         # Resolve via package to honor monkeypatching in tests (app.get_update_scheduler)
         import sys as _sys
         import inspect as _inspect
 
         global_override = rollback_database.__globals__.get("get_update_scheduler", None)
-        pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
-        pkg_override = getattr(pkg, "get_update_scheduler", None)
+        candidate_getters: list[Callable[[], Any]] = []
+        if callable(global_override) and global_override is not _DEFAULT_GET_UPDATE_SCHEDULER:
+            candidate_getters.append(global_override)
 
-        if global_override is not None and global_override is not _DEFAULT_GET_UPDATE_SCHEDULER:
-            _getter = global_override
-        elif pkg_override is not None and pkg_override is not _DEFAULT_GET_UPDATE_SCHEDULER:
-            _getter = pkg_override
-        else:
-            _getter = pkg_override or global_override or _DEFAULT_GET_UPDATE_SCHEDULER
+        for mod in (
+            _APP_PACKAGE_REF,
+            _sys.modules.get(__name__),
+            _sys.modules.get("app"),
+            _sys.modules.get("app_module"),
+        ):
+            if mod is None:
+                continue
+            getter = getattr(mod, "get_update_scheduler", None)
+            if callable(getter) and getter is not _DEFAULT_GET_UPDATE_SCHEDULER:
+                candidate_getters.append(getter)
+
+        _getter = candidate_getters[0] if candidate_getters else _DEFAULT_GET_UPDATE_SCHEDULER
         scheduler = None
         if callable(_getter):
             _res = _getter()

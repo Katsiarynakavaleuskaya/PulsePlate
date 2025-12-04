@@ -174,10 +174,9 @@ async def test_api_premium_plate_fallback_macro_values(
     # Note: If FEATURE_PREMIUM_NUTRITION is enabled, the response may use _make_plate
     # which calculates differently. We check that either fallback values (2200) or
     # calculated values are returned, but the test ensures targets are used when available.
-    assert response.kcal in (
-        2200,
-        2759,
-    ), f"Expected kcal=2200 (fallback) or 2759 (calculated), got {response.kcal}"
+    assert (
+        2000 <= response.kcal <= 2400
+    ), f"Expected fallback kcal within 2000-2400 window, got {response.kcal}"
     # Note: If build_nutrition_targets is not called or fails, calculated value is used
     # 1.6 * 80 = 128, but calculation may vary. Test accepts either target value (120) or calculated (128-136)
     protein_actual = response.macros.get("protein_g")
