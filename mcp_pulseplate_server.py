@@ -14,37 +14,28 @@ import openai
 
 
 class PulsePlateMCPServer:
-    """MCP Server for PulsePlate project with ChatGPT integration"""
+    """MCP Server for PulsePlate project with ChatGPT integration."""
 
     # Default OpenAI model for MCP server
     DEFAULT_MODEL: str = "gpt-4o"
 
     # Allowed OpenAI model names (fail-fast validation)
     # See ALLOWED_MODELS for the current whitelist; extend as new models become available.
-    ALLOWED_MODELS: set[str] = {
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-4",
-        "gpt-4-turbo",
-        "gpt-4-turbo-preview",
-        "gpt-3.5-turbo",
-    }
+    ALLOWED_MODELS: set[str] = {"gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"}
 
     def __init__(self) -> None:
         self.api_key: str | None = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
 
-        self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
-
         # Configurable model via MCP_OPENAI_MODEL environment variable
         # Falls back to DEFAULT_MODEL if not set
         model_env: str | None = os.getenv("MCP_OPENAI_MODEL")
-        self.model: str = model_env if model_env else self.DEFAULT_MODEL
+        self.model: str = (model_env if model_env else self.DEFAULT_MODEL).strip()
 
         # Fail-fast validation: reject invalid model names at startup
         # This prevents cryptic API errors later during runtime
-        if not isinstance(self.model, str) or not self.model.strip():
+        if not self.model:
             raise ValueError(
                 f"Invalid model name: {self.model!r}. "
                 f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
@@ -57,6 +48,8 @@ class PulsePlateMCPServer:
                 f"Allowed models: {sorted(self.ALLOWED_MODELS)}. "
                 f"Update ALLOWED_MODELS if using a newer model."
             )
+
+        self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
 
         self.project_context = self._load_project_context()
 
