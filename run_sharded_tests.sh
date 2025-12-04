@@ -76,7 +76,9 @@ echo ""
 build_cmd() {
     local shard=$1
     local -n out=$2
-    out=(python -m pytest --shard-id "$shard" tests/ -q)
+    # Use per-shard database file to avoid cross-shard write conflicts
+    local shard_db="cache/test_app_shard_${shard}.sqlite"
+    out=(env TEST_DB_PATH="$shard_db" DATABASE_URL="sqlite:///${shard_db}" python -m pytest --shard-id "$shard" tests/ -q)
     if [ "$COVERAGE" = true ]; then
         # Scope coverage to source directories only (not entire repo)
         out+=(--cov=core --cov=app --cov-report=term --cov-append)
@@ -169,20 +171,20 @@ case $MODE in
                 echo -e "${BLUE}$msg${NC}"
 
                 pids=()
-                local -a cmd1=()
+                declare -a cmd1=()
                 build_cmd "$shard1" cmd1
                 "${cmd1[@]}" &
                 pids+=($!)
 
                 if [ $shard2 -le $TOTAL_SHARDS ]; then
-                    local -a cmd2=()
+                    declare -a cmd2=()
                     build_cmd "$shard2" cmd2
                     "${cmd2[@]}" &
                     pids+=($!)
                 fi
 
                 if [ $shard3 -le $TOTAL_SHARDS ]; then
-                    local -a cmd3=()
+                    declare -a cmd3=()
                     build_cmd "$shard3" cmd3
                     "${cmd3[@]}" &
                     pids+=($!)
@@ -205,7 +207,7 @@ case $MODE in
         echo -e "${RED}⚠⚠ Running ALL shards simultaneously (HIGH MEMORY RISK)${NC}\n"
         pids=()
         for shard in $(seq 1 $TOTAL_SHARDS); do
-            local -a cmd=()
+            declare -a cmd=()
             build_cmd "$shard" cmd
             "${cmd[@]}" &
             pids+=($!)

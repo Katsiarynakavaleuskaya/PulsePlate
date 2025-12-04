@@ -3,7 +3,6 @@
 Фокус: безопасные импорты и тестирование реально существующих функций
 """
 
-import asyncio
 import logging
 from unittest.mock import patch
 
@@ -490,7 +489,8 @@ class TestSimpleCoverageBoost:
         except ImportError:
             pytest.skip("Some core modules not available")
 
-    def test_unified_db_module_coverage(self):
+    @pytest.mark.asyncio
+    async def test_unified_db_module_coverage(self):
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
         try:
             import core.food_apis.unified_db as unified_db_module
@@ -501,8 +501,10 @@ class TestSimpleCoverageBoost:
             # Тест функции с моком для избежания реальных DB операций
             with patch("sqlite3.connect") as mock_connect:
                 mock_connect.return_value = None
-                _ = asyncio.run(unified_db_module.get_unified_food_db())
+                result = await unified_db_module.get_unified_food_db()
                 # Должен обработать None gracefully
+                # Assert that no exception was raised and result is a UnifiedFoodDatabase instance
+                assert isinstance(result, unified_db_module.UnifiedFoodDatabase)
 
         except ImportError:
             pytest.skip("unified_db module not available")

@@ -2852,6 +2852,10 @@ def build_fallback_plate(req: PlateRequest, candidates: list[Any]) -> PlateRespo
             target_kcal = target_kcal_override
         target_kcal = min(target_kcal, 2759)
 
+    # Recompute used_kcal from the final protein_g and fat_g values to ensure internal consistency
+    # This is needed because protein_g and fat_g may have been overridden from WHO/targets
+    used_kcal = protein_g * 4 + fat_g * 9
+
     # Ensure macros align with any adjusted target_kcal (test expectations)
     carbs_g = max(0, int(round((target_kcal - used_kcal) / 4)))
 

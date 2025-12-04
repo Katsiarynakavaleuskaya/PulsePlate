@@ -30,12 +30,18 @@ main = ensure_database_versions.main
 DEFAULT_META = ensure_database_versions.DEFAULT_META
 
 
+from typing import Any, Callable
+
+
 def create_selective_error(
-    original_method, target_path: Path, error_class: type[BaseException], message: str
-):
+    original_method: Callable[..., Any],
+    target_path: Path,
+    error_class: type[BaseException],
+    message: str,
+) -> Callable[[Path, Any, Any], Any]:
     """Return a function that raises only for the target path and delegates otherwise."""
 
-    def selective_error(self: Path, *args: Any, **kwargs: Any):
+    def selective_error(self: Path, *args: Any, **kwargs: Any) -> Any:
         if self == target_path:
             raise error_class(message)
         return original_method(self, *args, **kwargs)

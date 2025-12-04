@@ -10,9 +10,10 @@ Covers:
 
 from unittest.mock import patch
 
-import app
 import pytest
 from fastapi.testclient import TestClient
+
+import app
 
 
 class TestAppLines3304_3315:

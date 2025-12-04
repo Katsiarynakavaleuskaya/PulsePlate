@@ -90,7 +90,7 @@ async def analyze_business_code(
         logger.error(f"Business analysis failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Business analysis failed: {str(e)}",
+            detail="Business analysis failed. Please try again or contact support.",
         )
 
 

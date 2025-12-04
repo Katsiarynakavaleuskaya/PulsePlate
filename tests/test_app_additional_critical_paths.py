@@ -97,8 +97,10 @@ def test_weekly_plan_pdf_endpoint_not_registered() -> None:
     """
 
     from fastapi.testclient import TestClient
+    from typing import cast
+    from starlette.types import ASGIApp
 
-    client = TestClient(app.app)
+    client = TestClient(cast(ASGIApp, app.app))
 
     # Non-existent endpoint should return 404 when the route is not registered
     response = client.get("/api/v1/weekly-plan/pdf/123")
@@ -110,12 +112,12 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
     """BMI Pro router inclusion is controlled by FEATURE_BMI_PRO_ENABLED flag."""
 
     from fastapi.testclient import TestClient
+    from typing import cast
+    from starlette.types import ASGIApp
     import importlib
     import sys
-    import app as app_module
 
-    # Save original module and feature flag state
-    original_app_module = sys.modules.get("app")
+    # Save original feature flag state
     import os
 
     original_flag = os.environ.get("FEATURE_BMI_PRO_ENABLED")
@@ -124,9 +126,12 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
         monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
 
         # Reload app module with feature flag disabled
-        importlib.reload(app_module)
+        importlib.reload(app)
 
-        client = TestClient(app_module.app)
+        # Ensure app instance exists
+        assert hasattr(app, "app")
+        assert app.app is not None
+        client = TestClient(cast(ASGIApp, app.app))
         response = client.get("/api/v1/bmi-pro/status")
 
         assert response.status_code == 404
@@ -137,37 +142,49 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
             monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
         else:
             monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", original_flag)
-        if original_app_module is not None:
-            sys.modules["app"] = original_app_module
-            # Reload the actual restored module, not the test-time reference
-            importlib.reload(sys.modules["app"])
-        else:
-            # If app wasn't in sys.modules before, remove it
-            sys.modules.pop("app", None)
+        # Reload app module to restore original state
+        importlib.reload(app)
 
 
 def test_module_state_restored_after_feature_flag_test(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify that module state is properly restored after feature flag toggle test.
 
-    This test should run after test_bmi_pro_router_feature_flag_toggle to verify
-    that the app module was fully restored and is functioning correctly.
+    This test is self-contained and reloads the app module to ensure proper state.
     """
     from fastapi.testclient import TestClient
+    from typing import cast
+    from starlette.types import ASGIApp
+    import importlib
     import sys
+    import os
 
-    # Verify app module is in expected state
-    assert "app" in sys.modules
-    assert hasattr(app, "app")
-    assert app.app is not None
+    # Save original feature flag state
+    original_flag = os.environ.get("FEATURE_BMI_PRO_ENABLED")
 
-    # Verify API endpoints work correctly after module restoration
-    client = TestClient(app.app)
-    response = client.get("/health")
-    assert response.status_code == 200
+    try:
+        # Ensure the app module is in a clean state
+        importlib.reload(app)
 
-    # Verify core functionality is intact
-    weight_kg = 70.0
-    prot_g, fat_g, carbs_g = app.calculate_heuristic_macros(1500, weight_kg)
-    assert prot_g > 0
-    assert fat_g > 0
-    assert carbs_g > 0
+        # Verify app module is in expected state
+        assert "app" in sys.modules
+        assert hasattr(app, "app")
+        assert app.app is not None
+
+        # Verify API endpoints work correctly
+        client = TestClient(cast(ASGIApp, app.app))
+        response = client.get("/health")
+        assert response.status_code == 200
+
+        # Verify core functionality is intact
+        weight_kg = 70.0
+        prot_g, fat_g, carbs_g = app.calculate_heuristic_macros(1500, weight_kg)
+        assert prot_g > 0
+        assert fat_g > 0
+        assert carbs_g > 0
+
+    finally:
+        # Restore original feature flag for other tests
+        if original_flag is None:
+            monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+        else:
+            monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", original_flag)

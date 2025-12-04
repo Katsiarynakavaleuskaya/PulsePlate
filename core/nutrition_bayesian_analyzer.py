@@ -392,7 +392,7 @@ class NutritionBayesianAnalyzer:
                             error_type=NutritionErrorType.BMI_DANGEROUS,
                             error_message=message,
                             business_impact=(
-                                "Нет влияния на здоровье"
+                                "Риск ожирения и сопутствующих заболеваний"
                                 if bmi >= self.safety_thresholds["bmi_dangerous_high"]
                                 else "Риск анорексии и недоедания"
                             ),

@@ -26,8 +26,9 @@ class TestCoverageFinalBoost:
             # Test main function if it exists
             if hasattr(mcp_pulseplate_server, "main"):
                 with patch("mcp_pulseplate_server.main", new_callable=MagicMock) as mock_main:
-                    # Call the patched function
-                    _ = mcp_pulseplate_server.main()
+                    mock_main.return_value = None
+                    # Call the mocked function
+                    _ = mock_main()
                     mock_main.assert_called_once()
 
     def test_setup_custom_mcp_coverage(self):
