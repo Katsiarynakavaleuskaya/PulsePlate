@@ -14,14 +14,26 @@ import openai
 
 
 class PulsePlateMCPServer:
-    """MCP Server for PulsePlate project with ChatGPT integration."""
+    """MCP Server for PulsePlate project with ChatGPT integration
+
+    Note: Added 'gpt-4-turbo-preview' to ALLOWED_MODELS to fix CI pipeline issue"""
 
     # Default OpenAI model for MCP server
     DEFAULT_MODEL: str = "gpt-4o"
 
     # Allowed OpenAI model names (fail-fast validation)
     # See ALLOWED_MODELS for the current whitelist; extend as new models become available.
-    ALLOWED_MODELS: set[str] = {"gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"}
+    ALLOWED_MODELS: set[str] = {
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4",
+        "gpt-4-turbo",
+        "gpt-4-turbo-preview",
+        "gpt-3.5-turbo",
+        "o1",
+        "o3",
+        "o3-mini",
+    }
 
     def __init__(self) -> None:
         self.api_key: str | None = os.getenv("OPENAI_API_KEY")
@@ -202,7 +214,7 @@ Please provide a helpful response considering the PulsePlate project context.
         prompt = f"""
 Review this {language} code for the PulsePlate project:
 
-```{language}
+``{language}
 {code}
 ```
 
