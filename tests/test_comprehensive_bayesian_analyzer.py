@@ -66,14 +66,17 @@ def test_simple():
         """Test analysis detects technical issues."""
         analyzer = ComprehensiveBayesianAnalyzer()
         code = """
-def test_async_mock():
+async def test_async_mock():
     # Missing await on AsyncMock
     mock = AsyncMock()
     result = mock()  # Should be: await mock()
 """
         result = analyzer.analyze_comprehensively(code, "test_async_mock", "test_file.py")
         assert isinstance(result, ComprehensiveTestResult)
-        # Technical score should be affected
+        # Technical score should be reduced due to missing await
+        assert result.technical_score < 1.0
+        # The issue should be detected (in optimization opportunities since it's not critical)
+        assert len(result.optimization_opportunities) > 0
 
     def test_analyze_comprehensively_with_nutrition_code(self) -> None:
         """Test analysis of nutrition-related code."""

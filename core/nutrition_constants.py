@@ -57,7 +57,7 @@ class _DeprecatedBMIAlias:
                 "BMI_DANGEROUS_HIGH is deprecated and will be removed in a future release. "
                 "Use BMI_OBESITY_THRESHOLD instead.",
                 DeprecationWarning,
-                stacklevel=2,
+                stacklevel=3,
             )
             return _BMI_DANGEROUS_HIGH_VALUE
         raise AttributeError(f"module 'nutrition_constants' has no attribute '{name}'")
@@ -71,10 +71,6 @@ _deprecated_alias_handler = _DeprecatedBMIAlias()
 def __getattr__(name):
     return getattr(_deprecated_alias_handler, name)
 
-
-# For backward compatibility, define the deprecated alias directly
-# This will be intercepted by __getattr__ when accessed
-BMI_DANGEROUS_HIGH = None  # Will be handled by __getattr__
 
 # Macronutrient Percentage Ranges (% of total calories)
 # Based on USDA Dietary Guidelines 2020-2025 and WHO recommendations
@@ -171,7 +167,6 @@ __all__ = [
     "BMI_OBESITY_THRESHOLD",
     # BMI_DANGEROUS_HIGH is deprecated, but kept for backward compatibility
     # Access will emit a DeprecationWarning
-    "BMI_DANGEROUS_HIGH",
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",
     "FAT_MIN_PERCENT",

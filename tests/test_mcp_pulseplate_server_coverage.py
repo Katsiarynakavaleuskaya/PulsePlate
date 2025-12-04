@@ -54,7 +54,7 @@ class TestMcpPulseplateServerCoverage:
     def test_pulseplate_mcp_server_custom_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test PulsePlateMCPServer accepts custom model via MCP_OPENAI_MODEL"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("MCP_OPENAI_MODEL", "gpt-4-turbo")
+        monkeypatch.setenv("MCP_OPENAI_MODEL", "gpt-4o-mini")
 
         with patch("openai.OpenAI") as mock_openai:
             mock_client = MagicMock()
@@ -63,7 +63,7 @@ class TestMcpPulseplateServerCoverage:
             server = mcp_pulseplate_server.PulsePlateMCPServer()
 
             # Verify custom model is set
-            assert server.model == "gpt-4-turbo"
+            assert server.model == "gpt-4o-mini"
 
     def test_pulseplate_mcp_server_invalid_model_empty(
         self, monkeypatch: pytest.MonkeyPatch
@@ -138,9 +138,9 @@ class TestMcpPulseplateServerCoverage:
         expected_models = {
             "gpt-4o",
             "gpt-4o-mini",
-            "gpt-4",
-            "gpt-4-turbo",
-            "gpt-3.5-turbo",
+            "o1",
+            "o3",
+            "o3-mini",
         }
         assert expected_models.issubset(allowed)
 
@@ -171,15 +171,7 @@ class TestMcpPulseplateServerCoverage:
     ) -> None:
         """Test PulsePlateMCPServer accepts various valid custom model names from whitelist"""
         # Test models from the ALLOWED_MODELS whitelist
-        valid_models = [
-            "gpt-4o",
-            "gpt-4o-mini",
-            "gpt-4",
-            "gpt-4-turbo",
-            "gpt-4-turbo-preview",
-            "gpt-3.5-turbo",
-            "gpt-3.5-turbo-16k",
-        ]
+        valid_models = ["gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"]
 
         for model_name in valid_models:
             monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -202,7 +194,7 @@ class TestMcpPulseplateServerCoverage:
     @pytest.mark.asyncio
     async def test_custom_model_passed_to_api(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that custom model is passed to OpenAI API calls"""
-        custom_model = "gpt-4-turbo"  # Use valid model from whitelist
+        custom_model = "gpt-4o-mini"  # Use valid model from whitelist
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", custom_model)
 

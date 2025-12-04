@@ -185,7 +185,9 @@ class UnifiedFoodDatabase:
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
 
-    async def search_food(self, query: str, prefer_source: str = "usda") -> List[UnifiedFoodItem]:
+    async def search_food(
+        self, query: str, prefer_source: str = "usda", save_cache: bool = True
+    ) -> List[UnifiedFoodItem]:
         """
         RU: Поиск продуктов по названию.
         EN: Search for foods by name.
@@ -193,6 +195,7 @@ class UnifiedFoodDatabase:
         Args:
             query: Search query (e.g., "chicken breast")
             prefer_source: Preferred data source ("usda", "openfoodfacts")
+            save_cache: Whether to save cache after search (default: True)
 
         Returns:
             List of unified food items
@@ -229,7 +232,7 @@ class UnifiedFoodDatabase:
             except Exception as e:
                 logger.error(f"Error searching Open Food Facts: {e}")
 
-        if results:
+        if results and save_cache:
             self._save_cache()
 
         return results
@@ -325,7 +328,7 @@ class UnifiedFoodDatabase:
 
         for standard_name, search_query in common_searches.items():
             try:
-                results = await self.search_food(search_query)
+                results = await self.search_food(search_query, save_cache=False)
                 if results:
                     # Take the first result (usually most relevant)
                     foods_db[standard_name] = results[0]

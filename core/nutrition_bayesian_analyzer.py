@@ -11,7 +11,6 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
 from core.nutrition_constants import (
-    BMI_DANGEROUS_HIGH,
     BMI_DANGEROUS_LOW,
     BMI_OBESITY_THRESHOLD,
     CARBS_MAX_PERCENT,
@@ -196,10 +195,9 @@ class NutritionBayesianAnalyzer:
         RU: Использует централизованные константы из core.nutrition_constants.
         EN: Uses centralized constants from core.nutrition_constants.
         """
-        bmi_high = BMI_DANGEROUS_HIGH if BMI_DANGEROUS_HIGH is not None else BMI_OBESITY_THRESHOLD
         return {
             "bmi_dangerous_low": BMI_DANGEROUS_LOW,  # From nutrition_constants
-            "bmi_dangerous_high": bmi_high,  # From nutrition_constants (fallbacks handled)
+            "bmi_dangerous_high": BMI_OBESITY_THRESHOLD,  # From nutrition_constants
             "calorie_dangerous_low": KCAL_MIN_SAFE,  # From nutrition_constants
             "calorie_dangerous_high": KCAL_MAX_SAFE,  # From nutrition_constants
             "nutrient_imbalance_threshold": 0.3,

@@ -8,7 +8,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from unittest.mock import patch, mock_open
 import pytest
 import importlib.util
@@ -28,9 +28,6 @@ sys.modules["scripts.ensure_database_versions"] = ensure_database_versions
 ensure_versions_file = ensure_database_versions.ensure_versions_file
 main = ensure_database_versions.main
 DEFAULT_META = ensure_database_versions.DEFAULT_META
-
-
-from typing import Any, Callable
 
 
 def create_selective_error(

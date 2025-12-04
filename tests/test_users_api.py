@@ -11,10 +11,13 @@ from sqlalchemy.exc import OperationalError
 from starlette.types import ASGIApp
 
 import app
-from core import db as db_module
+import importlib
 
 
 def _client() -> TestClient:
+    # Reload the db module to ensure we're using the test database
+    db_module = importlib.import_module("core.db")
+    importlib.reload(db_module)
     # Ensure schema exists even if app was imported before test DB fixture configured.
     db_module.init_db()
     return TestClient(cast(ASGIApp, app.app))

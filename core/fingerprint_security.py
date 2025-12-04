@@ -52,8 +52,18 @@ def _load_salt_from_file(path: Path) -> str | None:
                 saved = path.read_text().strip()
                 if saved:
                     return saved
-                # If the file exists but is still empty, persist our generated salt now
-                path.write_text(generated)
+                # File exists but is empty - persist the generated salt for stability
+                try:
+                    path.write_text(generated)
+                except Exception:
+                    # If we cannot write, still return the generated value
+                    # (process-stable via caller cache)
+                    logging.debug("Could not persist fingerprint salt", exc_info=True)
+                try:
+                    path.chmod(0o600)
+                except OSError:
+                    pass
+                return generated
             except Exception:
                 # If we can't read or write the file, return our generated salt
                 # but don't persist it

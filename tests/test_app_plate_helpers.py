@@ -50,7 +50,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
                 setattr(self, key, value)
 
     # Patch core.targets symbols used by api_premium_plate
-    import core.targets as real_targets  # type: ignore[C0415]
+    import core.targets as real_targets
 
     monkeypatch.setattr(real_targets, "UserProfile", DummyProfile)
     monkeypatch.setattr(real_targets, "FIBER_MIN_G", 25.0)
@@ -62,7 +62,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
         return DummyTargets()
 
     # Patch resolve_attr to force fallback path for premium helpers
-    import core.utils as utils  # type: ignore[C0415]
+    import core.utils as utils
 
     original_resolve = utils.resolve_attr
 
@@ -196,10 +196,12 @@ async def test_api_premium_plate_fallback_macro_values(
     # Calculated carbs vary based on target_kcal, accept reasonable range
     assert carbs_actual >= 0, f"Expected carbs_g >= 0, got {carbs_actual}"
     fiber_actual = response.macros.get("fiber_g")
-    # Accept any fiber value >= FIBER_MIN_G as valid fallback
-    assert (
-        fiber_actual >= app.FIBER_MIN_G
-    ), f"Expected fiber_g >= FIBER_MIN_G={app.FIBER_MIN_G}, got {fiber_actual}"
+    # Accept target fiber value or fallback minimum, matching other macro checks
+    assert fiber_actual in (
+        28,
+        38,
+        app.FIBER_MIN_G,
+    ), f"Expected fiber_g in {28, 38, app.FIBER_MIN_G}, got {fiber_actual}"
 
     # Verify macro values are integers and within reasonable ranges
     assert isinstance(response.macros["protein_g"], int)

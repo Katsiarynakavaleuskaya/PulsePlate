@@ -9,7 +9,7 @@ from typing import Callable, List, TypeVar
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.schemas.users import UserCreate, UserRead
@@ -114,24 +114,20 @@ async def create_user(payload: UserCreate, db: Session = Depends(get_session)) -
     """
 
     def _action(session: Session) -> UserRead:
-        # Check for existing user
-        existing = session.execute(
-            select(User).where(User.email == payload.email)
-        ).scalar_one_or_none()
-        if existing:
-            # Email already exists - return 409 Conflict
-            # This prevents duplicate user creation and makes the API semantically correct
+        # Create new user
+        user = User(email=payload.email, name=payload.name)
+        session.add(user)
+        try:
+            session.commit()
+            session.refresh(user)
+            return UserRead.model_validate(user)
+        except IntegrityError:
+            # Handle race condition where two concurrent requests both pass the check
+            session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already exists",
             )
-
-        # Create new user
-        user = User(email=payload.email, name=payload.name)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        return UserRead.model_validate(user)
 
     user_data = await run_in_threadpool(_execute_with_retry, _action, db)
     return user_data

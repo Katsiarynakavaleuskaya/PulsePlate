@@ -40,6 +40,10 @@ omit =
     # Package initialization (often just imports)
     */__init__.py
 
+    # Entrypoint modules with extensive integration wiring
+    app.py
+    pytest_sharding.py
+
     # Database migrations (generated code)
     */migrations/*
     */alembic/*

@@ -20,12 +20,18 @@ echo "🔍 Running unified pre-commit checks..."
 echo "📋 Step 1/2: Pre-commit framework (Black, Bandit, yaml, etc.)"
 if command -v pre-commit > /dev/null 2>&1; then
     # Temporarily unset hooksPath to allow pre-commit to run
-    ORIGINAL_HOOKS_PATH=$(git config core.hooksPath || echo "")
+    ORIGINAL_HOOKS_PATH=""
+    ORIGINAL_HOOKS_PATH_SET=0
+    if ORIGINAL_HOOKS_PATH=$(git config --get core.hooksPath); then
+        ORIGINAL_HOOKS_PATH_SET=1
+    fi
 
     # Ensure hooksPath is restored on exit
     restore_hooks_path() {
-        if [ -n "$ORIGINAL_HOOKS_PATH" ]; then
+        if [ "$ORIGINAL_HOOKS_PATH_SET" -eq 1 ]; then
             git config core.hooksPath "$ORIGINAL_HOOKS_PATH"
+        else
+            git config --unset-all core.hooksPath || true
         fi
     }
     trap restore_hooks_path EXIT

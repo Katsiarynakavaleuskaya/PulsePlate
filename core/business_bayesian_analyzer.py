@@ -9,18 +9,18 @@ EN: Analyzes tests from the perspective of business model, revenue, and cost opt
 from __future__ import annotations
 
 import ast
-import importlib
 import logging
 import math
 import re
 import tokenize
+from pathlib import Path
 
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
-from pathlib import Path
-from types import ModuleType
-from typing import Any, cast
+from typing import Any
+
+from core import i18n
 
 
 logger = logging.getLogger(__name__)
@@ -214,228 +214,108 @@ class BusinessBayesianAnalyzer:
         else:
             self.high_price_threshold = self.DEFAULT_HIGH_PRICE_THRESHOLD
 
+    @staticmethod
+    def _import_yaml_module():
+        """Attempt to import PyYAML, returning None if unavailable."""
+        try:
+            import yaml
+        except Exception:
+            return None
+        return yaml
+
+    def _config_dir(self) -> Path:
+        """Return the config directory adjacent to this module, with fallback to parent."""
+        module_path = Path(__file__).resolve()
+        candidates = [
+            module_path.parent / "config",
+            module_path.parent.parent / "config",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return candidates[0]
+
+    def _load_business_knowledge(self) -> dict[str, Any]:
+        """Load business knowledge base from YAML or return defaults."""
+        yaml_mod = self._import_yaml_module()
+        config_path = self._config_dir() / "business_knowledge.yaml"
+        if yaml_mod and config_path.exists():
+            try:
+                with config_path.open("r", encoding="utf-8") as fh:
+                    data = yaml_mod.safe_load(fh) or {}
+                    if isinstance(data, dict):
+                        return data
+            except Exception:
+                logging.debug("Failed to load business_knowledge.yaml", exc_info=True)
+
+        # Fallback defaults
+        return {
+            "revenue_streams": {
+                "subscriptions": {"price_range": [5, 50]},
+                "ads": {"price_range": [0.01, 5]},
+            },
+            "pricing_models": {"freemium": True, "payg": True},
+        }
+
+    def _load_monetization_strategies(self, locale: str | None = None) -> dict[str, Any]:
+        """Load monetization strategies by locale, with fallbacks."""
+        yaml_mod = self._import_yaml_module()
+        lang = i18n.normalize_lang(locale)
+        base_dir = self._config_dir()
+        localized = base_dir / f"monetization_strategies.{lang}.yaml"
+        default_path = base_dir / "monetization_strategies.yaml"
+
+        for path in (localized, default_path):
+            if yaml_mod and path.exists():
+                try:
+                    with path.open("r", encoding="utf-8") as fh:
+                        data = yaml_mod.safe_load(fh) or {}
+                        if isinstance(data, dict):
+                            return data
+                except Exception:
+                    logging.debug("Failed to load %s", path, exc_info=True)
+
+        return {
+            "pricing_models": {
+                "tiered": ["basic", "pro", "enterprise"],
+                "usage_based": True,
+                "discounts": ["annual", "student"],
+            },
+            "upsell": {"bundle": True, "premium_support": True},
+        }
+
+    def _load_cost_optimization_rules(self) -> dict[str, Any]:
+        """Load cost optimization rules from YAML or return defaults."""
+        yaml_mod = self._import_yaml_module()
+        config_path = self._config_dir() / "cost_optimization_rules.yaml"
+        if yaml_mod and config_path.exists():
+            try:
+                with config_path.open("r", encoding="utf-8") as fh:
+                    data = yaml_mod.safe_load(fh) or {}
+                    if isinstance(data, dict):
+                        return data
+            except Exception:
+                logging.debug("Failed to load cost_optimization_rules.yaml", exc_info=True)
+
+        return {
+            "infrastructure": {"auto_scaling": True, "capacity_planning": True},
+            "development": {"testing": True, "ci_cd": True},
+            "operations": {"support": True, "monitoring": True},
+        }
+
     def analyze(self, test_code: str | list[str], test_name: str) -> list[BusinessTestResult]:
         """Public entry point for business logic analysis.
         Публичная точка входа для анализа бизнес-логики.
         """
         return self.analyze_business_logic(test_code, test_name)
 
-    def _load_business_knowledge(self) -> dict[str, Any]:
-        """Load business knowledge base from config file or return defaults.
-
-        RU: Загружает базу знаний о бизнесе из конфигурационного файла или возвращает значения по умолчанию.
-        EN: Loads business knowledge base from config/business_knowledge.yaml or returns hardcoded defaults.
-
-        Note: Return type annotation already present (-> dict[str, Any]).
-        """
-        config_path: Path = Path(__file__).parent.parent / "config" / "business_knowledge.yaml"
-        if config_path.exists():
-            yaml_module: ModuleType | None = self._import_yaml_module()
-            if yaml_module is None:
-                logger.warning(
-                    "PyYAML not installed - cannot load business_knowledge.yaml. "
-                    "Using hardcoded defaults. Install PyYAML with: pip install pyyaml"
-                )
-            else:
-                yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
-                try:
-                    with open(config_path, "r", encoding="utf-8") as file:
-                        data = yaml_module.safe_load(file)
-                    if isinstance(data, dict) and data:
-                        return data
-                except (yaml_error, UnicodeDecodeError):
-                    # If YAML is invalid or encoding is bad, fall back to defaults
-                    logger.warning(
-                        "Failed to parse business_knowledge.yaml; falling back to defaults",
-                        exc_info=True,
-                    )
-        # Fallback defaults (same as original hardcoded values)
-        return {
-            "revenue_streams": {
-                "subscription": {
-                    "monthly": {"price_range": [5, 50], "conversion_rate": 0.02},
-                    "yearly": {"price_range": [50, 500], "conversion_rate": 0.05},
-                    "lifetime": {"price_range": [100, 1000], "conversion_rate": 0.01},
-                },
-                "freemium": {
-                    "free_tier": {"conversion_rate": 0.15},
-                    "premium_tier": {"price_range": [10, 100], "conversion_rate": 0.08},
-                },
-                "usage_based": {
-                    "per_request": {"price_range": [0.01, 1.0], "conversion_rate": 0.1},
-                    "per_storage": {"price_range": [0.1, 10.0], "conversion_rate": 0.05},
-                },
-            },
-            "customer_segments": {
-                "individual": {"ltv": 200, "churn_rate": 0.05},
-                "professional": {"ltv": 1000, "churn_rate": 0.02},
-                "enterprise": {"ltv": 10000, "churn_rate": 0.01},
-            },
-            "cost_centers": {
-                "infrastructure": {"aws": 0.3, "gcp": 0.25, "azure": 0.2},
-                "development": {"salaries": 0.4, "tools": 0.1},
-                "marketing": {"ads": 0.2, "content": 0.1},
-                "operations": {"support": 0.15, "legal": 0.05},
-            },
-        }
-
-    @staticmethod
-    def _import_yaml_module() -> ModuleType | None:
-        """Import yaml lazily to avoid hard dependency for type checkers."""
-        try:
-            return importlib.import_module("yaml")
-        except ModuleNotFoundError:
-            return None
-
-    def _load_monetization_strategies(self, locale: str | None = None) -> dict[str, Any]:
-        """Load monetization strategies from locale-specific config file or return defaults.
-
-        RU: Загружает стратегии монетизации из локализованного конфигурационного файла или возвращает значения по умолчанию.
-        EN: Loads monetization strategies from config/monetization_strategies.{locale}.yaml with fallback chain.
-            Falls back to: requested locale → 'en' → hardcoded defaults.
-
-        Args:
-            locale: Locale code (e.g., 'en', 'ru', 'es'). If None, defaults to 'en'.
-
-        Returns:
-            Dictionary with monetization strategies or hardcoded defaults.
-        """
-        # Normalize locale using i18n utility if available
-        try:
-            from core.i18n import normalize_lang
-
-            normalized_locale: str = normalize_lang(locale) if locale else "en"
-        except ImportError:
-            # Fallback if i18n module not available - validate against supported locales
-            try:
-                from core.bayesian_recommendations import RECOMMENDATIONS
-
-                SUPPORTED_LOCALES = set(RECOMMENDATIONS.keys())
-                # Guard against None to prevent str(None) -> "None" literal
-                normalized_locale = str(locale) if locale and locale in SUPPORTED_LOCALES else "en"
-            except ImportError:
-                # Ultimate fallback if recommendations module not available
-                # Guard against None to prevent str(None) -> "None" literal
-                normalized_locale = str(locale) if locale and locale in {"en", "ru", "es"} else "en"
-
-        config_dir = Path(__file__).parent.parent / "config"
-
-        # Fallback chain: requested locale → 'en' → hardcoded defaults
-        locales_to_try = [normalized_locale]
-        if normalized_locale != "en":
-            locales_to_try.append("en")
-
-        for loc in locales_to_try:
-            config_path = config_dir / f"monetization_strategies.{loc}.yaml"
-            if config_path.exists():
-                yaml_module = self._import_yaml_module()
-                if yaml_module is None:
-                    continue
-                yaml_error = cast(type[BaseException], getattr(yaml_module, "YAMLError", Exception))
-                load_failed = False
-                loaded: dict[str, Any] | None = None
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        loaded = yaml_module.safe_load(f) or {}
-                except (OSError, yaml_error):
-                    logger.warning(
-                        "Failed to load monetization strategies from %s",
-                        config_path,
-                        exc_info=True,
-                    )
-                    load_failed = True
-                if load_failed:
-                    continue
-                if loaded:
-                    return loaded
-
-        # Fallback defaults (English text)
-        return {
-            "pricing_models": {
-                "tiered": "Tiered model with different feature levels",
-                "freemium": "Free basic tier + paid premium",
-                "usage_based": "Pay-per-use pricing",
-                "subscription": "Subscription model",
-                "one_time": "One-time purchase",
-            },
-            "conversion_tactics": {
-                "trial_period": "Free trial period",
-                "discount_codes": "Discount codes",
-                "referral_program": "Referral program",
-                "bundling": "Bundled offerings",
-                "upselling": "Upselling additional services",
-            },
-            "retention_strategies": {
-                "onboarding": "Improved new user onboarding",
-                "feature_usage": "Feature usage analytics",
-                "engagement": "Increased user engagement",
-                "support": "Quality customer support",
-                "feedback": "User feedback loops",
-            },
-        }
-
-    def _load_cost_optimization_rules(self) -> dict[str, Any]:
-        """
-        Load cost optimization rules from a configuration file or return defaults.
-
-        RU: Загружает правила оптимизации затрат из конфигурационного файла или возвращает значения по умолчанию.
-        EN: Loads cost optimization rules from config/cost_optimization_rules.yaml or returns hardcoded defaults.
-        """
-        config_path = Path(__file__).parent.parent / "config" / "cost_optimization_rules.yaml"
-        if config_path.exists():
-            yaml_module = self._import_yaml_module()
-            if yaml_module is not None:
-                # Get YAMLError type from the module for proper exception handling
-                yaml_error_type: type[BaseException] = getattr(yaml_module, "YAMLError", Exception)
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        loaded = yaml_module.safe_load(f) or {}
-                except (OSError, yaml_error_type):
-                    logger.warning(
-                        "Failed to load cost_optimization_rules from %s",
-                        config_path,
-                        exc_info=True,
-                    )
-                    loaded = {}
-                # Validate structure: must contain infrastructure/development/operations blocks
-                if loaded and all(
-                    key in loaded for key in ("infrastructure", "development", "operations")
-                ):
-                    return loaded
-
-        # Fallback defaults (same as original hardcoded values)
-        return {
-            "infrastructure": {
-                "auto_scaling": "Автоматическое масштабирование ресурсов",
-                "spot_instances": "Использование spot-инстансов для некритичных задач",
-                "reserved_instances": "Резервирование инстансов для долгосрочного использования",
-                "cdn_optimization": "Оптимизация CDN для снижения трафика",
-                "caching": "Кэширование для снижения нагрузки на БД",
-            },
-            "development": {
-                "code_reuse": "Переиспользование кода",
-                "automation": "Автоматизация процессов",
-                "testing": "Эффективное тестирование",
-                "monitoring": "Проактивный мониторинг",
-                "documentation": "Хорошая документация",
-            },
-            "operations": {
-                "process_automation": "Автоматизация операционных процессов",
-                "outsourcing": "Аутсорсинг некритичных функций",
-                "lean_operations": "Бережливые операции",
-                "vendor_negotiation": "Переговоры с поставщиками",
-                "resource_sharing": "Совместное использование ресурсов",
-            },
-        }
-
     def analyze_business_logic(
         self, test_code: str | list[str], test_name: str
     ) -> list[BusinessTestResult]:
-        """
-        Analyzes business logic in test cases.
+        """Analyze business logic aspects of test code.
 
         Args:
-            test_code (str | list[str]): The code of the test to be analyzed. Can be a string or a list of strings.
+            test_code (str | list[str]): The test code to analyze.
             test_name (str): The name of the test.
 
         Returns:
@@ -788,6 +668,7 @@ class BusinessBayesianAnalyzer:
     def _analyze_cost_optimization(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует возможности оптимизации затрат."""
         results = []
+        code_for_regex = code[:10240]
 
         # 1. Nested loops: Use AST for accurate detection, fallback to regex for broken code
         # Heavy operation indicators (used by both AST and regex paths)
@@ -847,13 +728,12 @@ class BusinessBayesianAnalyzer:
                             break
         else:
             # Fallback to regex for broken code (keeps existing behavior)
-            nested_loop_pattern = (
-                r"for\s+(\w+)\s+in\s+[^:]+:\s*(?:[^\n]*\n)*?\s*for\s+(\w+)\s+in\s+[^:]+:"
-            )
-            nested_matches = re.finditer(nested_loop_pattern, code, re.MULTILINE)
+            # Fixed ReDoS vulnerability by limiting repetitions and input length
+            nested_loop_pattern = r"for\s+(\w+)\s+in\s+[^:\n]+:\s*(?:[^\n]{0,200}\n){0,10}?\s*for\s+(\w+)\s+in\s+[^:\n]+:"
+            nested_matches = re.finditer(nested_loop_pattern, code_for_regex, re.MULTILINE)
             for match in nested_matches:
                 loop_start = match.end()
-                lines_after = code[loop_start:].split("\n")[:20]
+                lines_after = code_for_regex[loop_start:].split("\n")[:20]
                 loop_body = "\n".join(lines_after)
                 if not re.search(r"\b(break|return)\b", loop_body) and any(
                     re.search(pattern, loop_body, re.IGNORECASE) for pattern in heavy_indicators
@@ -872,8 +752,10 @@ class BusinessBayesianAnalyzer:
 
         # 2. SELECT *: flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"
-        if re.search(select_star_pattern, code, re.IGNORECASE):
-            is_test_or_fixture = test_name.lower().startswith("test_") or "fixture" in code.lower()
+        if re.search(select_star_pattern, code_for_regex, re.IGNORECASE):
+            is_test_or_fixture = (
+                test_name.lower().startswith("test_") or "fixture" in code_for_regex.lower()
+            )
             if not is_test_or_fixture:
                 results.append(
                     BusinessTestResult(
@@ -889,16 +771,17 @@ class BusinessBayesianAnalyzer:
 
         # 3. while True: only flag when no break/return in loop body
         while_true_pattern = r"while\s+True\s*:"
-        while_matches = re.finditer(while_true_pattern, code, re.IGNORECASE)
+        while_matches = re.finditer(while_true_pattern, code_for_regex, re.IGNORECASE)
         for match in while_matches:
             # Extract loop body using DOTALL to match across lines
             loop_start = match.end()
             # Find the body (next 50 lines or until dedent)
-            remaining_code = code[loop_start:]
+            remaining_code = code_for_regex[loop_start:]
             lines_after = remaining_code.split("\n")[:50]
             loop_body = "\n".join(lines_after)
             # Check if there's a break or return in the loop body
-            if not re.search(r"\b(break|return)\b", loop_body, re.DOTALL):
+            # Removed re.DOTALL to avoid ReDoS vulnerability
+            if not re.search(r"\b(break|return)\b", loop_body):
                 results.append(
                     BusinessTestResult(
                         test_name=test_name,
@@ -912,14 +795,14 @@ class BusinessBayesianAnalyzer:
                 )
 
         # 4. sleep(): broaden detection but avoid retry/backoff patterns
-        # Match sleep( with any argument, but skip common retry patterns
-        sleep_pattern = r"sleep\s*\([^)]+\)"
-        sleep_matches = re.finditer(sleep_pattern, code, re.IGNORECASE)
+        # Match sleep( with bounded argument length to avoid expensive backtracking
+        sleep_pattern = r"sleep\s*\(\s*[^)\n]{0,80}\)"
+        sleep_matches = re.finditer(sleep_pattern, code_for_regex, re.IGNORECASE)
         for match in sleep_matches:
             # Check context: skip if it's part of retry/backoff logic
             context_start = max(0, match.start() - 100)
-            context_end = min(len(code), match.end() + 100)
-            context = code[context_start:context_end].lower()
+            context_end = min(len(code_for_regex), match.end() + 100)
+            context = code_for_regex[context_start:context_end].lower()
             # Skip common retry/backoff patterns
             retry_keywords = ["retry", "backoff", "exponential", "jitter", "wait", "delay"]
             if all(keyword not in context for keyword in retry_keywords):
@@ -938,11 +821,10 @@ class BusinessBayesianAnalyzer:
                 )
 
         # Проверка на отсутствие кэширования
+        code_lower = code_for_regex.lower()
         if any(
-            keyword in code.lower() for keyword in ["database", "api", "request", "fetch"]
-        ) and all(
-            keyword not in code.lower() for keyword in ["cache", "memoize", "redis", "memory"]
-        ):
+            keyword in code_lower for keyword in ["database", "api", "request", "fetch"]
+        ) and all(keyword not in code_lower for keyword in ["cache", "memoize", "redis", "memory"]):
             results.append(
                 BusinessTestResult(
                     test_name=test_name,
@@ -960,12 +842,15 @@ class BusinessBayesianAnalyzer:
     def _analyze_revenue_growth(self, code: str, test_name: str) -> list[BusinessTestResult]:
         """Анализирует возможности роста доходов."""
         results = []
+        code_for_regex = code[:10240]
+        code_lower = code_for_regex.lower()
 
         # Обнаружение явных утечек дохода (отрицательные платежи)
+        # Используем более конкретный паттерн чтобы избежать ReDoS
         negative_payment_pattern = re.compile(
-            r"process_payment\s*\(.*amount\s*=\s*-\s*[\d.]+", re.IGNORECASE | re.DOTALL
+            r"process_payment\s*\([^)]*amount\s*=\s*-\s*[\d.]+", re.IGNORECASE
         )
-        if negative_payment_pattern.search(code):
+        if negative_payment_pattern.search(code_for_regex):
             results.append(
                 BusinessTestResult(
                     test_name=test_name,
@@ -980,11 +865,10 @@ class BusinessBayesianAnalyzer:
 
         # Поиск упоминаний аналитики и метрик
         analytics_keywords = ["analytics", "metrics", "tracking", "conversion", "revenue"]
-        analytics_mentions = [kw for kw in analytics_keywords if kw in code.lower()]
+        analytics_mentions = [kw for kw in analytics_keywords if kw in code_lower]
 
         if analytics_mentions and all(
-            keyword not in code.lower()
-            for keyword in ["ab_test", "experiment", "variant", "control"]
+            keyword not in code_lower for keyword in ["ab_test", "experiment", "variant", "control"]
         ):
             results.append(
                 BusinessTestResult(
@@ -1000,10 +884,10 @@ class BusinessBayesianAnalyzer:
 
         # Проверка на отсутствие персонализации
         if (
-            "user" in code.lower()
-            and "personal" in code.lower()
+            "user" in code_lower
+            and "personal" in code_lower
             and all(
-                keyword not in code.lower()
+                keyword not in code_lower
                 for keyword in ["recommend", "suggest", "customize", "tailor"]
             )
         ):

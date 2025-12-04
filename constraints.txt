@@ -45,7 +45,8 @@ matplotlib>=3.10.7
 reportlab>=4.4.4
 sqlalchemy>=2.0.44
 alembic>=1.17.2
-psycopg[binary]>=3.2.13
+# Constraints files cannot include extras; requirement uses psycopg[binary]
+psycopg>=3.2.13
 email-validator>=2.3.0
 faker>=37.12.0
 cryptography>=46.0.3

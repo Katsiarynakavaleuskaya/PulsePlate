@@ -39,8 +39,8 @@ if _sharding_module_path.exists():
             _sharding = importlib.util.module_from_spec(_spec)
             _spec.loader.exec_module(_sharding)
             # Register sharding hooks globally
-            pytest_addoption = _sharding.pytest_addoption  # type: ignore[misc]
-            pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems  # type: ignore[misc]
+            pytest_addoption = _sharding.pytest_addoption
+            pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems
         except Exception as e:
             import warnings
 
@@ -256,16 +256,18 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_users() -> Generator[None, None, None]:
+def _cleanup_users(configure_sqlite_database) -> Generator[None, None, None]:
     """Best-effort users table cleanup before/after each test.
 
     Attempts to truncate the users table before and after each test. If the
     database is not accessible (e.g., locked SQLite), logs a warning and
     continues to avoid flakiness.
     """
+    # Get the reloaded db module from the configure_sqlite_database fixture
+    from core import db as db_module_reloaded
 
     def _truncate() -> None:
-        with db_module.session_scope() as session:
+        with db_module_reloaded.session_scope() as session:
             session.execute(text("DELETE FROM users"))
 
     try:
@@ -274,7 +276,7 @@ def _cleanup_users() -> Generator[None, None, None]:
         # Database not accessible - proceeding without initial cleanup
         logger.warning(f"Database not accessible during test setup: {e}")
         try:
-            db_module.init_db()
+            db_module_reloaded.init_db()
         except Exception as init_err:
             logger.error(f"init_db during cleanup setup failed: {init_err}")
             raise
@@ -283,7 +285,7 @@ def _cleanup_users() -> Generator[None, None, None]:
 
     # Cleanup after test - log errors to reduce flakiness when SQLite is locked
     try:
-        with db_module.session_scope() as session:
+        with db_module_reloaded.session_scope() as session:
             session.execute(text("DELETE FROM users"))
     except OperationalError as e:
         # Avoid hard failures on teardown to reduce flakiness in CI when SQLite is locked

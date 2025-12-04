@@ -409,9 +409,6 @@ def _calculate_all_tdee_wrapper(
     return cast(Dict[str, Union[int, float]], result)
 
 
-_APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")
-
-
 # Test hook for overriding get_update_scheduler (used by rollback endpoint tests)
 _test_scheduler_override: Optional[Callable[[], Awaitable[Any]]] = None
 
@@ -4772,11 +4769,10 @@ if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
     app.include_router(bmi_pro_router)
 
 # Include Business router (with feature flag)
-BUSINESS_MODULE_ENABLED = os.getenv("BUSINESS_MODULE_ENABLED", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
+_business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
+if _business_flag is None:
+    BUSINESS_MODULE_ENABLED = True
+else:
+    BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag)
 if BUSINESS_MODULE_ENABLED and business_router:
     app.include_router(business_router)

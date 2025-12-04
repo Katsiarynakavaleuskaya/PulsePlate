@@ -98,6 +98,7 @@
 английском
 андроид
 анимациями
+анонимизированные
 апельсин
 аргументами
 аргументы
@@ -117,6 +118,7 @@
 атрибуты
 аутентификации
 аутентификация
+Аутсорсинг
 аэробный
 база
 База
@@ -1055,6 +1057,7 @@
 иной
 инсайта
 инстансов
+инстансы
 инструкций
 инструкцию
 ИНСТРУКЦИЯ
@@ -1992,6 +1995,7 @@
 окружения
 оливковое
 Оливковое
+онбординг
 онбординга
 операций
 описание
@@ -2204,6 +2208,7 @@
 Перезапускаем
 перезапустим
 Переимпортируем
+переиспользование
 Переиспользование
 переиспользуемый
 переключение
@@ -2569,6 +2574,7 @@
 приоритетом
 присутствующие
 Причина
+проактивного
 Проактивный
 пробелами
 пробелов
@@ -3668,6 +3674,7 @@
 фиксированными
 Фиксировать
 Фикстура
+фикстуры
 филе
 фильтр
 Фильтр
@@ -4220,6 +4227,7 @@ isoformat
 isort
 issubset
 italian
+iterdir
 iterrows
 Jaccard
 Jeor
@@ -4278,6 +4286,7 @@ Masculino
 matplotlib
 maxfail
 maxretry
+maxsize
 mayores
 mediana
 médico
@@ -4444,6 +4453,7 @@ pyright
 pytest
 pythonpath
 pywin
+pyyaml
 qualname
 queso
 quickcheck
@@ -4453,6 +4463,7 @@ recipedb
 reco
 recomienda
 redef
+redis
 redoc
 reducir
 referencias
@@ -4516,6 +4527,7 @@ starlette
 staticmethod
 strftime
 subestimar
+subscores
 suptitle
 swiftformat
 swiftlint
@@ -4552,6 +4564,8 @@ tzname
 unicode
 unicodedata
 unstub
+untokenize
+upselling
 urllib
 Usando
 usda
