@@ -315,9 +315,8 @@ class EngineCompat:
         stmt = text(statement) if isinstance(statement, str) else statement
         # Keep connection open until result is consumed to avoid ResourceClosedError
         conn = self._engine.connect()
-        result: Result[Any] | None = None
         try:
-            result = conn.execute(stmt, *args, **kwargs)
+            result: Result[Any] = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.
             self._finalize_transaction(conn)
             # Return a wrapper that closes connection when result is closed
