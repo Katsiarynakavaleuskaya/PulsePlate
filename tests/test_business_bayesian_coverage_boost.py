@@ -14,6 +14,7 @@ Targets uncovered lines from CI coverage report:
 """
 
 from pathlib import Path
+import sys
 import pytest
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
@@ -76,17 +77,8 @@ class TestLocaleNormalization:
 
     def test_locale_with_i18n_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When i18n module unavailable, should use fallback locale validation."""
-        # Simulate ImportError for i18n module by patching import
-        import builtins
-
-        real_import = builtins.__import__
-
-        def fake_import(name, *args, **kwargs):
-            if name == "core.i18n":
-                raise ImportError("i18n unavailable")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", fake_import)
+        # Simulate i18n module being unavailable with a single monkeypatch operation
+        monkeypatch.setitem(sys.modules, "core.i18n", None)
 
         # This will trigger ImportError in _load_monetization_strategies
         analyzer = BusinessBayesianAnalyzer()
