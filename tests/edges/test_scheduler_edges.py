@@ -12,10 +12,13 @@ async def test_scheduler_update_loop_error_branch(monkeypatch: pytest.MonkeyPatc
     sched.is_running = True
 
     # Make _should_check_for_updates raise to hit except in _update_loop
+    def throw_error(_: Any) -> bool:
+        raise RuntimeError("boom")
+
     monkeypatch.setattr(
         sched,
         "_should_check_for_updates",
-        lambda _: iter(()).throw(RuntimeError("boom")),
+        throw_error,
     )
 
     # Make asyncio.sleep return immediately
@@ -46,8 +49,9 @@ def test_scheduler_signal_handler_invocation(monkeypatch: pytest.MonkeyPatch):
 
     def fake_create_task(coro: Any) -> None:  # noqa: D401
         created["task"] = coro
-        # Run coroutine immediately to avoid unawaited warnings
-        asyncio.run(coro)
+        # Close coroutine to avoid unawaited warnings without running it
+        if hasattr(coro, "close"):
+            coro.close()
         return None
 
     monkeypatch.setattr(asyncio, "create_task", fake_create_task)

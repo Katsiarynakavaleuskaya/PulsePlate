@@ -344,7 +344,6 @@ def test_init_db_wrapper_not_called() -> None:
 
     # Create a fresh wrapper that has NOT been called
     # We need to replace it with a new uncalled wrapper to test the failure path
-    from unittest.mock import MagicMock
 
     # Get the original function from the wrapper
     original_fn = create_all_wrapper._fn if hasattr(create_all_wrapper, "_fn") else MagicMock()

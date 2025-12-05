@@ -28,6 +28,12 @@ class PulsePlateMCPServer:
         "o3",
         "o3-mini",
     }
+    # Ensure DEFAULT_MODEL remains whitelisted (bandit-safe, no assert)
+    if DEFAULT_MODEL not in ALLOWED_MODELS:
+        raise ValueError(
+            f"DEFAULT_MODEL {DEFAULT_MODEL!r} must be in ALLOWED_MODELS. "
+            f"Current ALLOWED_MODELS: {sorted(ALLOWED_MODELS)}"
+        )
 
     def __init__(self) -> None:
         self.api_key: str | None = os.getenv("OPENAI_API_KEY")
@@ -35,17 +41,21 @@ class PulsePlateMCPServer:
             raise ValueError("OPENAI_API_KEY environment variable not set")
 
         # Configurable model via MCP_OPENAI_MODEL environment variable
-        # Falls back to DEFAULT_MODEL if not set
-        model_env: str | None = os.getenv("MCP_OPENAI_MODEL")
-        self.model: str = (model_env if model_env else self.DEFAULT_MODEL).strip()
-
-        # Fail-fast validation: reject invalid model names at startup
-        # This prevents cryptic API errors later during runtime
-        if not self.model:
-            raise ValueError(
-                f"Invalid model name: {self.model!r}. "
-                f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
-            )
+        # Falls back to DEFAULT_MODEL if not set or empty after stripping
+        model_env_raw: str | None = os.getenv("MCP_OPENAI_MODEL")
+        if model_env_raw is None:
+            self.model = self.DEFAULT_MODEL
+        elif model_env_raw == "":
+            # Explicit empty string falls back to default
+            self.model = self.DEFAULT_MODEL
+        else:
+            model_env = model_env_raw.strip()
+            if not model_env:
+                raise ValueError(
+                    f"Invalid model name: {model_env_raw!r}. "
+                    f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
+                )
+            self.model = model_env
 
         # Whitelist validation: ensure model is a known OpenAI model
         if self.model not in self.ALLOWED_MODELS:

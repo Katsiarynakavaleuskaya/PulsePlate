@@ -773,7 +773,7 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
         raise HTTPException(status_code=403, detail="API key required but not configured")
 
     if not dev_mode:
-        # Production/staging without API key configured
+        # Production/staging without API key configured (non-strict)
         raise HTTPException(status_code=403, detail="API key required but not configured")
 
     # Lenient mode (tests/dev): allow missing token, but reject obviously invalid ones
@@ -4763,20 +4763,14 @@ async def export_weekly_plan_pdf(plan_id: str) -> Response:
 if get_bodyfat_router is not None:
     app.include_router(get_bodyfat_router(), prefix="/api/v1")
 
-# Include BMI Pro router (with feature flag)
+# Include BMI Pro router (with feature flag). Defaults to disabled for safety.
 _bmi_pro_flag = os.getenv("FEATURE_BMI_PRO_ENABLED")
-if _bmi_pro_flag is None:
-    FEATURE_BMI_PRO_ENABLED = True
-else:
-    FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag)
+FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag) if _bmi_pro_flag is not None else False
 if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
     app.include_router(bmi_pro_router)
 
-# Include Business router (with feature flag)
+# Include Business router (with feature flag). Defaults to disabled for safety.
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
-if _business_flag is None:
-    BUSINESS_MODULE_ENABLED = True
-else:
-    BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag)
+BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag) if _business_flag is not None else False
 if BUSINESS_MODULE_ENABLED and business_router:
     app.include_router(business_router)

@@ -60,6 +60,13 @@ def _execute_with_retry(
 
         from core import db as db_module
 
+        # If schema is missing (e.g., fresh test DB), attempt to initialize once
+        if "no such table" in str(initial_error).lower():
+            try:
+                db_module.init_db()
+            except Exception as init_err:  # pragma: no cover - defensive
+                logger.warning("init_db attempt after missing table failed: %s", init_err)
+
         # Non-destructive retry with fresh sessions and exponential backoff
         last_error = initial_error
         for attempt in range(1, max_retries + 1):
@@ -180,9 +187,12 @@ async def get_user(user_id: int, db: Session = Depends(get_session)) -> UserRead
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(user_id: int, db: Session = Depends(get_session)) -> Response:
-    """RU: Удаляет пользователя. EN: Delete a user by identifier."""
+    """RU: Удаляет пользователя. EN: Delete a user by identifier.
 
-    def _action(session: Session) -> Response:
+    Destructive operations are not retried to avoid inconsistent state.
+    """
+
+    def _delete_once(session: Session) -> Response:
         user = session.get(User, user_id)
         if user is None:
             # Idempotent: user already deleted (or never existed)
@@ -192,4 +202,4 @@ async def delete_user(user_id: int, db: Session = Depends(get_session)) -> Respo
         session.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    return await run_in_threadpool(_execute_with_retry, _action, db)
+    return await run_in_threadpool(_delete_once, db)

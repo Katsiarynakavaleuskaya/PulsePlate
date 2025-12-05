@@ -17,5 +17,5 @@ alembic>=1.17.2
 psycopg[binary]>=3.2.13
 email-validator>=2.3.0
 cryptography>=46.0.3
-# PyArrow wheels for Python 3.13 are not yet published; make optional on 3.13+
+# PyArrow wheels for Python 3.13 (cp313) available in pyarrow 19.0.0+
 pyarrow>=14.0.0

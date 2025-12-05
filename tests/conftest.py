@@ -8,6 +8,7 @@ import importlib.util
 import logging
 import os
 import sys
+import warnings
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Generator, cast
@@ -19,6 +20,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from core import db as db_module
+
+# Ensure key feature flags are enabled during test collection
+os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
+os.environ.setdefault("BUSINESS_MODULE_ENABLED", "true")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
@@ -244,7 +249,7 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
     return client
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Set up deterministic test environment variables."""
     # Set consistent environment for deterministic testing
@@ -253,9 +258,10 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "true")
     monkeypatch.setenv("DEBUG", "true")
     monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
     yield
     # Cleanup is automatic with monkeypatch

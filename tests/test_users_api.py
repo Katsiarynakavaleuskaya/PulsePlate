@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator, cast
 import tempfile
@@ -17,14 +18,18 @@ import app
 import importlib
 
 
-def _client() -> TestClient:
-    """Create an isolated TestClient with a per-test SQLite DB.
+@contextmanager
+def _client() -> Generator[TestClient, None, None]:
+    """Create an isolated TestClient with a per-test SQLite DB and clean environment."""
 
-    Uses a temporary directory that is automatically cleaned up after the test.
-    """
-    # Use TemporaryDirectory to ensure cleanup
-    temp_dir = tempfile.TemporaryDirectory(prefix="users_api_db_", dir="cache")
+    cache_root = Path("cache")
+    cache_root.mkdir(parents=True, exist_ok=True)
+
+    temp_dir = tempfile.TemporaryDirectory(prefix="users_api_db_", dir=str(cache_root))
     db_path = Path(temp_dir.name) / "test_app.sqlite"
+
+    prev_test_db = os.environ.get("TEST_DB_PATH")
+    prev_db_url = os.environ.get("DATABASE_URL")
     os.environ["TEST_DB_PATH"] = str(db_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
 
@@ -32,17 +37,25 @@ def _client() -> TestClient:
     importlib.reload(db_module)
     app_mod = importlib.reload(app)
 
-    # Ensure schema exists after reload with the new DATABASE_URL
     db_module.init_db()
     from core import models as models_module
 
     models_module.Base.metadata.create_all(bind=db_module.engine)
 
-    # Create the TestClient and attach the temp_dir to keep it alive
     client = TestClient(cast(ASGIApp, app_mod.app))
-    client.__temp_dir = temp_dir  # Keep temp_dir alive for client lifetime
-
-    return client
+    try:
+        yield client
+    finally:
+        temp_dir.cleanup()
+        # Restore prior env values
+        if prev_test_db is None:
+            os.environ.pop("TEST_DB_PATH", None)
+        else:
+            os.environ["TEST_DB_PATH"] = prev_test_db
+        if prev_db_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = prev_db_url
 
 
 def test_create_and_get_user() -> None:

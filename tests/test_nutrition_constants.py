@@ -19,6 +19,13 @@ class TestIsMealLevelValue:
         with pytest.raises(TypeError, match="kcal must be a number"):
             is_meal_level_value("500")  # type: ignore[arg-type]
 
+    def test_type_error_for_boolean_input(self) -> None:
+        """is_meal_level_value raises TypeError for boolean input."""
+        with pytest.raises(TypeError, match="got boolean value"):
+            is_meal_level_value(True)
+        with pytest.raises(TypeError, match="got boolean value"):
+            is_meal_level_value(False)
+
     def test_type_error_for_none_input(self) -> None:
         """is_meal_level_value raises TypeError for None input."""
         with pytest.raises(TypeError, match="kcal must be a number"):

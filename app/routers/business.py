@@ -21,6 +21,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/business", tags=["business"])
 
 
+def _safe_error_summary(err: Exception) -> str:
+    """Return a sanitized error summary without user-provided content."""
+    return err.__class__.__name__
+
+
 class BusinessAnalysisRequest(BaseModel):
     """Request model for business analysis."""
 
@@ -87,7 +92,12 @@ async def analyze_business_code(
         return response_items
 
     except Exception as e:
-        logger.error(f"Business analysis failed: {str(e)}", exc_info=True)
+        logger.error(
+            "Business analysis failed for test_name=%s (%s)",
+            request.test_name,
+            _safe_error_summary(e),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Business analysis failed. Please try again or contact support.",

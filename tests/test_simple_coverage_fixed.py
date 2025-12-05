@@ -470,7 +470,7 @@ class TestSimpleCoverageBoost:
             pytest.skip("Some core modules not available")
 
     @pytest.mark.asyncio
-    async def test_unified_db_module_coverage(self):
+    async def test_unified_db_module_coverage(self) -> None:
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
         try:
             import core.food_apis.unified_db as unified_db_module

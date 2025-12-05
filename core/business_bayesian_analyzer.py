@@ -15,11 +15,10 @@ import re
 import tokenize
 from pathlib import Path
 from types import ModuleType
-from typing import cast
+from typing import cast, Any
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
-from typing import Any
 
 from core import i18n
 
