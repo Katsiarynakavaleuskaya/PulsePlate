@@ -2018,6 +2018,7 @@ _TARGETS_DISABLED_TTL = 1.0
 _targets_disabled_cache: bool | None = None
 _targets_disabled_cache_time = 0.0
 _targets_disabled_lock = threading.Lock()
+_MISSING = object()
 
 
 def targets_disabled() -> bool:
@@ -2038,14 +2039,27 @@ def targets_disabled() -> bool:
 
     primary_app = _sys.modules.get("app")
     alias_app = _sys.modules.get("app_module")
+    pkg_has_attr = _APP_PACKAGE_REF is not None and isinstance(
+        getattr(_APP_PACKAGE_REF, "__dict__", None), dict
+    )
+    pkg_explicit_none = (
+        pkg_has_attr
+        and "build_nutrition_targets" in _APP_PACKAGE_REF.__dict__
+        and getattr(_APP_PACKAGE_REF, "build_nutrition_targets") is None
+    )
+    if pkg_explicit_none:
+        return True
+    primary_has_attr = primary_app is not None and "build_nutrition_targets" in primary_app.__dict__
+    alias_has_attr = alias_app is not None and "build_nutrition_targets" in alias_app.__dict__
     if (
-        _APP_PACKAGE_REF is not None
-        and getattr(_APP_PACKAGE_REF, "build_nutrition_targets", None) is None
+        primary_has_attr
+        and getattr(primary_app, "build_nutrition_targets", None) is None  # type: ignore[arg-type]
     ):
         return True
-    if primary_app is not None and getattr(primary_app, "build_nutrition_targets", None) is None:
-        return True
-    if alias_app is not None and getattr(alias_app, "build_nutrition_targets", None) is None:
+    if (
+        alias_has_attr
+        and getattr(alias_app, "build_nutrition_targets", None) is None  # type: ignore[arg-type]
+    ):
         return True
 
     now = time.time()
@@ -2083,16 +2097,22 @@ def _evaluate_targets_disabled() -> bool:
     import sys as _sys
 
     primary_app = _sys.modules.get("app")
-    if primary_app is not None:
+    primary_has_attr = primary_app is not None and "build_nutrition_targets" in primary_app.__dict__
+    if primary_has_attr:
         module_value = getattr(primary_app, "build_nutrition_targets", None)
-        if module_value is None:
+        if module_value is None:  # Explicit opt-out
             logger.debug("_targets_disabled: app module has build_nutrition_targets=None")
             return True
 
     alias_app = _sys.modules.get("app_module")
-    if alias_app is not None and alias_app is not primary_app:
+    alias_has_attr = (
+        alias_app is not None
+        and alias_app is not primary_app
+        and "build_nutrition_targets" in alias_app.__dict__
+    )
+    if alias_has_attr:
         alias_value = getattr(alias_app, "build_nutrition_targets", None)
-        if alias_value is None:
+        if alias_value is None:  # Explicit opt-out
             logger.debug("_targets_disabled: app_module alias has build_nutrition_targets=None")
             return True
 
@@ -2108,19 +2128,23 @@ def _quick_targets_disabled_state() -> bool | None:
     primary_app = _sys.modules.get("app")
     alias_app = _sys.modules.get("app_module")
 
-    primary_value = getattr(primary_app, "build_nutrition_targets", None) if primary_app else None
-    alias_value = getattr(alias_app, "build_nutrition_targets", None) if alias_app else None
+    primary_has_attr = primary_app is not None and "build_nutrition_targets" in primary_app.__dict__
+    alias_has_attr = alias_app is not None and "build_nutrition_targets" in getattr(
+        alias_app, "__dict__", {}
+    )
+
+    primary_value = (
+        getattr(primary_app, "build_nutrition_targets", None) if primary_has_attr else _MISSING
+    )
+    alias_value = (
+        getattr(alias_app, "build_nutrition_targets", None) if alias_has_attr else _MISSING
+    )
 
     # If either module explicitly disabled targets, honor that immediately
-    if primary_value is None or (alias_app is not None and alias_value is None):
+    if (primary_has_attr and primary_value is None) or (alias_has_attr and alias_value is None):
         return True
 
-    if (
-        primary_app is not None
-        and alias_app is not None
-        and callable(primary_value)
-        and callable(alias_value)
-    ):
+    if primary_has_attr and alias_has_attr and callable(primary_value) and callable(alias_value):
         return False
 
     return None
@@ -2832,7 +2856,7 @@ def build_fallback_plate(req: PlateRequest, candidates: list[Any]) -> PlateRespo
                 surplus_pct=req.surplus_pct,
                 bodyfat=req.bodyfat,
                 diet_flags=set(req.diet_flags or []),
-                life_stage="adult",
+                life_stage=getattr(req, "life_stage", "adult"),
             )
             _targets = _build_targets_resolved(profile)
             # Only override if targets has expected structure; coerce to ints to match tests
