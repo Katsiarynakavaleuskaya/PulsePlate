@@ -1526,4 +1526,7 @@ starlette
 uvicorn
 
 # Moved Casella (proper name) to project names list; removed from general dictionary
+cals
+carb
+MACRONUTRIENT
 setenv
