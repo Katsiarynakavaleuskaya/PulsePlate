@@ -10,7 +10,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
@@ -388,7 +388,11 @@ class ComprehensiveBayesianAnalyzer:
         return max(0.0, 1.0 - penalty)
 
     def _identify_critical_issues(
-        self, technical: List[str], nutrition: List[str], business: List[str], test_name: str = ""
+        self,
+        technical: List[str],
+        nutrition: List[str],
+        business: List[str],
+        test_name: Optional[str] = None,
     ) -> List[str]:
         """Идентифицирует критические проблемы.
 
@@ -421,7 +425,7 @@ class ComprehensiveBayesianAnalyzer:
                 if (
                     not result.success
                     and result.safety_level == "dangerous"
-                    and (not test_name or result.test_name == test_name)
+                    and (test_name is None or result.test_name == test_name)
                 ):
                     critical.append(f"HEALTH: {result.error_message}")
                     health_added = True

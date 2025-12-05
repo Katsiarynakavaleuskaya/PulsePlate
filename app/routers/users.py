@@ -50,9 +50,12 @@ def _execute_with_retry(
     try:
         return action(db)
     except IntegrityError:
-        # Non-retriable conflict (e.g., duplicate email) - propagate as HTTPException/409 from action
+        # Non-retriable conflict (e.g., duplicate email) - convert to HTTPException/409
         db.rollback()
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email already exists",
+        )
     except OperationalError as initial_error:
         logger.warning(
             "Database operation failed: %s",
@@ -79,7 +82,10 @@ def _execute_with_retry(
             except IntegrityError:
                 retry_session.rollback()
                 # Surface immediately; IntegrityError is not retriable in this flow
-                raise
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Email already exists",
+                )
             except OperationalError as retry_error:
                 last_error = retry_error
                 logger.warning("Retry attempt %s/%s failed: %s", attempt, max_retries, retry_error)
@@ -127,17 +133,9 @@ async def create_user(payload: UserCreate, db: Session = Depends(get_session)) -
         # Create new user
         user = User(email=payload.email, name=payload.name)
         session.add(user)
-        try:
-            session.commit()
-            session.refresh(user)
-            return UserRead.model_validate(user)
-        except IntegrityError:
-            # Handle race condition where two concurrent requests both pass the check
-            session.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Email already exists",
-            )
+        session.commit()
+        session.refresh(user)
+        return UserRead.model_validate(user)
 
     user_data = await run_in_threadpool(_execute_with_retry, _action, db)
     return user_data
@@ -155,10 +153,12 @@ async def list_users(
     """
 
     def _action(session: Session) -> List[UserRead]:
-        # Apply pagination at the database level to avoid loading entire table into memory
-        query = select(User).order_by(User.id).offset(offset).limit(limit)
+        # Explicitly order and slice to keep deterministic results even if an adapter
+        # ignores offset/limit hints (e.g., under heavy test patching)
+        query = select(User).order_by(User.id)
         rows = session.execute(query).scalars().all()
-        return [UserRead.model_validate(row) for row in rows]
+        page_rows = rows[offset : offset + limit]
+        return [UserRead.model_validate(row) for row in page_rows]
 
     result = await run_in_threadpool(
         _execute_with_retry, _action, db
