@@ -3310,12 +3310,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         # Resolve wrappers dynamically via the 'app' package to respect test patches
         import sys as _sys
 
-        _pkg_candidates = [
-            _APP_PACKAGE_REF,
-            _sys.modules.get(__name__),
-            _sys.modules.get("app"),
-            _sys.modules.get("app_module"),
-        ]
+        _pkg_candidates = _iter_app_modules()
         _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
 
         def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
@@ -3522,12 +3517,7 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     try:
         import sys as _sys
 
-        _pkg_candidates = [
-            _APP_PACKAGE_REF,
-            _sys.modules.get(__name__),
-            _sys.modules.get("app"),
-            _sys.modules.get("app_module"),
-        ]
+        _pkg_candidates = _iter_app_modules()
         _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
 
         def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
@@ -4328,6 +4318,26 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
 
 
 _APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")
+
+
+def _iter_app_modules() -> list[ModuleType]:
+    """Return all loaded module objects that point to app.py (handles aliasing in tests)."""
+    modules: list[ModuleType] = []
+    seen: set[int] = set()
+    if _APP_PACKAGE_REF is not None:
+        modules.append(_APP_PACKAGE_REF)
+        seen.add(id(_APP_PACKAGE_REF))
+    for mod in sys.modules.values():
+        if not isinstance(mod, ModuleType):
+            continue
+        if id(mod) in seen:
+            continue
+        file = getattr(mod, "__file__", "") or ""
+        if file.endswith("app.py"):
+            modules.append(mod)
+            seen.add(id(mod))
+    return modules
+
 
 # Export Endpoints
 

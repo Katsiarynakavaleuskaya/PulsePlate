@@ -14,7 +14,7 @@ import math
 import re
 import tokenize
 from pathlib import Path
-
+from types import ModuleType
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
@@ -215,7 +215,7 @@ class BusinessBayesianAnalyzer:
             self.high_price_threshold = self.DEFAULT_HIGH_PRICE_THRESHOLD
 
     @staticmethod
-    def _import_yaml_module():
+    def _import_yaml_module() -> ModuleType | None:
         """Attempt to import PyYAML, returning None if unavailable."""
         try:
             import yaml  # type: ignore[import-untyped]
@@ -749,23 +749,24 @@ class BusinessBayesianAnalyzer:
                         and ":" in inner_stripped
                     ):
                         continue
-                        loop_body = "\n".join(lookahead)
-                        if not re.search(r"\b(break|return)\b", loop_body) and any(
-                            re.search(pattern, loop_body, re.IGNORECASE)
-                            for pattern in heavy_indicators
-                        ):
-                            results.append(
-                                BusinessTestResult(
-                                    test_name=test_name,
-                                    success=False,
-                                    business_category=BusinessCategory.COST_OPTIMIZATION,
-                                    error_type=BusinessErrorType.OPERATIONAL_WASTE,
-                                    error_message="Вложенные циклы без break/return",
-                                    cost_impact="Повышенное потребление ресурсов",
-                                    optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
-                                )
+
+                    # Found nested for loop - check for heavy operations
+                    loop_body = "\n".join(lookahead)
+                    if not re.search(r"\b(break|return)\b", loop_body) and any(
+                        re.search(pattern, loop_body, re.IGNORECASE) for pattern in heavy_indicators
+                    ):
+                        results.append(
+                            BusinessTestResult(
+                                test_name=test_name,
+                                success=False,
+                                business_category=BusinessCategory.COST_OPTIMIZATION,
+                                error_type=BusinessErrorType.OPERATIONAL_WASTE,
+                                error_message="Вложенные циклы без break/return",
+                                cost_impact="Повышенное потребление ресурсов",
+                                optimization_potential="Оптимизировать алгоритм или добавить ранний выход",
                             )
-                        break
+                        )
+                    break
 
         # 2. SELECT *: flag when not in test/fixture context
         select_star_pattern = r"SELECT\s+\*\s+FROM"
@@ -862,24 +863,25 @@ class BusinessBayesianAnalyzer:
         code_for_regex = code[:10240]
         code_lower = code_for_regex.lower()
 
-        # Обнаружение явных утечек дохода (отрицательные платежи)
-        # Используем более конкретный паттерн чтобы избежать ReDoS
-        negative_payment_pattern = re.compile(
-            r"process_payment\s*\([^)]{0,200}?amount\s*=\s*-?\s*\d+(?:\.\d+)?",
-            re.IGNORECASE,
-        )
-        if negative_payment_pattern.search(code_for_regex):
-            results.append(
-                BusinessTestResult(
-                    test_name=test_name,
-                    success=False,
-                    business_category=BusinessCategory.REVENUE_GROWTH,
-                    error_type=BusinessErrorType.REVENUE_LEAK,
-                    error_message="Обнаружена утечка дохода: отрицательная сумма платежа",
-                    revenue_impact="Непосредственная потеря дохода",
-                    optimization_potential="Валидировать суммы платежей и отклонять отрицательные значения",
-                )
-            )
+        # Обнаружение явных утечек дохода (отрицательные платежи) без рискованного regex
+        if "process_payment" in code_lower and "amount" in code_lower and "-" in code_lower:
+            for line in code_for_regex.splitlines():
+                line_lower = line.lower()
+                if "process_payment" not in line_lower or "amount" not in line_lower:
+                    continue
+                if "amount" in line_lower and "=-" in line_lower.replace(" ", ""):
+                    results.append(
+                        BusinessTestResult(
+                            test_name=test_name,
+                            success=False,
+                            business_category=BusinessCategory.REVENUE_GROWTH,
+                            error_type=BusinessErrorType.REVENUE_LEAK,
+                            error_message="Обнаружена утечка дохода: отрицательная сумма платежа",
+                            revenue_impact="Непосредственная потеря дохода",
+                            optimization_potential="Валидировать суммы платежей и отклонять отрицательные значения",
+                        )
+                    )
+                    break
 
         # Поиск упоминаний аналитики и метрик
         analytics_keywords = ["analytics", "metrics", "tracking", "conversion", "revenue"]
@@ -1353,10 +1355,14 @@ class BusinessBayesianAnalyzer:
                 f"upper_log={upper_log:.2f}. Clamping upper bound to {self.MAX_CREDIBLE_UPPER_ROI}."
             )
 
-        # Clamp upper bound to prevent misleading astronomically large values
-        # Ensure clamped value is at least >= lower bound
-        credible_interval_upper = min(credible_interval_upper, self.MAX_CREDIBLE_UPPER_ROI)
-        credible_interval_upper = max(credible_interval_upper, credible_interval_lower)
+        # Clamp both bounds to avoid misleading astronomically large values and ensure ordering
+        credible_interval_lower = max(
+            -1.0, min(credible_interval_lower, self.MAX_CREDIBLE_UPPER_ROI)
+        )
+        credible_interval_upper = max(
+            credible_interval_lower,
+            min(credible_interval_upper, self.MAX_CREDIBLE_UPPER_ROI),
+        )
 
         return ROIEstimate(
             category=category,

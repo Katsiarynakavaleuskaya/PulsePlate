@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import warnings
+from typing import Any
 
 # Calorie Safety Thresholds (kcal/day)
 # Based on WHO/USDA guidelines and medical supervision requirements
@@ -51,16 +52,16 @@ _BMI_DANGEROUS_HIGH_VALUE = BMI_OBESITY_THRESHOLD
 class _DeprecatedBMIAlias:
     """Accessor for deprecated BMI_DANGEROUS_HIGH alias that emits a warning when accessed."""
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if name == "BMI_DANGEROUS_HIGH":
             warnings.warn(
                 "BMI_DANGEROUS_HIGH is deprecated and will be removed in a future release. "
                 "Use BMI_OBESITY_THRESHOLD instead.",
                 DeprecationWarning,
-                stacklevel=4,
+                stacklevel=3,
             )
             return _BMI_DANGEROUS_HIGH_VALUE
-        raise AttributeError(f"module 'nutrition_constants' has no attribute '{name}'")
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 # Create an instance to handle deprecated attribute access
@@ -68,7 +69,7 @@ _deprecated_alias_handler = _DeprecatedBMIAlias()
 
 
 # Override __getattr__ at module level to intercept deprecated alias access
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     return getattr(_deprecated_alias_handler, name)
 
 

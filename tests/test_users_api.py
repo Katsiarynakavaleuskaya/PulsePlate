@@ -18,9 +18,13 @@ import importlib
 
 
 def _client() -> TestClient:
-    # Use an isolated SQLite DB per test client to avoid cross-test interference
-    db_dir = Path(tempfile.mkdtemp(prefix="users_api_db_", dir="cache"))
-    db_path = db_dir / "test_app.sqlite"
+    """Create an isolated TestClient with a per-test SQLite DB.
+
+    Uses a temporary directory that is automatically cleaned up after the test.
+    """
+    # Use TemporaryDirectory to ensure cleanup
+    temp_dir = tempfile.TemporaryDirectory(prefix="users_api_db_", dir="cache")
+    db_path = Path(temp_dir.name) / "test_app.sqlite"
     os.environ["TEST_DB_PATH"] = str(db_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
 
@@ -34,7 +38,11 @@ def _client() -> TestClient:
 
     models_module.Base.metadata.create_all(bind=db_module.engine)
 
-    return TestClient(cast(ASGIApp, app_mod.app))
+    # Create the TestClient and attach the temp_dir to keep it alive
+    client = TestClient(cast(ASGIApp, app_mod.app))
+    client.__temp_dir = temp_dir  # Keep temp_dir alive for client lifetime
+
+    return client
 
 
 def test_create_and_get_user() -> None:

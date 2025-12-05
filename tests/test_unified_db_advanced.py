@@ -95,8 +95,8 @@ class TestUnifiedFoodDatabaseCommonFoods:
         db.usda_client = mock_usda_client
 
         # Mock asyncio.sleep to speed up test
-        with patch("asyncio.sleep") as mock_sleep:
-            mock_sleep.return_value = None
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            foods_db = await db.get_common_foods_database()
             foods_db = await db.get_common_foods_database()
 
         # Should have some foods (at least the ones we mocked)

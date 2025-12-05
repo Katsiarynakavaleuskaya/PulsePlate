@@ -96,7 +96,7 @@ def _execute_with_retry(
 
         raise HTTPException(
             status_code=503,
-            detail=f"Database unavailable after {max_retries} retries: {str(last_error)}",
+            detail="Database temporarily unavailable. Please try again later.",
         ) from last_error
 
 
