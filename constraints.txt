@@ -51,4 +51,4 @@ psycopg>=3.2.3
 email-validator>=2.3.0
 cryptography>=46.0.3
 # PyArrow wheels for Python 3.13 (cp313) available since pyarrow 19.0.0+
-pyarrow>=19.0.0
+pyarrow>=20.0.0
