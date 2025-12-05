@@ -44,6 +44,7 @@ def _execute_with_retry(
     """
     max_retries = 3
     base_delay = 0.1  # 100ms base delay
+    from core import db as db_module
 
     # First attempt with injected session
     try:
@@ -54,18 +55,12 @@ def _execute_with_retry(
         raise
     except OperationalError as initial_error:
         logger.warning(
-            "Database operation failed, attempting non-destructive retry: %s",
+            "Database operation failed: %s",
             initial_error,
         )
 
-        from core import db as db_module
-
-        # If schema is missing (e.g., fresh test DB), attempt to initialize once
-        if "no such table" in str(initial_error).lower():
-            try:
-                db_module.init_db()
-            except Exception as init_err:  # pragma: no cover - defensive
-                logger.warning("init_db attempt after missing table failed: %s", init_err)
+        # Removed automatic database initialization to prevent request handlers from performing schema initialization.
+        # Schema should be initialized via test fixtures, setup code, or dedicated migration/startup scripts.
 
         # Non-destructive retry with fresh sessions and exponential backoff
         last_error = initial_error
@@ -160,7 +155,9 @@ async def list_users(
     """
 
     def _action(session: Session) -> List[UserRead]:
-        rows = session.execute(select(User).order_by(User.id).offset(offset).limit(limit)).scalars()
+        # Apply pagination at the database level to avoid loading entire table into memory
+        query = select(User).order_by(User.id).offset(offset).limit(limit)
+        rows = session.execute(query).scalars().all()
         return [UserRead.model_validate(row) for row in rows]
 
     result = await run_in_threadpool(
