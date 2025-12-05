@@ -1504,7 +1504,6 @@
 медицинским
 asgi
 asyncio
-Casella
 dataclass
 dataclasses
 dotenv
@@ -1525,3 +1524,6 @@ sourcery
 sqlalchemy
 starlette
 uvicorn
+
+# Moved Casella (proper name) to project names list; removed from general dictionary
+setenv

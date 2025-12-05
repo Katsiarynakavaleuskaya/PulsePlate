@@ -1,66 +1,52 @@
 import pytest
 from fastapi import HTTPException
+from unittest.mock import AsyncMock, patch
 
 import app as app_mod
 
 
 @pytest.mark.asyncio
-async def test_rollback_scheduler_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    called = {}
-
-    class DummyScheduler:
-        pass
-
-    async def fake_scheduler() -> DummyScheduler:
-        called["hit"] = True
-        raise RuntimeError("boom")
-
-    monkeypatch.setitem(
-        app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
-    )
+@patch("app.get_update_scheduler", new_callable=AsyncMock)
+async def test_rollback_scheduler_failure(mock_get_update_scheduler: AsyncMock) -> None:
+    mock_get_update_scheduler.side_effect = RuntimeError("boom")
 
     with pytest.raises(HTTPException) as exc:
         await app_mod.rollback_database("usda", "v1")
-    assert called
+    mock_get_update_scheduler.assert_called_once()
     assert exc.value.status_code == 500
     assert "could not get scheduler" in exc.value.detail
 
 
 @pytest.mark.asyncio
-async def test_rollback_no_update_manager(monkeypatch: pytest.MonkeyPatch) -> None:
+@patch("app.get_update_scheduler", new_callable=AsyncMock)
+async def test_rollback_no_update_manager(mock_get_update_scheduler: AsyncMock) -> None:
     class DummyScheduler:
         update_manager = None
 
-    async def fake_scheduler() -> DummyScheduler:
-        return DummyScheduler()
-
-    monkeypatch.setitem(
-        app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
-    )
+    mock_get_update_scheduler.return_value = DummyScheduler()
     resp = await app_mod.rollback_database("usda", "v1")
+    mock_get_update_scheduler.assert_called_once()
     assert resp == {"message": "No update manager available; nothing to rollback"}
 
 
 @pytest.mark.asyncio
-async def test_rollback_no_rollback_fn(monkeypatch: pytest.MonkeyPatch) -> None:
+@patch("app.get_update_scheduler", new_callable=AsyncMock)
+async def test_rollback_no_rollback_fn(mock_get_update_scheduler: AsyncMock) -> None:
     class DummyManager:
         pass
 
     class DummyScheduler:
         update_manager = DummyManager()
 
-    async def fake_scheduler() -> DummyScheduler:
-        return DummyScheduler()
-
-    monkeypatch.setitem(
-        app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
-    )
+    mock_get_update_scheduler.return_value = DummyScheduler()
     resp = await app_mod.rollback_database("usda", "v1")
+    mock_get_update_scheduler.assert_called_once()
     assert resp == {"message": "Rollback operation not supported by update manager"}
 
 
 @pytest.mark.asyncio
-async def test_rollback_raises_inside_method(monkeypatch: pytest.MonkeyPatch) -> None:
+@patch("app.get_update_scheduler", new_callable=AsyncMock)
+async def test_rollback_raises_inside_method(mock_get_update_scheduler: AsyncMock) -> None:
     class DummyManager:
         async def rollback_database(self, source: str, target_version: str) -> None:
             raise RuntimeError("boom")
@@ -68,13 +54,9 @@ async def test_rollback_raises_inside_method(monkeypatch: pytest.MonkeyPatch) ->
     class DummyScheduler:
         update_manager = DummyManager()
 
-    async def fake_scheduler() -> DummyScheduler:
-        return DummyScheduler()
-
-    monkeypatch.setitem(
-        app_mod.rollback_database.__globals__, "get_update_scheduler", fake_scheduler
-    )
+    mock_get_update_scheduler.return_value = DummyScheduler()
     with pytest.raises(HTTPException) as exc:
         await app_mod.rollback_database("usda", "v1")
+    mock_get_update_scheduler.assert_called_once()
     assert exc.value.status_code == 500
     assert "Rollback operation failed" in exc.value.detail

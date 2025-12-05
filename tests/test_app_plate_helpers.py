@@ -401,4 +401,6 @@ async def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(
 
     response = await app.api_premium_plate(request)
 
-    assert response.macros["fiber_g"] >= app.FIBER_MIN_G
+    assert (
+        response.macros["fiber_g"] == app.FIBER_MIN_G
+    ), f"Expected fiber_g == {app.FIBER_MIN_G} when invalid, got {response.macros['fiber_g']}"

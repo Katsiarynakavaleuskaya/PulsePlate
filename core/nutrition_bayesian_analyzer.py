@@ -371,7 +371,9 @@ class NutritionBayesianAnalyzer:
                 weight = float(match.group(1))
                 height = float(match.group(2))
                 height_m = height / 100.0 if height > 10 else height
-                bmi = weight / (height_m**2) if height_m > 0 else 0.0
+                if height_m <= 0:
+                    continue
+                bmi = weight / (height_m**2)
                 if (
                     bmi < self.safety_thresholds["bmi_dangerous_low"]
                     or bmi >= self.safety_thresholds["bmi_dangerous_high"]

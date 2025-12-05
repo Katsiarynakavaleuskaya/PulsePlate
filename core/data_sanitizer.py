@@ -8,7 +8,7 @@ import html
 import re
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
 
 # Constants for validation
 MAX_STRING_LENGTH = 500
@@ -120,7 +120,7 @@ class PlateDataSchema(BaseModel):
         ..., max_length=MAX_LAYOUT_ITEMS, description="Visual layout items"
     )
     meals: List[Dict[str, Any]] = Field(..., max_length=MAX_MEALS, description="Meal breakdown")
-    day_micros: Optional[Dict[str, float]] = Field(default=None, description="Daily micronutrients")
+    day_micros: Dict[str, float] = Field(default_factory=dict, description="Daily micronutrients")
     meals_per_day: int = Field(default=3, ge=1, le=10, description="Number of meals per day")
 
     @field_validator("macros")
@@ -226,10 +226,8 @@ class PlateDataSchema(BaseModel):
 
     @field_validator("day_micros")
     @classmethod
-    def validate_day_micros(cls, v: Optional[Dict[str, float]]) -> Dict[str, float]:
+    def validate_day_micros(cls, v: Dict[str, float]) -> Dict[str, float]:
         """Validate daily micronutrient data."""
-        if v is None:
-            return {}
         if not isinstance(v, dict):
             raise ValueError("Day micros must be a dictionary")
         if len(v) > MAX_MICRO_NUTRIENTS:
@@ -283,9 +281,7 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
         validated = PlateDataSchema.model_validate(data)
         # Return cleaned dictionary (Pydantic already handles SQL-safe output)
         result = validated.model_dump(exclude_none=True)
-        # Ensure day_micros is present as an empty dict when omitted in input
-        result.setdefault("day_micros", {})
         return result
-    except Exception as e:
+    except PydanticValidationError as e:
         # Convert Pydantic validation errors to our custom ValidationError
         raise ValidationError(f"Plate data validation failed: {str(e)}") from e

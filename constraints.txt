@@ -13,7 +13,9 @@ coverage>=7.12.0  # Must match requirements-dev.txt minimum
 # Code quality - allow updates for new features/fixes
 # Note: Project uses Black for formatting; flake8 removed in favor of ruff for linting
 black>=25.9.0
-mypy>=1.13.0,<2.0.0  # Allow minor/patch updates; tested with Python 3.13
+# mypy 1.13.x has partial Python 3.13 support (e.g., warnings.deprecated, type-param defaults,
+# free-threaded builds). Full 3.13 coverage expected in later releases; adjust lower bound when validated.
+mypy>=1.13.0,<2.0.0
 ruff>=0.14.7  # Primary linter (replaces flake8)
 
 # Security - allow patch updates for vulnerability fixes

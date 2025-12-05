@@ -47,8 +47,6 @@ if _sharding_module_path.exists():
             pytest_addoption = _sharding.pytest_addoption
             pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems
         except Exception as e:
-            import warnings
-
             warnings.warn(f"Failed to load pytest_sharding.py: {e}. Sharding disabled.")
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import ipaddress
 import os
 import secrets
 import sys
@@ -757,6 +758,10 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     dev_mode = _is_truthy(os.getenv("ALLOW_DEV_API_KEY"))
     if app_env in {"", "local", "dev", "development", "test"}:
         dev_mode = True
+        # Warn when lenient mode is enabled - provides no real security
+        logger.warning(
+            "Lenient API key mode enabled - for development only, provides no real security"
+        )
 
     if expected := os.getenv("API_KEY"):
         if api_key == expected:
@@ -780,7 +785,8 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     if not api_key:
         raise HTTPException(status_code=403, detail="Missing API Key")
     token = api_key.strip()
-    if token.lower() in {"invalid", "invalid_key", "wrong", "bad", "null"} or len(token) < 4:
+    # Remove hardcoded blocklist - rely on length check only for basic validation
+    if len(token) < 4:
         raise HTTPException(status_code=403, detail="Invalid API Key")
     return token
 
@@ -942,10 +948,30 @@ def _client_fingerprint(request: Request) -> str | None:
     This function produces pseudonymous identifiers (hashed+truncated IPs)
     that must be treated as pseudonymous data per GDPR and privacy regulations.
     """
-    forwarded_for = request.headers.get("x-forwarded-for", "")
-    forwarded_ip = forwarded_for.split(",")[0].strip() if forwarded_for else ""
+    # Load trusted proxies from config/env
+    trusted_proxies_str = os.getenv("TRUSTED_PROXIES", "")
+    trusted_proxies = {proxy.strip() for proxy in trusted_proxies_str.split(",") if proxy.strip()}
+
+    # Get the immediate remote host
     remote_host = request.client.host if request.client else ""
-    source = forwarded_ip or remote_host
+
+    # Determine the source IP based on trusted proxy configuration
+    source = remote_host
+    if remote_host in trusted_proxies:
+        # Only trust X-Forwarded-For when the immediate remote host is a trusted proxy
+        forwarded_for = request.headers.get("x-forwarded-for", "")
+        if forwarded_for:
+            # Split and strip the X-Forwarded-For header to get the client IP
+            forwarded_ips = [ip.strip() for ip in forwarded_for.split(",")]
+            if forwarded_ips:
+                # Validate the first IP syntactically
+                try:
+                    ipaddress.ip_address(forwarded_ips[0])
+                    source = forwarded_ips[0]
+                except ValueError:
+                    # Ignore malformed IP addresses
+                    pass
+
     if not source:
         return None
     # Hash with salt so raw IP is never logged while keeping ability to correlate requests.
@@ -3521,13 +3547,13 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     Uses a lenient schema to avoid pydantic 422s in error-path tests.
     """
     try:
-        import sys as _sys
-
-        _pkg_candidates = _iter_app_modules()
-        _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
 
         def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
-            for mod in _pkg_candidates:
+            """Resolve wrapper, honoring patches on the main app module and aliases."""
+            primary = getattr(sys.modules.get("app"), attr_name, None)
+            if primary is not None and primary is not fallback:
+                return primary
+            for mod in _iter_app_modules():
                 if mod is None:
                     continue
                 candidate = getattr(mod, attr_name, None)
