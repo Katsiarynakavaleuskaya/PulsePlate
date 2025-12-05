@@ -733,11 +733,22 @@ class BusinessBayesianAnalyzer:
             # Fallback heuristic without heavy regex to avoid ReDoS risk
             lines = code_for_regex.splitlines()
             for idx, line in enumerate(lines):
-                if not re.match(r"\s*for\s+\w+\s+in\s+[^:]+:", line):
+                line_stripped = line.lstrip()
+                if not (
+                    line_stripped.startswith("for ")
+                    and " in " in line_stripped
+                    and ":" in line_stripped
+                ):
                     continue
                 lookahead = lines[idx + 1 : idx + 11]
                 for inner in lookahead:
-                    if re.match(r"\s*for\s+\w+\s+in\s+[^:]+:", inner):
+                    inner_stripped = inner.lstrip()
+                    if not (
+                        inner_stripped.startswith("for ")
+                        and " in " in inner_stripped
+                        and ":" in inner_stripped
+                    ):
+                        continue
                         loop_body = "\n".join(lookahead)
                         if not re.search(r"\b(break|return)\b", loop_body) and any(
                             re.search(pattern, loop_body, re.IGNORECASE)
@@ -854,7 +865,8 @@ class BusinessBayesianAnalyzer:
         # Обнаружение явных утечек дохода (отрицательные платежи)
         # Используем более конкретный паттерн чтобы избежать ReDoS
         negative_payment_pattern = re.compile(
-            r"process_payment\s*\([^)]*amount\s*=\s*-\s*[\d.]+", re.IGNORECASE
+            r"process_payment\s*\([^)]{0,200}?amount\s*=\s*-?\s*\d+(?:\.\d+)?",
+            re.IGNORECASE,
         )
         if negative_payment_pattern.search(code_for_regex):
             results.append(

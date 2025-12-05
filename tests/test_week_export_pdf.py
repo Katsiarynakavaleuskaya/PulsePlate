@@ -212,7 +212,13 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
             right = kwargs.get("rightMargin", 0)
             self.width = width - left - right
 
-        def build(self, story, onFirstPage=None, onLaterPages=None, canvasmaker=None):
+        def build(
+            self,
+            story: List[Any],
+            onFirstPage: Any = None,
+            onLaterPages: Any = None,
+            canvasmaker: Any = None,
+        ) -> None:
             captured_story.extend(story)
             canvas_cls = canvasmaker or plan.Canvas
             canvas = canvas_cls(BytesIO())

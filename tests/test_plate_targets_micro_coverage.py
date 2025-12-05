@@ -22,7 +22,7 @@ class TestPlateTargetsMicroCoverage:
     """Tests for micronutrient coverage between Plate and Targets endpoints"""
 
     @pytest.fixture(autouse=True)
-    def setup_env(self, monkeypatch):
+    def setup_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Setup test environment using monkeypatch to avoid state leakage"""
         monkeypatch.setenv("API_KEY", "test_key")
         monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")

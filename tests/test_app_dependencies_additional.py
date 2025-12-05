@@ -18,6 +18,19 @@ def test_validate_template_dir_missing(monkeypatch: pytest.MonkeyPatch, tmp_path
         deps.validate_template_dir()
 
 
+def test_validate_template_dir_missing_lenient(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """validate_template_dir should not raise in lenient mode when directory is missing."""
+    missing_dir = tmp_path / "does_not_exist"
+    monkeypatch.setattr(deps, "TEMPLATE_DIR", str(missing_dir), raising=False)
+    monkeypatch.setenv("STRICT_TEMPLATE_VALIDATION", "0")
+
+    with caplog.at_level("WARNING"):
+        deps.validate_template_dir()  # should not raise in lenient mode
+    assert "does not exist" in caplog.text
+
+
 def test_validate_template_dir_not_directory(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

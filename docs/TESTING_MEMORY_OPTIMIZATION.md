@@ -246,4 +246,4 @@ done
 
 - [Memray — Python memory profiler](https://github.com/bloomberg/memray)
 - [GitHub Actions Memory Limits](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners)
-- [File-Based Sharding Pattern](https://engineering.atspotify.com/2020/01/test-sharding-at-spotify/)
+- [File-Based Sharding Pattern (Spotify Engineering, archived)](https://web.archive.org/web/20200220060137/https://engineering.atspotify.com/2020/01/test-sharding-at-spotify/)
