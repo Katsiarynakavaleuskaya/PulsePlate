@@ -3293,7 +3293,9 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 final_kcal_value,
                 carbs_ref,
             )
-            # Always apply heuristic carbs to ensure predictable behavior under disabled targets
+            # Apply all heuristic macros to ensure consistency between macros and kcal
+            macros_aligned["protein_g"] = prot_ref
+            macros_aligned["fat_g"] = fat_ref
             macros_aligned["carbs_g"] = carbs_ref
 
         # Enforce minimum fiber intake per WHO/EFSA guidelines (25g daily for adults)
