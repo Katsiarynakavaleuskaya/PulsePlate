@@ -98,7 +98,7 @@ if [ -n "$FRONTEND_CHANGES" ]; then
         # Run tests for changed files
         echo "🧪 Running tests for changed files..."
         declare -a CHANGED_TEST_FILES=()
-        for file in $FRONTEND_CHANGES; do
+        while IFS= read -r file; do
             # Consider only TS/TSX under frontend/src/
             if [[ $file =~ ^frontend/src/(.+)\.(ts|tsx)$ ]]; then
                 rel="${BASH_REMATCH[1]}"   # path without extension, may include ".test"
@@ -113,7 +113,7 @@ if [ -n "$FRONTEND_CHANGES" ]; then
                     CHANGED_TEST_FILES+=("$test_file")
                 fi
             fi
-        done
+        done <<< "$FRONTEND_CHANGES"
 
         # Run specific tests if any, otherwise run all tests
         if [ ${#CHANGED_TEST_FILES[@]} -gt 0 ]; then

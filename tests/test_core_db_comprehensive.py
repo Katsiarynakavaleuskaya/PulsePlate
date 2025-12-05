@@ -147,6 +147,9 @@ def test_result_wrapper_exit_on_exception() -> None:
         pass  # Expected
 
     # Connection should be closed despite exception
+    assert (
+        getattr(result, "_connection_closed", False) is True
+    ), "Connection should be closed after exception in context manager"
 
 
 def test_result_wrapper_close_already_closed_result() -> None:
@@ -224,13 +227,11 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
         # Engine was successfully created (aiosqlite available)
         # Verify pool config was NOT applied (SQLite doesn't use connection pooling)
         engine_pool = reloaded._ASYNC_ENGINE.pool
-        # SQLite uses NullPool or StaticPool, not QueuePool with size/overflow config
-        # The pool should not have the custom pool_size/max_overflow we set
-        assert not hasattr(engine_pool, "_pool") or (
-            # If it's a QueuePool, verify our custom config was NOT applied
-            getattr(engine_pool, "_pool_size", 10) != 15  # We set 15, default is 10
-            or getattr(engine_pool, "_max_overflow", 20) != 25  # We set 25, default is 20
-        )
+        from sqlalchemy.pool import NullPool, StaticPool
+
+        assert isinstance(
+            engine_pool, (NullPool, StaticPool)
+        ), f"SQLite async engine should use NullPool/StaticPool, got {type(engine_pool).__name__}"
     # else: aiosqlite not available, engine creation failed gracefully (ImportError)
     # Both states are valid - test passes either way
 
@@ -346,7 +347,9 @@ def test_init_db_wrapper_not_called() -> None:
     # We need to replace it with a new uncalled wrapper to test the failure path
 
     # Get the original function from the wrapper
-    original_fn = create_all_wrapper._fn if hasattr(create_all_wrapper, "_fn") else MagicMock()
+    if not hasattr(create_all_wrapper, "_fn"):
+        pytest.fail("Wrapper does not expose original function via _fn")
+    original_fn = create_all_wrapper._fn
 
     # Install a fresh uncalled wrapper
     class _CreateAllWrapper:

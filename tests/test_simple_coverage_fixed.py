@@ -4,7 +4,7 @@
 """
 
 import logging
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -478,10 +478,11 @@ class TestSimpleCoverageBoost:
             # Импортируем модуль для покрытия
             assert hasattr(unified_db_module, "get_unified_food_db")
 
-            # Тест функции без мока - используем реальные файловые операции
-            result = await unified_db_module.get_unified_food_db()
-            # Assert that no exception was raised and result is a UnifiedFoodDatabase instance
-            assert isinstance(result, unified_db_module.UnifiedFoodDatabase)
+            # Тест функции с моком, чтобы избежать реальных файловых операций
+            mock_db = MagicMock(spec=unified_db_module.UnifiedFoodDatabase)
+            with patch.object(unified_db_module, "_unified_db_instance", mock_db):
+                result = await unified_db_module.get_unified_food_db()
+                assert result is mock_db
 
         except ImportError:
             pytest.skip("unified_db module not available")
