@@ -3314,6 +3314,12 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
         _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
 
         def _resolve_wrapper(attr_name: str, fallback: Callable[..., Any]) -> Callable[..., Any]:
+            """Resolve a wrapper, honoring patched attributes on the main app module first."""
+
+            patched = getattr(sys.modules.get("app"), attr_name, None)
+            if patched is not None and patched is not fallback:
+                return patched
+
             for mod in _pkg_candidates:
                 if mod is None:
                     continue

@@ -15,6 +15,7 @@ import re
 import tokenize
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
@@ -221,7 +222,7 @@ class BusinessBayesianAnalyzer:
             import yaml  # type: ignore[import-untyped]
         except Exception:
             return None
-        return yaml
+        return cast(ModuleType, yaml)
 
     def _config_dir(self) -> Path:
         """Return the config directory adjacent to this module, with fallback to parent."""
