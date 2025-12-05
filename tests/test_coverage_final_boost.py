@@ -20,7 +20,7 @@ class TestCoverageFinalBoost:
         with suppress(ImportError):
             import fix_failing_tests  # noqa: F401
 
-    def test_mcp_pulseplate_server_coverage(self):
+    def test_mcp_pulseplate_server_coverage(self) -> None:
         """Test mcp_pulseplate_server.py coverage"""
         with suppress(ImportError):
             import os
@@ -30,18 +30,30 @@ class TestCoverageFinalBoost:
             if hasattr(mcp_pulseplate_server, "main"):
                 # Mock external dependencies that main() might use
                 with (
-                    patch("builtins.print"),
+                    patch("builtins.print") as mock_print,
                     patch("mcp_pulseplate_server.PulsePlateMCPServer") as mock_server,
-                    patch("mcp_pulseplate_server.sys.stdin.readline", side_effect=[""]),
+                    patch(
+                        "mcp_pulseplate_server.sys.stdin.readline",
+                        side_effect=['{"method": "tools/list"}', ""],
+                    ),
                 ):
                     mock_instance = mock_server.return_value
-                    mock_instance.handle_request = AsyncMock(return_value={})
+                    mock_instance.handle_request = AsyncMock(return_value={"result": "success"})
                     main_fn = mcp_pulseplate_server.main
                     with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
                         if inspect.iscoroutinefunction(main_fn):
                             asyncio.run(main_fn())
                         else:
                             main_fn()
+
+                    # Assert the server class was instantiated
+                    mock_server.assert_called_once()
+
+                    # Assert the mocked instance method was awaited
+                    mock_instance.handle_request.assert_awaited_once_with({"method": "tools/list"})
+
+                    # Assert expected prints or side-effects via the patched print
+                    mock_print.assert_called_with('{"result": "success"}')
 
     def test_setup_custom_mcp_coverage(self):
         """Test setup_custom_mcp.py coverage"""
