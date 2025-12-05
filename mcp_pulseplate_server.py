@@ -21,13 +21,7 @@ class PulsePlateMCPServer:
 
     # Allowed OpenAI model names (fail-fast validation)
     # Keep in sync with models supported by the pinned openai client.
-    ALLOWED_MODELS: set[str] = {
-        "gpt-4o",
-        "gpt-4o-mini",
-        "o1",
-        "o3",
-        "o3-mini",
-    }
+    ALLOWED_MODELS: set[str] = {"gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"}
     # Ensure DEFAULT_MODEL remains whitelisted (bandit-safe, no assert)
     if DEFAULT_MODEL not in ALLOWED_MODELS:
         raise ValueError(
@@ -45,17 +39,13 @@ class PulsePlateMCPServer:
         model_env_raw: str | None = os.getenv("MCP_OPENAI_MODEL")
         if model_env_raw is None:
             self.model = self.DEFAULT_MODEL
-        elif model_env_raw == "":
-            # Explicit empty string falls back to default
-            self.model = self.DEFAULT_MODEL
         else:
             model_env = model_env_raw.strip()
             if not model_env:
-                raise ValueError(
-                    f"Invalid model name: {model_env_raw!r}. "
-                    f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
-                )
-            self.model = model_env
+                # Empty or whitespace-only falls back to default
+                self.model = self.DEFAULT_MODEL
+            else:
+                self.model = model_env
 
         # Whitelist validation: ensure model is a known OpenAI model
         if self.model not in self.ALLOWED_MODELS:

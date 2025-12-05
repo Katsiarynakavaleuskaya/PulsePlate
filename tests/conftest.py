@@ -17,7 +17,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from core import db as db_module
 
@@ -95,9 +95,6 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
         resolved_path.chmod(0o666)
     except Exception as e:
         logger.debug(f"Could not set permissions on test database: {e}")
-
-    if "app" in sys.modules:
-        importlib.reload(sys.modules["app"])
 
     yield
 
@@ -266,7 +263,7 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_users(configure_sqlite_database) -> Generator[None, None, None]:
+def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None]:
     """Best-effort users table cleanup before/after each test.
 
     Attempts to truncate the users table before and after each test. If the
@@ -277,26 +274,46 @@ def _cleanup_users(configure_sqlite_database) -> Generator[None, None, None]:
     from core import db as db_module_reloaded
 
     def _truncate() -> None:
+        # First verify the table exists before attempting to delete from it
+        try:
+            from sqlalchemy import inspect
+
+            inspector = inspect(db_module_reloaded.engine)
+            if "users" not in inspector.get_table_names():
+                # Table doesn't exist, skip cleanup
+                return
+        except Exception:
+            # If we can't inspect the database, proceed with caution
+            pass
+
         with db_module_reloaded.session_scope() as session:
             session.execute(text("DELETE FROM users"))
 
     try:
         _truncate()
-    except OperationalError as e:
-        # Database not accessible - proceeding without initial cleanup
-        logger.warning(f"Database not accessible during test setup: {e}")
+    except (OperationalError, ProgrammingError) as e:
+        # Database not accessible or table doesn't exist - proceeding without initial cleanup
+        logger.warning(f"Database not accessible or users table missing during test setup: {e}")
         try:
             db_module_reloaded.init_db()
         except Exception as init_err:
             logger.error(f"init_db during cleanup setup failed: {init_err}")
             raise
+    except Exception as e:
+        # Handle any other unexpected exceptions
+        logger.warning(f"Unexpected error during test setup cleanup: {e}")
 
     yield
 
     # Cleanup after test - log errors to reduce flakiness when SQLite is locked
     try:
-        with db_module_reloaded.session_scope() as session:
-            session.execute(text("DELETE FROM users"))
-    except OperationalError as e:
+        _truncate()
+    except (OperationalError, ProgrammingError) as e:
         # Avoid hard failures on teardown to reduce flakiness in CI when SQLite is locked
-        logger.warning(f"Test cleanup skipped - database not accessible: {e}")
+        # or when the table doesn't exist
+        logger.warning(
+            f"Test cleanup skipped - database not accessible or users table missing: {e}"
+        )
+    except Exception as e:
+        # Handle any other unexpected exceptions during teardown
+        logger.warning(f"Unexpected error during test teardown cleanup: {e}")

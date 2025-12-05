@@ -149,7 +149,9 @@ class PlateDataSchema(BaseModel):
                 raise ValueError("Macro keys must be strings")
             # Only allow expected macro keys
             if key not in ranges:
-                continue  # Drop unexpected keys
+                raise ValueError(
+                    f"Unexpected macro key '{key}' - only {list(ranges.keys())} are allowed"
+                )
             if not isinstance(value, int):
                 raise ValueError(f"Macro value for {key} must be an integer")
             min_val, max_val = ranges[key]
@@ -177,7 +179,9 @@ class PlateDataSchema(BaseModel):
                 raise ValueError("Portion keys must be strings")
             # Only allow expected portion keys
             if key not in expected_keys:
-                continue  # Drop unexpected keys
+                raise ValueError(
+                    f"Unexpected portion key '{key}' - only {list(expected_keys)} are allowed"
+                )
             if not isinstance(value, (int, float)):
                 raise ValueError(f"Portion value for {key} must be numeric")
             if not (0 <= value <= 50):  # Reasonable upper bound

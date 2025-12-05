@@ -10,7 +10,8 @@ If both the environment variable and cache file are unavailable (e.g., file crea
 fails or is disabled), a process-local salt is generated as a last-resort fallback.
 Note that this process-local salt is NOT persisted across restarts, so fingerprints
 will not be stable between processes unless a persistent salt is provided via
-environment variable or a successfully written cache file.
+environment variable or a successfully written cache file. The fallback salt
+provides 256-bit (32-byte) entropy for enhanced Blake2s keyed-hash security.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ def _load_salt_from_file(path: Path) -> str | None:
                 return saved
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        generated = secrets.token_hex(16)
+        generated = secrets.token_hex(32)  # Generate 256-bit (32-byte) salt
         try:
             with path.open("x") as f:
                 f.write(generated)
@@ -81,7 +82,11 @@ def _load_salt_from_file(path: Path) -> str | None:
 
 @lru_cache(maxsize=1)
 def _get_salt() -> str:
-    """Return a secret salt used for pseudonymous hashing."""
+    """Return a secret salt used for pseudonymous hashing.
+
+    Provides 256-bit (32-byte) entropy for Blake2s keyed-hash security
+    when using fallback generation.
+    """
     env_salt = os.getenv(SALT_ENV_VAR)
     if env_salt:
         return env_salt.strip()
@@ -92,7 +97,8 @@ def _get_salt() -> str:
         return file_salt
 
     # Last-resort fallback; keeps process-stable but not persisted
-    return secrets.token_hex(16)
+    # Provides 256-bit (32-byte) entropy for Blake2s keyed-hash security
+    return secrets.token_hex(32)  # Generate 256-bit (32-byte) salt
 
 
 def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
