@@ -41,6 +41,28 @@ class LogRetentionManager:
             DataClass.SENSITIVE: 90,  # 3 months for sensitive data
         }
 
+    def _set_retention(self, data_class: DataClass, days: int) -> None:
+        """Set retention period with validation.
+
+        Args:
+            data_class: Data classification level
+            days: Retention period in days (must be >= 0)
+
+        Raises:
+            ValueError: If days is negative or cannot be converted to int
+        """
+        try:
+            days_int = int(days)
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                f"Retention days for {data_class.value} must be an integer, got {type(days).__name__}: {days}"
+            ) from e
+
+        if days_int < 0:
+            raise ValueError(f"Retention days for {data_class.value} must be >= 0, got {days_int}")
+
+        self.retention_periods[data_class] = days_int
+
     # Backwards-compatible properties used by the app/tests:
     @property
     def pseudonymous_retention_days(self) -> int:
@@ -48,7 +70,7 @@ class LogRetentionManager:
 
     @pseudonymous_retention_days.setter
     def pseudonymous_retention_days(self, days: int) -> None:
-        self.retention_periods[DataClass.PSEUDONYMOUS] = int(days)
+        self._set_retention(DataClass.PSEUDONYMOUS, days)
 
     @property
     def public_retention_days(self) -> int:
@@ -56,7 +78,7 @@ class LogRetentionManager:
 
     @public_retention_days.setter
     def public_retention_days(self, days: int) -> None:
-        self.retention_periods[DataClass.PUBLIC] = int(days)
+        self._set_retention(DataClass.PUBLIC, days)
 
     @property
     def sensitive_retention_days(self) -> int:
@@ -64,7 +86,7 @@ class LogRetentionManager:
 
     @sensitive_retention_days.setter
     def sensitive_retention_days(self, days: int) -> None:
-        self.retention_periods[DataClass.SENSITIVE] = int(days)
+        self._set_retention(DataClass.SENSITIVE, days)
 
     def cleanup_expired_logs(self, data_class: Optional[DataClass] = None) -> int:
         """Clean up expired log files based on retention policy.
