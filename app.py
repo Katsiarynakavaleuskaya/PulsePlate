@@ -2882,7 +2882,7 @@ def build_fallback_plate(req: PlateRequest, candidates: list[Any]) -> PlateRespo
                 if fiber_g_raw is not None:
                     try:
                         fiber_g = int(fiber_g_raw)
-                    except (ValueError, TypeError):
+                    except Exception:
                         logger.warning(
                             "Invalid target fiber_g=%r; using FIBER_MIN_G=%s",
                             fiber_g_raw,
@@ -3057,7 +3057,19 @@ def align_macros_with_targets(
                         continue
                     target_val = _read_macro(macro_name)
                     if target_val is not None:
-                        macros_aligned[macro_name] = int(target_val)
+                        try:
+                            macros_aligned[macro_name] = int(target_val)
+                        except (TypeError, ValueError):
+                            if macro_name == "fiber_g":
+                                logger.warning(
+                                    "premium_plate alignment: invalid target fiber_g=%r; "
+                                    "using FIBER_MIN_G=%s",
+                                    target_val,
+                                    FIBER_MIN_G,
+                                )
+                                macros_aligned[macro_name] = int(round(FIBER_MIN_G))
+                            else:
+                                raise
                         alignment_succeeded = True
 
                 if isinstance(manual_targets, dict):
@@ -3094,7 +3106,7 @@ def sanitize_plate_data(plate_data_raw: Dict[str, Any]) -> Dict[str, Any]:
             try:
                 # Try to convert to int, fallback to FIBER_MIN_G if invalid
                 macros_raw["fiber_g"] = int(round(float(fiber_raw)))
-            except (ValueError, TypeError):
+            except Exception:
                 logger.warning(
                     "Pre-validation: invalid fiber_g value '%s', setting to FIBER_MIN_G=%d",
                     fiber_raw,
@@ -3305,7 +3317,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
                 fiber_float = float(original_value)
                 # Ensure resulting value is an integer for consistency
                 macros_aligned["fiber_g"] = int(round(max(FIBER_MIN_G, fiber_float)))
-            except (ValueError, TypeError):
+            except Exception:
                 # Log warning and set to default minimum on conversion errors
                 logger.warning(
                     "Failed to convert fiber_g value '%s' to float; setting to FIBER_MIN_G=%.1f",
@@ -3316,7 +3328,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         for macro_key, macro_value in list(macros_aligned.items()):
             try:
                 macros_aligned[macro_key] = int(round(float(macro_value)))
-            except (ValueError, TypeError):
+            except Exception:
                 logger.debug(
                     "Could not coerce macro %s=%r to int; leaving as-is", macro_key, macro_value
                 )
@@ -3582,24 +3594,9 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     """
     try:
 
-        # Prefer the module where this handler lives (patch-friendly even after reloads)
-        modules = _iter_app_modules() or [sys.modules.get(__name__)]
-
-        # Prefer a patched wrapper (e.g., MagicMock with side_effect) if available
+        # Prefer patched wrappers on the current app module; avoid cross-module alias drift
         _bmr_wrapper = _calculate_all_bmr_wrapper
         _tdee_wrapper = _calculate_all_tdee_wrapper
-        for mod in modules:
-            if mod is None:
-                continue
-            candidate_bmr = getattr(mod, "_calculate_all_bmr_wrapper", None)
-            candidate_tdee = getattr(mod, "_calculate_all_tdee_wrapper", None)
-            if candidate_bmr is not None:
-                _bmr_wrapper = candidate_bmr
-            if candidate_tdee is not None:
-                _tdee_wrapper = candidate_tdee
-            # Once we find a candidate with an explicit side_effect, use it
-            if getattr(candidate_bmr, "side_effect", None) is not None:
-                break
 
         side_effect = getattr(_bmr_wrapper, "side_effect", None)
         if isinstance(side_effect, ImportError):
