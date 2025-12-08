@@ -125,6 +125,9 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert response.status_code == 404
 
+    # Restore environment to original state before final reload
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+
     # Restore app to original state
     importlib.reload(app)
 

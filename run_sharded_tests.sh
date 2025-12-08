@@ -195,8 +195,9 @@ case $MODE in
 
                 failed_pids=()
                 for pid in "${pids[@]}"; do
-                    if ! wait $pid; then
-                        exit_code=$?
+                    wait $pid
+                    exit_code=$?
+                    if [ $exit_code -ne 0 ]; then
                         failed_pids+=("PID:$pid (exit=$exit_code)")
                     fi
                 done
@@ -219,13 +220,14 @@ case $MODE in
             "${cmd[@]}" &
             pids+=($!)
         done
-
         failed_pids=()
         for pid in "${pids[@]}"; do
-            if ! wait $pid; then
-                exit_code=$?
+            wait $pid
+            exit_code=$?
+            if [ $exit_code -ne 0 ]; then
                 failed_pids+=("PID:$pid (exit=$exit_code)")
             fi
+        done
         done
         if [ ${#failed_pids[@]} -ne 0 ]; then
             echo -e "${RED}✗ Parallel execution failed${NC}"

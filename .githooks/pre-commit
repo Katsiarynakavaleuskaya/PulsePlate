@@ -252,6 +252,12 @@ fi
 # 5. Run pre-commit framework hooks (MyPy, Bandit, etc.)
 echo "🔧 Running pre-commit framework checks..."
 if command -v pre-commit > /dev/null 2>&1; then
+    # Temporarily unset hooksPath to prevent recursion
+    ORIGINAL_HOOKS_PATH=""
+    if ORIGINAL_HOOKS_PATH=$(git config --get core.hooksPath 2>/dev/null); then
+        git config --unset-all core.hooksPath || true
+        trap 'git config core.hooksPath "$ORIGINAL_HOOKS_PATH"' EXIT
+    fi
     # Safely handle filenames with spaces by using array
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)
     if [ ${#STAGED_FILES[@]} -gt 0 ]; then

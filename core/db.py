@@ -63,10 +63,15 @@ def _build_engine_url() -> str:
     env_provided = "DATABASE_URL" in os.environ
     database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
-    # Only create directory for file-based SQLite databases
+    # Create directory for file-based SQLite databases (both env-provided and default)
     if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):
         # Extract the file path from sqlite:/// URL
-        sqlite_path = database_url.replace("sqlite:///", "", 1)
+        # Handle both sqlite:///relative/path and sqlite:////absolute/path
+        sqlite_path = database_url[10:]  # Remove 'sqlite:///' prefix
+        # Remove query parameters if present
+        if "?" in sqlite_path:
+            sqlite_path = sqlite_path.split("?")[0]
+        # If path starts with /, it's absolute (sqlite:////path); otherwise relative
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:  # Only create if there's a parent directory
             os.makedirs(db_dir, exist_ok=True)
@@ -92,8 +97,15 @@ def _build_engine_url() -> str:
 
         # urlunparse drops one of the slashes for sqlite file URLs; build manually
         # to keep the sqlite:/// prefix intact.
-        # Preserve parsed.path exactly (do not lstrip) to keep absolute paths with leading slash
-        database_url = f"sqlite:///{parsed.path}"
+        # For absolute paths, parsed.path starts with / so we get sqlite:////path (correct)
+        # For relative paths, parsed.path doesn't start with / so we get sqlite:///path (correct)
+        path_part = parsed.path
+        if path_part.startswith("/"):
+            # Absolute path: sqlite:/// + /path = sqlite:////path
+            database_url = f"sqlite:///{path_part}"
+        else:
+            # Relative path: sqlite:/// + path = sqlite:///path
+            database_url = f"sqlite:///{path_part}"
         if new_query:
             database_url = f"{database_url}?{new_query}"
     return database_url
