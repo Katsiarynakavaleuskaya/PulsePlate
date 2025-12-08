@@ -312,7 +312,7 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
             return
     except Exception as e:
         # Handle any other unexpected exceptions
-        logger.warning(f"Unexpected error during test setup cleanup: {e}")
+        logger.error(f"Unexpected error during test setup cleanup: {e}", exc_info=True)
 
     yield
 
