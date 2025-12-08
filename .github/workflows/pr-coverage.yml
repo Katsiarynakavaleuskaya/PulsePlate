@@ -47,7 +47,8 @@ jobs:
           API_KEY: "test_key"
           PYTHONWARNINGS: default
         run: |
-          pytest -q --disable-warnings --cov=. --cov-report=xml
+          # Use pytest-xdist for parallel execution (2-3x faster)
+          pytest -q --disable-warnings --cov=. --cov-report=xml -n auto
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'

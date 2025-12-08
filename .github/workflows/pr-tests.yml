@@ -185,8 +185,9 @@ jobs:
           ENVIRONMENT: test
           TEST_DB_PATH: cache/test_pr.sqlite
         run: |
+          # Use pytest-xdist for parallel execution (2-3x faster)
           pytest -m "not slow and not monte_carlo and not demo" \
-            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
+            --cov=. --cov-report=xml --junitxml=junit.xml -ra -n auto tests
 
       - name: Diff coverage on changed lines (PR)
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
