@@ -57,11 +57,13 @@ def _sanitize_micros(
     for key, value in v.items():
         if not isinstance(key, str):
             raise ValueError("Micronutrient keys must be strings")
-        # Sanitize key name
+        # Sanitize key name: strip HTML tags first
         clean_key = HTML_TAG_PATTERN.sub("", key)
-        clean_key = html.escape(clean_key, quote=True).strip()
+        # Check length before escaping to avoid inflated length from html.escape
         if len(clean_key) > 100:
             raise ValueError("Micronutrient key too long")
+        # Only after length check, apply HTML escaping
+        clean_key = html.escape(clean_key, quote=True).strip()
         if not isinstance(value, (int, float)):
             raise ValueError(f"Micronutrient value for {key} must be numeric")
         if not (0 <= value <= 100000):  # Reasonable upper bound
@@ -293,7 +295,7 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Validate using Pydantic schema
         validated = PlateDataSchema.model_validate(data)
-        # Return cleaned dictionary (Pydantic already handles SQL-safe output)
+        # Return validated dict; SQL safety enforced by parameterized queries in data-access layer
         result = validated.model_dump(exclude_none=True)
         return result
     except PydanticValidationError as e:
