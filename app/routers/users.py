@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable, List, TypeVar
+from typing import Callable, List, TypeVar, cast
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from starlette.concurrency import run_in_threadpool
@@ -136,8 +136,7 @@ async def create_user(payload: UserCreate) -> UserRead:
         session.refresh(user)
         return UserRead.model_validate(user)
 
-    user_data: UserRead = await run_in_threadpool(_execute_with_retry, _action)
-    return user_data
+    return cast(UserRead, await run_in_threadpool(_execute_with_retry, _action))
 
 
 @router.get("", response_model=List[UserRead])
@@ -156,10 +155,10 @@ async def list_users(
         page_rows = session.execute(query).scalars().all()
         return [UserRead.model_validate(row) for row in page_rows]
 
-    result: List[UserRead] = await run_in_threadpool(
-        _execute_with_retry, _action
+    return cast(
+        List[UserRead],
+        await run_in_threadpool(_execute_with_retry, _action),
     )  # No fallback - fail explicitly if DB unavailable
-    return result
 
 
 @router.get("/{user_id}", response_model=UserRead)
@@ -175,8 +174,7 @@ async def get_user(user_id: int) -> UserRead:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return UserRead.model_validate(user)
 
-    result: UserRead = await run_in_threadpool(_execute_with_retry, _action)
-    return result
+    return cast(UserRead, await run_in_threadpool(_execute_with_retry, _action))
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
