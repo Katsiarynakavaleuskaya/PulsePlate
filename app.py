@@ -108,6 +108,9 @@ _scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
 # can report an accurate status (used by tests simulating DB failures).
 _db_fallback_active = False
 
+# Track if lenient API key mode warning has already been logged to avoid log flooding
+_lenient_mode_warning_logged = False
+
 # Safe import for VIP_MODULE_ENABLED to avoid attribute errors
 try:
     from app.routers import vip as _vip_mod
@@ -758,10 +761,13 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     dev_mode = _is_truthy(os.getenv("ALLOW_DEV_API_KEY"))
     if app_env in {"", "local", "dev", "development", "test"}:
         dev_mode = True
-        # Warn when lenient mode is enabled - provides no real security
-        logger.warning(
-            "Lenient API key mode enabled - for development only, provides no real security"
-        )
+        # Warn once when lenient mode is enabled - provides no real security
+        global _lenient_mode_warning_logged
+        if not _lenient_mode_warning_logged:
+            logger.warning(
+                "Lenient API key mode enabled - for development only, provides no real security"
+            )
+            _lenient_mode_warning_logged = True
 
     if expected := os.getenv("API_KEY"):
         if api_key == expected:
@@ -3595,8 +3601,12 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     try:
 
         # Prefer patched wrappers on the current app module; avoid cross-module alias drift
-        _bmr_wrapper = _calculate_all_bmr_wrapper
-        _tdee_wrapper = _calculate_all_tdee_wrapper
+        _bmr_wrapper = _resolve_app_callable(
+            "_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper
+        )
+        _tdee_wrapper = _resolve_app_callable(
+            "_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper
+        )
 
         side_effect = getattr(_bmr_wrapper, "side_effect", None)
         if isinstance(side_effect, ImportError):
