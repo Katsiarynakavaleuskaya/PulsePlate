@@ -1,5 +1,5 @@
 name: 'Initialize Test Database'
-description: 'Initialize test database schema and verify tables'
+description: 'Initialize test database schema and verify tables. Requires dependencies to be installed first (SQLAlchemy, core modules).'
 inputs:
   pythonpath:
     description: 'PYTHONPATH environment variable value'
@@ -8,26 +8,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Install dependencies
-      shell: bash
-      run: |
-        set -euo pipefail  # Exit immediately if any command fails
-        python -m pip install --upgrade pip
-        CONSTRAINTS_ARG=""
-        if [ -f constraints.txt ]; then
-          CONSTRAINTS_ARG="-c constraints.txt"
-        fi
-        # Install runtime dependencies first (FastAPI, SQLAlchemy, etc.)
-        if [ -f requirements.txt ]; then
-          echo "Installing runtime dependencies from requirements.txt..."
-          python -m pip install -r requirements.txt $CONSTRAINTS_ARG || { echo "❌ Failed to install requirements.txt"; exit 1; }
-        fi
-        # Then install dev/test dependencies (pytest, coverage, etc.)
-        if [ -f requirements-dev.txt ]; then
-          echo "Installing dev/test dependencies from requirements-dev.txt..."
-          python -m pip install -r requirements-dev.txt $CONSTRAINTS_ARG || { echo "❌ Failed to install requirements-dev.txt"; exit 1; }
-        fi
-
     - name: Initialize test database
       shell: bash
       env:
