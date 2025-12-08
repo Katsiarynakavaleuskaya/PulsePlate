@@ -66,12 +66,21 @@ def _build_engine_url() -> str:
     # Create directory for file-based SQLite databases (both env-provided and default)
     if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):
         # Extract the file path from sqlite:/// URL
-        # Handle both sqlite:///relative/path and sqlite:////absolute/path
-        sqlite_path = database_url[10:]  # Remove 'sqlite:///' prefix
+        # sqlite:///cache/app.db -> /cache/app.db (relative, remove leading /)
+        # sqlite:////absolute/path -> //absolute/path (absolute, remove one /)
+        parsed = urlparse(database_url)
+        sqlite_path = parsed.path
         # Remove query parameters if present
         if "?" in sqlite_path:
             sqlite_path = sqlite_path.split("?")[0]
-        # If path starts with /, it's absolute (sqlite:////path); otherwise relative
+        # Handle path correctly: sqlite:///relative -> /relative (remove /)
+        # sqlite:////absolute -> //absolute (remove one /, keep /absolute)
+        if sqlite_path.startswith("//"):
+            # Absolute path: sqlite:////absolute -> //absolute -> /absolute
+            sqlite_path = sqlite_path[1:]
+        elif sqlite_path.startswith("/"):
+            # Relative path: sqlite:///relative -> /relative -> relative
+            sqlite_path = sqlite_path[1:]
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:  # Only create if there's a parent directory
             os.makedirs(db_dir, exist_ok=True)
@@ -497,11 +506,20 @@ def init_db() -> None:
     # Critical for CI/CD where directory may not exist yet
     db_url = DATABASE_URL
     if db_url.startswith("sqlite:///") and not db_url.endswith(":memory:"):
-        # Extract file path from URL
-        sqlite_path = db_url.replace("sqlite:///", "", 1)
+        # Extract file path from URL using same logic as _build_engine_url
+        parsed = urlparse(db_url)
+        sqlite_path = parsed.path
         # Remove query parameters
         if "?" in sqlite_path:
             sqlite_path = sqlite_path.split("?")[0]
+        # Handle path correctly: sqlite:///relative -> /relative -> relative
+        # sqlite:////absolute -> //absolute -> /absolute
+        if sqlite_path.startswith("//"):
+            # Absolute path: sqlite:////absolute -> //absolute -> /absolute
+            sqlite_path = sqlite_path[1:]
+        elif sqlite_path.startswith("/"):
+            # Relative path: sqlite:///relative -> /relative -> relative
+            sqlite_path = sqlite_path[1:]
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
