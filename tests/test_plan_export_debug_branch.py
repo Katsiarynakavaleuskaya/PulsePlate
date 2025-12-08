@@ -20,7 +20,7 @@ def test_build_pdf_week_debug_branch(
     for i in range(days_count):
         days.append(
             {
-                "date": f"2025-01-0{i + 1}",
+                "date": f"2025-01-{i + 1:02d}",
                 "meals": [
                     {
                         "title": "Meal",

@@ -133,11 +133,16 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_module_state_restored_after_feature_flag_test(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify that module state is properly restored after feature flag toggle test.
+    """Verify that app module can be reloaded to restore clean state.
 
-    This test is self-contained and reloads the app module to ensure proper state.
+    This test validates module reloading works correctly regardless of prior state.
     """
-    # Ensure the app module is in a clean state
+    # Deliberately dirty the module state first
+    monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
+    importlib.reload(app)
+    
+    # Now restore clean state
+    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
     importlib.reload(app)
 
     # Verify app module is in expected state

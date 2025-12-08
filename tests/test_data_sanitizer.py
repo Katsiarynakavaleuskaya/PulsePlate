@@ -410,3 +410,341 @@ def test_sanity_filter_default_values() -> None:
     # model_dump(exclude_none=True) only excludes None values, not empty dicts
     assert result.get("day_micros") == {}
     assert result["meals_per_day"] == 3  # Default value
+
+
+def test_sanitize_micros_none_input() -> None:
+    """Test line 50: _sanitize_micros returns None for None input."""
+    from core.data_sanitizer import _sanitize_micros
+
+    result = _sanitize_micros(None, 20)
+    assert result is None
+
+
+def test_sanitize_micros_non_dict() -> None:
+    """Test line 52: _sanitize_micros raises ValueError for non-dict."""
+    from core.data_sanitizer import _sanitize_micros
+
+    with pytest.raises(ValueError, match="Micros must be a dictionary"):
+        _sanitize_micros("not a dict", 20)  # type: ignore[arg-type]
+
+
+def test_sanitize_micros_too_many_items() -> None:
+    """Test line 54: _sanitize_micros raises ValueError for too many items."""
+    from core.data_sanitizer import _sanitize_micros
+
+    too_many = {f"nutrient_{i}": 1.0 for i in range(30)}
+    with pytest.raises(ValueError, match="Too many micronutrients"):
+        _sanitize_micros(too_many, 20)
+
+
+def test_sanitize_micros_non_string_key() -> None:
+    """Test line 59: _sanitize_micros raises ValueError for non-string key."""
+    from core.data_sanitizer import _sanitize_micros
+
+    with pytest.raises(ValueError, match="Micronutrient keys must be strings"):
+        _sanitize_micros({123: 5.0}, 20)  # type: ignore[dict-item]
+
+
+def test_sanitize_micros_key_too_long() -> None:
+    """Test line 64: _sanitize_micros raises ValueError for key > 100 chars."""
+    from core.data_sanitizer import _sanitize_micros
+
+    long_key = "A" * 101
+    with pytest.raises(ValueError, match="Micronutrient key too long"):
+        _sanitize_micros({long_key: 5.0}, 20)
+
+
+def test_sanitize_micros_non_numeric_value() -> None:
+    """Test line 68: _sanitize_micros raises ValueError for non-numeric value."""
+    from core.data_sanitizer import _sanitize_micros
+
+    with pytest.raises(ValueError, match="must be numeric"):
+        _sanitize_micros({"iron_mg": "not numeric"}, 20)  # type: ignore[dict-item]
+
+
+def test_sanitize_micros_value_out_of_range() -> None:
+    """Test line 70: _sanitize_micros raises ValueError for value out of range."""
+    from core.data_sanitizer import _sanitize_micros
+
+    with pytest.raises(ValueError, match="out of range"):
+        _sanitize_micros({"iron_mg": 200000}, 20)
+
+
+def test_visual_shape_string_exceeds_max_length() -> None:
+    """Test line 99: VisualShapeSchema raises error for string > MAX_STRING_LENGTH."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [
+            {
+                "kind": "plate_sector",
+                "fraction": 0.5,
+                "label": "A" * 600,  # Exceeds MAX_STRING_LENGTH
+                "tooltip": "Normal",
+            }
+        ],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_meal_title_exceeds_max_length() -> None:
+    """Test line 126: MealSchema raises error for title > MAX_STRING_LENGTH."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [
+            {
+                "title": "B" * 600,  # Exceeds MAX_STRING_LENGTH
+                "kcal": 500,
+                "protein_g": 20,
+                "fat_g": 15,
+                "carbs_g": 60,
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_macros_non_dict() -> None:
+    """Test line 161: validate_macros raises error for non-dict."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": "not a dict",  # type: ignore[dict-item]
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="Missing required macro keys|validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_macros_non_string_key() -> None:
+    """Test line 179: validate_macros raises error for non-string key."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="Macro keys must be strings"):
+        PlateDataSchema.validate_macros(
+            {123: 50, "fat_g": 67, "carbs_g": 250, "fiber_g": 25}  # type: ignore[dict-item]
+        )
+
+
+def test_macros_unexpected_key() -> None:
+    """Test line 182: validate_macros raises error for unexpected key."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="Unexpected macro key"):
+        PlateDataSchema.validate_macros(
+            {
+                "protein_g": 125,
+                "fat_g": 67,
+                "carbs_g": 250,
+                "fiber_g": 25,
+                "sugar_g": 50,  # Unexpected key
+            }
+        )
+
+
+def test_macros_non_integer_value() -> None:
+    """Test line 189: validate_macros raises error for non-integer value."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="must be an integer"):
+        PlateDataSchema.validate_macros(
+            {
+                "protein_g": "not an int",  # type: ignore[dict-item]
+                "fat_g": 67,
+                "carbs_g": 250,
+                "fiber_g": 25,
+            }
+        )
+
+
+def test_macros_out_of_range() -> None:
+    """Test line 192: validate_macros raises error for out of range value."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="out of range"):
+        PlateDataSchema.validate_macros(
+            {"protein_g": 9999, "fat_g": 67, "carbs_g": 250, "fiber_g": 25}
+        )
+
+
+def test_portions_non_dict() -> None:
+    """Test line 202: validate_portions raises error for non-dict."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": "not a dict",  # type: ignore[dict-item]
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_portions_non_string_key() -> None:
+    """Test line 212: validate_portions raises error for non-string key."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="Portion keys must be strings"):
+        PlateDataSchema.validate_portions(
+            {
+                123: 2.0,  # type: ignore[dict-item]
+                "fat_thumbs": 1.0,
+                "carb_cups": 4.0,
+                "veg_cups": 3.0,
+            }
+        )
+
+
+def test_portions_unexpected_key() -> None:
+    """Test line 215: validate_portions raises error for unexpected key."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="Unexpected portion key"):
+        PlateDataSchema.validate_portions(
+            {
+                "protein_palm": 2.0,
+                "fat_thumbs": 1.0,
+                "carb_cups": 4.0,
+                "veg_cups": 3.0,
+                "fruit_cups": 2.0,  # Unexpected
+            }
+        )
+
+
+def test_portions_non_numeric_value() -> None:
+    """Test line 219: validate_portions raises error for non-numeric value."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="must be numeric"):
+        PlateDataSchema.validate_portions(
+            {
+                "protein_palm": "not numeric",  # type: ignore[dict-item]
+                "fat_thumbs": 1.0,
+                "carb_cups": 4.0,
+                "veg_cups": 3.0,
+            }
+        )
+
+
+def test_portions_out_of_range() -> None:
+    """Test line 221: validate_portions raises error for value out of range."""
+    from core.data_sanitizer import PlateDataSchema
+
+    with pytest.raises(ValueError, match="out of range"):
+        PlateDataSchema.validate_portions(
+            {
+                "protein_palm": 100.0,  # > 50
+                "fat_thumbs": 1.0,
+                "carb_cups": 4.0,
+                "veg_cups": 3.0,
+            }
+        )
+
+
+def test_layout_non_list() -> None:
+    """Test line 231: validate_layout raises error for non-list."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": "not a list",  # type: ignore[dict-item]
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_layout_non_dict_item() -> None:
+    """Test line 238: validate_layout raises error for non-dict item."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": ["not a dict"],  # type: ignore[list-item]
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_meals_non_dict_item() -> None:
+    """Test line 250, 252, 257: validate_meals raises errors for invalid meal."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": ["not a dict"],  # type: ignore[list-item]
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_sanity_filter_conversion_error() -> None:
+    """Test line 313: Pydantic conversion error handling."""
+    # This tests the generic exception handling for Pydantic validation errors
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [
+            {
+                # Missing required fields
+                "title": "Test",
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="validation failed"):
+        sanity_filter_plate_data(invalid_data)
