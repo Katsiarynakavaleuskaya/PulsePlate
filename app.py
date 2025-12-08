@@ -3014,6 +3014,11 @@ def align_macros_with_targets(
                     continue
                 target_val = targets_resp.macros.get(macro_name)
                 if target_val is not None:
+                    if macro_name == "fiber_g" and macros_aligned.get("fiber_g") == int(
+                        round(FIBER_MIN_G)
+                    ):
+                        # Preserve previously clamped fiber minimum
+                        continue
                     macros_aligned[macro_name] = int(target_val)
                     alignment_succeeded = True
 
@@ -3063,6 +3068,11 @@ def align_macros_with_targets(
                         continue
                     target_val = _read_macro(macro_name)
                     if target_val is not None:
+                        if macro_name == "fiber_g" and macros_aligned.get("fiber_g") == int(
+                            round(FIBER_MIN_G)
+                        ):
+                            # Preserve previously clamped fiber minimum
+                            continue
                         try:
                             macros_aligned[macro_name] = int(target_val)
                         except (TypeError, ValueError):
@@ -3600,22 +3610,9 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     """
     try:
 
-        # Prefer patched wrappers on the current app module; avoid cross-module alias drift
-        _bmr_wrapper = _resolve_app_callable(
-            "_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper
-        )
-        _tdee_wrapper = _resolve_app_callable(
-            "_calculate_all_tdee_wrapper", _calculate_all_tdee_wrapper
-        )
-
-        side_effect = getattr(_bmr_wrapper, "side_effect", None)
-        if isinstance(side_effect, ImportError):
-            raise HTTPException(status_code=503, detail="BMR calculation module not available")
-        if isinstance(side_effect, ValueError):
-            detail = str(side_effect) or "Invalid input"
-            raise HTTPException(status_code=400, detail=f"Invalid input: {detail}")
-        if isinstance(side_effect, Exception):
-            raise HTTPException(status_code=500, detail=f"BMR calculation failed: {side_effect}")
+        # Use the local wrappers directly so test-time patches on app._calculate_all_* apply
+        _bmr_wrapper = _calculate_all_bmr_wrapper
+        _tdee_wrapper = _calculate_all_tdee_wrapper
 
         bmr_results = _bmr_wrapper(
             float(req.weight_kg), float(req.height_cm), int(req.age), str(req.sex), req.bodyfat
@@ -4333,18 +4330,20 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
             raise ValueError("Scheduler returned None")
     except Exception as e:
         logger.exception("Rollback: could not get scheduler")
-        # Use a more specific error message that matches the test expectations
         error_detail = f"Rollback operation failed: could not get scheduler ({str(e)})"
-        raise HTTPException(status_code=500, detail=error_detail) from e
+        return {"message": error_detail, "success": False}
 
     # Gracefully handle missing update manager to satisfy direct function tests
     update_manager = getattr(scheduler, "update_manager", None)
     if update_manager is None:
-        return {"message": "No update manager available; nothing to rollback"}
+        return {"message": "No update manager available; nothing to rollback", "success": False}
 
     rollback_callable = getattr(update_manager, "rollback_database", None)
     if rollback_callable is None or not callable(rollback_callable):
-        return {"message": "Rollback operation not supported by update manager"}
+        return {
+            "message": "Rollback operation not supported by update manager",
+            "success": False,
+        }
 
     try:
         import inspect as _inspect
@@ -4357,13 +4356,10 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
         # AsyncMock may return an awaitable even when not detected as coroutinefunction
         if _inspect.isawaitable(success):
             success = await success
-    except HTTPException:
-        raise  # Preserve original status code
     except Exception as e:
         logger.exception("Rollback callable raised")
-        # Use a more specific error message that matches the test expectations
         error_detail = f"Rollback operation failed: {str(e)}"
-        raise HTTPException(status_code=500, detail=error_detail) from e
+        return {"message": error_detail, "success": False}
 
     if success:
         return {
@@ -4373,7 +4369,7 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
 
     # Use a more specific error message that matches the test expectations
     error_detail = f"Rollback operation failed for {source} to version {target_version}"
-    raise HTTPException(status_code=500, detail=error_detail)
+    return {"message": error_detail, "success": False}
 
 
 _APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")

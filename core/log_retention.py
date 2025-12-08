@@ -34,8 +34,8 @@ class LogRetentionManager:
 
     def __init__(self) -> None:
         """Initialize retention manager with default policies."""
-        # Retention periods in days by data class
-        self.retention_periods: Dict[DataClass, int] = {
+        # Retention periods in days by data class (private to enforce validation)
+        self._retention_periods: Dict[DataClass, int] = {
             DataClass.PUBLIC: 365,  # 1 year for public data
             DataClass.PSEUDONYMOUS: 180,  # 6 months for pseudonymized
             DataClass.SENSITIVE: 90,  # 3 months for sensitive data
@@ -61,12 +61,12 @@ class LogRetentionManager:
         if days_int < 0:
             raise ValueError(f"Retention days for {data_class.value} must be >= 0, got {days_int}")
 
-        self.retention_periods[data_class] = days_int
+        self._retention_periods[data_class] = days_int
 
     # Backwards-compatible properties used by the app/tests:
     @property
     def pseudonymous_retention_days(self) -> int:
-        return int(self.retention_periods.get(DataClass.PSEUDONYMOUS, 0))
+        return self._retention_periods[DataClass.PSEUDONYMOUS]
 
     @pseudonymous_retention_days.setter
     def pseudonymous_retention_days(self, days: int) -> None:
@@ -74,7 +74,7 @@ class LogRetentionManager:
 
     @property
     def public_retention_days(self) -> int:
-        return int(self.retention_periods.get(DataClass.PUBLIC, 0))
+        return self._retention_periods[DataClass.PUBLIC]
 
     @public_retention_days.setter
     def public_retention_days(self, days: int) -> None:
@@ -82,7 +82,7 @@ class LogRetentionManager:
 
     @property
     def sensitive_retention_days(self) -> int:
-        return int(self.retention_periods.get(DataClass.SENSITIVE, 0))
+        return self._retention_periods[DataClass.SENSITIVE]
 
     @sensitive_retention_days.setter
     def sensitive_retention_days(self, days: int) -> None:

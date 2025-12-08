@@ -106,6 +106,9 @@ def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
     if not source:
         return ""
 
+    if truncate < 0:
+        raise ValueError(f"truncate must be non-negative, got {truncate}")
+
     salt = _get_salt().encode("utf-8")
     # Blake2s key is limited to 32 bytes; hash longer salts
     if len(salt) > 32:

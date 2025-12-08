@@ -16,9 +16,6 @@ MAX_MEALS = 10
 MAX_LAYOUT_ITEMS = 20
 MAX_MICRO_NUTRIENTS = 100
 
-# Allowed enum values
-ALLOWED_LAYOUT_KINDS: set[str] = {"plate_sector", "bowl", "marker"}
-
 # Regex to strip HTML/JS tags (defense in depth)
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 JS_EVENT_PATTERN = re.compile(r"on\w+\s*=\s*['\"].*?['\"]|javascript:", re.IGNORECASE)
@@ -95,11 +92,11 @@ class VisualShapeSchema(BaseModel):
         v = HTML_TAG_PATTERN.sub("", v)
         # Strip JS event handlers
         v = JS_EVENT_PATTERN.sub("", v)
-        # HTML escape for safety
-        v = html.escape(v, quote=True)
-        # Enforce max length
+        # Enforce max length before escaping
         if len(v) > MAX_STRING_LENGTH:
             raise ValueError(f"String exceeds max length {MAX_STRING_LENGTH}")
+        # HTML escape for safety
+        v = html.escape(v, quote=True)
         return v.strip()
 
 
@@ -122,10 +119,11 @@ class MealSchema(BaseModel):
         v = HTML_TAG_PATTERN.sub("", v)
         # Strip JS event handlers
         v = JS_EVENT_PATTERN.sub("", v)
-        # HTML escape
-        v = html.escape(v, quote=True)
+        # Enforce max length before escaping
         if len(v) > MAX_STRING_LENGTH:
             raise ValueError(f"Title exceeds max length {MAX_STRING_LENGTH}")
+        # HTML escape
+        v = html.escape(v, quote=True)
         return v.strip()
 
     @field_validator("micros")

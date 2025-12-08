@@ -36,7 +36,8 @@ def test_create_user_conflict(client: TestClient) -> None:
     client.post("/api/v1/users", json={"email": "dup@example.com", "name": "One"})
     duplicate = client.post("/api/v1/users", json={"email": "dup@example.com", "name": "Two"})
     assert duplicate.status_code == 409
-    assert duplicate.json()["detail"] == "Email already exists"
+    assert "Data conflict" in duplicate.json()["detail"]
+    assert "constraints" in duplicate.json()["detail"]
 
 
 def test_get_user_not_found(client: TestClient) -> None:

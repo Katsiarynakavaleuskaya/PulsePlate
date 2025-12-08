@@ -108,7 +108,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -189,7 +190,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -271,7 +273,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache

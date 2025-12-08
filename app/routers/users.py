@@ -136,7 +136,7 @@ async def create_user(payload: UserCreate) -> UserRead:
         session.refresh(user)
         return UserRead.model_validate(user)
 
-    user_data = await run_in_threadpool(_execute_with_retry, _action)
+    user_data: UserRead = await run_in_threadpool(_execute_with_retry, _action)
     return user_data
 
 
@@ -156,7 +156,7 @@ async def list_users(
         page_rows = session.execute(query).scalars().all()
         return [UserRead.model_validate(row) for row in page_rows]
 
-    result = await run_in_threadpool(
+    result: List[UserRead] = await run_in_threadpool(
         _execute_with_retry, _action
     )  # No fallback - fail explicitly if DB unavailable
     return result
@@ -175,7 +175,8 @@ async def get_user(user_id: int) -> UserRead:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return UserRead.model_validate(user)
 
-    return await run_in_threadpool(_execute_with_retry, _action)
+    result: UserRead = await run_in_threadpool(_execute_with_retry, _action)
+    return result
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

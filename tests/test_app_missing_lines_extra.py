@@ -174,9 +174,10 @@ class TestAppMissingLinesExtra:
             )
             assert r.status_code in [200, 500, 503]
 
+    @pytest.mark.skip(reason="stage_obesity no longer imported in main.py")
     def test_bmi_pro_error_handlers(self):
-        # Skip this test as stage_obesity is no longer imported in main.py
-        pytest.skip("stage_obesity no longer imported in main.py")
+        pass
 
+    @pytest.mark.skip(reason="skip until export endpoint is implemented and feature flag enabled")
     def test_export_pdf_generic_errors(self):
-        pytest.skip("skip until export endpoint is implemented and feature flag enabled")
+        pass

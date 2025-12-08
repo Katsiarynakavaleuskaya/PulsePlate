@@ -45,14 +45,16 @@ class PulsePlateMCPServer:
         self.api_key: str = api_key
 
         # Configurable model via MCP_OPENAI_MODEL environment variable
-        # Treat None, empty string, or whitespace-only uniformly as fallback to DEFAULT_MODEL
         model_env_raw: str | None = os.getenv("MCP_OPENAI_MODEL")
-        if model_env_raw is None or not model_env_raw.strip():
-            # None, empty, or whitespace-only: use default
+        if model_env_raw is None:
             self.model = self.DEFAULT_MODEL
         else:
-            # Non-empty stripped value: validate against whitelist
             model_env = model_env_raw.strip()
+            if not model_env:
+                raise ValueError(
+                    f"Invalid model name: {model_env_raw!r}. "
+                    f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
+                )
             if model_env not in self.ALLOWED_MODELS:
                 raise ValueError(
                     f"Unknown model: {model_env!r}. "

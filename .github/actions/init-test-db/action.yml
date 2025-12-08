@@ -11,14 +11,21 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
+        set -euo pipefail  # Exit immediately if any command fails
         python -m pip install --upgrade pip
+        CONSTRAINTS_ARG=""
+        if [ -f constraints.txt ]; then
+          CONSTRAINTS_ARG="-c constraints.txt"
+        fi
         # Install runtime dependencies first (FastAPI, SQLAlchemy, etc.)
         if [ -f requirements.txt ]; then
-          python -m pip install -r requirements.txt
+          echo "Installing runtime dependencies from requirements.txt..."
+          python -m pip install -r requirements.txt $CONSTRAINTS_ARG || { echo "❌ Failed to install requirements.txt"; exit 1; }
         fi
         # Then install dev/test dependencies (pytest, coverage, etc.)
         if [ -f requirements-dev.txt ]; then
-          python -m pip install -r requirements-dev.txt
+          echo "Installing dev/test dependencies from requirements-dev.txt..."
+          python -m pip install -r requirements-dev.txt $CONSTRAINTS_ARG || { echo "❌ Failed to install requirements-dev.txt"; exit 1; }
         fi
 
     - name: Initialize test database
@@ -31,8 +38,8 @@ runs:
         # Ensure database directory exists
         mkdir -p cache
 
-        # Verify dependencies are installed
-        python -c "import sqlalchemy" || { echo "❌ SQLAlchemy not installed. Run 'pip install -r requirements-dev.txt' first."; exit 1; }
+        # Verify SQLAlchemy is installed
+        python -c "import sqlalchemy; from sqlalchemy import inspect; print('✅ SQLAlchemy available')" || { echo "❌ SQLAlchemy not installed. Run 'pip install -r requirements-dev.txt' first."; exit 1; }
 
         # Initialize database schema (create tables)
         python -c "

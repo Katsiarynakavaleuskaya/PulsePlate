@@ -324,7 +324,12 @@ class TestComprehensiveCoverage:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def _assert_premium_plate_success(self, mock_calc_bmr, mock_calc_tdee, mock_make_plate) -> None:
+    def _assert_premium_plate_success(
+        self,
+        mock_calc_bmr: MagicMock,
+        mock_calc_tdee: MagicMock,
+        mock_make_plate: MagicMock,
+    ) -> None:
         mock_calc_bmr.return_value = {"mifflin": 1500}
         mock_calc_tdee.return_value = {"mifflin": 2000}
 
@@ -370,14 +375,18 @@ class TestComprehensiveCoverage:
             ],
             "meals": [
                 {
-                    "name": "Breakfast",
+                    "title": "Breakfast",
                     "kcal": 500,
-                    "macros": {"protein_g": 25, "fat_g": 15, "carbs_g": 60},
+                    "protein_g": 25,
+                    "fat_g": 15,
+                    "carbs_g": 60,
                 },
                 {
-                    "name": "Lunch",
+                    "title": "Lunch",
                     "kcal": 750,
-                    "macros": {"protein_g": 35, "fat_g": 25, "carbs_g": 90},
+                    "protein_g": 35,
+                    "fat_g": 25,
+                    "carbs_g": 90,
                 },
             ],
         }

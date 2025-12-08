@@ -1548,6 +1548,7 @@ importlib
 isfinite
 isinstance
 lstrip
+macronutrient
 Macronutrient
 MACRONUTRIENT
 maxsize

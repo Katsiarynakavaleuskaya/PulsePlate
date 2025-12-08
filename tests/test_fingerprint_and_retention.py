@@ -108,6 +108,34 @@ def test_fingerprint_empty_source_returns_empty_string() -> None:
     assert fingerprint_security.compute_fingerprint("", truncate=16) == ""
 
 
+def test_fingerprint_truncate_zero_returns_full_digest() -> None:
+    """truncate=0 should return full blake2s hex digest (64 chars)."""
+    fp = fingerprint_security.compute_fingerprint("test-data", truncate=0)
+    # blake2s produces 32-byte digest, hexdigest is 64 characters
+    assert len(fp) == 64
+    assert isinstance(fp, str)
+
+
+def test_fingerprint_negative_truncate_raises_value_error() -> None:
+    """Negative truncate should raise ValueError with clear message."""
+    with pytest.raises(ValueError, match=r"truncate must be non-negative, got -5"):
+        fingerprint_security.compute_fingerprint("test-data", truncate=-5)
+
+    with pytest.raises(ValueError, match=r"truncate must be non-negative"):
+        fingerprint_security.compute_fingerprint("test-data", truncate=-1)
+
+
+def test_fingerprint_truncate_larger_than_digest_returns_full() -> None:
+    """truncate larger than digest length should return full digest (64 chars)."""
+    # blake2s hexdigest is 64 chars, request 100
+    fp = fingerprint_security.compute_fingerprint("test-data", truncate=100)
+    assert len(fp) == 64  # Returns full digest, not padded
+
+    # Also test with 1000
+    fp_large = fingerprint_security.compute_fingerprint("test-data", truncate=1000)
+    assert len(fp_large) == 64
+
+
 def test_fingerprint_long_salt_hashed(monkeypatch: pytest.MonkeyPatch) -> None:
     """Salt longer than 32 bytes is hashed before use in blake2s."""
     # Force a very long salt via environment

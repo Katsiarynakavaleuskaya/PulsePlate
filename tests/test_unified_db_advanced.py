@@ -68,8 +68,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
             ),
         ):
             with patch("pathlib.Path.exists", return_value=True):
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    foods_db = await db.get_common_foods_database()
+                foods_db = await db.get_common_foods_database()
 
         assert len(foods_db) == 1
         assert "chicken_breast" in foods_db
