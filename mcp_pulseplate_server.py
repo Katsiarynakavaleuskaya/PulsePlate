@@ -39,13 +39,18 @@ class PulsePlateMCPServer:
         model_env_raw: str | None = os.getenv("MCP_OPENAI_MODEL")
         if model_env_raw is None:
             self.model = self.DEFAULT_MODEL
+        elif model_env_raw == "":
+            # Explicit empty string falls back to default
+            self.model = self.DEFAULT_MODEL
         else:
             model_env = model_env_raw.strip()
             if not model_env:
-                # Empty or whitespace-only falls back to default
-                self.model = self.DEFAULT_MODEL
-            else:
-                self.model = model_env
+                # Whitespace-only string raises error (as per test expectation)
+                raise ValueError(
+                    f"Invalid model name: {model_env_raw!r}. "
+                    f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
+                )
+            self.model = model_env
 
         # Whitelist validation: ensure model is a known OpenAI model
         if self.model not in self.ALLOWED_MODELS:

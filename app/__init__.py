@@ -6,11 +6,12 @@ App module initialization
 import importlib.util
 import os
 import sys
+import types
 from importlib.machinery import ModuleSpec
 from typing import Optional, cast
 
 # Capture reference to this package module early for cross-module fallbacks
-_this_module = sys.modules[__name__]
+_this_module: types.ModuleType = sys.modules[__name__]
 
 # Import FastAPI app and functions from the main module
 
