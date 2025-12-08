@@ -3,10 +3,38 @@ updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
+      interval: "monthly"
+    open-pull-requests-limit: 5
     assignees:
       - "katsiarynakavaleuskaya"
     commit-message:
       prefix: "deps"
       include: "scope"
+    groups:
+      production:
+        patterns:
+          - "fastapi"
+          - "uvicorn"
+          - "pydantic"
+          - "openai"
+          - "httpx"
+          - "python-dotenv"
+          - "sqlalchemy"
+          - "alembic"
+      testing:
+        patterns:
+          - "pytest*"
+          - "hypothesis"
+          - "faker"
+          - "coverage"
+      quality:
+        patterns:
+          - "black"
+          - "mypy"
+          - "ruff"
+          - "bandit"
+      security:
+        patterns:
+          - "pip-audit"
+          - "safety"
+          - "cryptography"
