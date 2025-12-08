@@ -140,7 +140,7 @@ def test_module_state_restored_after_feature_flag_test(monkeypatch: pytest.Monke
     # Deliberately dirty the module state first
     monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
     importlib.reload(app)
-    
+
     # Now restore clean state
     monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
     importlib.reload(app)
