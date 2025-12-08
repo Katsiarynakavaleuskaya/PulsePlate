@@ -493,6 +493,19 @@ def init_db() -> None:
     metadata = Base.metadata
     create_all = metadata.create_all
 
+    # Ensure database directory exists before creating tables
+    # Critical for CI/CD where directory may not exist yet
+    db_url = DATABASE_URL
+    if db_url.startswith("sqlite:///") and not db_url.endswith(":memory:"):
+        # Extract file path from URL
+        sqlite_path = db_url.replace("sqlite:///", "", 1)
+        # Remove query parameters
+        if "?" in sqlite_path:
+            sqlite_path = sqlite_path.split("?")[0]
+        db_dir = os.path.dirname(sqlite_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
     class _CreateAllWrapper:
