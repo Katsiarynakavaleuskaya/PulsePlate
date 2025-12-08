@@ -1,7 +1,7 @@
 """Test that lenient API key mode warning is logged only once."""
 
 import logging
-import os
+
 
 import pytest
 

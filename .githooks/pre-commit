@@ -197,8 +197,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
             # Per-file test discovery: reset for each changed file
             declare -a FOUND_FOR_FILE=()
 
-            # If the file is in tests/ directory (including nested), add it directly
-            if [[ $file == tests/*.py ]] || [[ $file == tests/*/*.py ]] || [[ $file == tests/*/*/*.py ]]; then
+            # If the file is in tests/ directory (any depth), add it directly
+            if [[ $file == tests/* ]] && [[ $file == *.py ]]; then
                 [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
             # Otherwise, check if corresponding test file exists
             elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then

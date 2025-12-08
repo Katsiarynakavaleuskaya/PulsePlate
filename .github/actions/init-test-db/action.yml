@@ -1,3 +1,10 @@
+name: 'Initialize Test Database'
+description: 'Initialize SQLite database for testing'
+runs:
+  using: 'composite'
+  steps:
+    - name: Initialize database
+      shell: bash
       run: |
         # Ensure database directory exists
         mkdir -p cache

@@ -117,6 +117,12 @@ def analyze_technical_aspects_common(code: str) -> List[str]:
         )
 
         # Walk the AST once and collect all information
+        # First, identify top-level functions to exclude nested helpers from return annotation checks
+        top_level_function_nodes = set()
+        for toplevel_item in tree.body if isinstance(tree, ast.Module) else []:
+            if isinstance(toplevel_item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                top_level_function_nodes.add(toplevel_item)
+
         for node in ast.walk(tree):
             # Collect basic node type information
             if isinstance(node, ast.AsyncFunctionDef):
@@ -160,11 +166,13 @@ def analyze_technical_aspects_common(code: str) -> List[str]:
                         ):
                             has_pytest_raises = True
             # Check function definitions for return annotations and intentional raise patterns
+            # Only check top-level functions to avoid false positives from nested helpers
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                # Check for missing return annotations
+                # Only check return annotations for top-level, non-test functions
                 if (
-                    node.returns is None
-                    and not getattr(node, "name", "").startswith("test_")
+                    node in top_level_function_nodes
+                    and node.returns is None
+                    and not node.name.startswith("test_")
                     and _has_explicit_return_or_yield(node)
                 ):
                     missing_return_annotation = True

@@ -20,6 +20,9 @@ class PulsePlateMCPServer:
     DEFAULT_MODEL: str = "gpt-4o"
 
     # Allowed OpenAI model names (fail-fast validation)
+    # MAINTENANCE BURDEN: This whitelist requires manual updates for each new OpenAI model.
+    # Alternative: Consider using openai.Model.list() for dynamic discovery or accepting
+    # any model name and letting the OpenAI API fail gracefully with clear error messages.
     # Keep in sync with models supported by the pinned openai client.
     ALLOWED_MODELS: set[str] = {"gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"}
 

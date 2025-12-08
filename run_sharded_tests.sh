@@ -228,7 +228,6 @@ case $MODE in
                 failed_pids+=("PID:$pid (exit=$exit_code)")
             fi
         done
-        done
         if [ ${#failed_pids[@]} -ne 0 ]; then
             echo -e "${RED}✗ Parallel execution failed${NC}"
             echo -e "${RED}Failed processes: ${failed_pids[*]}${NC}"
