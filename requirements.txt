@@ -17,6 +17,6 @@ alembic==1.17.1
 # Pin to the latest available 3.2.x; 3.2.1 does not exist on PyPI (CI failed)
 psycopg[binary]==3.2.12
 email-validator==2.3.0
-faker==37.12.0
+faker==38.2.0
 cryptography==46.0.3
 pyarrow>=14.0.0
