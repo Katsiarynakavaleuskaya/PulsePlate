@@ -190,7 +190,8 @@ class TestPremiumBMRAPI:
         response = client.post(
             "/api/v1/premium/bmr", json=payload, headers={"X-API-Key": "test_key"}
         )
-        assert response.status_code == 200  # 60 is valid (le=60 in schema)
+        # bodyfat=60 triggers ValueError in calculation - expect 400
+        assert response.status_code == 400
 
     def test_premium_bmr_missing_api_key(self):
         """Test Premium BMR API without API key."""

@@ -91,7 +91,7 @@ class TestAppMissingLinesExtra:
             assert "disabled" in r.json().get("detail", "").lower()
 
     def test_premium_bmr_value_and_http_errors(self):
-        # Test premium BMR endpoint
+        # Test premium BMR endpoint - ValueError should return 400 Bad Request
         with (
             patch.object(app_mod, "calculate_all_bmr", side_effect=ValueError("bad")),
             patch.object(app_mod, "calculate_all_tdee", lambda *a, **k: {}),
@@ -107,9 +107,10 @@ class TestAppMissingLinesExtra:
             r = self.client.post(
                 "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert r.status_code == 200
+            assert r.status_code == 400
+            assert "Invalid input" in r.json().get("detail", "")
 
-        # Trigger HTTPException passthrough re-raise (818)
+        # Trigger HTTPException passthrough re-raise
         with (
             patch.object(
                 app_mod,
@@ -129,7 +130,8 @@ class TestAppMissingLinesExtra:
             r = self.client.post(
                 "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert r.status_code == 200
+            assert r.status_code == 418
+            assert "teapot" in r.json().get("detail", "")
 
     def test_premium_plate_missing_bmr_tdee_check(self):
         # Force the early 503 guard (974)
@@ -173,11 +175,3 @@ class TestAppMissingLinesExtra:
                 "/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code in [200, 500, 503]
-
-    @pytest.mark.skip(reason="stage_obesity no longer imported in main.py")
-    def test_bmi_pro_error_handlers(self):
-        pass
-
-    @pytest.mark.skip(reason="skip until export endpoint is implemented and feature flag enabled")
-    def test_export_pdf_generic_errors(self):
-        pass

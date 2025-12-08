@@ -24,9 +24,11 @@ async def test_rollback_no_update_manager(mock_get_update_scheduler: AsyncMock) 
         update_manager = None
 
     mock_get_update_scheduler.return_value = DummyScheduler()
-    resp = await app_mod.rollback_database("usda", "v1")
+    with pytest.raises(HTTPException) as exc:
+        await app_mod.rollback_database("usda", "v1")
     mock_get_update_scheduler.assert_called_once()
-    assert resp == {"message": "No update manager available; nothing to rollback"}
+    assert exc.value.status_code == 500
+    assert "No update manager available" in exc.value.detail
 
 
 @pytest.mark.asyncio
@@ -39,9 +41,11 @@ async def test_rollback_no_rollback_fn(mock_get_update_scheduler: AsyncMock) -> 
         update_manager = DummyManager()
 
     mock_get_update_scheduler.return_value = DummyScheduler()
-    resp = await app_mod.rollback_database("usda", "v1")
+    with pytest.raises(HTTPException) as exc:
+        await app_mod.rollback_database("usda", "v1")
     mock_get_update_scheduler.assert_called_once()
-    assert resp == {"message": "Rollback operation not supported by update manager"}
+    assert exc.value.status_code == 500
+    assert "Rollback operation not supported" in exc.value.detail
 
 
 @pytest.mark.asyncio
