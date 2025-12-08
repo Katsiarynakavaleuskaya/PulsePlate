@@ -59,8 +59,13 @@ COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
 COPY --chown=pulseplate:pulseplate alembic.ini ./
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /app/cache/food_db /app/data /app/logs && \
-    chown -R pulseplate:pulseplate /app/cache /app/data /app/logs
+# Include home directory for matplotlib config and ensure cache/data/logs are writable
+RUN mkdir -p /home/pulseplate/.config/matplotlib /app/cache/food_db /app/data /app/logs && \
+    chown -R pulseplate:pulseplate /home/pulseplate /app/cache /app/data /app/logs
+
+# Set environment variables for matplotlib and database
+ENV MPLCONFIGDIR=/app/cache/matplotlib \
+    DATABASE_URL=sqlite:////app/cache/pulseplate.db
 
 # Switch to non-root user
 USER pulseplate
