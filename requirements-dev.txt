@@ -7,7 +7,7 @@ pytest-picked>=0.5.0
 coverage>=7.0.0
 # flake8==7.3.0  # Replaced by ruff (faster, modern linter)
 bandit==1.8.6
-pip-audit==2.9.0
+pip-audit==2.10.0
 safety==3.6.2
 mypy==1.18.2
 black==25.9.0
