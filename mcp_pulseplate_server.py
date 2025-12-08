@@ -30,12 +30,13 @@ class PulsePlateMCPServer:
         )
 
     def __init__(self) -> None:
-        self.api_key: str | None = os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
+        self.api_key: str = api_key
 
         # Configurable model via MCP_OPENAI_MODEL environment variable
-        # Falls back to DEFAULT_MODEL if not set or empty after stripping
+        # Falls back to DEFAULT_MODEL if unset or exactly "", but raises on whitespace-only values
         model_env_raw: str | None = os.getenv("MCP_OPENAI_MODEL")
         if model_env_raw is None:
             self.model = self.DEFAULT_MODEL

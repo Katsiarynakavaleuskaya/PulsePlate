@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.schemas.users import UserCreate, UserRead
+from core import db as db_module
 from core.db import get_session
 from core.models import User
 
@@ -44,7 +45,6 @@ def _execute_with_retry(
     """
     max_retries = 3
     base_delay = 0.1  # 100ms base delay
-    from core import db as db_module
 
     # First attempt with injected session
     try:
@@ -153,11 +153,9 @@ async def list_users(
     """
 
     def _action(session: Session) -> List[UserRead]:
-        # Explicitly order and slice to keep deterministic results even if an adapter
-        # ignores offset/limit hints (e.g., under heavy test patching)
-        query = select(User).order_by(User.id)
-        rows = session.execute(query).scalars().all()
-        page_rows = rows[offset : offset + limit]
+        # Use database-level pagination for efficiency
+        query = select(User).order_by(User.id).offset(offset).limit(limit)
+        page_rows = session.execute(query).scalars().all()
         return [UserRead.model_validate(row) for row in page_rows]
 
     result = await run_in_threadpool(
