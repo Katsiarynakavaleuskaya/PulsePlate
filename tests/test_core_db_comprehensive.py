@@ -380,12 +380,15 @@ def test_init_db_wrapper_not_called() -> None:
         pytest.skip("_CreateAllWrapper not active")
 
     # Reset wrapper state to uncalled and test the failure path
-    # Note: We use type: ignore to suppress mypy method-assign error for test mocking
-    create_all_wrapper._called = False  # type: ignore[method-assign]
+    # Cast to Any to access wrapper-specific attributes for testing
+    from typing import Any, cast
+
+    wrapper_any = cast(Any, create_all_wrapper)
+    wrapper_any._called = False
 
     # Now test the failure path: call assert_called_once without calling the wrapper
     with pytest.raises(AssertionError, match="create_all was not invoked"):
-        create_all_wrapper.assert_called_once()  # type: ignore[attr-defined]
+        wrapper_any.assert_called_once()
 
     # Cleanup: restore original state
     importlib.reload(db)
@@ -403,23 +406,25 @@ async def test_init_db_async_with_async_engine(monkeypatch: pytest.MonkeyPatch) 
     if db.create_async_engine is None or db.async_sessionmaker is None:
         pytest.skip("sqlalchemy.asyncio not available")
 
-    # Set up async engine
-    monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
-
     import importlib
 
-    reloaded = importlib.reload(db)
+    reloaded = db  # Initialize for finally block
+    try:
+        # Set up async engine
+        monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
 
-    if reloaded._ASYNC_ENGINE is not None:
-        # This should use the async engine path
-        await reloaded.init_db_async()
+        reloaded = importlib.reload(db)
 
-        # Cleanup
-        await reloaded._ASYNC_ENGINE.dispose()
+        if reloaded._ASYNC_ENGINE is not None:
+            # This should use the async engine path
+            await reloaded.init_db_async()
 
-    # Restore original state
-    importlib.reload(db)
-    db.init_db()
+            # Cleanup
+            await reloaded._ASYNC_ENGINE.dispose()
+    finally:
+        # Restore original state
+        importlib.reload(db)
+        db.init_db()
 
 
 @pytest.mark.asyncio

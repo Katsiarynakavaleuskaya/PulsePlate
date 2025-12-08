@@ -263,7 +263,7 @@ class PlateDataSchema(BaseModel):
 
     @field_validator("day_micros")
     @classmethod
-    def validate_day_micros(cls, v: Dict[str, float]) -> Dict[str, float]:
+    def validate_day_micros(cls, v: Optional[Dict[str, float]]) -> Dict[str, float]:
         """Validate daily micronutrient data."""
         result = _sanitize_micros(v, MAX_MICRO_NUTRIENTS)
         # day_micros is required (default_factory=dict), so result should not be None
