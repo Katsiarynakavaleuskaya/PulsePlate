@@ -276,8 +276,8 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
     """Validate and sanitize plate data.
 
     Enforces strict schema validation, type checking, range validation,
-    HTML/JS injection prevention, and SQL injection protection through
-    parameterization-safe output.
+    and HTML/JS injection prevention. Output is safe to use with
+    parameterized queries (SQL safety depends on proper query construction).
 
     Args:
         data: Raw plate data dictionary from database or external source

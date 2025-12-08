@@ -47,11 +47,11 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
     try:
         return action(session)
     except IntegrityError:
-        # Non-retriable conflict (e.g., duplicate email) - convert to HTTPException/409
+        # IntegrityError indicates constraint violation (unique, FK, check)
         session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Email already exists",
+            detail="Data conflict: resource already exists or violates constraints",
         )
     except OperationalError as initial_error:
         logger.warning(
@@ -83,7 +83,7 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
             # Surface immediately; IntegrityError is not retriable in this flow
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Email already exists",
+                detail="Data conflict: resource already exists or violates constraints",
             )
         except OperationalError as retry_error:
             last_error = retry_error

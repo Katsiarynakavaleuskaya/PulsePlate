@@ -2,7 +2,6 @@
 
 import logging
 import os
-from unittest.mock import patch
 
 import pytest
 
@@ -10,7 +9,9 @@ import pytest
 class TestLenientModeWarning:
     """Test lenient API key mode warning behavior."""
 
-    def test_lenient_mode_warning_logged_only_once(self, monkeypatch, caplog):
+    def test_lenient_mode_warning_logged_only_once(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Verify that lenient mode warning is logged only once, not on every call."""
         # Set up environment for lenient mode
         monkeypatch.setenv("APP_ENV", "dev")
@@ -20,18 +21,15 @@ class TestLenientModeWarning:
         import importlib
         import app as app_module
 
-        # Reset the warning flag
-        app_module._lenient_mode_warning_logged = False
+        # Reload resets module state including the warning flag
         importlib.reload(app_module)
 
         # Capture logs at WARNING level
         with caplog.at_level(logging.WARNING):
             # Call get_api_key multiple times
-            for _ in range(5):
-                try:
-                    app_module.get_api_key("test-valid-key")
-                except Exception:
-                    pass  # Ignore exceptions, we're testing logging
+            for i in range(5):
+                # get_api_key should not raise in lenient mode
+                app_module.get_api_key("test-valid-key")  # type: ignore[misc]
 
         # Check that warning appears exactly once
         warning_messages = [
@@ -45,7 +43,9 @@ class TestLenientModeWarning:
             f"but found {len(warning_messages)} occurrences"
         )
 
-    def test_lenient_mode_warning_content(self, monkeypatch, caplog):
+    def test_lenient_mode_warning_content(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Verify the warning message contains the expected security notice."""
         monkeypatch.setenv("APP_ENV", "dev")
         monkeypatch.delenv("API_KEY", raising=False)
@@ -54,15 +54,12 @@ class TestLenientModeWarning:
         import importlib
         import app as app_module
 
-        # Reset the warning flag
-        app_module._lenient_mode_warning_logged = False
+        # Reload resets module state including the warning flag
         importlib.reload(app_module)
 
         with caplog.at_level(logging.WARNING):
-            try:
-                app_module.get_api_key("test-valid-key")
-            except Exception:
-                pass
+            # get_api_key should not raise in lenient mode
+            app_module.get_api_key("test-valid-key")  # type: ignore[misc]
 
         # Verify warning message content
         warning_messages = [

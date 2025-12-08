@@ -58,8 +58,8 @@ fi
 echo ""
 echo "📋 Step 2/2: Custom checks (Python syntax, backend tests)"
 
-# Get Python changes
-PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" || true)
+# Get Python changes (exclude .claude/ skills directory)
+PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
 
 if [ -n "$PYTHON_CHANGES" ]; then
     # Check Python syntax
@@ -123,7 +123,7 @@ if [ -n "$PYTHON_CHANGES" ]; then
             mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
             echo "Running tests: ${TEST_FILES[*]}"
             # Fail fast on first error (-x flag)
-            if ! pytest -q -- "${TEST_FILES[@]}" --tb=short -x; then
+            if ! pytest -q --tb=short -x -- "${TEST_FILES[@]}"; then
                 echo "❌ Backend tests failed"
                 echo "ℹ️  Fix failing tests or commit with --no-verify to skip"
                 exit 1

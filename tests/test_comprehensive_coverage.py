@@ -394,12 +394,11 @@ class TestComprehensiveCoverage:
         response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
-        assert response.status_code in [200, 500, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "kcal" in data
-            assert "macros" in data
-            assert "portions" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert "kcal" in data
+        assert "macros" in data
+        assert "portions" in data
 
     def test_premium_plate_endpoint_value_error(self) -> None:
         """Test premium plate endpoint with ValueError."""

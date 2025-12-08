@@ -87,7 +87,7 @@ def _build_engine_url() -> str:
         # Enable WAL mode for better concurrency in test environments
         # WAL (Write-Ahead Logging) allows concurrent reads during writes
         if os.getenv("APP_ENV") in ("test", "ci") or os.getenv("ENVIRONMENT") == "test":
-            q["_journal_mode"] = ["WAL"]
+            q["journal_mode"] = ["WAL"]
         new_query = urlencode(q, doseq=True)
 
         # urlunparse drops one of the slashes for sqlite file URLs; build manually

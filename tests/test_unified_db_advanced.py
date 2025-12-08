@@ -130,8 +130,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
                 mock_usda_client.search_foods.return_value = []
                 db.usda_client = mock_usda_client
 
-                with patch("asyncio.sleep") as mock_sleep:
-                    mock_sleep.return_value = None
+                with patch("asyncio.sleep", new_callable=AsyncMock):
                     foods_db = await db.get_common_foods_database()
 
         # Should return empty dict due to errors
@@ -175,8 +174,7 @@ class TestUnifiedFoodDatabaseCommonFoods:
 
         # Mock file operations to fail on write
         with patch("builtins.open", side_effect=PermissionError("Cannot write")):
-            with patch("asyncio.sleep") as mock_sleep:
-                mock_sleep.return_value = None
+            with patch("asyncio.sleep", new_callable=AsyncMock):
                 foods_db = await db.get_common_foods_database()
 
         # Should still return foods even if cache save fails

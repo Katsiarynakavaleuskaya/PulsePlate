@@ -29,7 +29,7 @@ repos:
         name: black (format)
         language_version: python3
         args: [--line-length=100]
-        files: ^(?!frontend/).+\.py$
+        files: ^(?!frontend/|.claude/).+\.py$
 
   # --- Lint: Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -37,7 +37,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff (lint, local)
-        files: ^(?!frontend/).+\.py$
+        files: ^(?!frontend/|.claude/).+\.py$
         # Keep Ruff compatible with Black by matching line length and ignoring E501
         args:
           - --fix
@@ -76,6 +76,11 @@ repos:
           - -q
           - -c
           - .bandit.yaml
+          - -r
+          - app
+          - core
+        # Explicitly exclude .claude/skills and tests directories
+        exclude: ^(\.claude/|tests/)
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit

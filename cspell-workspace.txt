@@ -1531,6 +1531,7 @@ aiosqlite
 asyncpg
 bayesian
 cals
+caplog
 carb
 cellvalues
 classmethod
