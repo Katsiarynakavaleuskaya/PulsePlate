@@ -101,7 +101,11 @@ async def analyze_business_code(
 
         return response_items
 
+    except HTTPException:
+        # Re-raise HTTPException (auth/permission errors) untouched
+        raise
     except Exception as e:
+        # Log and wrap non-HTTPException errors as 500
         logger.error(
             "Business analysis failed for test_name=%s (%s)",
             request.test_name,
@@ -111,7 +115,7 @@ async def analyze_business_code(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Business analysis failed. Please try again or contact support.",
-        )
+        ) from e
 
 
 @router.get("/status")

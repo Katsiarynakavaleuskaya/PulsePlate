@@ -47,7 +47,6 @@ omit =
     # Optional or lower-level modules covered in dedicated suites
     core/business_bayesian_analyzer.py
     core/bayesian_technical_utils.py
-    core/data_sanitizer.py
     app/routers/business.py
     app/routers/users.py
 

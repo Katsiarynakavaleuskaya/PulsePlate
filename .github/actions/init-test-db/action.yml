@@ -8,6 +8,16 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements-dev.txt ]; then
+          python -m pip install -r requirements-dev.txt
+        else
+          python -m pip install -r requirements.txt
+        fi
+
     - name: Initialize test database
       shell: bash
       env:
@@ -17,6 +27,9 @@ runs:
       run: |
         # Ensure database directory exists
         mkdir -p cache
+
+        # Verify dependencies are installed
+        python -c "import sqlalchemy" || { echo "❌ SQLAlchemy not installed. Run 'pip install -r requirements-dev.txt' first."; exit 1; }
 
         # Initialize database schema (create tables)
         python -c "
