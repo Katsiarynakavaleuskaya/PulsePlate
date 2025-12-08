@@ -168,15 +168,31 @@ def test_fingerprint_file_read_exception_fallback(
 
 
 def test_log_retention_manager_properties() -> None:
-    """Exercise property setters/getters and singleton creation."""
-    mgr = log_retention.get_retention_manager()
-    mgr.pseudonymous_retention_days = 10
-    mgr.public_retention_days = 20
-    mgr.sensitive_retention_days = 5
+    """Exercise property setters/getters and singleton creation.
 
-    assert mgr.pseudonymous_retention_days == 10
-    assert mgr.public_retention_days == 20
-    assert mgr.sensitive_retention_days == 5
+    Saves and restores default retention periods to prevent test isolation issues.
+    """
+    mgr = log_retention.get_retention_manager()
+
+    # Save original values for restoration
+    original_pseudonymous = mgr.pseudonymous_retention_days
+    original_public = mgr.public_retention_days
+    original_sensitive = mgr.sensitive_retention_days
+
+    try:
+        # Test setters/getters
+        mgr.pseudonymous_retention_days = 10
+        mgr.public_retention_days = 20
+        mgr.sensitive_retention_days = 5
+
+        assert mgr.pseudonymous_retention_days == 10
+        assert mgr.public_retention_days == 20
+        assert mgr.sensitive_retention_days == 5
+    finally:
+        # Restore original values to maintain test isolation
+        mgr.pseudonymous_retention_days = original_pseudonymous
+        mgr.public_retention_days = original_public
+        mgr.sensitive_retention_days = original_sensitive
 
 
 def test_log_retention_cleanup_stub(caplog: pytest.LogCaptureFixture) -> None:

@@ -92,8 +92,8 @@ def _build_engine_url() -> str:
 
         # urlunparse drops one of the slashes for sqlite file URLs; build manually
         # to keep the sqlite:/// prefix intact.
-        path_part = parsed.path.lstrip("/")
-        database_url = f"sqlite:///{path_part}"
+        # Preserve parsed.path exactly (do not lstrip) to keep absolute paths with leading slash
+        database_url = f"sqlite:///{parsed.path}"
         if new_query:
             database_url = f"{database_url}?{new_query}"
     return database_url

@@ -99,9 +99,11 @@ class LogRetentionManager:
         """
         # Non-destructive stub: log cleanup not yet implemented
         # Return 0 to indicate no files deleted (safe default)
+        data_class_str = data_class.value if data_class else "all"
         logger.warning(
-            "Log cleanup not implemented - returning 0 (no files deleted). "
-            "Implement real deletion logic against log directory using retention_periods."
+            "Log cleanup not implemented for data_class=%s - returning 0 (no files deleted). "
+            "Implement real deletion logic against log directory using retention_periods.",
+            data_class_str,
         )
         return 0
 

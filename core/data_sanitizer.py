@@ -182,7 +182,10 @@ class PlateDataSchema(BaseModel):
                 raise ValueError(
                     f"Unexpected macro key '{key}' - only {list(ranges.keys())} are allowed"
                 )
-            if not isinstance(value, int):
+            # Allow integer-equivalent floats (e.g., 50.0) from JSON deserialization
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            elif not isinstance(value, int):
                 raise ValueError(f"Macro value for {key} must be an integer")
             min_val, max_val = ranges[key]
             if not (min_val <= value <= max_val):
@@ -300,6 +303,9 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
         return result
     except PydanticValidationError as e:
         # Convert Pydantic validation errors to our custom ValidationError
+        # TODO: Localize error messages using t(lang, "translation_key") for i18n support
+        #       (English, Russian, Spanish). Currently hard-coded English strings.
+        #       Consider adding lang parameter or translating at HTTP layer.
         errors = e.errors()
         if any(err.get("loc", [None])[0] == "macros" for err in errors):
             message = "Missing required macro keys"

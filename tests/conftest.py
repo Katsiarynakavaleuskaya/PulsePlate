@@ -281,18 +281,6 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     from core import db as db_module
 
     def _truncate() -> None:
-        # First verify the table exists before attempting to delete from it
-        try:
-            from sqlalchemy import inspect
-
-            inspector = inspect(db_module.engine)
-            if "users" not in inspector.get_table_names():
-                # Table doesn't exist, skip cleanup
-                return
-        except Exception:
-            # If we can't inspect the database, proceed with caution
-            pass
-
         with db_module.session_scope() as session:
             session.execute(text("DELETE FROM users"))
 
@@ -309,7 +297,7 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
                 logger.warning(f"Retrying users cleanup after init_db failed: {retry_err}")
         except Exception as init_err:
             logger.error(f"init_db during cleanup setup failed: {init_err}")
-            return
+            # Don't return - must yield to ensure fixture lifecycle completes
     except Exception as e:
         # Handle any other unexpected exceptions
         logger.error(f"Unexpected error during test setup cleanup: {e}", exc_info=True)

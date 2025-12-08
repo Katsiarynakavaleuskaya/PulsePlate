@@ -19,6 +19,7 @@ def test_create_and_get_user(client: TestClient) -> None:
 
 
 def test_list_users_pagination(client: TestClient) -> None:
+    """Test user list pagination with strict ordering verification."""
     for idx in range(3):
         client.post(
             "/api/v1/users",
@@ -29,7 +30,9 @@ def test_list_users_pagination(client: TestClient) -> None:
     assert page.status_code == 200
     data = page.json()
     assert len(data) == 2
+    # Verify both entries in the page for strict pagination guarantee
     assert data[0]["email"] == "user1@example.com"
+    assert data[1]["email"] == "user2@example.com"
 
 
 def test_create_user_conflict(client: TestClient) -> None:
@@ -59,5 +62,13 @@ def test_delete_user_success_and_idempotent(client: TestClient) -> None:
 
 
 def test_create_user_validation_error(client: TestClient) -> None:
+    """Test user creation with validation errors."""
     bad = client.post("/api/v1/users", json={"email": "not-an-email", "name": ""})
     assert bad.status_code == 422
+    # Verify FastAPI validation error structure
+    error_data = bad.json()
+    assert "detail" in error_data
+    assert isinstance(error_data["detail"], list)
+    # Ensure 'email' field is mentioned in validation errors
+    error_fields = [err.get("loc", [])[-1] for err in error_data["detail"]]
+    assert "email" in error_fields

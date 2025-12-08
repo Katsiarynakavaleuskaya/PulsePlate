@@ -29,7 +29,7 @@ repos:
         name: black (format)
         language_version: python3
         args: [--line-length=100]
-        files: ^(?!frontend/|.claude/).+\.py$
+        files: ^(?!frontend/|\.claude/).+\.py$
 
   # --- Lint: Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -37,7 +37,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff (lint, local)
-        files: ^(?!frontend/|.claude/).+\.py$
+        files: ^(?!frontend/|\.claude/).+\.py$
         # Keep Ruff compatible with Black by matching line length and ignoring E501
         args:
           - --fix

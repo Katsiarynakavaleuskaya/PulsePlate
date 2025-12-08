@@ -24,6 +24,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Final
 
+logger = logging.getLogger(__name__)
+
 SALT_ENV_VAR: Final[str] = "FINGERPRINT_SALT"
 SALT_FILE_ENV_VAR: Final[str] = "FINGERPRINT_SALT_FILE"
 DEFAULT_SALT_PATH: Final[Path] = Path("cache") / "fingerprint_salt.txt"
@@ -54,12 +56,14 @@ def _load_salt_from_file(path: Path) -> str | None:
                 if saved:
                     return saved
                 # File exists but is empty - persist the generated salt for stability
+                # Note: Race condition possible here; first writer wins, losers will
+                # read their value on next restart. Acceptable for this use case.
                 try:
                     path.write_text(generated)
                 except Exception:
                     # If we cannot write, still return the generated value
                     # (process-stable via caller cache)
-                    logging.debug("Could not persist fingerprint salt", exc_info=True)
+                    logger.debug("Could not persist fingerprint salt", exc_info=True)
                 try:
                     path.chmod(0o600)
                 except OSError:
@@ -68,7 +72,7 @@ def _load_salt_from_file(path: Path) -> str | None:
             except Exception:
                 # If we can't read or write the file, return our generated salt
                 # but don't persist it
-                logging.debug("Could not read/write fingerprint salt file", exc_info=True)
+                logger.debug("Could not read/write fingerprint salt file", exc_info=True)
 
         try:
             path.chmod(0o600)

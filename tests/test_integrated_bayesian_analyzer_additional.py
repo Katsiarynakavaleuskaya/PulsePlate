@@ -202,7 +202,8 @@ def test_calculate_risk_level_thresholds() -> None:
     high = ["SQL injection", "hardcoded password"]
     assert analyzer._calculate_risk_level(high, [], [], []) == "high"
     medium = ["SQL injection"]
-    assert analyzer._calculate_risk_level(medium, [], [], []) in {"medium", "low"}
+    # Document the expected behavior or fix the threshold logic
+    assert analyzer._calculate_risk_level(medium, [], [], []) == "medium"
 
 
 @pytest.mark.parametrize(

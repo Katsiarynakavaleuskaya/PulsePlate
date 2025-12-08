@@ -76,6 +76,8 @@ echo ""
 build_cmd() {
     local shard=$1
     local -n out=$2
+    # Clear array to avoid residual elements between iterations
+    out=()
     # Use per-shard database file to avoid cross-shard write conflicts
     local shard_db="cache/test_app_shard_${shard}.sqlite"
     mkdir -p "$(dirname "$shard_db")"

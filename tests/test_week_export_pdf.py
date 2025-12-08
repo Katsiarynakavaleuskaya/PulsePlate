@@ -262,8 +262,8 @@ def test_week_start_prefers_first_day() -> None:
 def test_week_start_defaults_today(monkeypatch: pytest.MonkeyPatch) -> None:
     class FixedDateTime(datetime):
         @classmethod
-        def now(cls, tz: timezone | None = None) -> datetime:
-            return datetime(2025, 1, 1, tzinfo=tz)
+        def now(cls, tz=None) -> "FixedDateTime":
+            return cls(2025, 1, 1, tzinfo=tz)
 
     monkeypatch.setattr(plan, "datetime", FixedDateTime)
     expected = str(FixedDateTime.now(timezone.utc).date())

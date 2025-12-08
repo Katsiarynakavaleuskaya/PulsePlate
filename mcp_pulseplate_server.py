@@ -51,17 +51,16 @@ class PulsePlateMCPServer:
         else:
             model_env = model_env_raw.strip()
             if not model_env:
-                raise ValueError(
-                    f"Invalid model name: {model_env_raw!r}. "
-                    f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
-                )
-            if model_env not in self.ALLOWED_MODELS:
-                raise ValueError(
-                    f"Unknown model: {model_env!r}. "
-                    f"Allowed models: {sorted(self.ALLOWED_MODELS)}. "
-                    f"Update ALLOWED_MODELS if using a newer model."
-                )
-            self.model = model_env
+                # Empty or whitespace-only value is treated as "use default"
+                self.model = self.DEFAULT_MODEL
+            else:
+                if model_env not in self.ALLOWED_MODELS:
+                    raise ValueError(
+                        f"Unknown model: {model_env!r}. "
+                        f"Allowed models: {sorted(self.ALLOWED_MODELS)}. "
+                        f"Update ALLOWED_MODELS if using a newer model."
+                    )
+                self.model = model_env
 
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
 

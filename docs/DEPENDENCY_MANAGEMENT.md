@@ -63,8 +63,9 @@ The GitHub Actions workflows should use:
 ```yaml
 - name: Install dependencies
   run: |
-    pip install pip-tools
-    pip-sync requirements-dev.txt
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt -c constraints.txt
+    pip install -r requirements-dev.txt -c constraints.txt
 ```
 
 ## Dependabot Configuration

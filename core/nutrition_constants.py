@@ -58,7 +58,7 @@ class _DeprecatedBMIAlias:
                 "BMI_DANGEROUS_HIGH is deprecated and will be removed in a future release. "
                 "Use BMI_OBESITY_THRESHOLD instead.",
                 DeprecationWarning,
-                stacklevel=4,
+                stacklevel=3,
             )
             return _BMI_DANGEROUS_HIGH_VALUE
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

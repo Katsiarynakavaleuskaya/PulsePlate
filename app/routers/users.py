@@ -115,6 +115,10 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
 #
 # Automatic deletion of database files in request handlers is unsafe and has been eliminated.
 
+# TODO: Localize error messages using t(lang, "translation_key") for i18n support
+#       (English, Russian, Spanish). Currently hard-coded English strings in detail messages.
+#       Consider adding lang parameter or translating at HTTP layer per coding guidelines.
+
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user(payload: UserCreate) -> UserRead:
@@ -194,4 +198,4 @@ async def delete_user(user_id: int) -> Response:
         session.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    return await run_in_threadpool(_execute_with_retry, _action)
+    return cast(Response, await run_in_threadpool(_execute_with_retry, _action))

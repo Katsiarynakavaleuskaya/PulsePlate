@@ -1,5 +1,5 @@
 """
-Targeted tests for app.py lines 3304-3315 to reach 97% coverage.
+Targeted tests for app.py lines 3364-3370 to reach 97% coverage.
 
 Covers:
 - /premium_bmr legacy endpoint exception paths

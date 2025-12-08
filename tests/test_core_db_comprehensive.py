@@ -3,6 +3,7 @@
 import importlib
 import os
 
+import tempfile
 import pytest
 from sqlalchemy import create_engine, text
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,12 +19,36 @@ def reload_db_with_cleanup(monkeypatch: pytest.MonkeyPatch):
     """
     from core import db
 
+    original_db_url = os.environ.get("DATABASE_URL")
+    temp_dir = tempfile.mkdtemp(prefix="core_db_comp_")
+    default_db_path = os.path.join(temp_dir, "app.db")
+    os.makedirs(os.path.dirname(default_db_path), exist_ok=True)
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{default_db_path}")
+
     # Reload db module for test
     yield db
 
-    # Cleanup: reload db module and reinitialize
-    importlib.reload(db)
-    db.init_db()
+    # Cleanup: ensure default DB path is available after monkeypatch undo
+    try:
+        os.makedirs(os.path.dirname(default_db_path), exist_ok=True)
+        os.environ["DATABASE_URL"] = f"sqlite:///{default_db_path}"
+        importlib.reload(db)
+        db.init_db()
+    finally:
+        # Restore original DATABASE_URL
+        if original_db_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = original_db_url
+        # Best-effort cleanup of temp directory
+        try:
+            os.remove(default_db_path)
+        except OSError:
+            pass
+        try:
+            os.rmdir(temp_dir)
+        except OSError:
+            pass
 
 
 def test_build_engine_url_with_existing_query_params(

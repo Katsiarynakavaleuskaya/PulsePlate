@@ -3022,7 +3022,16 @@ def align_macros_with_targets(
                     macros_aligned[macro_name] = int(target_val)
                     alignment_succeeded = True
 
-            target_kcal_override = targets_resp.kcal_daily
+            # Guard against rare kcal coercion corner case (None, NaN, invalid types)
+            if targets_resp.kcal_daily is not None:
+                try:
+                    target_kcal_override = int(targets_resp.kcal_daily)
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "premium_plate alignment: invalid kcal_daily=%r, ignoring: %s",
+                        targets_resp.kcal_daily,
+                        exc,
+                    )
         except HTTPException as exc:
             logger.warning("premium_plate alignment: WHO targets request invalid: %s", exc.detail)
         except Exception as exc:
@@ -3093,7 +3102,14 @@ def align_macros_with_targets(
                 else:
                     kcal_override = getattr(manual_targets, "kcal_daily", None)
                 if kcal_override is not None:
-                    target_kcal_override = int(kcal_override)
+                    try:
+                        target_kcal_override = int(kcal_override)
+                    except (TypeError, ValueError) as exc:
+                        logger.warning(
+                            "premium_plate alignment: invalid kcal_override=%r, ignoring: %s",
+                            kcal_override,
+                            exc,
+                        )
             except Exception as exc:  # pragma: no cover - defensive fallback
                 logger.warning(
                     "premium_plate alignment: manual targets failed with %s, using heuristic",
@@ -4305,20 +4321,24 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
             raise ValueError("Scheduler returned None")
     except Exception as e:
         logger.exception("Rollback: could not get scheduler")
-        error_detail = f"Rollback operation failed: could not get scheduler ({str(e)})"
-        return {"message": error_detail, "success": False}
+        # Avoid leaking internal exception details in user-facing response
+        error_detail = "Rollback operation failed: could not get scheduler"
+        raise HTTPException(status_code=500, detail=error_detail) from e
 
     # Gracefully handle missing update manager to satisfy direct function tests
     update_manager = getattr(scheduler, "update_manager", None)
     if update_manager is None:
-        return {"message": "No update manager available; nothing to rollback", "success": False}
+        raise HTTPException(
+            status_code=500,
+            detail="No update manager available; rollback operation failed",
+        )
 
     rollback_callable = getattr(update_manager, "rollback_database", None)
     if rollback_callable is None or not callable(rollback_callable):
-        return {
-            "message": "Rollback operation not supported by update manager",
-            "success": False,
-        }
+        raise HTTPException(
+            status_code=500,
+            detail="Rollback operation not supported by update manager",
+        )
 
     try:
         import inspect as _inspect
@@ -4333,8 +4353,10 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
             success = await success
     except Exception as e:
         logger.exception("Rollback callable raised")
-        error_detail = f"Rollback operation failed: {str(e)}"
-        return {"message": error_detail, "success": False}
+        # Do not leak internal exception details to the client
+        raise HTTPException(
+            status_code=500, detail="Rollback operation failed. Please try again later."
+        ) from e
 
     if success:
         return {
@@ -4342,9 +4364,9 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
             "success": True,
         }
 
-    # Use a more specific error message that matches the test expectations
+    # Rollback returned False - this is an error condition
     error_detail = f"Rollback operation failed for {source} to version {target_version}"
-    return {"message": error_detail, "success": False}
+    raise HTTPException(status_code=500, detail=error_detail)
 
 
 _APP_PACKAGE_REF: Optional[ModuleType] = sys.modules.get("app")
