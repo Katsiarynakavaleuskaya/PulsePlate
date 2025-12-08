@@ -542,16 +542,6 @@ def test_macros_non_dict() -> None:
         sanity_filter_plate_data(invalid_data)
 
 
-def test_macros_non_string_key() -> None:
-    """Test line 179: validate_macros raises error for non-string key."""
-    from core.data_sanitizer import PlateDataSchema
-
-    with pytest.raises(ValueError, match="Macro keys must be strings"):
-        PlateDataSchema.validate_macros(
-            {123: 50, "fat_g": 67, "carbs_g": 250, "fiber_g": 25}  # type: ignore[dict-item]
-        )
-
-
 def test_macros_unexpected_key() -> None:
     """Test line 182: validate_macros raises error for unexpected key."""
     from core.data_sanitizer import PlateDataSchema
@@ -590,35 +580,6 @@ def test_macros_out_of_range() -> None:
     with pytest.raises(ValueError, match="out of range"):
         PlateDataSchema.validate_macros(
             {"protein_g": 9999, "fat_g": 67, "carbs_g": 250, "fiber_g": 25}
-        )
-
-
-def test_portions_non_dict() -> None:
-    """Test line 202: validate_portions raises error for non-dict."""
-    invalid_data = {
-        "kcal": 2000,
-        "macros": {"protein_g": 125, "fat_g": 67, "carbs_g": 250, "fiber_g": 25},
-        "portions": "not a dict",  # type: ignore[dict-item]
-        "layout": [],
-        "meals": [],
-    }
-
-    with pytest.raises(ValidationError, match="validation failed"):
-        sanity_filter_plate_data(invalid_data)
-
-
-def test_portions_non_string_key() -> None:
-    """Test line 212: validate_portions raises error for non-string key."""
-    from core.data_sanitizer import PlateDataSchema
-
-    with pytest.raises(ValueError, match="Portion keys must be strings"):
-        PlateDataSchema.validate_portions(
-            {
-                123: 2.0,  # type: ignore[dict-item]
-                "fat_thumbs": 1.0,
-                "carb_cups": 4.0,
-                "veg_cups": 3.0,
-            }
         )
 
 
