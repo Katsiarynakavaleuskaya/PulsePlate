@@ -285,7 +285,9 @@ class TestInternalsAndEdgeBranches:
         # Should not raise and should leave history empty
         assert analyzer.execution_history == []
 
-    def test_save_history_handles_io_errors(self, tmp_path: Path, monkeypatch) -> None:
+    def test_save_history_handles_io_errors(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """save_history should log errors and not raise when writing fails."""
         history_file = tmp_path / "history.json"
         analyzer = BayesianTestAnalyzer(data_file=history_file)
@@ -324,12 +326,12 @@ class TestInternalsAndEdgeBranches:
         no_match = analyzer._calculate_likelihood(set(), ErrorType.ASYNC_ERROR, [])
         assert no_match == pytest.approx(0.1)
 
-    def test_calculate_evidence_no_symptoms(self):
+    def test_calculate_evidence_no_symptoms(self) -> None:
         """Evidence should short-circuit to 1.0 when no symptoms are present."""
         analyzer = BayesianTestAnalyzer()
         assert analyzer._calculate_evidence(set(), []) == pytest.approx(1.0)
 
-    def test_extract_symptoms_context_flags(self):
+    def test_extract_symptoms_context_flags(self) -> None:
         """Context flags should add corresponding symptoms."""
         analyzer = BayesianTestAnalyzer()
         symptoms = analyzer._extract_symptoms(
@@ -338,7 +340,7 @@ class TestInternalsAndEdgeBranches:
         )
         assert {"async_context", "mock_context", "coverage_context"}.issubset(symptoms)
 
-    def test_find_similar_cases_handles_empty_union(self):
+    def test_find_similar_cases_handles_empty_union(self) -> None:
         """Empty symptom sets should not raise and should compute similarity safely."""
         analyzer = BayesianTestAnalyzer()
         analyzer.record_test_execution(
@@ -353,21 +355,21 @@ class TestInternalsAndEdgeBranches:
         similar = analyzer._find_similar_cases(set())
         assert isinstance(similar, list)
 
-    def test_calculate_confidence_empty_and_zero_probs(self):
+    def test_calculate_confidence_empty_and_zero_probs(self) -> None:
         """Confidence should handle empty and zero-valued probability dicts."""
         analyzer = BayesianTestAnalyzer()
         assert analyzer._calculate_confidence({}) == 0.0
         zero_conf = analyzer._calculate_confidence({ErrorType.ASSERTION_ERROR: 0.0})
         assert zero_conf == 0.0
 
-    def test_refresh_priors_no_history_is_noop(self):
+    def test_refresh_priors_no_history_is_noop(self) -> None:
         """When no history is present, priors should remain unchanged."""
         analyzer = BayesianTestAnalyzer()
         original = analyzer.prior_probabilities.copy()
         analyzer._refresh_priors_from_history()
         assert analyzer.prior_probabilities == original
 
-    def test_get_test_health_score_single_execution_time_branch(self):
+    def test_get_test_health_score_single_execution_time_branch(self) -> None:
         """Single execution time should take the simple stability branch."""
         analyzer = BayesianTestAnalyzer()
         analyzer.record_test_execution(
@@ -381,7 +383,7 @@ class TestInternalsAndEdgeBranches:
         score = analyzer.get_test_health_score("test_single_run")
         assert 0.0 <= score <= 1.0
 
-    def test_generate_test_report_without_recommendations_when_all_pass(self):
+    def test_generate_test_report_without_recommendations_when_all_pass(self) -> None:
         """When no failures exist, recommendations list should remain empty."""
         analyzer = BayesianTestAnalyzer()
         for idx in range(3):
@@ -395,7 +397,7 @@ class TestInternalsAndEdgeBranches:
         report = analyzer.generate_test_report()
         assert report["recommendations"] == []
 
-    def test_module_level_helpers_use_global_analyzer(self):
+    def test_module_level_helpers_use_global_analyzer(self) -> None:
         """Global helper functions should delegate and return a BayesianDiagnosis."""
         bayesian_test_analyzer.record_test_execution(
             test_name="test_global_helper",
@@ -409,7 +411,7 @@ class TestInternalsAndEdgeBranches:
         )
         assert isinstance(diagnosis, BayesianDiagnosis)
 
-    def test_generate_test_report_recommendations_thresholds(self):
+    def test_generate_test_report_recommendations_thresholds(self) -> None:
         """High failure rate should trigger recommendations and most common error handling."""
         analyzer = BayesianTestAnalyzer()
         for _ in range(2):
@@ -436,7 +438,7 @@ class TestInternalsAndEdgeBranches:
             or "error" in recommendations_text
         ), "Recommendations should reference the failing test or error type"
 
-    def test_gather_evidence_includes_file_stats(self):
+    def test_gather_evidence_includes_file_stats(self) -> None:
         """Evidence should include file frequency when failures exist."""
         analyzer = BayesianTestAnalyzer()
         for path in ["tests/a.py", "tests/a.py", "tests/b.py"]:
@@ -460,7 +462,7 @@ class TestInternalsAndEdgeBranches:
 class TestOptimizationAndPersistence:
     """Test test ordering optimization and history persistence."""
 
-    def test_optimize_test_order_sorts_by_failure_probability(self):
+    def test_optimize_test_order_sorts_by_failure_probability(self) -> None:
         """Tests with higher historical failure rates should be ordered first."""
         analyzer = BayesianTestAnalyzer()
 
@@ -508,7 +510,7 @@ class TestOptimizationAndPersistence:
         assert ordered[-1] == "test_low"
         assert set(ordered) == {"test_high", "test_medium", "test_low"}
 
-    def test_history_persistence_roundtrip(self, tmp_path):
+    def test_history_persistence_roundtrip(self, tmp_path: Path) -> None:
         """Execution history should be persisted and reloaded when enabled."""
         history_file = tmp_path / "test_execution_history.json"
 
@@ -551,7 +553,7 @@ class TestEdgeCases:
         issues = analyzer.analyze_technical_aspects(code, "test_broken")
         assert isinstance(issues, list)
 
-    def test_very_long_test_name(self):
+    def test_very_long_test_name(self) -> None:
         """Test handling of very long test names."""
         analyzer = BayesianTestAnalyzer()
         long_name = "test_" + "very_long_" * 50 + "name"

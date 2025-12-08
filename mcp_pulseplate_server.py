@@ -22,44 +22,44 @@ class PulsePlateMCPServer:
     # Allowed OpenAI model names (fail-fast validation)
     # Keep in sync with models supported by the pinned openai client.
     ALLOWED_MODELS: set[str] = {"gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"}
-    # Ensure DEFAULT_MODEL remains whitelisted (bandit-safe, no assert)
-    if DEFAULT_MODEL not in ALLOWED_MODELS:
-        raise ValueError(
-            f"DEFAULT_MODEL {DEFAULT_MODEL!r} must be in ALLOWED_MODELS. "
-            f"Current ALLOWED_MODELS: {sorted(ALLOWED_MODELS)}"
-        )
+
+    @classmethod
+    def _validate_default_model(cls) -> None:
+        """Validate that DEFAULT_MODEL is in ALLOWED_MODELS.
+
+        Called during class initialization to ensure configuration consistency.
+        """
+        if cls.DEFAULT_MODEL not in cls.ALLOWED_MODELS:
+            raise ValueError(
+                f"DEFAULT_MODEL {cls.DEFAULT_MODEL!r} must be in ALLOWED_MODELS. "
+                f"Current ALLOWED_MODELS: {sorted(cls.ALLOWED_MODELS)}"
+            )
 
     def __init__(self) -> None:
+        # Validate default model configuration
+        self._validate_default_model()
+
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set")
         self.api_key: str = api_key
 
         # Configurable model via MCP_OPENAI_MODEL environment variable
-        # Falls back to DEFAULT_MODEL if unset or exactly "", but raises on whitespace-only values
+        # Treat None, empty string, or whitespace-only uniformly as fallback to DEFAULT_MODEL
         model_env_raw: str | None = os.getenv("MCP_OPENAI_MODEL")
-        if model_env_raw is None:
-            self.model = self.DEFAULT_MODEL
-        elif model_env_raw == "":
-            # Explicit empty string falls back to default
+        if model_env_raw is None or not model_env_raw.strip():
+            # None, empty, or whitespace-only: use default
             self.model = self.DEFAULT_MODEL
         else:
+            # Non-empty stripped value: validate against whitelist
             model_env = model_env_raw.strip()
-            if not model_env:
-                # Whitespace-only string raises error (as per test expectation)
+            if model_env not in self.ALLOWED_MODELS:
                 raise ValueError(
-                    f"Invalid model name: {model_env_raw!r}. "
-                    f"Expected one of: {sorted(self.ALLOWED_MODELS)}"
+                    f"Unknown model: {model_env!r}. "
+                    f"Allowed models: {sorted(self.ALLOWED_MODELS)}. "
+                    f"Update ALLOWED_MODELS if using a newer model."
                 )
             self.model = model_env
-
-        # Whitelist validation: ensure model is a known OpenAI model
-        if self.model not in self.ALLOWED_MODELS:
-            raise ValueError(
-                f"Unknown model: {self.model!r}. "
-                f"Allowed models: {sorted(self.ALLOWED_MODELS)}. "
-                f"Update ALLOWED_MODELS if using a newer model."
-            )
 
         self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
 

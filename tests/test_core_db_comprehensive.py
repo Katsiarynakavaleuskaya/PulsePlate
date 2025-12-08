@@ -1,18 +1,39 @@
 """Comprehensive tests for core/db.py to achieve 97%+ coverage."""
 
+import importlib
 import os
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy import create_engine, text
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
-def test_build_engine_url_with_existing_query_params(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture
+def reload_db_with_cleanup(monkeypatch: pytest.MonkeyPatch):
+    """Fixture that reloads db module and ensures cleanup afterward.
+
+    This fixture handles the common pattern of reloading the db module for tests
+    that modify environment variables, and ensures the module is properly restored
+    to its original state after the test completes.
+    """
+    from core import db
+
+    # Reload db module for test
+    yield db
+
+    # Cleanup: reload db module and reinitialize
+    importlib.reload(db)
+    db.init_db()
+
+
+def test_build_engine_url_with_existing_query_params(
+    monkeypatch: pytest.MonkeyPatch, reload_db_with_cleanup
+) -> None:
     """Test _build_engine_url preserves existing query parameters.
 
     Covers lines 83->85, 85->87: query parameter merging logic.
     """
-    from core import db
-    import importlib
+    db = reload_db_with_cleanup
 
     # Clear DATABASE_URL so it uses default path with params
     monkeypatch.delenv("DATABASE_URL", raising=False)
@@ -25,18 +46,15 @@ def test_build_engine_url_with_existing_query_params(monkeypatch: pytest.MonkeyP
     assert "mode=rwc" in url
     assert "uri=true" in url
 
-    # Cleanup
-    importlib.reload(db)
-    db.init_db()
 
-
-def test_build_engine_url_memory_sqlite(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_engine_url_memory_sqlite(
+    monkeypatch: pytest.MonkeyPatch, reload_db_with_cleanup
+) -> None:
     """Test _build_engine_url skips query params for :memory: databases.
 
     Covers line 97: early return for memory databases.
     """
-    from core import db
-    import importlib
+    db = reload_db_with_cleanup
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
@@ -47,18 +65,15 @@ def test_build_engine_url_memory_sqlite(monkeypatch: pytest.MonkeyPatch) -> None
     url = reloaded.DATABASE_URL
     assert url == "sqlite:///:memory:"
 
-    # Cleanup
-    importlib.reload(db)
-    db.init_db()
 
-
-def test_build_engine_url_with_env_provided(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_engine_url_with_env_provided(
+    monkeypatch: pytest.MonkeyPatch, reload_db_with_cleanup
+) -> None:
     """Test _build_engine_url respects env-provided URLs without modification.
 
     Covers line 94->107: urlunparse branch (though env-provided URLs skip modification).
     """
-    from core import db
-    import importlib
+    db = reload_db_with_cleanup
 
     # Explicitly set DATABASE_URL to a SQLite file (env_provided=True)
     # This tests that env-provided URLs are not modified
@@ -71,10 +86,6 @@ def test_build_engine_url_with_env_provided(monkeypatch: pytest.MonkeyPatch) -> 
     url = reloaded.DATABASE_URL
     # Env-provided URLs are not modified, so no mode=rwc should be added
     assert url == custom_url
-
-    # Cleanup
-    importlib.reload(db)
-    db.init_db()
 
 
 def test_derive_async_url_postgres_plain() -> None:
@@ -343,34 +354,13 @@ def test_init_db_wrapper_not_called() -> None:
     if not hasattr(create_all_wrapper, "assert_called_once"):
         pytest.skip("_CreateAllWrapper not active")
 
-    # Create a fresh wrapper that has NOT been called
-    # We need to replace it with a new uncalled wrapper to test the failure path
-
-    # Get the original function from the wrapper
-    if not hasattr(create_all_wrapper, "_fn"):
-        pytest.fail("Wrapper does not expose original function via _fn")
-    original_fn = create_all_wrapper._fn
-
-    # Install a fresh uncalled wrapper
-    class _CreateAllWrapper:
-        def __init__(self, fn):
-            self._fn = fn
-            self._called = False
-
-        def __call__(self, *args, **kwargs):
-            self._called = True
-            return self._fn(*args, **kwargs)
-
-        def assert_called_once(self) -> None:
-            if not self._called:
-                raise AssertionError("create_all was not invoked")
-
-    fresh_wrapper = _CreateAllWrapper(original_fn)
-    metadata.create_all = fresh_wrapper
+    # Reset wrapper state to uncalled and test the failure path
+    # Note: We use type: ignore to suppress mypy method-assign error for test mocking
+    create_all_wrapper._called = False  # type: ignore[method-assign]
 
     # Now test the failure path: call assert_called_once without calling the wrapper
     with pytest.raises(AssertionError, match="create_all was not invoked"):
-        fresh_wrapper.assert_called_once()
+        create_all_wrapper.assert_called_once()  # type: ignore[attr-defined]
 
     # Cleanup: restore original state
     importlib.reload(db)
@@ -433,7 +423,7 @@ def test_sqlite_connect_args_without_query_params() -> None:
     from core.db import _sqlite_connect_args
 
     args = _sqlite_connect_args("sqlite:///test.db")
-    assert args == {"check_same_thread": False}
+    assert args == {"check_same_thread": False, "timeout": 30.0}
 
 
 def test_sqlite_connect_args_with_query_params() -> None:
@@ -441,7 +431,7 @@ def test_sqlite_connect_args_with_query_params() -> None:
     from core.db import _sqlite_connect_args
 
     args = _sqlite_connect_args("sqlite:///test.db?mode=rwc")
-    assert args == {"check_same_thread": False, "uri": True}
+    assert args == {"check_same_thread": False, "uri": True, "timeout": 30.0}
 
 
 def test_sqlite_connect_args_non_sqlite() -> None:

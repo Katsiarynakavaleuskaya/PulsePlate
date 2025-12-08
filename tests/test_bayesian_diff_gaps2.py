@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Additional gap-closing tests for Bayesian analyzers.
 """

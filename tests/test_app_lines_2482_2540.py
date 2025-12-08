@@ -9,14 +9,14 @@ Covers:
 
 import pytest
 
+import app
+
 
 class TestAppLines2482_2540:
     """Tests for app.py lines 2482-2540."""
 
     def test_who_targets_request_normalize_goal_synonyms(self) -> None:
         """WHOTargetsRequest normalizes goal synonyms (lose -> loss, etc)."""
-        import app
-
         # Test "lose" -> "loss"
         req = app.WHOTargetsRequest(
             sex="male",
@@ -63,7 +63,6 @@ class TestAppLines2482_2540:
 
     def test_who_targets_request_normalize_preserves_valid_goal(self) -> None:
         """WHOTargetsRequest preserves already-valid goal values."""
-        import app
 
         req = app.WHOTargetsRequest(
             sex="male",
@@ -77,7 +76,6 @@ class TestAppLines2482_2540:
 
     def test_macros_to_kcal_invalid_types(self) -> None:
         """_macros_to_kcal returns None for invalid macro types."""
-        import app
 
         # Non-numeric values
         result = app._macros_to_kcal({"protein_g": "invalid", "fat_g": 10, "carbs_g": 50})
@@ -89,7 +87,6 @@ class TestAppLines2482_2540:
 
     def test_macros_to_kcal_valid_conversion(self) -> None:
         """_macros_to_kcal correctly converts macros to kcal."""
-        import app
 
         macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 200}
         # 100*4 + 50*9 + 200*4 = 400 + 450 + 800 = 1650
@@ -98,7 +95,6 @@ class TestAppLines2482_2540:
 
     def test_calculate_heuristic_macros_1200_floor(self) -> None:
         """calculate_heuristic_macros enforces 1200 kcal minimum."""
-        import app
 
         # Request 800 kcal, should be clamped to 1200
         prot, fat, carbs = app.calculate_heuristic_macros(800, 70.0)
@@ -109,7 +105,6 @@ class TestAppLines2482_2540:
 
     def test_calculate_heuristic_macros_scaling_edge_case(self) -> None:
         """calculate_heuristic_macros scales protein/fat when they exceed kcal budget."""
-        import app
 
         # Very low kcal with high weight should trigger scaling
         prot, fat, carbs = app.calculate_heuristic_macros(1200, 200.0)
@@ -126,7 +121,6 @@ class TestAppLines2482_2540:
 
     def test_calculate_heuristic_macros_normal_case(self) -> None:
         """calculate_heuristic_macros works correctly for normal inputs."""
-        import app
 
         prot, fat, carbs = app.calculate_heuristic_macros(2000, 70.0)
 

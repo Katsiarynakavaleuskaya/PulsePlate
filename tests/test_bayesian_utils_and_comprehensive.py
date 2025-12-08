@@ -1,3 +1,15 @@
+"""Integration tests for Bayesian utility functions and comprehensive analyzers.
+
+This module tests the integration between:
+- bayesian_technical_utils (AST analysis, regex fallbacks)
+- ComprehensiveBayesianAnalyzer (multi-domain scoring and impact assessment)
+- BusinessBayesianAnalyzer (YAML config loading, revenue/cost analysis)
+- IntegratedBayesianAnalyzer (combined technical/nutrition/business analysis)
+
+Tests cover both happy paths and edge cases including syntax errors,
+missing config files, and cross-domain interaction scenarios.
+"""
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -184,7 +196,9 @@ def test_comprehensive_scoring_and_impacts() -> None:
     assert analyzer._calculate_technical_score(tech_issues) < 1.0
     assert analyzer._calculate_business_score(business_issues) < 1.0
 
-    critical = analyzer._identify_critical_issues(tech_issues, nutrition_issues, business_issues)
+    critical = analyzer._identify_critical_issues(
+        tech_issues, nutrition_issues, business_issues, test_name="unit_test_case"
+    )
     assert any(item.startswith("TECH") for item in critical)
     assert any(item.startswith("HEALTH") for item in critical)
     assert any(item.lower().startswith("business:") for item in critical)

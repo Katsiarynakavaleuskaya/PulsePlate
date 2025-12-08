@@ -166,8 +166,6 @@ __all__ = [
     "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
     "BMI_OBESITY_THRESHOLD",
-    # BMI_DANGEROUS_HIGH is deprecated, but kept for backward compatibility
-    # Access will emit a DeprecationWarning
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",
     "FAT_MIN_PERCENT",

@@ -219,8 +219,9 @@ class BusinessBayesianAnalyzer:
         """Attempt to import PyYAML, returning None if unavailable."""
         try:
             import yaml  # type: ignore[import-untyped]
-        except Exception:
+        except (ModuleNotFoundError, ImportError):
             return None
+        # Let other exceptions (version conflicts, corrupt installs) propagate
         return cast(ModuleType, yaml)
 
     def _config_dir(self) -> Path:

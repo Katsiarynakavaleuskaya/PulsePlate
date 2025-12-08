@@ -13,6 +13,9 @@ from hypothesis import strategies as st
 
 import app as app_mod
 
+# Hypothesis test timeout in milliseconds
+TEST_DEADLINE_MS = 10_000
+
 
 class TestPremiumWeekHypothesisSimple:
     """Simple Hypothesis tests for premium week endpoint coverage."""
@@ -22,7 +25,7 @@ class TestPremiumWeekHypothesisSimple:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app_mod.app)
 
-    @settings(deadline=10_000)
+    @settings(deadline=TEST_DEADLINE_MS)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -76,7 +79,7 @@ class TestPremiumWeekHypothesisSimple:
             assert "daily_menus" in data
             assert "week_summary" in data
 
-    @settings(deadline=10_000)
+    @settings(deadline=TEST_DEADLINE_MS)
     @given(
         targets=st.dictionaries(
             keys=st.sampled_from(
@@ -137,7 +140,7 @@ class TestPremiumWeekHypothesisSimple:
                 assert "daily_menus" in data
                 assert "week_summary" in data
 
-    @settings(deadline=10_000)
+    @settings(deadline=TEST_DEADLINE_MS)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),
@@ -188,7 +191,7 @@ class TestPremiumWeekHypothesisSimple:
             # Should fail with 422 - Validation error (missing required field)
             assert response.status_code == 422
 
-    @settings(deadline=10_000)
+    @settings(deadline=TEST_DEADLINE_MS)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=11, max_value=89),

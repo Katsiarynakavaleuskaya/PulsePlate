@@ -191,12 +191,16 @@ case $MODE in
                     pids+=($!)
                 fi
 
-                failed=0
+                failed_pids=()
                 for pid in "${pids[@]}"; do
-                    wait $pid || failed=1
+                    if ! wait $pid; then
+                        exit_code=$?
+                        failed_pids+=("PID:$pid (exit=$exit_code)")
+                    fi
                 done
-                if [ $failed -ne 0 ]; then
+                if [ ${#failed_pids[@]} -ne 0 ]; then
                     echo -e "${RED}✗ Parallel batch failed${NC}"
+                    echo -e "${RED}Failed processes: ${failed_pids[*]}${NC}"
                     exit 1
                 fi
                 echo -e "${GREEN}✓ Batch completed${NC}\n"
@@ -214,12 +218,16 @@ case $MODE in
             pids+=($!)
         done
 
-        failed=0
+        failed_pids=()
         for pid in "${pids[@]}"; do
-            wait $pid || failed=1
+            if ! wait $pid; then
+                exit_code=$?
+                failed_pids+=("PID:$pid (exit=$exit_code)")
+            fi
         done
-        if [ $failed -ne 0 ]; then
+        if [ ${#failed_pids[@]} -ne 0 ]; then
             echo -e "${RED}✗ Parallel execution failed${NC}"
+            echo -e "${RED}Failed processes: ${failed_pids[*]}${NC}"
             exit 1
         fi
         ;;

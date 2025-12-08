@@ -65,12 +65,12 @@ class TestMcpPulseplateServerCoverage:
             # Verify custom model is set
             assert server.model == "gpt-4o-mini"
 
-    def test_pulseplate_mcp_server_invalid_model_empty(
+    def test_pulseplate_mcp_server_empty_model_uses_default(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test PulsePlateMCPServer falls back to default when empty model string is set
+        """Test PulsePlateMCPServer falls back to DEFAULT_MODEL when empty model string is set.
 
-        Empty string is treated as falsy, so DEFAULT_MODEL is used (correct behavior).
+        Empty string is a valid fallback case that correctly uses DEFAULT_MODEL.
         """
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "")
@@ -88,13 +88,14 @@ class TestMcpPulseplateServerCoverage:
     def test_pulseplate_mcp_server_invalid_model_whitespace(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test PulsePlateMCPServer raises ValueError for whitespace-only model string"""
+        """Test PulsePlateMCPServer treats whitespace-only model as fallback to DEFAULT_MODEL"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "   ")
 
         with patch("openai.OpenAI"):
-            with pytest.raises(ValueError, match=r"Invalid model name:.*Expected one of:"):
-                _ = mcp_pulseplate_server.PulsePlateMCPServer()
+            server = mcp_pulseplate_server.PulsePlateMCPServer()
+            # Whitespace-only should fallback to DEFAULT_MODEL
+            assert server.model == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
 
     def test_pulseplate_mcp_server_invalid_model_not_in_whitelist(
         self, monkeypatch: pytest.MonkeyPatch

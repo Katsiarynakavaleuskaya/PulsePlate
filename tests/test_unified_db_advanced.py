@@ -98,7 +98,13 @@ class TestUnifiedFoodDatabaseCommonFoods:
         # Mock asyncio.sleep to speed up test
         with patch("asyncio.sleep", new_callable=AsyncMock):
             foods_db = await db.get_common_foods_database()
-            foods_db = await db.get_common_foods_database()
+            # Verify caching/idempotence: second call should return same result
+            foods_db_cached = await db.get_common_foods_database()
+            # Check that cached result has same content (not necessarily same object)
+            assert len(foods_db) == len(foods_db_cached), "Cached result should have same length"
+            assert set(foods_db.keys()) == set(
+                foods_db_cached.keys()
+            ), "Cached result should have same keys"
 
         # Should have some foods (at least the ones we mocked)
         assert len(foods_db) >= 3

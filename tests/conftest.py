@@ -12,6 +12,7 @@ import warnings
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Generator, cast
+import tempfile
 
 import pytest
 from fastapi import FastAPI
@@ -59,12 +60,10 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     worker_info = getattr(request.config, "workerinput", {}) or {}
     worker_id = worker_info.get("workerid", "master")
 
-    base_path = Path(os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite"))
-    if worker_id != "master":
-        base_path = base_path.with_name(f"{base_path.stem}_{worker_id}{base_path.suffix}")
-
-    if not base_path.is_absolute():
-        base_path = Path.cwd() / base_path
+    cache_root = Path.cwd() / "cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"test_db_{worker_id}_", dir=cache_root))
+    base_path = temp_dir / "test_app.sqlite"
 
     base_path.parent.mkdir(parents=True, exist_ok=True)
     resolved_path = base_path.resolve()
@@ -175,31 +174,39 @@ def setup_test_environment():
         del os.environ["API_KEY"]
 
 
+_CACHED_APP_MODULE: ModuleType | None = None
+
+
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return the module.
+    """Dynamically load app.py and return a stable module instance.
 
     This fixture depends on setup_test_environment to ensure
     API_KEY is set before loading the app.
     """
+    global _CACHED_APP_MODULE
+
     repo_root = Path(__file__).parent.parent
     sys.path.insert(0, str(repo_root))
 
-    # Reuse already-loaded app module when available to keep patches in sync
-    existing_app = sys.modules.get("app")
-    if existing_app is not None:
-        return existing_app
+    # Reuse cached module if we already loaded it (protects against
+    # sys.modules["app"] being removed by other tests).
+    if _CACHED_APP_MODULE is not None:
+        if "app" not in sys.modules:
+            sys.modules["app"] = _CACHED_APP_MODULE
+        return _CACHED_APP_MODULE
 
-    app_path = repo_root / "app.py"
-    spec = importlib.util.spec_from_file_location("app", str(app_path))
-    if spec is None or spec.loader is None:
-        pytest.skip("Cannot load app.py", allow_module_level=True)
+    # Import app directly (app.py can import from app/ package)
+    import app as app_mod
 
-    # At this point we know spec and spec.loader are not None due to the check above
-    app_module = importlib.util.module_from_spec(spec)
+    _CACHED_APP_MODULE = app_mod
+    return app_mod
+
+
+@pytest.fixture(autouse=True)
+def _ensure_app_module(app_module: ModuleType) -> None:
+    """Ensure sys.modules always contains the cached app module."""
     sys.modules["app"] = app_module
-    spec.loader.exec_module(app_module)
-    return app_module
 
 
 @pytest.fixture
@@ -270,15 +277,15 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     database is not accessible (e.g., locked SQLite), logs a warning and
     continues to avoid flakiness.
     """
-    # Get the reloaded db module from the configure_sqlite_database fixture
-    from core import db as db_module_reloaded
+    # Get the db module from sys.modules (cached import, not a fresh reload)
+    from core import db as db_module
 
     def _truncate() -> None:
         # First verify the table exists before attempting to delete from it
         try:
             from sqlalchemy import inspect
 
-            inspector = inspect(db_module_reloaded.engine)
+            inspector = inspect(db_module.engine)
             if "users" not in inspector.get_table_names():
                 # Table doesn't exist, skip cleanup
                 return
@@ -286,19 +293,23 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
             # If we can't inspect the database, proceed with caution
             pass
 
-        with db_module_reloaded.session_scope() as session:
+        with db_module.session_scope() as session:
             session.execute(text("DELETE FROM users"))
 
     try:
         _truncate()
     except (OperationalError, ProgrammingError) as e:
-        # Database not accessible or table doesn't exist - proceeding without initial cleanup
+        # Database not accessible or table doesn't exist - proceed without failing the suite
         logger.warning(f"Database not accessible or users table missing during test setup: {e}")
         try:
-            db_module_reloaded.init_db()
+            db_module.init_db()
+            try:
+                _truncate()
+            except Exception as retry_err:  # pragma: no cover - defensive
+                logger.warning(f"Retrying users cleanup after init_db failed: {retry_err}")
         except Exception as init_err:
             logger.error(f"init_db during cleanup setup failed: {init_err}")
-            raise
+            return
     except Exception as e:
         # Handle any other unexpected exceptions
         logger.warning(f"Unexpected error during test setup cleanup: {e}")

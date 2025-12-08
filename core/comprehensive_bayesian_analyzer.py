@@ -392,7 +392,7 @@ class ComprehensiveBayesianAnalyzer:
         technical: List[str],
         nutrition: List[str],
         business: List[str],
-        test_name: Optional[str] = None,
+        test_name: str,
     ) -> List[str]:
         """Идентифицирует критические проблемы.
 
@@ -403,7 +403,7 @@ class ComprehensiveBayesianAnalyzer:
             technical: List of technical issues
             nutrition: List of nutrition issues
             business: List of business issues
-            test_name: Current test name to filter nutrition results (optional)
+            test_name: Current test name to filter nutrition results
         """
         critical = []
 
@@ -425,7 +425,7 @@ class ComprehensiveBayesianAnalyzer:
                 if (
                     not result.success
                     and result.safety_level == "dangerous"
-                    and (test_name is None or result.test_name == test_name)
+                    and result.test_name == test_name
                 ):
                     critical.append(f"HEALTH: {result.error_message}")
                     health_added = True

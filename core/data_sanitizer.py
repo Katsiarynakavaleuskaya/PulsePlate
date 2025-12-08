@@ -6,7 +6,7 @@ invalid data, and ensure type safety.
 
 import html
 import re
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, TypedDict, cast
 
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
 
@@ -22,6 +22,55 @@ ALLOWED_LAYOUT_KINDS: set[str] = {"plate_sector", "bowl", "marker"}
 # Regex to strip HTML/JS tags (defense in depth)
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 JS_EVENT_PATTERN = re.compile(r"on\w+\s*=\s*['\"].*?['\"]|javascript:", re.IGNORECASE)
+
+
+class MacrosDict(TypedDict):
+    """Typed dictionary for macronutrient data with strict schema."""
+
+    protein_g: int
+    fat_g: int
+    carbs_g: int
+    fiber_g: int
+
+
+def _sanitize_micros(
+    v: Optional[Dict[str, float]], max_items: int = MAX_MICRO_NUTRIENTS
+) -> Optional[Dict[str, float]]:
+    """Sanitize and validate micronutrient dictionary.
+
+    Args:
+        v: Micronutrient dictionary (key=nutrient name, value=amount)
+        max_items: Maximum number of micronutrients allowed
+
+    Returns:
+        Sanitized micronutrient dictionary with escaped keys and validated numeric values,
+        or None if input is None
+
+    Raises:
+        ValueError: If validation fails (non-dict type, too many items, invalid keys/values)
+    """
+    if v is None:
+        return None
+    if not isinstance(v, dict):
+        raise ValueError("Micros must be a dictionary")
+    if len(v) > max_items:
+        raise ValueError(f"Too many micronutrients (max {max_items})")
+
+    sanitized = {}
+    for key, value in v.items():
+        if not isinstance(key, str):
+            raise ValueError("Micronutrient keys must be strings")
+        # Sanitize key name
+        clean_key = HTML_TAG_PATTERN.sub("", key)
+        clean_key = html.escape(clean_key, quote=True).strip()
+        if len(clean_key) > 100:
+            raise ValueError("Micronutrient key too long")
+        if not isinstance(value, (int, float)):
+            raise ValueError(f"Micronutrient value for {key} must be numeric")
+        if not (0 <= value <= 100000):  # Reasonable upper bound
+            raise ValueError(f"Micronutrient value for {key} out of range")
+        sanitized[clean_key] = float(value)
+    return sanitized
 
 
 class ValidationError(ValueError):
@@ -83,28 +132,7 @@ class MealSchema(BaseModel):
     @classmethod
     def validate_micros(cls, v: Optional[Dict[str, float]]) -> Optional[Dict[str, float]]:
         """Validate micronutrient data."""
-        if v is None:
-            return None
-        if not isinstance(v, dict):
-            raise ValueError("Micros must be a dictionary")
-        if len(v) > MAX_MICRO_NUTRIENTS:
-            raise ValueError(f"Too many micronutrients (max {MAX_MICRO_NUTRIENTS})")
-        # Validate all keys are strings and values are numeric
-        sanitized = {}
-        for key, value in v.items():
-            if not isinstance(key, str):
-                raise ValueError("Micronutrient keys must be strings")
-            # Sanitize key name
-            clean_key = HTML_TAG_PATTERN.sub("", key)
-            clean_key = html.escape(clean_key, quote=True).strip()
-            if len(clean_key) > 100:
-                raise ValueError("Micronutrient key too long")
-            if not isinstance(value, (int, float)):
-                raise ValueError(f"Micronutrient value for {key} must be numeric")
-            if not (0 <= value <= 100000):  # Reasonable upper bound
-                raise ValueError(f"Micronutrient value for {key} out of range")
-            sanitized[clean_key] = float(value)
-        return sanitized
+        return _sanitize_micros(v, MAX_MICRO_NUTRIENTS)
 
 
 class PlateDataSchema(BaseModel):
@@ -114,7 +142,9 @@ class PlateDataSchema(BaseModel):
     """
 
     kcal: int = Field(..., ge=0, le=10000, description="Total calories (0-10000)")
-    macros: Dict[str, int] = Field(..., description="Macronutrients")
+    macros: MacrosDict = Field(
+        ..., description="Macronutrients (protein_g, fat_g, carbs_g, fiber_g)"
+    )
     portions: Dict[str, float] = Field(..., description="Portion sizes")
     layout: List[Dict[str, Any]] = Field(
         ..., max_length=MAX_LAYOUT_ITEMS, description="Visual layout items"
@@ -125,8 +155,8 @@ class PlateDataSchema(BaseModel):
 
     @field_validator("macros")
     @classmethod
-    def validate_macros(cls, v: Dict[str, int]) -> Dict[str, int]:
-        """Validate macronutrient data."""
+    def validate_macros(cls, v: Dict[str, int]) -> MacrosDict:
+        """Validate macronutrient data against MacrosDict schema."""
         if not isinstance(v, dict):
             raise ValueError("Macros must be a dictionary")
 
@@ -159,7 +189,7 @@ class PlateDataSchema(BaseModel):
                 raise ValueError(f"Macro {key}={value} out of range [{min_val}, {max_val}]")
             sanitized[key] = value
 
-        return sanitized
+        return cast(MacrosDict, sanitized)
 
     @field_validator("portions")
     @classmethod
@@ -232,27 +262,9 @@ class PlateDataSchema(BaseModel):
     @classmethod
     def validate_day_micros(cls, v: Dict[str, float]) -> Dict[str, float]:
         """Validate daily micronutrient data."""
-        if not isinstance(v, dict):
-            raise ValueError("Day micros must be a dictionary")
-        if len(v) > MAX_MICRO_NUTRIENTS:
-            raise ValueError(f"Too many micronutrients (max {MAX_MICRO_NUTRIENTS})")
-
-        sanitized = {}
-        for key, value in v.items():
-            if not isinstance(key, str):
-                raise ValueError("Micronutrient keys must be strings")
-            # Sanitize key
-            clean_key = HTML_TAG_PATTERN.sub("", key)
-            clean_key = html.escape(clean_key, quote=True).strip()
-            if len(clean_key) > 100:
-                raise ValueError("Micronutrient key too long")
-            if not isinstance(value, (int, float)):
-                raise ValueError(f"Micronutrient value for {key} must be numeric")
-            if not (0 <= value <= 100000):
-                raise ValueError(f"Micronutrient value for {key} out of range")
-            sanitized[clean_key] = float(value)
-
-        return sanitized
+        result = _sanitize_micros(v, MAX_MICRO_NUTRIENTS)
+        # day_micros is required (default_factory=dict), so result should not be None
+        return result if result is not None else {}
 
     model_config = {
         "extra": "forbid",  # Reject unexpected keys
@@ -288,4 +300,11 @@ def sanity_filter_plate_data(data: Dict[str, Any]) -> Dict[str, Any]:
         return result
     except PydanticValidationError as e:
         # Convert Pydantic validation errors to our custom ValidationError
-        raise ValidationError(f"Plate data validation failed: {str(e)}") from e
+        errors = e.errors()
+        if any(err.get("loc", [None])[0] == "macros" for err in errors):
+            message = "Missing required macro keys"
+        elif any(err.get("loc", [None])[0] == "portions" for err in errors):
+            message = "Missing required portion keys"
+        else:
+            message = f"Plate data validation failed: {str(e)}"
+        raise ValidationError(message) from e

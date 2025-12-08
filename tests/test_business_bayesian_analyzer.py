@@ -242,7 +242,12 @@ class TestBusinessTestResult:
 
 
 class TestNormalizeCodeInput:
-    """Test code normalization helper."""
+    """Test code normalization helper.
+
+    Note: These tests intentionally call private method _normalize_code_input directly
+    to ensure the normalization logic is correct. This behavior is also covered indirectly
+    through TestBusinessLogicAnalysis which exercises the public analyze() method.
+    """
 
     def test_normalize_string_input(self) -> None:
         """Test normalization of string input."""
@@ -262,7 +267,13 @@ class TestNormalizeCodeInput:
 
 
 class TestRemoveComments:
-    """Test comment removal functionality."""
+    """Test comment removal functionality.
+
+    Note: These tests intentionally call private method _remove_comments directly
+    to ensure comment removal logic (including tokenization and fallback paths) works correctly.
+    This behavior is also covered indirectly through TestBusinessLogicAnalysis which exercises
+    the public analyze() method.
+    """
 
     def test_remove_inline_comments(self) -> None:
         """Test removal of inline comments."""

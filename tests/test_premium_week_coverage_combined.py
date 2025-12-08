@@ -4,6 +4,7 @@ Includes tests from coverage_96, coverage_97, additional_coverage, and coverage_
 """
 
 import os
+from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +13,7 @@ import app as app_mod
 
 
 @pytest.fixture
-def premium_client(monkeypatch):
+def premium_client(monkeypatch) -> Generator[TestClient, None, None]:
     """Fixture for premium week tests with proper environment setup."""
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
@@ -30,7 +31,7 @@ def premium_client(monkeypatch):
 class TestPremiumWeekCoverageCombined:
     """Combined test class for premium week coverage."""
 
-    def test_premium_week_plan_creation(self, premium_client):
+    def test_premium_week_plan_creation(self, premium_client) -> None:
         """Test basic premium week plan creation."""
         payload = {
             "sex": "male",
@@ -55,7 +56,7 @@ class TestPremiumWeekCoverageCombined:
             assert "daily_menus" in data
             assert "weekly_coverage" in data
 
-    def test_premium_week_plan_creation_female(self, premium_client):
+    def test_premium_week_plan_creation_female(self, premium_client) -> None:
         """Test premium week plan creation for female."""
         payload = {
             "sex": "female",
@@ -226,9 +227,14 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_premium_week_plan_creation_truly_malformed_json(self, premium_client):
+    def test_premium_week_plan_creation_truly_malformed_json(self, premium_client) -> None:
         """Test premium week plan creation with truly malformed JSON syntax."""
-        malformed_json = '{"sex": "male", "age": 30, "height_cm": 175.0, "weight_kg": 70.0, "activity": "moderate", "goal": "maintain", "lang": "en", "diet_flags": ['  # Missing closing bracket and brace
+        # Missing closing bracket and brace - intentionally malformed
+        malformed_json = (
+            '{"sex": "male", "age": 30, "height_cm": 175.0, '
+            '"weight_kg": 70.0, "activity": "moderate", '
+            '"goal": "maintain", "lang": "en", "diet_flags": ['
+        )
 
         response = premium_client.post(
             "/api/v1/premium/plan/week",

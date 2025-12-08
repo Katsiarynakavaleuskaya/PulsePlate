@@ -84,6 +84,10 @@ def _build_engine_url() -> str:
             q["mode"] = ["rwc"]
         if "uri" not in q:
             q["uri"] = ["true"]
+        # Enable WAL mode for better concurrency in test environments
+        # WAL (Write-Ahead Logging) allows concurrent reads during writes
+        if os.getenv("APP_ENV") in ("test", "ci") or os.getenv("ENVIRONMENT") == "test":
+            q["_journal_mode"] = ["WAL"]
         new_query = urlencode(q, doseq=True)
 
         # urlunparse drops one of the slashes for sqlite file URLs; build manually
@@ -101,6 +105,9 @@ def _sqlite_connect_args(url: str) -> dict[str, object]:
     if url.startswith("sqlite") and "?" in url:
         # Treat URL as SQLite URI so query parameters (e.g., mode=rwc) are honored
         args["uri"] = True
+    # Add timeout for better concurrency in tests (default is 5.0)
+    if url.startswith("sqlite"):
+        args["timeout"] = 30.0  # Wait up to 30s for locks to be released
     return args
 
 

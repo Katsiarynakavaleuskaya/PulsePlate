@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Callable
+from typing import Any, Callable, NoReturn
 
 import pytest
 
@@ -12,7 +12,7 @@ async def test_scheduler_update_loop_error_branch(monkeypatch: pytest.MonkeyPatc
     sched.is_running = True
 
     # Make _should_check_for_updates raise to hit except in _update_loop
-    def throw_error(_: Any) -> bool:
+    def throw_error(_: Any) -> NoReturn:
         raise RuntimeError("boom")
 
     monkeypatch.setattr(

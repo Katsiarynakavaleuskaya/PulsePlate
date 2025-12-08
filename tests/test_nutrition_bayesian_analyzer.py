@@ -311,7 +311,7 @@ def test_bad_bmi():
             and getattr(r.error_type, "value", "") == "bmi_dangerous"
             and r.safety_level == "dangerous"
             for r in results
-        ), "BMI=30.0 should be flagged as dangerous (>= threshold)"
+        ), "BMI=30.0 should be flagged as dangerous (>= 30.0 threshold)"
 
 
 class TestMacronutrientChecks:

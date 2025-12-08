@@ -3,7 +3,7 @@ import os
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.routers.api_key import api_key_header
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
@@ -29,7 +29,7 @@ def _safe_error_summary(err: Exception) -> str:
 class BusinessAnalysisRequest(BaseModel):
     """Request model for business analysis."""
 
-    code: str
+    code: str = Field(..., max_length=100_000, description="Code to analyze (max 100KB)")
     test_name: str = "business_analysis"
     locale: Optional[str] = None
 
@@ -65,6 +65,17 @@ async def analyze_business_code(
             detail="Business analysis module is disabled",
         )
 
+    # Defensive check: prevent DoS with extremely large payloads
+    if len(request.code) > 100_000:
+        logger.warning(
+            "Rejected oversized code payload: %d bytes (max 100000)",
+            len(request.code),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Code payload too large (max 100KB)",
+        )
+
     try:
         # Initialize business analyzer
         analyzer = BusinessBayesianAnalyzer(locale=request.locale)
@@ -73,21 +84,20 @@ async def analyze_business_code(
         results = analyzer.analyze(request.code, request.test_name)
 
         # Convert results to response format
-        response_items = []
-        for result in results:
-            response_items.append(
-                BusinessAnalysisResponse(
-                    test_name=result.test_name,
-                    success=result.success,
-                    business_category=result.business_category.value,
-                    error_type=result.error_type.value if result.error_type else "unknown",
-                    error_message=result.error_message,
-                    revenue_impact=result.revenue_impact,
-                    cost_impact=result.cost_impact,
-                    customer_impact=result.customer_impact,
-                    optimization_potential=result.optimization_potential,
-                )
+        response_items = [
+            BusinessAnalysisResponse(
+                test_name=result.test_name,
+                success=result.success,
+                business_category=result.business_category.value,
+                error_type=result.error_type.value if result.error_type else "unknown",
+                error_message=result.error_message,
+                revenue_impact=result.revenue_impact,
+                cost_impact=result.cost_impact,
+                customer_impact=result.customer_impact,
+                optimization_potential=result.optimization_potential,
             )
+            for result in results
+        ]
 
         return response_items
 

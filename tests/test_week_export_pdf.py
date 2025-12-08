@@ -5,11 +5,11 @@ from datetime import datetime, timezone
 import sys
 from io import BytesIO
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List, Optional
 
 import pytest
 from fastapi.testclient import TestClient
-from reportlab.platypus import Paragraph, Table
+from reportlab.platypus import Flowable, Paragraph, Table
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -214,10 +214,10 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
 
         def build(
             self,
-            story: List[Any],
-            onFirstPage: Any = None,
-            onLaterPages: Any = None,
-            canvasmaker: Any = None,
+            story: List[Flowable],
+            onFirstPage: Optional[Callable[..., None]] = None,
+            onLaterPages: Optional[Callable[..., None]] = None,
+            canvasmaker: Optional[Callable[..., None]] = None,
         ) -> None:
             captured_story.extend(story)
             canvas_cls = canvasmaker or plan.Canvas
@@ -262,7 +262,7 @@ def test_week_start_prefers_first_day() -> None:
 def test_week_start_defaults_today(monkeypatch: pytest.MonkeyPatch) -> None:
     class FixedDateTime(datetime):
         @classmethod
-        def now(cls, tz=None):  # type: ignore[override]
+        def now(cls, tz: timezone | None = None) -> datetime:
             return datetime(2025, 1, 1, tzinfo=tz)
 
     monkeypatch.setattr(plan, "datetime", FixedDateTime)

@@ -24,7 +24,8 @@ pip-sync requirements-dev.txt
 
 ## Updating Dependencies
 
-### Update all dependencies to latest compatible versions:
+### Update all dependencies to latest compatible versions
+
 ```bash
 # Update production dependencies
 pip-compile requirements.in --upgrade -o requirements.txt
@@ -36,14 +37,16 @@ pip-compile requirements-dev.in --upgrade -o requirements-dev.txt
 pip-sync requirements-dev.txt
 ```
 
-### Update a specific dependency:
+### Update a specific dependency
+
 ```bash
 # Update only fastapi
 pip-compile requirements.in --upgrade-package fastapi -o requirements.txt
 pip-sync requirements.txt
 ```
 
-### Add a new dependency:
+### Add a new dependency
+
 ```bash
 # Add to requirements.in or requirements-dev.in
 echo "new-package>=1.0.0" >> requirements.in
@@ -56,6 +59,7 @@ pip-sync requirements.txt
 ## CI/CD Integration
 
 The GitHub Actions workflows should use:
+
 ```yaml
 - name: Install dependencies
   run: |
@@ -66,6 +70,7 @@ The GitHub Actions workflows should use:
 ## Dependabot Configuration
 
 Dependabot is configured to:
+
 - Run monthly (instead of weekly)
 - Create max 5 PRs at a time
 - Group related dependencies together (production, testing, quality, security)

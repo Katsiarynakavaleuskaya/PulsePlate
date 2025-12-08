@@ -6,7 +6,7 @@ import logging
 import time
 from typing import Callable, List, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from starlette.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -14,7 +14,6 @@ from sqlalchemy.orm import Session
 
 from app.schemas.users import UserCreate, UserRead
 from core import db as db_module
-from core.db import get_session
 from core.models import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
@@ -23,18 +22,14 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def _execute_with_retry(
-    action: Callable[[Session], T], db: Session, fallback: T | None = None
-) -> T:
+def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = None) -> T:
     """Execute a DB action with non-destructive retry on transient failures.
 
-    Attempts the action first with the injected DI session. On OperationalError,
-    retries up to 3 times with fresh sessions and exponential backoff, without
-    touching the original session or performing any destructive operations.
+    Creates fresh sessions for all attempts (including first) to maintain thread safety.
+    Retries up to 3 times with exponential backoff on OperationalError.
 
     Args:
         action: Database operation to execute
-        db: FastAPI-injected session (never closed or modified)
         fallback: Optional value to return if all retries fail
 
     Returns:
@@ -45,13 +40,15 @@ def _execute_with_retry(
     """
     max_retries = 3
     base_delay = 0.1  # 100ms base delay
+    last_error: Exception | None = None
 
-    # First attempt with injected session
+    # First attempt with fresh session (thread-safe)
+    session = db_module.SessionLocal()
     try:
-        return action(db)
+        return action(session)
     except IntegrityError:
         # Non-retriable conflict (e.g., duplicate email) - convert to HTTPException/409
-        db.rollback()
+        session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already exists",
@@ -61,51 +58,53 @@ def _execute_with_retry(
             "Database operation failed: %s",
             initial_error,
         )
-
-        # Removed automatic database initialization to prevent request handlers from performing schema initialization.
-        # Schema should be initialized via test fixtures, setup code, or dedicated migration/startup scripts.
-
-        # Non-destructive retry with fresh sessions and exponential backoff
         last_error = initial_error
-        for attempt in range(1, max_retries + 1):
-            # Exponential backoff: 100ms, 200ms, 400ms
-            delay = base_delay * (2 ** (attempt - 1))
-            logger.debug("Retry attempt %s/%s after %ss delay", attempt, max_retries, delay)
-            time.sleep(delay)
+    finally:
+        session.close()
 
-            # Create fresh session for retry (DI session remains untouched)
-            retry_session = db_module.SessionLocal()
-            try:
-                result = action(retry_session)
-                logger.info("Database operation succeeded on retry attempt %s", attempt)
-                return result
-            except IntegrityError:
-                retry_session.rollback()
-                # Surface immediately; IntegrityError is not retriable in this flow
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Email already exists",
-                )
-            except OperationalError as retry_error:
-                last_error = retry_error
-                logger.warning("Retry attempt %s/%s failed: %s", attempt, max_retries, retry_error)
-            finally:
-                # Always close the retry session we created
-                retry_session.close()
+    # Removed automatic database initialization to prevent request handlers from performing schema initialization.
+    # Schema should be initialized via test fixtures, setup code, or dedicated migration/startup scripts.
 
-        # All retries exhausted
-        logger.error(
-            "Database operation failed after %s retries. Last error: %s", max_retries, last_error
-        )
+    # Non-destructive retry with fresh sessions and exponential backoff
+    for attempt in range(1, max_retries + 1):
+        # Exponential backoff: 100ms, 200ms, 400ms
+        delay = base_delay * (2 ** (attempt - 1))
+        logger.debug("Retry attempt %s/%s after %ss delay", attempt, max_retries, delay)
+        time.sleep(delay)
 
-        if fallback is not None:
-            logger.info("Returning fallback value after retry exhaustion")
-            return fallback
+        # Create fresh session for retry
+        retry_session = db_module.SessionLocal()
+        try:
+            result = action(retry_session)
+            logger.info("Database operation succeeded on retry attempt %s", attempt)
+            return result
+        except IntegrityError:
+            retry_session.rollback()
+            # Surface immediately; IntegrityError is not retriable in this flow
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already exists",
+            )
+        except OperationalError as retry_error:
+            last_error = retry_error
+            logger.warning("Retry attempt %s/%s failed: %s", attempt, max_retries, retry_error)
+        finally:
+            # Always close the retry session we created
+            retry_session.close()
 
-        raise HTTPException(
-            status_code=503,
-            detail="Database temporarily unavailable. Please try again later.",
-        ) from last_error
+    # All retries exhausted
+    logger.error(
+        "Database operation failed after %s retries. Last error: %s", max_retries, last_error
+    )
+
+    if fallback is not None:
+        logger.info("Returning fallback value after retry exhaustion")
+        return fallback
+
+    raise HTTPException(
+        status_code=503,
+        detail="Database temporarily unavailable. Please try again later.",
+    ) from last_error
 
 
 # NOTE: Destructive database reset operations have been removed from automatic retry logic.
@@ -118,7 +117,7 @@ def _execute_with_retry(
 
 
 @router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def create_user(payload: UserCreate, db: Session = Depends(get_session)) -> UserRead:
+async def create_user(payload: UserCreate) -> UserRead:
     """RU: Создаёт нового пользователя. EN: Create a new user entry.
 
     Returns:
@@ -137,7 +136,7 @@ async def create_user(payload: UserCreate, db: Session = Depends(get_session)) -
         session.refresh(user)
         return UserRead.model_validate(user)
 
-    user_data = await run_in_threadpool(_execute_with_retry, _action, db)
+    user_data = await run_in_threadpool(_execute_with_retry, _action)
     return user_data
 
 
@@ -145,7 +144,6 @@ async def create_user(payload: UserCreate, db: Session = Depends(get_session)) -
 async def list_users(
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_session),
 ) -> List[UserRead]:
     """RU: Возвращает список пользователей с пагинацией.
 
@@ -159,13 +157,13 @@ async def list_users(
         return [UserRead.model_validate(row) for row in page_rows]
 
     result = await run_in_threadpool(
-        _execute_with_retry, _action, db
+        _execute_with_retry, _action
     )  # No fallback - fail explicitly if DB unavailable
     return result
 
 
 @router.get("/{user_id}", response_model=UserRead)
-async def get_user(user_id: int, db: Session = Depends(get_session)) -> UserRead:
+async def get_user(user_id: int) -> UserRead:
     """RU: Получить пользователя по идентификатору.
 
     EN: Retrieve a user by identifier.
@@ -177,24 +175,24 @@ async def get_user(user_id: int, db: Session = Depends(get_session)) -> UserRead
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         return UserRead.model_validate(user)
 
-    return await run_in_threadpool(_execute_with_retry, _action, db)
+    return await run_in_threadpool(_execute_with_retry, _action)
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, db: Session = Depends(get_session)) -> Response:
+async def delete_user(user_id: int) -> Response:
     """RU: Удаляет пользователя. EN: Delete a user by identifier.
 
-    Destructive operations are not retried to avoid inconsistent state.
+    Uses retry logic with idempotent design (returns 204 for already-deleted users).
     """
 
-    def _delete_once(session: Session) -> Response:
+    def _action(session: Session) -> Response:
         user = session.get(User, user_id)
         if user is None:
             # Idempotent: user already deleted (or never existed)
-            # Return 204 instead of 404 to make retries safe
+            # Return 204 to make retries safe
             return Response(status_code=status.HTTP_204_NO_CONTENT)
         session.delete(user)
         session.commit()
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    return await run_in_threadpool(_delete_once, db)
+    return await run_in_threadpool(_execute_with_retry, _action)
