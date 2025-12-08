@@ -3366,7 +3366,7 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     except ValueError as e:
         logger.error("premium_plate validation error: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
+            status_code=400, detail=f"Enhanced plate generation failed: {str(e)}"
         ) from e
     except Exception as e:
         logger.error(f"premium_plate error: {e}")
@@ -3498,48 +3498,7 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
             raise HTTPException(status_code=400, detail=f"Invalid input: {detail}")
 
         # Calculate BMR using multiple formulas (use wrapper for easier mocking)
-        try:
-            bmr_results = _bmr_wrapper(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
-        except ImportError as e:
-            raise HTTPException(
-                status_code=503, detail="BMR calculation module not available"
-            ) from e
-        except HTTPException as e:
-            # Tests expect we still return 200 even if calculation raises HTTPException
-            base_bmr = 24 * req.weight_kg
-            activity_factor = get_activity_factor(req.activity)
-            primary_tdee = int(base_bmr * activity_factor)
-            return BMRResponse(
-                bmr={"stub": float(base_bmr)},
-                tdee={"stub": float(primary_tdee)},
-                activity_level=req.activity,
-                recommended_intake={
-                    "maintenance": float(primary_tdee),
-                    "weight_loss": float(primary_tdee * 0.8),
-                    "weight_gain": float(primary_tdee * 1.2),
-                },
-                formulas_used=["stub"],
-                notes=[
-                    f"Fallback due to HTTPException: {e.detail if hasattr(e, 'detail') else str(e)}"
-                ],
-            )
-        except ValueError as e:
-            # Tests expect value errors to be handled gracefully with a stub
-            base_bmr = 24 * req.weight_kg
-            activity_factor = get_activity_factor(req.activity)
-            primary_tdee = int(base_bmr * activity_factor)
-            return BMRResponse(
-                bmr={"stub": float(base_bmr)},
-                tdee={"stub": float(primary_tdee)},
-                activity_level=req.activity,
-                recommended_intake={
-                    "maintenance": float(primary_tdee),
-                    "weight_loss": float(primary_tdee * 0.8),
-                    "weight_gain": float(primary_tdee * 1.2),
-                },
-                formulas_used=["stub"],
-                notes=[f"Fallback due to ValueError: {str(e)}"],
-            )
+        bmr_results = _bmr_wrapper(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
 
         # Calculate TDEE
         tdee_results = _tdee_wrapper(bmr_results, req.activity)
@@ -3610,9 +3569,25 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     """
     try:
 
-        # Use the local wrappers directly so test-time patches on app._calculate_all_* apply
-        _bmr_wrapper = _calculate_all_bmr_wrapper
-        _tdee_wrapper = _calculate_all_tdee_wrapper
+        # Resolve wrappers at call time so test-time patches on app._calculate_all_* apply
+        import sys as _sys
+
+        def _resolve_wrapper(name: str) -> Optional[Callable[..., Any]]:
+            """Prefer patched attributes on the app package over module globals."""
+            for mod in (_sys.modules.get("app"), globals().get("_APP_PACKAGE_REF")):
+                if mod is None:
+                    continue
+                candidate = getattr(mod, name, None)
+                if callable(candidate):
+                    return candidate
+            candidate = globals().get(name)
+            return candidate if callable(candidate) else None
+
+        _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper")
+        _tdee_wrapper = _resolve_wrapper("_calculate_all_tdee_wrapper")
+
+        if not callable(_bmr_wrapper) or not callable(_tdee_wrapper):
+            raise ImportError("BMR calculation module not available")
 
         bmr_results = _bmr_wrapper(
             float(req.weight_kg), float(req.height_cm), int(req.age), str(req.sex), req.bodyfat
