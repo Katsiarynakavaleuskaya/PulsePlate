@@ -57,6 +57,50 @@ logger = logging.getLogger(__name__)
 ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").lower()
 
 
+def _extract_sqlite_path(database_url: str) -> str | None:
+    """Extract filesystem path from SQLite database URL.
+
+    Args:
+        database_url: Database URL (e.g., sqlite:///cache/app.db or sqlite:////absolute/path)
+
+    Returns:
+        Filesystem path if SQLite file-based DB, None if non-SQLite or :memory:
+
+    Examples:
+        >>> _extract_sqlite_path("sqlite:///cache/app.db")
+        'cache/app.db'
+        >>> _extract_sqlite_path("sqlite:////absolute/path/db.sqlite")
+        '/absolute/path/db.sqlite'
+        >>> _extract_sqlite_path("sqlite:///:memory:")
+        None
+        >>> _extract_sqlite_path("postgresql://localhost/db")
+        None
+    """
+    # Only handle SQLite file-based databases
+    if not database_url.startswith("sqlite:///") or database_url.endswith(":memory:"):
+        return None
+
+    # Parse URL to extract path
+    parsed = urlparse(database_url)
+    sqlite_path = parsed.path
+
+    # Remove query parameters if present
+    if "?" in sqlite_path:
+        sqlite_path = sqlite_path.split("?")[0]
+
+    # Normalize path: handle leading slashes correctly
+    # sqlite:///relative -> /relative -> relative
+    # sqlite:////absolute -> //absolute -> /absolute
+    if sqlite_path.startswith("//"):
+        # Absolute path: sqlite:////absolute -> //absolute -> /absolute
+        sqlite_path = sqlite_path[1:]
+    elif sqlite_path.startswith("/"):
+        # Relative path: sqlite:///relative -> /relative -> relative
+        sqlite_path = sqlite_path[1:]
+
+    return sqlite_path if sqlite_path else None
+
+
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
@@ -64,23 +108,8 @@ def _build_engine_url() -> str:
     database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
     # Create directory for file-based SQLite databases (both env-provided and default)
-    if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):
-        # Extract the file path from sqlite:/// URL
-        # sqlite:///cache/app.db -> /cache/app.db (relative, remove leading /)
-        # sqlite:////absolute/path -> //absolute/path (absolute, remove one /)
-        parsed = urlparse(database_url)
-        sqlite_path = parsed.path
-        # Remove query parameters if present
-        if "?" in sqlite_path:
-            sqlite_path = sqlite_path.split("?")[0]
-        # Handle path correctly: sqlite:///relative -> /relative (remove /)
-        # sqlite:////absolute -> //absolute (remove one /, keep /absolute)
-        if sqlite_path.startswith("//"):
-            # Absolute path: sqlite:////absolute -> //absolute -> /absolute
-            sqlite_path = sqlite_path[1:]
-        elif sqlite_path.startswith("/"):
-            # Relative path: sqlite:///relative -> /relative -> relative
-            sqlite_path = sqlite_path[1:]
+    sqlite_path = _extract_sqlite_path(database_url)
+    if sqlite_path:
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:  # Only create if there's a parent directory
             os.makedirs(db_dir, exist_ok=True)
@@ -508,21 +537,8 @@ def init_db() -> None:
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
     db_url = DATABASE_URL
-    if db_url.startswith("sqlite:///") and not db_url.endswith(":memory:"):
-        # Extract file path from URL using same logic as _build_engine_url
-        parsed = urlparse(db_url)
-        sqlite_path = parsed.path
-        # Remove query parameters
-        if "?" in sqlite_path:
-            sqlite_path = sqlite_path.split("?")[0]
-        # Handle path correctly: sqlite:///relative -> /relative -> relative
-        # sqlite:////absolute -> //absolute -> /absolute
-        if sqlite_path.startswith("//"):
-            # Absolute path: sqlite:////absolute -> //absolute -> /absolute
-            sqlite_path = sqlite_path[1:]
-        elif sqlite_path.startswith("/"):
-            # Relative path: sqlite:///relative -> /relative -> relative
-            sqlite_path = sqlite_path[1:]
+    sqlite_path = _extract_sqlite_path(db_url)
+    if sqlite_path:
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)

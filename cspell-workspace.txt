@@ -1267,7 +1267,6 @@
 компонента
 компонентов
 компоненты
-кон
 конверсии
 конвертации
 конвертаций
@@ -1529,6 +1528,7 @@ uvicorn
 aiomysql
 aiosqlite
 asyncpg
+autouse
 bayesian
 bmod
 cals

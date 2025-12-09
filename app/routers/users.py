@@ -102,7 +102,7 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
         return fallback
 
     raise HTTPException(
-        status_code=503,
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Database temporarily unavailable. Please try again later.",
     ) from last_error
 

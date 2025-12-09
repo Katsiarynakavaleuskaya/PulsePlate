@@ -64,10 +64,11 @@ def _sanitize_micros(
             raise ValueError("Micronutrient key too long")
         # Only after length check, apply HTML escaping
         clean_key = html.escape(clean_key, quote=True).strip()
+
         if not isinstance(value, (int, float)):
-            raise ValueError(f"Micronutrient value for {key} must be numeric")
+            raise ValueError(f"Micronutrient value for '{html.escape(str(key))}' must be numeric")
         if not (0 <= value <= 100000):  # Reasonable upper bound
-            raise ValueError(f"Micronutrient value for {key} out of range")
+            raise ValueError(f"Micronutrient value for '{html.escape(str(key))}' out of range")
         sanitized[clean_key] = float(value)
     return sanitized
 

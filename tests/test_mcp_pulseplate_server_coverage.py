@@ -102,10 +102,10 @@ class TestMcpPulseplateServerCoverage:
     ) -> None:
         """Test PulsePlateMCPServer raises ValueError for models not in whitelist"""
         invalid_models = [
-            "gpt-5",  # Non-existent model
+            "gpt-6",  # Future model not yet released
             "invalid-model",
             "gpt-4-custom",
-            "gpt-4-0613",  # Not in current whitelist
+            "gpt-4-0613",  # Specific dated version not in whitelist
             "claude-3",  # Different provider
         ]
 

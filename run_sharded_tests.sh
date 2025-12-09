@@ -242,6 +242,11 @@ echo -e "${GREEN}========================================${NC}"
 
 if [ "$COVERAGE" = true ]; then
     echo -e "\n${BLUE}Generating coverage report...${NC}"
-    python -m coverage report --fail-under=$COVERAGE_THRESHOLD
-    echo -e "${GREEN}Coverage threshold: $COVERAGE_THRESHOLD%${NC}"
+    if python -m coverage report --fail-under=$COVERAGE_THRESHOLD; then
+        echo -e "${GREEN}✓ Coverage threshold met: $COVERAGE_THRESHOLD%${NC}"
+    else
+        echo -e "${RED}✗ Coverage below threshold: $COVERAGE_THRESHOLD%${NC}"
+        exit 1
+    fi
+fi
 fi

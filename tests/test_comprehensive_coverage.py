@@ -640,7 +640,7 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            # ValueError is caught by app.py L2684 and returns 400 (HTTPException)
+            # ValueError is caught by the weekly menu endpoint and returns 400 (HTTPException)
             assert response.status_code == 400
 
     def test_weekly_menu_endpoint_general_exception(self) -> None:
