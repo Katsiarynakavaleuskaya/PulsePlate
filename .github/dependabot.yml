@@ -1,5 +1,27 @@
 version: 2
 updates:
+  # Security-critical packages - weekly updates
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 2
+    assignees:
+      - "katsiarynakavaleuskaya"
+    commit-message:
+      prefix: "deps(security)"
+      include: "scope"
+    groups:
+      security:
+        patterns:
+          - "pip-audit"
+          - "safety"
+          - "cryptography"
+          - "urllib3"
+          - "certifi"
+          - "requests"
+
+  # General dependencies - monthly updates
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -33,8 +55,3 @@ updates:
           - "mypy"
           - "ruff"
           - "bandit"
-      security:
-        patterns:
-          - "pip-audit"
-          - "safety"
-          - "cryptography"
