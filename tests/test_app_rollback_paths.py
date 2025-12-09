@@ -1,3 +1,13 @@
+"""
+Targeted tests for app.py rollback_database endpoint error paths.
+
+Covers:
+- Scheduler failure scenarios
+- Missing update manager
+- Missing rollback function
+- Rollback execution failures
+"""
+
 import sys
 import pytest
 from fastapi import HTTPException

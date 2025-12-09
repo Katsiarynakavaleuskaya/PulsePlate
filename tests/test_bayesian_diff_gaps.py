@@ -138,19 +138,18 @@ def test_load_monetization_strategies_import_fallback(
     target_yaml = config_dir / "monetization_strategies.en.yaml"
     target_yaml.write_text("pricing_models:\n  - bad", encoding="utf-8")
 
-    real_import = builtins.__import__
+    # Mock core.i18n import to raise ImportError using sys.modules
+    import sys
+    from unittest.mock import patch
 
-    def fake_import(name, *args, **kwargs):
-        if name == "core.i18n":
-            raise ImportError("no i18n")
-        return real_import(name, *args, **kwargs)
+    with patch.dict(sys.modules, {"core.i18n": None}):
+        monkeypatch.setattr(
+            BusinessBayesianAnalyzer, "_import_yaml_module", staticmethod(lambda: yaml)
+        )
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-    monkeypatch.setattr(BusinessBayesianAnalyzer, "_import_yaml_module", staticmethod(lambda: yaml))
-
-    analyzer = BusinessBayesianAnalyzer()
-    data = analyzer._load_monetization_strategies(locale=None)
-    assert "pricing_models" in data
+        analyzer = BusinessBayesianAnalyzer()
+        data = analyzer._load_monetization_strategies(locale=None)
+        assert "pricing_models" in data
 
 
 def test_load_cost_rules_os_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

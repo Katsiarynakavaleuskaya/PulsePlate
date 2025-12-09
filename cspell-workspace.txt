@@ -1530,6 +1530,7 @@ aiomysql
 aiosqlite
 asyncpg
 bayesian
+bmod
 cals
 caplog
 carb
@@ -1566,6 +1567,7 @@ setenv
 signum
 spanish
 sqlite
+staticmethod
 tdee
 threadpool
 TOCTOU

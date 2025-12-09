@@ -116,10 +116,13 @@ def test_business_monetization_oserror(monkeypatch: pytest.MonkeyPatch, tmp_path
 
 
 def test_business_remove_comments_triple_quotes() -> None:
+    """Test that _remove_comments preserves triple-quoted strings (docstrings) but removes inline comments."""
     analyzer = BusinessBayesianAnalyzer()
     code = "'''\ncomment block\n'''\ncode = 1  # inline comment"
     cleaned = analyzer._remove_comments(code)
+    # Triple-quoted strings (docstrings) should be preserved
     assert "comment block" in cleaned
+    # Inline comments should be removed
     assert "inline comment" not in cleaned
 
 

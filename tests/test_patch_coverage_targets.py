@@ -21,8 +21,11 @@ def test_test_router_production_block(monkeypatch: pytest.MonkeyPatch) -> None:
     # Set production environment
     monkeypatch.setenv("APP_ENV", "production")
 
-    # Import router after setting env
+    # Reload module to pick up new environment variable
+    import importlib
     from app.routers import test as test_router
+
+    importlib.reload(test_router)
 
     # The dependency should raise HTTPException
     with pytest.raises(HTTPException) as exc_info:

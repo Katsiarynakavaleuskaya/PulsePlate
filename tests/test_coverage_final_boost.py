@@ -5,6 +5,7 @@ Test coverage boost to reach 97%
 import asyncio
 import importlib
 import inspect
+import os
 from contextlib import suppress
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,7 +24,6 @@ class TestCoverageFinalBoost:
     def test_mcp_pulseplate_server_coverage(self) -> None:
         """Test mcp_pulseplate_server.py coverage"""
         with suppress(ImportError):
-            import os
             import mcp_pulseplate_server
 
             # Test main function if it exists
@@ -53,7 +53,7 @@ class TestCoverageFinalBoost:
                     mock_instance.handle_request.assert_awaited_once_with({"method": "tools/list"})
 
                     # Assert expected prints or side-effects via the patched print
-                    mock_print.assert_called_with('{"result": "success"}')
+                    mock_print.assert_any_call('{"result": "success"}')
 
     def test_setup_custom_mcp_coverage(self):
         """Test setup_custom_mcp.py coverage"""

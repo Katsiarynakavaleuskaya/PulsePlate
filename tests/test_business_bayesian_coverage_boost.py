@@ -129,7 +129,7 @@ class TestCustomerAcquisitionAnalysis:
         code = """
 def register_user():
     new_user = True
-    return user
+    return user  # Intentionally undefined to test validation detection
 """
         results = analyzer._analyze_customer_acquisition(code, "test_registration")
         assert any(r.business_category == BusinessCategory.CUSTOMER_ACQUISITION for r in results)
