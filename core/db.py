@@ -77,16 +77,12 @@ def _extract_sqlite_path(database_url: str) -> str | None:
         None
     """
     # Only handle SQLite file-based databases
-    if not database_url.startswith("sqlite:///") or database_url.endswith(":memory:"):
+    if not database_url.startswith("sqlite:///") or ":memory:" in database_url:
         return None
 
-    # Parse URL to extract path
+    # Parse URL to extract path (urlparse.path excludes query parameters)
     parsed = urlparse(database_url)
     sqlite_path = parsed.path
-
-    # Remove query parameters if present
-    if "?" in sqlite_path:
-        sqlite_path = sqlite_path.split("?")[0]
 
     # Normalize path: handle leading slashes correctly
     # sqlite:///relative -> /relative -> relative
@@ -119,7 +115,7 @@ def _build_engine_url() -> str:
     if (
         not env_provided
         and database_url.startswith("sqlite:///")
-        and not database_url.endswith(":memory:")
+        and ":memory:" not in database_url
     ):
         parsed = urlparse(database_url)
         q = parse_qs(parsed.query, keep_blank_values=True)

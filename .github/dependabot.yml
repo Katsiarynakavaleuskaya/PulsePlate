@@ -1,15 +1,15 @@
 version: 2
 updates:
-  # Security-critical packages - weekly updates
+  # Python dependencies with grouped security (weekly) and general (monthly) updates
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 5
     assignees:
       - "katsiarynakavaleuskaya"
     commit-message:
-      prefix: "deps(security)"
+      prefix: "deps"
       include: "scope"
     groups:
       security:
@@ -20,19 +20,6 @@ updates:
           - "urllib3"
           - "certifi"
           - "requests"
-
-  # General dependencies - monthly updates
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 5
-    assignees:
-      - "katsiarynakavaleuskaya"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    groups:
       production:
         patterns:
           - "fastapi"
@@ -43,15 +30,24 @@ updates:
           - "python-dotenv"
           - "sqlalchemy"
           - "alembic"
+        update-types:
+          - "minor"
+          - "patch"
       testing:
         patterns:
           - "pytest*"
           - "hypothesis"
           - "faker"
           - "coverage"
+        update-types:
+          - "minor"
+          - "patch"
       quality:
         patterns:
           - "black"
           - "mypy"
           - "ruff"
           - "bandit"
+        update-types:
+          - "minor"
+          - "patch"
