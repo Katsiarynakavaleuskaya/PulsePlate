@@ -20,14 +20,21 @@ def test_build_engine_url_with_query_in_path(monkeypatch: pytest.MonkeyPatch) ->
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # Set a SQLite URL with query in path (edge case)
-        test_url = f"sqlite:///{tmpdir}/test.db?mode=rwc"
+        db_path = os.path.join(tmpdir, "test.db")
+        test_url = f"sqlite:///{db_path}?mode=rwc"
         monkeypatch.setenv("DATABASE_URL", test_url)
 
         # Reload to pick up new URL
         reloaded = importlib.reload(db)
 
-        # Directory should be created correctly even with query in URL
-        assert os.path.exists(tmpdir)
+        # Initialize the database to trigger actual file creation
+        reloaded.init_db()
+
+        # Verify that the database file was actually created
+        # (not just the tmpdir, which always exists inside TemporaryDirectory)
+        assert os.path.exists(db_path), f"Database file was not created at {db_path}"
+        # Also verify the directory is valid
+        assert os.path.isdir(os.path.dirname(db_path)), "Database directory is not valid"
 
         # Restore
         importlib.reload(db)
