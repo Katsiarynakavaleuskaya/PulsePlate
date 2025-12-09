@@ -1,11 +1,10 @@
-"""
-Targeted tests for app.py lines 3364-3370 to reach 97% coverage.
+"""Targeted tests for app.py lines 3304-3315 to reach 97% coverage.
 
 Covers:
 - /premium_bmr legacy endpoint exception paths
-- ImportError handling (line 3364-3365)
-- ValueError handling (line 3366-3367)
-- Generic exception handling (line 3368-3370)
+- ImportError handling
+- ValueError handling
+- Generic exception handling
 """
 
 from unittest.mock import patch

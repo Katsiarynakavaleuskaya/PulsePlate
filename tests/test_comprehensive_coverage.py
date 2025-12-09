@@ -142,7 +142,12 @@ class TestComprehensiveCoverage:
             assert "results" in data
 
     def test_force_update_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test force update endpoint exception handling - deterministic error."""
+        """Test force update endpoint exception handling - non-deterministic.
+
+        This test allows multiple status codes because the endpoint may return:
+        - 200/503 if the scheduler singleton was already created before the mock
+        - 500 if the mock successfully triggers the exception path
+        """
 
         # Patch using monkeypatch to ensure the endpoint sees the mock
         async def fake_get_scheduler_error():

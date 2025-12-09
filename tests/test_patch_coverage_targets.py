@@ -1,8 +1,8 @@
 """Test coverage for specific patch coverage targets.
 
 Covers missing lines identified in patch coverage report:
-- app/routers/test.py line 25: production environment check
-- mcp_pulseplate_server.py line 36: invalid DEFAULT_MODEL validation
+- app/routers/test.py: production environment guard in _ensure_non_production
+- mcp_pulseplate_server.py: invalid DEFAULT_MODEL handling in PulsePlateMCPServer initialization
 """
 
 import os
@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 
 def test_test_router_production_block(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover line 25: HTTPException when APP_ENV=production.
+    """Test that _ensure_non_production raises HTTPException when APP_ENV=production.
 
     Test router should raise 404 when accessed in production environment.
     """
@@ -33,7 +33,7 @@ def test_test_router_production_block(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_mcp_server_invalid_default_model() -> None:
-    """Cover line 36: ValueError for invalid DEFAULT_MODEL.
+    """Test that PulsePlateMCPServer raises ValueError when DEFAULT_MODEL not in ALLOWED_MODELS.
 
     MCP server should raise ValueError if DEFAULT_MODEL is not in ALLOWED_MODELS.
     """

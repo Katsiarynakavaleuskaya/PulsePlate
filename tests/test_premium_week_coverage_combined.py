@@ -4,7 +4,7 @@ Includes tests from coverage_96, coverage_97, additional_coverage, and coverage_
 """
 
 import os
-from typing import Generator
+from typing import Any, Dict, Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,6 +20,8 @@ def premium_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, Non
 
     # Create test client
     app_instance = app_mod.app
+    if app_instance is None:
+        pytest.skip("App instance not available")
     client = TestClient(app_instance)
 
     try:
@@ -31,7 +33,7 @@ def premium_client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, Non
 class TestPremiumWeekCoverageCombined:
     """Combined test class for premium week coverage."""
 
-    def test_premium_week_plan_creation(self, premium_client) -> None:
+    def test_premium_week_plan_creation(self, premium_client: TestClient) -> None:
         """Test basic premium week plan creation."""
         payload = {
             "sex": "male",
@@ -56,7 +58,7 @@ class TestPremiumWeekCoverageCombined:
             assert "daily_menus" in data
             assert "weekly_coverage" in data
 
-    def test_premium_week_plan_creation_female(self, premium_client) -> None:
+    def test_premium_week_plan_creation_female(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for female."""
         payload = {
             "sex": "female",
@@ -77,7 +79,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_athlete(self, premium_client) -> None:
+    def test_premium_week_plan_creation_athlete(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for athlete."""
         payload = {
             "sex": "male",
@@ -98,7 +100,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_pregnant(self, premium_client) -> None:
+    def test_premium_week_plan_creation_pregnant(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for pregnant woman."""
         payload = {
             "sex": "female",
@@ -119,7 +121,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_russian(self, premium_client) -> None:
+    def test_premium_week_plan_creation_russian(self, premium_client: TestClient) -> None:
         """Test premium week plan creation in Russian."""
         payload = {
             "sex": "male",
@@ -140,7 +142,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_spanish(self, premium_client) -> None:
+    def test_premium_week_plan_creation_spanish(self, premium_client: TestClient) -> None:
         """Test premium week plan creation in Spanish."""
         payload = {
             "sex": "female",
@@ -161,7 +163,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_edge_ages(self, premium_client) -> None:
+    def test_premium_week_plan_creation_edge_ages(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with edge ages."""
         # Test with minimum age
         payload_min = {
@@ -183,7 +185,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_validation_errors(self, premium_client) -> None:
+    def test_premium_week_plan_creation_validation_errors(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with validation errors."""
         # Test with missing required fields
         invalid_payload = {
@@ -204,7 +206,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_premium_week_plan_creation_malformed_json(self, premium_client) -> None:
+    def test_premium_week_plan_creation_malformed_json(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with malformed JSON."""
         # This test would need to be implemented with raw request
         # For now, we'll test with invalid data types
@@ -227,7 +229,9 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_premium_week_plan_creation_truly_malformed_json(self, premium_client) -> None:
+    def test_premium_week_plan_creation_truly_malformed_json(
+        self, premium_client: TestClient
+    ) -> None:
         """Test premium week plan creation with truly malformed JSON syntax."""
         # Missing closing bracket and brace - intentionally malformed
         malformed_json = (
@@ -248,7 +252,7 @@ class TestPremiumWeekCoverageCombined:
         # The API should reject malformed JSON with a 400 or 422 error
         assert response.status_code in [400, 422]
 
-    def test_premium_week_plan_creation_high_weight(self, premium_client) -> None:
+    def test_premium_week_plan_creation_high_weight(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with high weight."""
         payload = {
             "sex": "male",
@@ -269,7 +273,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_low_weight(self, premium_client) -> None:
+    def test_premium_week_plan_creation_low_weight(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with low weight."""
         payload = {
             "sex": "female",
@@ -290,7 +294,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_tall_person(self, premium_client) -> None:
+    def test_premium_week_plan_creation_tall_person(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for tall person."""
         payload = {
             "sex": "male",
@@ -311,7 +315,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_short_person(self, premium_client) -> None:
+    def test_premium_week_plan_creation_short_person(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for short person."""
         payload = {
             "sex": "female",
@@ -332,7 +336,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_teen(self, premium_client) -> None:
+    def test_premium_week_plan_creation_teen(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for teenager."""
         payload = {
             "sex": "male",
@@ -353,7 +357,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_elderly(self, premium_client) -> None:
+    def test_premium_week_plan_creation_elderly(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for elderly person."""
         payload = {
             "sex": "female",
@@ -374,7 +378,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_high_activity(self, premium_client) -> None:
+    def test_premium_week_plan_creation_high_activity(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with high activity level."""
         payload = {
             "sex": "male",
@@ -395,7 +399,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_low_activity(self, premium_client) -> None:
+    def test_premium_week_plan_creation_low_activity(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with low activity level."""
         payload = {
             "sex": "female",
@@ -416,7 +420,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_weight_loss_goal(self, premium_client) -> None:
+    def test_premium_week_plan_creation_weight_loss_goal(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with weight loss goal."""
         payload = {
             "sex": "male",
@@ -437,7 +441,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_premium_week_plan_creation_weight_gain_goal(self, premium_client) -> None:
+    def test_premium_week_plan_creation_weight_gain_goal(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with weight gain goal."""
         payload = {
             "sex": "male",
@@ -458,10 +462,10 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_week_plan_missing_all_fields_line_140(self, premium_client) -> None:
+    def test_week_plan_missing_all_fields_line_140(self, premium_client: TestClient) -> None:
         """Test line 140: WeekPlanRequest with all fields missing."""
         # Test with empty payload
-        payload = {}
+        payload: Dict[str, Any] = {}
 
         response = premium_client.post(
             "/api/v1/premium/plan/week",
@@ -471,7 +475,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_week_plan_valid_request(self, premium_client) -> None:
+    def test_week_plan_valid_request(self, premium_client: TestClient) -> None:
         """Test valid week plan request."""
         payload = {
             "sex": "male",
@@ -492,7 +496,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_week_plan_with_macros_validation(self, premium_client) -> None:
+    def test_week_plan_with_macros_validation(self, premium_client: TestClient) -> None:
         """Test week plan with macros validation."""
         payload = {
             "sex": "male",
@@ -520,7 +524,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_week_plan_with_micros_validation(self, premium_client) -> None:
+    def test_week_plan_with_micros_validation(self, premium_client: TestClient) -> None:
         """Test week plan with micronutrients validation."""
         payload = {
             "sex": "male",
@@ -547,7 +551,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
-    def test_week_plan_with_invalid_macros(self, premium_client) -> None:
+    def test_week_plan_with_invalid_macros(self, premium_client: TestClient) -> None:
         """Test week plan with invalid macros."""
         payload = {
             "sex": "male",
@@ -575,7 +579,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_week_plan_with_invalid_micros(self, premium_client) -> None:
+    def test_week_plan_with_invalid_micros(self, premium_client: TestClient) -> None:
         """Test week plan with invalid micronutrients."""
         payload = {
             "sex": "male",
@@ -602,7 +606,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_week_plan_with_negative_macros(self, premium_client) -> None:
+    def test_week_plan_with_negative_macros(self, premium_client: TestClient) -> None:
         """Test week plan with negative macros."""
         payload = {
             "sex": "male",
@@ -630,7 +634,7 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 400, 422]
 
-    def test_week_plan_with_negative_micros(self, premium_client) -> None:
+    def test_week_plan_with_negative_micros(self, premium_client: TestClient) -> None:
         """Test week plan with negative micronutrients."""
         payload = {
             "sex": "male",
