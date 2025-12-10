@@ -552,13 +552,18 @@ class BayesianTestAnalyzer:
 
         # Совпадение симптомов считаем близостью (Jaccard) > SYMPTOM_SIMILARITY_THRESHOLD
         def symptoms_similarity(msg: str) -> float:
+            """Calculate Jaccard similarity between symptoms and case message.
+            
+            Note: Mirrors the logic in _find_similar_cases for consistency.
+            Empty sets are treated as identical (similarity=1.0).
+            """
             case_sy = self._extract_symptoms(msg or "", {})
             if not case_sy and not symptoms:
                 return 1.0
             inter = len(symptoms.intersection(case_sy))
-            # Union is guaranteed to be non-zero here (both sets empty case handled above)
             union = len(symptoms.union(case_sy))
-            return inter / union
+            # Union is guaranteed to be non-zero here (both sets empty case handled above)
+            return inter / union if union > 0 else 0.0
 
         # Взвешенные суммы
         weighted_num = 0.0

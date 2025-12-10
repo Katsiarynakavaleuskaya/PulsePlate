@@ -655,8 +655,8 @@ def _attempt_db_fallback(
             )
     except Exception as fallback_err:
         logger.error("Fallback database init failed (url=%s): %s", fallback_url, fallback_err)
-        # Reset fallback URL on failure
-        os.environ.pop("DB_FALLBACK_URL", None)
+        # Don't modify global os.environ to avoid test interference
+        # Tests should check _db_fallback_active flag instead
         raise db_err from fallback_err
     if not fallback_ok:
         raise db_err
@@ -2068,26 +2068,21 @@ def targets_disabled() -> bool:
     ):
         return True
 
-    now = time.time()
-
-    # Fast path: check cache without lock for performance
-    if (
-        _targets_disabled_cache is not None
-        and now - _targets_disabled_cache_time < _TARGETS_DISABLED_TTL
-    ):
-        quick_state = _quick_targets_disabled_state()
-        if quick_state is None or quick_state == _targets_disabled_cache:
-            return _targets_disabled_cache
-
-    # Slow path: acquire lock to update cache
+    # Thread-safe cache check: always acquire lock before reading cache
+    # This fixes race condition where unlocked read could see stale data
     with _targets_disabled_lock:
-        # Double-check pattern: another thread may have updated cache
+        now = time.time()
+        
+        # Double-check pattern: verify cache is still valid after acquiring lock
         if (
             _targets_disabled_cache is not None
-            and time.time() - _targets_disabled_cache_time < _TARGETS_DISABLED_TTL
+            and now - _targets_disabled_cache_time < _TARGETS_DISABLED_TTL
         ):
-            return _targets_disabled_cache
+            quick_state = _quick_targets_disabled_state()
+            if quick_state is None or quick_state == _targets_disabled_cache:
+                return _targets_disabled_cache
 
+        # Cache miss or invalidated: recompute
         result = _evaluate_targets_disabled()
         _targets_disabled_cache = result
         _targets_disabled_cache_time = time.time()
