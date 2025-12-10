@@ -524,6 +524,8 @@ def init_db() -> None:
 
     EN: Creates database schema for all registered models (used during startup).
     """
+    global _RAW_ENGINE, SessionLocal
+
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
@@ -532,12 +534,23 @@ def init_db() -> None:
 
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
-    db_url = DATABASE_URL
+    # Get current URL from environment (not from module-level DATABASE_URL which may be stale)
+    db_url = os.getenv("DATABASE_URL", DATABASE_URL)
     sqlite_path = _extract_sqlite_path(db_url)
     if sqlite_path:
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
+
+    # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
+    # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
+    if str(_RAW_ENGINE.url) != db_url:
+        _RAW_ENGINE = create_engine(
+            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+        )
+        SessionLocal = sessionmaker(
+            bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
+        )
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
