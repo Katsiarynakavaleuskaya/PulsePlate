@@ -186,6 +186,32 @@ def init_test_database() -> None:
         raise
 
 
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_async_resources():
+    """Clean up async resources after test session to prevent ResourceWarnings."""
+    yield
+
+    # Close any remaining event loops
+    import asyncio
+    import warnings
+
+    try:
+        # Get all running event loops and close them
+        loop = asyncio.get_event_loop()
+        if loop and not loop.is_closed():
+            # Cancel all pending tasks
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            # Close the loop
+            loop.close()
+    except RuntimeError:
+        # No event loop running, that's fine
+        pass
+    except Exception as e:
+        warnings.warn(f"Error closing event loop: {e}", ResourceWarning)
+
+
 @pytest.fixture(scope="session")
 def dynamic_app():
     """Load FastAPI app dynamically from app.py"""
