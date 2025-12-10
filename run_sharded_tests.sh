@@ -11,11 +11,7 @@ if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${
     echo "Current version: ${BASH_VERSION}"
     echo "On macOS, install via: brew install bash"
     exit 1
-         exit 1
-     fi
-          exit 1
-     fi
- fi
+fi
 
 # Colors for output
 RED='\033[0;31m'

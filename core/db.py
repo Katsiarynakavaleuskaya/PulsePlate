@@ -523,15 +523,15 @@ def init_db() -> None:
     """RU: Создаёт схему таблиц для зарегистрированных моделей (например, при старте).
 
     EN: Creates database schema for all registered models (used during startup).
-    
+
     IMPORTANT: This function modifies module-level globals (_RAW_ENGINE, SessionLocal).
     Code that imports these must use the module.attribute pattern:
         import core.db
         session = core.db.SessionLocal()
-    
+
     DO NOT use:
         from core.db import SessionLocal  # This captures old reference!
-    
+
     Or access via get_session_factory() which always returns current SessionLocal.
     """
     global _RAW_ENGINE, SessionLocal
@@ -585,12 +585,12 @@ def init_db() -> None:
     metadata.create_all(bind=_RAW_ENGINE)
 
 
-def get_session_factory():
+def get_session_factory() -> sessionmaker[Session]:
     """Get the current SessionLocal factory.
-    
+
     This function always returns the current module-level SessionLocal,
     even if init_db() reassigned it. Safer than 'from core.db import SessionLocal'.
-    
+
     Returns:
         Current sessionmaker instance configured by init_db().
     """

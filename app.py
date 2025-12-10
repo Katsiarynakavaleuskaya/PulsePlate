@@ -2072,7 +2072,7 @@ def targets_disabled() -> bool:
     # This fixes race condition where unlocked read could see stale data
     with _targets_disabled_lock:
         now = time.time()
-        
+
         # Double-check pattern: verify cache is still valid after acquiring lock
         if (
             _targets_disabled_cache is not None

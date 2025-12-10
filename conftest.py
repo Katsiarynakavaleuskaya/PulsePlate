@@ -191,9 +191,13 @@ def cleanup_async_resources():
     """Clean up async resources after test session to prevent ResourceWarnings."""
     yield
 
-    # Close any remaining event loops
+    # Close any remaining event loops and database connections
     import asyncio
+    import gc
     import warnings
+
+    # Force garbage collection to close any unclosed connections
+    gc.collect()
 
     try:
         # Get all running event loops and close them
@@ -210,6 +214,9 @@ def cleanup_async_resources():
         pass
     except Exception as e:
         warnings.warn(f"Error closing event loop: {e}", ResourceWarning)
+
+    # Final garbage collection to ensure cleanup
+    gc.collect()
 
 
 @pytest.fixture(scope="session")
