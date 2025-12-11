@@ -1147,7 +1147,9 @@ def test_macros_not_dict() -> None:
         "meals": [],
     }
 
-    with pytest.raises(ValidationError, match="(Macros must be a dictionary|Missing required macro keys)"):
+    with pytest.raises(
+        ValidationError, match="(Macros must be a dictionary|Missing required macro keys)"
+    ):
         sanity_filter_plate_data(invalid_data)
 
 
@@ -1171,7 +1173,10 @@ def test_macros_non_string_key() -> None:
         "meals": [],
     }
 
-    with pytest.raises(ValidationError, match="(Macro keys must be strings|Missing required macro keys|validation failed)"):
+    with pytest.raises(
+        ValidationError,
+        match="(Macro keys must be strings|Missing required macro keys|validation failed)",
+    ):
         sanity_filter_plate_data(invalid_data)
 
 
@@ -1215,7 +1220,9 @@ def test_portions_not_dict() -> None:
         "meals": [],
     }
 
-    with pytest.raises(ValidationError, match="(Portions must be a dictionary|Missing required portion keys)"):
+    with pytest.raises(
+        ValidationError, match="(Portions must be a dictionary|Missing required portion keys)"
+    ):
         sanity_filter_plate_data(invalid_data)
 
 
@@ -1239,7 +1246,10 @@ def test_portions_non_string_key() -> None:
         "meals": [],
     }
 
-    with pytest.raises(ValidationError, match="(Portion keys must be strings|Missing required portion keys|validation failed)"):
+    with pytest.raises(
+        ValidationError,
+        match="(Portion keys must be strings|Missing required portion keys|validation failed)",
+    ):
         sanity_filter_plate_data(invalid_data)
 
 
@@ -1343,7 +1353,9 @@ def test_layout_item_not_dict() -> None:
         "meals": [],
     }
 
-    with pytest.raises(ValidationError, match="(Layout items must be dictionaries|validation failed)"):
+    with pytest.raises(
+        ValidationError, match="(Layout items must be dictionaries|validation failed)"
+    ):
         sanity_filter_plate_data(invalid_data)
 
 
@@ -1426,5 +1438,7 @@ def test_meals_item_not_dict() -> None:
         "meals": ["not_a_dict"],
     }
 
-    with pytest.raises(ValidationError, match="(Meal items must be dictionaries|validation failed)"):
+    with pytest.raises(
+        ValidationError, match="(Meal items must be dictionaries|validation failed)"
+    ):
         sanity_filter_plate_data(invalid_data)

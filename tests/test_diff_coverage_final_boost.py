@@ -16,6 +16,7 @@ from starlette.applications import ASGIApp
 # Import app
 import app as app_module
 
+
 @pytest.fixture(autouse=True)
 def _business_env_and_client(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest):
     """Autouse fixture to set env vars and attach a TestClient to test instances."""
