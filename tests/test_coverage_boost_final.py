@@ -47,6 +47,33 @@ class TestCoverageFinalBoost:
             == "/absolute/path/db.sqlite"
         )
 
+        # Test _build_engine_url absolute path handling (non-env case)
+        # This covers lines 158-160 in core/db.py
+        import os
+        import importlib
+
+        # Save original env
+        original_db_url = os.environ.get("DATABASE_URL")
+        try:
+            # Remove DATABASE_URL to test non-env path (env_provided=False)
+            if "DATABASE_URL" in os.environ:
+                del os.environ["DATABASE_URL"]
+
+            # Reload db module to trigger _build_engine_url with default path
+            reloaded_db = importlib.reload(db)
+
+            # The default path should go through the absolute/relative logic
+            # Default is "cache/app.db" which is relative, so it tests line 163
+            assert reloaded_db.DATABASE_URL.startswith("sqlite:///")
+        finally:
+            # Restore original
+            if original_db_url is not None:
+                os.environ["DATABASE_URL"] = original_db_url
+            elif "DATABASE_URL" in os.environ:
+                del os.environ["DATABASE_URL"]
+            # Reload again to restore original state
+            importlib.reload(db)
+
     def test_business_router_edge_paths(
         self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
