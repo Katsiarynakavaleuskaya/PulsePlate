@@ -4096,6 +4096,19 @@ async def api_weekly_menu(req: WeekPlanRequest) -> WeeklyMenuResponse:
         if _vip_env is None and not VIP_MODULE_ENABLED:
             raise HTTPException(status_code=503, detail="VIP module is disabled")
 
+        # Mode A: targets-only payloads are not yet supported for this endpoint.
+        # For such requests, return a clear validation error instead of leaking 500s.
+        if req.targets is not None and not any(
+            [req.sex, req.age, req.height_cm, req.weight_kg, req.activity]
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Targets-based weekly plans are not supported on this endpoint. "
+                    "Provide full profile data or use /api/v1/premium/plan/week-flexible."
+                ),
+            )
+
         # Resolve make_weekly_menu with preference for package-level patching in tests
         import sys as _sys
 

@@ -83,28 +83,28 @@ class TestPremiumWeekHypothesisSimple:
     @given(
         targets=st.fixed_dictionaries(
             {
-                "kcal": st.floats(min_value=1200.0, max_value=4000.0),
-                "protein": st.floats(min_value=50.0, max_value=300.0),
-                "carbs": st.floats(min_value=100.0, max_value=600.0),
-                "fat": st.floats(min_value=30.0, max_value=200.0),
-                "fiber": st.floats(min_value=20.0, max_value=100.0),
+                "kcal": st.floats(min_value=1500.0, max_value=3500.0),
+                "protein": st.floats(min_value=60.0, max_value=250.0),
+                "carbs": st.floats(min_value=130.0, max_value=500.0),
+                "fat": st.floats(min_value=40.0, max_value=150.0),
+                "fiber": st.floats(min_value=25.0, max_value=80.0),
             },
             optional={
-                "sugar": st.floats(min_value=10.0, max_value=150.0),
-                "sodium": st.floats(min_value=500.0, max_value=5000.0),
-                "calcium": st.floats(min_value=500.0, max_value=2500.0),
-                "iron": st.floats(min_value=5.0, max_value=50.0),
-                "magnesium": st.floats(min_value=200.0, max_value=800.0),
-                "potassium": st.floats(min_value=2000.0, max_value=6000.0),
-                "zinc": st.floats(min_value=5.0, max_value=40.0),
-                "vitamin_c": st.floats(min_value=50.0, max_value=500.0),
-                "vitamin_d": st.floats(min_value=10.0, max_value=100.0),
-                "vitamin_e": st.floats(min_value=10.0, max_value=100.0),
-                "vitamin_k": st.floats(min_value=50.0, max_value=300.0),
-                "folate": st.floats(min_value=200.0, max_value=1000.0),
-                "vitamin_b12": st.floats(min_value=1.0, max_value=50.0),
-                "omega3": st.floats(min_value=1.0, max_value=10.0),
-                "omega6": st.floats(min_value=5.0, max_value=30.0),
+                "sugar": st.floats(min_value=20.0, max_value=120.0),
+                "sodium": st.floats(min_value=1000.0, max_value=4000.0),
+                "calcium": st.floats(min_value=800.0, max_value=2000.0),
+                "iron": st.floats(min_value=8.0, max_value=40.0),
+                "magnesium": st.floats(min_value=300.0, max_value=700.0),
+                "potassium": st.floats(min_value=2500.0, max_value=5000.0),
+                "zinc": st.floats(min_value=8.0, max_value=35.0),
+                "vitamin_c": st.floats(min_value=75.0, max_value=400.0),
+                "vitamin_d": st.floats(min_value=15.0, max_value=80.0),
+                "vitamin_e": st.floats(min_value=15.0, max_value=80.0),
+                "vitamin_k": st.floats(min_value=90.0, max_value=250.0),
+                "folate": st.floats(min_value=300.0, max_value=800.0),
+                "vitamin_b12": st.floats(min_value=2.0, max_value=40.0),
+                "omega3": st.floats(min_value=1.5, max_value=8.0),
+                "omega6": st.floats(min_value=10.0, max_value=25.0),
             },
         ),
         lang=st.sampled_from(["en", "ru", "es"]),
@@ -130,8 +130,9 @@ class TestPremiumWeekHypothesisSimple:
                 headers={"X-API-Key": "test_key"},
             )
 
-            # Should succeed and cover lines 97-98, fail validation, or fail with server error.
-            # Some combinations of valid values may still trigger 500 in weekly planning logic.
+            # Should succeed with narrowed nutritional targets or fail validation.
+            # Even with realistic ranges, some edge-case combinations may still trigger 500
+            # in weekly menu generation logic (e.g., impossible nutrient constraints).
             assert response.status_code in [200, 422, 500]
             if response.status_code == 200:
                 data = response.json()

@@ -189,8 +189,7 @@ class TestUsersRetryMechanism:
 class TestUsersEndpointRetryIntegration:
     """Test actual user endpoints to verify retry integration."""
 
-    @pytest.mark.asyncio
-    async def test_list_users_no_fallback_on_db_failure(
+    def test_list_users_no_fallback_on_db_failure(
         self, test_client, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """list_users should raise 503 on DB failure (no fallback configured)."""

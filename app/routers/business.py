@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +25,27 @@ router = APIRouter(prefix="/api/v1/business", tags=["business"])
 def _safe_error_summary(err: Exception) -> str:
     """Return a sanitized error summary without user-provided content."""
     return err.__class__.__name__
+
+
+def _sanitize_log_value(value: str, max_length: int = 100) -> str:
+    """Sanitize and truncate user input for safe logging.
+
+    Removes control characters (newlines, tabs, non-printable chars)
+    and truncates to max_length to prevent log injection attacks.
+
+    Args:
+        value: User-controlled string to sanitize
+        max_length: Maximum allowed length (default 100)
+
+    Returns:
+        Sanitized and truncated string safe for logging
+    """
+    # Remove control characters and non-printable chars (except space)
+    sanitized = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", value)
+    # Truncate to max length
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length] + "..."
+    return sanitized
 
 
 class BusinessAnalysisRequest(BaseModel):
@@ -109,9 +131,11 @@ async def analyze_business_code(
         raise
     except Exception as e:
         # Log and wrap non-HTTPException errors as 500
+        # Sanitize user-controlled test_name to prevent log injection
+        safe_test_name = _sanitize_log_value(request.test_name)
         logger.error(
             "Business analysis failed for test_name=%s (%s)",
-            request.test_name,
+            safe_test_name,
             _safe_error_summary(e),
             exc_info=True,
         )

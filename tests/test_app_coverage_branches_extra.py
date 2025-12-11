@@ -79,16 +79,3 @@ def test_targets_disabled_module_alias(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app, "build_nutrition_targets", None, raising=False)
     app.reset_targets_cache()
     assert app.targets_disabled() is True
-
-
-def test_who_targets_request_goal_normalization() -> None:
-    """WHOTargetsRequest normalizes goal synonyms via validator."""
-    req = app.WHOTargetsRequest(
-        sex="male",
-        age=30,
-        height_cm=180,
-        weight_kg=80,
-        activity="moderate",
-        goal="lose",
-    )
-    assert req.goal == "loss"

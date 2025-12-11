@@ -538,9 +538,7 @@ class TestDatabaseAdminEndpoints:
         """Test rollback endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch.object(
-                sys.modules["app"], "get_update_scheduler", new_callable=AsyncMock
-            ) as mock_scheduler,
+            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Rollback error")
 

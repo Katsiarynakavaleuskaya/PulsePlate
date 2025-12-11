@@ -149,8 +149,10 @@ def test_exactly_100kb_payload_accepted(test_client, monkeypatch) -> None:
         assert response.status_code == 200
 
 
-def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch) -> None:
+def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch, caplog) -> None:
     """Non-HTTP exceptions from analyzer should be wrapped as 500."""
+    import logging
+
     monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
@@ -159,11 +161,12 @@ def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch) -> None:
         # Simulate analyzer crash
         mock_instance.analyze.side_effect = RuntimeError("Bayesian model failed")
 
-        response = test_client.post(
-            "/api/v1/business/analyze",
-            json={"code": "def crash(): raise Exception()", "test_name": "crash_test"},
-            headers={"X-API-Key": "test-key"},
-        )
+        with caplog.at_level(logging.ERROR):
+            response = test_client.post(
+                "/api/v1/business/analyze",
+                json={"code": "def crash(): raise Exception()", "test_name": "crash_test"},
+                headers={"X-API-Key": "test-key"},
+            )
 
         assert response.status_code == 500
         assert "failed" in response.json()["detail"].lower()
@@ -292,3 +295,90 @@ def test_multiple_results_returned_as_list(test_client, monkeypatch) -> None:
         assert len(data) == 2
         assert data[0]["business_category"] == "revenue_growth"
         assert data[1]["business_category"] == "cost_optimization"
+
+
+def test_log_injection_prevented_in_error_logging(test_client, monkeypatch, caplog) -> None:
+    """Test that malicious test_name values are sanitized before logging."""
+    import logging
+
+    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+
+    with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
+        mock_instance = MockAnalyzer.return_value
+        # Force an exception to trigger error logging
+        mock_instance.analyze.side_effect = RuntimeError("Test error")
+
+        # Malicious test_name with control characters (newlines, tabs, etc.)
+        malicious_test_name = "evil\ntest\r\nINJECTED: fake_log_entry\t\x00null_byte"
+
+        with caplog.at_level(logging.ERROR):
+            response = test_client.post(
+                "/api/v1/business/analyze",
+                json={"code": "def test(): pass", "test_name": malicious_test_name},
+                headers={"X-API-Key": "test-key"},
+            )
+
+        assert response.status_code == 500
+
+        # Verify the log message was captured
+        error_logs = [record for record in caplog.records if record.levelno == logging.ERROR]
+        assert len(error_logs) == 1
+
+        # Verify control characters were removed from logged message
+        logged_message = error_logs[0].message
+        assert "\n" not in logged_message  # Newlines removed
+        assert "\r" not in logged_message  # Carriage returns removed
+        assert "\t" not in logged_message  # Tabs removed
+        assert "\x00" not in logged_message  # Null bytes removed
+        # Sanitized name should be present but without control chars
+        assert "evil" in logged_message
+        assert "test" in logged_message
+
+
+def test_sanitize_log_value_truncates_long_strings() -> None:
+    """Test that _sanitize_log_value truncates strings over max_length."""
+    from app.routers.business import _sanitize_log_value
+
+    # Test truncation at default 100 chars
+    long_string = "a" * 150
+    result = _sanitize_log_value(long_string)
+    assert len(result) == 103  # 100 chars + "..."
+    assert result.endswith("...")
+    assert result.startswith("a" * 100)
+
+    # Test custom max_length
+    result = _sanitize_log_value(long_string, max_length=50)
+    assert len(result) == 53  # 50 chars + "..."
+    assert result.endswith("...")
+
+
+def test_sanitize_log_value_removes_control_characters() -> None:
+    """Test that _sanitize_log_value removes control characters."""
+    from app.routers.business import _sanitize_log_value
+
+    # Test various control characters
+    malicious = "test\nvalue\r\n\twith\x00controls\x1f\x7f"
+    result = _sanitize_log_value(malicious)
+
+    # All control chars should be removed
+    assert "\n" not in result
+    assert "\r" not in result
+    assert "\t" not in result
+    assert "\x00" not in result
+    assert "\x1f" not in result
+    assert "\x7f" not in result
+
+    # Regular characters should remain
+    assert "test" in result
+    assert "value" in result
+    assert "with" in result
+    assert "controls" in result
+
+
+def test_sanitize_log_value_preserves_safe_characters() -> None:
+    """Test that _sanitize_log_value preserves normal alphanumeric and punctuation."""
+    from app.routers.business import _sanitize_log_value
+
+    safe_string = "test_name-123.py: Revenue Analysis (2024)"
+    result = _sanitize_log_value(safe_string)
+    assert result == safe_string  # Should be unchanged

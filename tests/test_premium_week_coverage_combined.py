@@ -496,6 +496,30 @@ class TestPremiumWeekCoverageCombined:
 
         assert response.status_code in [200, 503, 403, 422]
 
+    def test_week_plan_targets_only_returns_422(self, premium_client: TestClient) -> None:
+        """Targets-only payloads should be rejected with validation error instead of 500."""
+        payload: Dict[str, Any] = {
+            "targets": {
+                "kcal": 2000.0,
+                "protein": 80.0,
+                "carbs": 250.0,
+                "fat": 70.0,
+                "fiber": 30.0,
+            },
+            "lang": "en",
+            "diet_flags": [],
+        }
+
+        response = premium_client.post(
+            "/api/v1/premium/plan/week",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 422
+        detail = response.json().get("detail", "")
+        assert "Targets-based weekly plans are not supported" in str(detail)
+
     def test_week_plan_with_macros_validation(self, premium_client: TestClient) -> None:
         """Test week plan with macros validation."""
         payload = {

@@ -113,7 +113,7 @@ class TestFoodDatabaseBasic:
         food_db = parse_food_db()
 
         # Find a deterministic sample with valid micronutrient values (not None/0)
-        # Iterate to find the first item where all asserted micronutrient fields are present and non-zero
+        # Find first item where all asserted micronutrient fields are present and non-zero
         sample_item = None
         for item in food_db.values():
             if all(

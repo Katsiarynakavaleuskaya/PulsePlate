@@ -136,7 +136,10 @@ def safe_stop_with_cleanup(stopper: Callable[[], Any]) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ResourceWarning)
             warnings.simplefilter("ignore", RuntimeWarning)
-            asyncio.run(stopper())
+
+            result = stopper()
+            if inspect.isawaitable(result):
+                asyncio.run(result)
     except RuntimeError as e:
         # Suppress "Event loop is closed" errors during cleanup
         error_msg = str(e)
