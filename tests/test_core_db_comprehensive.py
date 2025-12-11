@@ -453,7 +453,7 @@ def test_sqlite_connect_args_without_query_params() -> None:
     from core.db import _sqlite_connect_args
 
     args = _sqlite_connect_args("sqlite:///test.db")
-    assert args == {"check_same_thread": False, "timeout": 30.0}
+    assert args == {"check_same_thread": False, "timeout": 5.0}
 
 
 def test_sqlite_connect_args_with_query_params() -> None:
@@ -461,7 +461,7 @@ def test_sqlite_connect_args_with_query_params() -> None:
     from core.db import _sqlite_connect_args
 
     args = _sqlite_connect_args("sqlite:///test.db?mode=rwc")
-    assert args == {"check_same_thread": False, "uri": True, "timeout": 30.0}
+    assert args == {"check_same_thread": False, "uri": True, "timeout": 5.0}
 
 
 def test_sqlite_connect_args_non_sqlite() -> None:

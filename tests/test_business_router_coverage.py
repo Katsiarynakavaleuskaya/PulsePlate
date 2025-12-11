@@ -115,7 +115,7 @@ async def test_analyze_business_code_oversized_payload_internal(
     with pytest.raises(HTTPException) as exc_info:
         await analyze_business_code(request, api_key="test-key")
 
-    assert exc_info.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    assert exc_info.value.status_code == status.HTTP_413_CONTENT_TOO_LARGE
     assert "too large" in str(exc_info.value.detail).lower()
 
 

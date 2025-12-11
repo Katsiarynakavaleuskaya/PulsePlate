@@ -72,7 +72,7 @@ async def analyze_business_code(
             len(request.code),
         )
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Code payload too large (max 100KB)",
         )
 

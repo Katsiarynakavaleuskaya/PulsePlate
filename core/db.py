@@ -103,10 +103,9 @@ def _build_engine_url() -> str:
     env_provided = "DATABASE_URL" in os.environ
     database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
-    # Create directory for file-based SQLite databases (only for paths we control)
-    # Don't create directories for env-provided absolute paths (e.g., /cache) to avoid permission errors
+    # Create directory for file-based SQLite databases (both env-provided and default)
     sqlite_path = _extract_sqlite_path(database_url)
-    if sqlite_path and not env_provided:
+    if sqlite_path:
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:  # Only create if there's a parent directory
             os.makedirs(db_dir, exist_ok=True)
@@ -538,10 +537,8 @@ def init_db() -> None:
     # Critical for CI/CD where directory may not exist yet
     # Get current URL from environment (not from module-level DATABASE_URL which may be stale)
     db_url = os.getenv("DATABASE_URL", DATABASE_URL)
-    env_db_provided = "DATABASE_URL" in os.environ
     sqlite_path = _extract_sqlite_path(db_url)
-    # Only create directories for paths we control (not env-provided absolute paths)
-    if sqlite_path and not env_db_provided:
+    if sqlite_path:
         db_dir = os.path.dirname(sqlite_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)

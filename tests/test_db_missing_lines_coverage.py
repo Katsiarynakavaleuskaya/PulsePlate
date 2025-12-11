@@ -393,7 +393,7 @@ class TestDbMissingLinesCoverage:
             # Test SQLite connection args
             assert _sqlite_connect_args("sqlite:///test.db") == {
                 "check_same_thread": False,
-                "timeout": 30.0,
+                "timeout": 5.0,
             }
             assert _sqlite_connect_args("postgresql://localhost/db") == {}
             assert _sqlite_connect_args("mysql://localhost/db") == {}

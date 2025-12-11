@@ -688,3 +688,61 @@ class TestPremiumWeekCoverageCombined:
         )
 
         assert response.status_code in [400, 422]
+
+    def test_week_plan_with_non_numeric_macros(self, premium_client: TestClient) -> None:
+        """macros values must be numeric and non-boolean."""
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175.0,
+            "weight_kg": 70.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "lang": "en",
+            "diet_flags": [],
+            "targets": {
+                "kcal": 2000,
+                "macros": {
+                    "protein_g": "not-a-number",
+                },
+                "micro": {"vitamin_c_mg": 90.0},
+                "water_ml": 2000,
+            },
+        }
+
+        response = premium_client.post(
+            "/api/v1/premium/plan/week",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code in [400, 422]
+
+    def test_week_plan_with_non_numeric_micros(self, premium_client: TestClient) -> None:
+        """micro values must be numeric and non-boolean."""
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 175.0,
+            "weight_kg": 70.0,
+            "activity": "moderate",
+            "goal": "maintain",
+            "lang": "en",
+            "diet_flags": [],
+            "targets": {
+                "kcal": 2000,
+                "macros": {"protein_g": 100.0, "fat_g": 60.0, "carbs_g": 200.0},
+                "micro": {
+                    "vitamin_c_mg": "not-a-number",
+                },
+                "water_ml": 2000,
+            },
+        }
+
+        response = premium_client.post(
+            "/api/v1/premium/plan/week",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code in [400, 422]
