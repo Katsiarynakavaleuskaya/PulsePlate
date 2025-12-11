@@ -5,7 +5,7 @@ invalid data, and ensure type safety.
 """
 
 import html
-from typing import Any, Dict, List, Literal, Optional, TypedDict, cast
+from typing import Any, Dict, List, Literal, Optional, Set, TypedDict, cast
 
 import nh3
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
@@ -19,7 +19,9 @@ MAX_MICRO_NUTRIENTS = 100
 # nh3 configuration: strict allowlist for basic text formatting only
 # No event handlers, no javascript:, no data: URIs, no SVG attributes
 NH3_ALLOWED_TAGS = {"b", "i", "em", "strong", "u", "br", "p", "span"}
-NH3_ALLOWED_ATTRS = {}  # No attributes allowed at all (no href, src, onclick, etc.)
+NH3_ALLOWED_ATTRS: Dict[str, Set[str]] = (
+    {}
+)  # No attributes allowed at all (no href, src, onclick, etc.)
 
 
 class MacrosDict(TypedDict):
