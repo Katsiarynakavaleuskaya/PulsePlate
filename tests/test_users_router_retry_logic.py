@@ -167,6 +167,26 @@ class TestUsersRetryMechanism:
         # 1 initial + 3 retries (hardcoded) = 4 attempts
         assert mock_db.SessionLocal.call_count == 4
 
+    def test_http_exception_propagates_without_retry(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTTPException raised by action should rollback and propagate without retries."""
+        from app.routers import users
+
+        mock_db = MagicMock()
+        mock_session = MagicMock()
+        mock_db.SessionLocal.return_value = mock_session
+        monkeypatch.setattr("app.routers.users.db_module", mock_db)
+
+        def action_raises_http(session):
+            raise HTTPException(status_code=400, detail="Bad input")
+
+        with pytest.raises(HTTPException) as exc_info:
+            users._execute_with_retry(action_raises_http)
+
+        assert exc_info.value.status_code == 400
+        mock_db.SessionLocal.assert_called_once()
+        mock_session.rollback.assert_called_once()
+        mock_session.close.assert_called_once()
+
 
 class TestUsersEndpointRetryIntegration:
     """Test actual user endpoints to verify retry integration."""

@@ -127,7 +127,8 @@ class PulsePlateMCPServer:
             )
             return available_models
 
-        except Exception as e:
+        except openai.APIError as e:
+            # Catch OpenAI-specific API errors (network, auth, rate limits, etc.)
             # Log failure and fall back to static list
             logger.warning(
                 "Failed to fetch models from OpenAI API (will use fallback): %s",
@@ -135,6 +136,8 @@ class PulsePlateMCPServer:
             )
             cls._model_cache_failed = True
             return cls.FALLBACK_ALLOWED_MODELS
+        # Allow other unexpected exceptions to propagate (ImportError, AttributeError, etc.)
+        # This ensures we don't swallow programming errors or configuration issues
 
     @classmethod
     def _validate_default_model(cls) -> None:

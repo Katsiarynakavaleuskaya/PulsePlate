@@ -374,16 +374,27 @@ class TestMcpPulseplateServerCoverage:
         mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
 
     def test_fetch_available_models_api_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test _fetch_available_models handles API exceptions (lines 124, 126, 130-131)"""
+        """Test _fetch_available_models handles API exceptions (lines 130-137)"""
         # Reset cache state
         mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
         mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
 
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        # Mock OpenAI to raise exception
-        with patch("openai.OpenAI") as mock_openai:
-            mock_openai.side_effect = Exception("API connection failed")
+        # Mock OpenAI client to raise APIError when calling models.list()
+        import openai
+
+        with patch("openai.OpenAI") as mock_openai_class:
+            mock_client = MagicMock()
+            # Raise openai.APIError when models.list() is called
+            # Create a mock request object
+            mock_request = MagicMock()
+            mock_client.models.list.side_effect = openai.APIError(
+                "API connection failed",
+                request=mock_request,
+                body=None,
+            )
+            mock_openai_class.return_value = mock_client
 
             with patch("mcp_pulseplate_server.logger") as mock_logger:
                 result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
@@ -395,7 +406,7 @@ class TestMcpPulseplateServerCoverage:
                 # Should log warning
                 mock_logger.warning.assert_called_once()
                 assert "Failed to fetch models" in mock_logger.warning.call_args[0][0]
-                assert "API connection failed" in mock_logger.warning.call_args[0][1]
+                assert "API connection failed" in str(mock_logger.warning.call_args[0][1])
 
         # Cleanup
         mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
@@ -972,13 +983,23 @@ class TestMcpPulseplateServerCoverage:
 
     def test_fetch_available_models_dynamic_exception_fallback(self) -> None:
         """Test _fetch_available_models handles OpenAI exceptions with fallback."""
+        import openai
+
         cls = mcp_pulseplate_server.PulsePlateMCPServer
         cls._cached_models = None
         cls._model_cache_failed = False
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
-            with patch("openai.OpenAI") as mock_openai:
-                mock_openai.side_effect = Exception("API failure")
+            with patch("openai.OpenAI") as mock_openai_class:
+                mock_client = MagicMock()
+                # Raise openai.APIError when models.list() is called
+                mock_request = MagicMock()
+                mock_client.models.list.side_effect = openai.APIError(
+                    "API failure",
+                    request=mock_request,
+                    body=None,
+                )
+                mock_openai_class.return_value = mock_client
 
                 models = cls._fetch_available_models()
                 # On exception, should fall back to static list
