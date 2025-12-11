@@ -139,7 +139,7 @@ def safe_stop_with_cleanup(stopper: Callable[[], Any]) -> None:
 
             result = stopper()
             if inspect.isawaitable(result):
-                asyncio.run(result)
+                asyncio.run(result)  # type: ignore[arg-type]
     except RuntimeError as e:
         # Suppress "Event loop is closed" errors during cleanup
         error_msg = str(e)
