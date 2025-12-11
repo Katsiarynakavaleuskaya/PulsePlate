@@ -1,21 +1,41 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from types import ModuleType
+import sys
 import os
 import importlib.util
+from importlib.machinery import ModuleSpec
 
 import pytest
 
-# Load recipe_store module directly to avoid conflicts
-spec = importlib.util.spec_from_file_location(
-    "recipe_store",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "services", "recipe_store.py"),
-)
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load recipe_store module")
-rs_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(rs_module)
-rs = rs_module
+# Load recipe_store module: check sys.modules first, then fall back to file loading
+rs_module: Optional[ModuleType] = sys.modules.get("recipe_store")
+if rs_module is None:
+    # Build file path for the recipe_store module
+    recipe_store_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "app",
+        "services",
+        "recipe_store.py",
+    )
+    spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(
+        "recipe_store", recipe_store_path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Cannot load recipe_store module")
+    rs_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rs_module)
+
+
+# Expose resolve_attr for test-friendly attribute access
+def resolve_attr(name: str) -> Any:
+    """Resolve attribute from recipe_store module for test patching."""
+    return getattr(rs_module, name)
+
+
+# Short alias for backward compatibility
+rs: ModuleType = rs_module
 
 
 class _FakeCursor:

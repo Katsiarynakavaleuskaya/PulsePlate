@@ -84,6 +84,7 @@ class IntegratedBayesianAnalyzer:
         self.technical_analyzer = BayesianTestAnalyzer()
         self.nutrition_analyzer = NutritionBayesianAnalyzer()
         self.integrated_results: List[IntegratedTestResult] = []
+        # TODO: Integrate system_philosophy into _analyze_philosophy_compliance or recommendations
         self.system_philosophy = self._load_system_philosophy()
         self._last_nutrition_results: List[NutritionTestResult] = []
 

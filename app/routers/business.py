@@ -60,17 +60,20 @@ async def analyze_business_code(
     customer acquisition, revenue growth, and customer retention.
     """
     if not BUSINESS_MODULE_ENABLED:
+        # TODO: Use t(request.locale or "en", "business.module_disabled") for i18n
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Business analysis module is disabled",
         )
 
     # Defensive check: prevent DoS with extremely large payloads
-    if len(request.code) > 100_000:
+    code_bytes = len(request.code.encode("utf-8"))
+    if code_bytes > 100_000:
         logger.warning(
-            "Rejected oversized code payload: %d bytes (max 100000)",
-            len(request.code),
+            "Rejected oversized code payload: %d bytes (max 100KB)",
+            code_bytes,
         )
+        # TODO: Use t(request.locale or "en", "business.payload_too_large") for i18n
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Code payload too large (max 100KB)",

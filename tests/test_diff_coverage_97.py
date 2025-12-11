@@ -201,56 +201,41 @@ class TestDb:
 
     def test_build_engine_url_with_query_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 75: Handle database URL with query parameters."""
-        from core.db import _build_engine_url
-
         # Test SQLite URL with query parameters
         test_url = "sqlite:///test.db?mode=ro&cache=shared"
         monkeypatch.setenv("DATABASE_URL", test_url)
 
-        # Clear the module cache to force reload
-        import importlib
-        import core.db
-
-        importlib.reload(core.db)
+        # Import fresh to get the function with mocked env
+        from core.db import _build_engine_url
 
         # Should parse and handle query parameters correctly
-        result = core.db._build_engine_url()
+        result = _build_engine_url()
         assert "sqlite:///" in result
 
     def test_build_engine_url_absolute_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 117: Handle absolute SQLite path."""
-        from core.db import _build_engine_url
-
         with tempfile.TemporaryDirectory() as tmpdir:
             # Use absolute path
             abs_path = os.path.join(tmpdir, "test.db")
             test_url = f"sqlite:///{abs_path}"
             monkeypatch.setenv("DATABASE_URL", test_url)
 
-            # Clear module cache
-            import importlib
-            import core.db
+            # Import fresh to get the function with mocked env
+            from core.db import _build_engine_url
 
-            importlib.reload(core.db)
-
-            result = core.db._build_engine_url()
+            result = _build_engine_url()
             # Should keep absolute path format
             assert "sqlite:///" in result
 
     def test_init_db_with_query_params(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 517: init_db handles URL with query parameters."""
-        from core.db import init_db
-
         with tempfile.TemporaryDirectory() as tmpdir:
             test_db_path = os.path.join(tmpdir, "test.db")
             test_url = f"sqlite:///{test_db_path}?mode=rwc"
             monkeypatch.setenv("DATABASE_URL", test_url)
 
-            # Reload db module to pick up new URL
-            import importlib
-            import core.db
-
-            importlib.reload(core.db)
+            # Import fresh to get the function with mocked env
+            from core.db import init_db
 
             # Should handle query parameters in URL
             init_db()

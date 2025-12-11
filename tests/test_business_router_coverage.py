@@ -75,8 +75,8 @@ class TestBusinessAnalysisEndpoint:
         assert response.status_code == 503
         assert "disabled" in response.json()["detail"].lower()
 
-    def test_oversized_payload_rejected_with_422(self, test_client, monkeypatch) -> None:
-        """Payloads > 100KB should be rejected with 422 (Pydantic validation) to prevent DoS."""
+    def test_oversized_payload_rejected_with_413(self, test_client, monkeypatch) -> None:
+        """Payloads > 100KB should be rejected with 413 (manual check) to prevent DoS."""
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
         # Create exactly 100,001 bytes of code
@@ -88,9 +88,8 @@ class TestBusinessAnalysisEndpoint:
             headers={"X-API-Key": "test-key"},
         )
 
-        # FastAPI Pydantic validation catches this before endpoint logic
-        # so it returns 422 (Unprocessable Entity) not 413
-        assert response.status_code == 422
+        # Manual payload check returns 413 (Content Too Large)
+        assert response.status_code == 413
 
 
 @pytest.mark.asyncio

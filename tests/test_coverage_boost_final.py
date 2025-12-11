@@ -93,7 +93,7 @@ class TestCoverageFinalBoost:
         def always_fails(session: Any) -> Any:
             nonlocal call_count
             call_count += 1
-            raise OperationalError("fail", None, None)
+            raise OperationalError("fail", None, Exception("connection failed"))
 
         result = users._execute_with_retry(always_fails, fallback=[])
         assert result == []

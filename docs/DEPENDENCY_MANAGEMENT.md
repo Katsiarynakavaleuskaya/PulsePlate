@@ -44,11 +44,10 @@ pip-sync requirements-dev.txt
 If `pip-tools` is not available or you need standard pip compatibility, use constraints files for deterministic builds:
 
 ```bash
-# Install production dependencies
-pip install -r requirements.txt
+# Install production dependencies with version constraints
+pip install -r requirements.txt -c constraints.txt
 
 # Install development dependencies with version constraints
-pip install -r requirements.txt -c constraints.txt
 pip install -r requirements-dev.txt -c constraints.txt
 ```
 

@@ -97,18 +97,39 @@ def _extract_sqlite_path(database_url: str) -> str | None:
     return sqlite_path if sqlite_path else None
 
 
+def _ensure_sqlite_directory(database_url: str, env_provided: bool = False) -> None:
+    """Create parent directory for SQLite file if path is file-based and controlled by app.
+
+    Args:
+        database_url: Database URL to check for SQLite file path
+        env_provided: If True, skip directory creation to avoid PermissionError
+    """
+    if env_provided:
+        return
+
+    sqlite_path = _extract_sqlite_path(database_url)
+    if sqlite_path:
+        db_dir = os.path.dirname(sqlite_path)
+        if db_dir:  # Only create if there's a parent directory
+            try:
+                os.makedirs(db_dir, exist_ok=True)
+            except PermissionError as perm_err:
+                logger.warning(
+                    "Cannot create database directory %s: %s. "
+                    "Ensure the path exists and is writable.",
+                    db_dir,
+                    perm_err,
+                )
+
+
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
     env_provided = "DATABASE_URL" in os.environ
     database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
-    # Create directory for file-based SQLite databases (both env-provided and default)
-    sqlite_path = _extract_sqlite_path(database_url)
-    if sqlite_path:
-        db_dir = os.path.dirname(sqlite_path)
-        if db_dir:  # Only create if there's a parent directory
-            os.makedirs(db_dir, exist_ok=True)
+    # Create directory only for non-env SQLite URLs that we control
+    _ensure_sqlite_directory(database_url, env_provided)
 
     # Use file-based SQLite by default so the data survives across runs.
     # Ensure read-write-create mode for SQLite file URLs to avoid readonly errors during tests
@@ -537,11 +558,8 @@ def init_db() -> None:
     # Critical for CI/CD where directory may not exist yet
     # Get current URL from environment (not from module-level DATABASE_URL which may be stale)
     db_url = os.getenv("DATABASE_URL", DATABASE_URL)
-    sqlite_path = _extract_sqlite_path(db_url)
-    if sqlite_path:
-        db_dir = os.path.dirname(sqlite_path)
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
+    env_provided = "DATABASE_URL" in os.environ
+    _ensure_sqlite_directory(db_url, env_provided)
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
