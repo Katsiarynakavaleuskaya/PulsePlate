@@ -88,7 +88,11 @@ class TestAppLines3304_3315:
             assert "BMR calculation failed" in data["detail"]
 
     def test_premium_bmr_legacy_success(self, client: TestClient) -> None:
-        """/premium_bmr returns valid response for correct inputs."""
+        """/premium_bmr returns valid response for correct inputs.
+
+        This is an integration test that verifies the actual implementation
+        produces valid values, providing valuable coverage beyond mocked tests.
+        """
         response = client.post(
             "/premium_bmr",
             json={
@@ -105,3 +109,23 @@ class TestAppLines3304_3315:
         assert "bmr" in data
         assert "tdee" in data
         assert "recommended_intake" in data
+
+        # Basic sanity checks on values
+        # BMR and TDEE are dicts with formula names as keys (e.g., {"mifflin": 1617.5})
+        assert isinstance(data["bmr"], dict), "BMR should be a dict"
+        assert isinstance(data["tdee"], dict), "TDEE should be a dict"
+        assert len(data["bmr"]) > 0, "BMR dict should not be empty"
+        assert len(data["tdee"]) > 0, "TDEE dict should not be empty"
+
+        # Check that BMR values are positive
+        for formula, value in data["bmr"].items():
+            assert value > 0, f"BMR[{formula}] should be positive"
+
+        # Check that TDEE values exceed corresponding BMR values
+        for formula in data["bmr"]:
+            if formula in data["tdee"]:
+                assert (
+                    data["tdee"][formula] > data["bmr"][formula]
+                ), f"TDEE[{formula}] should exceed BMR[{formula}]"
+
+        assert isinstance(data["recommended_intake"], dict), "recommended_intake should be a dict"

@@ -8,6 +8,7 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-dev.in` - Development dependencies (high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
+- `constraints.txt` - Version constraints for deterministic CI/CD builds
 
 ## Installation
 

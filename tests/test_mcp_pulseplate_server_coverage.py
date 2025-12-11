@@ -14,6 +14,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import mcp_pulseplate_server
 
 
+@pytest.fixture(autouse=True)
+def mock_openai_models_fetch():
+    """Automatically mock _fetch_available_models for all MCP server tests.
+
+    This prevents API calls during tests and ensures consistent behavior.
+    Tests run in CI without OPENAI_API_KEY will use fallback model list.
+    """
+    # Mock the class method to always return fallback list
+    with patch.object(
+        mcp_pulseplate_server.PulsePlateMCPServer,
+        "_fetch_available_models",
+        return_value=mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS,
+    ):
+        yield
+
+
 class TestMcpPulseplateServerCoverage:
     """Test class to cover mcp_pulseplate_server.py"""
 
@@ -114,7 +130,7 @@ class TestMcpPulseplateServerCoverage:
             monkeypatch.setenv("MCP_OPENAI_MODEL", invalid_model)
 
             with patch("openai.OpenAI"):
-                with pytest.raises(ValueError, match=r"Unknown model:.*Allowed models:"):
+                with pytest.raises(ValueError, match=r"Unknown model:.*Available models:"):
                     _ = mcp_pulseplate_server.PulsePlateMCPServer()
 
             monkeypatch.delenv("MCP_OPENAI_MODEL", raising=False)
@@ -126,9 +142,9 @@ class TestMcpPulseplateServerCoverage:
         assert mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL == "gpt-4o"
         assert isinstance(mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL, str)
 
-        # Verify ALLOWED_MODELS constant
-        assert hasattr(mcp_pulseplate_server.PulsePlateMCPServer, "ALLOWED_MODELS")
-        allowed = mcp_pulseplate_server.PulsePlateMCPServer.ALLOWED_MODELS
+        # Verify FALLBACK_ALLOWED_MODELS constant
+        assert hasattr(mcp_pulseplate_server.PulsePlateMCPServer, "FALLBACK_ALLOWED_MODELS")
+        allowed = mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
         assert isinstance(allowed, set)
         assert len(allowed) > 0
 
@@ -152,42 +168,57 @@ class TestMcpPulseplateServerCoverage:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "invalid-model-xyz")
 
-        with patch("openai.OpenAI"):
-            with pytest.raises(ValueError) as exc_info:
-                _ = mcp_pulseplate_server.PulsePlateMCPServer()
+        # Mock _fetch_available_models to return fallback list
+        with patch.object(
+            mcp_pulseplate_server.PulsePlateMCPServer,
+            "_fetch_available_models",
+            return_value=mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS,
+        ):
+            with patch("openai.OpenAI"):
+                with pytest.raises(ValueError) as exc_info:
+                    _ = mcp_pulseplate_server.PulsePlateMCPServer()
 
-            error_message = str(exc_info.value)
-            # Verify error message contains helpful information
-            assert "Unknown model" in error_message
-            assert "invalid-model-xyz" in error_message
-            assert "Allowed models" in error_message
-            # Verify at least one allowed model is mentioned
-            assert any(
-                model in error_message
-                for model in mcp_pulseplate_server.PulsePlateMCPServer.ALLOWED_MODELS
-            )
+                error_message = str(exc_info.value)
+                # Verify error message contains helpful information
+                assert "Unknown model" in error_message
+                assert "invalid-model-xyz" in error_message
+                assert "Available models" in error_message
+                # Verify at least one allowed model is mentioned
+                assert any(
+                    model in error_message
+                    for model in mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
+                )
 
     def test_pulseplate_mcp_server_valid_custom_models(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test PulsePlateMCPServer accepts various valid custom model names from whitelist"""
-        # Test models from the ALLOWED_MODELS whitelist
+        # Test models from the FALLBACK_ALLOWED_MODELS whitelist
         valid_models = ["gpt-4o", "gpt-4o-mini", "o1", "o3", "o3-mini"]
 
         for model_name in valid_models:
             monkeypatch.setenv("OPENAI_API_KEY", "test-key")
             monkeypatch.setenv("MCP_OPENAI_MODEL", model_name)
 
-            with patch("openai.OpenAI") as mock_openai:
-                mock_client = MagicMock()
-                mock_openai.return_value = mock_client
+            # Mock _fetch_available_models to return fallback list
+            with patch.object(
+                mcp_pulseplate_server.PulsePlateMCPServer,
+                "_fetch_available_models",
+                return_value=mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS,
+            ):
+                with patch("openai.OpenAI") as mock_openai:
+                    mock_client = MagicMock()
+                    mock_openai.return_value = mock_client
 
-                server = mcp_pulseplate_server.PulsePlateMCPServer()
+                    server = mcp_pulseplate_server.PulsePlateMCPServer()
 
-                # Verify each custom model is accepted
-                assert server.model == model_name
-                # Verify model is in whitelist
-                assert model_name in mcp_pulseplate_server.PulsePlateMCPServer.ALLOWED_MODELS
+                    # Verify each custom model is accepted
+                    assert server.model == model_name
+                    # Verify model is in whitelist
+                    assert (
+                        model_name
+                        in mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
+                    )
 
             # Clean up for next iteration
             monkeypatch.delenv("MCP_OPENAI_MODEL", raising=False)

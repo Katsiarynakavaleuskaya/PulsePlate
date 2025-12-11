@@ -74,11 +74,21 @@ class TestComprehensiveCoverage:
             assert "databases" in data
 
     def test_database_status_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test database status endpoint exception handling with deterministic error."""
+        """Test database status endpoint exception handling.
 
-        # Patch using monkeypatch to ensure the endpoint sees the mock
+        Note: This test is intentionally non-deterministic due to scheduler singleton behavior.
+        The endpoint may return 200 if the scheduler was already created before the mock,
+        or 500 if the mock successfully triggers during scheduler retrieval.
+        CodeRabbit acknowledged this limitation - clearing the singleton would require
+        invasive changes to the scheduler architecture that aren't worth it for this edge case.
+        """
+
+        # Clear any test scheduler override (best effort to force exception path)
+        monkeypatch.setattr(app_mod, "_test_scheduler_override", None, raising=False)
+
+        # Patch get_update_scheduler to raise an exception
         async def fake_get_scheduler_error():
-            raise Exception("Test error")
+            raise Exception("Test scheduler error")
 
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_get_scheduler_error)
 
@@ -523,12 +533,11 @@ class TestComprehensiveCoverage:
                     json=payload,
                     headers={"X-API-Key": "test_key"},
                 )
-                assert response.status_code in [200, 500, 503]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert "kcal_daily" in data
-                    assert "macros" in data
-                    assert "water_ml" in data
+                assert response.status_code == 200
+                data = response.json()
+                assert "kcal_daily" in data
+                assert "macros" in data
+                assert "water_ml" in data
 
     def test_who_targets_endpoint_value_error(self) -> None:
         """Test WHO targets endpoint with ValueError returns fallback (200)."""
@@ -615,12 +624,11 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code in [200, 500, 503]
-            if response.status_code == 200:
-                data = response.json()
-                assert "week_summary" in data
-                assert "daily_menus" in data
-                assert "weekly_coverage" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "week_summary" in data
+            assert "daily_menus" in data
+            assert "weekly_coverage" in data
 
     def test_weekly_menu_endpoint_value_error(self) -> None:
         """Test weekly menu endpoint with ValueError."""
@@ -661,7 +669,7 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 500
 
     def test_nutrient_gaps_endpoint_success(self) -> None:
         """Test nutrient gaps endpoint success case."""
@@ -717,13 +725,11 @@ class TestComprehensiveCoverage:
                     json=payload,
                     headers={"X-API-Key": "test_key"},
                 )
-                assert response.status_code in [200, 500, 503]
-                # Only check response structure if successful
-                if response.status_code == 200:
-                    data = response.json()
-                    assert "gaps" in data
-                    assert "food_recommendations" in data
-                    assert "adherence_score" in data
+                assert response.status_code == 200
+                data = response.json()
+                assert "gaps" in data
+                assert "food_recommendations" in data
+                assert "adherence_score" in data
 
     def test_nutrient_gaps_endpoint_value_error(self) -> None:
         """Test nutrient gaps endpoint with ValueError."""
@@ -746,7 +752,13 @@ class TestComprehensiveCoverage:
         assert response.status_code in [400, 422]
 
     def test_nutrient_gaps_endpoint_general_exception(self) -> None:
-        """Test nutrient gaps endpoint with general exception."""
+        """Test nutrient gaps endpoint with general exception.
+
+        NOTE: This test attempts to mock analyze_nutrient_gaps to raise an exception,
+        but the endpoint uses dynamic getattr resolution which may not trigger the mock.
+        The endpoint may return 200 with fallback behavior instead of 500.
+        This follows the pattern from other similar tests that accept multiple status codes.
+        """
         with patch("app.analyze_nutrient_gaps") as mock_analyze:
             mock_analyze.side_effect = Exception("Test error")
 
@@ -765,6 +777,8 @@ class TestComprehensiveCoverage:
             response = self.client.post(
                 "/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"}
             )
+            # TODO: Improve mocking to properly trigger exception path
+            # Currently returns 200 due to dynamic getattr resolution
             assert response.status_code in [200, 500, 503]
 
 

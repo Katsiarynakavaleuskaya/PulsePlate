@@ -204,7 +204,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_premium_week_plan_creation_malformed_json(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with malformed JSON."""
@@ -227,7 +227,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_premium_week_plan_creation_truly_malformed_json(
         self, premium_client: TestClient
@@ -473,7 +473,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_week_plan_valid_request(self, premium_client: TestClient) -> None:
         """Test valid week plan request."""
@@ -552,7 +552,11 @@ class TestPremiumWeekCoverageCombined:
         assert response.status_code in [200, 503, 403, 422]
 
     def test_week_plan_with_invalid_macros(self, premium_client: TestClient) -> None:
-        """Test week plan with invalid macros."""
+        """Test week plan with invalid macros.
+
+        The TargetsIn model has validation that rejects negative values.
+        This test verifies that the API properly returns 422 for invalid macros.
+        """
         payload = {
             "sex": "male",
             "age": 30,
@@ -563,11 +567,14 @@ class TestPremiumWeekCoverageCombined:
             "lang": "en",
             "diet_flags": [],
             "targets": {
+                "kcal": 2000,  # Required field
                 "macros": {
                     "protein_g": -10.0,  # Invalid negative value
                     "fat_g": 60.0,
                     "carbs_g": 200.0,
-                }
+                },
+                "micro": {"vitamin_c_mg": 90.0},  # Required field
+                "water_ml": 2000,  # Required field
             },
         }
 
@@ -577,10 +584,14 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_week_plan_with_invalid_micros(self, premium_client: TestClient) -> None:
-        """Test week plan with invalid micronutrients."""
+        """Test week plan with invalid micronutrients.
+
+        The TargetsIn model has validation that rejects negative values.
+        This test verifies that the API properly returns 422 for invalid micros.
+        """
         payload = {
             "sex": "male",
             "age": 30,
@@ -591,10 +602,13 @@ class TestPremiumWeekCoverageCombined:
             "lang": "en",
             "diet_flags": [],
             "targets": {
+                "kcal": 2000,  # Required field
+                "macros": {"protein_g": 100.0, "fat_g": 60.0, "carbs_g": 200.0},  # Required field
                 "micro": {
                     "vitamin_c_mg": -90.0,  # Invalid negative value
                     "iron_mg": 14.0,
-                }
+                },
+                "water_ml": 2000,  # Required field
             },
         }
 
@@ -604,10 +618,14 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_week_plan_with_negative_macros(self, premium_client: TestClient) -> None:
-        """Test week plan with negative macros."""
+        """Test week plan with negative macros.
+
+        The TargetsIn model has validation that rejects negative values.
+        This test verifies that the API properly returns 422 for all negative macros.
+        """
         payload = {
             "sex": "male",
             "age": 30,
@@ -618,11 +636,14 @@ class TestPremiumWeekCoverageCombined:
             "lang": "en",
             "diet_flags": [],
             "targets": {
+                "kcal": 2000,  # Required field
                 "macros": {
                     "protein_g": -50.0,
                     "fat_g": -30.0,
                     "carbs_g": -100.0,
-                }
+                },
+                "micro": {"vitamin_c_mg": 90.0},  # Required field
+                "water_ml": 2000,  # Required field
             },
         }
 
@@ -632,10 +653,14 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]
 
     def test_week_plan_with_negative_micros(self, premium_client: TestClient) -> None:
-        """Test week plan with negative micronutrients."""
+        """Test week plan with negative micronutrients.
+
+        The TargetsIn model has validation that rejects negative values.
+        This test verifies that the API properly returns 422 for negative micros.
+        """
         payload = {
             "sex": "male",
             "age": 30,
@@ -646,10 +671,13 @@ class TestPremiumWeekCoverageCombined:
             "lang": "en",
             "diet_flags": [],
             "targets": {
+                "kcal": 2000,  # Required field
+                "macros": {"protein_g": 100.0, "fat_g": 60.0, "carbs_g": 200.0},  # Required field
                 "micro": {
                     "vitamin_c_mg": -50.0,
                     "iron_mg": -10.0,
-                }
+                },
+                "water_ml": 2000,  # Required field
             },
         }
 
@@ -659,4 +687,4 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 400, 422]
+        assert response.status_code in [400, 422]

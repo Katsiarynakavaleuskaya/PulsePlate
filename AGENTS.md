@@ -2,6 +2,23 @@
 
 This document defines AI agents and their capabilities for the BMI-App/PulsePlate project.
 
+## Skills Inventory
+
+### Testing & Quality Assurance
+- Unit testing (pytest)
+- Coverage analysis (97% target)
+- End-to-end testing
+
+### API Development
+- FastAPI framework expertise
+- Pydantic v2 data validation
+- RESTful design best practices
+
+### Code Standards
+- PEP 8 compliance
+- Black formatting (line-length=100)
+- Documentation standards
+
 ## Primary Agent: Backend Developer
 
 **Responsibilities:**

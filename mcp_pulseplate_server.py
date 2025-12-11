@@ -23,6 +23,12 @@ class PulsePlateMCPServer:
     # Default OpenAI model for MCP server
     DEFAULT_MODEL: str = "gpt-4o"
 
+    # Backwards-compatible whitelist of allowed models.
+    # This is kept for compatibility with existing tests that validate that
+    # DEFAULT_MODEL is part of a static whitelist before any dynamic checks.
+    # Internally we alias this to FALLBACK_ALLOWED_MODELS so the two stay in sync.
+    ALLOWED_MODELS: set[str]
+
     # Cached available models from OpenAI API (populated on first validation)
     _cached_models: set[str] | None = None
     _model_cache_failed: bool = False
@@ -53,6 +59,9 @@ class PulsePlateMCPServer:
         "o3",
         "o3-mini",
     }
+
+    # Alias static whitelist used by older code/tests to the fallback list.
+    ALLOWED_MODELS = FALLBACK_ALLOWED_MODELS
 
     @classmethod
     def _fetch_available_models(cls) -> set[str]:
@@ -85,10 +94,7 @@ class PulsePlateMCPServer:
             # Use environment API key for discovery
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
-                logger.warning(
-                    "OPENAI_API_KEY not set; using fallback model list: %s",
-                    sorted(cls.FALLBACK_ALLOWED_MODELS),
-                )
+                logger.info("OPENAI_API_KEY not set; using fallback model list for validation")
                 cls._model_cache_failed = True
                 return cls.FALLBACK_ALLOWED_MODELS
 
@@ -97,6 +103,15 @@ class PulsePlateMCPServer:
 
             # Extract model IDs from response
             available_models = {model.id for model in models_response.data}
+
+            # If API returned empty list, use fallback
+            if not available_models:
+                logger.warning(
+                    "OpenAI API returned empty model list; using fallback: %s",
+                    sorted(cls.FALLBACK_ALLOWED_MODELS),
+                )
+                cls._model_cache_failed = True
+                return cls.FALLBACK_ALLOWED_MODELS
 
             # Cache successful result
             cls._cached_models = available_models
@@ -122,6 +137,17 @@ class PulsePlateMCPServer:
         Called during class initialization to ensure configuration consistency.
         Uses dynamic model discovery via OpenAI API with fallback.
         """
+        # First, ensure configuration is internally consistent: DEFAULT_MODEL
+        # must be present in the static whitelist (ALLOWED_MODELS). This is a
+        # fast, purely local validation that does not depend on network calls.
+        if cls.DEFAULT_MODEL not in cls.ALLOWED_MODELS:
+            raise ValueError(
+                f"DEFAULT_MODEL {cls.DEFAULT_MODEL!r} must be in ALLOWED_MODELS: "
+                f"{sorted(cls.ALLOWED_MODELS)}"
+            )
+
+        # Then, verify that the DEFAULT_MODEL is actually available according
+        # to the dynamically discovered model list (with a robust fallback).
         allowed_models = cls._fetch_available_models()
         if cls.DEFAULT_MODEL not in allowed_models:
             raise ValueError(

@@ -164,5 +164,6 @@ class TestPremiumWeekPlanEndToEnd:
             headers={"X-API-Key": "test_key"},
             json=payload,
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        # Use non-deprecated 422 constant to avoid DeprecationWarning
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         assert "macros" in response.text

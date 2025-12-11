@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-
+import math
 import ipaddress
 import os
 import secrets
@@ -29,7 +29,14 @@ from typing import (
 import dotenv
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel, Field, StrictFloat, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    StrictFloat,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette import status as fastapi_status
@@ -809,7 +816,10 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
         # Preserve HTTPException semantics (e.g., 403 for auth), convert other errors to 500
         if isinstance(exc, HTTPException):
             raise
-        raise HTTPException(status_code=500, detail=f"auth dependency error: {exc}") from exc
+        # Log the actual exception server-side for debugging
+        logger.exception("Authentication dependency error: %s", exc)
+        # Return generic error to client to avoid exposing internal details
+        raise HTTPException(status_code=500, detail="Authentication service error") from exc
 
 
 # (moved to top with other imports)
@@ -2686,9 +2696,57 @@ def _ensure_priority_micros(values: Dict[str, float]) -> Dict[str, float]:
 
 
 # WHO-Based Nutrition Models
+
+
+class TargetsIn(BaseModel):
+    """Validated nutrition targets with strict non-negative checks.
+
+    Similar to app.routers.premium_week.TargetsIn but used in main app endpoints.
+    """
+
+    kcal: int = Field(..., gt=500, lt=6000)
+    macros: Dict[str, float]
+    micro: Dict[str, float]
+    water_ml: int = Field(0, ge=0)
+    activity_week: Optional[Dict[str, int]] = None
+
+    @field_validator("macros")
+    @classmethod
+    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
+        # Ensure all values are finite numbers >= 0
+        for key, val in v.items():
+            # Check if value is a numeric type (int or float)
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                raise ValueError(f"macros[{key}] must be a finite number >= 0")
+
+            # Check if value is finite (not NaN or Infinity) and non-negative
+            if not math.isfinite(val) or val < 0:
+                raise ValueError(f"macros[{key}] must be a finite number >= 0")
+        return v
+
+    @field_validator("micro")
+    @classmethod
+    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
+        # Ensure all values are finite numbers >= 0
+        for key, val in v.items():
+            # Check if value is a numeric type (int or float)
+            if not isinstance(val, (int, float)) or isinstance(val, bool):
+                raise ValueError(f"micro[{key}] must be a finite number >= 0")
+
+            # Check if value is finite (not NaN or Infinity) and non-negative
+            if not math.isfinite(val) or val < 0:
+                raise ValueError(f"micro[{key}] must be a finite number >= 0")
+        return v
+
+
 class WHOTargetsRequest(BaseModel):
     """RU: Запрос на расчёт целей по нормам ВОЗ.
     EN: Request for WHO-based nutrition targets.
+
+    The optional ``targets`` field is kept as a generic mapping to stay
+    backwards-compatible with older clients that send flat targets
+    (kcal/protein/carbs/...) while allowing newer structured payloads to be
+    validated at a higher level when needed.
     """
 
     sex: Sex
@@ -2703,6 +2761,9 @@ class WHOTargetsRequest(BaseModel):
     diet_flags: Optional[set[DietFlag]] = None
     life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] = "adult"
     lang: str = "en"  # Language for localized warnings
+    targets: Optional[Dict[str, Any]] = None  # Optional custom targets (shape validated elsewhere)
+
+    model_config = {"extra": "forbid"}  # Reject unknown top-level fields
 
     @model_validator(mode="before")
     @classmethod
@@ -2722,6 +2783,47 @@ class WHOTargetsRequest(BaseModel):
             elif g in {"gain", "weight_gain"}:
                 values["goal"] = "gain"
         return values
+
+
+class WeekPlanRequest(WHOTargetsRequest):
+    """Extended request for week plan with optional pre-calculated targets.
+
+    Supports two modes:
+    - Mode A: With targets (pre-calculated nutrition goals)
+    - Mode B: Calculate targets from user profile (sex, age, etc.)
+    """
+
+    # Make base fields optional when targets are provided
+    sex: Optional[Sex] = None  # type: ignore[assignment]
+    age: Optional[int] = Field(None, ge=1, le=120)  # type: ignore[assignment]
+    height_cm: Optional[float] = Field(None, gt=0)  # type: ignore[assignment]
+    weight_kg: Optional[float] = Field(None, gt=0)  # type: ignore[assignment]
+    activity: Optional[Activity] = None  # type: ignore[assignment]
+
+    @model_validator(mode="after")
+    def _validate_request_mode(self) -> "WeekPlanRequest":
+        """Ensure either targets or profile data is provided.
+
+        - If ``targets`` contains a structured payload with ``macros`` / ``micro``,
+          run strict validation via ``TargetsIn`` (non-negative, finite values).
+        - Otherwise, accept legacy flat targets payloads as-is.
+        """
+        # Optional strict validation when structured targets are provided
+        if isinstance(self.targets, dict) and ("macros" in self.targets or "micro" in self.targets):
+            try:
+                TargetsIn.model_validate(self.targets)
+            except ValidationError as exc:
+                # Surface as a standard validation error at the request level
+                raise ValueError(f"Invalid targets payload: {exc}") from exc
+
+        if self.targets is None:
+            # Mode B: validate profile data
+            if not all([self.sex, self.age, self.height_cm, self.weight_kg, self.activity]):
+                raise ValueError(
+                    "Either 'targets' must be provided, or all profile fields "
+                    "(sex, age, height_cm, weight_kg) must be present"
+                )
+        return self
 
 
 class WHOTargetsResponse(BaseModel):
@@ -3948,7 +4050,7 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WeeklyMenuResponse,
 )
-async def api_weekly_menu(req: WHOTargetsRequest) -> WeeklyMenuResponse:
+async def api_weekly_menu(req: WeekPlanRequest) -> WeeklyMenuResponse:
     """
     RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.

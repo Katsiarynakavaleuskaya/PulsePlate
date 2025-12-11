@@ -201,7 +201,20 @@ def cleanup_async_resources():
 
     try:
         # Get all running event loops and close them
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No event loop running, try to get or create one
+            # Suppress deprecation warning for get_event_loop()
+            import warnings as warn_module
+
+            with warn_module.catch_warnings():
+                warn_module.filterwarnings("ignore", category=DeprecationWarning)
+                try:
+                    loop = asyncio.get_event_loop_policy().get_event_loop()
+                except RuntimeError:
+                    loop = None
+
         if loop and not loop.is_closed():
             # Cancel all pending tasks
             pending = asyncio.all_tasks(loop)
