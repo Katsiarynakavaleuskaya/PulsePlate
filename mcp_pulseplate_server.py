@@ -6,11 +6,15 @@ Integrates ChatGPT with project-specific context
 
 import asyncio
 import json
+import logging
 import os
 import sys
 from typing import Any, Dict
 
 import openai
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 class PulsePlateMCPServer:
@@ -19,32 +23,31 @@ class PulsePlateMCPServer:
     # Default OpenAI model for MCP server
     DEFAULT_MODEL: str = "gpt-4o"
 
-    # Allowed OpenAI model names (fail-fast validation)
-    # Updated December 2025 to include current production models.
-    # MAINTENANCE: Update this list when new models are released.
-    # Alternative approach: Use openai.Model.list() for dynamic discovery or accept any model
-    # name and let the OpenAI API return errors for invalid models (reduces maintenance burden).
-    ALLOWED_MODELS: set[str] = {
+    # Cached available models from OpenAI API (populated on first validation)
+    _cached_models: set[str] | None = None
+    _model_cache_failed: bool = False
+
+    # Officially released OpenAI models as of December 2025
+    # This is a fallback when dynamic discovery via openai.models.list() fails
+    # MAINTENANCE: Update when new models are officially released
+    # Source: https://platform.openai.com/docs/models
+    FALLBACK_ALLOWED_MODELS: set[str] = {
         # GPT-3.5 series
         "gpt-3.5-turbo",
         # GPT-4 series (original)
         "gpt-4",
         "gpt-4-turbo",
-        # GPT-4.1 series
-        "gpt-4.1",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano",
-        # GPT-4.5 series
-        "gpt-4.5",
-        "gpt-4.5-mini",
-        # GPT-4o series (optimized)
+        # GPT-4o series (optimized - current production)
         "gpt-4o",
         "gpt-4o-mini",
-        # GPT-5 series
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        # O-series (reasoning models)
+        # GPT-5 series (officially released December 2025)
+        "gpt-5.1",
+        "gpt-5.1-codex",
+        "gpt-5-pro",
+        # Realtime and audio models
+        "gpt-realtime",
+        "gpt-audio",
+        # O-series (reasoning models - confirmed releases)
         "o1",
         "o1-mini",
         "o3",
@@ -52,15 +55,78 @@ class PulsePlateMCPServer:
     }
 
     @classmethod
+    def _fetch_available_models(cls) -> set[str]:
+        """Fetch available models from OpenAI API with caching and fallback.
+
+        Returns:
+            Set of available model IDs from OpenAI API, or fallback set on error.
+
+        Note:
+            - Uses class-level cache to avoid repeated API calls
+            - Falls back to FALLBACK_ALLOWED_MODELS if API call fails
+            - Logs failures for monitoring
+        """
+        # Return cached result if available
+        if cls._cached_models is not None:
+            return cls._cached_models
+
+        # Don't retry if we already failed once
+        if cls._model_cache_failed:
+            logger.warning(
+                "Using fallback model list (previous API fetch failed): %s",
+                sorted(cls.FALLBACK_ALLOWED_MODELS),
+            )
+            return cls.FALLBACK_ALLOWED_MODELS
+
+        # Try to fetch from OpenAI API
+        try:
+            import openai
+
+            # Use environment API key for discovery
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                logger.warning(
+                    "OPENAI_API_KEY not set; using fallback model list: %s",
+                    sorted(cls.FALLBACK_ALLOWED_MODELS),
+                )
+                cls._model_cache_failed = True
+                return cls.FALLBACK_ALLOWED_MODELS
+
+            client = openai.OpenAI(api_key=api_key)
+            models_response = client.models.list()
+
+            # Extract model IDs from response
+            available_models = {model.id for model in models_response.data}
+
+            # Cache successful result
+            cls._cached_models = available_models
+            logger.info(
+                "Successfully fetched %d models from OpenAI API",
+                len(available_models),
+            )
+            return available_models
+
+        except Exception as e:
+            # Log failure and fall back to static list
+            logger.warning(
+                "Failed to fetch models from OpenAI API (will use fallback): %s",
+                str(e),
+            )
+            cls._model_cache_failed = True
+            return cls.FALLBACK_ALLOWED_MODELS
+
+    @classmethod
     def _validate_default_model(cls) -> None:
-        """Validate that DEFAULT_MODEL is in ALLOWED_MODELS.
+        """Validate that DEFAULT_MODEL is available.
 
         Called during class initialization to ensure configuration consistency.
+        Uses dynamic model discovery via OpenAI API with fallback.
         """
-        if cls.DEFAULT_MODEL not in cls.ALLOWED_MODELS:
+        allowed_models = cls._fetch_available_models()
+        if cls.DEFAULT_MODEL not in allowed_models:
             raise ValueError(
-                f"DEFAULT_MODEL {cls.DEFAULT_MODEL!r} must be in ALLOWED_MODELS. "
-                f"Current ALLOWED_MODELS: {sorted(cls.ALLOWED_MODELS)}"
+                f"DEFAULT_MODEL {cls.DEFAULT_MODEL!r} is not available. "
+                f"Available models: {sorted(allowed_models)}"
             )
 
     def __init__(self) -> None:
@@ -82,11 +148,13 @@ class PulsePlateMCPServer:
                 # Empty or whitespace-only value is treated as "use default"
                 self.model = self.DEFAULT_MODEL
             else:
-                if model_env not in self.ALLOWED_MODELS:
+                # Validate against dynamically fetched models
+                allowed_models = self._fetch_available_models()
+                if model_env not in allowed_models:
                     raise ValueError(
                         f"Unknown model: {model_env!r}. "
-                        f"Allowed models: {sorted(self.ALLOWED_MODELS)}. "
-                        f"Update ALLOWED_MODELS if using a newer model."
+                        f"Available models: {sorted(allowed_models)}. "
+                        f"Note: Model list fetched from OpenAI API or fallback set."
                     )
                 self.model = model_env
 
