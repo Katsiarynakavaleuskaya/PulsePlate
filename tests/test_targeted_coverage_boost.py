@@ -37,6 +37,8 @@ class TestTargetedCoverageBoost:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+            del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_app_py_line_49(self) -> None:
         """Test line 49 in main.py (dotenv loading condition)."""

@@ -46,6 +46,10 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
     session = db_module.SessionLocal()
     try:
         return action(session)
+    except HTTPException:
+        # HTTPException raised by action should propagate immediately without retry
+        session.rollback()
+        raise
     except IntegrityError:
         # IntegrityError indicates constraint violation (unique, FK, check)
         session.rollback()
@@ -78,6 +82,10 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
             result = action(retry_session)
             logger.info("Database operation succeeded on retry attempt %s", attempt)
             return result
+        except HTTPException:
+            # HTTPException raised by action should propagate immediately without retry
+            retry_session.rollback()
+            raise
         except IntegrityError:
             retry_session.rollback()
             # Surface immediately; IntegrityError is not retriable in this flow

@@ -29,7 +29,7 @@ def _safe_error_summary(err: Exception) -> str:
 class BusinessAnalysisRequest(BaseModel):
     """Request model for business analysis."""
 
-    code: str = Field(..., max_length=100_000, description="Code to analyze (max 100KB)")
+    code: str = Field(..., description="Code to analyze (max 100KB)")
     test_name: str = "business_analysis"
     locale: Optional[str] = None
 

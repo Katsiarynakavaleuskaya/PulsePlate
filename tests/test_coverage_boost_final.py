@@ -4,13 +4,14 @@ These tests target specific edge cases and error paths to achieve 97% coverage.
 """
 
 import pytest
+from typing import Any
 from unittest.mock import patch, MagicMock
 
 
 class TestCoverageFinalBoost:
     """Tests to cover final missing lines for 97% target."""
 
-    def test_bayesian_analyzer_edge_cases(self):
+    def test_bayesian_analyzer_edge_cases(self) -> None:
         """Cover edge cases in bayesian analyzer."""
         from core.bayesian_test_analyzer import (
             BayesianTestAnalyzer,
@@ -33,7 +34,7 @@ class TestCoverageFinalBoost:
         health = analyzer.get_test_health_score("new_test")
         assert 0 <= health <= 1
 
-    def test_db_helper_functions(self):
+    def test_db_helper_functions(self) -> None:
         """Test database helper functions."""
         from core import db
 
@@ -46,7 +47,7 @@ class TestCoverageFinalBoost:
         assert db._extract_sqlite_path("sqlite:///:memory:") is None
         assert db._extract_sqlite_path("sqlite:///test.db") == "test.db"
 
-    def test_business_router_edge_paths(self, test_client, monkeypatch):
+    def test_business_router_edge_paths(self, test_client, monkeypatch) -> None:
         """Cover business router edge cases."""
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
@@ -76,7 +77,7 @@ class TestCoverageFinalBoost:
             # When error_type is None, should default to "unknown"
             assert data["error_type"] == "unknown"
 
-    def test_users_retry_edge_cases(self, monkeypatch):
+    def test_users_retry_edge_cases(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test users router retry edge cases."""
         from app.routers import users
         from sqlalchemy.exc import OperationalError
@@ -89,7 +90,7 @@ class TestCoverageFinalBoost:
         # Test with all retries failing but fallback provided
         call_count = 0
 
-        def always_fails(session):
+        def always_fails(session: Any) -> Any:
             nonlocal call_count
             call_count += 1
             raise OperationalError("fail", None, None)
@@ -99,7 +100,7 @@ class TestCoverageFinalBoost:
         assert call_count == 4  # 1 initial + 3 retries
 
     @pytest.mark.asyncio
-    async def test_app_targets_disabled_edge_cases(self, monkeypatch):
+    async def test_app_targets_disabled_edge_cases(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test targets_disabled edge cases."""
         import app
 
@@ -119,7 +120,7 @@ class TestCoverageFinalBoost:
             if original is not None:
                 app.build_nutrition_targets = original
 
-    def test_technical_utils_edge_cases(self):
+    def test_technical_utils_edge_cases(self) -> None:
         """Test bayesian technical utils edge cases."""
         from core.bayesian_technical_utils import analyze_technical_aspects_common
 

@@ -217,7 +217,7 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
             story: List[Flowable],
             onFirstPage: Optional[Callable[..., None]] = None,
             onLaterPages: Optional[Callable[..., None]] = None,
-            canvasmaker: Optional[Callable[..., None]] = None,
+            canvasmaker: Optional[Callable[[BytesIO], Any]] = None,
         ) -> None:
             captured_story.extend(story)
             canvas_cls = canvasmaker or plan.Canvas
@@ -226,7 +226,7 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
                 onFirstPage(canvas, self)
             if onLaterPages:
                 onLaterPages(canvas, self)
-            canvas.save()
+            canvas.save()  # type: ignore[union-attr]
 
     monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)
     monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")

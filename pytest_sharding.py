@@ -17,8 +17,14 @@ Usage:
 """
 
 import pytest
-from _pytest.nodes import Item
-from typing import List, Dict, TypedDict
+from typing import TYPE_CHECKING, Any, List, Dict, TypedDict
+
+# Import Item from private pytest API only for type-checking to avoid runtime breakage
+if TYPE_CHECKING:
+    from _pytest.nodes import Item
+else:
+    # At runtime, use Any to avoid dependency on pytest internals
+    Item = Any
 
 
 class ShardConfig(TypedDict):

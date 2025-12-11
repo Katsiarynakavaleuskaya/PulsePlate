@@ -129,8 +129,151 @@ except ImportError:
     vip_router = None
 
 
+def _resolve_scheduler_starter(
+    pkg: Any, alias_pkg: Any, globs: dict[str, Any]
+) -> Callable[[int], Any]:
+    """Resolve the scheduler starter callable from package/module hierarchy.
+
+    Returns the best available _scheduler_start_background_updates callable.
+    """
+    starter = globs.get("_scheduler_start_background_updates", _scheduler_start_background_updates)
+    if starter is _scheduler_start_background_updates:
+        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
+        starter = (
+            getattr(alias_pkg, "_scheduler_start_background_updates", None)
+            or (
+                getattr(pkg_appmod, "_scheduler_start_background_updates", None)
+                if pkg_appmod
+                else None
+            )
+            or getattr(pkg, "_scheduler_start_background_updates", None)
+            or _scheduler_start_background_updates
+        )
+    return starter
+
+
+def _resolve_stop_callable(pkg: Any, alias_pkg: Any) -> Callable[[], Any]:
+    """Resolve the stop callable from package/module hierarchy.
+
+    Returns the best available _scheduler_stop_background_updates callable.
+    """
+    stopper = globals().get(
+        "_scheduler_stop_background_updates", _scheduler_stop_background_updates
+    )
+    if stopper is _scheduler_stop_background_updates:
+        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
+        stopper = (
+            getattr(alias_pkg, "_scheduler_stop_background_updates", None)
+            or (
+                getattr(pkg_appmod, "_scheduler_stop_background_updates", None)
+                if pkg_appmod
+                else None
+            )
+            or getattr(pkg, "_scheduler_stop_background_updates", None)
+            or _scheduler_stop_background_updates
+        )
+    return stopper
+
+
+def _handle_sync_test_mode(
+    target: Callable[..., Any],
+    update_interval_hours: Optional[int],
+    caller_called: Optional[list[Any]],
+) -> None:
+    """Handle pytest sync mode by calling target and managing awaitables.
+
+    Detects running loop and either schedules on it or runs in a new loop.
+    Appends to caller_called list if provided.
+    """
+    # Call target with appropriate args
+    if update_interval_hours is not None:
+        res = target(update_interval_hours=update_interval_hours)
+    else:
+        res = target()
+
+    if inspect.isawaitable(res):
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop is not None:
+            # Already inside event loop - schedule the coroutine
+            asyncio.ensure_future(res)
+        elif inspect.iscoroutine(res):
+            asyncio.run(res)
+        else:
+            loop = asyncio.new_event_loop()
+            try:
+                _ = loop.run_until_complete(res)
+            finally:
+                loop.close()
+
+    if caller_called is not None:
+        with suppress(Exception):
+            if update_interval_hours is not None:
+                caller_called.append(update_interval_hours)
+            else:
+                caller_called.append("stop")
+
+
+def _execute_async_starter(
+    starter: Callable[[int], Any], update_interval_hours: int, _asyncio: Any
+) -> None:
+    """Execute async starter in the current loop or create a new one.
+
+    If a running loop exists, schedules starter as a task.
+    Otherwise, runs starter using asyncio.run in a new loop.
+    """
+    loop: Optional[asyncio.AbstractEventLoop] = None
+    try:
+        loop = _asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+
+    if loop is None:
+        asyncio.run(starter(update_interval_hours=update_interval_hours))
+    else:
+        loop.create_task(starter(update_interval_hours=update_interval_hours))
+
+
+def _safe_stop_with_cleanup(stopper: Callable[[], Any]) -> None:
+    """Run stopper in a new event loop with proper cleanup and error suppression.
+
+    Suppresses ResourceWarning and RuntimeWarning during cleanup.
+    Catches and logs RuntimeError related to event loop closure.
+    """
+    try:
+        # Suppress all warnings during event loop cleanup to avoid
+        # ResourceWarning and RuntimeError from httpx/anyio cleanup
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            warnings.simplefilter("ignore", RuntimeWarning)
+            asyncio.run(stopper())
+    except RuntimeError as e:
+        # Suppress "Event loop is closed" errors during cleanup
+        error_msg = str(e)
+        if "Event loop is closed" in error_msg or "loop" in error_msg.lower():
+            # Log for debugging but don't propagate
+            import logging
+
+            logging.getLogger(__name__).debug(
+                "Suppressed event loop closure error during background update stop: %s", e
+            )
+        else:
+            raise
+
+
 def start_background_updates(update_interval_hours: int = 24) -> None:
     """Start background updates in the current or a new event loop (sync wrapper).
+
+    Resolves the scheduler starter from the module hierarchy and executes it
+    either in the current event loop (if one exists) or in a new loop.
+
+    In pytest sync mode (PYTEST_CURRENT_TEST set), uses special handling to
+    manage awaitables and track calls in the caller's 'called' list.
 
     Returns:
         None (synchronous fire-and-forget wrapper for the async scheduler starter)
@@ -147,6 +290,7 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
     force_sync = os.getenv("PYTEST_CURRENT_TEST") is not None
 
     if force_sync:
+        # Pytest sync mode: resolve candidates and call with special handling
         caller_called: list[Any] | None = None
         frame = inspect.currentframe()
         if frame is not None and frame.f_back is not None:
@@ -172,63 +316,26 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
         for target in candidates:
             if not callable(target):
                 continue
-            res = target(update_interval_hours=update_interval_hours)
-            if inspect.isawaitable(res):
-                try:
-                    running_loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    running_loop = None
-
-                if running_loop is not None:
-                    # We are already inside an event loop (e.g., FastAPI lifespan).
-                    # Schedule the coroutine to avoid "never awaited" warnings.
-                    asyncio.ensure_future(res)
-                elif inspect.iscoroutine(res):
-                    asyncio.run(res)
-                else:
-                    loop = asyncio.new_event_loop()
-                    try:
-                        _ = loop.run_until_complete(res)
-                    finally:
-                        loop.close()
-            if caller_called is not None:
-                with suppress(Exception):
-                    caller_called.append(update_interval_hours)
+            _handle_sync_test_mode(target, update_interval_hours, caller_called)
             break
         return None
 
-    # Prefer patched globals (tests monkeypatch app.app_module.*)
-    starter = globals().get(
-        "_scheduler_start_background_updates", _scheduler_start_background_updates
-    )
-    if starter is _scheduler_start_background_updates:
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        starter = (
-            getattr(alias_pkg, "_scheduler_start_background_updates", None)
-            or (
-                getattr(pkg_appmod, "_scheduler_start_background_updates", None)
-                if pkg_appmod
-                else None
-            )
-            or getattr(pkg, "_scheduler_start_background_updates", None)
-            or _scheduler_start_background_updates
-        )
-
-    loop: Optional[asyncio.AbstractEventLoop] = None
-    try:
-        loop = _asyncio.get_running_loop()
-    except RuntimeError:
-        pass
-
-    if loop is None:
-        asyncio.run(starter(update_interval_hours=update_interval_hours))
-    else:
-        loop.create_task(starter(update_interval_hours=update_interval_hours))
+    # Normal mode: resolve starter and execute
+    starter = _resolve_scheduler_starter(pkg, alias_pkg, globals())
+    _execute_async_starter(starter, update_interval_hours, _asyncio)
     return None
 
 
 def stop_background_updates() -> None:
-    """Stop background updates in the current or a new event loop (sync wrapper)."""
+    """Stop background updates in the current or a new event loop (sync wrapper).
+
+    Resolves the stop callable from the module hierarchy and executes it
+    either in the current event loop (if one exists) or in a new loop with
+    proper cleanup and error suppression.
+
+    In pytest sync mode (PYTEST_CURRENT_TEST set), uses special handling to
+    manage awaitables and track calls in the caller's 'called' list.
+    """
     import sys as _sys
 
     pkg = _sys.modules.get("app") or _APP_PACKAGE_REF
@@ -240,6 +347,7 @@ def stop_background_updates() -> None:
     force_sync = os.getenv("PYTEST_CURRENT_TEST") is not None
 
     if force_sync:
+        # Pytest sync mode: resolve candidates and call with special handling
         caller_called: list[Any] | None = None
         frame = inspect.currentframe()
         if frame is not None and frame.f_back is not None:
@@ -261,80 +369,26 @@ def stop_background_updates() -> None:
         for target in candidates:
             if not callable(target):
                 continue
-            res = target()
-            if inspect.isawaitable(res):
-                try:
-                    running_loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    running_loop = None
-
-                if running_loop is not None:
-                    asyncio.ensure_future(res)
-                elif inspect.iscoroutine(res):
-                    asyncio.run(res)
-                else:
-                    loop = asyncio.new_event_loop()
-                    try:
-                        _ = loop.run_until_complete(res)
-                    finally:
-                        loop.close()
-            if caller_called is not None:
-                with suppress(Exception):
-                    caller_called.append("stop")
+            _handle_sync_test_mode(target, None, caller_called)
             break
         return None
 
-    stopper = globals().get(
-        "_scheduler_stop_background_updates", _scheduler_stop_background_updates
-    )
-    if stopper is _scheduler_stop_background_updates:
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        stopper = (
-            getattr(alias_pkg, "_scheduler_stop_background_updates", None)
-            or (
-                getattr(pkg_appmod, "_scheduler_stop_background_updates", None)
-                if pkg_appmod
-                else None
-            )
-            or getattr(pkg, "_scheduler_stop_background_updates", None)
-            or _scheduler_stop_background_updates
-        )
+    # Normal mode: resolve stopper and execute
+    stopper = _resolve_stop_callable(pkg, alias_pkg)
 
-    loop: Optional[asyncio.AbstractEventLoop] = None
+    # Detect running loop
+    event_loop: Optional[asyncio.AbstractEventLoop] = None
     try:
-        loop = _asyncio.get_running_loop()
+        event_loop = _asyncio.get_running_loop()
     except RuntimeError:
         pass
 
-    if loop is None:
-        # Run in a new event loop
-        # Note: In Python 3.13+, cleanup of async resources (like httpx connections)
-        # may attempt to schedule callbacks on a closing loop, which can raise
-        # "Event loop is closed" errors. We catch and suppress these since they
-        # occur during proper cleanup and don't indicate actual failures.
-        try:
-            # Suppress all warnings during event loop cleanup to avoid
-            # ResourceWarning and RuntimeError from httpx/anyio cleanup
-            import warnings
-
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", ResourceWarning)
-                warnings.simplefilter("ignore", RuntimeWarning)
-                asyncio.run(stopper())
-        except RuntimeError as e:
-            # Suppress "Event loop is closed" errors during cleanup
-            error_msg = str(e)
-            if "Event loop is closed" in error_msg or "loop" in error_msg.lower():
-                # Log for debugging but don't propagate
-                import logging
-
-                logging.getLogger(__name__).debug(
-                    "Suppressed event loop closure error during background update stop: %s", e
-                )
-            else:
-                raise
+    if event_loop is None:
+        # No running loop: run in new loop with cleanup
+        _safe_stop_with_cleanup(stopper)
     else:
-        loop.create_task(stopper())
+        # Running loop exists: schedule as task
+        event_loop.create_task(stopper())
     return None
 
 
@@ -526,6 +580,149 @@ def reset_targets_cache() -> None:
 
 
 # Lifespan event handler
+
+
+def _validate_fallback_url(
+    env_name: Optional[str],
+    is_production: bool,
+    fallback_url: str,
+    truthy: set[str],
+    db_err: Exception,
+) -> None:
+    """Validate fallback URL against production constraints.
+
+    Production environments reject in-memory fallbacks.
+    Raises db_err on validation failure.
+    """
+    # Check if fallback URL is in-memory SQLite
+    is_in_memory = fallback_url == "sqlite:///:memory:" or fallback_url.startswith(
+        "sqlite:///:memory:"
+    )
+
+    # Production: reject in-memory fallbacks
+    if is_production and is_in_memory:
+        logger.error(
+            "CRITICAL: In-memory database fallback is not allowed in production environment (%s). "
+            "Set DB_FALLBACK_URL to a persistent storage URL (e.g., sqlite:///./fallback.db) "
+            "and set ALLOW_DB_PERSISTENT_FALLBACK=1 if you need fallback in production.",
+            env_name or "production",
+        )
+        raise db_err
+
+
+def _check_production_constraints(
+    env_name: Optional[str], fallback_url: str, truthy: set[str], db_err: Exception
+) -> None:
+    """Enforce production-specific fallback constraints.
+
+    Production fallback requires ALLOW_DB_PERSISTENT_FALLBACK=1.
+    Raises db_err if constraints not met.
+    """
+    allow_persistent_fallback = (
+        os.getenv("ALLOW_DB_PERSISTENT_FALLBACK") or ""
+    ).strip().lower() in truthy
+
+    if not allow_persistent_fallback:
+        logger.error(
+            "CRITICAL: Database initialization failed in production (%s). "
+            "Fallback is disabled unless ALLOW_DB_PERSISTENT_FALLBACK=1 is set. "
+            "In-memory fallbacks are not allowed in production. "
+            "Original error: %s",
+            env_name or "production",
+            db_err,
+        )
+        raise db_err
+
+    # Additional verification: ensure fallback URL is persistent
+    is_in_memory = fallback_url == "sqlite:///:memory:" or fallback_url.startswith(
+        "sqlite:///:memory:"
+    )
+    if is_in_memory:
+        logger.error(
+            "CRITICAL: Production fallback URL must be persistent, not in-memory. "
+            "Current DB_FALLBACK_URL=%s is in-memory. Set DB_FALLBACK_URL to a file-based URL "
+            "(e.g., sqlite:///./fallback.db).",
+            fallback_url,
+        )
+        raise db_err
+
+    logger.warning(
+        "Database initialization failed in production (%s), attempting persistent fallback: %s",
+        env_name or "production",
+        fallback_url,
+    )
+
+
+def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:
+    """Create and initialize fallback SQLAlchemy engine.
+
+    Creates engine with correct connect_args, runs Base.metadata.create_all.
+    Returns the initialized engine or raises db_err on failure.
+    """
+    from sqlalchemy import create_engine
+    import core.models  # noqa: F401
+    from core.models import Base
+
+    try:
+        # Create temporary engine with fallback URL
+        # Use SQLite-specific connection args when needed
+        connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
+        fallback_engine = create_engine(
+            fallback_url, echo=False, future=True, connect_args=connect_args
+        )
+
+        # Initialize schema using the fallback engine
+        Base.metadata.create_all(bind=fallback_engine)
+        return fallback_engine
+    except Exception as fallback_err:
+        logger.error("Fallback database init failed (url=%s): %s", fallback_url, fallback_err)
+        raise db_err from fallback_err
+
+
+def _configure_session_bindings(
+    engine: Any, is_production: bool, fallback_url: str, env_name: Optional[str]
+) -> None:
+    """Configure core.db session bindings and environment variables.
+
+    Sets SessionLocal, _RAW_ENGINE, engine wrapper, _db_fallback_active flag,
+    and updates os.environ with appropriate markers.
+    """
+    from core import db as core_db
+
+    global _db_fallback_active
+
+    try:
+        core_db.SessionLocal.configure(bind=engine)
+    except Exception:
+        core_db.SessionLocal = core_db.sessionmaker(
+            bind=engine, autoflush=False, autocommit=False, future=True
+        )
+    core_db._RAW_ENGINE = engine
+    core_db.engine = core_db.EngineCompat(engine)
+    _db_fallback_active = True
+    os.environ["DB_HEALTH_DEGRADED"] = "1"
+
+    # Set DB_FALLBACK_URL only if needed for external tools
+    if not is_production:
+        os.environ["DB_FALLBACK_URL"] = fallback_url
+        os.environ["DATABASE_URL"] = fallback_url
+        logger.warning(
+            "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
+            "os.environ['DATABASE_URL'] updated for compatibility.",
+            env_name or "local",
+            fallback_url,
+        )
+    else:
+        # In production, only set DB_FALLBACK_URL for internal use
+        os.environ["DB_FALLBACK_URL"] = fallback_url
+        logger.warning(
+            "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
+            "Using module-level fallback variable only.",
+            env_name or "local",
+            fallback_url,
+        )
+
+
 def _attempt_db_fallback(
     env_name: Optional[str], is_production: bool, db_err: Exception, truthy: set[str]
 ) -> None:
@@ -537,58 +734,19 @@ def _attempt_db_fallback(
     2. DB_FALLBACK_URL points to a persistent storage URL (not in-memory SQLite)
 
     Non-production environments can use any fallback URL including in-memory.
+
+    Raises:
+        db_err: Original database error if fallback fails or is not allowed
     """
     # Get fallback URL (prefer DB_FALLBACK_URL env var, otherwise use in-memory SQLite)
     fallback_url = os.getenv("DB_FALLBACK_URL", "sqlite:///:memory:")
 
-    # Check if fallback URL is in-memory SQLite
-    is_in_memory = fallback_url == "sqlite:///:memory:" or fallback_url.startswith(
-        "sqlite:///:memory:"
-    )
+    # Validate fallback URL against production constraints
+    _validate_fallback_url(env_name, is_production, fallback_url, truthy, db_err)
 
-    # Production: reject in-memory fallbacks
     if is_production:
-        if is_in_memory:
-            logger.error(
-                "CRITICAL: In-memory database fallback is not allowed in production environment (%s). "
-                "Set DB_FALLBACK_URL to a persistent storage URL (e.g., sqlite:///./fallback.db) "
-                "and set ALLOW_DB_PERSISTENT_FALLBACK=1 if you need fallback in production.",
-                env_name or "production",
-            )
-            raise db_err
-
-        # Production fallback requires explicit override
-        allow_persistent_fallback = (
-            os.getenv("ALLOW_DB_PERSISTENT_FALLBACK") or ""
-        ).strip().lower() in truthy
-
-        if not allow_persistent_fallback:
-            logger.error(
-                "CRITICAL: Database initialization failed in production (%s). "
-                "Fallback is disabled unless ALLOW_DB_PERSISTENT_FALLBACK=1 is set. "
-                "In-memory fallbacks are not allowed in production. "
-                "Original error: %s",
-                env_name or "production",
-                db_err,
-            )
-            raise db_err
-
-        # Additional verification: ensure fallback URL is persistent (redundant check for safety)
-        # This should never trigger if is_in_memory check above worked, but provides defense in depth
-        if is_in_memory:
-            logger.error(
-                "CRITICAL: Production fallback URL must be persistent, not in-memory. "
-                "Current DB_FALLBACK_URL=%s is in-memory. Set DB_FALLBACK_URL to a file-based URL "
-                "(e.g., sqlite:///./fallback.db).",
-                fallback_url,
-            )
-            raise db_err
-
-        logger.warning(
-            "Database initialization failed in production (%s), attempting persistent fallback: %s",
-            env_name or "production",
-            fallback_url,
-        )
+        # Production: enforce strict constraints
+        _check_production_constraints(env_name, fallback_url, truthy, db_err)
     else:
         # Non-production: allow any fallback including in-memory
         explicit_override = (
@@ -608,65 +766,9 @@ def _attempt_db_fallback(
             fallback_exception,
         )
 
-    global _db_fallback_active
-    fallback_ok = False
-    try:
-        # Create a new engine directly with the fallback URL instead of reloading module
-        from sqlalchemy import create_engine
-
-        import core.models  # noqa: F401
-
-        # Create temporary engine with fallback URL
-        # Use SQLite-specific connection args when needed
-        connect_args = {"check_same_thread": False} if fallback_url.startswith("sqlite") else {}
-        fallback_engine = create_engine(
-            fallback_url, echo=False, future=True, connect_args=connect_args
-        )
-
-        # Initialize schema using the fallback engine
-        from core.models import Base
-        from core import db as core_db
-
-        Base.metadata.create_all(bind=fallback_engine)
-
-        try:
-            core_db.SessionLocal.configure(bind=fallback_engine)
-        except Exception:
-            core_db.SessionLocal = core_db.sessionmaker(
-                bind=fallback_engine, autoflush=False, autocommit=False, future=True
-            )
-        core_db._RAW_ENGINE = fallback_engine
-        core_db.engine = core_db.EngineCompat(fallback_engine)
-        fallback_ok = True
-        _db_fallback_active = True
-        os.environ["DB_HEALTH_DEGRADED"] = "1"
-
-        # Set DB_FALLBACK_URL only if needed for external tools
-        if not is_production:
-            os.environ["DB_FALLBACK_URL"] = fallback_url
-            os.environ["DATABASE_URL"] = fallback_url
-            logger.warning(
-                "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
-                "os.environ['DATABASE_URL'] updated for compatibility.",
-                env_name or "local",
-                fallback_url,
-            )
-        else:
-            # In production, only set DB_FALLBACK_URL for internal use
-            os.environ["DB_FALLBACK_URL"] = fallback_url
-            logger.warning(
-                "Database initialized with fallback SQLite (env=%s, fallback_url=%s). "
-                "Using module-level fallback variable only.",
-                env_name or "local",
-                fallback_url,
-            )
-    except Exception as fallback_err:
-        logger.error("Fallback database init failed (url=%s): %s", fallback_url, fallback_err)
-        # Don't modify global os.environ to avoid test interference
-        # Tests should check _db_fallback_active flag instead
-        raise db_err from fallback_err
-    if not fallback_ok:
-        raise db_err
+    # Initialize fallback engine and configure bindings
+    fallback_engine = _initialize_fallback_engine(fallback_url, db_err)
+    _configure_session_bindings(fallback_engine, is_production, fallback_url, env_name)
 
 
 @asynccontextmanager

@@ -746,3 +746,19 @@ class TestPremiumWeekCoverageCombined:
         )
 
         assert response.status_code in [400, 422]
+
+
+def test_targets_in_macros_type_validation_direct() -> None:
+    """Directly validate macros type guard on TargetsIn."""
+    from app.routers.premium_week import TargetsIn
+
+    with pytest.raises(ValueError, match=r"macros\[protein_g] must be a finite number >= 0"):
+        TargetsIn._validate_macros({"protein_g": "not-a-number"})  # type: ignore[arg-type]
+
+
+def test_targets_in_micro_type_validation_direct() -> None:
+    """Directly validate micro type guard on TargetsIn."""
+    from app.routers.premium_week import TargetsIn
+
+    with pytest.raises(ValueError, match=r"micro\[vitamin_c_mg] must be a finite number >= 0"):
+        TargetsIn._validate_micro({"vitamin_c_mg": "not-a-number"})  # type: ignore[arg-type]

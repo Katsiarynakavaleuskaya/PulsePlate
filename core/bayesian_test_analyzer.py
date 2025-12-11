@@ -338,24 +338,31 @@ class BayesianTestAnalyzer:
             logger.exception("Unexpected error loading test history")
 
     def save_history(self) -> None:
-        """Сохранить историю выполнения тестов."""
+        """Сохранить историю выполнения тестов.
+
+        Thread-safe: Acquires _analyzer_lock to read execution_history,
+        then releases it before file I/O to avoid blocking other operations.
+        """
         # В CI по умолчанию отключаем запись истории, чтобы избежать нестабильных тестов и гонок
         if not self.persist_enabled:
             return
         try:
-            data = []
-            for execution in self.execution_history:
-                item = asdict(execution)
-                item["timestamp"] = execution.timestamp.isoformat()
-                item["category"] = execution.category.value
-                item["result"] = execution.result.value
-                if execution.error_type:
-                    item["error_type"] = execution.error_type.value
-                data.append(item)
+            # Build serializable data while holding the lock to prevent races
+            with _analyzer_lock:
+                data = []
+                for execution in self.execution_history:
+                    item = asdict(execution)
+                    item["timestamp"] = execution.timestamp.isoformat()
+                    item["category"] = execution.category.value
+                    item["result"] = execution.result.value
+                    if execution.error_type:
+                        item["error_type"] = execution.error_type.value
+                    data.append(item)
 
+            # Release lock before file I/O to avoid holding it during blocking operations
             with open(self.data_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Сохранено {len(self.execution_history)} записей истории тестов")
+            logger.info(f"Сохранено {len(data)} записей истории тестов")
         except Exception as e:
             logger.error(f"Ошибка сохранения истории тестов: {e}")
 

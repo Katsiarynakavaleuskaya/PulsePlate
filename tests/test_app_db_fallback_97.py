@@ -16,7 +16,7 @@ import pytest
 class TestAppDBFallback97:
     """Tests for app.py DB fallback logic to achieve 97% coverage."""
 
-    TRUTHY = {"1", "true", "yes", "on"}
+    TRUTHY: set[str] = {"1", "true", "yes", "on"}
 
     def test_attempt_db_fallback_production_inmemory_rejected(self) -> None:
         """Production environment rejects in-memory DB fallback."""

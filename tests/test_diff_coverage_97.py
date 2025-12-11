@@ -42,49 +42,155 @@ class TestBayesianRecommendations:
 class TestFingerprintSecurity:
     """Test missing lines in core/fingerprint_security.py."""
 
-    def test_load_salt_from_empty_file(self) -> None:
-        """Test lines 57, 62, 63: Load salt when file exists but is empty."""
+    def test_load_salt_file_exists_returns_saved_value(self) -> None:
+        """Existing non-empty salt file should be returned directly (line 57)."""
         from core.fingerprint_security import _load_salt_from_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create empty salt file
             salt_file = Path(tmpdir) / "salt.txt"
-            salt_file.touch()
-            salt_file.chmod(0o600)
+            salt_file.parent.mkdir(parents=True, exist_ok=True)
+            salt_file.write_text("existing_salt_value")
 
-            # Load should return generated salt and try to write it
+            result = _load_salt_from_file(salt_file)
+            assert result == "existing_salt_value"
+
+    def test_load_salt_file_exists_race_returns_existing_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """FileExistsError race with non-empty file should return saved salt (line 57)."""
+        from core.fingerprint_security import _load_salt_from_file
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            salt_file = Path(tmpdir) / "race_salt.txt"
+            salt_file.parent.mkdir(parents=True, exist_ok=True)
+            salt_file.write_text("race_existing_salt")
+
+            original_exists = Path.exists
+            original_open = Path.open
+            original_read_text = Path.read_text
+
+            def fake_exists(self: Path) -> bool:
+                if self == salt_file:
+                    return False
+                return original_exists(self)
+
+            def fake_open(self: Path, mode: str = "r", *args, **kwargs):
+                if self == salt_file and "x" in mode:
+                    raise FileExistsError("race")
+                return original_open(self, mode, *args, **kwargs)
+
+            def fake_read_text(self: Path, *args, **kwargs):
+                if self == salt_file:
+                    return "race_existing_salt"
+                return original_read_text(self, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "exists", fake_exists)
+            monkeypatch.setattr(Path, "open", fake_open)
+            monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+            result = _load_salt_from_file(salt_file)
+            assert result == "race_existing_salt"
+
+    def test_load_salt_file_exists_race_empty_write_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Empty file in race path with write failure should still return generated salt (63-66)."""
+        from core.fingerprint_security import _load_salt_from_file
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            salt_file = Path(tmpdir) / "race_empty_salt.txt"
+            salt_file.parent.mkdir(parents=True, exist_ok=True)
+            salt_file.touch()
+
+            original_exists = Path.exists
+            original_open = Path.open
+            original_read_text = Path.read_text
+            original_write_text = Path.write_text
+
+            def fake_exists(self: Path) -> bool:
+                if self == salt_file:
+                    return False
+                return original_exists(self)
+
+            def fake_open(self: Path, mode: str = "r", *args, **kwargs):
+                if self == salt_file and "x" in mode:
+                    raise FileExistsError("race")
+                return original_open(self, mode, *args, **kwargs)
+
+            def fake_read_text(self: Path, *args, **kwargs):
+                if self == salt_file:
+                    return ""
+                return original_read_text(self, *args, **kwargs)
+
+            write_called = {"called": False}
+
+            def fake_write_text(self: Path, data: str, *args, **kwargs):
+                if self == salt_file:
+                    write_called["called"] = True
+                    raise RuntimeError("write failed")
+                return original_write_text(self, data, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "exists", fake_exists)
+            monkeypatch.setattr(Path, "open", fake_open)
+            monkeypatch.setattr(Path, "read_text", fake_read_text)
+            monkeypatch.setattr(Path, "write_text", fake_write_text)
+
+            result = _load_salt_from_file(salt_file)
+            assert write_called["called"] is True
+            assert result is not None
+            assert len(result) == 64
+
+    def test_load_salt_file_exists_race_read_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Exceptions during read in race path should be handled (72-75)."""
+        from core.fingerprint_security import _load_salt_from_file
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            salt_file = Path(tmpdir) / "race_read_error_salt.txt"
+            salt_file.parent.mkdir(parents=True, exist_ok=True)
+            salt_file.touch()
+
+            original_exists = Path.exists
+            original_open = Path.open
+            original_read_text = Path.read_text
+
+            def fake_exists(self: Path) -> bool:
+                if self == salt_file:
+                    return False
+                return original_exists(self)
+
+            def fake_open(self: Path, mode: str = "r", *args, **kwargs):
+                if self == salt_file and "x" in mode:
+                    raise FileExistsError("race")
+                return original_open(self, mode, *args, **kwargs)
+
+            def fake_read_text(self: Path, *args, **kwargs):
+                if self == salt_file:
+                    raise PermissionError("cannot read")
+                return original_read_text(self, *args, **kwargs)
+
+            monkeypatch.setattr(Path, "exists", fake_exists)
+            monkeypatch.setattr(Path, "open", fake_open)
+            monkeypatch.setattr(Path, "read_text", fake_read_text)
+
             result = _load_salt_from_file(salt_file)
             assert result is not None
-            assert len(result) == 64  # 32 bytes hex = 64 chars
+            assert len(result) == 64
 
-    def test_load_salt_from_file_read_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test lines 72, 75: Handle file read errors gracefully."""
+    def test_load_salt_final_chmod_os_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bottom chmod OSError should be ignored (79-80)."""
         from core.fingerprint_security import _load_salt_from_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            salt_file = Path(tmpdir) / "salt.txt"
-            salt_file.write_text("existing_salt")
+            salt_file = Path(tmpdir) / "chmod_error_salt.txt"
 
-            # Mock Path.read_text to raise exception
-            def mock_read_text() -> str:
-                raise PermissionError("Cannot read file")
+            original_chmod = Path.chmod
 
-            monkeypatch.setattr(Path, "read_text", lambda self: mock_read_text())
+            def fake_chmod(self: Path, mode: int) -> None:
+                if self == salt_file:
+                    raise OSError("no chmod")
+                return original_chmod(self, mode)
 
-            # Should return None on read error
-            result = _load_salt_from_file(salt_file)
-            assert result is None
-
-    def test_load_salt_chmod_os_error(self) -> None:
-        """Test lines 66, 79-80: Handle chmod OSError gracefully."""
-        from core.fingerprint_security import _load_salt_from_file
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            salt_file = Path(tmpdir) / "salt.txt"
-
-            # Create file and make directory read-only to trigger chmod error
-            with patch.object(Path, "chmod", side_effect=OSError("Cannot chmod")):
-                # Should still return generated salt even if chmod fails
+            with patch.object(Path, "chmod", fake_chmod):
                 result = _load_salt_from_file(salt_file)
                 assert result is not None
                 assert len(result) == 64
