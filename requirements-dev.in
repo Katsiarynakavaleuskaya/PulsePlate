@@ -16,7 +16,7 @@ diff-cover~=9.7.2
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
 pip-audit>=2.9.0  # Security tool - keep >= for vulnerability updates
 safety>=3.6.2  # Security tool - keep >= for vulnerability updates
-mypy~=1.18.2
+mypy~=1.19.0
 black~=25.12.0
-ruff~=0.14.8
+ruff~=0.14.9
 asgi-lifespan~=2.1.0
