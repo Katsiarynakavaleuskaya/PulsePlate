@@ -160,12 +160,13 @@ def teardown_module():
 ```python
 # ❌ Плохо - реальный OpenAI API в каждом тесте
 def test_embedding():
-    result = openai.Embedding.create(...)
+    client = openai.OpenAI()
+    result = client.embeddings.create(...)
 
-# ✅ Хорошо - mock для быстрых unit-тестов
+# ✅ Хорошо - mock для быстрых unit-тестов (OpenAI SDK v1+)
 @pytest.mark.unit
 def test_embedding_processing(monkeypatch):
-    monkeypatch.setattr("openai.Embedding.create",
+    monkeypatch.setattr("openai.resources.Embeddings.create",
                        Mock(return_value={"data": [...]}))
     # Быстро, без сети, без API rate limits
 ```

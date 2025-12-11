@@ -183,8 +183,9 @@ def test_result_wrapper_exit_on_exception() -> None:
         pass  # Expected
 
     # Connection should be closed despite exception
+    # Use SQLAlchemy's public API to verify connection closure
     assert (
-        getattr(result, "_connection_closed", False) is True
+        result._connection.closed
     ), "Connection should be closed after exception in context manager"
 
 

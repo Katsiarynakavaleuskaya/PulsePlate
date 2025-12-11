@@ -231,6 +231,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
         done <<< "$PYTHON_CHANGES"
 
         if [ ${#TEST_FILES[@]} -gt 0 ]; then
+            # Deduplicate test files to avoid running the same test multiple times
+            mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
             echo "Running tests: ${TEST_FILES[*]}"
             if ! pytest -q "${TEST_FILES[@]}" --tb=short -x; then
                 echo "❌ Backend tests failed. Please fix failing tests before committing."

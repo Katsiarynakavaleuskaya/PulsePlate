@@ -81,29 +81,31 @@ class TestComprehensiveCoverage:
     def test_database_status_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test database status endpoint exception handling.
 
-        Note: This test is intentionally non-deterministic due to scheduler singleton behavior.
-        The endpoint may return 200 if the scheduler was already created before the mock,
-        or 500 if the mock successfully triggers during scheduler retrieval.
-        CodeRabbit acknowledged this limitation - clearing the singleton would require
-        invasive changes to the scheduler architecture that aren't worth it for this edge case.
+        This test is now deterministic by clearing the scheduler singleton and
+        patching both the app module and scheduler module's get_update_scheduler.
         """
+        # Clear the scheduler singleton to force fresh initialization
+        from core.food_apis import scheduler
 
-        # Clear any test scheduler override (best effort to force exception path)
+        monkeypatch.setattr(scheduler, "_scheduler_instance", None)
+
+        # Clear any test scheduler override
         monkeypatch.setattr(app_mod, "_test_scheduler_override", None, raising=False)
 
         # Patch get_update_scheduler to raise an exception
         async def fake_get_scheduler_error():
             raise Exception("Test scheduler error")
 
+        # Patch both the app module and scheduler module
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_get_scheduler_error)
+        monkeypatch.setattr(scheduler, "get_update_scheduler", fake_get_scheduler_error)
 
         response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
-        # Endpoint may return 200 if scheduler was already created (singleton),
-        # or 500 if mock successfully triggered
-        assert response.status_code in [200, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "detail" in data
+
+        # With cleared singleton and mocked function, should deterministically return 500
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
     def test_force_update_endpoint_success(self) -> None:
         """Test force update endpoint success case with deterministic status."""

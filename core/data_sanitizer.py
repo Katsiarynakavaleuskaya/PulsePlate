@@ -5,9 +5,9 @@ invalid data, and ensure type safety.
 """
 
 import html
-import re
 from typing import Any, Dict, List, Literal, Optional, TypedDict, cast
 
+import nh3
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
 
 # Constants for validation
@@ -16,9 +16,10 @@ MAX_MEALS = 10
 MAX_LAYOUT_ITEMS = 20
 MAX_MICRO_NUTRIENTS = 100
 
-# Regex to strip HTML/JS tags (defense in depth)
-HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
-JS_EVENT_PATTERN = re.compile(r"on\w+\s*=\s*['\"].*?['\"]|javascript:", re.IGNORECASE)
+# nh3 configuration: strict allowlist for basic text formatting only
+# No event handlers, no javascript:, no data: URIs, no SVG attributes
+NH3_ALLOWED_TAGS = {"b", "i", "em", "strong", "u", "br", "p", "span"}
+NH3_ALLOWED_ATTRS = {}  # No attributes allowed at all (no href, src, onclick, etc.)
 
 
 class MacrosDict(TypedDict):
@@ -57,12 +58,12 @@ def _sanitize_micros(
     for key, value in v.items():
         if not isinstance(key, str):
             raise ValueError("Micronutrient keys must be strings")
-        # Sanitize key name: strip HTML tags first
-        clean_key = HTML_TAG_PATTERN.sub("", key)
+        # Sanitize key name using nh3 (strips all HTML/JS, decodes entities, prevents XSS)
+        clean_key = nh3.clean(key, tags=set(), attributes={})
         # Check length before escaping to avoid inflated length from html.escape
         if len(clean_key) > 100:
             raise ValueError("Micronutrient key too long")
-        # Only after length check, apply HTML escaping
+        # Only after length check, apply HTML escaping for defense in depth
         clean_key = html.escape(clean_key, quote=True).strip()
 
         if not isinstance(value, (int, float)):
@@ -90,15 +91,13 @@ class VisualShapeSchema(BaseModel):
     @field_validator("label", "tooltip")
     @classmethod
     def sanitize_strings(cls, v: str) -> str:
-        """Strip HTML/JS tags and escape dangerous characters."""
-        # Strip HTML tags
-        v = HTML_TAG_PATTERN.sub("", v)
-        # Strip JS event handlers
-        v = JS_EVENT_PATTERN.sub("", v)
-        # Enforce max length before escaping
+        """Sanitize using nh3 (strips HTML/JS/XSS, decodes entities, prevents injection)."""
+        # Use nh3 with strict allowlist - only basic formatting tags, no attributes
+        v = nh3.clean(v, tags=NH3_ALLOWED_TAGS, attributes=NH3_ALLOWED_ATTRS)
+        # Enforce max length before additional escaping
         if len(v) > MAX_STRING_LENGTH:
             raise ValueError(f"String exceeds max length {MAX_STRING_LENGTH}")
-        # HTML escape for safety
+        # HTML escape for defense in depth (nh3 already sanitized, but belt-and-suspenders)
         v = html.escape(v, quote=True)
         return v.strip()
 
@@ -117,15 +116,13 @@ class MealSchema(BaseModel):
     @field_validator("title")
     @classmethod
     def sanitize_title(cls, v: str) -> str:
-        """Strip HTML/JS tags and escape dangerous characters."""
-        # Strip HTML tags
-        v = HTML_TAG_PATTERN.sub("", v)
-        # Strip JS event handlers
-        v = JS_EVENT_PATTERN.sub("", v)
-        # Enforce max length before escaping
+        """Sanitize using nh3 (strips HTML/JS/XSS, decodes entities, prevents injection)."""
+        # Use nh3 with strict allowlist - only basic formatting tags, no attributes
+        v = nh3.clean(v, tags=NH3_ALLOWED_TAGS, attributes=NH3_ALLOWED_ATTRS)
+        # Enforce max length before additional escaping
         if len(v) > MAX_STRING_LENGTH:
             raise ValueError(f"Title exceeds max length {MAX_STRING_LENGTH}")
-        # HTML escape
+        # HTML escape for defense in depth
         v = html.escape(v, quote=True)
         return v.strip()
 

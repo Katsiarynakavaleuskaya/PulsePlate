@@ -23,7 +23,14 @@ def mock_env_production():
 
 def test_rate_limit_endpoint(mock_env_staging):
     """Test the rate limit endpoint returns expected response."""
-    # Import app after setting environment
+    # Import app after setting environment and force reload
+    import importlib
+    import sys
+
+    # Remove cached modules to force fresh import with new environment
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -49,6 +56,12 @@ def test_rate_limit_endpoint(mock_env_staging):
 
 def test_health_endpoint(mock_env_staging):
     """Test the health check endpoint."""
+    import importlib
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -68,6 +81,12 @@ def test_health_endpoint(mock_env_staging):
 
 def test_echo_endpoint(mock_env_staging):
     """Test the echo endpoint returns sent data."""
+    import importlib
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -92,6 +111,12 @@ def test_echo_endpoint(mock_env_staging):
 
 def test_rate_limit_with_cf_ray_header(mock_env_staging):
     """Test rate limit endpoint captures Cloudflare ray ID."""
+    import importlib
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -106,6 +131,12 @@ def test_rate_limit_with_cf_ray_header(mock_env_staging):
 
 def test_rate_limit_with_request_id_header(mock_env_staging):
     """Test rate limit endpoint captures generic request ID."""
+    import importlib
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)

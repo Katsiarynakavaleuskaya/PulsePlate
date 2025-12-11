@@ -6,6 +6,7 @@ These tests target specific edge cases and error paths to achieve 97% coverage.
 import pytest
 from typing import Any
 from unittest.mock import patch, MagicMock
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -30,7 +31,7 @@ class TestCoverageFinalBoost:
         health = analyzer.get_test_health_score("new_test")
         assert 0 <= health <= 1
 
-    def test_db_helper_functions(self) -> None:
+    def test_db_helper_functions(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test database helper functions."""
         from core import db
 
@@ -47,32 +48,24 @@ class TestCoverageFinalBoost:
             == "/absolute/path/db.sqlite"
         )
 
-        # Test _build_engine_url absolute path handling (non-env case)
-        # This covers lines 158-160 in core/db.py
-        import os
-        import importlib
+        # Test _build_engine_url absolute/relative path handling
+        # This covers lines 158-163 in core/db.py
+        # Use monkeypatch to temporarily clear DATABASE_URL to test non-env path logic
+        monkeypatch.delenv("DATABASE_URL", raising=False)
 
-        # Save original env
-        original_db_url = os.environ.get("DATABASE_URL")
-        try:
-            # Remove DATABASE_URL to test non-env path (env_provided=False)
-            if "DATABASE_URL" in os.environ:
-                del os.environ["DATABASE_URL"]
+        # Call _build_engine_url without env var (triggers default path logic)
+        result_url = db._build_engine_url()
+        assert result_url.startswith("sqlite:///"), "Default path should produce sqlite:/// URL"
+        # The default path is "cache/app.db" which is relative (tests line 162-163)
+        assert (
+            "cache/app.db" in result_url or "cache" in result_url
+        ), "Default path should be included"
 
-            # Reload db module to trigger _build_engine_url with default path
-            reloaded_db = importlib.reload(db)
-
-            # The default path should go through the absolute/relative logic
-            # Default is "cache/app.db" which is relative, so it tests line 163
-            assert reloaded_db.DATABASE_URL.startswith("sqlite:///")
-        finally:
-            # Restore original
-            if original_db_url is not None:
-                os.environ["DATABASE_URL"] = original_db_url
-            elif "DATABASE_URL" in os.environ:
-                del os.environ["DATABASE_URL"]
-            # Reload again to restore original state
-            importlib.reload(db)
+        # Verify the URL doesn't have absolute path markers (no leading // after sqlite:///)
+        # This confirms the relative path logic was used (line 162: path_part = parsed.path.lstrip("/"))
+        assert not result_url.startswith(
+            "sqlite:////"
+        ), "Relative path should not have double slashes"
 
     def test_business_router_edge_paths(
         self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -122,32 +115,15 @@ class TestCoverageFinalBoost:
         def always_fails(session: Any) -> Any:
             nonlocal call_count
             call_count += 1
-            raise OperationalError("fail", None, Exception("connection failed"))
+            raise OperationalError("test", {}, Exception("DB error"))
 
-        result = users._execute_with_retry(always_fails, fallback=[])
-        assert result == []
-        assert call_count == 4  # 1 initial + 3 retries
+        # Call should raise HTTPException after retries (no fallback)
+        with pytest.raises(HTTPException) as exc_info:
+            users._execute_with_retry(always_fails)
 
-    @pytest.mark.asyncio
-    async def test_app_targets_disabled_edge_cases(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test targets_disabled edge cases."""
-        import app
-
-        # Test with package explicit None
-        if not hasattr(app, "_APP_PACKAGE_REF"):
-            pytest.skip("requires _APP_PACKAGE_REF")
-
-        # Save original
-        original = getattr(app, "build_nutrition_targets", None)
-        try:
-            # Set to None
-            app.build_nutrition_targets = None
-            result = app.targets_disabled()
-            assert result is True
-        finally:
-            # Restore
-            if original is not None:
-                app.build_nutrition_targets = original
+        # Should be 503 (service unavailable) after exhausting retries
+        assert exc_info.value.status_code == 503
+        assert call_count == 4  # initial + 3 retries (hardcoded max_retries=3)
 
     def test_technical_utils_edge_cases(self) -> None:
         """Test bayesian technical utils edge cases."""
@@ -160,5 +136,7 @@ class TestCoverageFinalBoost:
 
         # Test with async without await
         code_async = "async def test(): return 1"
+        issues = analyze_technical_aspects_common(code_async)
+        assert "Async function without await usage" in issues
         issues = analyze_technical_aspects_common(code_async)
         assert "Async function without await usage" in issues

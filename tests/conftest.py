@@ -277,8 +277,9 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     database is not accessible (e.g., locked SQLite), logs a warning and
     continues to avoid flakiness.
     """
-    # Get the db module from sys.modules (cached import, not a fresh reload)
-    from core import db as db_module
+    # Use the reloaded db module from configure_sqlite_database fixture
+    # to ensure consistency with the configured database
+    db_module = configure_sqlite_database
 
     def _truncate() -> None:
         with db_module.session_scope() as session:

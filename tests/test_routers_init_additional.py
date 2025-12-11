@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import types
 import importlib.util
 import pytest
 
@@ -13,7 +14,7 @@ if spec is None or spec.loader is None:
     raise ImportError("Cannot load routers module")
 routers_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(routers_module)
-routers = routers_module
+routers: types.ModuleType = routers_module
 
 
 def test_routers_getattr_returns_module() -> None:

@@ -8,7 +8,6 @@ Covers missing lines in core/db.py:
 
 import os
 import tempfile
-from unittest.mock import patch
 
 import pytest
 
@@ -19,25 +18,24 @@ def test_build_engine_url_with_query_in_path(monkeypatch: pytest.MonkeyPatch) ->
     from core import db
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Set a SQLite URL with query in path (edge case)
-        db_path = os.path.join(tmpdir, "test.db")
-        test_url = f"sqlite:///{db_path}?mode=rwc"
-        monkeypatch.setenv("DATABASE_URL", test_url)
+        try:
+            # Set a SQLite URL with query in path (edge case)
+            db_path = os.path.join(tmpdir, "test.db")
+            test_url = f"sqlite:///{db_path}?mode=rwc"
+            monkeypatch.setenv("DATABASE_URL", test_url)
 
-        # Reload to pick up new URL
-        reloaded = importlib.reload(db)
+            # Reload to pick up new URL
+            reloaded = importlib.reload(db)
 
-        # Initialize the database to trigger actual file creation
-        reloaded.init_db()
+            # Initialize the database to trigger actual file creation
+            reloaded.init_db()
 
-        # Verify that the database file was actually created
-        # (not just the tmpdir, which always exists inside TemporaryDirectory)
-        assert os.path.exists(db_path), f"Database file was not created at {db_path}"
-        # Also verify the directory is valid
-        assert os.path.isdir(os.path.dirname(db_path)), "Database directory is not valid"
-
-        # Restore
-        importlib.reload(db)
+            # Verify that the database file was actually created
+            assert os.path.exists(db_path), f"Database file was not created at {db_path}"
+            assert os.path.isdir(os.path.dirname(db_path)), "Database directory is not valid"
+        finally:
+            # Restore module state regardless of test outcome
+            importlib.reload(db)
 
 
 def test_build_engine_url_absolute_path_construction(
@@ -48,23 +46,23 @@ def test_build_engine_url_absolute_path_construction(
     from core import db
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Use absolute path (sqlite:////absolute/path)
-        abs_path = os.path.join(tmpdir, "test.db")
-        test_url = f"sqlite:///{abs_path}"
-        monkeypatch.setenv("DATABASE_URL", test_url)
+        try:
+            # Use absolute path (sqlite:////absolute/path)
+            abs_path = os.path.join(tmpdir, "test.db")
+            test_url = f"sqlite:///{abs_path}"
+            monkeypatch.setenv("DATABASE_URL", test_url)
 
-        # Reload to trigger URL construction logic
-        reloaded = importlib.reload(db)
+            # Reload to trigger URL construction logic
+            reloaded = importlib.reload(db)
 
-        # URL should be constructed as absolute path
-        assert reloaded.DATABASE_URL.startswith("sqlite:///")
-        # Should contain the absolute path
-        assert (
-            abs_path.replace(tmpdir, "") in reloaded.DATABASE_URL or tmpdir in reloaded.DATABASE_URL
-        )
-
-        # Restore
-        importlib.reload(db)
+            # URL should preserve the absolute path
+            assert reloaded.DATABASE_URL.startswith("sqlite:///")
+            assert (
+                abs_path in reloaded.DATABASE_URL
+            ), f"Expected absolute path {abs_path} in {reloaded.DATABASE_URL}"
+        finally:
+            # Restore module state regardless of test outcome
+            importlib.reload(db)
 
 
 def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -73,21 +71,20 @@ def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> Non
     from core import db
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Use a simple path without subdirectory to avoid directory creation issues
-        test_path = os.path.join(tmpdir, "test.db")
-        # Test that init_db handles query parameters in env-provided URLs
-        test_url = f"sqlite:///{test_path}?mode=rwc&uri=true"
-        monkeypatch.setenv("DATABASE_URL", test_url)
+        try:
+            # Use a simple path without subdirectory to avoid directory creation issues
+            test_path = os.path.join(tmpdir, "test.db")
+            # Test that init_db handles query parameters in env-provided URLs
+            test_url = f"sqlite:///{test_path}?mode=rwc&uri=true"
+            monkeypatch.setenv("DATABASE_URL", test_url)
 
-        # Reload and initialize
-        reloaded = importlib.reload(db)
-        reloaded.init_db()
+            # Reload and initialize
+            reloaded = importlib.reload(db)
+            reloaded.init_db()
 
-        # Verify init_db() created the database despite query parameters
-        # This proves line 569 (_ensure_sqlite_directory with env_provided=True)
-        # doesn't break when query params are present
-        assert os.path.exists(tmpdir), f"Temp directory should exist: {tmpdir}"
-
-        # Cleanup
-        importlib.reload(db)
-        db.init_db()
+            # Verify init_db() created the database despite query parameters
+            assert os.path.exists(tmpdir), f"Temp directory should exist: {tmpdir}"
+        finally:
+            # Cleanup - use fresh reload to restore original state
+            restored = importlib.reload(db)
+            restored.init_db()

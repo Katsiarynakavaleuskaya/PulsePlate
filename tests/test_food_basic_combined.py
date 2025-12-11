@@ -10,6 +10,7 @@ import pytest
 import app as app_module
 
 from core.food_db import FoodItem, aggregate_shopping, parse_food_db, pick_booster_for
+from core.targets import MicroTargets
 
 
 class TestFoodAPIBasic:
@@ -110,10 +111,29 @@ class TestFoodDatabaseBasic:
     def test_food_item_to_micro_targets(self) -> None:
         """Ensure FoodItem.to_micro_targets maps fields correctly to MicroTargets."""
         food_db = parse_food_db()
-        sample_item = next(iter(food_db.values()))
+
+        # Find a deterministic sample with valid micronutrient values (not None/0)
+        # Iterate to find the first item where key micronutrient fields are present and non-zero
+        sample_item = None
+        for item in food_db.values():
+            if (
+                item.Fe_mg
+                and item.Fe_mg > 0
+                and item.Ca_mg
+                and item.Ca_mg > 0
+                and item.Mg_mg
+                and item.Mg_mg > 0
+                and item.K_mg
+                and item.K_mg > 0
+            ):
+                sample_item = item
+                break
+
+        assert sample_item is not None, "No food item found with valid micronutrient values"
         assert isinstance(sample_item, FoodItem)
 
         micro = sample_item.to_micro_targets()
+        assert isinstance(micro, MicroTargets)
 
         assert micro.iron_mg == sample_item.Fe_mg
         assert micro.calcium_mg == sample_item.Ca_mg

@@ -1,22 +1,33 @@
 import csv
 import io
 import os
+import sys
 import importlib.util
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import pytest
 
-# Load food_store module directly to avoid conflicts
-spec = importlib.util.spec_from_file_location(
-    "food_store",
-    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "services", "food_store.py"),
-)
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load food_store module")
-fs_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(fs_module)
-fs = fs_module
+# Load food_store module - first check sys.modules, otherwise load from file
+if "food_store" in sys.modules:
+    fs = sys.modules["food_store"]
+else:
+    spec = importlib.util.spec_from_file_location(
+        "food_store",
+        os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "app", "services", "food_store.py"
+        ),
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Cannot load food_store module")
+    fs_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fs_module)
+    fs = fs_module
+
+
+def resolve_attr(name: str) -> Any:
+    """Helper to resolve attributes from the food_store module for test patching."""
+    return getattr(fs, name)
 
 
 def test_safe_float_invalid_returns_zero() -> None:

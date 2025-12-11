@@ -41,18 +41,18 @@ class TestUsersRetryMechanism:
         mock_db.SessionLocal.return_value = mock_session
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
-        # Track timing to verify exponential backoff (function has max_retries=3, base_delay=0.1 hardcoded)
-        start_time = time.time()
-        result = users._execute_with_retry(action_with_failures)
-        elapsed = time.time() - start_time
+        # Mock time.sleep to verify exponential backoff delays without actually sleeping
+        with patch("app.routers.users.time.sleep") as mock_sleep:
+            result = users._execute_with_retry(action_with_failures)
 
         # Should succeed on 4th attempt (1 initial + 3 retries)
         assert result == {"user_id": 123, "email": "test@example.com"}
         assert call_count == 4
 
-        # Verify timing: 0.1s + 0.2s + 0.4s = 0.7s minimum
-        # Allow 50ms tolerance for test execution overhead
-        assert elapsed >= 0.65, f"Expected >= 0.7s for exponential backoff, got {elapsed}s"
+        # Verify exponential backoff delays: 0.1s, 0.2s, 0.4s (base_delay=0.1, multiplied by 2 each retry)
+        assert mock_sleep.call_count == 3, "Expected 3 sleep calls for 3 retries"
+        expected_delays = [call(0.1), call(0.2), call(0.4)]
+        mock_sleep.assert_has_calls(expected_delays, any_order=False)
 
         # Verify session cleanup: 1 initial + 3 retries = 4 sessions created and closed
         assert mock_db.SessionLocal.call_count == 4

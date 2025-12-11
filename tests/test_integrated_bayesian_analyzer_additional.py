@@ -77,6 +77,57 @@ def test_password():
     assert all("password" not in msg.lower() for msg in issues_test)
 
 
+def test_check_potential_sql_injection_various_patterns() -> None:
+    """Exercise multiple dynamic SQL construction patterns and execution contexts."""
+    analyzer = IntegratedBayesianAnalyzer()
+
+    # BinOp concatenation with assignment and positional execute()
+    code_concat = """
+user_input = "abc"
+query = "SELECT * FROM users WHERE name=" + user_input
+cursor.execute(query)
+"""
+    assert analyzer._check_potential_sql_injection(code_concat) is True
+
+    # f-string passed directly to execute()
+    code_fstring = """
+user_id = "42"
+cursor.execute(f"SELECT * FROM users WHERE id={user_id}")
+"""
+    assert analyzer._check_potential_sql_injection(code_fstring) is True
+
+    # .format() assignment used as keyword argument in execute()
+    code_format_kw = """
+user_id = "42"
+query = "SELECT * FROM users WHERE id={}".format(user_id)
+cursor.execute(sql=query)
+"""
+    assert analyzer._check_potential_sql_injection(code_format_kw) is True
+
+    # AugAssign building of SQL followed by execute()
+    code_augassign = """
+user_id = "42"
+query = "SELECT * FROM users"
+query += " SELECT * FROM logs" + user_id
+cursor.execute(query)
+"""
+    assert analyzer._check_potential_sql_injection(code_augassign) is True
+
+
+def test_check_potential_sql_injection_ignores_logging_only() -> None:
+    """Dynamic SQL used only in logging should not be flagged."""
+    analyzer = IntegratedBayesianAnalyzer()
+
+    code_logging_only = """
+import logging
+logger = logging.getLogger(__name__)
+user_id = "42"
+query = "SELECT * FROM users WHERE id=" + user_id
+logger.info(query)
+"""
+    assert analyzer._check_potential_sql_injection(code_logging_only) is False
+
+
 def test_analyze_philosophy_compliance_branches() -> None:
     analyzer = IntegratedBayesianAnalyzer()
 
