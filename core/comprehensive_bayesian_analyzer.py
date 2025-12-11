@@ -349,6 +349,18 @@ class ComprehensiveBayesianAnalyzer:
         self.comprehensive_results.append(result)
         return result
 
+    def analyze_all(self, test_code: str, test_name: str) -> list[ComprehensiveTestResult]:
+        """
+        Backwards-compatible helper that runs a full comprehensive analysis.
+
+        Older tests expected an ``analyze_all`` entry point returning a list of
+        results; internally we now expose :meth:`analyze_comprehensively`, which
+        returns a single ``ComprehensiveTestResult``. This helper simply wraps
+        that method and returns the result in a one-element list.
+        """
+        result = self.analyze_comprehensively(test_code, test_name, file_path="<memory>")
+        return [result]
+
     def _calculate_technical_score(self, issues: List[str]) -> float:
         """Вычисляет технический балл."""
         if not issues:

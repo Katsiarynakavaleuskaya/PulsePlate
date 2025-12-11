@@ -17,7 +17,9 @@ from sqlalchemy.exc import OperationalError, IntegrityError
 class TestUsersRetryMechanism:
     """Test the _execute_with_retry retry mechanism with real timing."""
 
-    def test_operational_error_triggers_retry_with_exponential_backoff(self, monkeypatch):
+    def test_operational_error_triggers_retry_with_exponential_backoff(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Verify retry delays follow exponential backoff: 0.1s, 0.2s, 0.4s."""
         from app.routers import users
 
@@ -56,7 +58,9 @@ class TestUsersRetryMechanism:
         assert mock_db.SessionLocal.call_count == 4
         assert mock_session.close.call_count == 4
 
-    def test_integrity_error_bypasses_retry_returns_409_immediately(self, monkeypatch):
+    def test_integrity_error_bypasses_retry_returns_409_immediately(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """IntegrityError (duplicate key) should NOT retry - fail fast with 409."""
         from app.routers import users
 
@@ -84,7 +88,9 @@ class TestUsersRetryMechanism:
         assert mock_session.close.call_count == 1
         assert mock_session.rollback.call_count == 1
 
-    def test_retry_on_second_attempt_integrity_error_fails_fast(self, monkeypatch):
+    def test_retry_on_second_attempt_integrity_error_fails_fast(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """If first attempt has OperationalError but retry hits IntegrityError, should stop immediately."""
         from app.routers import users
 
@@ -117,7 +123,9 @@ class TestUsersRetryMechanism:
         # Timing: 0.1s delay before 2nd attempt
         assert 0.1 <= elapsed < 0.3, f"Expected ~0.1s for single retry, got {elapsed}s"
 
-    def test_retry_exhaustion_with_fallback_returns_fallback_value(self, monkeypatch):
+    def test_retry_exhaustion_with_fallback_returns_fallback_value(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When all retries fail and fallback provided, should return fallback."""
         from app.routers import users
 
@@ -137,7 +145,9 @@ class TestUsersRetryMechanism:
         # 1 initial + 3 retries (hardcoded) = 4 attempts
         assert mock_db.SessionLocal.call_count == 4
 
-    def test_retry_exhaustion_without_fallback_raises_503(self, monkeypatch):
+    def test_retry_exhaustion_without_fallback_raises_503(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """When all retries fail and no fallback, should raise 503 SERVICE_UNAVAILABLE."""
         from app.routers import users
 
@@ -162,7 +172,9 @@ class TestUsersEndpointRetryIntegration:
     """Test actual user endpoints to verify retry integration."""
 
     @pytest.mark.asyncio
-    async def test_list_users_no_fallback_on_db_failure(self, test_client, monkeypatch):
+    async def test_list_users_no_fallback_on_db_failure(
+        self, test_client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """list_users should raise 503 on DB failure (no fallback configured)."""
         from app.routers import users
 

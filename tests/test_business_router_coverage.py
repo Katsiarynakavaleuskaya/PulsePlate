@@ -10,7 +10,7 @@ Tests verify:
 
 import pytest
 from unittest.mock import patch, MagicMock
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 
 
 class TestBusinessAnalysisEndpoint:
@@ -75,8 +75,8 @@ class TestBusinessAnalysisEndpoint:
         assert response.status_code == 503
         assert "disabled" in response.json()["detail"].lower()
 
-    def test_oversized_payload_rejected_with_413(self, test_client, monkeypatch):
-        """Payloads > 100KB should be rejected with 413 to prevent DoS."""
+    def test_oversized_payload_rejected_with_422(self, test_client, monkeypatch) -> None:
+        """Payloads > 100KB should be rejected with 422 (Pydantic validation) to prevent DoS."""
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
         # Create exactly 100,001 bytes of code
@@ -91,6 +91,32 @@ class TestBusinessAnalysisEndpoint:
         # FastAPI Pydantic validation catches this before endpoint logic
         # so it returns 422 (Unprocessable Entity) not 413
         assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_analyze_business_code_oversized_payload_internal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Internal guard: oversized payloads raise 413 even when using direct model construction."""
+    from app.routers.business import BusinessAnalysisRequest, analyze_business_code
+
+    # Ensure module-level flag allows analysis
+    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+
+    oversized_code = "x" * 100_001
+
+    # Bypass Pydantic max_length validation to hit the runtime size guard
+    request = BusinessAnalysisRequest.model_construct(
+        code=oversized_code,
+        test_name="internal_large_payload",
+        locale="en",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await analyze_business_code(request, api_key="test-key")
+
+    assert exc_info.value.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    assert "too large" in str(exc_info.value.detail).lower()
 
     def test_exactly_100kb_payload_accepted(self, test_client, monkeypatch):
         """Payload of exactly 100KB should be accepted."""

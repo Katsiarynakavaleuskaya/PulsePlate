@@ -8,7 +8,7 @@ import pytest
 import importlib.util
 from pathlib import Path
 from fastapi.testclient import TestClient
-from typing import cast
+from typing import cast, Iterator
 from starlette.types import ASGIApp
 
 
@@ -187,7 +187,7 @@ def init_test_database() -> None:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_async_resources():
+def cleanup_async_resources() -> Iterator[None]:
     """Clean up async resources after test session to prevent ResourceWarnings."""
     yield
 
@@ -269,7 +269,7 @@ def dynamic_client(dynamic_app):
 
 
 @pytest.fixture(autouse=True)
-def reset_environment():  # sourcery skip: use-contextlib-suppress
+def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-suppress
     """Automatically reset environment variables before and after each test."""
     # Save current environment
     old_env = dict(os.environ)
@@ -337,7 +337,7 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
 
 
 @pytest.fixture(autouse=True)
-def reset_sys_modules():
+def reset_sys_modules() -> Iterator[None]:
     """Reset sys.modules for VIP module tests."""
     # Store original VIP module if it exists
     original_vip_module = sys.modules.get("app.routers.vip")

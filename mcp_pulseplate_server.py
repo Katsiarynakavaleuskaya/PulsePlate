@@ -33,6 +33,12 @@ class PulsePlateMCPServer:
     _cached_models: set[str] | None = None
     _model_cache_failed: bool = False
 
+    @classmethod
+    def _reset_model_cache(cls) -> None:
+        """Reset model cache (primarily for testing)."""
+        cls._cached_models = None
+        cls._model_cache_failed = False
+
     # Officially released OpenAI models as of December 2025
     # This is a fallback when dynamic discovery via openai.models.list() fails
     # MAINTENANCE: Update when new models are officially released
@@ -48,7 +54,7 @@ class PulsePlateMCPServer:
         "gpt-4o-mini",
         # GPT-5 series (officially released December 2025)
         "gpt-5.1",
-        "gpt-5.1-codex",
+        "gpt-5.1-codex-max",
         "gpt-5-pro",
         # Realtime and audio models
         "gpt-realtime",
@@ -156,7 +162,12 @@ class PulsePlateMCPServer:
             )
 
     def __init__(self) -> None:
-        # Validate default model configuration
+        # Validate default model configuration before checking API key.
+        # Note: In misconfigured environments (missing API key), this does extra work
+        # since _validate_default_model() calls _fetch_available_models() which attempts
+        # API calls. However, the fallback logic ensures this won't crash. For cleaner
+        # error messages, we could move this after the API key check, but the current
+        # order validates configuration consistency first (fail-fast on config issues).
         self._validate_default_model()
 
         api_key = os.getenv("OPENAI_API_KEY")

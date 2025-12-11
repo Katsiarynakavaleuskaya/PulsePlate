@@ -13,8 +13,8 @@ chmod +x .githooks/pre-commit
 git config core.hooksPath .githooks
 
 # Проверить, что хук работает правильно
-git commit --dry-run
-```
+# Запустить хук напрямую для проверки
+.githooks/pre-commit
 
 **Преимущества:**
 - 🎯 Все проверки в одном месте

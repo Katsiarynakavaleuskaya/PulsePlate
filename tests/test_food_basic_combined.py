@@ -9,7 +9,7 @@ import pytest
 
 import app as app_module
 
-from core.food_db import aggregate_shopping, parse_food_db, pick_booster_for
+from core.food_db import FoodItem, aggregate_shopping, parse_food_db, pick_booster_for
 
 
 class TestFoodAPIBasic:
@@ -106,6 +106,22 @@ class TestFoodDatabaseBasic:
         assert shopping_list["Овсяные хлопья"] == 60
         assert "Тофу" in shopping_list
         assert shopping_list["Тофу"] == 120
+
+    def test_food_item_to_micro_targets(self):
+        """Ensure FoodItem.to_micro_targets maps fields correctly to MicroTargets."""
+        food_db = parse_food_db()
+        sample_item = next(iter(food_db.values()))
+        assert isinstance(sample_item, FoodItem)
+
+        micro = sample_item.to_micro_targets()
+
+        assert micro.iron_mg == sample_item.Fe_mg
+        assert micro.calcium_mg == sample_item.Ca_mg
+        assert micro.magnesium_mg == sample_item.Mg_mg
+        assert micro.potassium_mg == sample_item.K_mg
+        assert micro.iodine_ug == sample_item.Iodine_ug
+        assert micro.folate_ug == sample_item.Folate_ug
+        assert micro.b12_ug == sample_item.B12_ug
 
 
 # __main__ guard intentionally omitted; run via `pytest`.

@@ -26,22 +26,22 @@ app = app_module.app
 class TestCoverageImprovement:
     """Tests to improve coverage for uncovered lines."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_app_py_uncovered_lines(self):
+    def test_app_py_uncovered_lines(self) -> None:
         """Test uncovered lines in main.py."""
         # Test the dotenv loading condition
         with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "1"}):
@@ -57,7 +57,7 @@ class TestCoverageImprovement:
         response = self.client.get("/favicon.ico")
         assert response.status_code == 204
 
-    def test_bmi_visualize_endpoint_uncovered_paths(self):
+    def test_bmi_visualize_endpoint_uncovered_paths(self) -> None:
         """Test uncovered paths in bmi_visualize_endpoint."""
         # Test when matplotlib is not available
         with patch("app.generate_bmi_visualization", None):
@@ -96,7 +96,7 @@ class TestCoverageImprovement:
             )
             assert response.status_code == 404
 
-    def test_insight_endpoints_uncovered_paths(self):
+    def test_insight_endpoints_uncovered_paths(self) -> None:
         """Test uncovered paths in insight endpoints."""
         # Test /insight endpoint with feature disabled via env var
         with patch.dict(os.environ, {"FEATURE_INSIGHT": "0"}):
@@ -111,7 +111,7 @@ class TestCoverageImprovement:
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
 
-    def test_scheduler_uncovered_lines(self):
+    def test_scheduler_uncovered_lines(self) -> None:
         """Test uncovered lines in scheduler.py."""
         # Test signal handler setup exception
         with patch(
@@ -132,7 +132,7 @@ class TestCoverageImprovement:
             _ = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             # Should not crash
 
-    def test_unified_db_uncovered_lines(self):
+    def test_unified_db_uncovered_lines(self) -> None:
         """Test uncovered lines in unified_db.py."""
         # Test cache loading error - need to handle the exception properly
         try:
@@ -164,7 +164,7 @@ class TestCoverageImprovement:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_update_manager_uncovered_lines(self):
+    def test_update_manager_uncovered_lines(self) -> None:
         """Test uncovered lines in update_manager.py."""
         # Test rollback database error handling - fix the class name
         try:
@@ -187,7 +187,7 @@ class TestCoverageImprovement:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_menu_engine_uncovered_lines(self):
+    def test_menu_engine_uncovered_lines(self) -> None:
         """Test uncovered lines in menu_engine.py."""
         # Test get_default_food_db with API failure
         with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")):

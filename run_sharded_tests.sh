@@ -249,4 +249,3 @@ if [ "$COVERAGE" = true ]; then
         exit 1
     fi
 fi
-fi

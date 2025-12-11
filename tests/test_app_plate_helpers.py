@@ -330,15 +330,20 @@ async def test_api_premium_plate_fallback_aligns_targets(
     # The test fixture patches build_nutrition_targets to return DummyTargets with:
     # - protein_g=120, fat_g=60, carbs_g=180, fiber_g=28, kcal_daily=2200
     # When targets are available, they should override computed values
-    assert response.macros["fat_g"] in {60, 72}
-    assert response.macros["protein_g"] in {120, 128}
+    # DummyTargets provides: protein_g=120, fat_g=60, carbs_g=180, fiber_g=28, kcal_daily=2200
     assert (
-        100 <= response.macros["carbs_g"] <= 400
-    ), f"Expected 100 <= carbs_g <= 400, got {response.macros['carbs_g']}"
+        response.macros["fat_g"] == 60
+    ), f"Expected fat_g == 60 (from targets), got {response.macros['fat_g']}"
     assert (
-        app.FIBER_MIN_G <= response.macros["fiber_g"] <= 60
-    ), f"Expected {app.FIBER_MIN_G} <= fiber_g <= 60, got {response.macros['fiber_g']}"
-    assert 2000 <= response.kcal <= 2400, f"Expected 2000 <= kcal <= 2400, got {response.kcal}"
+        response.macros["protein_g"] == 120
+    ), f"Expected protein_g == 120 (from targets), got {response.macros['protein_g']}"
+    assert (
+        response.macros["carbs_g"] == 180
+    ), f"Expected carbs_g == 180 (from targets), got {response.macros['carbs_g']}"
+    assert (
+        response.macros["fiber_g"] == 28
+    ), f"Expected fiber_g == 28 (from targets), got {response.macros['fiber_g']}"
+    assert response.kcal == 2200, f"Expected kcal == 2200 (from targets), got {response.kcal}"
 
 
 @pytest.mark.asyncio

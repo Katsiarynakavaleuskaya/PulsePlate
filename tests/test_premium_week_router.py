@@ -209,6 +209,30 @@ class TestPremiumWeekRouter:
                 micro={"vitamin_c_mg": 90.0},  # Negative
             )
 
+        # Test non-numeric macro value
+        with pytest.raises(ValueError):
+            TargetsIn(
+                kcal=2000,
+                macros={"protein_g": "invalid"},  # type: ignore[dict-item]
+                micro={"vitamin_c_mg": 90.0},
+            )
+
+        # Test non-numeric micro value
+        with pytest.raises(ValueError):
+            TargetsIn(
+                kcal=2000,
+                macros={"protein_g": 150.0},
+                micro={"vitamin_c_mg": "invalid"},  # type: ignore[dict-item]
+            )
+
+        # Test negative micro value
+        with pytest.raises(ValueError):
+            TargetsIn(
+                kcal=2000,
+                macros={"protein_g": 150.0},
+                micro={"vitamin_c_mg": -10.0},
+            )
+
     def test_week_plan_request_model(self):
         """Test WeekPlanRequest model."""
         request = WeekPlanRequest(

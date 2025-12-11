@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 from typing import cast
@@ -26,6 +27,10 @@ class TestComprehensiveCoverage:
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
+        # Explicitly close TestClient to clean up resources
+        if hasattr(self, "client"):
+            self.client.close()
+
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
         if "FEATURE_PREMIUM_NUTRITION" in os.environ:
@@ -267,11 +272,11 @@ class TestComprehensiveCoverage:
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
 
         # Since we fixed rollback_database to raise HTTPException,
-        # this test now needs to expect an exception rather than a dict
-        with pytest.raises(Exception) as exc_info:
+        # this test now needs to expect HTTPException rather than generic Exception
+        with pytest.raises(HTTPException) as exc_info:
             await app_mod.rollback_database("usda", "1.0")
         # The function should raise because update_manager is None
-        assert "update manager" in str(exc_info.value).lower()
+        assert "update manager" in str(exc_info.value.detail).lower()
 
     @pytest.mark.asyncio
     @pytest.mark.serial
@@ -287,11 +292,11 @@ class TestComprehensiveCoverage:
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
 
         # Since we fixed rollback_database to raise HTTPException,
-        # this test now needs to expect an exception rather than a dict
-        with pytest.raises(Exception) as exc_info:
+        # this test now needs to expect HTTPException rather than generic Exception
+        with pytest.raises(HTTPException) as exc_info:
             await app_mod.rollback_database("usda", "1.0")
         # The function should raise because rollback_database method is missing
-        assert "not supported" in str(exc_info.value).lower()
+        assert "not supported" in str(exc_info.value.detail).lower()
 
     @pytest.mark.serial
     def test_rollback_endpoint_rollback_function_exception(

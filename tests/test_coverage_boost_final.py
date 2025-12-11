@@ -104,18 +104,20 @@ class TestCoverageFinalBoost:
         import app
 
         # Test with package explicit None
-        if hasattr(app, "_APP_PACKAGE_REF"):
-            # Save original
-            original = getattr(app, "build_nutrition_targets", None)
-            try:
-                # Set to None
-                app.build_nutrition_targets = None
-                result = app.targets_disabled()
-                assert result is True
-            finally:
-                # Restore
-                if original is not None:
-                    app.build_nutrition_targets = original
+        if not hasattr(app, "_APP_PACKAGE_REF"):
+            pytest.skip("requires _APP_PACKAGE_REF")
+
+        # Save original
+        original = getattr(app, "build_nutrition_targets", None)
+        try:
+            # Set to None
+            app.build_nutrition_targets = None
+            result = app.targets_disabled()
+            assert result is True
+        finally:
+            # Restore
+            if original is not None:
+                app.build_nutrition_targets = original
 
     def test_technical_utils_edge_cases(self):
         """Test bayesian technical utils edge cases."""

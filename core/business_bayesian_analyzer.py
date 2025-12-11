@@ -181,6 +181,8 @@ class BusinessBayesianAnalyzer:
                 Falls back to 'en' if not provided or invalid.
         """
         self.test_results: list[BusinessTestResult] = []
+        # Persist normalized locale for downstream diagnostics and tests
+        self.locale: str = i18n.normalize_lang(locale)
         # Load business knowledge: injected config takes priority over file loading
         self.business_knowledge_base = (
             business_knowledge
