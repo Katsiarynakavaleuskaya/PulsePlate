@@ -196,9 +196,6 @@ def cleanup_async_resources() -> Iterator[None]:
 
     gc.collect()
 
-    # Final garbage collection to ensure cleanup
-    gc.collect()
-
 
 @pytest.fixture(scope="session")
 def dynamic_app():

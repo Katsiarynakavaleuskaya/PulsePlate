@@ -1052,22 +1052,22 @@ class IntegratedBayesianAnalyzer:
         num_philosophy_tests = sum(1 for r in self.integrated_results if r.philosophy_violations)
 
         # Рекомендации на основе частых проблем (bilingual output)
-        if num_technical_tests > len(self.integrated_results) * self.TECHNICAL_THRESHOLD:
+        if num_technical_tests >= len(self.integrated_results) * self.TECHNICAL_THRESHOLD:
             recommendations.append(
                 "Провести технический рефакторинг тестов / Conduct technical test refactoring"
             )
 
-        if num_nutrition_tests > len(self.integrated_results) * self.NUTRITION_THRESHOLD:
+        if num_nutrition_tests >= len(self.integrated_results) * self.NUTRITION_THRESHOLD:
             recommendations.append(
                 "Усилить проверки безопасности питания / Strengthen nutrition safety checks"
             )
 
-        if num_safety_tests > len(self.integrated_results) * self.SAFETY_THRESHOLD:
+        if num_safety_tests >= len(self.integrated_results) * self.SAFETY_THRESHOLD:
             recommendations.append(
                 "Провести аудит безопасности данных / Conduct data security audit"
             )
 
-        if num_philosophy_tests > len(self.integrated_results) * self.PHILOSOPHY_THRESHOLD:
+        if num_philosophy_tests >= len(self.integrated_results) * self.PHILOSOPHY_THRESHOLD:
             recommendations.append(
                 "Обновить тесты в соответствии с философией системы / "
                 "Update tests to align with system philosophy"

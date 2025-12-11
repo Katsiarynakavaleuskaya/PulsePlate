@@ -16,7 +16,7 @@ from fastapi import HTTPException, status
 class TestBusinessAnalysisEndpoint:
     """Test business analysis endpoint with real logic verification."""
 
-    def test_business_analysis_success_with_real_analyzer(self, test_client):
+    def test_business_analysis_success_with_real_analyzer(self, test_client) -> None:
         """Verify successful analysis with mocked BusinessBayesianAnalyzer."""
         from core.business_bayesian_analyzer import BusinessCategory
 
@@ -62,7 +62,7 @@ class TestBusinessAnalysisEndpoint:
             MockAnalyzer.assert_called_once_with(locale="en")
             mock_instance.analyze.assert_called_once()
 
-    def test_business_module_disabled_returns_503(self, test_client, monkeypatch):
+    def test_business_module_disabled_returns_503(self, test_client, monkeypatch) -> None:
         """When module disabled, should return 503 before attempting analysis."""
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", False)
 
@@ -119,7 +119,7 @@ async def test_analyze_business_code_oversized_payload_internal(
     assert "too large" in str(exc_info.value.detail).lower()
 
 
-def test_exactly_100kb_payload_accepted(test_client, monkeypatch):
+def test_exactly_100kb_payload_accepted(test_client, monkeypatch) -> None:
     """Payload of exactly 100KB should be accepted."""
     monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
@@ -150,7 +150,7 @@ def test_exactly_100kb_payload_accepted(test_client, monkeypatch):
         assert response.status_code == 200
 
 
-def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch):
+def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch) -> None:
     """Non-HTTP exceptions from analyzer should be wrapped as 500."""
     monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
@@ -172,7 +172,7 @@ def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch):
         assert "RuntimeError" not in response.json()["detail"]
 
 
-def test_http_exception_passed_through_unchanged(test_client, monkeypatch):
+def test_http_exception_passed_through_unchanged(test_client, monkeypatch) -> None:
     """HTTPException from analyzer should pass through without wrapping."""
     monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 
@@ -195,7 +195,7 @@ def test_http_exception_passed_through_unchanged(test_client, monkeypatch):
         assert "permissions" in response.json()["detail"].lower()
 
 
-def test_status_endpoint_reflects_module_state(test_client, monkeypatch):
+def test_status_endpoint_reflects_module_state(test_client, monkeypatch) -> None:
     """Status endpoint should accurately reflect BUSINESS_MODULE_ENABLED."""
     # Test when enabled
     monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
@@ -212,7 +212,7 @@ def test_status_endpoint_reflects_module_state(test_client, monkeypatch):
     assert response.json()["module"] == "business_analysis"
 
 
-def test_error_type_handling_when_analyzer_returns_error(test_client, monkeypatch):
+def test_error_type_handling_when_analyzer_returns_error(test_client, monkeypatch) -> None:
     """Verify error_type conversion when analysis returns error results."""
     from core.business_bayesian_analyzer import BusinessErrorType
 
@@ -248,7 +248,7 @@ def test_error_type_handling_when_analyzer_returns_error(test_client, monkeypatc
         assert data["error_message"] == "Invalid pricing logic"
 
 
-def test_multiple_results_returned_as_list(test_client, monkeypatch):
+def test_multiple_results_returned_as_list(test_client, monkeypatch) -> None:
     """Analyzer can return multiple results for different aspects."""
     from core.business_bayesian_analyzer import BusinessCategory
 

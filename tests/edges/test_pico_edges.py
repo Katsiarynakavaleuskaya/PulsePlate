@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 
-def _await_or_value(x):
+def _await_or_value(x: Any) -> Any:
     import asyncio
 
     if asyncio.iscoroutine(x):
@@ -10,7 +10,7 @@ def _await_or_value(x):
     return x
 
 
-def test_pico_response_branch(monkeypatch):
+def test_pico_response_branch(monkeypatch) -> None:
     from providers import pico as pico_mod
 
     class _Resp:
@@ -36,7 +36,7 @@ def test_pico_response_branch(monkeypatch):
     assert out == "Z"
 
 
-def test_pico_else_fallback_branch(monkeypatch):
+def test_pico_else_fallback_branch(monkeypatch) -> None:
     from providers import pico as pico_mod
 
     class _Resp:
