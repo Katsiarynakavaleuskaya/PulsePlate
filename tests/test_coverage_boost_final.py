@@ -12,7 +12,12 @@ class TestCoverageFinalBoost:
 
     def test_bayesian_analyzer_edge_cases(self):
         """Cover edge cases in bayesian analyzer."""
-        from core.bayesian_test_analyzer import BayesianTestAnalyzer, ErrorType, TestStatus, TestCategory
+        from core.bayesian_test_analyzer import (
+            BayesianTestAnalyzer,
+            ErrorType,
+            TestStatus,
+            TestCategory,
+        )
 
         analyzer = BayesianTestAnalyzer()
 
@@ -63,7 +68,7 @@ class TestCoverageFinalBoost:
             response = test_client.post(
                 "/api/v1/business/analyze",
                 json={"code": "def test(): pass", "test_name": "test"},
-                headers={"X-API-Key": "test-key"}
+                headers={"X-API-Key": "test-key"},
             )
 
             assert response.status_code == 200
@@ -99,9 +104,9 @@ class TestCoverageFinalBoost:
         import app
 
         # Test with package explicit None
-        if hasattr(app, '_APP_PACKAGE_REF'):
+        if hasattr(app, "_APP_PACKAGE_REF"):
             # Save original
-            original = getattr(app, 'build_nutrition_targets', None)
+            original = getattr(app, "build_nutrition_targets", None)
             try:
                 # Set to None
                 app.build_nutrition_targets = None
