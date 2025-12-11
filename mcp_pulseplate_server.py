@@ -93,8 +93,6 @@ class PulsePlateMCPServer:
 
         # Try to fetch from OpenAI API
         try:
-            import openai
-
             # Use environment API key for discovery
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
@@ -325,17 +323,21 @@ Please provide a helpful response considering the PulsePlate project context.
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an AI assistant helping with the PulsePlate health and nutrition tracking app development.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=1000,
-                temperature=0.7,
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an AI assistant helping with the PulsePlate health and nutrition tracking app development.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=1000,
+                    temperature=0.7,
+                ),
             )
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
@@ -363,17 +365,21 @@ Please provide:
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a senior code reviewer for the PulsePlate project.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=1500,
-                temperature=0.3,
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a senior code reviewer for the PulsePlate project.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=1500,
+                    temperature=0.3,
+                ),
             )
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}
@@ -399,17 +405,21 @@ Requirements:
 """
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a senior developer for the PulsePlate project.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=2000,
-                temperature=0.5,
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a senior developer for the PulsePlate project.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=2000,
+                    temperature=0.5,
+                ),
             )
 
             return {"content": [{"type": "text", "text": response.choices[0].message.content}]}

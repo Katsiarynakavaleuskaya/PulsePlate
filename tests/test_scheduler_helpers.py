@@ -221,3 +221,30 @@ def test_safe_stop_with_cleanup_suppresses_event_loop_closed(
 
     # Should not raise despite RuntimeError inside stopper/run.
     scheduler_helpers.safe_stop_with_cleanup(stopper)
+
+
+def test_safe_stop_with_cleanup_awaitable_calls_asyncio_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """safe_stop_with_cleanup should call asyncio.run for awaitable stoppers."""
+    called: Dict[str, Any] = {}
+
+    async def _coro() -> None:
+        called["coro_ran"] = True
+
+    def stopper() -> Any:
+        # Return an awaitable object to trigger asyncio.run branch
+        called["stopper_called"] = True
+        return _coro()
+
+    def _fake_run(obj: Any) -> None:
+        # Record the object passed to asyncio.run without actually running it
+        called["run_arg"] = obj
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)
+
+    scheduler_helpers.safe_stop_with_cleanup(stopper)
+
+    assert called.get("stopper_called") is True
+    # Ensure asyncio.run was invoked with an awaitable
+    assert "run_arg" in called

@@ -21,6 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from core import db as db_module
+import core.recipe_synth as recipe_synth
 
 # Ensure key feature flags are enabled during test collection
 os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
@@ -49,6 +50,30 @@ if _sharding_module_path.exists():
             pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems
         except Exception as e:
             warnings.warn(f"Failed to load pytest_sharding.py: {e}. Sharding disabled.")
+
+
+@pytest.fixture(autouse=True)
+def _reset_recipe_synth_singleton() -> Generator[None, None, None]:
+    """Reset RecipeSynthesizer singleton before and after each test.
+
+    Prevents cross-test contamination when tests initialize the synthesizer with different
+    templates_dir values (e.g., custom/templates vs data/recipe_templates), which would
+    otherwise cause ValueError in VIP endpoints under xdist sharding.
+    """
+    # Best-effort reset before test
+    try:
+        recipe_synth.reset_recipe_synthesizer()
+    except Exception:
+        # Defensive: singleton reset should not break tests even if implementation changes
+        logger.debug("Failed to reset recipe synthesizer before test", exc_info=True)
+
+    yield
+
+    # Best-effort reset after test
+    try:
+        recipe_synth.reset_recipe_synthesizer()
+    except Exception:
+        logger.debug("Failed to reset recipe synthesizer after test", exc_info=True)
 
 
 @pytest.fixture(scope="session", autouse=True)
