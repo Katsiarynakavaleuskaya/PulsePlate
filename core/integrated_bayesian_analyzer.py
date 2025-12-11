@@ -182,9 +182,8 @@ class IntegratedBayesianAnalyzer:
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze technical aspects of the test."""
         issues = analyze_technical_aspects_common(code)
+        # Password checks moved to _analyze_safety_aspects for consolidated detection
         code_lower = code.lower()
-        if "password" in code_lower:
-            issues.append("Password leak detected")
         if "eval(" in code_lower:
             issues.append("Dangerous eval usage")
         return issues
@@ -492,31 +491,11 @@ class IntegratedBayesianAnalyzer:
         if password_match and not self._is_in_test_or_mock_context(code):
             issues.append("Hardcoded password in code")
 
-        # SQL injection check (comprehensive detection of unsafe SQL construction)
-        # Patterns cover: string concatenation, f-strings, .format(), multiline queries,
-        # and various SQL verbs (SELECT, INSERT, UPDATE, DELETE)
-        sql_concat_patterns = [
-            # String concatenation with + operator and SQL keywords
-            r'["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\'].*\+',
-            r'\+.*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']',
-            # f-strings with SQL keywords
-            r'f["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*\{[^}]*\}',
-            r'f["\'].*\{[^}]*\}.*(?:SELECT|INSERT|UPDATE|DELETE)',
-            # .format() calls with SQL keywords
-            r'["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']\.format\(',
-            # Multiline queries with concatenation
-            r'["\'].*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\'].*\+',
-            r'\+.*["\'].*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\']',
-            # Triple-quoted strings with SQL and concatenation
-            r'["\']{3}.*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\']{3}.*\+',
-            r'\+.*["\']{3}.*(?:SELECT|INSERT|UPDATE|DELETE)[\s\S]*?["\']{3}',
-        ]
-        if any(
-            re.search(pattern, code, re.IGNORECASE | re.DOTALL) for pattern in sql_concat_patterns
-        ):
-            # Only flag if not in test/mock context (same as hardcoded password check)
-            if not self._is_in_test_or_mock_context(code):
-                issues.append("Potential SQL injection vulnerability")
+        # SQL injection check: AST-based and context-aware.
+        # Only flag when dynamically constructed SQL (concatenation, f-strings, .format())
+        # is actually passed into an execution/query call, excluding logging calls.
+        if self._check_potential_sql_injection(code) and not self._is_in_test_or_mock_context(code):
+            issues.append("Potential SQL injection vulnerability")
 
         # Command injection via os.system/subprocess in non-test contexts
         command_injection_patterns = [
@@ -536,6 +515,205 @@ class IntegratedBayesianAnalyzer:
             issues.append("Logging sensitive data")
 
         return issues
+
+    def _check_potential_sql_injection(self, code: str) -> bool:
+        """Detect dynamic SQL passed to execution/query functions (AST-based).
+
+        Heuristic:
+        - Look for Call nodes whose function name/attribute suggests DB execution
+          (execute/exec/query/run_query/raw_query/etc.).
+        - For those calls, inspect positional arguments and flag when an argument is a
+          dynamically constructed string (BinOp with +/%, f-string, or .format()) whose
+          constant parts contain SQL keywords.
+        - Explicitly skip logging calls like logging.info(...), logger.debug(...), etc.,
+          to avoid false positives for SQL-like strings used only in logs.
+        """
+
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return False
+
+        class SqlInjectionChecker(ast.NodeVisitor):
+            SQL_KEYWORDS = (
+                "select",
+                "insert",
+                "update",
+                "delete",
+                "drop",
+                "alter",
+                "create",
+            )
+            EXECUTION_METHOD_NAMES = {
+                "execute",
+                "executemany",
+                "exec",
+                "raw",
+                "raw_query",
+                "query",
+                "run_query",
+                "execute_query",
+            }
+            LOGGING_METHOD_NAMES = {
+                "debug",
+                "info",
+                "warning",
+                "error",
+                "critical",
+                "exception",
+                "log",
+            }
+            LOGGING_BASE_NAMES = {"logging", "logger", "log"}
+
+            def __init__(self) -> None:
+                self.found: bool = False
+                # Track variables that hold dynamically constructed SQL strings
+                self.dynamic_sql_vars: set[str] = set()
+
+            def visit_Assign(self, node: ast.Assign) -> None:
+                # Track `var = "SELECT ..." + user_input` style assignments.
+                if self._is_dynamic_sql_expr(node.value):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            self.dynamic_sql_vars.add(target.id)
+                self.generic_visit(node)
+
+            def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+                # Track annotated assignments: `query: str = "SELECT ..." + user_input`
+                value = node.value
+                if (
+                    value is not None
+                    and self._is_dynamic_sql_expr(value)
+                    and isinstance(node.target, ast.Name)
+                ):
+                    self.dynamic_sql_vars.add(node.target.id)
+                self.generic_visit(node)
+
+            def visit_AugAssign(self, node: ast.AugAssign) -> None:
+                # Track incremental building: `query += " WHERE " + condition`
+                if isinstance(node.target, ast.Name) and self._is_dynamic_sql_expr(node.value):
+                    self.dynamic_sql_vars.add(node.target.id)
+                self.generic_visit(node)
+
+            def visit_Call(self, node: ast.Call) -> None:
+                if self.found:
+                    return
+
+                if self._is_logging_call(node):
+                    # Logging calls are explicitly excluded from SQL injection detection.
+                    self.generic_visit(node)
+                    return
+
+                if self._is_db_execution_call(node):
+                    # Positional args
+                    for arg in node.args:
+                        if self._is_dynamic_sql_expr(arg):
+                            self.found = True
+                            return
+                        if isinstance(arg, ast.Name) and arg.id in self.dynamic_sql_vars:
+                            self.found = True
+                            return
+
+                    # Keyword args: cursor.execute(sql=query)
+                    for kw in node.keywords:
+                        value = kw.value
+                        if self._is_dynamic_sql_expr(value):
+                            self.found = True
+                            return
+                        if isinstance(value, ast.Name) and value.id in self.dynamic_sql_vars:
+                            self.found = True
+                            return
+
+                self.generic_visit(node)
+
+            def _is_logging_call(self, node: ast.Call) -> bool:
+                func = node.func
+                # logging.info(...), logger.debug(...), some_logger.error(...)
+                if isinstance(func, ast.Attribute):
+                    method = func.attr.lower()
+                    if method in self.LOGGING_METHOD_NAMES:
+                        base = func.value
+                        if (
+                            isinstance(base, ast.Name)
+                            and base.id.lower() in self.LOGGING_BASE_NAMES
+                        ):
+                            return True
+                        if (
+                            isinstance(base, ast.Attribute)
+                            and base.attr.lower() in self.LOGGING_BASE_NAMES
+                        ):
+                            return True
+
+                # log(...), logger(...), logging(...)
+                if isinstance(func, ast.Name) and func.id.lower() in (
+                    self.LOGGING_BASE_NAMES | self.LOGGING_METHOD_NAMES
+                ):
+                    return True
+
+                return False
+
+            def _is_db_execution_call(self, node: ast.Call) -> bool:
+                func = node.func
+                if isinstance(func, ast.Attribute):
+                    name = func.attr.lower()
+                    if name in self.EXECUTION_METHOD_NAMES:
+                        return True
+                elif isinstance(func, ast.Name):
+                    name = func.id.lower()
+                    if name in self.EXECUTION_METHOD_NAMES:
+                        return True
+                return False
+
+            def _is_dynamic_sql_expr(self, expr: ast.AST) -> bool:
+                # f-strings
+                if isinstance(expr, ast.JoinedStr):
+                    return self._contains_sql_keyword(expr)
+
+                # String concatenation or %-formatting:
+                #   "SELECT ..." + user_input
+                #   "SELECT ... %s" % value
+                if isinstance(expr, ast.BinOp) and isinstance(expr.op, (ast.Add, ast.Mod)):
+                    return self._contains_sql_keyword(expr)
+
+                # .format() calls: "SELECT ... {}".format(value)
+                if (
+                    isinstance(expr, ast.Call)
+                    and isinstance(expr.func, ast.Attribute)
+                    and expr.func.attr == "format"
+                ):
+                    return self._contains_sql_keyword(expr.func.value)
+
+                return False
+
+            def _contains_sql_keyword(self, node: ast.AST) -> bool:
+                # Constant string literal
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    value_lower = node.value.lower()
+                    return any(keyword in value_lower for keyword in self.SQL_KEYWORDS)
+
+                # f-string: inspect all parts
+                if isinstance(node, ast.JoinedStr):
+                    return any(self._contains_sql_keyword(part) for part in node.values)
+
+                # Concatenation / %-formatting: inspect both sides
+                if isinstance(node, ast.BinOp):
+                    return self._contains_sql_keyword(node.left) or self._contains_sql_keyword(
+                        node.right
+                    )
+
+                # "SELECT ... {}".format(...)
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "format"
+                ):
+                    return self._contains_sql_keyword(node.func.value)
+
+                return False
+
+        checker = SqlInjectionChecker()
+        checker.visit(tree)
+        return checker.found
 
     def _analyze_philosophy_compliance(self, code: str, test_name: str) -> List[str]:
         """Analyze compliance with system philosophy."""

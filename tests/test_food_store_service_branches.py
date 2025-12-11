@@ -1,11 +1,22 @@
 import csv
 import io
+import os
+import importlib.util
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import pytest
 
-import app.services.food_store as fs
+# Load food_store module directly to avoid conflicts
+spec = importlib.util.spec_from_file_location(
+    "food_store",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "services", "food_store.py"),
+)
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load food_store module")
+fs_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(fs_module)
+fs = fs_module
 
 
 def test_safe_float_invalid_returns_zero() -> None:

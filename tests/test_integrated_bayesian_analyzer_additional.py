@@ -3,6 +3,11 @@
 import pytest
 
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, NormalizedIssueType
+from core.nutrition_bayesian_analyzer import (
+    NutritionCategory,
+    NutritionErrorType,
+    NutritionTestResult,
+)
 
 
 def test_is_in_test_or_mock_context_variants() -> None:
@@ -54,7 +59,11 @@ logger.info("token=" f"{token}")
 def test_analyze_safety_aspects_password_sql_and_context() -> None:
     analyzer = IntegratedBayesianAnalyzer()
     # Non-test context: should flag both password and SQL injection
-    code = 'password = "abc"\nquery = "SELECT * FROM users" + user_input'
+    code = """
+password = "abc"
+query = "SELECT * FROM users" + user_input
+cursor.execute(query)
+"""
     issues = analyzer._analyze_safety_aspects(code, "prod_code")
     assert "Hardcoded password in code" in issues
     assert any("SQL injection" in msg for msg in issues)
@@ -206,18 +215,77 @@ def test_calculate_risk_level_thresholds() -> None:
     assert analyzer._calculate_risk_level(medium, [], [], []) == "medium"
 
 
+def test_comprehensive_analysis_and_diagnosis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """End-to-end smoke test for integrated analysis and diagnosis helpers."""
+    analyzer = IntegratedBayesianAnalyzer()
+
+    # Force deterministic technical issues
+    monkeypatch.setattr(analyzer, "_analyze_technical_aspects", lambda code, name: ["tech-issue"])
+
+    # Prepare structured dangerous nutrition result to exercise _last_nutrition_results path
+    dangerous_result = NutritionTestResult(
+        test_name="test_case",
+        success=False,
+        nutrition_category=NutritionCategory.BMI_SAFETY,
+        error_type=NutritionErrorType.BMI_DANGEROUS,
+        error_message="BMI dangerous",
+        safety_level="dangerous",
+    )
+    safe_result = NutritionTestResult(
+        test_name="test_case",
+        success=True,
+        nutrition_category=NutritionCategory.BMI_SAFETY,
+    )
+    monkeypatch.setattr(
+        analyzer.nutrition_analyzer,
+        "analyze_nutrition_safety",
+        lambda code, name: [dangerous_result, safe_result],
+    )
+
+    # Deterministic safety/philosophy issues
+    monkeypatch.setattr(analyzer, "_analyze_safety_aspects", lambda code, name: ["safety-issue"])
+    monkeypatch.setattr(
+        analyzer,
+        "_analyze_philosophy_compliance",
+        lambda code, name: ["philosophy-violation"],
+    )
+
+    # Run full analysis and ensure result is aggregated correctly
+    result = analyzer.analyze_test_comprehensively("code", "test_case")
+    assert result.test_name == "test_case"
+    assert result.success is False
+    assert result.technical_issues == ["tech-issue"]
+    assert "BMI dangerous" in result.nutrition_issues[0]
+    assert result.safety_issues == ["safety-issue"]
+    assert result.philosophy_violations == ["philosophy-violation"]
+
+    # get_comprehensive_diagnosis should summarize integrated_results and invoke
+    # _generate_system_recommendations, exercising aggregation logic.
+    diagnosis = analyzer.get_comprehensive_diagnosis()
+    assert diagnosis["status"] == "analyzed"
+    assert diagnosis["total_tests"] == 1
+    assert diagnosis["successful_tests"] == 0
+    assert diagnosis["risk_distribution"][result.overall_risk_level] == 1
+    assert diagnosis["problem_areas"]["technical"] == len(result.technical_issues)
+    assert diagnosis["problem_areas"]["nutrition"] == len(result.nutrition_issues)
+    assert diagnosis["problem_areas"]["safety"] == len(result.safety_issues)
+    assert diagnosis["problem_areas"]["philosophy"] == len(result.philosophy_violations)
+    # System-wide recommendations should be non-empty when all categories have issues
+    assert diagnosis["recommendations"]
+
+
 @pytest.mark.parametrize(
     "is_test_context,code,expected_sql_injection,expected_other_checks",
     [
         (
             False,  # Non-test context
-            'query = "SELECT * FROM users" + user_input',
+            'query = "SELECT * FROM users" + user_input\ncursor.execute(query)',
             True,  # Should detect SQL injection
             True,  # Other safety checks should be active
         ),
         (
             True,  # Test context
-            'query = "SELECT * FROM users" + user_input',
+            'query = "SELECT * FROM users" + user_input\ncursor.execute(query)',
             False,  # Should NOT detect SQL injection in test context
             True,  # Other safety checks should still be active
         ),

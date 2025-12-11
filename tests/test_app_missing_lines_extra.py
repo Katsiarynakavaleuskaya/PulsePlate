@@ -23,8 +23,8 @@ class TestAppMissingLinesExtra:
         # Check if the function exists
         if hasattr(app_mod, "get_update_scheduler"):
             try:
-                # Try to call the function
-                obj = asyncio.get_event_loop().run_until_complete(app_mod.get_update_scheduler())
+                # Try to call the function using modern asyncio API to avoid deprecated get_event_loop
+                obj = asyncio.run(app_mod.get_update_scheduler())
                 assert obj is not None
             except Exception:
                 # If it fails, that's also acceptable for coverage

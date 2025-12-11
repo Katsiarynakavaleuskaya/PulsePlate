@@ -107,7 +107,7 @@ class TestFoodDatabaseBasic:
         assert "Тофу" in shopping_list
         assert shopping_list["Тофу"] == 120
 
-    def test_food_item_to_micro_targets(self):
+    def test_food_item_to_micro_targets(self) -> None:
         """Ensure FoodItem.to_micro_targets maps fields correctly to MicroTargets."""
         food_db = parse_food_db()
         sample_item = next(iter(food_db.values()))
@@ -122,6 +122,7 @@ class TestFoodDatabaseBasic:
         assert micro.iodine_ug == sample_item.Iodine_ug
         assert micro.folate_ug == sample_item.Folate_ug
         assert micro.b12_ug == sample_item.B12_ug
+        assert micro.vitamin_d_iu == sample_item.VitD_IU
 
 
 # __main__ guard intentionally omitted; run via `pytest`.

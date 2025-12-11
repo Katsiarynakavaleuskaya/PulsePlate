@@ -28,13 +28,9 @@ class TestTargetedCoverageBoost:
     """Targeted tests to boost coverage for specific uncovered lines."""
 
     def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self) -> None:

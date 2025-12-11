@@ -27,19 +27,17 @@ class TestCoverageImprovement:
     """Tests to improve coverage for uncovered lines."""
 
     def setup_method(self) -> None:
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+            del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
     def test_app_py_uncovered_lines(self) -> None:
         """Test uncovered lines in main.py."""
@@ -60,7 +58,7 @@ class TestCoverageImprovement:
     def test_bmi_visualize_endpoint_uncovered_paths(self) -> None:
         """Test uncovered paths in bmi_visualize_endpoint."""
         # Test when matplotlib is not available
-        with patch("app.generate_bmi_visualization", None):
+        with patch.object(app_module, "generate_bmi_visualization", None):
             data = {
                 "weight_kg": 70.0,
                 "height_m": 1.75,
@@ -78,8 +76,10 @@ class TestCoverageImprovement:
 
         # Test when MATPLOTLIB_AVAILABLE is False
         with (
-            patch("app.generate_bmi_visualization", lambda **kwargs: {"available": False}),
-            patch("app.MATPLOTLIB_AVAILABLE", False),
+            patch.object(
+                app_module, "generate_bmi_visualization", lambda **kwargs: {"available": False}
+            ),
+            patch.object(app_module, "MATPLOTLIB_AVAILABLE", False),
         ):
             data = {
                 "weight_kg": 70.0,
@@ -124,7 +124,8 @@ class TestCoverageImprovement:
             # Should not crash, just log warning
 
         # Test scheduler start when already running
-        with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
+        # Patch app_module.get_update_scheduler to match endpoint resolution
+        with patch.object(app_module, "get_update_scheduler") as mock_get_scheduler:
             mock_scheduler = MagicMock()
             mock_scheduler.is_running = True
             mock_get_scheduler.return_value = mock_scheduler
@@ -172,7 +173,7 @@ class TestCoverageImprovement:
                 "core.food_apis.update_manager.DatabaseUpdateManager._load_backup",
                 side_effect=Exception("Test error"),
             ):
-                with patch("app.get_update_scheduler") as mock_get_scheduler:
+                with patch.object(app_module, "get_update_scheduler") as mock_get_scheduler:
                     mock_scheduler = AsyncMock()
                     mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
                     mock_get_scheduler.return_value = mock_scheduler

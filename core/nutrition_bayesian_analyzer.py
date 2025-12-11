@@ -372,7 +372,7 @@ class NutritionBayesianAnalyzer:
                 height = float(match.group(2))
                 # Convert cm to m if value looks like cm (> 3m is unrealistic)
                 height_m = height / 100.0 if height > 3 else height
-                if height_m <= 0 or height_m > 3:
+                if height_m <= 0 or height_m > 3 or height <= 0:
                     continue
                 bmi = weight / (height_m**2)
                 if (

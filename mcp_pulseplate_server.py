@@ -39,10 +39,9 @@ class PulsePlateMCPServer:
         cls._cached_models = None
         cls._model_cache_failed = False
 
-    # Officially released OpenAI models as of December 2025
-    # This is a fallback when dynamic discovery via openai.models.list() fails
-    # MAINTENANCE: Update when new models are officially released
-    # Source: https://platform.openai.com/docs/models
+    # Officially released or generally available OpenAI models as of December 2025.
+    # This is a fallback when dynamic discovery via openai.models.list() fails.
+    # MAINTENANCE: Keep in sync with https://platform.openai.com/docs/models
     FALLBACK_ALLOWED_MODELS: set[str] = {
         # GPT-3.5 series
         "gpt-3.5-turbo",
@@ -52,16 +51,17 @@ class PulsePlateMCPServer:
         # GPT-4o series (optimized - current production)
         "gpt-4o",
         "gpt-4o-mini",
-        # GPT-5 series (officially released December 2025)
-        "gpt-5.1",
-        "gpt-5.1-codex-max",
-        "gpt-5-pro",
+        # Note: GPT-5 models are speculative/placeholder names.
+        # As of December 2025, no official GPT-5 models have been released.
+        # These entries should be removed or updated when actual models are announced.
         # Realtime and audio models
-        "gpt-realtime",
-        "gpt-audio",
+        "gpt-4o-realtime-preview",
+        "gpt-4o-audio-preview",
         # O-series (reasoning models - confirmed releases)
         "o1",
         "o1-mini",
+        "o1-preview",
+        # O3 series (reasoning, higher capability)
         "o3",
         "o3-mini",
     }

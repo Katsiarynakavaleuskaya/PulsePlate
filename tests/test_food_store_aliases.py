@@ -1,9 +1,20 @@
 import tempfile
 from pathlib import Path
+import os
+import importlib.util
 
 import pytest
 
-import app.services.food_store as fs
+# Load food_store module directly to avoid conflicts
+spec = importlib.util.spec_from_file_location(
+    "food_store",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "services", "food_store.py"),
+)
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load food_store module")
+fs_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(fs_module)
+fs = fs_module
 
 
 def test_get_aliases_merges_defaults_and_csv(monkeypatch: pytest.MonkeyPatch) -> None:

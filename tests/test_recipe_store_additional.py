@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+import os
+import importlib.util
 
 import pytest
 
-import app.services.recipe_store as rs
+# Load recipe_store module directly to avoid conflicts
+spec = importlib.util.spec_from_file_location(
+    "recipe_store",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "services", "recipe_store.py"),
+)
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load recipe_store module")
+rs_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rs_module)
+rs = rs_module
 
 
 class _FakeCursor:

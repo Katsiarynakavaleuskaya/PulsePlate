@@ -191,42 +191,10 @@ def cleanup_async_resources() -> Iterator[None]:
     """Clean up async resources after test session to prevent ResourceWarnings."""
     yield
 
-    # Close any remaining event loops and database connections
-    import asyncio
-    import gc
-    import warnings
-
     # Force garbage collection to close any unclosed connections
+    import gc
+
     gc.collect()
-
-    try:
-        # Get all running event loops and close them
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No event loop running, try to get or create one
-            # Suppress deprecation warning for get_event_loop()
-            import warnings as warn_module
-
-            with warn_module.catch_warnings():
-                warn_module.filterwarnings("ignore", category=DeprecationWarning)
-                try:
-                    loop = asyncio.get_event_loop_policy().get_event_loop()
-                except RuntimeError:
-                    loop = None
-
-        if loop and not loop.is_closed():
-            # Cancel all pending tasks
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            # Close the loop
-            loop.close()
-    except RuntimeError:
-        # No event loop running, that's fine
-        pass
-    except Exception as e:
-        warnings.warn(f"Error closing event loop: {e}", ResourceWarning)
 
     # Final garbage collection to ensure cleanup
     gc.collect()

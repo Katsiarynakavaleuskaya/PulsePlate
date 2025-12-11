@@ -1,8 +1,19 @@
 from __future__ import annotations
 
+import os
+import importlib.util
 import pytest
 
-from app import routers
+# Load routers __init__ module directly to avoid conflicts
+spec = importlib.util.spec_from_file_location(
+    "routers",
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "routers", "__init__.py"),
+)
+if spec is None or spec.loader is None:
+    raise ImportError("Cannot load routers module")
+routers_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(routers_module)
+routers = routers_module
 
 
 def test_routers_getattr_returns_module() -> None:

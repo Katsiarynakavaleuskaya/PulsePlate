@@ -6,6 +6,7 @@ import pytest
 
 from core.nutrition_constants import (
     KCAL_MIN_SAFE,
+    BMI_OBESITY_THRESHOLD,
     MEAL_KCAL_THRESHOLD,
     is_meal_level_value,
 )
@@ -77,3 +78,13 @@ class TestIsMealLevelValue:
         """is_meal_level_value with empty context uses threshold logic."""
         assert is_meal_level_value(400, context="") is True
         assert is_meal_level_value(500, context="") is False
+
+
+def test_deprecated_bmi_dangerous_high_alias_emits_warning() -> None:
+    """Accessing BMI_DANGEROUS_HIGH should emit DeprecationWarning and return correct value."""
+    import core.nutrition_constants as nc
+
+    with pytest.warns(DeprecationWarning, match="BMI_DANGEROUS_HIGH is deprecated"):
+        value = getattr(nc, "BMI_DANGEROUS_HIGH")
+
+    assert value == BMI_OBESITY_THRESHOLD
