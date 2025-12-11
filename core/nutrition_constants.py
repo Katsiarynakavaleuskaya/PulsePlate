@@ -171,7 +171,7 @@ __all__ = [
     "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
     "BMI_OBESITY_THRESHOLD",
-    "BMI_DANGEROUS_HIGH",  # deprecated alias kept for compatibility
+    # BMI_DANGEROUS_HIGH is deprecated and accessed via __getattr__, not exported in __all__
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",
     "FAT_MIN_PERCENT",

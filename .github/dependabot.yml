@@ -1,18 +1,18 @@
 version: 2
 updates:
-  # Python dependencies with grouped updates (monthly schedule for regular updates)
+  # Python dependencies with grouped updates
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 5
+      interval: "weekly"
+    open-pull-requests-limit: 10
     assignees:
       - "katsiarynakavaleuskaya"
     commit-message:
       prefix: "deps"
       include: "scope"
     groups:
-      # Security-critical runtime dependencies (monthly for regular, but security updates handled by separate config below)
+      # Security-critical runtime dependencies
       security:
         patterns:
           - "cryptography"
@@ -50,43 +50,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
-
-  # Security updates with weekly schedule to ensure rapid patching
-  # Overrides the monthly interval for security-critical packages
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
-    assignees:
-      - "katsiarynakavaleuskaya"
-    commit-message:
-      prefix: "security"
-      include: "scope"
-    # Only open PRs for security updates (vulnerabilities)
-    # This ensures rapid response to CVEs while avoiding noise from regular updates
-    labels:
-      - "security"
-      - "dependencies"
-
-  # Dev-time auditing and quality tools (monthly schedule)
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 5
-    assignees:
-      - "katsiarynakavaleuskaya"
-    commit-message:
-      prefix: "deps"
-      include: "scope"
-    # Track dev dependencies from requirements-dev.txt
-    # Note: pip-audit and safety are dev-time security scanning tools, not runtime dependencies
-    allow:
-      - dependency-type: "development"
-    groups:
       dev-tools:
         patterns:
           - "pip-audit"
           - "safety"
           - "pre-commit"
+        update-types:
+          - "minor"
+          - "patch"
