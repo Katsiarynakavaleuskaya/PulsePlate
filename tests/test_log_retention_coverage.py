@@ -4,7 +4,7 @@ from core.log_retention import DataClass, LogRetentionManager, get_retention_man
 
 
 def test_log_retention_invalid_days_type_raises() -> None:
-    manager = LogRetentionManager()
+    manager: LogRetentionManager = LogRetentionManager()
     with pytest.raises(ValueError) as exc_info:
         manager.public_retention_days = "thirty"  # type: ignore[assignment]
     message = str(exc_info.value)

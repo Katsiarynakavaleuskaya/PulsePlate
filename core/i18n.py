@@ -90,6 +90,10 @@ TRANSLATIONS = {
         "bmi_not_valid_during_pregnancy": "BMI не применим при беременности",
         "bmi_visualization_success": "Визуализация ИМТ создана успешно",
         "bmr_katch_note": "Использована формула Katch-McArdle (требует процент жира)",
+        # Business Module
+        "business_module_disabled": "Модуль бизнес-анализа отключен",
+        "business_payload_too_large": "Слишком большой код (макс 100 КБ)",
+        "business_analysis_failed": "Ошибка бизнес-анализа. Попробуйте снова или обратитесь в поддержку",
     },
     "en": {
         # BMI Categories
@@ -173,6 +177,10 @@ TRANSLATIONS = {
         "bmi_not_valid_during_pregnancy": "BMI is not valid during pregnancy",
         "bmi_visualization_success": "BMI visualization generated successfully",
         "bmr_katch_note": "Using Katch-McArdle formula (requires body fat percentage)",
+        # Business Module
+        "business_module_disabled": "Business analysis module is disabled",
+        "business_payload_too_large": "Code payload too large (max 100KB)",
+        "business_analysis_failed": "Business analysis failed. Please try again or contact support",
     },
     "es": {
         # BMI Categories
@@ -257,6 +265,10 @@ TRANSLATIONS = {
         "bmi_not_valid_during_pregnancy": "El IMC no es válido durante el embarazo",
         "bmi_visualization_success": "Visualización del IMC generada con éxito",
         "bmr_katch_note": "Usando fórmula Katch-McArdle (requiere porcentaje de grasa corporal)",
+        # Business Module
+        "business_module_disabled": "Módulo de análisis empresarial está deshabilitado",
+        "business_payload_too_large": "Código demasiado grande (máx 100 KB)",
+        "business_analysis_failed": "Error en análisis empresarial. Inténtelo de nuevo o contacte al soporte",
     },
 }
 
