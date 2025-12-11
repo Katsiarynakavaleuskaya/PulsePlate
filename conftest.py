@@ -302,7 +302,7 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
         if hasattr(fastapi_app, "dependency_overrides"):
             from app import get_api_key
 
-            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key
+            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key  # type: ignore[union-attr]
     except (ImportError, AttributeError):
         # App not yet loaded, that's fine
         pass
@@ -318,7 +318,7 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
         from app import app as fastapi_app
 
         if hasattr(fastapi_app, "dependency_overrides"):
-            fastapi_app.dependency_overrides.clear()
+            fastapi_app.dependency_overrides.clear()  # type: ignore[union-attr]
     except (ImportError, AttributeError):
         pass
 
