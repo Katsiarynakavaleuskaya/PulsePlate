@@ -29,6 +29,7 @@ if rs_module is None:
 
 
 # Short alias for backward compatibility
+assert rs_module is not None
 rs: ModuleType = rs_module
 
 

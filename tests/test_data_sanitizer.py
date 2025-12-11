@@ -511,7 +511,7 @@ def test_visual_shape_sanitize_strings_direct_over_max_length() -> None:
         VisualShapeSchema.sanitize_strings(long_text)
 
 
-def test_meal_title_exceeds_max_length() -> None:
+def test_meal_title_exceeds_max_length_via_sanity_filter() -> None:
     """Test line 126: MealSchema raises error for title > MAX_STRING_LENGTH."""
     invalid_data = {
         "kcal": 2000,

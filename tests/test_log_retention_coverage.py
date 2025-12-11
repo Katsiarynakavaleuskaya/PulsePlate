@@ -14,6 +14,10 @@ def test_log_retention_invalid_days_type_raises() -> None:
 
 def test_log_retention_negative_days_raises_and_manager_singleton() -> None:
     manager = get_retention_manager()
+    same_manager = get_retention_manager()
+    # Verify singleton semantics: both calls return the same instance
+    assert manager is same_manager
+
     with pytest.raises(ValueError) as exc_info:
         manager.sensitive_retention_days = -1
     message = str(exc_info.value)

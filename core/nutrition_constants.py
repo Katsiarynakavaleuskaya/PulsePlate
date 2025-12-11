@@ -54,16 +54,56 @@ _BMI_DANGEROUS_HIGH_VALUE = BMI_OBESITY_THRESHOLD
 # __getattr__ handler below, which emits a DeprecationWarning and returns
 # BMI_OBESITY_THRESHOLD. This behavior must be preserved for existing callers;
 # new code should use BMI_OBESITY_THRESHOLD directly.
+
+
+def _compute_deprecation_stacklevel() -> int:
+    """Compute the correct stacklevel for deprecation warnings.
+
+    Walks the call stack upward to find the first frame that is not part of:
+    - This module (nutrition_constants.py)
+    - Python's import machinery (importlib)
+
+    Returns:
+        The stacklevel to pass to warnings.warn() so it points to the real caller.
+    """
+    import inspect
+    import os
+
+    current_file = os.path.abspath(__file__)
+    stack = inspect.stack()
+
+    # Start from frame 1 (caller of this function)
+    # Frame 0 is this function itself
+    for i, frame_info in enumerate(stack[1:], start=1):
+        frame_file = os.path.abspath(frame_info.filename)
+
+        # Skip frames from this module
+        if frame_file == current_file:
+            continue
+
+        # Skip frames from importlib (Python's import machinery)
+        if "importlib" in frame_file:
+            continue
+
+        # Found the first external caller
+        return i
+
+    # Fallback: if we can't determine the correct level, use 2
+    # (which points to the direct caller of warnings.warn)
+    return 2
+
+
 class _DeprecatedBMIAlias:
     """Accessor for deprecated BMI_DANGEROUS_HIGH alias that emits a warning when accessed."""
 
     def __getattr__(self, name: str) -> Any:
         if name == "BMI_DANGEROUS_HIGH":
+            stacklevel = _compute_deprecation_stacklevel()
             warnings.warn(
                 "BMI_DANGEROUS_HIGH is deprecated and will be removed in a future release. "
                 "Use BMI_OBESITY_THRESHOLD instead.",
                 DeprecationWarning,
-                stacklevel=4,
+                stacklevel=stacklevel,
             )
             return _BMI_DANGEROUS_HIGH_VALUE
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

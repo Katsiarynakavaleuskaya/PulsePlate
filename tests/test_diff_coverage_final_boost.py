@@ -5,7 +5,7 @@ Targets specific missing lines identified in CI diff coverage report.
 """
 
 import os
-from typing import cast
+from typing import Optional, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,16 +16,17 @@ from starlette.applications import ASGIApp
 # Import app
 import app as app_module
 
-app = app_module.app
-
-
 @pytest.fixture(autouse=True)
 def _business_env_and_client(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest):
     """Autouse fixture to set env vars and attach a TestClient to test instances."""
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
-    client = TestClient(cast(ASGIApp, app))
+    app_obj = getattr(app_module, "app", None)
+    if app_obj is None:
+        pytest.skip("app is not available for tests")
+
+    client: Optional[TestClient] = TestClient(cast(ASGIApp, app_obj))
 
     # Attach client to test class instances that expect self.client
     if getattr(request.node, "instance", None) is not None:
@@ -34,7 +35,8 @@ def _business_env_and_client(monkeypatch: pytest.MonkeyPatch, request: pytest.Fi
     try:
         yield
     finally:
-        client.close()
+        if client is not None:
+            client.close()
 
 
 class TestBusinessRouterMissingLines:

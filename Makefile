@@ -242,10 +242,10 @@ bandit-full:
 	@echo "$(YELLOW)🔒 Полное сканирование Bandit...$(NC)"
 	@if [ "$(CI)" = "true" ]; then \
 		echo "$(YELLOW)CI mode: строгий режим (fail on MEDIUM/HIGH)...$(NC)"; \
-		bandit -r app core *.py -c .bandit --severity-level medium -f json -o bandit-report.json; \
+		bandit -r . -c .bandit --severity-level medium -f json -o bandit-report.json; \
 	else \
 		echo "$(YELLOW)Local mode: разрешающий режим (warnings only)...$(NC)"; \
-		bandit -r app core *.py -c .bandit --severity-level medium -f json -o bandit-report.json || true; \
+		bandit -r . -c .bandit --severity-level medium -f json -o bandit-report.json || true; \
 	fi
 	@echo "$(GREEN)✅ Bandit отчет: bandit-report.json$(NC)"
 

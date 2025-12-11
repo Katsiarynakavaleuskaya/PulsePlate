@@ -1,6 +1,7 @@
 """Tests for core.nutrition_constants module."""
 
 import math
+import warnings
 
 import pytest
 
@@ -87,4 +88,37 @@ def test_deprecated_bmi_dangerous_high_alias_emits_warning() -> None:
     with pytest.warns(DeprecationWarning, match="BMI_DANGEROUS_HIGH is deprecated"):
         value = getattr(nc, "BMI_DANGEROUS_HIGH")
 
+    assert value == BMI_OBESITY_THRESHOLD
+
+
+def test_deprecated_bmi_dangerous_high_warning_points_to_caller() -> None:
+    """Verify that the deprecation warning stacklevel points to the actual caller, not internal frames."""
+    import core.nutrition_constants as nc
+    import os
+
+    # Capture warnings with their context
+    with warnings.catch_warnings(record=True) as warning_list:
+        warnings.simplefilter("always", DeprecationWarning)
+
+        # This line should be reported as the warning source
+        value = getattr(nc, "BMI_DANGEROUS_HIGH")  # Line that triggers the warning
+
+    # Verify we got exactly one warning
+    assert len(warning_list) == 1
+    w = warning_list[0]
+
+    # Verify it's the right warning
+    assert issubclass(w.category, DeprecationWarning)
+    assert "BMI_DANGEROUS_HIGH is deprecated" in str(w.message)
+
+    # Verify the warning points to this test file, not to core/nutrition_constants.py module
+    warning_file = os.path.basename(w.filename)
+    assert warning_file == "test_nutrition_constants.py"
+    assert "core" not in os.path.dirname(w.filename)  # Should not be in core/ directory
+
+    # Verify the line number points to the getattr call above (line that triggers the warning)
+    # The exact line number may vary, but it should be within this function
+    assert w.lineno > 0  # Should have a valid line number
+
+    # Verify the value is still correct
     assert value == BMI_OBESITY_THRESHOLD

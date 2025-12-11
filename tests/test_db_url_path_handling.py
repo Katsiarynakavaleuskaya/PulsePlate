@@ -82,8 +82,15 @@ def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> Non
             reloaded = importlib.reload(db)
             reloaded.init_db()
 
-            # Verify init_db() created the database despite query parameters
-            assert os.path.exists(tmpdir), f"Temp directory should exist: {tmpdir}"
+            # Verify init_db() created a database file inside the temp directory
+            # Some SQLite URI variants may persist the query string in the filename,
+            # so we check for any file that starts with the expected base name.
+            base_name = os.path.basename(test_path)
+            created_files = os.listdir(tmpdir)
+            assert any(name.startswith(base_name) for name in created_files), (
+                f"No database file starting with {base_name} found in {tmpdir}: "
+                f"{created_files}"
+            )
         finally:
             # Cleanup - use fresh reload to restore original state
             restored = importlib.reload(db)

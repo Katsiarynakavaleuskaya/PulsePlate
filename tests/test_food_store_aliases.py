@@ -1,8 +1,9 @@
-import tempfile
-from pathlib import Path
 import os
 import sys
 import importlib.util
+import tempfile
+from pathlib import Path
+from importlib.machinery import ModuleSpec
 from typing import Any, Optional
 from types import ModuleType
 
@@ -18,7 +19,9 @@ if fs_module is None:
         "services",
         "food_store.py",
     )
-    spec = importlib.util.spec_from_file_location("food_store", food_store_path)
+    spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(
+        "food_store", food_store_path
+    )
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load food_store module")
     fs_module = importlib.util.module_from_spec(spec)

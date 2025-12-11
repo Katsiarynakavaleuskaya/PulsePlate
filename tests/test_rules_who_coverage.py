@@ -57,6 +57,7 @@ class TestRulesWhoCoverage:
         assert isinstance(male_rda_1, dict)
         assert isinstance(male_rda_2, dict)
         assert male_rda_1 is not male_rda_2
+        assert male_rda_1 == male_rda_2
 
     def test_get_activity_guidelines_elderly(self):
         """Test get_activity_guidelines for elderly."""
