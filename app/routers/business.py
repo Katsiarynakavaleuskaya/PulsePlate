@@ -3,11 +3,13 @@ import os
 import re
 from typing import Any, Optional
 
+from anyio import to_thread
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.routers.api_key import api_key_header
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
+from core.i18n import normalize_lang, t
 
 # Business feature flag: enable/disable business module via env or default True
 BUSINESS_MODULE_ENABLED = os.getenv("BUSINESS_MODULE_ENABLED", "true").lower() in (
@@ -70,10 +72,24 @@ class BusinessAnalysisResponse(BaseModel):
     optimization_potential: Optional[str]
 
 
+def _localized_error(locale: Optional[str], key: str) -> str:
+    """Helper to get localized error message.
+
+    Args:
+        locale: User's locale preference (optional)
+        key: Translation key
+
+    Returns:
+        Localized error message
+    """
+    lang = normalize_lang(locale)
+    return t(lang, key)
+
+
 @router.post("/analyze", response_model=list[BusinessAnalysisResponse])
 async def analyze_business_code(
     request: BusinessAnalysisRequest,
-    api_key: str = Depends(api_key_header),
+    _api_key: str = Depends(api_key_header),
 ) -> list[BusinessAnalysisResponse]:
     """
     Analyze code from a business perspective.
@@ -82,10 +98,10 @@ async def analyze_business_code(
     customer acquisition, revenue growth, and customer retention.
     """
     if not BUSINESS_MODULE_ENABLED:
-        # TODO: Use t(request.locale or "en", "business.module_disabled") for i18n
+        detail = _localized_error(request.locale, "business_module_disabled")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Business analysis module is disabled",
+            detail=detail,
         )
 
     # Defensive check: prevent DoS with extremely large payloads
@@ -95,18 +111,18 @@ async def analyze_business_code(
             "Rejected oversized code payload: %d bytes (max 100KB)",
             code_bytes,
         )
-        # TODO: Use t(request.locale or "en", "business.payload_too_large") for i18n
+        detail = _localized_error(request.locale, "business_payload_too_large")
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="Code payload too large (max 100KB)",
+            detail=detail,
         )
 
     try:
         # Initialize business analyzer
         analyzer = BusinessBayesianAnalyzer(locale=request.locale)
 
-        # Perform business analysis
-        results = analyzer.analyze(request.code, request.test_name)
+        # Perform business analysis (offload to thread to avoid blocking event loop)
+        results = await to_thread.run_sync(analyzer.analyze, request.code, request.test_name)
 
         # Convert results to response format
         response_items = [
@@ -139,9 +155,10 @@ async def analyze_business_code(
             _safe_error_summary(e),
             exc_info=True,
         )
+        detail = _localized_error(request.locale, "business_analysis_failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Business analysis failed. Please try again or contact support.",
+            detail=detail,
         ) from e
 
 

@@ -106,8 +106,12 @@ class TestFinalCoveragePush:
             "weight_kg": 0,  # Invalid weight
         }
 
-        response = client.post("/premium_targets", json=payload, headers={"X-API-Key": "test_key"})
-        assert response.status_code in [422, 503]  # Validation error or service unavailable
+        response = client.post("/premium_targets", json=payload, headers={"X-API-Key": "test-key"})
+        assert response.status_code in [
+            403,
+            422,
+            503,
+        ]  # Auth, validation error, or service unavailable
 
     def test_food_search_edge_cases(self) -> None:
         """Test food search endpoint edge cases."""

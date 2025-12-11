@@ -2839,10 +2839,14 @@ class WeekPlanRequest(WHOTargetsRequest):
 
         if self.targets is None:
             # Mode B: validate profile data
-            if not all([self.sex, self.age, self.height_cm, self.weight_kg, self.activity]):
+            # Use explicit None checks to allow valid zero/falsy values (e.g., age=0, activity=0)
+            if not all(
+                x is not None
+                for x in [self.sex, self.age, self.height_cm, self.weight_kg, self.activity]
+            ):
                 raise ValueError(
                     "Either 'targets' must be provided, or all profile fields "
-                    "(sex, age, height_cm, weight_kg) must be present"
+                    "(sex, age, height_cm, weight_kg, activity) must be present"
                 )
         return self
 

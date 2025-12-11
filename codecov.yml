@@ -8,6 +8,10 @@ coverage:
       default:
         target: 97%
         threshold: 1%
+    patch:
+      default:
+        target: 97%
+        threshold: 1%
 ignore:
   - "example_nutrition_api.py"
   - "quick_coverage_check.py"

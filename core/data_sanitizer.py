@@ -4,7 +4,9 @@ Provides strict validation and normalization to prevent injection attacks,
 invalid data, and ensure type safety.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Set, TypedDict, cast
+from typing import Any, Dict, List, Literal, Optional, Set, cast
+
+from typing_extensions import TypedDict
 
 import nh3
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator

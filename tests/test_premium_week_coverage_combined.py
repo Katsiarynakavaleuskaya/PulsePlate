@@ -792,3 +792,40 @@ def test_targets_in_micro_type_validation_direct() -> None:
             TargetsIn,
             {"vitamin_c_mg": "not-a-number"},  # type: ignore[arg-type]
         )
+
+
+def test_week_plan_validator_accepts_low_numeric_values(premium_client: TestClient) -> None:
+    """Test that WeekPlanRequest validator accepts valid non-None/falsy numeric values.
+
+    Regression test ensuring the validator uses explicit 'is not None' checks rather than
+    truthiness, which would incorrectly reject valid low but non-zero values (e.g., age=1).
+    Tests that valid numeric values are accepted regardless of being "falsy" in Python.
+    """
+    # Age 1 is valid (minimum), but the validator should use 'is not None'
+    # This tests that we don't reject valid numeric values just because they're "falsy"
+    payload = {
+        "sex": "male",
+        "age": 1,  # Minimum valid age - tests that validator doesn't treat it as falsy
+        "height_cm": 50.0,  # Valid for infant
+        "weight_kg": 3.0,  # Valid for infant
+        "activity": "sedentary",  # Valid activity
+        "goal": "maintain",
+        "lang": "en",
+        "diet_flags": [],
+    }
+
+    response = premium_client.post(
+        "/api/v1/premium/plan/week",
+        json=payload,
+        headers={"X-API-Key": "test_key"},
+    )
+
+    # Should succeed (200) or fail validation for other reasons (422), but NOT
+    # fail because validator incorrectly treats age=1 as "missing"
+    assert response.status_code in [200, 422]
+
+    # If it's 422, make sure it's NOT because of the falsy value bug
+    if response.status_code == 422:
+        error_detail = response.json().get("detail", "")
+        # Should NOT contain the "all profile fields must be present" error
+        assert "all profile fields" not in str(error_detail).lower()
