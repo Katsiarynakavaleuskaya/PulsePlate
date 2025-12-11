@@ -2,7 +2,14 @@
 
 import pytest
 
-from core.data_sanitizer import ValidationError, sanity_filter_plate_data
+from core.data_sanitizer import (
+    MAX_LAYOUT_ITEMS,
+    MAX_MEALS,
+    MAX_STRING_LENGTH,
+    PlateDataSchema,
+    ValidationError,
+    sanity_filter_plate_data,
+)
 
 
 def test_sanity_filter_valid_plate_data() -> None:
@@ -495,6 +502,15 @@ def test_visual_shape_string_exceeds_max_length() -> None:
         sanity_filter_plate_data(invalid_data)
 
 
+def test_visual_shape_sanitize_strings_direct_over_max_length() -> None:
+    """Directly call VisualShapeSchema.sanitize_strings to hit max length guard (line 108)."""
+    from core.data_sanitizer import VisualShapeSchema
+
+    long_text = "A" * (MAX_STRING_LENGTH + 1)
+    with pytest.raises(ValueError, match="String exceeds max length"):
+        VisualShapeSchema.sanitize_strings(long_text)
+
+
 def test_meal_title_exceeds_max_length() -> None:
     """Test line 126: MealSchema raises error for title > MAX_STRING_LENGTH."""
     invalid_data = {
@@ -522,6 +538,15 @@ def test_meal_title_exceeds_max_length() -> None:
         sanity_filter_plate_data(invalid_data)
 
 
+def test_meal_sanitize_title_direct_over_max_length() -> None:
+    """Directly call MealSchema.sanitize_title to hit title length guard (line 136)."""
+    from core.data_sanitizer import MealSchema
+
+    long_title = "B" * (MAX_STRING_LENGTH + 1)
+    with pytest.raises(ValueError, match="Title exceeds max length"):
+        MealSchema.sanitize_title(long_title)
+
+
 def test_macros_non_dict() -> None:
     """Test line 161: validate_macros raises error for non-dict."""
     invalid_data = {
@@ -541,6 +566,12 @@ def test_macros_non_dict() -> None:
         sanity_filter_plate_data(invalid_data)
 
 
+def test_macros_validate_non_dict_direct() -> None:
+    """Directly call validate_macros with non-dict to hit type guard (line 169)."""
+    with pytest.raises(ValueError, match="Macros must be a dictionary"):
+        PlateDataSchema.validate_macros("not a dict")  # type: ignore[arg-type]
+
+
 def test_macros_unexpected_key() -> None:
     """Test line 182: validate_macros raises error for unexpected key."""
     from core.data_sanitizer import PlateDataSchema
@@ -555,6 +586,12 @@ def test_macros_unexpected_key() -> None:
                 "sugar_g": 50,  # Unexpected key
             }
         )
+
+
+def test_macros_missing_required_keys_direct() -> None:
+    """Directly call validate_macros with missing keys to hit lines 173-174."""
+    with pytest.raises(ValueError, match="Missing required macro keys"):
+        PlateDataSchema.validate_macros({"protein_g": 10})
 
 
 def test_macros_non_integer_value() -> None:
@@ -572,6 +609,20 @@ def test_macros_non_integer_value() -> None:
         )
 
 
+def test_macros_integer_like_float_normalized() -> None:
+    """validate_macros should accept integer-equivalent floats via normalization (line 195)."""
+    result = PlateDataSchema.validate_macros(
+        {
+            "protein_g": 50.0,
+            "fat_g": 20,
+            "carbs_g": 200,
+            "fiber_g": 25,
+        }
+    )
+    assert isinstance(result["protein_g"], int)
+    assert result["protein_g"] == 50
+
+
 def test_macros_out_of_range() -> None:
     """Test line 192: validate_macros raises error for out of range value."""
     from core.data_sanitizer import PlateDataSchema
@@ -579,6 +630,20 @@ def test_macros_out_of_range() -> None:
     with pytest.raises(ValueError, match="out of range"):
         PlateDataSchema.validate_macros(
             {"protein_g": 9999, "fat_g": 67, "carbs_g": 250, "fiber_g": 25}
+        )
+
+
+def test_macros_non_string_key_with_required_keys_present() -> None:
+    """validate_macros should reject non-string macro keys when required keys are present (line 187)."""
+    with pytest.raises(ValueError, match="Macro keys must be strings"):
+        PlateDataSchema.validate_macros(
+            {
+                "protein_g": 10,
+                "fat_g": 20,
+                "carbs_g": 30,
+                "fiber_g": 40,
+                123: 50,  # type: ignore[dict-item]
+            }
         )
 
 
@@ -598,6 +663,12 @@ def test_portions_unexpected_key() -> None:
         )
 
 
+def test_portions_non_dict_direct() -> None:
+    """Directly call validate_portions with non-dict to hit type guard (line 210)."""
+    with pytest.raises(ValueError, match="Portions must be a dictionary"):
+        PlateDataSchema.validate_portions("not a dict")  # type: ignore[arg-type]
+
+
 def test_portions_non_numeric_value() -> None:
     """Test line 219: validate_portions raises error for non-numeric value."""
     from core.data_sanitizer import PlateDataSchema
@@ -609,6 +680,20 @@ def test_portions_non_numeric_value() -> None:
                 "fat_thumbs": 1.0,
                 "carb_cups": 4.0,
                 "veg_cups": 3.0,
+            }
+        )
+
+
+def test_portions_non_string_key_with_required_keys_present() -> None:
+    """validate_portions should reject non-string keys when required keys are present (line 220)."""
+    with pytest.raises(ValueError, match="Portion keys must be strings"):
+        PlateDataSchema.validate_portions(
+            {
+                "protein_palm": 2.0,
+                "fat_thumbs": 1.0,
+                "carb_cups": 4.0,
+                "veg_cups": 3.0,
+                123: 1.0,  # type: ignore[dict-item]
             }
         )
 
@@ -647,6 +732,12 @@ def test_layout_non_list() -> None:
         sanity_filter_plate_data(invalid_data)
 
 
+def test_layout_validate_non_list_direct() -> None:
+    """Directly call validate_layout with non-list to hit type guard (line 239)."""
+    with pytest.raises(ValueError, match="Layout must be a list"):
+        PlateDataSchema.validate_layout("not a list")  # type: ignore[arg-type]
+
+
 def test_layout_non_dict_item() -> None:
     """Test line 238: validate_layout raises error for non-dict item."""
     invalid_data = {
@@ -666,6 +757,19 @@ def test_layout_non_dict_item() -> None:
         sanity_filter_plate_data(invalid_data)
 
 
+def test_layout_too_many_items_direct() -> None:
+    """Directly call validate_layout with too many items to hit line 241."""
+    over_limit = [{}] * (MAX_LAYOUT_ITEMS + 1)
+    with pytest.raises(ValueError, match="Too many layout items"):
+        PlateDataSchema.validate_layout(over_limit)
+
+
+def test_layout_non_dict_item_direct() -> None:
+    """Directly call validate_layout with non-dict item to hit line 246."""
+    with pytest.raises(ValueError, match="Layout items must be dictionaries"):
+        PlateDataSchema.validate_layout(["not a dict"])  # type: ignore[list-item]
+
+
 def test_meals_non_dict_item() -> None:
     """Test line 250, 252, 257: validate_meals raises errors for invalid meal."""
     invalid_data = {
@@ -683,6 +787,25 @@ def test_meals_non_dict_item() -> None:
 
     with pytest.raises(ValidationError, match="validation failed"):
         sanity_filter_plate_data(invalid_data)
+
+
+def test_meals_validate_non_list_direct() -> None:
+    """Directly call validate_meals with non-list to hit type guard (line 258)."""
+    with pytest.raises(ValueError, match="Meals must be a list"):
+        PlateDataSchema.validate_meals("not a list")  # type: ignore[arg-type]
+
+
+def test_meals_validate_too_many_direct() -> None:
+    """Directly call validate_meals with too many meals to hit line 260."""
+    over_limit = [{}] * (MAX_MEALS + 1)
+    with pytest.raises(ValueError, match="Too many meals"):
+        PlateDataSchema.validate_meals(over_limit)
+
+
+def test_meals_validate_non_dict_item_direct() -> None:
+    """Directly call validate_meals with non-dict item to hit line 265."""
+    with pytest.raises(ValueError, match="Meal items must be dictionaries"):
+        PlateDataSchema.validate_meals(["not a dict"])  # type: ignore[list-item]
 
 
 def test_sanity_filter_conversion_error() -> None:
@@ -885,3 +1008,423 @@ def test_sanity_filter_javascript_uri() -> None:
     assert "javascript:" not in tooltip
     assert "href" not in label
     assert "onerror" not in tooltip
+
+
+def test_sanity_filter_missing_portion_keys_message() -> None:
+    """Ensure portions-specific error message path is used (line 321)."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        # Portions missing required keys to trigger 'portions' branch
+        "portions": {
+            "protein_palm": 2.0,
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="Missing required portion keys"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_visual_shape_label_exceeds_max_length() -> None:
+    """Test that oversized label in VisualShapeSchema raises ValidationError."""
+    from core.data_sanitizer import MAX_STRING_LENGTH
+
+    oversized_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [
+            {
+                "kind": "plate_sector",
+                "fraction": 0.5,
+                "label": "X" * (MAX_STRING_LENGTH + 1),
+                "tooltip": "Normal tooltip",
+            },
+        ],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(String exceeds max length|validation failed)"):
+        sanity_filter_plate_data(oversized_data)
+
+
+def test_visual_shape_tooltip_exceeds_max_length() -> None:
+    """Test that oversized tooltip in VisualShapeSchema raises ValidationError."""
+    from core.data_sanitizer import MAX_STRING_LENGTH
+
+    oversized_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [
+            {
+                "kind": "plate_sector",
+                "fraction": 0.5,
+                "label": "Normal label",
+                "tooltip": "T" * (MAX_STRING_LENGTH + 1),
+            },
+        ],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(String exceeds max length|validation failed)"):
+        sanity_filter_plate_data(oversized_data)
+
+
+def test_meal_title_exceeds_max_length() -> None:
+    """Test that oversized meal title raises ValidationError."""
+    from core.data_sanitizer import MAX_STRING_LENGTH
+
+    oversized_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [
+            {
+                "title": "M" * (MAX_STRING_LENGTH + 1),
+                "kcal": 600,
+                "protein_g": 30,
+                "fat_g": 20,
+                "carbs_g": 75,
+            },
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="(Title exceeds max length|validation failed)"):
+        sanity_filter_plate_data(oversized_data)
+
+
+def test_macros_not_dict() -> None:
+    """Test that macros must be a dictionary."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": "not_a_dict",
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Macros must be a dictionary|Missing required macro keys)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_macros_non_string_key() -> None:
+    """Test that macro keys must be strings."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            123: 125,  # Non-string key
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Macro keys must be strings|Missing required macro keys|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_macros_float_value_converted_to_int() -> None:
+    """Test that integer-equivalent floats are converted to int."""
+    data_with_float = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125.0,  # Integer-equivalent float
+            "fat_g": 67.0,
+            "carbs_g": 250.0,
+            "fiber_g": 25.0,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    result = sanity_filter_plate_data(data_with_float)
+    assert isinstance(result["macros"]["protein_g"], int)
+    assert result["macros"]["protein_g"] == 125
+
+
+def test_portions_not_dict() -> None:
+    """Test that portions must be a dictionary."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": "not_a_dict",
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Portions must be a dictionary|Missing required portion keys)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_portions_non_string_key() -> None:
+    """Test that portion keys must be strings."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            456: 2.0,  # Non-string key
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Portion keys must be strings|Missing required portion keys|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_portions_missing_keys() -> None:
+    """Test that missing portion keys raises ValidationError."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            # Missing other required keys
+        },
+        "layout": [],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="Missing required portion keys"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_layout_not_list() -> None:
+    """Test that layout must be a list."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": "not_a_list",
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Layout must be a list|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_layout_too_many_items() -> None:
+    """Test that too many layout items raises ValidationError."""
+    from core.data_sanitizer import MAX_LAYOUT_ITEMS
+
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [
+            {
+                "kind": "plate_sector",
+                "fraction": 0.5,
+                "label": f"Item {i}",
+                "tooltip": "Tooltip",
+            }
+            for i in range(MAX_LAYOUT_ITEMS + 1)
+        ],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Too many layout items|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_layout_item_not_dict() -> None:
+    """Test that layout items must be dictionaries."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": ["not_a_dict"],
+        "meals": [],
+    }
+
+    with pytest.raises(ValidationError, match="(Layout items must be dictionaries|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_meals_not_list() -> None:
+    """Test that meals must be a list."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": "not_a_list",
+    }
+
+    with pytest.raises(ValidationError, match="(Meals must be a list|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_meals_too_many_items() -> None:
+    """Test that too many meals raises ValidationError."""
+    from core.data_sanitizer import MAX_MEALS
+
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": [
+            {
+                "title": f"Meal {i}",
+                "kcal": 600,
+                "protein_g": 30,
+                "fat_g": 20,
+                "carbs_g": 75,
+            }
+            for i in range(MAX_MEALS + 1)
+        ],
+    }
+
+    with pytest.raises(ValidationError, match="(Too many meals|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
+
+
+def test_meals_item_not_dict() -> None:
+    """Test that meal items must be dictionaries."""
+    invalid_data = {
+        "kcal": 2000,
+        "macros": {
+            "protein_g": 125,
+            "fat_g": 67,
+            "carbs_g": 250,
+            "fiber_g": 25,
+        },
+        "portions": {
+            "protein_palm": 2.0,
+            "fat_thumbs": 1.0,
+            "carb_cups": 4.0,
+            "veg_cups": 3.0,
+        },
+        "layout": [],
+        "meals": ["not_a_dict"],
+    }
+
+    with pytest.raises(ValidationError, match="(Meal items must be dictionaries|validation failed)"):
+        sanity_filter_plate_data(invalid_data)
