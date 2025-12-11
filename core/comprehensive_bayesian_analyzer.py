@@ -10,7 +10,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer

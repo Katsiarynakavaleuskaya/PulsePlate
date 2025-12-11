@@ -98,8 +98,10 @@ class PulsePlateMCPServer:
             # Use environment API key for discovery
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
-                logger.info("OPENAI_API_KEY not set; using fallback model list for validation")
-                cls._model_cache_failed = True
+                logger.info(
+                    "OPENAI_API_KEY not set; using fallback model list for validation "
+                    "and will retry discovery when a key is provided"
+                )
                 return cls.FALLBACK_ALLOWED_MODELS
 
             client = openai.OpenAI(api_key=api_key)

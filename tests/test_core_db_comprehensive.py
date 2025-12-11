@@ -2,15 +2,19 @@
 
 import importlib
 import os
-
 import tempfile
+from collections.abc import Generator
+from types import ModuleType
+
 import pytest
 from sqlalchemy import create_engine, text
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
-def reload_db_with_cleanup(monkeypatch: pytest.MonkeyPatch):
+def reload_db_with_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[ModuleType, None, None]:
     """Fixture that reloads db module and ensures cleanup afterward.
 
     This fixture handles the common pattern of reloading the db module for tests
@@ -24,7 +28,7 @@ def reload_db_with_cleanup(monkeypatch: pytest.MonkeyPatch):
     default_db_path = os.path.join(temp_dir, "app.db")
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{default_db_path}")
 
-    # Reload db module for test
+    # Provide the db module to tests that will explicitly reload it as needed
     yield db
 
     # Cleanup: ensure default DB path is available after monkeypatch undo.

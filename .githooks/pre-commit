@@ -50,7 +50,8 @@ if [[ $BASH_VERSION_OUTPUT =~ version\ ([0-9]+)\.([0-9]+) ]]; then
     fi
 else
     echo "⚠️  Warning: Could not parse bash version from: $BASH_VERSION_OUTPUT"
-    echo "   Attempting to continue anyway..."
+    echo "   Cannot verify Bash version. Aborting to prevent potential failures."
+    exit 1
 fi
 
 if ! $BASH_BIN ./scripts/clean-cache.sh > /dev/null 2>&1; then

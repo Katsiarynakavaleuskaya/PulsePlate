@@ -289,7 +289,7 @@ class TestMcpPulseplateServerCoverage:
         mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
 
     def test_fetch_available_models_no_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test _fetch_available_models returns fallback when no API key (lines 95-99)"""
+        """Test _fetch_available_models returns fallback when no API key without marking cache failed."""
         # Reset cache state
         mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
         mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
@@ -302,8 +302,8 @@ class TestMcpPulseplateServerCoverage:
 
             # Should return fallback models
             assert result == mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
-            # Should set failed flag
-            assert mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed is True
+            # Should NOT set failed flag so future retries are allowed when key appears
+            assert mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed is False
             # Should log info message
             mock_logger.info.assert_called_once()
             assert "OPENAI_API_KEY not set" in mock_logger.info.call_args[0][0]

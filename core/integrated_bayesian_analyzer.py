@@ -934,7 +934,7 @@ class IntegratedBayesianAnalyzer:
 
     def _calculate_risk_level(
         self, technical: List[str], nutrition: List[str], safety: List[str], philosophy: List[str]
-    ) -> str:
+    ) -> Literal["low", "medium", "high", "critical"]:
         """Calculate overall risk level using structured nutrition metadata and language-agnostic normalized types.
 
         Leverages structured NutritionTestResult severity data (safety_level, error_type)

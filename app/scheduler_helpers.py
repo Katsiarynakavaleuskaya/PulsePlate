@@ -16,7 +16,9 @@ def resolve_scheduler_starter(
 
     Returns the best available starter callable, falling back to default_starter.
     """
-    starter = globs.get("_scheduler_start_background_updates", default_starter)
+    starter: Callable[[int], Any] = globs.get(
+        "_scheduler_start_background_updates", default_starter
+    )
     if starter is default_starter:
         pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
         starter = (
@@ -41,7 +43,9 @@ def resolve_stop_callable(
 
     Returns the best available stopper callable, falling back to default_stopper.
     """
-    stopper = globals().get("_scheduler_stop_background_updates", default_stopper)
+    stopper: Callable[[], Any] = globals().get(
+        "_scheduler_stop_background_updates", default_stopper
+    )
     if stopper is default_stopper:
         pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
         stopper = (
@@ -114,9 +118,9 @@ def execute_async_starter(
         pass
 
     if loop is None:
-        asyncio.run(starter(update_interval_hours=update_interval_hours))
+        asyncio.run(starter(update_interval_hours))
     else:
-        loop.create_task(starter(update_interval_hours=update_interval_hours))
+        loop.create_task(starter(update_interval_hours))
 
 
 def safe_stop_with_cleanup(stopper: Callable[[], Any]) -> None:

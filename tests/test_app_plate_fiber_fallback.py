@@ -75,16 +75,8 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
     response = await app.api_premium_plate(request)
 
     # Fiber should equal minimum when fallback is triggered
-    assert response.macros["fiber_g"] == app.FIBER_MIN_G
+    assert response.macros["fiber_g"] == int(app.FIBER_MIN_G)
 
-    # When invalid fiber triggers sanitization fallback, the endpoint may use different kcal calculation paths:
-    # - 2100: Direct kcal from make_plate (raw plate data)
-    # - 2000: Maintenance TDEE (no goal adjustment)
-    # - 1700: Loss goal with 15% deficit (2000 * 0.85)
-    # Using discrete values ensures we validate against known fallback paths rather than overly permissive ranges
-    expected_kcal_values = [1700, 2000, 2100]
-    assert response.kcal in expected_kcal_values, (
-        f"Expected kcal to be one of {expected_kcal_values} (fallback paths: "
-        f"make_plate raw={2100}, maintenance TDEE={2000}, loss with deficit={1700}), "
-        f"got {response.kcal}"
-    )
+    # With current mocks (fake_make_plate returns 2100, build_nutrition_targets=None),
+    # kcal should match the deterministic mock return value from fake_make_plate.
+    assert response.kcal == 2100, f"Expected kcal from mock (2100), got {response.kcal}"

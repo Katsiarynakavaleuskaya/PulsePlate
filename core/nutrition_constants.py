@@ -56,7 +56,7 @@ _BMI_DANGEROUS_HIGH_VALUE = BMI_OBESITY_THRESHOLD
 # new code should use BMI_OBESITY_THRESHOLD directly.
 
 
-def _compute_deprecation_stacklevel() -> int:
+def _compute_deprecation_stacklevel() -> int:  # pragma: no cover
     """Compute the correct stacklevel for deprecation warnings.
 
     Walks the call stack upward to find the first frame that is not part of:

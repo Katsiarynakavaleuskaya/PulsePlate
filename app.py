@@ -598,7 +598,8 @@ def _configure_session_bindings(
             tags = [f"env:{env_label}", f"backend:{backend}"]
             with suppress(Exception):
                 client.increment("db_fallback_active", tags=tags)
-    except Exception:  # pragma: no cover - metrics are optional
+    except Exception:  # pragma: no cover - metrics are optional, safe to ignore  # nosec B110
+        # Metrics collection is non-critical; failures should not affect application startup
         pass
 
     # Set DB_FALLBACK_URL only if needed for external tools
@@ -3533,8 +3534,6 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
     """
     try:
         # Resolve wrappers dynamically via the 'app' package to respect test patches
-        import sys as _sys
-
         _pkg_candidates = _iter_app_modules()
         _pkg = next((mod for mod in _pkg_candidates if mod is not None), None)
 
@@ -3768,7 +3767,7 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
         )
     except ImportError as e:
         raise HTTPException(status_code=503, detail="BMR calculation module not available") from e
-    except HTTPException as e:
+    except HTTPException:
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e

@@ -130,7 +130,7 @@ def test_business_load_business_knowledge_from_yaml(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Use tmp_path to avoid modifying production config directory
-    config_dir = tmp_path / "core" / "config"
+    config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "business_knowledge.yaml"
     yaml_path.write_text(
@@ -141,10 +141,10 @@ def test_business_load_business_knowledge_from_yaml(
         encoding="utf-8",
     )
 
-    # Monkeypatch __file__ to point to tmp_path so config path resolution uses tmp_path
+    # Monkeypatch __file__ so that Path(__file__).parent.parent / \"config\" points to config_dir
     import core.business_bayesian_analyzer as bba_module
 
-    mock_file = str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    mock_file = str(tmp_path / "some_module" / "business_bayesian_analyzer.py")
     monkeypatch.setattr(bba_module, "__file__", mock_file)
 
     monkeypatch.setattr(
@@ -163,7 +163,7 @@ def test_business_load_business_knowledge_invalid_yaml(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     # Use tmp_path to avoid modifying production config directory
-    config_dir = tmp_path / "core" / "config"
+    config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
     yaml_path = config_dir / "business_knowledge.yaml"
     yaml_path.write_text(
@@ -173,10 +173,10 @@ def test_business_load_business_knowledge_invalid_yaml(
         encoding="utf-8",
     )
 
-    # Monkeypatch __file__ to point to tmp_path so config path resolution uses tmp_path
+    # Monkeypatch __file__ so that Path(__file__).parent.parent / \"config\" points to config_dir
     import core.business_bayesian_analyzer as bba_module
 
-    mock_file = str(tmp_path / "core" / "business_bayesian_analyzer.py")
+    mock_file = str(tmp_path / "some_module" / "business_bayesian_analyzer.py")
     monkeypatch.setattr(bba_module, "__file__", mock_file)
 
     monkeypatch.setattr(
