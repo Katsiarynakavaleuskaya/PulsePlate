@@ -794,11 +794,12 @@ def test_targets_in_micro_type_validation_direct() -> None:
         )
 
 
-def test_week_plan_validator_accepts_zero_age(premium_client: TestClient) -> None:
-    """Test that WeekPlanRequest validator accepts valid zero/falsy values like age=0.
+def test_week_plan_validator_accepts_low_numeric_values(premium_client: TestClient) -> None:
+    """Test that WeekPlanRequest validator accepts valid non-None/falsy numeric values.
 
-    Regression test for bug where all([self.sex, self.age, ...]) incorrectly rejected
-    valid zero values. Now uses explicit 'is not None' checks.
+    Regression test ensuring the validator uses explicit 'is not None' checks rather than
+    truthiness, which would incorrectly reject valid low but non-zero values (e.g., age=1).
+    Tests that valid numeric values are accepted regardless of being "falsy" in Python.
     """
     # Age 1 is valid (minimum), but the validator should use 'is not None'
     # This tests that we don't reject valid numeric values just because they're "falsy"

@@ -123,17 +123,14 @@ class TestTargetedCoverageBoost:
         """Test line 1215 in main.py (get_database_status with missing scheduler)."""
         # Clear the scheduler singleton to force fresh initialization
         from core.food_apis import scheduler
-        import app as app_module
 
         monkeypatch.setattr(scheduler, "_scheduler_instance", None)
-        monkeypatch.setattr(app_module, "_test_scheduler_override", None, raising=False)
 
         # Patch get_update_scheduler to raise an exception
         async def fake_get_scheduler_error():
             raise Exception("Test error")
 
-        # Patch both the app module and scheduler module
-        monkeypatch.setattr(app_module, "get_update_scheduler", fake_get_scheduler_error)
+        # Patch scheduler module's get_update_scheduler
         monkeypatch.setattr(scheduler, "get_update_scheduler", fake_get_scheduler_error)
 
         response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})

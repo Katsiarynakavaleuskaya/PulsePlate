@@ -92,8 +92,10 @@ TRANSLATIONS = {
         "bmr_katch_note": "Использована формула Katch-McArdle (требует процент жира)",
         # Business Module
         "business_module_disabled": "Модуль бизнес-анализа отключен",
-        "business_payload_too_large": "Слишком большой код (макс 100 КБ)",
-        "business_analysis_failed": "Ошибка бизнес-анализа. Попробуйте снова или обратитесь в поддержку",
+        "business_payload_too_large": "Слишком большой код (макс 100 KB)",
+        "business_analysis_failed": (
+            "Ошибка бизнес-анализа. Попробуйте снова или обратитесь в поддержку"
+        ),
     },
     "en": {
         # BMI Categories
@@ -179,7 +181,7 @@ TRANSLATIONS = {
         "bmr_katch_note": "Using Katch-McArdle formula (requires body fat percentage)",
         # Business Module
         "business_module_disabled": "Business analysis module is disabled",
-        "business_payload_too_large": "Code payload too large (max 100KB)",
+        "business_payload_too_large": "Code payload too large (max 100 KB)",
         "business_analysis_failed": "Business analysis failed. Please try again or contact support",
     },
     "es": {
@@ -268,7 +270,9 @@ TRANSLATIONS = {
         # Business Module
         "business_module_disabled": "Módulo de análisis empresarial está deshabilitado",
         "business_payload_too_large": "Código demasiado grande (máx 100 KB)",
-        "business_analysis_failed": "Error en análisis empresarial. Inténtelo de nuevo o contacte al soporte",
+        "business_analysis_failed": (
+            "Error en análisis empresarial. Inténtelo de nuevo o contacte al soporte"
+        ),
     },
 }
 

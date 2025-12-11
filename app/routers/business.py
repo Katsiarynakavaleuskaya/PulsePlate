@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from app.routers.api_key import api_key_header
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
-from core.i18n import t
+from core.i18n import normalize_lang, t
 
 # Business feature flag: enable/disable business module via env or default True
 BUSINESS_MODULE_ENABLED = os.getenv("BUSINESS_MODULE_ENABLED", "true").lower() in (
@@ -72,6 +72,20 @@ class BusinessAnalysisResponse(BaseModel):
     optimization_potential: Optional[str]
 
 
+def _localized_error(locale: Optional[str], key: str) -> str:
+    """Helper to get localized error message.
+
+    Args:
+        locale: User's locale preference (optional)
+        key: Translation key
+
+    Returns:
+        Localized error message
+    """
+    lang = normalize_lang(locale)
+    return t(lang, key)
+
+
 @router.post("/analyze", response_model=list[BusinessAnalysisResponse])
 async def analyze_business_code(
     request: BusinessAnalysisRequest,
@@ -84,8 +98,7 @@ async def analyze_business_code(
     customer acquisition, revenue growth, and customer retention.
     """
     if not BUSINESS_MODULE_ENABLED:
-        lang = request.locale or "en"
-        detail = t(lang, "business_module_disabled")
+        detail = _localized_error(request.locale, "business_module_disabled")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=detail,
@@ -98,8 +111,7 @@ async def analyze_business_code(
             "Rejected oversized code payload: %d bytes (max 100KB)",
             code_bytes,
         )
-        lang = request.locale or "en"
-        detail = t(lang, "business_payload_too_large")
+        detail = _localized_error(request.locale, "business_payload_too_large")
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=detail,
@@ -110,9 +122,7 @@ async def analyze_business_code(
         analyzer = BusinessBayesianAnalyzer(locale=request.locale)
 
         # Perform business analysis (offload to thread to avoid blocking event loop)
-        results = await to_thread.run_sync(
-            lambda: analyzer.analyze(request.code, request.test_name)
-        )
+        results = await to_thread.run_sync(analyzer.analyze, request.code, request.test_name)
 
         # Convert results to response format
         response_items = [
@@ -145,8 +155,7 @@ async def analyze_business_code(
             _safe_error_summary(e),
             exc_info=True,
         )
-        lang = request.locale or "en"
-        detail = t(lang, "business_analysis_failed")
+        detail = _localized_error(request.locale, "business_analysis_failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=detail,
