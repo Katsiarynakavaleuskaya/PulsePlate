@@ -6,6 +6,7 @@ These tests target specific edge cases and error paths to achieve 97% coverage.
 import pytest
 from typing import Any
 from unittest.mock import patch, MagicMock
+from fastapi.testclient import TestClient
 
 
 class TestCoverageFinalBoost:
@@ -13,12 +14,7 @@ class TestCoverageFinalBoost:
 
     def test_bayesian_analyzer_edge_cases(self) -> None:
         """Cover edge cases in bayesian analyzer."""
-        from core.bayesian_test_analyzer import (
-            BayesianTestAnalyzer,
-            ErrorType,
-            TestStatus,
-            TestCategory,
-        )
+        from core.bayesian_test_analyzer import BayesianTestAnalyzer
 
         analyzer = BayesianTestAnalyzer()
 
@@ -46,8 +42,14 @@ class TestCoverageFinalBoost:
         assert db._extract_sqlite_path("postgresql://localhost/db") is None
         assert db._extract_sqlite_path("sqlite:///:memory:") is None
         assert db._extract_sqlite_path("sqlite:///test.db") == "test.db"
+        assert (
+            db._extract_sqlite_path("sqlite:////absolute/path/db.sqlite")
+            == "/absolute/path/db.sqlite"
+        )
 
-    def test_business_router_edge_paths(self, test_client, monkeypatch) -> None:
+    def test_business_router_edge_paths(
+        self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Cover business router edge cases."""
         monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
 

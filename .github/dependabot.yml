@@ -1,10 +1,10 @@
 version: 2
 updates:
-  # Python dependencies with grouped security (weekly) and general (monthly) updates
+  # Python dependencies with grouped updates (monthly schedule)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
     assignees:
       - "katsiarynakavaleuskaya"

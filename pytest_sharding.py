@@ -64,7 +64,15 @@ SHARD_MAP: Dict[int, ShardConfig] = {
     },
     5: {
         "name": "core",
-        "patterns": ["test_core_", "test_bmi_", "test_bodyfat_", "test_nutrition_", "test_schemas"],
+        "patterns": [
+            "test_core_",
+            "test_bmi_",
+            "test_bodyfat_",
+            "test_nutrition_constants",  # Nutrition tests excluding Bayesian (in shard 4)
+            "test_nutrition_core",
+            "test_nutrition_plate",
+            "test_schemas",
+        ],
         "description": "Core business logic and utilities",
     },
     6: {

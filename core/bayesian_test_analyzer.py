@@ -422,7 +422,8 @@ class BayesianTestAnalyzer:
             prior = self.prior_probabilities[error_type]
 
             # P(симптомы|причина) - вероятность симптомов при данной причине
-            likelihood = self._calculate_likelihood(symptoms, error_type)
+            # Use same similar_cases as evidence calculation for consistency
+            likelihood = self._calculate_likelihood(symptoms, error_type, similar_cases)
 
             # P(причина|симптомы) = P(симптомы|причина) * P(причина) / P(симптомы)
             if evidence > 0:

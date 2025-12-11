@@ -196,7 +196,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
             if [[ $file == tests/* ]] && [[ $file == *.py ]]; then
                 [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
             # Otherwise, check if corresponding test file exists
-            elif [[ $file == *.py ]] && [[ ! $file == test_*.py ]]; then
+            # Extract basename to properly detect test files regardless of path
+            elif [[ $file == *.py ]] && [[ ! $(basename "$file") == test_*.py ]]; then
                 # Try to find test file in tests/ directory
                 basename=$(basename "$file" .py)
                 dirname=$(dirname "$file")
