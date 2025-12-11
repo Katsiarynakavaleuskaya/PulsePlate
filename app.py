@@ -4450,8 +4450,8 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
             success = await success
     except Exception as e:
         logger.exception("Rollback callable raised")
-        # Include exception message for debugging while avoiding full stack trace leak
-        error_msg = f"Rollback operation failed: {str(e)}"
+        # Use generic error message to avoid leaking sensitive internal details
+        error_msg = "Rollback operation failed; see server logs for details"
         raise HTTPException(status_code=500, detail=error_msg) from e
 
     if success:
