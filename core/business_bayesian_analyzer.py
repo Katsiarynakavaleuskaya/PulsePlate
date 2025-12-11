@@ -15,7 +15,7 @@ import re
 import tokenize
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, cast
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
@@ -221,10 +221,11 @@ class BusinessBayesianAnalyzer:
         """Attempt to import PyYAML, returning None if unavailable."""
         try:
             import yaml
+
+            return cast(ModuleType, yaml)
         except (ModuleNotFoundError, ImportError):
             return None
         # Let other exceptions (version conflicts, corrupt installs) propagate
-        return yaml
 
     def _config_dir(self) -> Path:
         """Return the config directory adjacent to this module, with fallback to parent."""
