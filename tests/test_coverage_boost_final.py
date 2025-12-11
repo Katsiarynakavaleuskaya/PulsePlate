@@ -138,5 +138,3 @@ class TestCoverageFinalBoost:
         code_async = "async def test(): return 1"
         issues = analyze_technical_aspects_common(code_async)
         assert "Async function without await usage" in issues
-        issues = analyze_technical_aspects_common(code_async)
-        assert "Async function without await usage" in issues

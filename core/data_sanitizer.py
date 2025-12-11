@@ -4,7 +4,6 @@ Provides strict validation and normalization to prevent injection attacks,
 invalid data, and ensure type safety.
 """
 
-import html
 from typing import Any, Dict, List, Literal, Optional, Set, TypedDict, cast
 
 import nh3
@@ -16,8 +15,9 @@ MAX_MEALS = 10
 MAX_LAYOUT_ITEMS = 20
 MAX_MICRO_NUTRIENTS = 100
 
-# nh3 configuration: strict allowlist for basic text formatting only
-# No event handlers, no javascript:, no data: URIs, no SVG attributes
+# nh3 configuration: Allows basic formatting tags for rich text display
+# nh3 strips all dangerous HTML/JS/XSS (event handlers, javascript: URIs, data: URIs, etc.)
+# Output is safe for HTML context; additional escaping should be done at render time if needed
 NH3_ALLOWED_TAGS = {"b", "i", "em", "strong", "u", "br", "p", "span"}
 NH3_ALLOWED_ATTRS: Dict[str, Set[str]] = (
     {}
@@ -43,7 +43,7 @@ def _sanitize_micros(
         max_items: Maximum number of micronutrients allowed
 
     Returns:
-        Sanitized micronutrient dictionary with escaped keys and validated numeric values,
+        Sanitized micronutrient dictionary with nh3-cleaned keys and validated numeric values,
         or None if input is None
 
     Raises:
@@ -61,17 +61,19 @@ def _sanitize_micros(
         if not isinstance(key, str):
             raise ValueError("Micronutrient keys must be strings")
         # Sanitize key name using nh3 (strips all HTML/JS, decodes entities, prevents XSS)
-        clean_key = nh3.clean(key, tags=set(), attributes={})
-        # Check length before escaping to avoid inflated length from html.escape
+        # For micronutrient keys, we don't want any HTML tags, so use empty tag set
+        clean_key = nh3.clean(key, tags=set(), attributes={}).strip()
+        # Validate length on the final sanitized key
         if len(clean_key) > 100:
             raise ValueError("Micronutrient key too long")
-        # Only after length check, apply HTML escaping for defense in depth
-        clean_key = html.escape(clean_key, quote=True).strip()
 
         if not isinstance(value, (int, float)):
-            raise ValueError(f"Micronutrient value for '{html.escape(str(key))}' must be numeric")
+            # Use nh3.clean for error messages too to prevent XSS in error output
+            safe_key = nh3.clean(str(key), tags=set(), attributes={})
+            raise ValueError(f"Micronutrient value for '{safe_key}' must be numeric")
         if not (0 <= value <= 100000):  # Reasonable upper bound
-            raise ValueError(f"Micronutrient value for '{html.escape(str(key))}' out of range")
+            safe_key = nh3.clean(str(key), tags=set(), attributes={})
+            raise ValueError(f"Micronutrient value for '{safe_key}' out of range")
         sanitized[clean_key] = float(value)
     return sanitized
 
@@ -93,14 +95,17 @@ class VisualShapeSchema(BaseModel):
     @field_validator("label", "tooltip")
     @classmethod
     def sanitize_strings(cls, v: str) -> str:
-        """Sanitize using nh3 (strips HTML/JS/XSS, decodes entities, prevents injection)."""
+        """Sanitize using nh3 (strips dangerous HTML/JS/XSS, allows safe formatting tags).
+
+        nh3 handles all sanitization - removes XSS vectors while preserving allowed formatting.
+        Output is safe for HTML rendering. Additional context-specific escaping (e.g., for
+        attributes or plain-text contexts) should be done at render time if needed.
+        """
         # Use nh3 with strict allowlist - only basic formatting tags, no attributes
         v = nh3.clean(v, tags=NH3_ALLOWED_TAGS, attributes=NH3_ALLOWED_ATTRS)
-        # Enforce max length before additional escaping
+        # Enforce max length on the sanitized output
         if len(v) > MAX_STRING_LENGTH:
             raise ValueError(f"String exceeds max length {MAX_STRING_LENGTH}")
-        # HTML escape for defense in depth (nh3 already sanitized, but belt-and-suspenders)
-        v = html.escape(v, quote=True)
         return v.strip()
 
 
@@ -118,14 +123,17 @@ class MealSchema(BaseModel):
     @field_validator("title")
     @classmethod
     def sanitize_title(cls, v: str) -> str:
-        """Sanitize using nh3 (strips HTML/JS/XSS, decodes entities, prevents injection)."""
+        """Sanitize using nh3 (strips dangerous HTML/JS/XSS, allows safe formatting tags).
+
+        nh3 handles all sanitization - removes XSS vectors while preserving allowed formatting.
+        Output is safe for HTML rendering. Additional context-specific escaping (e.g., for
+        attributes or plain-text contexts) should be done at render time if needed.
+        """
         # Use nh3 with strict allowlist - only basic formatting tags, no attributes
         v = nh3.clean(v, tags=NH3_ALLOWED_TAGS, attributes=NH3_ALLOWED_ATTRS)
-        # Enforce max length before additional escaping
+        # Enforce max length on the sanitized output
         if len(v) > MAX_STRING_LENGTH:
             raise ValueError(f"Title exceeds max length {MAX_STRING_LENGTH}")
-        # HTML escape for defense in depth
-        v = html.escape(v, quote=True)
         return v.strip()
 
     @field_validator("micros")

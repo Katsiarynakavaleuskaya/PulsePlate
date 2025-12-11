@@ -19,6 +19,18 @@ def test_is_event_loop_closed_running_loop(monkeypatch: pytest.MonkeyPatch) -> N
     assert client._is_event_loop_closed(RuntimeError("any"))
 
 
+def test_is_event_loop_closed_running_loop_open(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When running loop is open, helper should return False and avoid fallback."""
+    client = OFFClient()
+
+    class FakeLoop:
+        def is_closed(self) -> bool:
+            return False
+
+    monkeypatch.setattr(asyncio, "get_running_loop", lambda: FakeLoop())
+    assert client._is_event_loop_closed(RuntimeError("other error")) is False
+
+
 def test_is_event_loop_closed_message(monkeypatch: pytest.MonkeyPatch) -> None:
     client = OFFClient()
 

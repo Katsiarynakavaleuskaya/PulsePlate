@@ -52,8 +52,12 @@ if _sharding_module_path.exists():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None, None, None]:
-    """Configure and initialize a per-worker SQLite database for the test session."""
+def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, None, None]:
+    """Configure and initialize a per-worker SQLite database for the test session.
+
+    Yields:
+        The reloaded db module for use by dependent fixtures (e.g., _cleanup_users).
+    """
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
 
@@ -95,7 +99,9 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     except Exception as e:
         logger.debug(f"Could not set permissions on test database: {e}")
 
-    yield
+    # Expose the reloaded db module to dependent fixtures (e.g., _cleanup_users)
+    # so they can use a consistent session_scope and engine configuration.
+    yield db_module_reloaded
 
     # Teardown: Clean up database connections and files
     try:

@@ -287,6 +287,19 @@ class TestOFFClient:
             assert len(results) == 0
 
     @pytest.mark.asyncio
+    async def test_search_products_filters_invalid_items(self):
+        """search_products should skip items that fail parsing (food_item is None)."""
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.raise_for_status = MagicMock()
+            # Product data missing required fields so _parse_product_item returns None
+            mock_response.json = MagicMock(return_value={"products": [{"product_name": ""}]})
+            mock_get.return_value = mock_response
+
+            results = await self.client.search_products("test")
+            assert results == []
+
+    @pytest.mark.asyncio
     async def test_get_product_details_success(self):
         """Test get product details functionality with successful response."""
         # Mock the HTTP client

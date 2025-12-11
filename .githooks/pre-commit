@@ -254,7 +254,8 @@ if command -v pre-commit > /dev/null 2>&1; then
     ORIGINAL_HOOKS_PATH=""
     if ORIGINAL_HOOKS_PATH=$(git config --get core.hooksPath 2>/dev/null); then
         git config --unset-all core.hooksPath || true
-        trap 'git config core.hooksPath "$ORIGINAL_HOOKS_PATH"' EXIT
+        # Only restore if ORIGINAL_HOOKS_PATH was actually set
+        trap '[ -n "$ORIGINAL_HOOKS_PATH" ] && git config core.hooksPath "$ORIGINAL_HOOKS_PATH"' EXIT
     fi
     # Safely handle filenames with spaces by using array
     mapfile -t STAGED_FILES < <(git diff --cached --name-only --diff-filter=ACM)

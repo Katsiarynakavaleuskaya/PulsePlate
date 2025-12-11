@@ -31,6 +31,40 @@ SALT_FILE_ENV_VAR: Final[str] = "FINGERPRINT_SALT_FILE"
 DEFAULT_SALT_PATH: Final[Path] = Path("cache") / "fingerprint_salt.txt"
 
 
+def _read_salt(path: Path) -> str | None:
+    """Read and return salt from file, or None if file doesn't exist or is invalid."""
+    try:
+        saved = path.read_text().strip()
+        return saved if saved else None
+    except (ValueError, FileNotFoundError, OSError, PermissionError):
+        return None
+
+
+def _write_salt_exclusive(path: Path, value: str) -> bool:
+    """Attempt exclusive write of salt value. Returns True if successful, False if file exists."""
+    try:
+        with path.open("x") as f:
+            f.write(value)
+        return True
+    except FileExistsError:
+        return False
+    except (OSError, IOError, PermissionError):
+        return False
+
+
+def _ensure_dir_and_perms(path: Path) -> None:
+    """Create parent directory and set file permissions to 0o600. Logs but doesn't raise on errors."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.debug(f"Could not create salt file directory: {e}")
+
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass  # Permission setting is best-effort
+
+
 def _load_salt_from_file(path: Path) -> str | None:
     """Return the salt stored on disk, creating it if necessary.
 
@@ -39,48 +73,43 @@ def _load_salt_from_file(path: Path) -> str | None:
     same stable salt being used process-wide via lru_cache.
     """
     try:
+        # Try reading existing salt first
         if path.exists():
-            saved = path.read_text().strip()
+            saved = _read_salt(path)
             if saved:
                 return saved
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        generated = secrets.token_hex(32)  # Generate 256-bit (32-byte) salt
-        try:
-            with path.open("x") as f:
-                f.write(generated)
-        except FileExistsError:
-            # Another process created it, read the existing value
-            try:
-                saved = path.read_text().strip()
-                if saved:
-                    return saved
-                # File exists but is empty - persist the generated salt for stability
-                # Note: Race condition possible here; first writer wins, losers will
-                # read their value on next restart. Acceptable for this use case.
-                try:
-                    path.write_text(generated)
-                except Exception:
-                    # If we cannot write, still return the generated value
-                    # (process-stable via caller cache)
-                    logger.debug("Could not persist fingerprint salt", exc_info=True)
-                try:
-                    path.chmod(0o600)
-                except OSError:
-                    pass
-                return generated
-            except Exception:
-                # If we can't read or write the file, return our generated salt
-                # but don't persist it
-                logger.debug("Could not read/write fingerprint salt file", exc_info=True)
+        # Ensure parent directory exists
+        _ensure_dir_and_perms(path)
 
+        # Generate new salt
+        generated = secrets.token_hex(32)  # Generate 256-bit (32-byte) salt
+
+        # Try exclusive write (creates file only if it doesn't exist)
+        if _write_salt_exclusive(path, generated):
+            # Successfully created file, set permissions and return
+            _ensure_dir_and_perms(path)
+            return generated
+
+        # File was created by another process - try reading it
+        saved = _read_salt(path)
+        if saved:
+            return saved
+
+        # File exists but is empty - attempt to persist generated salt for stability
+        # Note: Race condition possible here; first writer wins, losers will
+        # read their value on next restart. Acceptable for this use case.
         try:
-            path.chmod(0o600)
-        except OSError:
-            pass
+            path.write_text(generated)
+        except (OSError, IOError, PermissionError):
+            # If we cannot write, still return the generated value
+            # (process-stable via caller cache)
+            logger.debug("Could not persist fingerprint salt", exc_info=True)
+
+        _ensure_dir_and_perms(path)
         return generated
-    except Exception:
-        # Fallback handled by caller
+    except (OSError, IOError, PermissionError):
+        # Fallback handled by caller - return None if we cannot access filesystem
         return None
 
 

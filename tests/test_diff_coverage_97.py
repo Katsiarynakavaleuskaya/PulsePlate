@@ -127,7 +127,7 @@ class TestFingerprintSecurity:
             def fake_write_text(self: Path, data: str, *args, **kwargs):
                 if self == salt_file:
                     write_called["called"] = True
-                    raise RuntimeError("write failed")
+                    raise OSError("write failed")
                 return original_write_text(self, data, *args, **kwargs)
 
             monkeypatch.setattr(Path, "exists", fake_exists)
@@ -175,6 +175,53 @@ class TestFingerprintSecurity:
             result = _load_salt_from_file(salt_file)
             assert result is not None
             assert len(result) == 64
+
+    def test_write_salt_exclusive_handles_oserror(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """_write_salt_exclusive should return False on OSError without raising."""
+        from core.fingerprint_security import _write_salt_exclusive
+
+        salt_file = tmp_path / "oserror_salt.txt"
+        original_open = Path.open
+
+        def fake_open(self: Path, mode: str = "r", *args, **kwargs):
+            if self == salt_file and "x" in mode:
+                raise OSError("disk error")
+            return original_open(self, mode, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", fake_open)
+        assert _write_salt_exclusive(salt_file, "value") is False
+
+    def test_ensure_dir_and_perms_handles_mkdir_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """_ensure_dir_and_perms should log mkdir errors and continue."""
+        from core.fingerprint_security import _ensure_dir_and_perms
+
+        salt_file = tmp_path / "nested" / "salt.txt"
+
+        original_mkdir = Path.mkdir
+        original_chmod = Path.chmod
+        calls = {"mkdir": 0, "chmod": 0}
+
+        def fake_mkdir(self: Path, *args, **kwargs):
+            if self == salt_file.parent:
+                calls["mkdir"] += 1
+                raise OSError("no mkdir")
+            return original_mkdir(self, *args, **kwargs)
+
+        def fake_chmod(self: Path, mode: int):
+            if self == salt_file:
+                calls["chmod"] += 1
+                raise OSError("chmod fail")
+            return original_chmod(self, mode)
+
+        with patch.object(Path, "mkdir", fake_mkdir), patch.object(Path, "chmod", fake_chmod):
+            _ensure_dir_and_perms(salt_file)
+
+        assert calls["mkdir"] == 1
+        assert calls["chmod"] == 1
 
     def test_load_salt_final_chmod_os_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Bottom chmod OSError should be ignored (79-80)."""
