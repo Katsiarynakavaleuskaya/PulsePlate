@@ -767,6 +767,7 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
         - else (default in tests/dev): accept non-trivial tokens when in dev/test mode
     """
     app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
+    api_key_value = api_key or ""
     dev_mode = _is_truthy(os.getenv("ALLOW_DEV_API_KEY"))
     if app_env in {"", "local", "dev", "development", "test"}:
         dev_mode = True
@@ -777,12 +778,15 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
                 "Lenient API key mode enabled - for development only, provides no real security"
             )
             _lenient_mode_warning_logged = True
-
     if expected := os.getenv("API_KEY"):
-        if api_key == expected:
-            return api_key
+        if secrets.compare_digest(api_key_value, expected):
+            return api_key_value
         allow_normalize = dev_mode and _is_truthy(os.getenv("ALLOW_DEV_API_KEY_NORMALIZE"))
-        if allow_normalize and api_key and api_key.replace("-", "_") == expected.replace("-", "_"):
+        if (
+            allow_normalize
+            and api_key_value
+            and secrets.compare_digest(api_key_value.replace("-", "_"), expected.replace("-", "_"))
+        ):
             # Optional dev-only normalization: off by default for strictness
             return expected
         raise HTTPException(status_code=403, detail="Invalid API Key")
@@ -797,9 +801,9 @@ def get_api_key(api_key: str = Depends(api_key_header)) -> str:
         raise HTTPException(status_code=403, detail="API key required but not configured")
 
     # Lenient mode (tests/dev): allow missing token, but reject obviously invalid ones
-    if not api_key:
+    if not api_key_value:
         raise HTTPException(status_code=403, detail="Missing API Key")
-    token = api_key.strip()
+    token = api_key_value.strip()
     forbidden_tokens = {"invalid", "invalid_key", "wrong", "bad", "null"}
     if len(token) < 4 or token.lower() in forbidden_tokens:
         raise HTTPException(status_code=403, detail="Invalid API Key")

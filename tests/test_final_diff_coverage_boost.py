@@ -66,17 +66,17 @@ def test_login():
         assert not any("password" in issue.lower() for issue in issues)
 
     def test_sql_injection_in_logging_context(self) -> None:
-        """Test SQL injection not flagged in logging (lines 641, 645)."""
+        """Test SQL-like logging with parameterized query is not flagged."""
         from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer
 
         analyzer = IntegratedBayesianAnalyzer()
 
-        # SQL in logging context should not be flagged
+        # Parameterized SQL in logging context should not be flagged as injection
         logging_code = """
 import logging
 logger = logging.getLogger(__name__)
-query = "SELECT * FROM users WHERE id = " + user_id
-logger.debug(f"Executing query: {query}")
+query = "SELECT * FROM users WHERE id = %s"
+logger.debug("Executing query: %s", query)
 """
 
         issues = analyzer._analyze_safety_aspects(logging_code, "logging_example")

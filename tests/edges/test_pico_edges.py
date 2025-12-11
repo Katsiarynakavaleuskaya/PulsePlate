@@ -1,5 +1,7 @@
 from typing import Any, Dict
 
+import pytest
+
 
 def _await_or_value(x: Any) -> Any:
     import asyncio
@@ -10,7 +12,7 @@ def _await_or_value(x: Any) -> Any:
     return x
 
 
-def test_pico_response_branch(monkeypatch) -> None:
+def test_pico_response_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     from providers import pico as pico_mod
 
     class _Resp:
@@ -36,7 +38,7 @@ def test_pico_response_branch(monkeypatch) -> None:
     assert out == "Z"
 
 
-def test_pico_else_fallback_branch(monkeypatch) -> None:
+def test_pico_else_fallback_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     from providers import pico as pico_mod
 
     class _Resp:

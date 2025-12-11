@@ -37,15 +37,14 @@ def resolve_scheduler_starter(
 def resolve_stop_callable(
     pkg: Any,
     alias_pkg: Any,
+    globs: dict[str, Any],
     default_stopper: Callable[[], Any],
 ) -> Callable[[], Any]:
     """Resolve the stop callable from package/module hierarchy.
 
     Returns the best available stopper callable, falling back to default_stopper.
     """
-    stopper: Callable[[], Any] = globals().get(
-        "_scheduler_stop_background_updates", default_stopper
-    )
+    stopper: Callable[[], Any] = globs.get("_scheduler_stop_background_updates", default_stopper)
     if stopper is default_stopper:
         pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
         stopper = (
