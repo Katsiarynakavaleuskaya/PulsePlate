@@ -218,7 +218,7 @@ class TestAppErrorHandling:
         """Test endpoint with invalid JSON."""
         response = client.post(
             "/api/v1/bmi",
-            data="invalid json",
+            content="invalid json",
             headers={"Content-Type": "application/json"},
         )
         assert response.status_code in [400, 422]
@@ -233,7 +233,7 @@ class TestAppErrorHandling:
         """Test endpoint with invalid content type."""
         response = client.post(
             "/api/v1/bmi",
-            data="weight=70",
+            content="weight=70",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         # Should either reject or accept based on FastAPI config

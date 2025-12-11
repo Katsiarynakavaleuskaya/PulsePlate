@@ -94,7 +94,9 @@ def generate_weekly_plan(
     # Calculate weekly average coverage
     weekly_coverage: Dict[str, float] = {}
     for micro, coverages in weekly_micro_coverage.items():
-        if not coverages:
+        if (
+            not coverages
+        ):  # pragma: no cover - defensive guard; coverages is always non-empty by construction
             raise ValueError(
                 f"Empty coverages list for micro '{micro}': "
                 f"expected at least one coverage value for weekly average calculation"

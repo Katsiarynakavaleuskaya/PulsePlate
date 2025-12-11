@@ -4,33 +4,13 @@
 """
 
 import logging
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 
 class TestSimpleCoverageBoost:
-    """Простые тесты для увеличе            if hasattr(auto_repair_module, 'auto_repair_week_plan'):
-        try:
-            # Создаем минимальные targets для теста
-            from core.targets import MicronutrientTargets
-            targets = MicronutrientTargets()
-            result = auto_repair_module.auto_repair_week_plan({}, targets)
-            assert isinstance(result, (dict, type(None)))
-        except Exception as e:
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            pass
-
-    if hasattr(auto_repair_module, 'suggest_manual_fixes'):
-        try:
-            # Создаем минимальные targets для теста
-            from core.targets import MicronutrientTargets
-            targets = MicronutrientTargets()
-            suggestions = auto_repair_module.suggest_manual_fixes({}, targets)
-            assert isinstance(suggestions, list)
-        except Exception as e:
-            logging.exception('Unexpected exception in tests: test_simple_coverage_fixed.py')
-            passдулей"""
+    """Простые тесты для увеличения покрытия модулей"""
 
     def test_targets_module_coverage(self):
         """Покрытие core/targets.py (93% -> 97%+)"""
@@ -489,7 +469,8 @@ class TestSimpleCoverageBoost:
         except ImportError:
             pytest.skip("Some core modules not available")
 
-    def test_unified_db_module_coverage(self):
+    @pytest.mark.asyncio
+    async def test_unified_db_module_coverage(self) -> None:
         """Покрытие core/food_apis/unified_db.py (94% -> 97%+)"""
         try:
             import core.food_apis.unified_db as unified_db_module
@@ -497,11 +478,16 @@ class TestSimpleCoverageBoost:
             # Импортируем модуль для покрытия
             assert hasattr(unified_db_module, "get_unified_food_db")
 
-            # Тест функции с моком для избежания реальных DB операций
-            with patch("sqlite3.connect") as mock_connect:
-                mock_connect.return_value = None
-                _ = unified_db_module.get_unified_food_db()
-                # Должен обработать None gracefully
+            # Тест функции с моком, чтобы избежать реальных файловых операций
+            # Проверяем наличие UnifiedFoodDatabase перед созданием spec
+            if hasattr(unified_db_module, "UnifiedFoodDatabase"):
+                mock_db = MagicMock(spec=unified_db_module.UnifiedFoodDatabase)
+            else:
+                # Fallback: используем spec=None если класс отсутствует
+                mock_db = MagicMock(spec=None)
+            with patch.object(unified_db_module, "_unified_db_instance", mock_db):
+                result = await unified_db_module.get_unified_food_db()
+                assert result is mock_db
 
         except ImportError:
             pytest.skip("unified_db module not available")

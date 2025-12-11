@@ -62,7 +62,6 @@ ignore = [
 [tool.pyright]
 pythonVersion = "3.13"
 reportMissingImports = false
-pythonPath = "."
 
 [tool.commitizen]
 name = "cz_conventional_commits"

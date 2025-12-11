@@ -325,6 +325,7 @@ class TestAppComprehensive97:
                     "goal": "maintain",
                     "lang": "en",
                 },
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
@@ -346,6 +347,7 @@ class TestAppComprehensive97:
                     "goal": "maintain",
                     "lang": "en",
                 },
+                headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 503
             assert "not available" in response.json()["detail"]
@@ -386,6 +388,7 @@ class TestAppComprehensive97:
                         "goal": "lose",
                         "lang": "en",
                     },
+                    headers={"X-API-Key": "test_key"},
                 )
                 assert response.status_code == 200
                 data = response.json()
@@ -503,6 +506,7 @@ class TestAppComprehensive97:
                             "goal": "maintain",
                             "lang": "en",
                         },
+                        headers={"X-API-Key": "test_key"},
                     )
                     assert response.status_code == 200
                     # Should work even without safety validation

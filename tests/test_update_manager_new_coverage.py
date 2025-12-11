@@ -55,8 +55,7 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database
         sqlite_file = cache_dir / "off.sqlite"
-        conn = sqlite3.connect(str(sqlite_file))
-        try:
+        with sqlite3.connect(str(sqlite_file)) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             conn.execute(
                 "INSERT INTO products (name, data) VALUES (?, ?)",
@@ -67,8 +66,6 @@ class TestUpdateManagerNewCoverage:
                 ("test_product2", '{"name": "test2", "calories": 200}'),
             )
             conn.commit()
-        finally:
-            conn.close()
 
         # Test the new checksum calculation path
         cache_data = await mock_manager._get_cache_data_for_checksum("openfoodfacts")
@@ -243,8 +240,7 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database with problematic data
         sqlite_file = cache_dir / "off.sqlite"
-        conn = sqlite3.connect(str(sqlite_file))
-        try:
+        with sqlite3.connect(str(sqlite_file)) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             # Insert data that might cause encoding issues
             conn.execute(
@@ -252,8 +248,6 @@ class TestUpdateManagerNewCoverage:
                 ("test_product", "invalid_unicode_data_that_causes_encoding_error"),
             )
             conn.commit()
-        finally:
-            conn.close()
 
         # Test UnicodeEncodeError handling
         cache_data = await mock_manager._get_cache_data_for_checksum("openfoodfacts")
@@ -266,16 +260,13 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database with invalid JSON
         sqlite_file = cache_dir / "off.sqlite"
-        conn = sqlite3.connect(str(sqlite_file))
-        try:
+        with sqlite3.connect(str(sqlite_file)) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             conn.execute(
                 "INSERT INTO products (name, data) VALUES (?, ?)",
                 ("test_product", "invalid_json_data"),
             )
             conn.commit()
-        finally:
-            conn.close()
 
         # Test JSONDecodeError handling
         cache_data = await mock_manager._get_cache_data_for_checksum("openfoodfacts")
@@ -368,16 +359,13 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database
         sqlite_file = cache_dir / "off.sqlite"
-        conn = sqlite3.connect(str(sqlite_file))
-        try:
+        with sqlite3.connect(str(sqlite_file)) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             conn.execute(
                 "INSERT INTO products (name, data) VALUES (?, ?)",
                 ("test_product", '{"name": "test", "calories": 100}'),
             )
             conn.commit()
-        finally:
-            conn.close()
 
         # Test cache data structure
         cache_data = await mock_manager._get_cache_data_for_checksum("openfoodfacts")

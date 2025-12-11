@@ -1,14 +1,15 @@
 """Tests for weekly plan PDF export."""
 
 import os
+from datetime import datetime, timezone, tzinfo
 import sys
 from io import BytesIO
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Callable, List, Optional
 
 import pytest
 from fastapi.testclient import TestClient
-from reportlab.platypus import Paragraph, Table
+from reportlab.platypus import Flowable, Paragraph, Table
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,7 +41,7 @@ def _signed_pdf_url(client: TestClient, lang: str = "en") -> str:
         headers={"X-API-Key": "test_key"},
     )
     assert response.status_code == 200
-    url = response.json()["url"]
+    url: str = response.json()["url"]
     if lang:
         separator = "&" if "?" in url else "?"
         url = f"{url}{separator}lang={lang}"
@@ -74,7 +75,7 @@ def test_register_font_uses_custom_font(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(plan.pdfmetrics, "registerFont", fake_register)
     monkeypatch.setattr(plan, "TTFont", lambda name, path: (name, path))
 
-    assert plan._register_font() == plan.FONT_NAME  # type: ignore[access-private-member]
+    assert plan._register_font() == plan.FONT_NAME
     assert plan.FONT_NAME in registered
 
 
@@ -211,7 +212,13 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
             right = kwargs.get("rightMargin", 0)
             self.width = width - left - right
 
-        def build(self, story, onFirstPage=None, onLaterPages=None, canvasmaker=None):  # type: ignore[override]
+        def build(
+            self,
+            story: List[Flowable],
+            onFirstPage: Optional[Callable[..., None]] = None,
+            onLaterPages: Optional[Callable[..., None]] = None,
+            canvasmaker: Optional[Callable[[BytesIO], Any]] = None,
+        ) -> None:
             captured_story.extend(story)
             canvas_cls = canvasmaker or plan.Canvas
             canvas = canvas_cls(BytesIO())
@@ -219,7 +226,7 @@ def test_pdf_honors_lang_query(export_client: TestClient, monkeypatch) -> None:
                 onFirstPage(canvas, self)
             if onLaterPages:
                 onLaterPages(canvas, self)
-            canvas.save()
+            canvas.save()  # type: ignore[union-attr]
 
     monkeypatch.setattr(plan, "SimpleDocTemplate", DummyDoc)
     monkeypatch.setattr(plan, "_register_font", lambda: "Helvetica")
@@ -252,10 +259,15 @@ def test_week_start_prefers_first_day() -> None:
     assert plan._week_start(week) == "2025-10-01"
 
 
-def test_week_start_defaults_today() -> None:
-    from datetime import datetime
+def test_week_start_defaults_today(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz: Optional[tzinfo] = None) -> "FixedDateTime":
+            return cls(2025, 1, 1, tzinfo=tz)
 
-    assert plan._week_start({}) == str(datetime.utcnow().date())
+    monkeypatch.setattr(plan, "datetime", FixedDateTime)
+    expected = str(FixedDateTime.now(timezone.utc).date())
+    assert plan._week_start({}) == expected
 
 
 def test_draw_footer_writes_left_text() -> None:

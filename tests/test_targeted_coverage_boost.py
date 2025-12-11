@@ -5,7 +5,7 @@ Targeted tests to boost coverage to 97%+ for specific uncovered lines.
 import logging
 import os
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,22 +27,20 @@ app = app_module.app
 class TestTargetedCoverageBoost:
     """Targeted tests to boost coverage for specific uncovered lines."""
 
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
+            del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def test_app_py_line_49(self):
+    def test_app_py_line_49(self) -> None:
         """Test line 49 in main.py (dotenv loading condition)."""
         # Test the dotenv loading condition when PYTEST_CURRENT_TEST is None
         # and APP_ENV is "test" - should not load dotenv
@@ -50,7 +48,7 @@ class TestTargetedCoverageBoost:
             # This should not trigger dotenv.load_dotenv()
             pass
 
-    def test_app_py_lines_345_350(self):
+    def test_app_py_lines_345_350(self) -> None:
         """Test lines 345-350 in main.py (bmi_endpoint with pregnancy)."""
         data = {
             "weight_kg": 65.0,
@@ -68,7 +66,7 @@ class TestTargetedCoverageBoost:
         assert result["category"] is None
         assert "not valid during pregnancy" in result["note"]
 
-    def test_app_py_line_383(self):
+    def test_app_py_line_383(self) -> None:
         """Test line 383 in main.py (bmi_endpoint with athlete flag)."""
         data = {
             "weight_kg": 80.0,
@@ -86,7 +84,7 @@ class TestTargetedCoverageBoost:
         assert result["athlete"] is True
         assert result["group"] == "athlete"
 
-    def test_app_py_line_545(self):
+    def test_app_py_line_545(self) -> None:
         """Test line 545 in main.py (plan_endpoint with premium)."""
         data = {
             "weight_kg": 70.0,
@@ -105,7 +103,7 @@ class TestTargetedCoverageBoost:
         assert result["premium"] is True
         assert "premium_reco" in result
 
-    def test_app_py_lines_758_760(self):
+    def test_app_py_lines_758_760(self) -> None:
         """Test lines 758-760 in main.py (api_v1_insight with missing llm module)."""
         with patch.dict("sys.modules", {"llm": None}):
             data = {"text": "test"}
@@ -114,21 +112,21 @@ class TestTargetedCoverageBoost:
             )
             assert response.status_code == 503
 
-    def test_app_py_line_914(self):
+    def test_app_py_line_914(self) -> None:
         """Test line 914 in main.py (insight endpoint with missing llm module)."""
         with patch.dict("sys.modules", {"llm": None}):
             data = {"text": "test"}
             response = self.client.post("/insight", json=data)
             assert response.status_code == 503
 
-    def test_app_py_line_1215(self):
+    def test_app_py_line_1215(self) -> None:
         """Test line 1215 in main.py (get_database_status with missing scheduler)."""
         with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
             response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             assert response.status_code in (200, 500)
 
-    def test_scheduler_py_lines_66_67(self):
+    def test_scheduler_py_lines_66_67(self) -> None:
         """Test lines 66-67 in scheduler.py (signal handler setup)."""
         # Test signal handler setup with exception
         with patch("signal.signal", side_effect=Exception("Test error")):
@@ -137,17 +135,17 @@ class TestTargetedCoverageBoost:
             _ = DatabaseUpdateScheduler()  # Use _ to indicate we're not using the variable
             # Should not crash, just log warning
 
-    def test_scheduler_py_lines_135_137(self):
+    def test_scheduler_py_lines_135_137(self) -> None:
         """Test lines 135-137 in scheduler.py (stop method when not running)."""
         with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
-            mock_scheduler = AsyncMock()
+            mock_scheduler = MagicMock()
             mock_scheduler.is_running = False  # Not running
             mock_get_scheduler.return_value = mock_scheduler
 
             _ = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
             # Should not crash
 
-    def test_unified_db_py_lines_101_102(self):
+    def test_unified_db_py_lines_101_102(self) -> None:
         """Test lines 101-102 in unified_db.py (_save_cache exception)."""
         # Test _save_cache with exception
         with patch("core.food_apis.unified_db.open", side_effect=Exception("Test error")):
@@ -156,7 +154,7 @@ class TestTargetedCoverageBoost:
             db = UnifiedFoodDatabase()
             db._save_cache()  # Should not crash, just log error
 
-    def test_unified_db_py_line_133(self):
+    def test_unified_db_py_line_133(self) -> None:
         """Test line 133 in unified_db.py (search_food with ValueError)."""
         try:
             with patch(
@@ -172,7 +170,7 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_unified_db_py_line_165(self):
+    def test_unified_db_py_line_165(self) -> None:
         """Test line 165 in unified_db.py (get_food_by_id with invalid ID)."""
         from core.food_apis.unified_db import UnifiedFoodDatabase
 
@@ -190,7 +188,7 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_unified_db_py_lines_171_175(self):
+    def test_unified_db_py_lines_171_175(self) -> None:
         """Test lines 171-175 in unified_db.py (_get_cache_file exception)."""
         try:
             with patch(
@@ -206,7 +204,7 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_update_manager_py_lines_264_296(self):
+    def test_update_manager_py_lines_264_296(self) -> None:
         """Test lines 264-296 in update_manager.py (_validate_food_data)."""
         from core.food_apis.unified_db import UnifiedFoodItem
         from core.food_apis.update_manager import DatabaseUpdateManager
@@ -239,7 +237,7 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_update_manager_py_line_394(self):
+    def test_update_manager_py_line_394(self) -> None:
         """Test line 394 in update_manager.py (_cleanup_old_backups exception)."""
         try:
             with patch(
@@ -262,7 +260,7 @@ class TestTargetedCoverageBoost:
             # Exception is expected, but the code should handle it gracefully
             pass
 
-    def test_update_manager_py_line_497(self):
+    def test_update_manager_py_line_497(self) -> None:
         """Test line 497 in update_manager.py (get_database_status)."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -270,7 +268,7 @@ class TestTargetedCoverageBoost:
         status = manager.get_database_status()
         assert isinstance(status, dict)
 
-    def test_menu_engine_py_lines_57_67(self):
+    def test_menu_engine_py_lines_57_67(self) -> None:
         """Test lines 57-67 in menu_engine.py (Recipe.calculate_nutrients_per_serving)."""
         from core.menu_engine import Recipe
 
@@ -288,7 +286,7 @@ class TestTargetedCoverageBoost:
         nutrients = recipe.calculate_nutrients_per_serving({})
         assert isinstance(nutrients, dict)
 
-    def test_menu_engine_py_line_421(self):
+    def test_menu_engine_py_line_421(self) -> None:
         """Test line 421 in menu_engine.py (_get_default_food_db fallback)."""
         with patch("core.menu_engine.get_unified_food_db", side_effect=Exception("Test error")):
             from core.menu_engine import _get_default_food_db
@@ -298,14 +296,14 @@ class TestTargetedCoverageBoost:
             assert isinstance(result, dict)
             assert len(result) > 0
 
-    def test_menu_engine_py_line_423(self):
+    def test_menu_engine_py_line_423(self) -> None:
         """Test line 423 in menu_engine.py (_get_default_recipe_db)."""
         from core.menu_engine import _get_default_recipe_db
 
         result = _get_default_recipe_db()
         assert isinstance(result, dict)
 
-    def test_menu_engine_py_line_425(self):
+    def test_menu_engine_py_line_425(self) -> None:
         """Test line 425 in menu_engine.py (_enhance_meals_with_micros)."""
         from core.menu_engine import _enhance_meals_with_micros
 
@@ -317,7 +315,7 @@ class TestTargetedCoverageBoost:
         )  # Changed None to set()
         assert isinstance(result, list)
 
-    def test_menu_engine_py_line_467(self):
+    def test_menu_engine_py_line_467(self) -> None:
         """Test line 467 in menu_engine.py (_calculate_total_nutrients)."""
         from core.menu_engine import _calculate_total_nutrients
 
@@ -326,7 +324,7 @@ class TestTargetedCoverageBoost:
         result = _calculate_total_nutrients(meals, food_db)
         assert isinstance(result, dict)
 
-    def test_menu_engine_py_line_490(self):
+    def test_menu_engine_py_line_490(self) -> None:
         """Test line 490 in menu_engine.py (_estimate_daily_cost)."""
         from core.menu_engine import _estimate_daily_cost
 

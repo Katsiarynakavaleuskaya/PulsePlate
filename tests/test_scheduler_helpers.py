@@ -1,0 +1,250 @@
+from __future__ import annotations
+
+from typing import Any, Callable, Dict, List, Optional
+
+import asyncio
+import types
+
+import pytest
+
+from app import scheduler_helpers
+
+
+def test_resolve_scheduler_starter_prefers_alias_and_pkg_appmod() -> None:
+    """resolve_scheduler_starter should resolve starter from alias/pkg hierarchy."""
+
+    def default_starter(interval: int) -> int:
+        return interval
+
+    class PkgAppMod:
+        def _scheduler_start_background_updates(self, update_interval_hours: int) -> str:
+            return f"pkg_appmod:{update_interval_hours}"
+
+    class Pkg:
+        app_module: Any = PkgAppMod()
+
+        def _scheduler_start_background_updates(self, update_interval_hours: int) -> str:
+            return f"pkg:{update_interval_hours}"
+
+    class AliasPkg:
+        def _scheduler_start_background_updates(self, update_interval_hours: int) -> str:
+            return f"alias:{update_interval_hours}"
+
+    # No override in globs, so hierarchy resolution should be used.
+    globs: Dict[str, Any] = {}
+    starter = scheduler_helpers.resolve_scheduler_starter(Pkg(), AliasPkg(), globs, default_starter)
+    result = starter(5)
+    # Alias package has highest precedence in the resolution chain.
+    assert result == "alias:5"
+
+    # If the global dict provides an override, it should win.
+    def override_starter(interval: int) -> int:
+        return interval * 2
+
+    globs_override: Dict[str, Any] = {"_scheduler_start_background_updates": override_starter}
+    starter_override = scheduler_helpers.resolve_scheduler_starter(
+        Pkg(), AliasPkg(), globs_override, default_starter
+    )
+    assert starter_override is override_starter
+
+
+def test_resolve_stop_callable_prefers_alias_and_pkg_appmod() -> None:
+    """resolve_stop_callable should resolve stopper from alias/pkg hierarchy."""
+
+    def default_stopper() -> str:
+        return "default"
+
+    class PkgAppMod:
+        def _scheduler_stop_background_updates(self) -> str:
+            return "pkg_appmod"
+
+    class Pkg:
+        app_module: Any = PkgAppMod()
+
+        def _scheduler_stop_background_updates(self) -> str:
+            return "pkg"
+
+    class AliasPkg:
+        def _scheduler_stop_background_updates(self) -> str:
+            return "alias"
+
+    globs: Dict[str, Any] = {}
+    stopper = scheduler_helpers.resolve_stop_callable(Pkg(), AliasPkg(), globs, default_stopper)
+    assert stopper() == "alias"
+
+    def override_stopper() -> str:
+        return "override"
+
+    globs_override: Dict[str, Any] = {"_scheduler_stop_background_updates": override_stopper}
+    stopper_override = scheduler_helpers.resolve_stop_callable(
+        Pkg(), AliasPkg(), globs_override, default_stopper
+    )
+    assert stopper_override is override_stopper
+
+
+class _DummyAwaitable:
+    """Custom awaitable that is not a coroutine object."""
+
+    def __init__(self) -> None:
+        self._value = "ok"
+
+    def __await__(self):
+        async def _inner() -> str:
+            return self._value
+
+        return _inner().__await__()
+
+
+def test_handle_sync_test_mode_awaitable_uses_new_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """handle_sync_test_mode should use a new loop for non-coroutine awaitables."""
+    calls: Dict[str, Any] = {}
+
+    def target(update_interval_hours: int) -> _DummyAwaitable:
+        calls["arg"] = update_interval_hours
+        return _DummyAwaitable()
+
+    # Simulate absence of a running loop.
+    def _get_running_loop() -> asyncio.AbstractEventLoop:
+        raise RuntimeError("no running loop")
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "get_running_loop", _get_running_loop)
+
+    class FakeLoop:
+        def __init__(self) -> None:
+            calls["loop_created"] = True
+
+        def run_until_complete(self, obj: Any) -> None:
+            calls["run_until_complete"] = obj
+
+        def close(self) -> None:
+            calls["closed"] = True
+
+    def _new_event_loop() -> FakeLoop:
+        return FakeLoop()
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "new_event_loop", _new_event_loop)
+
+    caller_called: List[Any] = []
+    scheduler_helpers.handle_sync_test_mode(
+        target, update_interval_hours=3, caller_called=caller_called
+    )
+
+    assert calls.get("arg") == 3
+    assert calls.get("loop_created") is True
+    assert "run_until_complete" in calls
+    assert calls.get("closed") is True
+    assert caller_called == [3]
+
+
+def _sync_starter(update_interval_hours: int) -> int:
+    return update_interval_hours
+
+
+def test_execute_async_starter_no_running_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """execute_async_starter should use asyncio.run when no loop is running."""
+    run_calls: Dict[str, Any] = {}
+
+    def _fake_run(arg: Any) -> None:
+        run_calls["arg"] = arg
+
+    class _AsyncioShim:
+        @staticmethod
+        def get_running_loop() -> asyncio.AbstractEventLoop:
+            raise RuntimeError("no running loop")
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)
+
+    scheduler_helpers.execute_async_starter(_sync_starter, 7, _AsyncioShim)
+
+    assert run_calls.get("arg") == 7
+
+
+def test_execute_async_starter_with_running_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """execute_async_starter should create a task on an existing loop."""
+    created_tasks: List[types.CoroutineType] = []
+
+    class FakeLoop:
+        def create_task(self, coro: types.CoroutineType) -> None:
+            created_tasks.append(coro)
+
+    class _AsyncioShim:
+        loop = FakeLoop()
+
+        @classmethod
+        def get_running_loop(cls) -> asyncio.AbstractEventLoop:
+            return cls.loop  # type: ignore[return-value]
+
+    async def starter(update_interval_hours: int) -> int:
+        return update_interval_hours
+
+    scheduler_helpers.execute_async_starter(starter, 11, _AsyncioShim)
+
+    assert created_tasks, "Expected create_task to be called with a coroutine"
+    # Prevent 'coroutine was never awaited' RuntimeWarnings in test teardown
+    for coro in created_tasks:
+        coro.close()
+
+
+def test_safe_stop_with_cleanup_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """safe_stop_with_cleanup should call stopper and suppress warnings."""
+    called: Dict[str, bool] = {"stopper_called": False}
+
+    def stopper() -> None:
+        called["stopper_called"] = True
+
+    def _fake_run(_: Any) -> None:
+        # stopper is called before asyncio.run, so we don't need to invoke it here
+        return None
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)
+
+    scheduler_helpers.safe_stop_with_cleanup(stopper)
+
+    assert called["stopper_called"] is True
+
+
+def test_safe_stop_with_cleanup_suppresses_event_loop_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """safe_stop_with_cleanup should swallow RuntimeError about closed event loop."""
+
+    def stopper() -> None:
+        raise RuntimeError("Event loop is closed")
+
+    def _fake_run(_: Callable[[], Any]) -> None:
+        # Simulate RuntimeError raised from asyncio.run during cleanup
+        raise RuntimeError("Event loop is closed")
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)
+
+    # Should not raise despite RuntimeError inside stopper/run.
+    scheduler_helpers.safe_stop_with_cleanup(stopper)
+
+
+def test_safe_stop_with_cleanup_awaitable_calls_asyncio_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """safe_stop_with_cleanup should call asyncio.run for awaitable stoppers."""
+    called: Dict[str, Any] = {}
+
+    async def _coro() -> None:
+        called["coro_ran"] = True
+
+    def stopper() -> Any:
+        # Return an awaitable object to trigger asyncio.run branch
+        called["stopper_called"] = True
+        return _coro()
+
+    def _fake_run(obj: Any) -> None:
+        # Record the object passed to asyncio.run without actually running it
+        called["run_arg"] = obj
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)
+
+    scheduler_helpers.safe_stop_with_cleanup(stopper)
+
+    assert called.get("stopper_called") is True
+    # Ensure asyncio.run was invoked with an awaitable
+    assert "run_arg" in called

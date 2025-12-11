@@ -179,16 +179,12 @@ class TestDatabaseUpdateScheduler:
         scheduler.update_manager = AsyncMock()
 
         # Test starting
-        with patch("asyncio.create_task") as mock_create_task:
-            mock_task = AsyncMock()
-            mock_create_task.return_value = mock_task
+        await scheduler.start()
+        assert scheduler.is_running is True
 
-            await scheduler.start()
-            assert scheduler.is_running is True
-
-            # Test stopping
-            await scheduler.stop()
-            assert scheduler.is_running is False
+        # Test stopping
+        await scheduler.stop()
+        assert scheduler.is_running is False
 
     def test_should_check_for_updates(self):
         """Test update timing logic."""

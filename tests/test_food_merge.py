@@ -235,6 +235,21 @@ class TestClassifyFoodGroup:
         result = _classify_food_group(record)
         assert result == "other"
 
+    def test_classify_fruit_low_carb_high_sugar(self):
+        """Fruit with moderate carbs but elevated sugar should be fruit."""
+        record = {
+            "name": "fruit juice",
+            "kcal": 200.0,
+            "protein_g": 0.0,
+            "fat_g": 0.0,
+            "carbs_g": 10.0,  # ~20% of calories from carbs (<50%)
+            "fiber_g": 0.0,
+            "sugar_g": 6.0,  # Above sugar threshold but not high-carb branch
+            "flags": [],
+        }
+        result = _classify_food_group(record)
+        assert result == "fruit"
+
     def test_classify_legume_correct(self):
         """Test correct classification of legume foods."""
         record = {

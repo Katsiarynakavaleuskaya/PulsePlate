@@ -1,6 +1,9 @@
 """Tests for timezone utility helpers."""
 
 from datetime import datetime, timezone
+from unittest.mock import patch
+
+import pytest
 
 import core.time_utils as time_utils
 
@@ -38,3 +41,10 @@ def test_isoformat_utc_returns_timezone():
 def test_now_utc_is_timezone_aware():
     now = time_utils.now_utc()
     assert now.tzinfo == timezone.utc
+
+
+def test_to_timezone_raises_when_zoneinfo_unavailable() -> None:
+    """Test to_timezone raises RuntimeError when ZoneInfo is None."""
+    with patch.object(time_utils, "ZoneInfo", None):
+        with pytest.raises(RuntimeError, match="zoneinfo module is required"):
+            time_utils.to_timezone(datetime(2023, 1, 1, tzinfo=timezone.utc), "UTC")

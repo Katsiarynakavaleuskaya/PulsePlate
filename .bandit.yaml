@@ -1,6 +1,7 @@
 exclude_dirs:
   - tests
   - tests_strict
+  - .claude
   - cache
   - test_cache
   - frontend/build

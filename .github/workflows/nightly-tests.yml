@@ -37,6 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
           pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Run full test suite with coverage (include slow/MC)

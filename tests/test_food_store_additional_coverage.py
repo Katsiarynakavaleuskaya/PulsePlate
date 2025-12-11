@@ -1,10 +1,41 @@
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from types import ModuleType
 import csv
+import sys
+import os
+import importlib.util
+from importlib.machinery import ModuleSpec
 
 import pytest
 
-import app.services.food_store as fs
+# Load food_store module: check sys.modules first, then fall back to file loading
+fs_module: Optional[ModuleType] = sys.modules.get("food_store")
+if fs_module is None:
+    # Build file path for the food_store module
+    food_store_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "app",
+        "services",
+        "food_store.py",
+    )
+    spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(
+        "food_store", food_store_path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("Cannot load food_store module")
+    fs_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fs_module)
+
+
+# Expose resolve_attr for test-friendly attribute access
+def resolve_attr(name: str) -> Any:
+    """Resolve attribute from food_store module for test patching."""
+    return getattr(fs_module, name)
+
+
+# Short alias for backward compatibility
+fs: ModuleType = fs_module
 
 
 def test_validate_pagination_params_limit_zero() -> None:

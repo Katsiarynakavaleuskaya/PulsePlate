@@ -100,6 +100,6 @@ class TestSimpleCoverageBoost:
 
         # Test with invalid JSON
         response = client.post(
-            "/api/v1/bmi", data="invalid json", headers={"Content-Type": "application/json"}
+            "/api/v1/bmi", content="invalid json", headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 422

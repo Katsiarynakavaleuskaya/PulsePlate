@@ -1,3 +1,7 @@
+# Frontend (not needed in backend container)
+frontend/
+ios/
+
 # Git
 .git
 .gitignore
@@ -109,9 +113,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Docker
-Dockerfile*
-docker-compose*.yml
+# Docker: exclude metadata from build context
 .dockerignore
 
 # Development scripts

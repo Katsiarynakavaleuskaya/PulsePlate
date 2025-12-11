@@ -223,6 +223,7 @@ class TestAppVipComprehensiveCoverage:
                 "sex": "male",
                 "activity": "moderate",
             },
+            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code in [200, 503, 500]
 
@@ -237,6 +238,7 @@ class TestAppVipComprehensiveCoverage:
                 "activity": "moderate",
                 "goal": "maintain",
             },
+            headers={"X-API-Key": "test_key"},
         )
         assert response.status_code in [200, 503, 500]
 

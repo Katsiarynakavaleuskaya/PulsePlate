@@ -51,7 +51,7 @@ class TestCoreDB:
         """Test _sqlite_connect_args for SQLite URLs."""
         sqlite_url = "sqlite:///test.db"
         args = _sqlite_connect_args(sqlite_url)
-        assert args == {"check_same_thread": False}
+        assert args == {"check_same_thread": False, "timeout": 5.0}
 
     def test_sqlite_connect_args_non_sqlite(self):
         """Test _sqlite_connect_args for non-SQLite URLs."""

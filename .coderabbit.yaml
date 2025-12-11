@@ -1,12 +1,13 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # CodeRabbit configuration for PulsePlate
 # Simple configuration for Cursor IDE extension
 
 # Basic settings
 language: en-US
-profile: chill
 
 # Path-based instructions
 reviews:
+  profile: chill
   path_instructions:
     - path: "**/*.py"
       instructions: |
@@ -28,8 +29,3 @@ reviews:
       instructions: |
         Ensure tests use descriptive names and follow pytest best practices.
         Maintain 97% test coverage requirement.
-
-# Code guidelines
-code_guidelines:
-  enabled: true
-  filePatterns: [".cursorrules", "README.md", "CONTRIBUTING.md"]

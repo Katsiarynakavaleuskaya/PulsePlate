@@ -8,7 +8,7 @@ import pytest
 import importlib.util
 from pathlib import Path
 from fastapi.testclient import TestClient
-from typing import cast
+from typing import cast, Iterator
 from starlette.types import ASGIApp
 
 
@@ -186,6 +186,17 @@ def init_test_database() -> None:
         raise
 
 
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_async_resources() -> Iterator[None]:
+    """Clean up async resources after test session to prevent ResourceWarnings."""
+    yield
+
+    # Force garbage collection to close any unclosed connections
+    import gc
+
+    gc.collect()
+
+
 @pytest.fixture(scope="session")
 def dynamic_app():
     """Load FastAPI app dynamically from app.py"""
@@ -223,7 +234,7 @@ def dynamic_client(dynamic_app):
 
 
 @pytest.fixture(autouse=True)
-def reset_environment():  # sourcery skip: use-contextlib-suppress
+def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-suppress
     """Automatically reset environment variables before and after each test."""
     # Save current environment
     old_env = dict(os.environ)
@@ -256,7 +267,7 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
         if hasattr(fastapi_app, "dependency_overrides"):
             from app import get_api_key
 
-            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key
+            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key  # type: ignore[union-attr]
     except (ImportError, AttributeError):
         # App not yet loaded, that's fine
         pass
@@ -272,7 +283,7 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
         from app import app as fastapi_app
 
         if hasattr(fastapi_app, "dependency_overrides"):
-            fastapi_app.dependency_overrides.clear()
+            fastapi_app.dependency_overrides.clear()  # type: ignore[union-attr]
     except (ImportError, AttributeError):
         pass
 
@@ -291,7 +302,7 @@ def reset_environment():  # sourcery skip: use-contextlib-suppress
 
 
 @pytest.fixture(autouse=True)
-def reset_sys_modules():
+def reset_sys_modules() -> Iterator[None]:
     """Reset sys.modules for VIP module tests."""
     # Store original VIP module if it exists
     original_vip_module = sys.modules.get("app.routers.vip")

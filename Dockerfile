@@ -2,7 +2,7 @@
 # Optimized for production with minimal image size and security
 
 # Stage 1: Build stage
-FROM python:3.13-slim AS builder
+FROM python:3.13.5-slim AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -26,7 +26,7 @@ RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
-FROM python:3.13-slim AS production
+FROM python:3.13.5-slim AS production
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -49,12 +49,23 @@ RUN groupadd -r pulseplate && useradd -r -g pulseplate pulseplate
 # Create app directory
 WORKDIR /app
 
-# Copy application code
-COPY --chown=pulseplate:pulseplate . .
+# Copy only necessary application files (exclude frontend, tests, docs)
+COPY --chown=pulseplate:pulseplate app/ ./app/
+COPY --chown=pulseplate:pulseplate core/ ./core/
+COPY --chown=pulseplate:pulseplate app.py main.py settings.py ./
+# Copy root-level modules that app.py imports
+COPY --chown=pulseplate:pulseplate bmi_core.py bmi_visualization.py nutrition_core.py signed_links.py ./
+COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
+COPY --chown=pulseplate:pulseplate alembic.ini ./
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /app/cache /app/data /app/logs && \
-    chown -R pulseplate:pulseplate /app/cache /app/data /app/logs
+# Include home directory for matplotlib config and ensure cache/data/logs are writable
+RUN mkdir -p /home/pulseplate/.config/matplotlib /app/cache/matplotlib /app/cache/food_db /app/data /app/logs && \
+    chown -R pulseplate:pulseplate /home/pulseplate /app/cache /app/data /app/logs
+
+# Set environment variables for matplotlib and database
+ENV MPLCONFIGDIR=/app/cache/matplotlib \
+    DATABASE_URL=sqlite:////app/cache/pulseplate.db
 
 # Switch to non-root user
 USER pulseplate
@@ -125,8 +136,9 @@ FROM production AS development
 USER root
 
 # Install development dependencies
-COPY requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt
+# Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
+COPY requirements.txt requirements-dev.txt ./
+RUN python -m pip install --no-cache-dir -r requirements-dev.txt
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \

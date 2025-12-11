@@ -1,5 +1,6 @@
 version: 2
 updates:
+  # Python dependencies with grouped updates
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -10,3 +11,50 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+    groups:
+      # Security-critical runtime dependencies
+      security:
+        patterns:
+          - "cryptography"
+          - "urllib3"
+          - "certifi"
+          - "requests"
+      production:
+        patterns:
+          - "fastapi"
+          - "uvicorn"
+          - "pydantic"
+          - "openai"
+          - "httpx"
+          - "python-dotenv"
+          - "sqlalchemy"
+          - "alembic"
+        update-types:
+          - "minor"
+          - "patch"
+      testing:
+        patterns:
+          - "pytest*"
+          - "hypothesis"
+          - "faker"
+          - "coverage"
+        update-types:
+          - "minor"
+          - "patch"
+      quality:
+        patterns:
+          - "black"
+          - "mypy"
+          - "ruff"
+          - "bandit"
+        update-types:
+          - "minor"
+          - "patch"
+      dev-tools:
+        patterns:
+          - "pip-audit"
+          - "safety"
+          - "pre-commit"
+        update-types:
+          - "minor"
+          - "patch"

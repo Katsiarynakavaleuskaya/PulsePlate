@@ -6,19 +6,22 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 
 from bmi_core import auto_group, bmi_category, group_display_name
 
+if TYPE_CHECKING:
+    import matplotlib.pyplot as plt
+
+MATPLOTLIB_AVAILABLE = False
 try:
     import matplotlib
 
     matplotlib.use("Agg")  # Use non-interactive backend
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt  # noqa: F811  # type: ignore[assignment]
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
-    MATPLOTLIB_AVAILABLE = False
     plt = None  # type: ignore[assignment]
 
 

@@ -112,7 +112,9 @@ class TestEndpointsAndValidation:
         assert r.status_code == 200
 
     def test_invalid_json_and_missing_fields(self):
-        r = self.client.post("/bmi", data="not json", headers={"Content-Type": "application/json"})
+        r = self.client.post(
+            "/bmi", content="not json", headers={"Content-Type": "application/json"}
+        )
         assert r.status_code == 422
 
         # Missing weight_kg

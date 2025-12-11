@@ -23,6 +23,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+from urllib.parse import urlparse, parse_qs, urlencode
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
 from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
@@ -56,26 +57,126 @@ logger = logging.getLogger(__name__)
 ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").lower()
 
 
+def _extract_sqlite_path(database_url: str) -> str | None:
+    """Extract filesystem path from SQLite database URL.
+
+    Args:
+        database_url: Database URL (e.g., sqlite:///cache/app.db or sqlite:////absolute/path)
+
+    Returns:
+        Filesystem path if SQLite file-based DB, None if non-SQLite or :memory:
+
+    Examples:
+        >>> _extract_sqlite_path("sqlite:///cache/app.db")
+        'cache/app.db'
+        >>> _extract_sqlite_path("sqlite:////absolute/path/db.sqlite")
+        '/absolute/path/db.sqlite'
+        >>> _extract_sqlite_path("sqlite:///:memory:")
+        None
+        >>> _extract_sqlite_path("postgresql://localhost/db")
+        None
+    """
+    # Only handle SQLite file-based databases
+    if not database_url.startswith("sqlite:///") or ":memory:" in database_url:
+        return None
+
+    # Parse URL to extract path (urlparse.path excludes query parameters)
+    parsed = urlparse(database_url)
+    sqlite_path = parsed.path
+
+    # Normalize path: handle leading slashes correctly
+    # sqlite:///relative -> /relative -> relative
+    # sqlite:////absolute -> //absolute -> /absolute
+    if sqlite_path.startswith("//"):
+        # Absolute path: sqlite:////absolute -> //absolute -> /absolute
+        sqlite_path = sqlite_path[1:]
+    elif sqlite_path.startswith("/"):
+        # Relative path: sqlite:///relative -> /relative -> relative
+        sqlite_path = sqlite_path[1:]
+
+    return sqlite_path if sqlite_path else None
+
+
+def _ensure_sqlite_directory(database_url: str, env_provided: bool = False) -> None:
+    """Create parent directory for SQLite file if path is file-based and controlled by app.
+
+    Args:
+        database_url: Database URL to check for SQLite file path
+        env_provided: If True, skip directory creation to avoid PermissionError
+    """
+    if env_provided:
+        return
+
+    sqlite_path = _extract_sqlite_path(database_url)
+    if sqlite_path:
+        db_dir = os.path.dirname(sqlite_path)
+        if db_dir:  # Only create if there's a parent directory
+            try:
+                os.makedirs(db_dir, exist_ok=True)
+            except PermissionError as perm_err:
+                logger.warning(
+                    "Cannot create database directory %s: %s. "
+                    "Ensure the path exists and is writable.",
+                    db_dir,
+                    perm_err,
+                )
+
+
 def _build_engine_url() -> str:
     """Return the database URL from env or fall back to local SQLite."""
     default_path = os.path.join("cache", "app.db")
+    env_provided = "DATABASE_URL" in os.environ
     database_url = os.getenv("DATABASE_URL", f"sqlite:///{default_path}")
 
-    # Only create directory for file-based SQLite databases
-    if database_url.startswith("sqlite:///") and not database_url.endswith(":memory:"):
-        # Extract the file path from sqlite:/// URL
-        sqlite_path = database_url.replace("sqlite:///", "", 1)
-        db_dir = os.path.dirname(sqlite_path)
-        if db_dir:  # Only create if there's a parent directory
-            os.makedirs(db_dir, exist_ok=True)
+    # Create directory only for non-env SQLite URLs that we control
+    _ensure_sqlite_directory(database_url, env_provided)
 
     # Use file-based SQLite by default so the data survives across runs.
+    # Ensure read-write-create mode for SQLite file URLs to avoid readonly errors during tests
+    if (
+        not env_provided
+        and database_url.startswith("sqlite:///")
+        and ":memory:" not in database_url
+    ):
+        parsed = urlparse(database_url)
+        q = parse_qs(parsed.query, keep_blank_values=True)
+        if "mode" not in q:
+            q["mode"] = ["rwc"]
+        if "uri" not in q:
+            q["uri"] = ["true"]
+        # Enable WAL mode for better concurrency in test environments
+        # WAL (Write-Ahead Logging) allows concurrent reads during writes
+        if os.getenv("APP_ENV") in ("test", "ci") or os.getenv("ENVIRONMENT") == "test":
+            q["journal_mode"] = ["WAL"]
+        new_query = urlencode(q, doseq=True)
+
+        # urlunparse drops one of the slashes for sqlite file URLs; build manually
+        # to keep the sqlite:/// prefix intact.
+        # For absolute paths (sqlite:////...), preserve the leading slash.
+        # For relative paths (sqlite:///...), strip the leading slash.
+        # Detect absolute path: parsed.path starts with // (from sqlite:////...)
+        if parsed.path.startswith("//"):
+            # Absolute path: keep one leading slash (sqlite:////path -> /path)
+            path_part = parsed.path[1:]  # Remove only first slash
+        else:
+            # Relative path: strip all leading slashes
+            path_part = parsed.path.lstrip("/")
+        database_url = f"sqlite:///{path_part}"
+        if new_query:
+            database_url = f"{database_url}?{new_query}"
     return database_url
 
 
 def _sqlite_connect_args(url: str) -> dict[str, object]:
     """Provide SQLite-specific connection args when needed."""
-    return {"check_same_thread": False} if url.startswith("sqlite") else {}
+    args: dict[str, object] = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    if url.startswith("sqlite") and "?" in url:
+        # Treat URL as SQLite URI so query parameters (e.g., mode=rwc) are honored
+        args["uri"] = True
+    # Add timeout for better concurrency in tests (default is 5.0)
+    if url.startswith("sqlite"):
+        args["timeout"] = 5.0  # Wait up to 5s for locks to be released
+    return args
 
 
 def _derive_async_url(sync_url: str) -> Optional[str]:
@@ -289,9 +390,8 @@ class EngineCompat:
         stmt = text(statement) if isinstance(statement, str) else statement
         # Keep connection open until result is consumed to avoid ResourceClosedError
         conn = self._engine.connect()
-        result: Result[Any] | None = None
         try:
-            result = conn.execute(stmt, *args, **kwargs)
+            result: Result[Any] = conn.execute(stmt, *args, **kwargs)
             # Commit only when there is an active transaction; otherwise rely on autocommit.
             self._finalize_transaction(conn)
             # Return a wrapper that closes connection when result is closed
@@ -442,12 +542,41 @@ def init_db() -> None:
     """RU: Создаёт схему таблиц для зарегистрированных моделей (например, при старте).
 
     EN: Creates database schema for all registered models (used during startup).
+
+    IMPORTANT: This function modifies module-level globals (_RAW_ENGINE, SessionLocal).
+    Code that imports these must use the module.attribute pattern:
+        import core.db
+        session = core.db.SessionLocal()
+
+    DO NOT use:
+        from core.db import SessionLocal  # This captures old reference!
+
+    Or access via get_session_factory() which always returns current SessionLocal.
     """
+    global _RAW_ENGINE, SessionLocal
+
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
     metadata = Base.metadata
     create_all = metadata.create_all
+
+    # Ensure database directory exists before creating tables
+    # Critical for CI/CD where directory may not exist yet
+    # Get current URL from environment (not from module-level DATABASE_URL which may be stale)
+    db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+    env_provided = "DATABASE_URL" in os.environ
+    _ensure_sqlite_directory(db_url, env_provided)
+
+    # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
+    # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
+    if str(_RAW_ENGINE.url) != db_url:
+        _RAW_ENGINE = create_engine(
+            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+        )
+        SessionLocal = sessionmaker(
+            bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
+        )
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
@@ -470,6 +599,18 @@ def init_db() -> None:
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
     metadata.create_all(bind=_RAW_ENGINE)
+
+
+def get_session_factory() -> sessionmaker[Session]:
+    """Get the current SessionLocal factory.
+
+    This function always returns the current module-level SessionLocal,
+    even if init_db() reassigned it. Safer than 'from core.db import SessionLocal'.
+
+    Returns:
+        Current sessionmaker instance configured by init_db().
+    """
+    return SessionLocal
 
 
 async def init_db_async() -> None:

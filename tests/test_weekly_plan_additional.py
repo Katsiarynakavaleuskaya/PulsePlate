@@ -47,3 +47,41 @@ def test_generate_weekly_plan_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "iron_mg" in plan["weekly_coverage"]
     assert plan["total_cost"] >= 0.0
     assert plan["shopping_list"]["apple"] > 0.0
+
+
+def test_generate_weekly_plan_handles_missing_ingredients_and_unknown_food(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Coverage for branches when meals lack ingredients and foods are missing from DB."""
+    # Food DB intentionally does not contain the ingredient used in meals
+    food_db: Dict[str, Any] = {}
+    monkeypatch.setattr(wp, "parse_food_db", lambda: food_db)
+    monkeypatch.setattr(wp, "parse_recipe_db", lambda **kwargs: {"dummy": {}})
+
+    def fake_create_daily_plate(**kwargs: Any) -> Dict[str, Any]:
+        # One meal without ingredients and one with an unknown ingredient
+        return {
+            "meals": [
+                {
+                    "name": "No ingredients meal",
+                    "kcal": kwargs["kcal_total"],
+                },
+                {
+                    "name": "Unknown ingredient meal",
+                    "kcal": kwargs["kcal_total"],
+                    "ingredients": {"unknown_food": 42.0},
+                },
+            ],
+            "micro_coverage": {"iron_mg": 0.5},
+        }
+
+    monkeypatch.setattr(wp, "create_daily_plate", fake_create_daily_plate)
+
+    targets = SimpleNamespace(kcal_daily=2000)
+    plan: WeeklyPlanResult = wp.generate_weekly_plan(targets)
+
+    assert len(plan["days"]) == 7
+    # Shopping list should include the unknown ingredient but not raise errors
+    assert "unknown_food" in plan["shopping_list"]
+    # Total cost should remain zero because food_db is empty
+    assert plan["total_cost"] == 0.0

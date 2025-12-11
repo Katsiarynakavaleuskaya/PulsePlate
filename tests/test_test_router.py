@@ -23,7 +23,13 @@ def mock_env_production():
 
 def test_rate_limit_endpoint(mock_env_staging):
     """Test the rate limit endpoint returns expected response."""
-    # Import app after setting environment
+    # Import app after setting environment and force reload
+    import sys
+
+    # Remove cached modules to force fresh import with new environment
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -49,6 +55,11 @@ def test_rate_limit_endpoint(mock_env_staging):
 
 def test_health_endpoint(mock_env_staging):
     """Test the health check endpoint."""
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -68,6 +79,11 @@ def test_health_endpoint(mock_env_staging):
 
 def test_echo_endpoint(mock_env_staging):
     """Test the echo endpoint returns sent data."""
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -92,6 +108,11 @@ def test_echo_endpoint(mock_env_staging):
 
 def test_rate_limit_with_cf_ray_header(mock_env_staging):
     """Test rate limit endpoint captures Cloudflare ray ID."""
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -106,6 +127,11 @@ def test_rate_limit_with_cf_ray_header(mock_env_staging):
 
 def test_rate_limit_with_request_id_header(mock_env_staging):
     """Test rate limit endpoint captures generic request ID."""
+    import sys
+
+    if "app" in sys.modules:
+        del sys.modules["app"]
+
     from app import app
 
     client = TestClient(app)
@@ -121,7 +147,6 @@ def test_rate_limit_with_request_id_header(mock_env_staging):
 def test_test_router_not_available_in_production(mock_env_production):
     """Test that test endpoints are not available in production."""
     # Need to reimport app after environment change
-    import importlib
     import sys
 
     # Remove app from cache to force reimport with new env

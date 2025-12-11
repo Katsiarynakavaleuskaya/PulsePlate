@@ -40,6 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
           pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Ruff Lint
@@ -116,6 +117,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
           pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Initialize test database
@@ -183,12 +185,15 @@ jobs:
           ENVIRONMENT: test
           TEST_DB_PATH: cache/test_pr.sqlite
         run: |
+          # Use pytest-xdist for parallel execution (2-3x faster)
           pytest -m "not slow and not monte_carlo and not demo" \
-            --cov=. --cov-report=xml --junitxml=junit.xml -ra tests
+            --cov=. --cov-report=xml --junitxml=junit.xml -ra -n auto tests
 
       - name: Diff coverage on changed lines (PR)
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
         run: |
+          # Project standard: maintain 97% diff coverage on changed lines
+          # See .github/copilot-instructions.md and .cursorrules for coverage requirements
           diff-cover coverage.xml --compare-branch origin/${{ github.base_ref }} --fail-under=97
 
       - name: Upload coverage.xml (PR diagnostics)

@@ -25,6 +25,11 @@ from .recommendations import (
 )
 from .targets import MicronutrientTargets, NutritionTargets, UserProfile
 
+
+class EventLoopRunningError(Exception):
+    """Raised when an event loop is already running and async operations cannot be performed."""
+
+
 _logger = logging.getLogger(__name__)
 
 
@@ -230,7 +235,6 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
         # If already in a running event loop (e.g., FastAPI TestClient), skip async calls
         try:
             asyncio.get_running_loop()
-            raise RuntimeError("running event loop; skip async food DB load")
         except RuntimeError:
             # No running loop – safe to create a temporary event loop
             loop = asyncio.new_event_loop()
@@ -257,6 +261,9 @@ def _get_default_food_db() -> Dict[str, FoodItem]:
                     loop.close()
                 except Exception as cleanup_err:  # pragma: no cover
                     _logger.debug("Event loop cleanup failed: %s", cleanup_err)  # pragma: no cover
+        else:
+            # Already inside a running loop – skip async DB load and let fallback handle it
+            raise EventLoopRunningError("Event loop already running; skipping async DB load")
     except Exception as e:
         # Fall back to basic mock data if API fails or loop is running
         _logger.warning("Could not load USDA data, using fallback: %s", e)

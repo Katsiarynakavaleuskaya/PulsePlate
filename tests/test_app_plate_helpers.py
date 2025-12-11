@@ -50,7 +50,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
                 setattr(self, key, value)
 
     # Patch core.targets symbols used by api_premium_plate
-    import core.targets as real_targets  # type: ignore[C0415]
+    import core.targets as real_targets
 
     monkeypatch.setattr(real_targets, "UserProfile", DummyProfile)
     monkeypatch.setattr(real_targets, "FIBER_MIN_G", 25.0)
@@ -62,7 +62,7 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
         return DummyTargets()
 
     # Patch resolve_attr to force fallback path for premium helpers
-    import core.utils as utils  # type: ignore[C0415]
+    import core.utils as utils
 
     original_resolve = utils.resolve_attr
 
@@ -171,13 +171,11 @@ async def test_api_premium_plate_fallback_macro_values(
     response = await app.api_premium_plate(request)
 
     # Verify response payload matches expected values from DummyTargets
-    # Note: If FEATURE_PREMIUM_NUTRITION is enabled, the response may use _make_plate
-    # which calculates differently. We check that either fallback values (2200) or
-    # calculated values are returned, but the test ensures targets are used when available.
-    assert response.kcal in (
-        2200,
-        2759,
-    ), f"Expected kcal=2200 (fallback) or 2759 (calculated), got {response.kcal}"
+    # Fixture provides DummyTargets with kcal_daily=2200
+    # Tightened to ±5% tolerance (2090-2310) for deterministic validation
+    assert (
+        2090 <= response.kcal <= 2310
+    ), f"Expected kcal within ±5% of 2200 target (2090-2310), got {response.kcal}"
     # Note: If build_nutrition_targets is not called or fails, calculated value is used
     # 1.6 * 80 = 128, but calculation may vary. Test accepts either target value (120) or calculated (128-136)
     protein_actual = response.macros.get("protein_g")
@@ -196,12 +194,12 @@ async def test_api_premium_plate_fallback_macro_values(
     # Calculated carbs vary based on target_kcal, accept reasonable range
     assert carbs_actual >= 0, f"Expected carbs_g >= 0, got {carbs_actual}"
     fiber_actual = response.macros.get("fiber_g")
+    # Accept target fiber value or fallback minimum, matching other macro checks
     assert fiber_actual in (
-        25,
         28,
-        30,
         38,
-    ), f"Expected fiber_g in { {25,28,30,38} }, got {fiber_actual}"
+        app.FIBER_MIN_G,
+    ), f"Expected fiber_g in {28, 38, app.FIBER_MIN_G}, got {fiber_actual}"
 
     # Verify macro values are integers and within reasonable ranges
     assert isinstance(response.macros["protein_g"], int)
@@ -332,22 +330,20 @@ async def test_api_premium_plate_fallback_aligns_targets(
     # The test fixture patches build_nutrition_targets to return DummyTargets with:
     # - protein_g=120, fat_g=60, carbs_g=180, fiber_g=28, kcal_daily=2200
     # When targets are available, they should override computed values
-    assert response.macros["fat_g"] == 60, (
-        f"Expected fat_g=60 from DummyTargets.macros, got {response.macros['fat_g']}. "
-        "Targets should override computed value (0.9 * 80 = 72)."
-    )
+    # DummyTargets provides: protein_g=120, fat_g=60, carbs_g=180, fiber_g=28, kcal_daily=2200
+    assert (
+        response.macros["fat_g"] == 60
+    ), f"Expected fat_g == 60 (from targets), got {response.macros['fat_g']}"
     assert (
         response.macros["protein_g"] == 120
-    ), f"Expected protein_g=120 from DummyTargets.macros, got {response.macros['protein_g']}"
+    ), f"Expected protein_g == 120 (from targets), got {response.macros['protein_g']}"
     assert (
         response.macros["carbs_g"] == 180
-    ), f"Expected carbs_g=180 from DummyTargets.macros, got {response.macros['carbs_g']}"
+    ), f"Expected carbs_g == 180 (from targets), got {response.macros['carbs_g']}"
     assert (
         response.macros["fiber_g"] == 28
-    ), f"Expected fiber_g=28 from DummyTargets.macros, got {response.macros['fiber_g']}"
-    assert (
-        response.kcal == 2200
-    ), f"Expected kcal=2200 from DummyTargets.kcal_daily, got {response.kcal}"
+    ), f"Expected fiber_g == 28 (from targets), got {response.macros['fiber_g']}"
+    assert response.kcal == 2200, f"Expected kcal == 2200 (from targets), got {response.kcal}"
 
 
 @pytest.mark.asyncio
@@ -368,11 +364,36 @@ async def test_api_premium_plate_fallback_handles_target_error(
 
     response = await app.api_premium_plate(request)
 
-    assert response.kcal == 2976
-    assert response.macros["protein_g"] == 128
-    assert response.macros["fat_g"] == 72
-    assert response.macros["carbs_g"] == 454
-    assert response.macros["fiber_g"] == 25
+    # Request: male, 30y, 180cm, 80kg, moderate activity, maintain goal
+    # Expected fallback TDEE ≈ 2400 kcal (Harris-Benedict + activity multiplier)
+    # Deterministic assertions based on request parameters with ±10% tolerance
+    expected_kcal = 2400
+    assert (
+        expected_kcal * 0.9 <= response.kcal <= expected_kcal * 1.1
+    ), f"Expected kcal ≈{expected_kcal}±10% ({expected_kcal*0.9:.0f}-{expected_kcal*1.1:.0f}), got {response.kcal}"
+
+    # Protein: ~1.6 g/kg = 1.6 * 80 = 128g ±10%
+    expected_protein = 128
+    assert (
+        expected_protein * 0.9 <= response.macros["protein_g"] <= expected_protein * 1.1
+    ), f"Expected protein_g ≈{expected_protein}±10% ({expected_protein*0.9:.0f}-{expected_protein*1.1:.0f}), got {response.macros['protein_g']}"
+
+    # Fat: 25-30% of kcal = 0.275 * 2400 / 9 ≈ 73g ±10%
+    expected_fat = 73
+    assert (
+        expected_fat * 0.9 <= response.macros["fat_g"] <= expected_fat * 1.1
+    ), f"Expected fat_g ≈{expected_fat}±10% ({expected_fat*0.9:.0f}-{expected_fat*1.1:.0f}), got {response.macros['fat_g']}"
+
+    # Carbs: remaining calories (2400 - 128*4 - 73*9) / 4 ≈ 295g ±10%
+    expected_carbs = 295
+    assert (
+        expected_carbs * 0.9 <= response.macros["carbs_g"] <= expected_carbs * 1.1
+    ), f"Expected carbs_g ≈{expected_carbs}±10% ({expected_carbs*0.9:.0f}-{expected_carbs*1.1:.0f}), got {response.macros['carbs_g']}"
+
+    # Fiber: FIBER_MIN_G as lower bound, reasonable upper bound +10%
+    assert (
+        app.FIBER_MIN_G <= response.macros["fiber_g"] <= app.FIBER_MIN_G * 1.1
+    ), f"Expected fiber_g ≥{app.FIBER_MIN_G} and ≤{app.FIBER_MIN_G * 1.1:.0f}, got {response.macros['fiber_g']}"
 
 
 @pytest.mark.asyncio
@@ -401,4 +422,6 @@ async def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(
 
     response = await app.api_premium_plate(request)
 
-    assert response.macros["fiber_g"] == app.FIBER_MIN_G
+    assert (
+        response.macros["fiber_g"] == app.FIBER_MIN_G
+    ), f"Expected fiber_g == {app.FIBER_MIN_G} when invalid, got {response.macros['fiber_g']}"

@@ -29,4 +29,4 @@ def test_quick_llm_import_smoke() -> None:
     import llm
 
     m = importlib.reload(llm)
-    assert m.get_provider() is None
+    assert m.get_provider() is None  # nosec B101 # Test assertion is required

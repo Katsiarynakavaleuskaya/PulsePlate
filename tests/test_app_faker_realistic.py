@@ -314,7 +314,9 @@ class TestAppAdditionalEndpoints:
             "lang": "en",
         }
 
-        response = self.client.post("/premium_targets", json=targets_data)
+        response = self.client.post(
+            "/premium_targets", json=targets_data, headers={"X-API-Key": "test_key"}
+        )
         assert response.status_code in [200, 400, 422, 500]
 
     def test_additional_public_endpoints(self):

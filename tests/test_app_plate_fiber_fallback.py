@@ -74,5 +74,9 @@ async def test_api_premium_plate_invalid_fiber_defaults_to_minimum(
 
     response = await app.api_premium_plate(request)
 
-    assert response.macros["fiber_g"] == app.FIBER_MIN_G
-    assert response.kcal == 2100
+    # Fiber should equal minimum when fallback is triggered
+    assert response.macros["fiber_g"] == int(app.FIBER_MIN_G)
+
+    # With current mocks (fake_make_plate returns 2100, build_nutrition_targets=None),
+    # kcal should match the deterministic mock return value from fake_make_plate.
+    assert response.kcal == 2100, f"Expected kcal from mock (2100), got {response.kcal}"

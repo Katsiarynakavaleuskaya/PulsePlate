@@ -98,6 +98,27 @@ def test_bmi_visualizer_init_with_matplotlib():
         assert "general" in visualizer.BMI_RANGES
 
 
+def test_bmi_visualization_create_bmi_chart_missing_plt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """create_bmi_chart should raise ImportError when matplotlib backend is unavailable."""
+    import bmi_visualization as vizmod
+
+    # Ensure constructor does not fail even if matplotlib was unavailable at import time
+    monkeypatch.setattr(vizmod, "MATPLOTLIB_AVAILABLE", True)
+    monkeypatch.setattr(vizmod, "plt", None, raising=False)
+
+    visualizer = vizmod.BMIVisualizer()
+    with pytest.raises(ImportError, match="matplotlib not available"):
+        visualizer.create_bmi_chart(
+            bmi=22.0,
+            age=30,
+            gender="male",
+            group="general",
+            lang="en",
+        )
+
+
 def test_bmi_visualization_with_matplotlib_success():
     """Test successful BMI visualization generation."""
     if not MATPLOTLIB_AVAILABLE:

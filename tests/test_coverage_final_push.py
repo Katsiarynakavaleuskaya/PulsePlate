@@ -106,7 +106,7 @@ class TestFinalCoveragePush:
             "weight_kg": 0,  # Invalid weight
         }
 
-        response = client.post("/premium_targets", json=payload)
+        response = client.post("/premium_targets", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code in [422, 503]  # Validation error or service unavailable
 
     def test_food_search_edge_cases(self) -> None:
@@ -257,7 +257,7 @@ class TestFinalCoveragePush:
 
         # Test malformed JSON (handled by FastAPI automatically)
         response = client.post(
-            "/bmi", data=b"invalid json", headers={"Content-Type": "application/json"}
+            "/bmi", content=b"invalid json", headers={"Content-Type": "application/json"}
         )
         assert response.status_code == 422
 

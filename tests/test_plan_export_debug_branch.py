@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 from starlette.requests import Request
@@ -16,11 +16,11 @@ def test_build_pdf_week_debug_branch(
     We patch internals to avoid external dependencies and call the route handler directly.
     """
     # Minimal week
-    days: list[Dict[str, Any]] = []
+    days: list[dict[str, Any]] = []
     for i in range(days_count):
         days.append(
             {
-                "date": f"2025-01-0{i+1}",
+                "date": f"2025-01-{i + 1:02d}",
                 "meals": [
                     {
                         "title": "Meal",
@@ -52,7 +52,7 @@ def test_build_pdf_week_debug_branch(
             }
         )
 
-    week: Dict[str, Any] = {
+    week: dict[str, Any] = {
         "week_start": "2025-01-01",
         "days": days,
         "totals": {

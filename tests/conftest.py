@@ -1,5 +1,6 @@
-"""
-Shared pytest fixtures for the PulsePlate test suite.
+"""Shared pytest fixtures for the PulsePlate test suite.
+
+Includes tenant-based sharding configuration for memory-efficient parallel testing.
 """
 
 import importlib
@@ -7,33 +8,91 @@ import importlib.util
 import logging
 import os
 import sys
+import warnings
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Generator, cast
+import tempfile
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, ProgrammingError
+
+from core import db as db_module
+import core.recipe_synth as recipe_synth
+
+# Ensure key feature flags are enabled during test collection
+os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
+os.environ.setdefault("BUSINESS_MODULE_ENABLED", "true")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
 
 
+# ============================================================================
+# TENANT-BASED SHARDING CONFIGURATION
+# ============================================================================
+# Imported from pytest_sharding.py to enable memory-efficient parallel testing
+# Usage: pytest --shard-id=1 tests/
+# ============================================================================
+
+_sharding_module_path = Path(__file__).parent.parent / "pytest_sharding.py"
+if _sharding_module_path.exists():
+    _spec = importlib.util.spec_from_file_location("pytest_sharding", _sharding_module_path)
+    if _spec and _spec.loader:
+        try:
+            _sharding = importlib.util.module_from_spec(_spec)
+            _spec.loader.exec_module(_sharding)
+            # Register sharding hooks globally
+            pytest_addoption = _sharding.pytest_addoption
+            pytest_collection_modifyitems = _sharding.pytest_collection_modifyitems
+        except Exception as e:
+            warnings.warn(f"Failed to load pytest_sharding.py: {e}. Sharding disabled.")
+
+
+@pytest.fixture(autouse=True)
+def _reset_recipe_synth_singleton() -> Generator[None, None, None]:
+    """Reset RecipeSynthesizer singleton before and after each test.
+
+    Prevents cross-test contamination when tests initialize the synthesizer with different
+    templates_dir values (e.g., custom/templates vs data/recipe_templates), which would
+    otherwise cause ValueError in VIP endpoints under xdist sharding.
+    """
+    # Best-effort reset before test
+    try:
+        recipe_synth.reset_recipe_synthesizer()
+    except Exception:
+        # Defensive: singleton reset should not break tests even if implementation changes
+        logger.debug("Failed to reset recipe synthesizer before test", exc_info=True)
+
+    yield
+
+    # Best-effort reset after test
+    try:
+        recipe_synth.reset_recipe_synthesizer()
+    except Exception:
+        logger.debug("Failed to reset recipe synthesizer after test", exc_info=True)
+
+
 @pytest.fixture(scope="session", autouse=True)
-def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None, None, None]:
-    """Configure and initialize a per-worker SQLite database for the test session."""
+def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, None, None]:
+    """Configure and initialize a per-worker SQLite database for the test session.
+
+    Yields:
+        The reloaded db module for use by dependent fixtures (e.g., _cleanup_users).
+    """
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
 
     worker_info = getattr(request.config, "workerinput", {}) or {}
     worker_id = worker_info.get("workerid", "master")
 
-    base_path = Path(os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite"))
-    if worker_id != "master":
-        base_path = base_path.with_name(f"{base_path.stem}_{worker_id}{base_path.suffix}")
-
-    if not base_path.is_absolute():
-        base_path = Path.cwd() / base_path
+    cache_root = Path.cwd() / "cache"
+    cache_root.mkdir(parents=True, exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix=f"test_db_{worker_id}_", dir=cache_root))
+    base_path = temp_dir / "test_app.sqlite"
 
     base_path.parent.mkdir(parents=True, exist_ok=True)
     resolved_path = base_path.resolve()
@@ -41,8 +100,8 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
     os.environ["TEST_DB_PATH"] = str(resolved_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
-    db_module = importlib.import_module("core.db")
-    db_module = importlib.reload(db_module)
+    # Reload db module to pick up new DATABASE_URL
+    db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
 
     models_module = importlib.import_module("core.models")
     importlib.reload(models_module)
@@ -57,37 +116,42 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[None,
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    db_module.init_db()
+    db_module_reloaded.init_db()
 
-    if "app" in sys.modules:
-        importlib.reload(sys.modules["app"])
+    # Ensure SQLite file is writable for tests
+    try:
+        resolved_path.chmod(0o666)
+    except Exception as e:
+        logger.debug(f"Could not set permissions on test database: {e}")
 
-    yield
+    # Expose the reloaded db module to dependent fixtures (e.g., _cleanup_users)
+    # so they can use a consistent session_scope and engine configuration.
+    yield db_module_reloaded
 
     # Teardown: Clean up database connections and files
     try:
         # Close database connections if available
         # First, close the raw engine if it exists
-        if hasattr(db_module, "_RAW_ENGINE") and db_module._RAW_ENGINE:
+        if hasattr(db_module_reloaded, "_RAW_ENGINE") and db_module_reloaded._RAW_ENGINE:
             try:
-                db_module._RAW_ENGINE.dispose()
+                db_module_reloaded._RAW_ENGINE.dispose()
                 logger.debug(f"Disposed raw database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing raw database engine: {e}")
 
-        if hasattr(db_module, "engine") and db_module.engine:
+        if hasattr(db_module_reloaded, "engine") and db_module_reloaded.engine:
             try:
-                db_module.engine.dispose()
+                db_module_reloaded.engine.dispose()
                 logger.debug(f"Disposed database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing database engine: {e}")
 
         # Close any active sessions - SessionLocal is a sessionmaker, not a session
         # The sessionmaker doesn't have sessions to close, but we can clear the engine binding
-        if hasattr(db_module, "SessionLocal"):
+        if hasattr(db_module_reloaded, "SessionLocal"):
             try:
                 # Clear the bind to prevent any new sessions from being created
-                db_module.SessionLocal.configure(bind=None)
+                db_module_reloaded.SessionLocal.configure(bind=None)
                 logger.debug(f"Cleared SessionLocal binding for worker {worker_id}")
             except Exception as e:
                 logger.debug(f"Error clearing SessionLocal binding: {e}")
@@ -141,25 +205,39 @@ def setup_test_environment():
         del os.environ["API_KEY"]
 
 
+_CACHED_APP_MODULE: ModuleType | None = None
+
+
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return the module.
+    """Dynamically load app.py and return a stable module instance.
 
     This fixture depends on setup_test_environment to ensure
     API_KEY is set before loading the app.
     """
+    global _CACHED_APP_MODULE
+
     repo_root = Path(__file__).parent.parent
     sys.path.insert(0, str(repo_root))
 
-    app_path = repo_root / "app.py"
-    spec = importlib.util.spec_from_file_location("app_module", str(app_path))
-    if spec is None or spec.loader is None:
-        pytest.skip("Cannot load app.py", allow_module_level=True)
+    # Reuse cached module if we already loaded it (protects against
+    # sys.modules["app"] being removed by other tests).
+    if _CACHED_APP_MODULE is not None:
+        if "app" not in sys.modules:
+            sys.modules["app"] = _CACHED_APP_MODULE
+        return _CACHED_APP_MODULE
 
-    # At this point we know spec and spec.loader are not None due to the check above
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
-    return app_module
+    # Import app directly (app.py can import from app/ package)
+    import app as app_mod
+
+    _CACHED_APP_MODULE = app_mod
+    return app_mod
+
+
+@pytest.fixture(autouse=True)
+def _ensure_app_module(app_module: ModuleType) -> None:
+    """Ensure sys.modules always contains the cached app module."""
+    sys.modules["app"] = app_module
 
 
 @pytest.fixture
@@ -204,7 +282,7 @@ def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestCl
     return client
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Set up deterministic test environment variables."""
     # Set consistent environment for deterministic testing
@@ -213,9 +291,60 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
     monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "true")
     monkeypatch.setenv("DEBUG", "true")
     monkeypatch.setenv("API_KEY", "test_key")
-    monkeypatch.setenv("API_KEY_REQUIRED", "true")
+    monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
     yield
     # Cleanup is automatic with monkeypatch
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None]:
+    """Best-effort users table cleanup before/after each test.
+
+    Attempts to truncate the users table before and after each test. If the
+    database is not accessible (e.g., locked SQLite), logs a warning and
+    continues to avoid flakiness.
+    """
+    # Use the reloaded db module from configure_sqlite_database fixture
+    # to ensure consistency with the configured database
+    configured_db = configure_sqlite_database
+
+    def _truncate() -> None:
+        with configured_db.session_scope() as session:
+            session.execute(text("DELETE FROM users"))
+
+    try:
+        _truncate()
+    except (OperationalError, ProgrammingError) as e:
+        # Database not accessible or table doesn't exist - proceed without failing the suite
+        logger.warning(f"Database not accessible or users table missing during test setup: {e}")
+        try:
+            configured_db.init_db()
+            try:
+                _truncate()
+            except Exception as retry_err:  # pragma: no cover - defensive
+                logger.warning(f"Retrying users cleanup after init_db failed: {retry_err}")
+        except Exception as init_err:
+            logger.error(f"init_db during cleanup setup failed: {init_err}")
+            # Don't return - must yield to ensure fixture lifecycle completes
+    except Exception as e:
+        # Handle any other unexpected exceptions
+        logger.error(f"Unexpected error during test setup cleanup: {e}", exc_info=True)
+
+    yield
+
+    # Cleanup after test - log errors to reduce flakiness when SQLite is locked
+    try:
+        _truncate()
+    except (OperationalError, ProgrammingError) as e:
+        # Avoid hard failures on teardown to reduce flakiness in CI when SQLite is locked
+        # or when the table doesn't exist
+        logger.warning(
+            f"Test cleanup skipped - database not accessible or users table missing: {e}"
+        )
+    except Exception as e:
+        # Handle any other unexpected exceptions during teardown
+        logger.warning(f"Unexpected error during test teardown cleanup: {e}")

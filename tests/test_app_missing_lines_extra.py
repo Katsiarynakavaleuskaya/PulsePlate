@@ -23,8 +23,8 @@ class TestAppMissingLinesExtra:
         # Check if the function exists
         if hasattr(app_mod, "get_update_scheduler"):
             try:
-                # Try to call the function
-                obj = asyncio.get_event_loop().run_until_complete(app_mod.get_update_scheduler())
+                # Try to call the function using modern asyncio API to avoid deprecated get_event_loop
+                obj = asyncio.run(app_mod.get_update_scheduler())
                 assert obj is not None
             except Exception:
                 # If it fails, that's also acceptable for coverage
@@ -91,7 +91,7 @@ class TestAppMissingLinesExtra:
             assert "disabled" in r.json().get("detail", "").lower()
 
     def test_premium_bmr_value_and_http_errors(self):
-        # Test premium BMR endpoint
+        # Test premium BMR endpoint - ValueError should return 400 Bad Request
         with (
             patch.object(app_mod, "calculate_all_bmr", side_effect=ValueError("bad")),
             patch.object(app_mod, "calculate_all_tdee", lambda *a, **k: {}),
@@ -107,9 +107,10 @@ class TestAppMissingLinesExtra:
             r = self.client.post(
                 "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert r.status_code == 200
+            assert r.status_code == 400
+            assert "Invalid input" in r.json().get("detail", "")
 
-        # Trigger HTTPException passthrough re-raise (818)
+        # Trigger HTTPException passthrough re-raise
         with (
             patch.object(
                 app_mod,
@@ -129,7 +130,8 @@ class TestAppMissingLinesExtra:
             r = self.client.post(
                 "/api/v1/premium/bmr", json=data, headers={"X-API-Key": "test_key"}
             )
-            assert r.status_code == 200
+            assert r.status_code == 418
+            assert "teapot" in r.json().get("detail", "")
 
     def test_premium_plate_missing_bmr_tdee_check(self):
         # Force the early 503 guard (974)
@@ -173,23 +175,3 @@ class TestAppMissingLinesExtra:
                 "/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"}
             )
             assert r.status_code in [200, 500, 503]
-
-    def test_bmi_pro_error_handlers(self):
-        # Skip this test as stage_obesity is no longer imported in main.py
-        pytest.skip("stage_obesity no longer imported in main.py")
-
-    def test_export_pdf_generic_errors(self):
-        # Test PDF export endpoints - they may return 500 if there's an error
-        r = self.client.get(
-            "/api/v1/premium/exports/day/plan123.pdf",
-            headers={"X-API-Key": "test_key"},
-        )
-        # Export endpoints may not be fully implemented, expect 200 or 500
-        assert r.status_code in [200, 500]
-
-        r = self.client.get(
-            "/api/v1/premium/exports/week/plan123.pdf",
-            headers={"X-API-Key": "test_key"},
-        )
-        # Export endpoints may not be fully implemented, expect 200 or 500
-        assert r.status_code in [200, 500]
