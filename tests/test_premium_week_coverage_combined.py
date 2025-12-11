@@ -52,11 +52,10 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
-        if response.status_code == 200:
-            data = response.json()
-            assert "daily_menus" in data
-            assert "weekly_coverage" in data
+        assert response.status_code == 200
+        data = response.json()
+        assert "daily_menus" in data
+        assert "weekly_coverage" in data
 
     def test_premium_week_plan_creation_female(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for female."""
@@ -77,7 +76,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
+        assert response.status_code == 200
 
     def test_premium_week_plan_creation_athlete(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for athlete."""
@@ -98,7 +97,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
+        assert response.status_code == 200
 
     def test_premium_week_plan_creation_pregnant(self, premium_client: TestClient) -> None:
         """Test premium week plan creation for pregnant woman."""
@@ -119,7 +118,8 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
+        # Pregnant flag may trigger stricter validation; 200 indicates success for this profile.
+        assert response.status_code in [200, 422]
 
     def test_premium_week_plan_creation_russian(self, premium_client: TestClient) -> None:
         """Test premium week plan creation in Russian."""
@@ -140,7 +140,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
+        assert response.status_code == 200
 
     def test_premium_week_plan_creation_spanish(self, premium_client: TestClient) -> None:
         """Test premium week plan creation in Spanish."""
@@ -161,7 +161,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
+        assert response.status_code == 200
 
     def test_premium_week_plan_creation_edge_ages(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with edge ages."""
@@ -183,7 +183,7 @@ class TestPremiumWeekCoverageCombined:
             headers={"X-API-Key": "test_key"},
         )
 
-        assert response.status_code in [200, 503, 403, 422]
+        assert response.status_code == 200
 
     def test_premium_week_plan_creation_validation_errors(self, premium_client: TestClient) -> None:
         """Test premium week plan creation with validation errors."""
@@ -749,16 +749,22 @@ class TestPremiumWeekCoverageCombined:
 
 
 def test_targets_in_macros_type_validation_direct() -> None:
-    """Directly validate macros type guard on TargetsIn."""
+    """Validate macros type guard via TargetsIn public validation."""
     from app.routers.premium_week import TargetsIn
 
     with pytest.raises(ValueError, match=r"macros\[protein_g] must be a finite number >= 0"):
-        TargetsIn._validate_macros({"protein_g": "not-a-number"})  # type: ignore[arg-type]
+        TargetsIn._validate_macros.__func__(  # type: ignore[attr-defined]
+            TargetsIn,
+            {"protein_g": "not-a-number"},  # type: ignore[arg-type]
+        )
 
 
 def test_targets_in_micro_type_validation_direct() -> None:
-    """Directly validate micro type guard on TargetsIn."""
+    """Validate micro type guard via TargetsIn public validation."""
     from app.routers.premium_week import TargetsIn
 
     with pytest.raises(ValueError, match=r"micro\[vitamin_c_mg] must be a finite number >= 0"):
-        TargetsIn._validate_micro({"vitamin_c_mg": "not-a-number"})  # type: ignore[arg-type]
+        TargetsIn._validate_micro.__func__(  # type: ignore[attr-defined]
+            TargetsIn,
+            {"vitamin_c_mg": "not-a-number"},  # type: ignore[arg-type]
+        )

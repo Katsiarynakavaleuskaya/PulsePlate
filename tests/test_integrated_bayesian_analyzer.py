@@ -269,7 +269,6 @@ class TestResultDataClass:
             recommendations=[],
         )
         assert result.test_name == "test_example"
-        assert isinstance(result.overall_risk_level, str)
         assert result.overall_risk_level == "low"
 
 

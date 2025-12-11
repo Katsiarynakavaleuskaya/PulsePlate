@@ -71,6 +71,13 @@ from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 import core.utils as core_utils
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
+from app.scheduler_helpers import (
+    resolve_scheduler_starter,
+    resolve_stop_callable,
+    handle_sync_test_mode,
+    execute_async_starter,
+    safe_stop_with_cleanup,
+)
 
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
@@ -132,138 +139,13 @@ except ImportError:
 def _resolve_scheduler_starter(
     pkg: Any, alias_pkg: Any, globs: dict[str, Any]
 ) -> Callable[[int], Any]:
-    """Resolve the scheduler starter callable from package/module hierarchy.
-
-    Returns the best available _scheduler_start_background_updates callable.
-    """
-    starter = globs.get("_scheduler_start_background_updates", _scheduler_start_background_updates)
-    if starter is _scheduler_start_background_updates:
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        starter = (
-            getattr(alias_pkg, "_scheduler_start_background_updates", None)
-            or (
-                getattr(pkg_appmod, "_scheduler_start_background_updates", None)
-                if pkg_appmod
-                else None
-            )
-            or getattr(pkg, "_scheduler_start_background_updates", None)
-            or _scheduler_start_background_updates
-        )
-    return starter
+    """Backward-compatible wrapper for scheduler starter resolution."""
+    return resolve_scheduler_starter(pkg, alias_pkg, globs, _scheduler_start_background_updates)
 
 
 def _resolve_stop_callable(pkg: Any, alias_pkg: Any) -> Callable[[], Any]:
-    """Resolve the stop callable from package/module hierarchy.
-
-    Returns the best available _scheduler_stop_background_updates callable.
-    """
-    stopper = globals().get(
-        "_scheduler_stop_background_updates", _scheduler_stop_background_updates
-    )
-    if stopper is _scheduler_stop_background_updates:
-        pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-        stopper = (
-            getattr(alias_pkg, "_scheduler_stop_background_updates", None)
-            or (
-                getattr(pkg_appmod, "_scheduler_stop_background_updates", None)
-                if pkg_appmod
-                else None
-            )
-            or getattr(pkg, "_scheduler_stop_background_updates", None)
-            or _scheduler_stop_background_updates
-        )
-    return stopper
-
-
-def _handle_sync_test_mode(
-    target: Callable[..., Any],
-    update_interval_hours: Optional[int],
-    caller_called: Optional[list[Any]],
-) -> None:
-    """Handle pytest sync mode by calling target and managing awaitables.
-
-    Detects running loop and either schedules on it or runs in a new loop.
-    Appends to caller_called list if provided.
-    """
-    # Call target with appropriate args
-    if update_interval_hours is not None:
-        res = target(update_interval_hours=update_interval_hours)
-    else:
-        res = target()
-
-    if inspect.isawaitable(res):
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-
-        if running_loop is not None:
-            # Already inside event loop - schedule the coroutine
-            asyncio.ensure_future(res)
-        elif inspect.iscoroutine(res):
-            asyncio.run(res)
-        else:
-            loop = asyncio.new_event_loop()
-            try:
-                _ = loop.run_until_complete(res)
-            finally:
-                loop.close()
-
-    if caller_called is not None:
-        with suppress(Exception):
-            if update_interval_hours is not None:
-                caller_called.append(update_interval_hours)
-            else:
-                caller_called.append("stop")
-
-
-def _execute_async_starter(
-    starter: Callable[[int], Any], update_interval_hours: int, _asyncio: Any
-) -> None:
-    """Execute async starter in the current loop or create a new one.
-
-    If a running loop exists, schedules starter as a task.
-    Otherwise, runs starter using asyncio.run in a new loop.
-    """
-    loop: Optional[asyncio.AbstractEventLoop] = None
-    try:
-        loop = _asyncio.get_running_loop()
-    except RuntimeError:
-        pass
-
-    if loop is None:
-        asyncio.run(starter(update_interval_hours=update_interval_hours))
-    else:
-        loop.create_task(starter(update_interval_hours=update_interval_hours))
-
-
-def _safe_stop_with_cleanup(stopper: Callable[[], Any]) -> None:
-    """Run stopper in a new event loop with proper cleanup and error suppression.
-
-    Suppresses ResourceWarning and RuntimeWarning during cleanup.
-    Catches and logs RuntimeError related to event loop closure.
-    """
-    try:
-        # Suppress all warnings during event loop cleanup to avoid
-        # ResourceWarning and RuntimeError from httpx/anyio cleanup
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ResourceWarning)
-            warnings.simplefilter("ignore", RuntimeWarning)
-            asyncio.run(stopper())
-    except RuntimeError as e:
-        # Suppress "Event loop is closed" errors during cleanup
-        error_msg = str(e)
-        if "Event loop is closed" in error_msg or "loop" in error_msg.lower():
-            # Log for debugging but don't propagate
-            import logging
-
-            logging.getLogger(__name__).debug(
-                "Suppressed event loop closure error during background update stop: %s", e
-            )
-        else:
-            raise
+    """Backward-compatible wrapper for scheduler stop callable resolution."""
+    return resolve_stop_callable(pkg, alias_pkg, _scheduler_stop_background_updates)
 
 
 def start_background_updates(update_interval_hours: int = 24) -> None:
@@ -316,13 +198,13 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
         for target in candidates:
             if not callable(target):
                 continue
-            _handle_sync_test_mode(target, update_interval_hours, caller_called)
+            handle_sync_test_mode(target, update_interval_hours, caller_called)
             break
         return None
 
     # Normal mode: resolve starter and execute
     starter = _resolve_scheduler_starter(pkg, alias_pkg, globals())
-    _execute_async_starter(starter, update_interval_hours, _asyncio)
+    execute_async_starter(starter, update_interval_hours, _asyncio)
     return None
 
 
@@ -369,7 +251,7 @@ def stop_background_updates() -> None:
         for target in candidates:
             if not callable(target):
                 continue
-            _handle_sync_test_mode(target, None, caller_called)
+            handle_sync_test_mode(target, None, caller_called)
             break
         return None
 
@@ -385,7 +267,7 @@ def stop_background_updates() -> None:
 
     if event_loop is None:
         # No running loop: run in new loop with cleanup
-        _safe_stop_with_cleanup(stopper)
+        safe_stop_with_cleanup(stopper)
     else:
         # Running loop exists: schedule as task
         event_loop.create_task(stopper())
@@ -701,6 +583,23 @@ def _configure_session_bindings(
     core_db.engine = core_db.EngineCompat(engine)
     _db_fallback_active = True
     os.environ["DB_HEALTH_DEGRADED"] = "1"
+
+    # Emit an observability metric when DB fallback is activated so dashboards
+    # can surface degraded states. This uses a lazy import and silently
+    # no-ops if the metrics client is not available.
+    try:  # pragma: no cover - metrics instrumentation is optional
+        from core import metrics as _metrics  # type: ignore[import]
+
+        client = getattr(_metrics, "metrics_client", None)
+        if client is not None:
+            is_in_memory = ":memory:" in (fallback_url or "")
+            backend = "memory" if is_in_memory else "sqlite"
+            env_label = (env_name or os.getenv("APP_ENV") or "unknown").strip() or "unknown"
+            tags = [f"env:{env_label}", f"backend:{backend}"]
+            with suppress(Exception):
+                client.increment("db_fallback_active", tags=tags)
+    except Exception:  # pragma: no cover - metrics are optional
+        pass
 
     # Set DB_FALLBACK_URL only if needed for external tools
     if not is_production:
@@ -4123,9 +4022,12 @@ def _generate_who_targets_response(
         ) from e
 
 
-@app.post("/premium_targets")
+@app.post("/premium_targets", dependencies=[Depends(_get_api_key_dynamic)])
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
-    """Legacy endpoint for WHO targets (backwards compatibility)."""
+    """Legacy endpoint for WHO targets (backwards compatibility).
+
+    Protected with API key authentication to match the new /api/v1/premium/targets endpoint.
+    """
     import builtins
     import sys as _sys
 
@@ -4889,21 +4791,7 @@ async def export_daily_plan_pdf(plan_id: str) -> Response:
         import sys as _sys
 
         _pkg = _sys.modules.get("app")
-        _to_pdf_week = (
-            getattr(_pkg, "to_pdf_week", None)
-            if _pkg and hasattr(_pkg, "to_pdf_week")
-            else to_pdf_week
-        )
-        if _to_pdf_week is None or not callable(_to_pdf_week):
-            raise HTTPException(
-                status_code=503,
-                detail="PDF export unavailable",
-            )
-        _to_pdf_day = (
-            getattr(_pkg, "to_pdf_day", None)
-            if _pkg and hasattr(_pkg, "to_pdf_day")
-            else to_pdf_day
-        )
+        _to_pdf_day = getattr(_pkg, "to_pdf_day", None) if _pkg else to_pdf_day
         if _to_pdf_day is None or not callable(_to_pdf_day):
             raise HTTPException(
                 status_code=503,

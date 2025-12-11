@@ -41,6 +41,7 @@ def test_bayesian_test_analyzer_file_not_found(tmp_path: Path) -> None:
 def test_bayesian_test_analyzer_health_score_zero_time(monkeypatch: pytest.MonkeyPatch) -> None:
     """Single execution with no time should still yield bounded health score."""
     analyzer = BayesianTestAnalyzer()
+    timestamp = datetime.now(timezone.utc)
     rec = TestRecord(
         test_name="t1",
         category=TestCategory.UNIT,
@@ -49,11 +50,7 @@ def test_bayesian_test_analyzer_health_score_zero_time(monkeypatch: pytest.Monke
         error_message=None,
         execution_time=0.0,
         coverage_percentage=90.0,
-        timestamp=(
-            analyzer._current_timestamp()
-            if hasattr(analyzer, "_current_timestamp")
-            else datetime.now(timezone.utc)
-        ),
+        timestamp=timestamp,
     )
     analyzer.execution_history.append(rec)
     score = analyzer.get_test_health_score("t1")

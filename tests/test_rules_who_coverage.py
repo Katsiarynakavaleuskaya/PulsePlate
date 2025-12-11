@@ -11,6 +11,7 @@ from core.rules_who import (
     get_activity_guidelines,
     get_age_category,
     get_fiber_target,
+    get_compact_micronutrient_rda,
     get_micronutrient_rda,
     get_priority_nutrients_for_profile,
     validate_macro_distribution,
@@ -48,6 +49,14 @@ class TestRulesWhoCoverage:
 
         # Test with completely unknown key - should fallback to default
         # We can't easily test this without patching since the function will always find a fallback
+
+    def test_get_compact_micronutrient_rda_copy(self):
+        """get_compact_micronutrient_rda should return a copy per call."""
+        male_rda_1 = get_compact_micronutrient_rda("male")
+        male_rda_2 = get_compact_micronutrient_rda("male")
+        assert isinstance(male_rda_1, dict)
+        assert isinstance(male_rda_2, dict)
+        assert male_rda_1 is not male_rda_2
 
     def test_get_activity_guidelines_elderly(self):
         """Test get_activity_guidelines for elderly."""

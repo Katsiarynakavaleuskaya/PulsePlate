@@ -38,8 +38,8 @@ def test_diagnose_test_failure_empty_symptoms_with_history() -> None:
     # This exercises the empty symptoms path through the public interface
     diagnosis = analyzer.diagnose_test_failure("t2", "")
     assert diagnosis is not None
-    # Verify most_likely_cause is a valid ErrorType enum value
-    assert diagnosis.most_likely_cause in [e.value for e in ErrorType]
+    # Verify most_likely_cause corresponds to a valid ErrorType value
+    assert diagnosis.most_likely_cause in {e.value for e in ErrorType}
 
 
 def test_record_and_reset_global_analyzer() -> None:

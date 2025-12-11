@@ -48,7 +48,6 @@ class TestFingerprintSecurity:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             salt_file = Path(tmpdir) / "salt.txt"
-            salt_file.parent.mkdir(parents=True, exist_ok=True)
             salt_file.write_text("existing_salt_value")
 
             result = _load_salt_from_file(salt_file)
@@ -62,7 +61,6 @@ class TestFingerprintSecurity:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             salt_file = Path(tmpdir) / "race_salt.txt"
-            salt_file.parent.mkdir(parents=True, exist_ok=True)
             salt_file.write_text("race_existing_salt")
 
             original_exists = Path.exists
@@ -99,7 +97,6 @@ class TestFingerprintSecurity:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             salt_file = Path(tmpdir) / "race_empty_salt.txt"
-            salt_file.parent.mkdir(parents=True, exist_ok=True)
             salt_file.touch()
 
             original_exists = Path.exists
@@ -146,7 +143,6 @@ class TestFingerprintSecurity:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             salt_file = Path(tmpdir) / "race_read_error_salt.txt"
-            salt_file.parent.mkdir(parents=True, exist_ok=True)
             salt_file.touch()
 
             original_exists = Path.exists

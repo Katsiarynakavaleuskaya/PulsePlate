@@ -90,8 +90,10 @@ def test_create_user_validation_error(client: TestClient) -> None:
     assert "detail" in error_data
     assert isinstance(error_data["detail"], list)
     # Ensure 'email' field is mentioned in validation errors
-    error_fields = [
-        loc[-1] if (loc := err.get("loc")) and loc else None for err in error_data["detail"]
-    ]
-    error_fields = [f for f in error_fields if f is not None]
+    error_fields = []
+    for err in error_data["detail"]:
+        loc = err.get("loc")
+        if loc:
+            field_name = loc[-1]
+            error_fields.append(field_name)
     assert "email" in error_fields

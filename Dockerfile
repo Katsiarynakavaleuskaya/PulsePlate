@@ -138,7 +138,7 @@ USER root
 # Install development dependencies
 # Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
 COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt
+RUN python -m pip install --no-cache-dir -r requirements-dev.txt
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \

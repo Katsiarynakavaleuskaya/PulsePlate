@@ -16,7 +16,7 @@ from app.routers.premium_week import TargetsIn, WeekPlanRequest, WeekPlanRespons
 class TestPremiumWeekRouter:
     """Test Premium Week router functionality."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         from fastapi import FastAPI
 
@@ -27,7 +27,9 @@ class TestPremiumWeekRouter:
     @patch("app.routers.premium_week.FoodDB")
     @patch("app.routers.premium_week.RecipeDB")
     @patch("app.routers.premium_week.build_week")
-    def test_generate_week_plan_with_targets(self, mock_build_week, mock_recipe_db, mock_food_db):
+    def test_generate_week_plan_with_targets(
+        self, mock_build_week, mock_recipe_db, mock_food_db
+    ) -> None:
         """Test week plan generation with provided targets."""
         # Mock the databases
         mock_food_db_instance = MagicMock()
@@ -73,7 +75,7 @@ class TestPremiumWeekRouter:
     @patch("app.routers.premium_week.estimate_targets_minimal")
     def test_generate_week_plan_with_profile(
         self, mock_estimate_targets, mock_build_week, mock_recipe_db, mock_food_db
-    ):
+    ) -> None:
         """Test week plan generation with user profile."""
         # Mock the databases
         mock_food_db_instance = MagicMock()
@@ -121,7 +123,7 @@ class TestPremiumWeekRouter:
         assert "total_cost" in data
         assert "adherence_score" in data
 
-    def test_generate_week_plan_missing_profile_data(self):
+    def test_generate_week_plan_missing_profile_data(self) -> None:
         """Test week plan generation with missing profile data."""
         response = self.client.post(
             "/api/v1/premium/plan/week-flexible",
@@ -142,7 +144,7 @@ class TestPremiumWeekRouter:
     @patch("app.routers.premium_week.estimate_targets_minimal")
     def test_generate_week_plan_unable_to_derive_targets(
         self, mock_estimate_targets, mock_recipe_db, mock_food_db
-    ):
+    ) -> None:
         """Test week plan generation when unable to derive targets."""
         # Mock the databases
         mock_food_db_instance = MagicMock()
@@ -169,7 +171,7 @@ class TestPremiumWeekRouter:
         assert response.status_code == 400
         assert "Unable to derive targets" in response.json()["detail"]
 
-    def test_targets_in_model_validation(self):
+    def test_targets_in_model_validation(self) -> None:
         """Test TargetsIn model validation."""
         # Valid targets
         targets = TargetsIn(
@@ -183,7 +185,7 @@ class TestPremiumWeekRouter:
         assert targets.micro["vitamin_c_mg"] == 90.0
         assert targets.water_ml == 2000
 
-    def test_targets_in_validation_errors(self):
+    def test_targets_in_validation_errors(self) -> None:
         """Test TargetsIn model validation errors."""
         # Test kcal too low
         with pytest.raises(ValueError):
@@ -233,7 +235,7 @@ class TestPremiumWeekRouter:
                 micro={"vitamin_c_mg": -10.0},
             )
 
-    def test_week_plan_request_model(self):
+    def test_week_plan_request_model(self) -> None:
         """Test WeekPlanRequest model."""
         request = WeekPlanRequest(
             sex="female",
@@ -255,7 +257,7 @@ class TestPremiumWeekRouter:
         assert request.lang == "ru"
         assert request.targets is None
 
-    def test_week_plan_response_model(self):
+    def test_week_plan_response_model(self) -> None:
         """Test WeekPlanResponse model."""
         response = WeekPlanResponse(
             daily_menus=[{"day": "Monday", "meals": []}],

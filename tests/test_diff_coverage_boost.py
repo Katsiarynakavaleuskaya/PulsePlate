@@ -9,10 +9,7 @@ Targets missing lines in:
 """
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
-from typing import cast
 from pathlib import Path
 import os
 import sys
@@ -29,7 +26,7 @@ class TestBusinessRouterCoverage:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
         os.environ["BUSINESS_MODULE_ENABLED"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
+        self.client = TestClient(app)
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -175,21 +172,19 @@ class TestBusinessBayesianAnalyzerCoverage:
         analyzer_es = BusinessBayesianAnalyzer(locale="es")
         assert analyzer_es is not None
 
-    def test_business_analyzer_missing_yaml_fallback(self, tmp_path: Path) -> None:
+    def test_business_analyzer_missing_yaml_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test fallback when YAML files are missing."""
         from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
         import core.business_bayesian_analyzer as bba_module
 
         # Patch __file__ to point to a location where YAML files don't exist
-        original_file = bba_module.__file__
-        try:
-            bba_module.__file__ = str(tmp_path / "fake_module.py")
+        monkeypatch.setattr(bba_module, "__file__", str(tmp_path / "fake_module.py"))
 
-            # Analyzer should fall back to defaults
-            analyzer = BusinessBayesianAnalyzer()
-            assert analyzer is not None
-        finally:
-            bba_module.__file__ = original_file
+        # Analyzer should fall back to defaults
+        analyzer = BusinessBayesianAnalyzer()
+        assert analyzer is not None
 
 
 class TestComprehensiveBayesianAnalyzerCoverage:

@@ -285,10 +285,10 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     """
     # Use the reloaded db module from configure_sqlite_database fixture
     # to ensure consistency with the configured database
-    db_module = configure_sqlite_database
+    configured_db = configure_sqlite_database
 
     def _truncate() -> None:
-        with db_module.session_scope() as session:
+        with configured_db.session_scope() as session:
             session.execute(text("DELETE FROM users"))
 
     try:
@@ -297,7 +297,7 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
         # Database not accessible or table doesn't exist - proceed without failing the suite
         logger.warning(f"Database not accessible or users table missing during test setup: {e}")
         try:
-            db_module.init_db()
+            configured_db.init_db()
             try:
                 _truncate()
             except Exception as retry_err:  # pragma: no cover - defensive

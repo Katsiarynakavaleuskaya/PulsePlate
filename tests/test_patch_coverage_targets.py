@@ -62,10 +62,13 @@ def test_mcp_server_invalid_default_model() -> None:
         PulsePlateMCPServer.ALLOWED_MODELS = original_allowed
 
 
-def test_test_router_health_endpoint() -> None:
+def test_test_router_health_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure test router health endpoint works in non-production."""
     import importlib
     from app import routers
+
+    # Ensure router loads in non-production mode
+    monkeypatch.setenv("APP_ENV", "development")
 
     # Reload to ensure non-production state
     importlib.reload(routers.test)

@@ -19,22 +19,26 @@ import app as app_module
 app = app_module.app
 
 
+@pytest.fixture(autouse=True)
+def _business_env_and_client(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest):
+    """Autouse fixture to set env vars and attach a TestClient to test instances."""
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
+
+    client = TestClient(cast(ASGIApp, app))
+
+    # Attach client to test class instances that expect self.client
+    if getattr(request.node, "instance", None) is not None:
+        setattr(request.node.instance, "client", client)
+
+    try:
+        yield
+    finally:
+        client.close()
+
+
 class TestBusinessRouterMissingLines:
     """Tests for missing lines in app/routers/business.py"""
-
-    def setup_method(self) -> None:
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["BUSINESS_MODULE_ENABLED"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
-
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        if hasattr(self, "client"):
-            self.client.close()
-        for key in ["API_KEY", "BUSINESS_MODULE_ENABLED"]:
-            if key in os.environ:
-                del os.environ[key]
 
     def test_safe_error_summary_function(self) -> None:
         """Test _safe_error_summary returns class name (line 26)."""
@@ -95,13 +99,17 @@ class TestBusinessRouterMissingLines:
 class TestMCPServerMissingLines:
     """Tests for missing lines in mcp_pulseplate_server.py (lines 39-40)"""
 
-    def test_reset_model_cache_function(self) -> None:
+    def test_reset_model_cache_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test _reset_model_cache clears cached models (lines 39-40)."""
         from mcp_pulseplate_server import PulsePlateMCPServer
 
-        # Set some cache values
-        PulsePlateMCPServer._cached_models = {"gpt-4o", "gpt-4"}
-        PulsePlateMCPServer._model_cache_failed = True
+        # Set some cache values using monkeypatch to avoid cross-test pollution
+        monkeypatch.setattr(
+            PulsePlateMCPServer,
+            "_cached_models",
+            {"gpt-4o", "gpt-4"},
+        )
+        monkeypatch.setattr(PulsePlateMCPServer, "_model_cache_failed", True)
 
         # Reset cache
         PulsePlateMCPServer._reset_model_cache()

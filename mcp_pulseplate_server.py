@@ -27,8 +27,6 @@ class PulsePlateMCPServer:
     # This is kept for compatibility with existing tests that validate that
     # DEFAULT_MODEL is part of a static whitelist before any dynamic checks.
     # Internally we alias this to FALLBACK_ALLOWED_MODELS so the two stay in sync.
-    ALLOWED_MODELS: set[str]
-
     # Cached available models from OpenAI API (populated on first validation)
     _cached_models: set[str] | None = None
     _model_cache_failed: bool = False

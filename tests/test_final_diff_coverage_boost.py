@@ -4,7 +4,6 @@ Additional diff coverage boost tests to reach 97%+ coverage.
 Targets specific missing lines from CI diff coverage report.
 """
 
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

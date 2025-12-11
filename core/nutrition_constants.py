@@ -49,6 +49,11 @@ BMI_OBESITY_THRESHOLD = 30.0  # Above this indicates obesity (class I+)
 _BMI_DANGEROUS_HIGH_VALUE = BMI_OBESITY_THRESHOLD
 
 
+# BMI_DANGEROUS_HIGH is intentionally not defined as a module-level constant.
+# Accessing it (e.g. via import * or attribute lookup) is routed through the
+# __getattr__ handler below, which emits a DeprecationWarning and returns
+# BMI_OBESITY_THRESHOLD. This behavior must be preserved for existing callers;
+# new code should use BMI_OBESITY_THRESHOLD directly.
 class _DeprecatedBMIAlias:
     """Accessor for deprecated BMI_DANGEROUS_HIGH alias that emits a warning when accessed."""
 
@@ -166,6 +171,7 @@ __all__ = [
     "MEAL_KCAL_THRESHOLD",
     "BMI_DANGEROUS_LOW",
     "BMI_OBESITY_THRESHOLD",
+    "BMI_DANGEROUS_HIGH",  # deprecated alias kept for compatibility
     "PROTEIN_MIN_PERCENT",
     "PROTEIN_MAX_PERCENT",
     "FAT_MIN_PERCENT",

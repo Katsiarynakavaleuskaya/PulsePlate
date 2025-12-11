@@ -97,8 +97,15 @@ class LogRetentionManager:
         Returns:
             Number of deleted log files
         """
-        # Non-destructive stub: log cleanup not yet implemented
-        # Return 0 to indicate no files deleted (safe default)
+        # TODO: Implement actual deletion logic:
+        # - Iterate over files in the configured log directory
+        # - For each file, determine its data_class (if applicable) and age
+        # - Compare file age to retention_periods (and optional data_class filter)
+        # - Safely delete files that exceed their retention window
+        # - Support safety features (e.g., dry‑run mode, backups, safeguards)
+        # - Update and return the number of deleted files
+        # Non-destructive stub for now: log cleanup not yet implemented.
+        # Return 0 to indicate no files deleted (safe default).
         data_class_str = data_class.value if data_class else "all"
         logger.warning(
             "Log cleanup not implemented for data_class=%s - returning 0 (no files deleted). "

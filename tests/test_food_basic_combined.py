@@ -116,16 +116,7 @@ class TestFoodDatabaseBasic:
         # Iterate to find the first item where key micronutrient fields are present and non-zero
         sample_item = None
         for item in food_db.values():
-            if (
-                item.Fe_mg
-                and item.Fe_mg > 0
-                and item.Ca_mg
-                and item.Ca_mg > 0
-                and item.Mg_mg
-                and item.Mg_mg > 0
-                and item.K_mg
-                and item.K_mg > 0
-            ):
+            if all((val or 0) > 0 for val in (item.Fe_mg, item.Ca_mg, item.Mg_mg, item.K_mg)):
                 sample_item = item
                 break
 

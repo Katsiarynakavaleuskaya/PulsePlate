@@ -25,12 +25,6 @@ if fs_module is None:
     spec.loader.exec_module(fs_module)
 
 
-# Expose resolve_attr for test-friendly attribute access
-def resolve_attr(name: str) -> Any:
-    """Resolve attribute from food_store module for test patching."""
-    return getattr(fs_module, name)
-
-
 # Short alias for backward compatibility
 fs: ModuleType = fs_module
 

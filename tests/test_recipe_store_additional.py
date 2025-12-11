@@ -28,12 +28,6 @@ if rs_module is None:
     spec.loader.exec_module(rs_module)
 
 
-# Expose resolve_attr for test-friendly attribute access
-def resolve_attr(name: str) -> Any:
-    """Resolve attribute from recipe_store module for test patching."""
-    return getattr(rs_module, name)
-
-
 # Short alias for backward compatibility
 rs: ModuleType = rs_module
 

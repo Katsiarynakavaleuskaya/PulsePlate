@@ -5,8 +5,22 @@ instead of using importlib.reload() to avoid breaking parallel tests.
 """
 
 import logging
+import sys
+from typing import Any
 
 import pytest
+
+
+@pytest.fixture
+def resolved_app_module() -> Any:
+    """Resolve the actual app module, handling both direct and sys.modules references.
+
+    Returns the resolved app module object for tests to patch __dict__ directly.
+    """
+    import app as app_module
+
+    # The actual module with get_api_key is 'app_module', not the 'app' package
+    return sys.modules.get("app_module") or app_module
 
 
 class TestLenientModeWarning:
@@ -17,19 +31,17 @@ class TestLenientModeWarning:
     """
 
     def test_lenient_mode_warning_logged_only_once(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        resolved_app_module: Any,
     ) -> None:
         """Verify that lenient mode warning is logged only once, not on every call."""
         # Set up environment for lenient mode
         monkeypatch.setenv("APP_ENV", "dev")
         monkeypatch.delenv("API_KEY", raising=False)
 
-        import app as app_module
-        import sys
-
-        # The actual module with get_api_key is 'app_module', not the 'app' package
-        actual_module = sys.modules.get("app_module") or app_module
-        module_dict = actual_module.__dict__
+        module_dict = resolved_app_module.__dict__
 
         try:
             # Always reset to False before test
@@ -40,7 +52,7 @@ class TestLenientModeWarning:
                 # Call get_api_key multiple times
                 for i in range(5):
                     # get_api_key should not raise in lenient mode
-                    actual_module.get_api_key("test-valid-key")
+                    resolved_app_module.get_api_key("test-valid-key")
 
             # Check that warning appears exactly once
             warning_messages = [
@@ -58,18 +70,16 @@ class TestLenientModeWarning:
             module_dict["_lenient_mode_warning_logged"] = False
 
     def test_lenient_mode_warning_content(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        resolved_app_module: Any,
     ) -> None:
         """Verify the warning message contains the expected security notice."""
         monkeypatch.setenv("APP_ENV", "dev")
         monkeypatch.delenv("API_KEY", raising=False)
 
-        import app as app_module
-        import sys
-
-        # The actual module with get_api_key is 'app_module', not the 'app' package
-        actual_module = sys.modules.get("app_module") or app_module
-        module_dict = actual_module.__dict__
+        module_dict = resolved_app_module.__dict__
 
         try:
             # Always reset to False before test
@@ -80,7 +90,7 @@ class TestLenientModeWarning:
 
             with caplog.at_level(logging.WARNING):
                 # get_api_key should not raise in lenient mode
-                actual_module.get_api_key("test-valid-key")
+                resolved_app_module.get_api_key("test-valid-key")
 
             # Verify warning message content
             warning_messages = [

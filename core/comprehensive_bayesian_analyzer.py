@@ -242,6 +242,10 @@ class ComprehensiveBayesianAnalyzer:
             },
         }
 
+    def reset(self) -> None:
+        """Reset accumulated comprehensive results to avoid cross-test pollution."""
+        self.comprehensive_results.clear()
+
     def analyze_comprehensively(
         self, test_code: str, test_name: str, file_path: str
     ) -> ComprehensiveTestResult:
@@ -349,7 +353,9 @@ class ComprehensiveBayesianAnalyzer:
         self.comprehensive_results.append(result)
         return result
 
-    def analyze_all(self, test_code: str, test_name: str) -> list[ComprehensiveTestResult]:
+    def analyze_all(
+        self, test_code: str, test_name: str, file_path: str = "<memory>"
+    ) -> list[ComprehensiveTestResult]:
         """
         Backwards-compatible helper that runs a full comprehensive analysis.
 
@@ -357,8 +363,14 @@ class ComprehensiveBayesianAnalyzer:
         results; internally we now expose :meth:`analyze_comprehensively`, which
         returns a single ``ComprehensiveTestResult``. This helper simply wraps
         that method and returns the result in a one-element list.
+
+        Args:
+            test_code: Source code of the test.
+            test_name: Name of the test.
+            file_path: Optional file path associated with the test; defaults to
+                ``\"<memory>\"`` for in-memory snippets.
         """
-        result = self.analyze_comprehensively(test_code, test_name, file_path="<memory>")
+        result = self.analyze_comprehensively(test_code, test_name, file_path=file_path)
         return [result]
 
     def _calculate_technical_score(self, issues: List[str]) -> float:

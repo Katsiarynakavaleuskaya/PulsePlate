@@ -1,7 +1,7 @@
 """Tests for weekly plan PDF export."""
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -262,7 +262,7 @@ def test_week_start_prefers_first_day() -> None:
 def test_week_start_defaults_today(monkeypatch: pytest.MonkeyPatch) -> None:
     class FixedDateTime(datetime):
         @classmethod
-        def now(cls, tz: Optional[datetime.tzinfo] = None) -> "FixedDateTime":
+        def now(cls, tz: Optional[tzinfo] = None) -> "FixedDateTime":
             return cls(2025, 1, 1, tzinfo=tz)
 
     monkeypatch.setattr(plan, "datetime", FixedDateTime)

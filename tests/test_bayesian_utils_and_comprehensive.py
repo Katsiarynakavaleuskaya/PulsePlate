@@ -78,8 +78,8 @@ def only_except():
     assert tech_utils._has_explicit_return_or_yield(func) is True
 
 
-def test_analyze_technical_aspects_common_regex_fallback_and_ast_branch() -> None:
-    # AST path: async without await + Mock instead of AsyncMock
+def test_analyze_technical_async_ast_path_and_mock_vs_asyncmock() -> None:
+    """AST path: async without await + Mock instead of AsyncMock."""
     code_ast = """
 import asyncio
 
@@ -90,13 +90,17 @@ async def fetch():
     assert "Async function without await usage" in issues_ast
     assert "Using Mock instead of AsyncMock for async methods" in issues_ast
 
-    # Regex fallback path triggered via syntax error
+
+def test_analyze_technical_async_regex_fallback_path() -> None:
+    """Regex fallback path for async Mock/AsyncMock patterns."""
     bad_code = "async def broken(:\n    Mock()\n"
     issues_regex = tech_utils.analyze_technical_aspects_common(bad_code)
     assert "Async function without await usage" in issues_regex
     assert "Using Mock instead of AsyncMock for async methods" in issues_regex
 
-    # Exception without handling should be reported
+
+def test_analyze_technical_exception_without_handling_reported() -> None:
+    """Exception raised without handling should be reported."""
     raise_code = """
 def bad():
     raise ValueError("oops")
@@ -104,7 +108,9 @@ def bad():
     issues_raise = tech_utils.analyze_technical_aspects_common(raise_code)
     assert "Exception raised without handling" in issues_raise
 
-    # Missing return type annotation (AST path)
+
+def test_analyze_technical_missing_return_annotation_ast_path() -> None:
+    """Missing return type annotation (AST path)."""
     missing_return = """
 def foo():
     return 1
@@ -112,7 +118,9 @@ def foo():
     issues_missing = tech_utils.analyze_technical_aspects_common(missing_return)
     assert "Missing return type annotations" in issues_missing
 
-    # Missing return type annotation (regex fallback path)
+
+def test_analyze_technical_missing_return_annotation_regex_fallback() -> None:
+    """Missing return type annotation (regex fallback path)."""
     bad_syntax = "def broken(:\n    return 1\n"
     issues_fallback = tech_utils.analyze_technical_aspects_common(bad_syntax)
     assert "Missing return type annotations" in issues_fallback
@@ -176,6 +184,8 @@ def test_business_load_business_knowledge_invalid_yaml(
         "_import_yaml_module",
         staticmethod(
             lambda: SimpleNamespace(
+                # This safe_load simulates a YAML parser that always raises ValueError
+                # by creating an empty generator and immediately throwing the exception.
                 safe_load=lambda f: (_ for _ in ()).throw(ValueError("invalid")),
                 YAMLError=ValueError,
             )
@@ -257,6 +267,7 @@ def test_comprehensive_scoring_and_impacts() -> None:
 
 def test_comprehensive_get_diagnosis_and_action_plan() -> None:
     analyzer = ComprehensiveBayesianAnalyzer()
+    analyzer.reset()
     empty = analyzer.get_comprehensive_diagnosis()
     assert empty["status"] == "no_data"
 
@@ -354,6 +365,7 @@ def helper():
 
 def test_comprehensive_analyze_comprehensively_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     analyzer = ComprehensiveBayesianAnalyzer()
+    analyzer.reset()
 
     class StubResult:
         def __init__(self, success: bool, error_message: str | None = None) -> None:

@@ -327,13 +327,13 @@ class BayesianTestAnalyzer:
                     )
                     for item in data
                 ]
-            logger.info(f"Загружено {len(self.execution_history)} записей истории тестов")
+            logger.info("Загружено %d записей истории тестов", len(self.execution_history))
             # Адаптировать приоры на базе истории
             self._refresh_priors_from_history()
         except FileNotFoundError:
-            logger.debug(f"History file not found: {self.data_file}")
+            logger.debug("History file not found: %s", self.data_file)
         except (json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.warning(f"Не удалось загрузить историю тестов: {e}")
+            logger.warning("Не удалось загрузить историю тестов: %s", e)
         except Exception:
             logger.exception("Unexpected error loading test history")
 
@@ -362,9 +362,9 @@ class BayesianTestAnalyzer:
             # Release lock before file I/O to avoid holding it during blocking operations
             with open(self.data_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logger.info(f"Сохранено {len(data)} записей истории тестов")
+            logger.info("Сохранено %d записей истории тестов", len(data))
         except Exception as e:
-            logger.error(f"Ошибка сохранения истории тестов: {e}")
+            logger.error("Ошибка сохранения истории тестов: %s", e)
 
     def record_test_execution(self, execution: TestRecord) -> None:
         """Записать выполнение теста."""

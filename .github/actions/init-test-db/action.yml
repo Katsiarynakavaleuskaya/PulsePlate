@@ -9,8 +9,19 @@ runs:
         # Ensure database directory exists
         mkdir -p cache
 
-        # Verify critical runtime dependencies are installed
-        python -c "import sys; [__import__(m) for m in ['sqlalchemy', 'fastapi', 'pydantic']]; print('✅ All critical dependencies available')" || { echo "❌ Critical dependencies missing. Run 'pip install -r requirements.txt' and 'pip install -r requirements-dev.txt' first."; exit 1; }
+        # Verify critical runtime dependencies are installed (explicit loop instead of list comprehension)
+        python <<'PYEOF'
+        import sys
+        required_modules = ["sqlalchemy", "fastapi", "pydantic"]
+        for module_name in required_modules:
+            try:
+                __import__(module_name)
+            except ImportError:
+                print(f"❌ Critical dependency missing: {module_name}")
+                print("Run: pip install -r requirements.txt && pip install -r requirements-dev.txt")
+                sys.exit(1)
+        print("✅ All critical dependencies available")
+        PYEOF
 
         # Initialize database schema (create tables)
         python -c "

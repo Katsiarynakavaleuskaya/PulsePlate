@@ -87,4 +87,10 @@ def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> Non
         finally:
             # Cleanup - use fresh reload to restore original state
             restored = importlib.reload(db)
-            restored.init_db()
+            # Be defensive: cleanup errors must not mask the original test failure
+            if restored is not None and hasattr(restored, "init_db"):
+                try:
+                    restored.init_db()
+                except Exception:
+                    # Ignore cleanup errors to preserve original assertion context
+                    pass

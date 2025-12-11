@@ -8,7 +8,7 @@ import ast
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Literal, Set
 
 from core.bayesian_technical_utils import analyze_technical_aspects_common
 from core.bayesian_test_analyzer import BayesianTestAnalyzer
@@ -52,7 +52,7 @@ class IntegratedTestResult:
     safety_issues: List[str]
     philosophy_violations: List[str]
     business_impact: str
-    overall_risk_level: str  # low, medium, high, critical
+    overall_risk_level: Literal["low", "medium", "high", "critical"]
     recommendations: List[str]
 
 
@@ -162,12 +162,13 @@ class IntegratedBayesianAnalyzer:
             technical_issues, nutrition_issues, safety_issues, philosophy_violations
         )
 
+        success = not any(
+            [technical_issues, nutrition_issues, safety_issues, philosophy_violations]
+        )
+
         result = IntegratedTestResult(
             test_name=test_name,
-            success=not technical_issues
-            and not nutrition_issues
-            and not safety_issues
-            and not philosophy_violations,
+            success=success,
             technical_issues=technical_issues,
             nutrition_issues=nutrition_issues,
             safety_issues=safety_issues,
@@ -943,14 +944,12 @@ class IntegratedBayesianAnalyzer:
 
         # Check if we have access to structured nutrition analyzer results
         # If available, prioritize structured metadata over text parsing
-        dangerous_nutrition_count = 0
         # Count dangerous findings only for current test from tracked structured results
-        if hasattr(self, "_last_nutrition_results"):
-            dangerous_nutrition_count = sum(
-                1
-                for result in self._last_nutrition_results
-                if not result.success and result.safety_level == "dangerous"
-            )
+        dangerous_nutrition_count = sum(
+            1
+            for result in self._last_nutrition_results
+            if not result.success and result.safety_level == "dangerous"
+        )
 
         # Normalize all issues and collect critical types
         all_issues = technical + nutrition + safety + philosophy

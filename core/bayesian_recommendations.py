@@ -253,8 +253,7 @@ def get_recommendations(
     if language not in RECOMMENDATIONS:
         language = DEFAULT_LANGUAGE
 
-    if fallback is None:
-        fallback = []
+    fallback = fallback or []
 
     # Try requested language
     lang_dict = RECOMMENDATIONS.get(language, {})
@@ -321,7 +320,7 @@ def get_symptom_key(symptom: str) -> str:
     return f"symptom.{symptom_clean}"
 
 
-def get_all_error_type_keys() -> list[str]:
+def get_all_error_type_keys() -> List[str]:
     """
     Get all error type recommendation keys.
 
@@ -332,7 +331,7 @@ def get_all_error_type_keys() -> list[str]:
     return [key for key in lang_dict.keys() if key.startswith("error_type.")]
 
 
-def get_all_symptom_keys() -> list[str]:
+def get_all_symptom_keys() -> List[str]:
     """
     Get all symptom recommendation keys.
 

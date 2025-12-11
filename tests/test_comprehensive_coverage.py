@@ -4,6 +4,7 @@ Comprehensive tests to improve coverage to 97%+.
 
 import os
 from types import SimpleNamespace
+from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -159,26 +160,31 @@ class TestComprehensiveCoverage:
             assert "results" in data
 
     def test_force_update_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test force update endpoint exception handling - non-deterministic.
+        """Test force update endpoint exception handling - deterministic.
 
-        This test allows multiple status codes because the endpoint may return:
-        - 200/503 if the scheduler singleton was already created before the mock
-        - 500 if the mock successfully triggers the exception path
+        This test now clears the scheduler singleton to ensure the mock is invoked.
         """
+        # Clear the scheduler singleton to force fresh initialization
+        from core.food_apis import scheduler
+
+        monkeypatch.setattr(scheduler, "_scheduler_instance", None)
+
+        # Clear any test scheduler override
+        monkeypatch.setattr(app_mod, "_test_scheduler_override", None, raising=False)
 
         # Patch using monkeypatch to ensure the endpoint sees the mock
         async def fake_get_scheduler_error():
             raise Exception("Test error")
 
+        # Patch both the app module and scheduler module
         monkeypatch.setattr(app_mod, "get_update_scheduler", fake_get_scheduler_error)
+        monkeypatch.setattr(scheduler, "get_update_scheduler", fake_get_scheduler_error)
 
         response = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
-        # Endpoint may return 200/503 if scheduler was already created (singleton),
-        # or 500 if mock successfully triggered
-        assert response.status_code in [200, 500, 503]
-        if response.status_code == 500:
-            data = response.json()
-            assert "detail" in data
+        # With cleared singleton and mocked function, should deterministically return 500
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
     def test_check_updates_endpoint_success(self) -> None:
         """Test check updates endpoint success case with deterministic status."""
@@ -372,16 +378,13 @@ class TestComprehensiveCoverage:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def _assert_premium_plate_success(
-        self,
-        mock_calc_bmr: MagicMock,
-        mock_calc_tdee: MagicMock,
-        mock_make_plate: MagicMock,
-    ) -> None:
-        mock_calc_bmr.return_value = {"mifflin": 1500}
-        mock_calc_tdee.return_value = {"mifflin": 2000}
+    def _create_premium_plate_mock_data(self) -> Dict[str, Any]:
+        """Create mock plate data for premium plate endpoint tests.
 
-        mock_make_plate.return_value = {
+        Returns:
+            Dictionary with complete plate data structure including kcal, macros, portions, layout, and meals.
+        """
+        return {
             "kcal": 2000,
             "macros": {
                 "protein_g": 100,
@@ -439,6 +442,35 @@ class TestComprehensiveCoverage:
             ],
         }
 
+    def _create_premium_bmr_mocks(
+        self, mock_calc_bmr: MagicMock, mock_calc_tdee: MagicMock
+    ) -> None:
+        """Configure BMR and TDEE mock return values.
+
+        Args:
+            mock_calc_bmr: MagicMock for calculate_all_bmr function
+            mock_calc_tdee: MagicMock for calculate_all_tdee function
+        """
+        mock_calc_bmr.return_value = {"mifflin": 1500}
+        mock_calc_tdee.return_value = {"mifflin": 2000}
+
+    def _assert_premium_plate_success(
+        self,
+        mock_calc_bmr: MagicMock,
+        mock_calc_tdee: MagicMock,
+        mock_make_plate: MagicMock,
+    ) -> None:
+        """Test helper for premium plate endpoint success path.
+
+        Args:
+            mock_calc_bmr: MagicMock for calculate_all_bmr function
+            mock_calc_tdee: MagicMock for calculate_all_tdee function
+            mock_make_plate: MagicMock for make_plate function
+        """
+        # Configure mocks using helper functions
+        self._create_premium_bmr_mocks(mock_calc_bmr, mock_calc_tdee)
+        mock_make_plate.return_value = self._create_premium_plate_mock_data()
+
         payload = {
             "sex": "male",
             "age": 30,
@@ -451,6 +483,8 @@ class TestComprehensiveCoverage:
         response = self.client.post(
             "/api/v1/premium/plate", json=payload, headers={"X-API-Key": "test_key"}
         )
+
+        # Assertions stay in test body
         assert response.status_code == 200
         data = response.json()
         assert "kcal" in data
@@ -761,13 +795,13 @@ class TestComprehensiveCoverage:
     def test_nutrient_gaps_endpoint_general_exception(self) -> None:
         """Test nutrient gaps endpoint with general exception.
 
-        NOTE: This test attempts to mock analyze_nutrient_gaps to raise an exception,
-        but the endpoint uses dynamic getattr resolution which may not trigger the mock.
-        The endpoint may return 200 with fallback behavior instead of 500.
-        This follows the pattern from other similar tests that accept multiple status codes.
+        This test uses patch to deterministically trigger the exception path
+        by making build_nutrition_targets raise an exception via score_nutrient_coverage.
         """
-        with patch("app.analyze_nutrient_gaps") as mock_analyze:
-            mock_analyze.side_effect = Exception("Test error")
+        # Patch score_nutrient_coverage to raise an exception
+        # This function is called after build_targets succeeds, so it will trigger the exception handler
+        with patch("core.recommendations.score_nutrient_coverage") as mock_score:
+            mock_score.side_effect = Exception("Test error in score_nutrient_coverage")
 
             payload = {
                 "consumed_nutrients": {"protein_g": 80, "fat_g": 60, "carbs_g": 200},
@@ -784,9 +818,10 @@ class TestComprehensiveCoverage:
             response = self.client.post(
                 "/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"}
             )
-            # TODO: Improve mocking to properly trigger exception path
-            # Currently returns 200 due to dynamic getattr resolution
-            assert response.status_code in [200, 500, 503]
+            # With exception in score_nutrient_coverage, should return 500
+            assert response.status_code == 500
+            data = response.json()
+            assert "detail" in data
 
 
 if __name__ == "__main__":

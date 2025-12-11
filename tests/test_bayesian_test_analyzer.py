@@ -126,8 +126,8 @@ class TestPriorProbabilityUpdates:
         analyzer = BayesianTestAnalyzer()
         initial_priors = analyzer.prior_probabilities.copy()
         analyzer.analyze_technical_aspects("def test(): pass", "test")
-        # Priors should still be valid
-        assert analyzer.prior_probabilities is not None
+        # analyze_technical_aspects should not mutate prior probabilities
+        assert analyzer.prior_probabilities == initial_priors
 
 
 class TestPredictionAndHealthScore:
@@ -399,17 +399,23 @@ class TestInternalsAndEdgeBranches:
 
     def test_module_level_helpers_use_global_analyzer(self) -> None:
         """Global helper functions should delegate and return a BayesianDiagnosis."""
-        bayesian_test_analyzer.record_test_execution(
-            test_name="test_global_helper",
-            category=TestCategory.UNIT,
-            result=TestStatus.FAILED,
-            error_type=ErrorType.ASSERTION_ERROR,
-            error_message="Assertion failed",
-        )
-        diagnosis = bayesian_test_analyzer.diagnose_test_failure(
-            "test_global_helper", "Assertion failed", context={"has_mocks": True}
-        )
-        assert isinstance(diagnosis, BayesianDiagnosis)
+        # Preserve global analyzer state to avoid cross-test pollution
+        original_analyzer = bayesian_test_analyzer.get_analyzer()
+        try:
+            bayesian_test_analyzer.record_test_execution(
+                test_name="test_global_helper",
+                category=TestCategory.UNIT,
+                result=TestStatus.FAILED,
+                error_type=ErrorType.ASSERTION_ERROR,
+                error_message="Assertion failed",
+            )
+            diagnosis = bayesian_test_analyzer.diagnose_test_failure(
+                "test_global_helper", "Assertion failed", context={"has_mocks": True}
+            )
+            assert isinstance(diagnosis, BayesianDiagnosis)
+        finally:
+            # Restore the original global analyzer instance
+            bayesian_test_analyzer.bayesian_analyzer = original_analyzer
 
     def test_generate_test_report_recommendations_thresholds(self) -> None:
         """High failure rate should trigger recommendations and most common error handling."""

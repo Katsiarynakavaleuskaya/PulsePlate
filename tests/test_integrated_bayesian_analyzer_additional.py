@@ -35,6 +35,24 @@ def test_check_unsafe_file_opens_variants() -> None:
     bad_code = "def broken(:\n  open('x')"
     assert analyzer._check_unsafe_file_opens(bad_code) is False
 
+    # Unsafe open without context manager or closing() should be flagged
+    unsafe_code = """
+def bad():
+    f = open("x.txt")
+    data = f.read()
+"""
+    assert analyzer._check_unsafe_file_opens(unsafe_code) is True
+
+    # Open wrapped by contextlib.closing should be treated as safe
+    safe_closing_code = """
+import contextlib
+
+def good():
+    with contextlib.closing(open("y.txt")) as f:
+        data = f.read()
+"""
+    assert analyzer._check_unsafe_file_opens(safe_closing_code) is False
+
 
 def test_check_sensitive_data_logging_regex_fallback() -> None:
     analyzer = IntegratedBayesianAnalyzer()
@@ -47,6 +65,23 @@ token = 'abc'
 logger.info(f\"token={token}\")
 """
     assert analyzer._check_sensitive_data_logging(code_ast) is True
+
+    # Constant string containing sensitive keyword
+    code_constant = """
+import logging
+logger = logging.getLogger(__name__)
+logger.warning("secret_key is set")
+"""
+    assert analyzer._check_sensitive_data_logging(code_constant) is True
+
+    # Name argument containing sensitive keyword
+    code_name_arg = """
+import logging
+password = "abc"
+logger = logging.getLogger(__name__)
+logger.error(password)
+"""
+    assert analyzer._check_sensitive_data_logging(code_name_arg) is True
 
     code_joined = """
 import logging
@@ -75,6 +110,18 @@ def test_password():
 """
     issues_test = analyzer._analyze_safety_aspects(test_code, "test_password")
     assert all("password" not in msg.lower() for msg in issues_test)
+
+
+def test_analyze_safety_aspects_sensitive_logging() -> None:
+    """Ensure _analyze_safety_aspects reports sensitive logging issues."""
+    analyzer = IntegratedBayesianAnalyzer()
+    code = """
+import logging
+logger = logging.getLogger(__name__)
+logger.info("password reset token leak")
+"""
+    issues = analyzer._analyze_safety_aspects(code, "prod_logging")
+    assert any("logging sensitive data" in msg.lower() for msg in issues)
 
 
 def test_check_potential_sql_injection_various_patterns() -> None:
@@ -112,6 +159,47 @@ query += " SELECT * FROM logs" + user_id
 cursor.execute(query)
 """
     assert analyzer._check_potential_sql_injection(code_augassign) is True
+
+    # Annotated assignment followed by execute()
+    code_annassign = """
+user_input = "abc"
+query: str = "SELECT * FROM users" + user_input
+cursor.execute(query)
+"""
+    assert analyzer._check_potential_sql_injection(code_annassign) is True
+
+    # Keyword argument with dynamic SQL expression passed directly
+    code_kw_dynamic = """
+user_input = "abc"
+cursor.execute(sql="SELECT * FROM users" + user_input)
+"""
+    assert analyzer._check_potential_sql_injection(code_kw_dynamic) is True
+
+    # Logging-only helper where logger is reached via attribute chain
+    code_attr_logger_logging_only = """
+import logging
+
+class Wrapper:
+    def __init__(self) -> None:
+        self.logger = logging.getLogger(__name__)
+
+wrapper = Wrapper()
+user_id = "42"
+query = "SELECT * FROM users" + user_id
+wrapper.logger.info(query)
+"""
+    assert analyzer._check_potential_sql_injection(code_attr_logger_logging_only) is False
+
+    # Logging callable style (logger(...) / log(...)) should also be treated as logging
+    code_callable_logging_only = """
+def logger(message):
+    pass
+
+user_id = "42"
+query = "SELECT * FROM users" + user_id
+logger(query)
+"""
+    assert analyzer._check_potential_sql_injection(code_callable_logging_only) is False
 
 
 def test_check_potential_sql_injection_ignores_logging_only() -> None:
@@ -212,6 +300,30 @@ class MyTest(TestCase):
         pass
 """
     assert analyzer._is_in_test_or_mock_context(code_name_base) is True
+
+
+def test_is_in_test_or_mock_context_import_from_and_mock_calls() -> None:
+    """Cover 'from mock import' and Mock/MagicMock/AsyncMock call patterns."""
+    analyzer = IntegratedBayesianAnalyzer()
+
+    code_from_mock = """
+from mock import patch
+
+@patch("mod.fn")
+def fx():
+    pass
+"""
+    assert analyzer._is_in_test_or_mock_context(code_from_mock) is True
+
+    code_mock_calls = """
+from unittest.mock import Mock, MagicMock, AsyncMock
+
+def fx():
+    m1 = Mock()
+    m2 = MagicMock()
+    m3 = AsyncMock()
+"""
+    assert analyzer._is_in_test_or_mock_context(code_mock_calls) is True
 
 
 def test_assess_business_impact_levels() -> None:

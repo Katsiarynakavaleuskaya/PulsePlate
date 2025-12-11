@@ -22,13 +22,15 @@ def reload_db_with_cleanup(monkeypatch: pytest.MonkeyPatch):
     original_db_url = os.environ.get("DATABASE_URL")
     temp_dir = tempfile.mkdtemp(prefix="core_db_comp_")
     default_db_path = os.path.join(temp_dir, "app.db")
-    os.makedirs(os.path.dirname(default_db_path), exist_ok=True)
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{default_db_path}")
 
     # Reload db module for test
     yield db
 
-    # Cleanup: ensure default DB path is available after monkeypatch undo
+    # Cleanup: ensure default DB path is available after monkeypatch undo.
+    # We temporarily set DATABASE_URL directly on os.environ here (after the
+    # fixture yield) so that the reloaded db module sees the test URL even
+    # after monkeypatch has unwound environment changes.
     try:
         os.makedirs(os.path.dirname(default_db_path), exist_ok=True)
         os.environ["DATABASE_URL"] = f"sqlite:///{default_db_path}"
@@ -246,37 +248,39 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
     if db.create_async_engine is None or db.async_sessionmaker is None:
         pytest.skip("sqlalchemy.asyncio not available")
 
-    # Use SQLite async instead of PostgreSQL to avoid needing asyncpg installed
-    monkeypatch.setenv("DATABASE_URL", "sqlite:///test_async.db")
-    monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
-    monkeypatch.setenv("DATABASE_POOL_SIZE", "15")
-    monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "25")
+    reloaded = db  # Initialize for finally block
+    try:
+        # Use SQLite async instead of PostgreSQL to avoid needing asyncpg installed
+        monkeypatch.setenv("DATABASE_URL", "sqlite:///test_async.db")
+        monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
+        monkeypatch.setenv("DATABASE_POOL_SIZE", "15")
+        monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "25")
 
-    reloaded = importlib.reload(db)
+        reloaded = importlib.reload(db)
 
-    # Verify async URL was derived correctly
-    assert reloaded.ASYNC_DATABASE_URL is not None
-    assert "sqlite+aiosqlite" in reloaded.ASYNC_DATABASE_URL
+        # Verify async URL was derived correctly
+        assert reloaded.ASYNC_DATABASE_URL is not None
+        assert "sqlite+aiosqlite" in reloaded.ASYNC_DATABASE_URL
 
-    # For SQLite+aiosqlite, async engine should be created
-    # but pool config is skipped (see core/db.py lines 369-371)
-    if reloaded._ASYNC_ENGINE is not None:
-        # Engine was successfully created (aiosqlite available)
-        # Verify pool config was NOT applied (SQLite doesn't use connection pooling)
-        engine_pool = reloaded._ASYNC_ENGINE.pool
-        from sqlalchemy.pool import NullPool, StaticPool
+        # For SQLite+aiosqlite, async engine should be created
+        # but pool config is skipped (see core/db.py lines 369-371)
+        if reloaded._ASYNC_ENGINE is not None:
+            # Engine was successfully created (aiosqlite available)
+            # Verify pool config was NOT applied (SQLite doesn't use connection pooling)
+            engine_pool = reloaded._ASYNC_ENGINE.pool
+            from sqlalchemy.pool import NullPool, StaticPool
 
-        assert isinstance(
-            engine_pool, (NullPool, StaticPool)
-        ), f"SQLite async engine should use NullPool/StaticPool, got {type(engine_pool).__name__}"
-    # else: aiosqlite not available, engine creation failed gracefully (ImportError)
-    # Both states are valid - test passes either way
-
-    # Cleanup
-    if reloaded._ASYNC_ENGINE:
-        await reloaded._ASYNC_ENGINE.dispose()
-    importlib.reload(db)
-    db.init_db()
+            assert isinstance(
+                engine_pool, (NullPool, StaticPool)
+            ), f"SQLite async engine should use NullPool/StaticPool, got {type(engine_pool).__name__}"
+        # else: aiosqlite not available, engine creation failed gracefully (ImportError)
+        # Both states are valid - test passes either way
+    finally:
+        # Cleanup
+        if reloaded._ASYNC_ENGINE:
+            await reloaded._ASYNC_ENGINE.dispose()
+        importlib.reload(db)
+        db.init_db()
 
 
 @pytest.mark.asyncio
@@ -387,13 +391,14 @@ def test_init_db_wrapper_not_called() -> None:
     wrapper_any = cast(Any, create_all_wrapper)
     wrapper_any._called = False
 
-    # Now test the failure path: call assert_called_once without calling the wrapper
-    with pytest.raises(AssertionError, match="create_all was not invoked"):
-        wrapper_any.assert_called_once()
-
-    # Cleanup: restore original state
-    importlib.reload(db)
-    db.init_db()
+    try:
+        # Now test the failure path: call assert_called_once without calling the wrapper
+        with pytest.raises(AssertionError, match="create_all was not invoked"):
+            wrapper_any.assert_called_once()
+    finally:
+        # Cleanup: restore original state
+        importlib.reload(db)
+        db.init_db()
 
 
 @pytest.mark.asyncio

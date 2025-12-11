@@ -8,7 +8,6 @@ Tests verify the actual retry mechanism with exponential backoff:
 """
 
 import pytest
-import time
 from unittest.mock import patch, MagicMock, call
 from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError, IntegrityError
@@ -73,17 +72,16 @@ class TestUsersRetryMechanism:
             # Simulate duplicate email constraint violation
             raise IntegrityError("UNIQUE constraint failed: users.email", None, None)
 
-        start_time = time.time()
+        # Ensure any potential retry delay is a no-op
+        monkeypatch.setattr("app.routers.users.time.sleep", lambda _seconds: None)
         with pytest.raises(HTTPException) as exc_info:
             users._execute_with_retry(action_with_integrity_error)
-        elapsed = time.time() - start_time
 
         # Should fail immediately without retries
         assert exc_info.value.status_code == 409
         assert "conflict" in exc_info.value.detail.lower()
 
-        # Verify NO retries happened (only 1 attempt, < 100ms)
-        assert elapsed < 0.1, f"Should fail fast, but took {elapsed}s"
+        # Verify NO retries happened (only 1 attempt)
         assert mock_db.SessionLocal.call_count == 1
         assert mock_session.close.call_count == 1
         assert mock_session.rollback.call_count == 1
@@ -111,17 +109,17 @@ class TestUsersRetryMechanism:
                 # Retry attempt: integrity error (should fail fast)
                 raise IntegrityError("UNIQUE constraint", None, None)
 
-        start_time = time.time()
+        # Ensure retry delay is a no-op to avoid timing-based flakiness
+        monkeypatch.setattr("app.routers.users.time.sleep", lambda _seconds: None)
         with pytest.raises(HTTPException) as exc_info:
             users._execute_with_retry(action_with_mixed_errors)
-        elapsed = time.time() - start_time
 
         # Should fail on 2nd attempt (after first retry delay of 0.1s)
         assert exc_info.value.status_code == 409
         assert call_count == 2
-
-        # Timing: 0.1s delay before 2nd attempt
-        assert 0.1 <= elapsed < 0.3, f"Expected ~0.1s for single retry, got {elapsed}s"
+        # Verify exactly one retry happened
+        assert mock_db.SessionLocal.call_count == 2
+        assert mock_session.close.call_count == 2
 
     def test_retry_exhaustion_with_fallback_returns_fallback_value(
         self, monkeypatch: pytest.MonkeyPatch

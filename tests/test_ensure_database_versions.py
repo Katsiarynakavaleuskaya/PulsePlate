@@ -8,11 +8,14 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
-from unittest.mock import patch, mock_open
-import pytest
 import importlib.util
 import sys
+from typing import Any
+from unittest.mock import mock_open, patch
+
+import pytest
+
+from tests.test_utils import create_selective_error
 
 # Import the module under test using importlib
 spec = importlib.util.spec_from_file_location(
@@ -28,40 +31,6 @@ sys.modules["scripts.ensure_database_versions"] = ensure_database_versions
 ensure_versions_file = ensure_database_versions.ensure_versions_file
 main = ensure_database_versions.main
 DEFAULT_META = ensure_database_versions.DEFAULT_META
-
-
-def create_selective_error(
-    original_method: Callable[..., Any],
-    target_path: Path,
-    error_class: type[BaseException],
-    message: str,
-) -> Callable[..., Any]:
-    """Return a function that raises only for the target path and delegates otherwise.
-
-    Args:
-        original_method: The original Path method to wrap (e.g., Path.mkdir, Path.write_text)
-        target_path: The specific Path instance for which to raise an error
-        error_class: The exception class to raise (e.g., OSError, PermissionError)
-        message: The error message to include in the raised exception
-
-    Returns:
-        A wrapper function that selectively raises errors for target_path only.
-
-    Example:
-        >>> selective_mkdir = create_selective_error(
-        ...     Path.mkdir, Path("/tmp/test"), OSError, "Permission denied"
-        ... )
-        >>> with patch.object(Path, "mkdir", selective_mkdir):
-        ...     Path("/tmp/test").mkdir()  # Raises OSError
-        ...     Path("/tmp/other").mkdir()  # Works normally
-    """
-
-    def selective_error(self: Path, *args: Any, **kwargs: Any) -> Any:
-        if self == target_path:
-            raise error_class(message)
-        return original_method(self, *args, **kwargs)
-
-    return selective_error
 
 
 class TestEnsureDatabaseVersions:

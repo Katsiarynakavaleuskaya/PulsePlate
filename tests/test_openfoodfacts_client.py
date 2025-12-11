@@ -276,7 +276,7 @@ class TestOFFClient:
             assert results[0].product_name == "Test Product"
 
     @pytest.mark.asyncio
-    async def test_search_products_error(self):
+    async def test_search_products_error(self) -> None:
         """Test search products functionality with error response."""
         # Mock the HTTP client to raise an exception
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -287,7 +287,7 @@ class TestOFFClient:
             assert len(results) == 0
 
     @pytest.mark.asyncio
-    async def test_search_products_filters_invalid_items(self):
+    async def test_search_products_filters_invalid_items(self) -> None:
         """search_products should skip items that fail parsing (food_item is None)."""
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = MagicMock()
@@ -300,7 +300,7 @@ class TestOFFClient:
             assert results == []
 
     @pytest.mark.asyncio
-    async def test_get_product_details_success(self):
+    async def test_get_product_details_success(self) -> None:
         """Test get product details functionality with successful response."""
         # Mock the HTTP client
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -326,7 +326,7 @@ class TestOFFClient:
             assert result.product_name == "Test Product"
 
     @pytest.mark.asyncio
-    async def test_get_product_details_not_found(self):
+    async def test_get_product_details_not_found(self) -> None:
         """Test get product details when product not found."""
         # Mock the HTTP client
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -341,7 +341,7 @@ class TestOFFClient:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_product_details_error(self):
+    async def test_get_product_details_error(self) -> None:
         """Test get product details functionality with error response."""
         # Mock the HTTP client to raise an exception
         with patch("httpx.AsyncClient.get") as mock_get:
@@ -352,7 +352,7 @@ class TestOFFClient:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_get_multiple_products(self):
+    async def test_get_multiple_products(self) -> None:
         """Test get multiple products functionality."""
         # Mock the get_product_details method
         with patch.object(self.client, "get_product_details") as mock_get_details:
@@ -393,7 +393,7 @@ class TestOFFClient:
             assert results[1].code == "2"
 
     @pytest.mark.asyncio
-    async def test_close_client(self):
+    async def test_close_client(self) -> None:
         """Test closing the HTTP client."""
         # Mock the HTTP client
         with patch.object(self.client.client, "aclose") as mock_aclose:

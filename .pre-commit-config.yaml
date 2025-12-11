@@ -135,7 +135,7 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
-        files: ^(Dockerfile|\.dockerignore|docker-compose\.yaml|requirements\.txt|app/|core/|scripts/)
+        files: ^(Dockerfile|\.dockerignore|docker-compose\.yaml|requirements\.txt|(app|core|scripts)/.*)
 
 ci:
   autofix_commit_msg: "chore(pre-commit): auto-fix via pre-commit"

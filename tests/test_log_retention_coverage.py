@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 
 from core.log_retention import DataClass, LogRetentionManager, get_retention_manager

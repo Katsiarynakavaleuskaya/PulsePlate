@@ -111,6 +111,10 @@ def test_weekly_plan_pdf_endpoint_not_registered() -> None:
 
 def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> None:
     """BMI Pro router inclusion is controlled by FEATURE_BMI_PRO_ENABLED flag."""
+    import os
+
+    original_flag = os.environ.get("FEATURE_BMI_PRO_ENABLED")
+
     monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", "0")
 
     # Reload app module with feature flag disabled
@@ -125,7 +129,10 @@ def test_bmi_pro_router_feature_flag_toggle(monkeypatch: pytest.MonkeyPatch) -> 
     assert response.status_code == 404
 
     # Restore environment to original state before final reload
-    monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+    if original_flag is None:
+        monkeypatch.delenv("FEATURE_BMI_PRO_ENABLED", raising=False)
+    else:
+        monkeypatch.setenv("FEATURE_BMI_PRO_ENABLED", original_flag)
 
     # Restore app to original state
     importlib.reload(app)

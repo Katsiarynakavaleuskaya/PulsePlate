@@ -88,3 +88,40 @@ async def test_session_scope_async_commits_and_closes(monkeypatch: pytest.Monkey
 
     assert session.committed is True
     assert session.closed is True
+
+
+@pytest.mark.asyncio
+async def test_session_scope_async_rolls_back_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise session_scope_async rollback behavior when an error occurs."""
+    importlib.reload(db_module)
+
+    class DummyAsyncSession:
+        def __init__(self) -> None:
+            self.committed = False
+            self.closed = False
+            self.rolled_back = False
+
+        async def commit(self) -> None:
+            self.committed = True
+
+        async def rollback(self) -> None:
+            self.rolled_back = True
+
+        async def close(self) -> None:
+            self.closed = True
+
+    def factory() -> DummyAsyncSession:
+        return DummyAsyncSession()
+
+    monkeypatch.setattr(db_module, "AsyncSessionLocal", factory)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        async with db_module.session_scope_async() as session:
+            assert isinstance(session, DummyAsyncSession)
+            raise RuntimeError("boom")
+
+    assert session.committed is False
+    assert session.rolled_back is True
+    assert session.closed is True
