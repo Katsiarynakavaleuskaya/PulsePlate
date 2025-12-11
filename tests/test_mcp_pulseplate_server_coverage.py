@@ -14,26 +14,26 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import mcp_pulseplate_server
 
 
-@pytest.fixture(autouse=True)
-def mock_openai_models_fetch():
-    """Automatically mock _fetch_available_models for all MCP server tests.
+@pytest.fixture
+def mock_fetch_models():
+    """Fixture to mock _fetch_available_models for most MCP server tests.
 
     This prevents API calls during tests and ensures consistent behavior.
-    Tests run in CI without OPENAI_API_KEY will use fallback model list.
+    Tests that need to test the actual _fetch_available_models method
+    should use the 'no_mock_fetch' marker.
     """
-    # Mock the class method to always return fallback list
     with patch.object(
         mcp_pulseplate_server.PulsePlateMCPServer,
         "_fetch_available_models",
         return_value=mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS,
-    ):
-        yield
+    ) as mock:
+        yield mock
 
 
 class TestMcpPulseplateServerCoverage:
     """Test class to cover mcp_pulseplate_server.py"""
 
-    def test_pulseplate_mcp_server_init_success(self):
+    def test_pulseplate_mcp_server_init_success(self, mock_fetch_models):
         """Test PulsePlateMCPServer initialization with valid API key"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
             with patch("openai.OpenAI") as mock_openai:
@@ -48,13 +48,13 @@ class TestMcpPulseplateServerCoverage:
                 assert "project_name" in server.project_context
                 assert server.project_context["project_name"] == "PulsePlate"
 
-    def test_pulseplate_mcp_server_init_no_api_key(self):
+    def test_pulseplate_mcp_server_init_no_api_key(self, mock_fetch_models):
         """Test PulsePlateMCPServer initialization without API key"""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError, match="OPENAI_API_KEY environment variable not set"):
                 _ = mcp_pulseplate_server.PulsePlateMCPServer()
 
-    def test_pulseplate_mcp_server_default_model(self) -> None:
+    def test_pulseplate_mcp_server_default_model(self, mock_fetch_models) -> None:
         """Test PulsePlateMCPServer uses default model when MCP_OPENAI_MODEL is unset"""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=True):
             with patch("openai.OpenAI") as mock_openai:
@@ -67,7 +67,9 @@ class TestMcpPulseplateServerCoverage:
                 assert server.model == "gpt-4o"
                 assert server.model == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
 
-    def test_pulseplate_mcp_server_custom_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_pulseplate_mcp_server_custom_model(
+        self, mock_fetch_models, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test PulsePlateMCPServer accepts custom model via MCP_OPENAI_MODEL"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("MCP_OPENAI_MODEL", "gpt-4o-mini")
@@ -82,7 +84,7 @@ class TestMcpPulseplateServerCoverage:
             assert server.model == "gpt-4o-mini"
 
     def test_pulseplate_mcp_server_empty_model_uses_default(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_fetch_models, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test PulsePlateMCPServer falls back to DEFAULT_MODEL when empty model string is set.
 
@@ -102,7 +104,7 @@ class TestMcpPulseplateServerCoverage:
             assert server.model == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
 
     def test_pulseplate_mcp_server_invalid_model_whitespace(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_fetch_models, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test PulsePlateMCPServer treats whitespace-only model as fallback to DEFAULT_MODEL"""
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -114,7 +116,7 @@ class TestMcpPulseplateServerCoverage:
             assert server.model == mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
 
     def test_pulseplate_mcp_server_invalid_model_not_in_whitelist(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, mock_fetch_models, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test PulsePlateMCPServer raises ValueError for models not in whitelist"""
         invalid_models = [
@@ -224,7 +226,9 @@ class TestMcpPulseplateServerCoverage:
             monkeypatch.delenv("MCP_OPENAI_MODEL", raising=False)
 
     @pytest.mark.asyncio
-    async def test_custom_model_passed_to_api(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_custom_model_passed_to_api(
+        self, mock_fetch_models, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that custom model is passed to OpenAI API calls"""
         custom_model = "gpt-4o-mini"  # Use valid model from whitelist
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -247,6 +251,187 @@ class TestMcpPulseplateServerCoverage:
             # Verify the custom model was passed to the API
             call_args = mock_client.chat.completions.create.call_args
             assert call_args[1]["model"] == custom_model
+
+    def test_fetch_available_models_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _fetch_available_models returns cached models if available (lines 79-80)"""
+        # Set up cached models
+        cached_models = {"gpt-4o", "gpt-4o-mini", "test-model"}
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = cached_models
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+        # Don't mock _fetch_available_models for this test
+        result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
+
+        # Should return cached models without making API call
+        assert result == cached_models
+
+        # Cleanup
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+
+    def test_fetch_available_models_failed_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _fetch_available_models returns fallback when cache failed (lines 83-88)"""
+        # Set cache as failed
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = True
+
+        # Don't mock the method itself
+        with patch("mcp_pulseplate_server.logger") as mock_logger:
+            result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
+
+            # Should return fallback models
+            assert result == mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
+            # Should log warning
+            mock_logger.warning.assert_called_once()
+            assert "fallback model list" in mock_logger.warning.call_args[0][0]
+
+        # Cleanup
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+    def test_fetch_available_models_no_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _fetch_available_models returns fallback when no API key (lines 95-99)"""
+        # Reset cache state
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+        # Remove API key from environment
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        with patch("mcp_pulseplate_server.logger") as mock_logger:
+            result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
+
+            # Should return fallback models
+            assert result == mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
+            # Should set failed flag
+            assert mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed is True
+            # Should log info message
+            mock_logger.info.assert_called_once()
+            assert "OPENAI_API_KEY not set" in mock_logger.info.call_args[0][0]
+
+        # Cleanup
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+    def test_fetch_available_models_empty_response(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _fetch_available_models handles empty API response (lines 108-114)"""
+        # Reset cache state
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Mock OpenAI to return empty model list
+        with patch("openai.OpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.models.list.return_value.data = []  # Empty list
+            mock_openai.return_value = mock_client
+
+            with patch("mcp_pulseplate_server.logger") as mock_logger:
+                result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
+
+                # Should return fallback models
+                assert result == mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
+                # Should set failed flag
+                assert mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed is True
+                # Should log warning
+                mock_logger.warning.assert_called_once()
+                assert "empty model list" in mock_logger.warning.call_args[0][0]
+
+        # Cleanup
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+    def test_fetch_available_models_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _fetch_available_models successfully caches models (lines 101-102, 105, 117-122)"""
+        # Reset cache state
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Mock OpenAI to return models
+        test_models = [MagicMock(id="gpt-4o"), MagicMock(id="gpt-4o-mini"), MagicMock(id="o1")]
+        with patch("openai.OpenAI") as mock_openai:
+            mock_client = MagicMock()
+            mock_client.models.list.return_value.data = test_models
+            mock_openai.return_value = mock_client
+
+            with patch("mcp_pulseplate_server.logger") as mock_logger:
+                result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
+
+                # Should return model IDs as set
+                assert result == {"gpt-4o", "gpt-4o-mini", "o1"}
+                # Should cache the result
+                assert mcp_pulseplate_server.PulsePlateMCPServer._cached_models == {
+                    "gpt-4o",
+                    "gpt-4o-mini",
+                    "o1",
+                }
+                # Should log success
+                mock_logger.info.assert_called_once()
+                assert "Successfully fetched" in mock_logger.info.call_args[0][0]
+                assert "3" in str(mock_logger.info.call_args[0])
+
+        # Cleanup
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+
+    def test_fetch_available_models_api_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _fetch_available_models handles API exceptions (lines 124, 126, 130-131)"""
+        # Reset cache state
+        mcp_pulseplate_server.PulsePlateMCPServer._cached_models = None
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+        # Mock OpenAI to raise exception
+        with patch("openai.OpenAI") as mock_openai:
+            mock_openai.side_effect = Exception("API connection failed")
+
+            with patch("mcp_pulseplate_server.logger") as mock_logger:
+                result = mcp_pulseplate_server.PulsePlateMCPServer._fetch_available_models()
+
+                # Should return fallback models
+                assert result == mcp_pulseplate_server.PulsePlateMCPServer.FALLBACK_ALLOWED_MODELS
+                # Should set failed flag
+                assert mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed is True
+                # Should log warning
+                mock_logger.warning.assert_called_once()
+                assert "Failed to fetch models" in mock_logger.warning.call_args[0][0]
+                assert "API connection failed" in mock_logger.warning.call_args[0][1]
+
+        # Cleanup
+        mcp_pulseplate_server.PulsePlateMCPServer._model_cache_failed = False
+
+    def test_validate_default_model_not_in_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _validate_default_model raises when DEFAULT_MODEL not in ALLOWED_MODELS (line 144-146)"""
+        # Temporarily change DEFAULT_MODEL to invalid value
+        original_default = mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL
+        mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL = "invalid-model-not-in-whitelist"
+
+        try:
+            with pytest.raises(ValueError) as exc_info:
+                mcp_pulseplate_server.PulsePlateMCPServer._validate_default_model()
+
+            error_msg = str(exc_info.value)
+            assert "must be in ALLOWED_MODELS" in error_msg
+            assert "invalid-model-not-in-whitelist" in error_msg
+        finally:
+            # Restore original
+            mcp_pulseplate_server.PulsePlateMCPServer.DEFAULT_MODEL = original_default
+
+    def test_validate_default_model_not_in_fetched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test _validate_default_model raises when DEFAULT_MODEL not in dynamically fetched models (line 153-156)"""
+        # DEFAULT_MODEL is in ALLOWED_MODELS, but not in the dynamically fetched list
+        # Mock _fetch_available_models to return a list that doesn't include DEFAULT_MODEL
+        with patch.object(
+            mcp_pulseplate_server.PulsePlateMCPServer,
+            "_fetch_available_models",
+            return_value={"gpt-4o-mini", "o1", "o3"},  # Doesn't include "gpt-4o"
+        ):
+            with pytest.raises(ValueError) as exc_info:
+                mcp_pulseplate_server.PulsePlateMCPServer._validate_default_model()
+
+            error_msg = str(exc_info.value)
+            assert "is not available" in error_msg
+            assert "gpt-4o" in error_msg  # DEFAULT_MODEL
+            assert "Available models" in error_msg
 
     def test_load_project_context(self) -> None:
         """Test _load_project_context method"""
@@ -722,3 +907,83 @@ class TestMcpPulseplateServerCoverage:
                 )
                 assert call_args[1]["max_tokens"] == 2000
                 assert call_args[1]["temperature"] == 0.5
+
+    def test_fetch_available_models_uses_cache_and_failed_flag(self) -> None:
+        """Test _fetch_available_models returns from cache and failed flag."""
+        cls = mcp_pulseplate_server.PulsePlateMCPServer
+
+        # Case 1: Cached models should be returned without calling OpenAI
+        cls._cached_models = {"cached-model-1", "cached-model-2"}
+        cls._model_cache_failed = False
+        with patch("openai.OpenAI") as mock_openai:
+            models = cls._fetch_available_models()
+            assert models == cls._cached_models
+            mock_openai.assert_not_called()
+
+        # Case 2: When previous fetch failed, should return FALLBACK_ALLOWED_MODELS
+        cls._cached_models = None
+        cls._model_cache_failed = True
+        with patch("openai.OpenAI") as mock_openai:
+            models = cls._fetch_available_models()
+            assert models == cls.FALLBACK_ALLOWED_MODELS
+            mock_openai.assert_not_called()
+
+        # Reset flags for other tests
+        cls._cached_models = None
+        cls._model_cache_failed = False
+
+    def test_fetch_available_models_dynamic_success_and_empty_list(self) -> None:
+        """Test _fetch_available_models dynamic OpenAI path (success and empty list)."""
+        cls = mcp_pulseplate_server.PulsePlateMCPServer
+        cls._cached_models = None
+        cls._model_cache_failed = False
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
+            with patch("openai.OpenAI") as mock_openai:
+                mock_client = MagicMock()
+                # Successful response with non-empty data
+                mock_models_response = MagicMock()
+                mock_models_response.data = [MagicMock(id="gpt-4o"), MagicMock(id="o1")]
+                mock_client.models.list.return_value = mock_models_response
+                mock_openai.return_value = mock_client
+
+                models = cls._fetch_available_models()
+                # Should return the set of IDs from the mocked response
+                assert "gpt-4o" in models
+                assert "o1" in models
+                # Cached result should now be populated
+                assert cls._cached_models == models
+
+                # Now simulate API returning an empty list to exercise the empty branch
+                cls._cached_models = None
+                cls._model_cache_failed = False
+                mock_models_response_empty = MagicMock()
+                mock_models_response_empty.data = []
+                mock_client.models.list.return_value = mock_models_response_empty
+
+                models_empty = cls._fetch_available_models()
+                assert models_empty == cls.FALLBACK_ALLOWED_MODELS
+                assert cls._model_cache_failed is True
+
+        # Reset flags for other tests
+        cls._cached_models = None
+        cls._model_cache_failed = False
+
+    def test_fetch_available_models_dynamic_exception_fallback(self) -> None:
+        """Test _fetch_available_models handles OpenAI exceptions with fallback."""
+        cls = mcp_pulseplate_server.PulsePlateMCPServer
+        cls._cached_models = None
+        cls._model_cache_failed = False
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}, clear=False):
+            with patch("openai.OpenAI") as mock_openai:
+                mock_openai.side_effect = Exception("API failure")
+
+                models = cls._fetch_available_models()
+                # On exception, should fall back to static list
+                assert models == cls.FALLBACK_ALLOWED_MODELS
+                assert cls._model_cache_failed is True
+
+        # Reset flags for other tests
+        cls._cached_models = None
+        cls._model_cache_failed = False
