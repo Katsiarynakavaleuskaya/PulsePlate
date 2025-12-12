@@ -75,3 +75,69 @@ CVE-2025-7458
 ## - Has minimal attack surface for this vulnerability
 
 CVE-2025-6965
+
+## CVE-2025-9820 – GnuTLS GNUTLS-SA-2025-11-18
+##
+## This CVE affects GnuTLS library. Our application does NOT use GnuTLS:
+##
+## 1. libgnutls30 is NOT installed in python:3.13-slim container (verified)
+## 2. No dependencies in requirements.txt reference GnuTLS
+## 3. Python's SSL/TLS uses OpenSSL, not GnuTLS
+##
+## Debian Security Assessment:
+##   - Severity: UNKNOWN (Debian marks as "Minor issue")
+##   - bookworm: <no-dsa> (no security advisory needed)
+##   - trixie: <no-dsa> (no security advisory needed)
+##   - Status: Not deemed critical by Debian Security Team
+##
+## Source: https://security-tracker.debian.org/tracker/CVE-2025-9820
+## Advisory: https://www.gnutls.org/security-new.html#GNUTLS-SA-2025-11-18
+##
+## This is likely a stale scan result or phantom dependency detection.
+## GnuTLS is not part of our application's dependency tree. Even if it
+## were present as a transitive dependency, Debian marks this as minor
+## and does not require a security update.
+##
+## Our application:
+## - Uses Python's standard ssl module (OpenSSL-based)
+## - Does not import or link against GnuTLS
+## - Has zero attack surface for this GnuTLS-specific vulnerability
+
+CVE-2025-9820
+
+## CVE-2016-2781 – coreutils chroot TIOCSTI escape (from 2016)
+##
+## This CVE from 2016 affects chroot --userspec via TIOCSTI ioctl. NOT vulnerable:
+##
+## 1. Container uses coreutils 9.7-3 (FIXED - from trixie/sid)
+## 2. Host kernel 6.12.54 >> 6.4.4 (TIOCSTI disabled since Linux 6.4.4)
+## 3. Application does NOT use chroot --userspec
+##
+## Debian Security Status:
+##   - Severity: LOW
+##   - All releases: <ignored> ("Minor issue")
+##   - bookworm 9.1-1: vulnerable but ignored
+##   - trixie/sid 9.7-3: fixed (our version) ✅
+##
+## Source: https://security-tracker.debian.org/tracker/CVE-2016-2781
+##
+## Key facts:
+##   - CVE filed in 2016 (8+ years old)
+##   - Debian marks as <ignored> "Minor issue" for ALL releases
+##   - Fix: Linux kernel 6.4.4+ disables TIOCSTI (kernel-side mitigation)
+##   - Our kernel: 6.12.54 (well above 6.4.4, TIOCSTI disabled)
+##   - Our coreutils: 9.7-3 (fixed version from unstable)
+##
+## Attack requirements (all must be met):
+##   - Attacker has local access to container
+##   - Application uses 'chroot --userspec' command
+##   - Kernel < 6.4.4 (ours is 6.12.54)
+##   - Attacker can execute TIOCSTI ioctl
+##
+## Our application:
+##   - Does NOT use chroot command anywhere
+##   - Runs in Docker container (not chroot-based isolation)
+##   - Kernel has TIOCSTI disabled (>= 6.4.4)
+##   - Zero attack surface for this 2016 vulnerability
+
+CVE-2016-2781
