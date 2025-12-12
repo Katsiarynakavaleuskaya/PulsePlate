@@ -89,6 +89,23 @@ class TestPortionCalculatorFromMacros:
         assert round(portion.grams) == 200
         assert round(portion.carbs_g) == 56
 
+    def test_prioritize_fat(self) -> None:
+        """Test portion calculation prioritizing fat."""
+        calc = PortionCalculator()
+        # Avocado: ~2g protein, 15g fat, 9g carbs per 100g
+        portion = calc.calculate_from_macros(
+            protein_target_g=4,
+            fat_target_g=30,
+            carbs_target_g=18,
+            food_protein_per_100g=2,
+            food_fat_per_100g=15,
+            food_carbs_per_100g=9,
+            prioritize="fat",
+        )
+
+        assert round(portion.grams) == 200
+        assert round(portion.fat_g) == 30
+
     def test_invalid_prioritize_value(self) -> None:
         """Test that invalid prioritize value raises ValueError."""
         calc = PortionCalculator()
@@ -129,6 +146,62 @@ class TestPortionCalculatorFromMacros:
                 food_fat_per_100g=5,
                 food_carbs_per_100g=20,
                 prioritize="protein",
+            )
+
+    def test_negative_fat_target_raises_error(self) -> None:
+        """Test that negative fat_target_g raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=-20,
+                carbs_target_g=100,
+                food_protein_per_100g=10,
+                food_fat_per_100g=5,
+                food_carbs_per_100g=20,
+                prioritize="fat",
+            )
+
+    def test_negative_carbs_target_raises_error(self) -> None:
+        """Test that negative carbs_target_g raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=20,
+                carbs_target_g=-100,
+                food_protein_per_100g=10,
+                food_fat_per_100g=5,
+                food_carbs_per_100g=20,
+                prioritize="carbs",
+            )
+
+    def test_prioritize_fat_with_zero_food_fat_raises_error(self) -> None:
+        """Test that prioritizing fat with zero food_fat raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be positive"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=20,
+                carbs_target_g=100,
+                food_protein_per_100g=10,
+                food_fat_per_100g=0,
+                food_carbs_per_100g=20,
+                prioritize="fat",
+            )
+
+    def test_prioritize_carbs_with_zero_food_carbs_raises_error(self) -> None:
+        """Test that prioritizing carbs with zero food_carbs raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be positive"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=20,
+                carbs_target_g=100,
+                food_protein_per_100g=10,
+                food_fat_per_100g=5,
+                food_carbs_per_100g=0,
+                prioritize="carbs",
             )
 
 
@@ -178,6 +251,7 @@ class TestVisualPortionGuide:
 
         assert calc.get_visual_portion_guide(70, "grains") == "cupped handful"
         assert calc.get_visual_portion_guide(150, "grains") == "2 cupped handfuls"
+        assert calc.get_visual_portion_guide(200, "grains") == "3+ cupped handfuls"
 
     def test_vegetables_visual_guides(self) -> None:
         """Test visual guides for vegetable portions."""
@@ -185,6 +259,7 @@ class TestVisualPortionGuide:
 
         assert calc.get_visual_portion_guide(100, "vegetables") == "1 fist"
         assert calc.get_visual_portion_guide(250, "vegetables") == "2 fists"
+        assert calc.get_visual_portion_guide(350, "vegetables") == "3+ fists"
 
     def test_fruit_visual_guides(self) -> None:
         """Test visual guides for fruit portions."""
@@ -192,6 +267,7 @@ class TestVisualPortionGuide:
 
         assert calc.get_visual_portion_guide(100, "fruit") == "1 tennis ball"
         assert calc.get_visual_portion_guide(200, "fruit") == "2 tennis balls"
+        assert calc.get_visual_portion_guide(300, "fruit") == "3+ tennis balls"
 
     def test_unknown_food_type_fallback(self) -> None:
         """Test fallback guides for unknown food types."""
