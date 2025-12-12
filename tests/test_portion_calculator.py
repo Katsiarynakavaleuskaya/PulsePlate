@@ -204,6 +204,48 @@ class TestPortionCalculatorFromMacros:
                 prioritize="carbs",
             )
 
+    def test_negative_food_protein_raises_error(self) -> None:
+        """Test that negative food_protein_per_100g raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=20,
+                carbs_target_g=100,
+                food_protein_per_100g=-10,
+                food_fat_per_100g=5,
+                food_carbs_per_100g=20,
+                prioritize="protein",
+            )
+
+    def test_negative_food_fat_raises_error(self) -> None:
+        """Test that negative food_fat_per_100g raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=20,
+                carbs_target_g=100,
+                food_protein_per_100g=10,
+                food_fat_per_100g=-5,
+                food_carbs_per_100g=20,
+                prioritize="fat",
+            )
+
+    def test_negative_food_carbs_raises_error(self) -> None:
+        """Test that negative food_carbs_per_100g raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_macros(
+                protein_target_g=50,
+                fat_target_g=20,
+                carbs_target_g=100,
+                food_protein_per_100g=10,
+                food_fat_per_100g=5,
+                food_carbs_per_100g=-20,
+                prioritize="carbs",
+            )
+
 
 class TestPortionCalculatorMealPortion:
     """Test meal-specific portion calculations."""
@@ -232,6 +274,18 @@ class TestPortionCalculatorMealPortion:
 
         # Morning snack = 8% of 2000 = 160 kcal
         assert round(portion.calories) == 160
+
+    def test_negative_daily_calories_raises_error(self) -> None:
+        """Test that negative daily_calories raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be positive"):
+            calc.calculate_meal_portion(MealType.BREAKFAST, -100, 150)
+
+    def test_zero_daily_calories_raises_error(self) -> None:
+        """Test that zero daily_calories raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be positive"):
+            calc.calculate_meal_portion(MealType.LUNCH, 0, 150)
 
 
 class TestVisualPortionGuide:
@@ -277,18 +331,39 @@ class TestVisualPortionGuide:
         assert calc.get_visual_portion_guide(200, "unknown") == "medium portion (~250g)"
         assert calc.get_visual_portion_guide(300, "unknown") == "large portion (250g+)"
 
+    def test_case_insensitive_food_type(self) -> None:
+        """Test that food_type matching is case-insensitive."""
+        calc = PortionCalculator()
+
+        # Test uppercase
+        assert calc.get_visual_portion_guide(80, "PROTEIN") == "palm of hand"
+        assert calc.get_visual_portion_guide(70, "GRAINS") == "cupped handful"
+
+        # Test mixed case
+        assert calc.get_visual_portion_guide(100, "Vegetables") == "1 fist"
+        assert calc.get_visual_portion_guide(100, "Fruit") == "1 tennis ball"
+
+    def test_negative_grams_raises_error(self) -> None:
+        """Test that negative grams raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.get_visual_portion_guide(-50, "protein")
+
 
 class TestDistributeCaloriesToPortions:
     """Test calorie distribution across portions."""
 
     def test_default_three_portions(self) -> None:
-        """Test default distribution for 3 main meals (aligns with STANDARD_MEAL_WINDOWS)."""
+        """Test default distribution for 3 main meals (normalized to 100%)."""
         portions = distribute_calories_to_portions(2000, 3)
 
         assert len(portions) == 3
-        assert portions[0] == 500.0  # Breakfast 25%
-        assert portions[1] == 600.0  # Lunch 30%
-        assert portions[2] == 500.0  # Dinner 25% (total 80%, excludes snacks)
+        # Normalized from 25:30:25 ratio to sum=1.0
+        assert portions[0] == pytest.approx(625.0)  # 31.25% (25/80)
+        assert portions[1] == pytest.approx(750.0)  # 37.5% (30/80)
+        assert portions[2] == pytest.approx(625.0)  # 31.25% (25/80)
+        # Total should be exactly 2000
+        assert sum(portions) == pytest.approx(2000.0)
 
     def test_custom_distribution(self) -> None:
         """Test custom calorie distribution."""

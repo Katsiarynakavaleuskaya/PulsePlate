@@ -128,6 +128,16 @@ class PortionCalculator:
         if carbs_target_g < 0:
             raise ValueError(f"carbs_target_g must be non-negative, got {carbs_target_g}")
 
+        # Validate food macro content (all must be non-negative)
+        if food_protein_per_100g < 0:
+            raise ValueError(
+                f"food_protein_per_100g must be non-negative, got {food_protein_per_100g}"
+            )
+        if food_fat_per_100g < 0:
+            raise ValueError(f"food_fat_per_100g must be non-negative, got {food_fat_per_100g}")
+        if food_carbs_per_100g < 0:
+            raise ValueError(f"food_carbs_per_100g must be non-negative, got {food_carbs_per_100g}")
+
         if prioritize not in ("protein", "fat", "carbs"):
             raise ValueError("prioritize must be 'protein', 'fat', or 'carbs'")
 
@@ -178,11 +188,14 @@ class PortionCalculator:
 
         Args:
             meal_type: Type of meal (breakfast, lunch, etc.)
-            daily_calories: Total daily calorie target
+            daily_calories: Total daily calorie target (must be positive)
             food_calories_per_100g: Calories per 100g of food
 
         Returns:
             PortionSize appropriate for this meal
+
+        Raises:
+            ValueError: If daily_calories is non-positive
 
         Examples:
             >>> from meal_types import MealType
@@ -193,6 +206,8 @@ class PortionCalculator:
             >>> round(portion.calories)
             500
         """
+        if daily_calories <= 0:
+            raise ValueError(f"daily_calories must be positive, got {daily_calories}")
         meal_calories = get_meal_calorie_target(meal_type, daily_calories)
         return PortionCalculator.calculate_from_calories(meal_calories, food_calories_per_100g)
 
@@ -204,12 +219,22 @@ class PortionCalculator:
         EN: Get visual portion guide for common foods.
 
         Args:
-            grams: Weight in grams
+            grams: Weight in grams (must be non-negative)
             food_type: Type of food ("protein", "grains", "vegetables", "fruit")
+                       Case-insensitive
 
         Returns:
             Visual guide description (e.g., "palm-sized", "fist-sized")
+
+        Raises:
+            ValueError: If grams is negative
         """
+        if grams < 0:
+            raise ValueError(f"grams must be non-negative, got {grams}")
+
+        # Normalize food_type to lowercase for case-insensitive matching
+        food_type = food_type.strip().lower()
+
         # Visual guides based on hand measurements (average adult)
         # Source: American Heart Association, MyPlate guidelines
         if food_type == "protein":
@@ -262,11 +287,11 @@ def distribute_calories_to_portions(
         total_calories: Total calories to distribute
         num_portions: Number of portions (default 3 for main meals)
         distribution: Optional custom distribution (must sum to 1.0, each value in [0, 1])
-                      If None and num_portions=3, uses STANDARD_MEAL_WINDOWS distribution
-                      for main meals only (breakfast 25%, lunch 30%, dinner 25% = 80% total)
+                      If None and num_portions=3, uses normalized STANDARD_MEAL_WINDOWS
+                      proportions for main meals (breakfast:lunch:dinner = 25:30:25)
 
     Returns:
-        List of calorie amounts per portion
+        List of calorie amounts per portion (always sums to total_calories)
 
     Raises:
         ValueError: If num_portions is non-positive, distribution length doesn't match,
@@ -274,7 +299,7 @@ def distribute_calories_to_portions(
 
     Examples:
         >>> distribute_calories_to_portions(2000, 3)
-        [500.0, 600.0, 500.0]
+        [625.0, 750.0, 625.0]
         >>> distribute_calories_to_portions(2000, 3, [0.3, 0.4, 0.3])
         [600.0, 800.0, 600.0]
     """
@@ -282,9 +307,12 @@ def distribute_calories_to_portions(
         raise ValueError("num_portions must be positive")
 
     if distribution is None:
-        # Default: breakfast 25%, lunch 30%, dinner 25% (aligns with STANDARD_MEAL_WINDOWS)
         if num_portions == 3:
-            distribution = [0.25, 0.30, 0.25]  # Main meals only, sums to 0.80
+            # Use STANDARD_MEAL_WINDOWS proportions (25:30:25) normalized to sum=1.0
+            # This distributes ALL calories proportionally to main meal ratios
+            raw_distribution = [0.25, 0.30, 0.25]
+            total_ratio = sum(raw_distribution)
+            distribution = [r / total_ratio for r in raw_distribution]  # [0.3125, 0.375, 0.3125]
         else:
             # Equal distribution
             distribution = [1.0 / num_portions] * num_portions
