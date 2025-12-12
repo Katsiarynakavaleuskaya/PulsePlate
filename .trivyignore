@@ -141,3 +141,39 @@ CVE-2025-9820
 ##   - Zero attack surface for this 2016 vulnerability
 
 CVE-2016-2781
+
+## CVE-2022-27943 – GCC libiberty rust-demangle stack exhaustion
+##
+## This CVE affects GCC 11.2's libiberty/rust-demangle.c. NOT vulnerable:
+##
+## 1. Container uses GCC 14.2.0 (much newer than vulnerable 11.2/12.2)
+## 2. Application is Python-based (does NOT compile C/C++ or use binutils)
+## 3. Does not use nm, objdump, or other binutils tools
+##
+## Debian Security Assessment:
+##   - Severity: LOW
+##   - Urgency: unimportant
+##   - Status: unfixed ("Negligible security impact")
+##   - Note: "Negligible security impact"
+##
+## Source: https://security-tracker.debian.org/tracker/CVE-2022-27943
+## Upstream: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105039
+##
+## Container packages:
+##   - gcc-14-base: 14.2.0-19 (NOT vulnerable 11.2/12.2)
+##   - libstdc++6: 14.2.0-19
+##   - libgcc-s1: 14.2.0-19
+##
+## Attack scenario (not applicable):
+##   - Attacker must provide crafted Rust symbol to demangler
+##   - Requires running binutils tools (nm, objdump) on malicious input
+##   - Causes stack exhaustion (DoS), not code execution
+##
+## Our application:
+##   - Python-only runtime (no compilation, no binutils usage)
+##   - Does NOT process Rust symbols or run demangling tools
+##   - GCC/binutils only present as runtime libraries (libstdc++6)
+##   - Debian marks as "Negligible security impact"
+##   - Zero attack surface for this build-tool vulnerability
+
+CVE-2022-27943
