@@ -119,6 +119,18 @@ class TestGetMealCalorieTarget:
         assert get_meal_calorie_target(MealType.BREAKFAST, 1500) == 375.0
         assert get_meal_calorie_target(MealType.LUNCH, 2500) == 750.0
 
+    def test_unknown_meal_type_raises_error(self) -> None:
+        """Test that unknown meal type raises ValueError."""
+        # Create a fake MealType to simulate unknown type
+        from enum import Enum
+
+        class FakeMealType(Enum):
+            UNKNOWN = "unknown"
+
+        with pytest.raises(ValueError, match="Unknown meal type"):
+            # Type ignore because we're intentionally passing wrong type for testing
+            get_meal_calorie_target(FakeMealType.UNKNOWN, 2000)  # type: ignore[arg-type]
+
 
 class TestValidateMealDistribution:
     """Test meal distribution validation."""
@@ -197,3 +209,17 @@ class TestValidateMealDistribution:
         is_valid, msg = validate_meal_distribution(meals, 2000)
         assert is_valid
         assert msg == ""
+
+    def test_zero_daily_target_rejected(self) -> None:
+        """Test that zero daily_target is rejected."""
+        meals = {MealType.BREAKFAST: 500.0}
+        is_valid, msg = validate_meal_distribution(meals, 0)
+        assert not is_valid
+        assert "must be positive" in msg
+
+    def test_negative_daily_target_rejected(self) -> None:
+        """Test that negative daily_target is rejected."""
+        meals = {MealType.BREAKFAST: 500.0}
+        is_valid, msg = validate_meal_distribution(meals, -100)
+        assert not is_valid
+        assert "must be positive" in msg

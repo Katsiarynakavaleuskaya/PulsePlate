@@ -264,3 +264,10 @@ class TestCalculateWaterIntakeMl:
         """Test that unknown activity level uses base calculation."""
         water_ml = calculate_water_intake_ml(70, "unknown")
         assert water_ml == 2100.0  # Base: 70 * 30
+
+    def test_case_insensitive_activity_level(self) -> None:
+        """Test that activity_level is case-insensitive."""
+        assert calculate_water_intake_ml(70, "SEDENTARY") == 2100.0
+        assert calculate_water_intake_ml(70, "Moderate") == 2415.0
+        assert calculate_water_intake_ml(70, "ACTIVE") == 2730.0
+        assert calculate_water_intake_ml(70, "Very_Active") == 2730.0

@@ -44,6 +44,12 @@ class TestPortionCalculatorFromCalories:
         with pytest.raises(ValueError, match="must be positive"):
             calc.calculate_from_calories(400, -150)
 
+    def test_negative_target_calories_raises_error(self) -> None:
+        """Test that negative target_calories raises ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_calories(-100, 150)
+
 
 class TestPortionCalculatorFromMacros:
     """Test macro-based portion calculations."""
@@ -106,6 +112,20 @@ class TestPortionCalculatorFromMacros:
                 fat_target_g=20,
                 carbs_target_g=100,
                 food_protein_per_100g=0,  # Zero protein
+                food_fat_per_100g=5,
+                food_carbs_per_100g=20,
+                prioritize="protein",
+            )
+
+    def test_negative_macro_targets_raise_error(self) -> None:
+        """Test that negative macro targets raise ValueError."""
+        calc = PortionCalculator()
+        with pytest.raises(ValueError, match="must be non-negative"):
+            calc.calculate_from_macros(
+                protein_target_g=-50,
+                fat_target_g=20,
+                carbs_target_g=100,
+                food_protein_per_100g=10,
                 food_fat_per_100g=5,
                 food_carbs_per_100g=20,
                 prioritize="protein",
@@ -192,7 +212,7 @@ class TestDistributeCaloriesToPortions:
         assert len(portions) == 3
         assert portions[0] == 500.0  # Breakfast 25%
         assert portions[1] == 600.0  # Lunch 30%
-        assert portions[2] == 500.0  # Dinner 25%
+        assert portions[2] == 900.0  # Dinner 45%
 
     def test_custom_distribution(self) -> None:
         """Test custom calorie distribution."""
@@ -214,12 +234,12 @@ class TestDistributeCaloriesToPortions:
 
     def test_distribution_length_mismatch_raises_error(self) -> None:
         """Test that mismatched distribution length raises ValueError."""
-        with pytest.raises(ValueError, match="distribution length must match"):
+        with pytest.raises(ValueError, match="must equal num_portions"):
             distribute_calories_to_portions(2000, 3, [0.5, 0.5])
 
     def test_distribution_sum_not_one_raises_error(self) -> None:
         """Test that distribution not summing to 1.0 raises ValueError."""
-        with pytest.raises(ValueError, match="distribution must sum to 1.0"):
+        with pytest.raises(ValueError, match="must sum to 1.0"):
             distribute_calories_to_portions(2000, 3, [0.3, 0.3, 0.3])
 
     def test_zero_portions_raises_error(self) -> None:
@@ -231,3 +251,13 @@ class TestDistributeCaloriesToPortions:
         """Test that negative portions raises ValueError."""
         with pytest.raises(ValueError, match="num_portions must be positive"):
             distribute_calories_to_portions(2000, -1)
+
+    def test_distribution_values_out_of_range_raise_error(self) -> None:
+        """Test that distribution values outside [0, 1] raise ValueError."""
+        # Negative value
+        with pytest.raises(ValueError, match="must be between 0 and 1"):
+            distribute_calories_to_portions(2000, 3, [0.5, 0.6, -0.1])
+
+        # Value > 1.0
+        with pytest.raises(ValueError, match="must be between 0 and 1"):
+            distribute_calories_to_portions(2000, 3, [0.3, 1.2, 0.5])

@@ -282,7 +282,8 @@ def calculate_water_intake_ml(body_weight_kg: float, activity_level: str = "mode
 
     Args:
         body_weight_kg: Body weight in kilograms
-        activity_level: Activity level ('sedentary', 'moderate', 'active')
+        activity_level: Activity level ('sedentary', 'moderate', 'active', 'very_active')
+                        Case-insensitive
 
     Returns:
         Recommended water intake in milliliters
@@ -290,8 +291,8 @@ def calculate_water_intake_ml(body_weight_kg: float, activity_level: str = "mode
     Examples:
         >>> calculate_water_intake_ml(70, 'moderate')
         2450.0
-        >>> calculate_water_intake_ml(70, 'active')
-        2800.0
+        >>> calculate_water_intake_ml(70, 'ACTIVE')
+        2730.0
     """
     if body_weight_kg <= 0:
         raise ValueError("body_weight_kg must be positive")
@@ -299,12 +300,15 @@ def calculate_water_intake_ml(body_weight_kg: float, activity_level: str = "mode
     # Base: 30ml per kg
     base_ml = body_weight_kg * 30
 
+    # Normalize activity_level to lowercase for consistent comparison
+    activity_normalized = activity_level.lower()
+
     # Adjust for activity
-    if activity_level == "sedentary":
+    if activity_normalized == "sedentary":
         return base_ml
-    if activity_level == "moderate":
+    if activity_normalized == "moderate":
         return base_ml * 1.15  # +15%
-    if activity_level in ("active", "very_active"):
+    if activity_normalized in ("active", "very_active"):
         return base_ml * 1.30  # +30%
 
     return base_ml

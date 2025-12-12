@@ -59,11 +59,14 @@ class PortionCalculator:
         EN: Calculate portion size to hit calorie target.
 
         Args:
-            target_calories: Target calories for this portion
-            food_calories_per_100g: Calories per 100g of food
+            target_calories: Target calories for this portion (must be non-negative)
+            food_calories_per_100g: Calories per 100g of food (must be positive)
 
         Returns:
             PortionSize with calculated weight and calories
+
+        Raises:
+            ValueError: If target_calories is negative or food_calories_per_100g is non-positive
 
         Examples:
             >>> calc = PortionCalculator()
@@ -73,6 +76,8 @@ class PortionCalculator:
             >>> round(portion.calories)
             400
         """
+        if target_calories < 0:
+            raise ValueError(f"target_calories must be non-negative, got {target_calories}")
         if food_calories_per_100g <= 0:
             raise ValueError("food_calories_per_100g must be positive")
 
@@ -101,9 +106,9 @@ class PortionCalculator:
         EN: Calculate portion size to hit macronutrient targets.
 
         Args:
-            protein_target_g: Target protein in grams
-            fat_target_g: Target fat in grams
-            carbs_target_g: Target carbs in grams
+            protein_target_g: Target protein in grams (must be non-negative)
+            fat_target_g: Target fat in grams (must be non-negative)
+            carbs_target_g: Target carbs in grams (must be non-negative)
             food_protein_per_100g: Protein per 100g of food
             food_fat_per_100g: Fat per 100g of food
             food_carbs_per_100g: Carbs per 100g of food
@@ -113,8 +118,16 @@ class PortionCalculator:
             PortionSize with calculated weight and macros
 
         Raises:
-            ValueError: If prioritize is invalid or food content is invalid
+            ValueError: If prioritize is invalid, food content is invalid, or macro targets are negative
         """
+        # Validate macro targets
+        if protein_target_g < 0:
+            raise ValueError(f"protein_target_g must be non-negative, got {protein_target_g}")
+        if fat_target_g < 0:
+            raise ValueError(f"fat_target_g must be non-negative, got {fat_target_g}")
+        if carbs_target_g < 0:
+            raise ValueError(f"carbs_target_g must be non-negative, got {carbs_target_g}")
+
         if prioritize not in ("protein", "fat", "carbs"):
             raise ValueError("prioritize must be 'protein', 'fat', or 'carbs'")
 
@@ -248,10 +261,14 @@ def distribute_calories_to_portions(
     Args:
         total_calories: Total calories to distribute
         num_portions: Number of portions (default 3 for main meals)
-        distribution: Optional custom distribution (must sum to 1.0)
+        distribution: Optional custom distribution (must sum to 1.0, each value in [0, 1])
 
     Returns:
         List of calorie amounts per portion
+
+    Raises:
+        ValueError: If num_portions is non-positive, distribution length doesn't match,
+                    distribution doesn't sum to 1.0, or any distribution value is out of [0, 1]
 
     Examples:
         >>> distribute_calories_to_portions(2000, 3)
@@ -263,16 +280,26 @@ def distribute_calories_to_portions(
         raise ValueError("num_portions must be positive")
 
     if distribution is None:
-        # Default: breakfast 25%, lunch 30%, dinner 25%, rest evenly
+        # Default: breakfast 25%, lunch 30%, dinner 25%, snacks 20%
         if num_portions == 3:
-            distribution = [0.25, 0.30, 0.25]
+            distribution = [0.25, 0.30, 0.45]  # Sums to 1.0
         else:
             # Equal distribution
             distribution = [1.0 / num_portions] * num_portions
     else:
         if len(distribution) != num_portions:
-            raise ValueError("distribution length must match num_portions")
-        if abs(sum(distribution) - 1.0) > 0.01:
-            raise ValueError("distribution must sum to 1.0")
+            raise ValueError(
+                f"distribution length ({len(distribution)}) must equal num_portions ({num_portions})"
+            )
+
+        # Validate each distribution value is in [0, 1]
+        for i, ratio in enumerate(distribution):
+            if ratio < 0 or ratio > 1:
+                raise ValueError(f"distribution[{i}]={ratio} must be between 0 and 1 inclusive")
+
+        # Validate sum is approximately 1.0
+        total_ratio = sum(distribution)
+        if abs(total_ratio - 1.0) > 0.01:
+            raise ValueError(f"distribution ratios must sum to 1.0, got {total_ratio}")
 
     return [total_calories * ratio for ratio in distribution]

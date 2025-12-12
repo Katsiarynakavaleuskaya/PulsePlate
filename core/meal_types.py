@@ -148,6 +148,9 @@ def get_meal_calorie_target(meal_type: MealType, daily_calories: float) -> float
     Returns:
         Calories allocated for this meal
 
+    Raises:
+        ValueError: If meal_type is not recognized or not in STANDARD_MEAL_WINDOWS
+
     Examples:
         >>> get_meal_calorie_target(MealType.BREAKFAST, 2000)
         500.0
@@ -156,7 +159,7 @@ def get_meal_calorie_target(meal_type: MealType, daily_calories: float) -> float
     """
     window = STANDARD_MEAL_WINDOWS.get(meal_type)
     if not window:
-        return 0.0
+        raise ValueError(f"Unknown meal type: {meal_type}")
 
     return daily_calories * window.calorie_percentage
 
@@ -171,7 +174,7 @@ def validate_meal_distribution(
 
     Args:
         meal_calories: Dictionary mapping meal types to calorie amounts
-        daily_target: Target daily calories
+        daily_target: Target daily calories (must be positive)
         tolerance: Allowed deviation from target (default 15%)
 
     Returns:
@@ -184,6 +187,10 @@ def validate_meal_distribution(
         ... )
         (False, 'Total meal calories (1600) deviate from daily target (2000) by 20.0%')
     """
+    # Validate daily_target
+    if daily_target <= 0:
+        return (False, f"Daily target must be positive, got {daily_target}")
+
     total = sum(meal_calories.values())
 
     # Check if total is within tolerance
