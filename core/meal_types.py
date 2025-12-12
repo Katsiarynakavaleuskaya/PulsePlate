@@ -61,7 +61,7 @@ STANDARD_MEAL_WINDOWS = {
         meal_type=MealType.MORNING_SNACK,
         start_hour=10,
         end_hour=12,
-        calorie_percentage=0.10,  # 10% of daily calories
+        calorie_percentage=0.08,  # 8% of daily calories
         is_optional=True,
     ),
     MealType.LUNCH: MealWindow(
@@ -75,7 +75,7 @@ STANDARD_MEAL_WINDOWS = {
         meal_type=MealType.AFTERNOON_SNACK,
         start_hour=15,
         end_hour=17,
-        calorie_percentage=0.10,  # 10% of daily calories
+        calorie_percentage=0.08,  # 8% of daily calories
         is_optional=True,
     ),
     MealType.DINNER: MealWindow(
@@ -89,7 +89,7 @@ STANDARD_MEAL_WINDOWS = {
         meal_type=MealType.EVENING_SNACK,
         start_hour=21,
         end_hour=23,
-        calorie_percentage=0.05,  # 5% of daily calories (light)
+        calorie_percentage=0.04,  # 4% of daily calories (light)
         is_optional=True,
     ),
 }

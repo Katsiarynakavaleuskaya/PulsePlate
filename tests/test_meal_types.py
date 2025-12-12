@@ -110,9 +110,9 @@ class TestGetMealCalorieTarget:
         afternoon_snack = get_meal_calorie_target(MealType.AFTERNOON_SNACK, 2000)
         evening_snack = get_meal_calorie_target(MealType.EVENING_SNACK, 2000)
 
-        assert morning_snack == 200.0  # 10%
-        assert afternoon_snack == 200.0  # 10%
-        assert evening_snack == 100.0  # 5%
+        assert morning_snack == 160.0  # 8%
+        assert afternoon_snack == 160.0  # 8%
+        assert evening_snack == 80.0  # 4%
 
     def test_different_daily_calories(self) -> None:
         """Test calculation with different daily calorie values."""
@@ -141,8 +141,9 @@ class TestValidateMealDistribution:
             MealType.BREAKFAST: 500.0,
             MealType.LUNCH: 600.0,
             MealType.DINNER: 500.0,
-            MealType.MORNING_SNACK: 200.0,
-            MealType.AFTERNOON_SNACK: 200.0,
+            MealType.MORNING_SNACK: 160.0,
+            MealType.AFTERNOON_SNACK: 160.0,
+            MealType.EVENING_SNACK: 80.0,
         }
         is_valid, msg = validate_meal_distribution(meals, 2000)
         assert is_valid
@@ -180,8 +181,9 @@ class TestValidateMealDistribution:
             MealType.BREAKFAST: 460.0,
             MealType.LUNCH: 580.0,
             MealType.DINNER: 560.0,
-            MealType.MORNING_SNACK: 200.0,
-            MealType.AFTERNOON_SNACK: 200.0,
+            MealType.MORNING_SNACK: 160.0,
+            MealType.AFTERNOON_SNACK: 160.0,
+            MealType.EVENING_SNACK: 80.0,
         }
         is_valid, msg = validate_meal_distribution(meals, 2000, tolerance=0.15)
         assert is_valid

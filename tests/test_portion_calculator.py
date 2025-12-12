@@ -226,12 +226,12 @@ class TestPortionCalculatorMealPortion:
         assert round(portion.calories) == 600
 
     def test_snack_portion(self) -> None:
-        """Test portion calculation for snack (10% of daily)."""
+        """Test portion calculation for snack (8% of daily)."""
         calc = PortionCalculator()
         portion = calc.calculate_meal_portion(MealType.MORNING_SNACK, 2000, 150)
 
-        # Morning snack = 10% of 2000 = 200 kcal
-        assert round(portion.calories) == 200
+        # Morning snack = 8% of 2000 = 160 kcal
+        assert round(portion.calories) == 160
 
 
 class TestVisualPortionGuide:
@@ -282,13 +282,13 @@ class TestDistributeCaloriesToPortions:
     """Test calorie distribution across portions."""
 
     def test_default_three_portions(self) -> None:
-        """Test default distribution for 3 main meals."""
+        """Test default distribution for 3 main meals (aligns with STANDARD_MEAL_WINDOWS)."""
         portions = distribute_calories_to_portions(2000, 3)
 
         assert len(portions) == 3
         assert portions[0] == 500.0  # Breakfast 25%
         assert portions[1] == 600.0  # Lunch 30%
-        assert portions[2] == 900.0  # Dinner 45%
+        assert portions[2] == 500.0  # Dinner 25% (total 80%, excludes snacks)
 
     def test_custom_distribution(self) -> None:
         """Test custom calorie distribution."""

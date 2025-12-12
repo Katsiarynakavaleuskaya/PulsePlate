@@ -262,6 +262,8 @@ def distribute_calories_to_portions(
         total_calories: Total calories to distribute
         num_portions: Number of portions (default 3 for main meals)
         distribution: Optional custom distribution (must sum to 1.0, each value in [0, 1])
+                      If None and num_portions=3, uses STANDARD_MEAL_WINDOWS distribution
+                      for main meals only (breakfast 25%, lunch 30%, dinner 25% = 80% total)
 
     Returns:
         List of calorie amounts per portion
@@ -280,9 +282,9 @@ def distribute_calories_to_portions(
         raise ValueError("num_portions must be positive")
 
     if distribution is None:
-        # Default: breakfast 25%, lunch 30%, dinner 25%, snacks 20%
+        # Default: breakfast 25%, lunch 30%, dinner 25% (aligns with STANDARD_MEAL_WINDOWS)
         if num_portions == 3:
-            distribution = [0.25, 0.30, 0.45]  # Sums to 1.0
+            distribution = [0.25, 0.30, 0.25]  # Main meals only, sums to 0.80
         else:
             # Equal distribution
             distribution = [1.0 / num_portions] * num_portions
