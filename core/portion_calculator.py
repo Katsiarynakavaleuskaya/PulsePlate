@@ -308,7 +308,8 @@ def distribute_calories_to_portions(
 
     if distribution is None:
         if num_portions == 3:
-            # Use STANDARD_MEAL_WINDOWS proportions (25:30:25) normalized to sum=1.0
+            # Main meal proportions from STANDARD_MEAL_WINDOWS: breakfast 25%, lunch 30%, dinner 25%
+            # Normalized to sum=1.0 since snacks are excluded: [0.3125, 0.375, 0.3125]
             # This distributes ALL calories proportionally to main meal ratios
             raw_distribution = [0.25, 0.30, 0.25]
             total_ratio = sum(raw_distribution)

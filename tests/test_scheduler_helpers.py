@@ -171,7 +171,8 @@ def test_handle_sync_test_mode_coroutine_with_running_loop(monkeypatch: pytest.M
     def _fake_ensure_future(obj: Any) -> None:
         created.append(obj)
 
-    class FakeLoop: ...
+    class FakeLoop:
+        pass
 
     def _get_running_loop() -> asyncio.AbstractEventLoop:
         return FakeLoop()  # type: ignore[return-value]
