@@ -61,7 +61,7 @@ cyclonedx-python-lib==11.6.0
     # via pip-audit
 defusedxml==0.7.1
     # via py-serializable
-diff-cover==9.7.2
+diff-cover==10.0.0
     # via -r requirements-dev.in
 dparse==0.6.4
     # via
