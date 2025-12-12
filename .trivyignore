@@ -5,10 +5,15 @@
 ## Next review: 2026-03-12
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
+## NOTE: Some CVE entries reference Debian bookworm package versions because
+## Trivy's vulnerability database may report stale metadata. The actual container
+## uses python:3.13-slim based on Debian trixie with newer package versions.
+## Each CVE entry documents both the Trivy-reported version and our actual version.
+##
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
-## Our images are based on Debian bookworm (python:3.13-slim). Debian’s
-## security tracker explicitly marks src:zlib in bookworm as “ignored”
+## Our images are based on Debian trixie (python:3.13-slim). Debian's
+## security tracker explicitly marks src:zlib in trixie as "ignored"
 ## for this CVE because the vulnerable contrib/minizip code is not built
 ## into any binary packages:
 ##
@@ -291,45 +296,6 @@ CVE-2022-3219
 ## Python's standard crypto libraries don't use libgcrypt.
 
 CVE-2018-6829
-
-## CVE-2025-27587 – OpenSSL PowerPC Minerva timing attack (DISPUTED)
-##
-## This CVE affects OpenSSL 3.0.0-3.3.2 on PowerPC. NOT vulnerable:
-##
-## 1. Container architecture: aarch64 (ARM64), NOT PowerPC
-## 2. OpenSSL version: 3.5.4 >> 3.3.2 (newer than vulnerable range)
-## 3. CVE is DISPUTED by OpenSSL security team
-##
-## CVE Status:
-##   - Severity: LOW
-##   - Status: DISPUTED by OpenSSL project
-##   - OpenSSL policy: Same-system side-channels outside threat model
-##   - Note: "Timing signal so small it's infeasible to detect remotely"
-##
-## Vulnerability requirements (ALL must be met):
-##   - PowerPC architecture (we use aarch64/ARM64)
-##   - OpenSSL 3.0.0-3.3.2 (we use 3.5.4)
-##   - Attacker process on SAME physical system
-##   - P-364 curve usage with EVP_DigestSign API
-##   - Ability to measure microsecond-level timing differences
-##
-## Technical details:
-##   - Minerva timing attack on ECDSA nonce (K value)
-##   - Requires statistical analysis of many signature timings
-##   - Side-channel only detectable with co-located attacker process
-##   - OpenSSL explicitly excludes same-system attacks from threat model
-##
-## Our application:
-##   - Runs on aarch64 (ARM64), not PowerPC
-##   - Uses OpenSSL 3.5.4 (fixed version)
-##   - Does NOT use P-364 curve or custom ECDSA signing
-##   - Python ssl module usage (high-level, not raw EVP_DigestSign)
-##   - No exposed ECDSA signing API to attackers
-##
-## CVE is DISPUTED: OpenSSL security policy states same-system
-## side-channel attacks are outside the threat model.
-
-CVE-2025-27587
 
 ## CVE-2024-2236 – libgcrypt Marvin/Bleichenbacher RSA side-channel
 ##
@@ -671,6 +637,10 @@ CVE-2025-48385
 ##
 ## Trivy is reporting stale metadata - our PAM 1.7.0-5 IS the fixed version.
 ## We ignore this to avoid false positive alerts.
+##
+## MAINTENANCE NOTE: This entry should be reviewed during the next quarterly
+## review (2026-03-12). If Trivy database is updated to recognize PAM 1.7.0-5
+## as fixed, this ignore entry can be removed.
 
 CVE-2025-6020
 
@@ -866,39 +836,3 @@ CVE-2025-40909
 ## affect the running Python web service.
 
 CVE-2023-50495
-
-## CVE-2025-9230 – OpenSSL CMS PWRI KEK unwrap OOB read/write
-##
-## This CVE affects OpenSSL 3.0.0–3.3.2 when decrypting CMS messages
-## that use password-based (PWRI) encryption with RFC 3211 KEK unwrap.
-## A specially crafted CMS structure can trigger out-of-bounds reads and
-## writes, potentially causing a crash (DoS) or memory corruption.
-##
-## Package reported by Trivy: libssl3 3.0.16-1~deb12u1 (Debian bookworm),
-## fixed in 3.0.17-1~deb12u3.
-##
-## Scope of the vulnerability:
-##   - Only code paths that call the OpenSSL CMS PWRI decrypt APIs are
-##     affected (password-based encrypted CMS messages).
-##   - TLS, generic X.509 verification, and most common OpenSSL usage
-##     are not impacted by this bug.
-##
-## Our application:
-##   - Uses Python's ssl/OpenSSL stack for TLS only.
-##   - Does NOT parse or decrypt CMS/PKCS#7 messages via OpenSSL.
-##   - Does NOT implement password-based CMS encryption/decryption.
-##   - Does NOT expose any API that accepts raw CMS blobs for decryption.
-##
-## Exploitation would require:
-##   - An application code path that passes attacker-controlled CMS
-##     PWRI-encrypted messages into OpenSSL's CMS decrypt APIs, AND
-##   - The vulnerable OpenSSL version, AND
-##   - The attacker able to supply crafted CMS structures.
-##
-## None of these conditions hold for this service; OpenSSL is used only
-## as the TLS backend under Python, not as a CMS processing engine.
-## We therefore treat CVE-2025-9230 as non-applicable to our workload
-## and ignore it in Trivy so that reports stay focused on vulnerabilities
-## that affect the running Python backend.
-
-CVE-2025-9230
