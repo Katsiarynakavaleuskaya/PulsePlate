@@ -612,11 +612,12 @@ CVE-2025-48385
 ##   - trixie/sid: fixed in 1.7.0-5
 ##
 ## CURRENT STATUS:
-##   ✅ Container uses PAM 1.7.0-5 (FIXED version from trixie)
-##   $ docker run --rm python:3.13-slim dpkg -l | grep libpam0g
-##   ii  libpam0g:arm64  1.7.0-5  arm64
+##   ⚠️  Container uses PAM 1.5.2-6+deb12u1 (bookworm, VULNERABLE)
+##   $ docker run --rm python:3.13.5-slim dpkg -l | grep libpam0g
+##   ii  libpam0g:arm64  1.5.2-6+deb12u1  arm64
 ##
-## This container is NOT vulnerable - PAM 1.7.0-5 includes all fixes.
+## This container package version IS vulnerable, BUT application does NOT
+## use PAM (see justification below).
 ##
 ## Our application & container model:
 ##   - Runs as an unprivileged user (not root) inside a Docker container
@@ -635,12 +636,13 @@ CVE-2025-48385
 ##   - No one obtains shell/log-in via PAM inside the container
 ##   - pam_namespace is not referenced in PAM configs by default
 ##
-## Trivy is reporting stale metadata - our PAM 1.7.0-5 IS the fixed version.
-## We ignore this to avoid false positive alerts.
+## Debian Security Assessment:
+##   - bookworm (1.5.2-6+deb12u1): vulnerable, <no-dsa> (fix via point release)
+##   - Acceptable to ignore: application never uses PAM, pam_namespace not configured
 ##
-## MAINTENANCE NOTE: This entry should be reviewed during the next quarterly
-## review (2026-03-12). If Trivy database is updated to recognize PAM 1.7.0-5
-## as fixed, this ignore entry can be removed.
+## MAINTENANCE NOTE: When python:3.13.5-slim updates to include fixed PAM version
+## (or when base image migrates to trixie/sid with PAM 1.7.0-5), this entry can
+## be removed. Next review: 2026-03-12.
 
 CVE-2025-6020
 
@@ -853,7 +855,9 @@ CVE-2023-50495
 ##
 ## Why we are NOT vulnerable:
 ##   - Python 3.13.5 implements PEP 706 → secure tarfile by default
-##   - pip NEVER uses vulnerable fallback code on Python 3.13
+##   - pip 25.1.1 DOES contain vulnerable fallback code (unfixed until 25.3)
+##   - BUT Python 3.13.5's PEP 706 prevents fallback code from being used
+##   - PEP 706 provides interpreter-level protection at tarfile module
 ##   - Production installs from wheels, not sdists
 ##   - Controlled dependencies from PyPI (no untrusted sources)
 ##
@@ -943,11 +947,12 @@ CVE-2025-30258
 ##   - Status: Fix available, awaiting base image update
 ##
 ## Why exploitation is unlikely:
-##   - Python regex module may use system regex internally
-##   - No direct regcomp() calls in application code
+##   - Python's re module uses its own regex engine (PCRE-style), NOT glibc regcomp()
+##   - Application code does NOT call regcomp() directly
+##   - Only OS utilities (shell tools, grep, sed) might use glibc regex
 ##   - Container has stable memory allocation (no random malloc failures)
 ##   - Exploit requires malloc failure during regex compilation
-##   - Application does not allow user-controlled regex patterns at low level
+##   - Application runtime does not invoke shell tools with user-controlled patterns
 ##
 ## Mitigation plan:
 ##   - Monitor for python:3.13.5-slim update with glibc 2.36-9+deb12u13
