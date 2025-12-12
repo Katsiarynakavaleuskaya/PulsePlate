@@ -48,3 +48,30 @@ CVE-2023-45853
 ## - Has no attack surface for this specific vulnerability
 
 CVE-2025-7458
+
+## CVE-2025-6965 – SQLite aggregate terms memory corruption
+##
+## This CVE affects SQLite versions before 3.50.2 due to memory corruption
+## when aggregate terms exceed available columns. Our application is SAFE:
+##
+## 1. Docker container (python:3.13-slim) uses SQLite 3.46.1-7 (Debian trixie)
+## 2. Debian Security Tracker confirms 3.46.1-7 is FIXED for trixie
+## 3. Python 3.13 bundles the same patched SQLite 3.46.1
+##
+## Debian Security Status:
+##   bookworm: Fixed in 3.40.1-2+deb12u2 (backported patch)
+##   trixie:   Fixed in 3.46.1-7 (our version) ✅
+##   sid:      Fixed in 3.46.1-8
+##
+## Source: https://security-tracker.debian.org/tracker/CVE-2025-6965
+##
+## Even though 3.46.1 < 3.50.2 numerically, Debian backported the security
+## fix to 3.46.1-7. Trivy metadata incorrectly references the old bookworm
+## version (3.40.1-2+deb12u1) which is not what python:3.13-slim uses.
+##
+## Additionally, our application:
+## - Uses SQLAlchemy ORM (controlled queries)
+## - Does not allow user-provided SQL with complex aggregates
+## - Has minimal attack surface for this vulnerability
+
+CVE-2025-6965
