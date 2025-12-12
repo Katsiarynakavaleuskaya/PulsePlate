@@ -396,41 +396,6 @@ CVE-2024-2236
 
 CVE-2025-6297
 
-## CVE-2025-27587 – OpenSSL Minerva side-channel on PowerPC
-##
-## This CVE describes a Minerva-style timing side-channel in OpenSSL
-## 3.0.0–3.3.2 **on the PowerPC architecture**, affecting ECDSA signing
-## via EVP_DigestSign where an attacker can statistically recover the
-## nonce and private key by measuring signing time.
-##
-## Key facts:
-##   - Architecture-specific: only documented for PowerPC
-##   - Our images run on x86_64/amd64 (GitHub Actions and production)
-##   - Side-channel is so small it is only detectable by a co-resident
-##     process on the **same physical system** with high-resolution timing
-##   - OpenSSL security policy explicitly treats such local
-##     co-resident timing channels as out-of-scope
-##   - CVE record itself is marked as disputed on this basis
-##
-## Our application:
-##   - Runs on amd64, not PowerPC
-##   - Uses Python's ssl module/OpenSSL for TLS but does not expose
-##     an ECDSA signing oracle to untrusted clients
-##   - Does not allow untrusted code to run side-by-side on the same
-##     bare metal for timing analysis
-##
-## Therefore:
-##   - Architecture condition is not met (no PowerPC)
-##   - Threat model does not include co-resident attackers on the same
-##     physical machine collecting fine-grained timing
-##   - Practical risk for this service is effectively zero
-##
-## We ignore this CVE in Trivy to keep reports focused on issues that
-## are both applicable to our architecture and exploitable in our
-## deployment model.
-
-CVE-2025-27587
-
 ## CVE-2025-9232 – OpenSSL HTTP client no_proxy OOB read
 ##
 ## This CVE affects OpenSSL 3.0.16–3.3.2 when using the built‑in HTTP
