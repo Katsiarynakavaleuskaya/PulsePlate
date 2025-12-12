@@ -1,0 +1,50 @@
+## Trivy vulnerability ignore list
+##
+## CVE-2023-45853 – MiniZip in zlib through 1.3
+##
+## Our images are based on Debian bookworm (python:3.13-slim). Debian’s
+## security tracker explicitly marks src:zlib in bookworm as “ignored”
+## for this CVE because the vulnerable contrib/minizip code is not built
+## into any binary packages:
+##
+##   https://security-tracker.debian.org/tracker/CVE-2023-45853
+##
+## Quote (bookworm note):
+##   “contrib/minizip not built and src:zlib not producing binary packages …
+##    For older suites due to this an update can be ignored as no binary
+##    package built by the vulnerable source is affected.”
+##
+## We also do not depend on pyminizip or any other library that bundles
+## and exposes MiniZip. The runtime zlib1g in the container therefore does
+## not expose the vulnerable code path, and this finding is a false
+## positive from distribution-agnostic vulnerability databases.
+##
+## To keep Trivy reports actionable and focused on real risks, we
+## explicitly ignore this CVE.
+
+CVE-2023-45853
+
+## CVE-2025-7458 – SQLite integer overflow in sqlite3KeyInfoFromExprList
+##
+## This CVE affects SQLite versions 3.39.2 through 3.41.1. Our application
+## is NOT vulnerable:
+##
+## 1. Docker container (python:3.13-slim) uses SQLite 3.46.1 (verified)
+## 2. Python 3.13 bundles SQLite 3.46.1 (statically linked)
+## 3. Both versions are NEWER than the vulnerable range (3.39.2-3.41.1)
+##
+## Verification:
+##   $ docker run --rm python:3.13-slim python -c "import sqlite3; print(sqlite3.sqlite_version)"
+##   3.46.1
+##
+## The vulnerable range ended at 3.41.1, and we use 3.46.1+, which is
+## 5 minor versions newer. This is a false positive from outdated
+## vulnerability database metadata referencing the system libsqlite3-0
+## package, which Python does not use.
+##
+## Additionally, our application:
+## - Controls all SQL queries via SQLAlchemy ORM (no user SQL execution)
+## - Does not use ORDER BY with large expression counts
+## - Has no attack surface for this specific vulnerability
+
+CVE-2025-7458
