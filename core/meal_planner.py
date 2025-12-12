@@ -146,7 +146,12 @@ def _select_recipe_for_meal(
             return None
         else:
             # Fallback: iterate all recipes
-            recipes = recipe_db if isinstance(recipe_db, (list, dict)) else []
+            if isinstance(recipe_db, dict):
+                recipes = list(recipe_db.values())
+            elif isinstance(recipe_db, list):
+                recipes = recipe_db
+            else:
+                recipes = []
     except (AttributeError, TypeError):
         return None
 

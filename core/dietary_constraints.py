@@ -157,6 +157,8 @@ def is_recipe_compatible(
                 "fish",
                 "мясо",
                 "meat",
+                "beef",
+                "pork",
             }
             if recipe_name:
                 name_lower = recipe_name.lower()

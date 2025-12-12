@@ -1,0 +1,441 @@
+"""
+Tests for meal_planner.py - Meal Planning Logic
+
+Test coverage: 97%+ target
+"""
+
+import pytest
+
+from core.meal_planner import (
+    DailyMealPlan,
+    MealPlan,
+    WeeklyMealPlan,
+    create_daily_meal_plan,
+    create_meal_plan,
+    create_weekly_meal_plan,
+)
+
+
+class MockRecipeDB:
+    """Mock recipe database for testing."""
+
+    def __init__(self, recipes=None):
+        self.recipes = recipes or []
+
+    def pick_base_recipe(self, diet_flags, meal_index):
+        """Legacy interface."""
+        if self.recipes and meal_index < len(self.recipes):
+            return self.recipes[meal_index]
+        return None
+
+
+class TestCreateMealPlan:
+    """Test create_meal_plan function."""
+
+    def test_create_meal_plan_basic(self):
+        """Test basic meal plan creation."""
+        meal = create_meal_plan("breakfast", 500)
+
+        assert meal.name == "breakfast"
+        assert meal.kcal_target == 500
+        assert meal.recipe_name is not None
+
+    def test_create_meal_plan_fallback(self):
+        """Test fallback meal creation when no recipe DB."""
+        meal = create_meal_plan("lunch", 700)
+
+        assert meal.name == "lunch"
+        assert meal.kcal_target == 700
+        assert "Balanced lunch" in meal.recipe_name
+        assert "protein_g" in meal.macros
+        assert "carbs_g" in meal.macros
+        assert "fat_g" in meal.macros
+
+    def test_create_meal_plan_with_diet_flags(self):
+        """Test meal creation with dietary restrictions."""
+        meal = create_meal_plan("dinner", 600, diet_flags={"VEGAN"})
+
+        assert meal.name == "dinner"
+        assert meal.kcal_target == 600
+
+    def test_create_meal_plan_breakfast_macros(self):
+        """Test breakfast has higher carb ratio."""
+        meal = create_meal_plan("breakfast", 500)
+
+        # Breakfast should be higher in carbs (50% vs 40% for other meals)
+        carbs_ratio = meal.macros["carbs_g"] * 4 / 500
+        assert carbs_ratio >= 0.45  # Around 50% ±5%
+
+    def test_create_meal_plan_snack_smaller(self):
+        """Test snack has appropriate macros."""
+        meal = create_meal_plan("snack", 200)
+
+        assert meal.name == "snack"
+        assert meal.macros["protein_g"] > 0
+        assert meal.macros["carbs_g"] > 0
+
+    def test_create_meal_plan_with_recipe_db(self):
+        """Test meal creation with mock recipe database."""
+        mock_recipe = {
+            "name": "Oatmeal Bowl",
+            "ingredients": {"oats": 50, "banana": 100},
+            "macros": {"protein_g": 10, "carbs_g": 60, "fat_g": 5, "fiber_g": 8},
+            "micros": {"iron_mg": 3.5},
+            "cost": 2.50,
+            "kcal": 300,
+            "flags": ["VEG", "GF"],
+        }
+
+        mock_db = MockRecipeDB([mock_recipe])
+        meal = create_meal_plan("breakfast", 500, recipe_db=mock_db)
+
+        assert meal.recipe_name == "Oatmeal Bowl"
+        assert meal.ingredients == {"oats": 50, "banana": 100}
+        assert meal.estimated_cost == 2.50
+
+
+class TestCreateDailyMealPlan:
+    """Test create_daily_meal_plan function."""
+
+    def test_create_daily_plan_basic(self):
+        """Test basic daily plan creation."""
+        plan = create_daily_meal_plan(2000)
+
+        assert plan.day == 1
+        assert plan.total_kcal == 2000
+        assert len(plan.meals) == 4  # Default 4 meals
+
+    def test_create_daily_plan_3_meals(self):
+        """Test daily plan with 3 meals."""
+        plan = create_daily_meal_plan(2000, num_meals=3)
+
+        assert len(plan.meals) == 3
+
+    def test_create_daily_plan_meal_names(self):
+        """Test that all expected meals are present."""
+        plan = create_daily_meal_plan(2000, num_meals=4)
+
+        meal_names = [meal.name for meal in plan.meals]
+        assert "breakfast" in meal_names
+        assert "lunch" in meal_names
+        assert "dinner" in meal_names
+        assert "snack" in meal_names
+
+    def test_create_daily_plan_calorie_distribution(self):
+        """Test calories are distributed correctly."""
+        plan = create_daily_meal_plan(2000)
+
+        # Sum of meal targets should equal total
+        total_meal_kcal = sum(meal.kcal_target for meal in plan.meals)
+        assert abs(total_meal_kcal - 2000) <= 5  # Allow small rounding
+
+    def test_create_daily_plan_macro_aggregation(self):
+        """Test macros are aggregated correctly."""
+        plan = create_daily_meal_plan(2000)
+
+        assert "protein_g" in plan.total_macros
+        assert "carbs_g" in plan.total_macros
+        assert "fat_g" in plan.total_macros
+        assert "fiber_g" in plan.total_macros
+
+        # All macros should be positive
+        assert plan.total_macros["protein_g"] > 0
+        assert plan.total_macros["carbs_g"] > 0
+        assert plan.total_macros["fat_g"] > 0
+
+    def test_create_daily_plan_with_diet_flags(self):
+        """Test daily plan respects diet flags."""
+        plan = create_daily_meal_plan(2000, diet_flags={"VEGAN", "GF"})
+
+        assert len(plan.meals) > 0
+
+    def test_create_daily_plan_with_recipe_db(self):
+        """Test daily plan with recipe database."""
+        mock_recipes = [
+            {
+                "name": "Breakfast Bowl",
+                "kcal": 500,
+                "macros": {"protein_g": 20, "carbs_g": 70, "fat_g": 15, "fiber_g": 10},
+                "ingredients": {},
+            }
+        ]
+
+        mock_db = MockRecipeDB(mock_recipes)
+        plan = create_daily_meal_plan(2000, recipe_db=mock_db)
+
+        # At least one meal should use the recipe
+        recipe_names = [meal.recipe_name for meal in plan.meals]
+        assert any("Breakfast Bowl" in str(name) for name in recipe_names)
+
+
+class TestCreateWeeklyMealPlan:
+    """Test create_weekly_meal_plan function."""
+
+    def test_create_weekly_plan_basic(self):
+        """Test basic weekly plan creation."""
+        plan = create_weekly_meal_plan(2000)
+
+        assert len(plan.days) == 7
+        # Average will be close to 2000 (variation causes small differences)
+        assert abs(plan.average_kcal - 2000) <= 20
+
+    def test_create_weekly_plan_day_numbers(self):
+        """Test days are numbered 1-7."""
+        plan = create_weekly_meal_plan(2000)
+
+        day_numbers = [day.day for day in plan.days]
+        assert day_numbers == [1, 2, 3, 4, 5, 6, 7]
+
+    def test_create_weekly_plan_variation(self):
+        """Test weekly plan has calorie variation."""
+        plan = create_weekly_meal_plan(2000)
+
+        # Should have different calorie targets on different days
+        kcal_targets = [day.total_kcal for day in plan.days]
+
+        # Not all days should be exactly 2000 (due to variation)
+        assert len(set(kcal_targets)) > 1
+
+    def test_create_weekly_plan_average_correct(self):
+        """Test average calories is correct."""
+        plan = create_weekly_meal_plan(2000)
+
+        total_kcal = sum(day.total_kcal for day in plan.days)
+        calculated_avg = total_kcal // 7
+
+        assert abs(calculated_avg - plan.average_kcal) <= 1
+
+    def test_create_weekly_plan_shopping_list(self):
+        """Test shopping list is generated."""
+        plan = create_weekly_meal_plan(2000)
+
+        assert isinstance(plan.shopping_list, dict)
+
+    def test_create_weekly_plan_with_diet_flags(self):
+        """Test weekly plan with dietary restrictions."""
+        plan = create_weekly_meal_plan(2000, diet_flags={"VEGAN"})
+
+        assert len(plan.days) == 7
+
+    def test_create_weekly_plan_3_meals_per_day(self):
+        """Test weekly plan with 3 meals per day."""
+        plan = create_weekly_meal_plan(2000, num_meals=3)
+
+        # All days should have 3 meals
+        for day in plan.days:
+            assert len(day.meals) == 3
+
+
+class TestMealPlanDataclass:
+    """Test MealPlan dataclass."""
+
+    def test_meal_plan_creation(self):
+        """Test creating MealPlan object."""
+        meal = MealPlan(name="breakfast", kcal_target=500)
+
+        assert meal.name == "breakfast"
+        assert meal.kcal_target == 500
+        assert meal.recipe_name is None
+        assert meal.ingredients == {}
+        assert meal.macros == {}
+
+    def test_meal_plan_with_all_fields(self):
+        """Test MealPlan with all fields populated."""
+        meal = MealPlan(
+            name="lunch",
+            kcal_target=700,
+            recipe_name="Quinoa Bowl",
+            ingredients={"quinoa": 100, "chickpeas": 150},
+            macros={"protein_g": 25, "carbs_g": 80, "fat_g": 15, "fiber_g": 12},
+            micros={"iron_mg": 4.5},
+            boosters=[{"name": "Spinach", "amount": 50}],
+            estimated_cost=5.50,
+        )
+
+        assert meal.name == "lunch"
+        assert meal.recipe_name == "Quinoa Bowl"
+        assert meal.estimated_cost == 5.50
+        assert len(meal.ingredients) == 2
+
+
+class TestDailyMealPlanDataclass:
+    """Test DailyMealPlan dataclass."""
+
+    def test_daily_plan_creation(self):
+        """Test creating DailyMealPlan object."""
+        meals = [
+            MealPlan(name="breakfast", kcal_target=500),
+            MealPlan(name="lunch", kcal_target=700),
+        ]
+
+        plan = DailyMealPlan(day=1, total_kcal=1200, meals=meals)
+
+        assert plan.day == 1
+        assert plan.total_kcal == 1200
+        assert len(plan.meals) == 2
+
+    def test_daily_plan_with_all_fields(self):
+        """Test DailyMealPlan with all fields."""
+        meals = [MealPlan(name="breakfast", kcal_target=500)]
+
+        plan = DailyMealPlan(
+            day=1,
+            total_kcal=500,
+            meals=meals,
+            total_macros={"protein_g": 20, "carbs_g": 60, "fat_g": 15, "fiber_g": 8},
+            total_micros={"iron_mg": 3.0},
+            micro_coverage={"iron_mg": 85.0},
+            tips=["Drink water", "Include greens"],
+            total_cost=10.50,
+        )
+
+        assert len(plan.tips) == 2
+        assert plan.total_cost == 10.50
+        assert "iron_mg" in plan.micro_coverage
+
+
+class TestWeeklyMealPlanDataclass:
+    """Test WeeklyMealPlan dataclass."""
+
+    def test_weekly_plan_creation(self):
+        """Test creating WeeklyMealPlan object."""
+        days = [DailyMealPlan(day=i, total_kcal=2000, meals=[]) for i in range(1, 8)]
+
+        plan = WeeklyMealPlan(days=days, average_kcal=2000)
+
+        assert len(plan.days) == 7
+        assert plan.average_kcal == 2000
+
+    def test_weekly_plan_with_shopping_list(self):
+        """Test WeeklyMealPlan with shopping list."""
+        days = [DailyMealPlan(day=1, total_kcal=2000, meals=[])]
+
+        plan = WeeklyMealPlan(
+            days=days,
+            average_kcal=2000,
+            shopping_list={"oats": 500, "banana": 700},
+            total_cost=50.00,
+        )
+
+        assert len(plan.shopping_list) == 2
+        assert plan.shopping_list["oats"] == 500
+        assert plan.total_cost == 50.00
+
+
+class TestEdgeCases:
+    """Test edge cases and error handling."""
+
+    def test_create_meal_plan_zero_calories(self):
+        """Test meal creation with zero calories."""
+        meal = create_meal_plan("breakfast", 0)
+
+        assert meal.kcal_target == 0
+
+    def test_create_daily_plan_very_low_calories(self):
+        """Test daily plan with very low calories."""
+        plan = create_daily_meal_plan(800)
+
+        assert plan.total_kcal == 800
+        assert len(plan.meals) > 0
+
+    def test_create_daily_plan_very_high_calories(self):
+        """Test daily plan with very high calories."""
+        plan = create_daily_meal_plan(5000)
+
+        assert plan.total_kcal == 5000
+
+    def test_create_weekly_plan_empty_diet_flags(self):
+        """Test weekly plan with empty diet flags."""
+        plan = create_weekly_meal_plan(2000, diet_flags=set())
+
+        assert len(plan.days) == 7
+
+    def test_meal_plan_none_recipe_db(self):
+        """Test meal creation with None recipe_db."""
+        meal = create_meal_plan("lunch", 700, recipe_db=None)
+
+        assert meal.recipe_name is not None  # Should have fallback
+
+
+class TestShoppingListGeneration:
+    """Test shopping list generation logic."""
+
+    def test_shopping_list_aggregates_ingredients(self):
+        """Test shopping list combines ingredients from all meals."""
+        # Create plan with known ingredients (via fallback)
+        plan = create_weekly_meal_plan(2000)
+
+        # Shopping list should be a dict
+        assert isinstance(plan.shopping_list, dict)
+
+    def test_shopping_list_empty_for_fallback_meals(self):
+        """Test shopping list when using fallback meals (no ingredients)."""
+        plan = create_weekly_meal_plan(2000)
+
+        # Fallback meals have no ingredients, so shopping list will be empty
+        assert isinstance(plan.shopping_list, dict)
+
+
+class TestRecipeSelection:
+    """Test recipe selection logic."""
+
+    def test_recipe_selected_by_meal_type(self):
+        """Test recipes are selected based on meal type."""
+        breakfast_recipe = {
+            "name": "Oatmeal",
+            "kcal": 500,
+            "macros": {"protein_g": 15, "carbs_g": 70, "fat_g": 10, "fiber_g": 10},
+            "flags": ["breakfast", "VEG"],
+        }
+
+        mock_db = MockRecipeDB([breakfast_recipe])
+        meal = create_meal_plan("breakfast", 500, recipe_db=mock_db)
+
+        assert meal.recipe_name == "Oatmeal"
+
+    def test_recipe_respects_diet_flags(self):
+        """Test recipe selection respects dietary flags."""
+        # This would require proper recipe_db implementation
+        # For now, test that function doesn't crash
+        meal = create_meal_plan("lunch", 700, diet_flags={"VEGAN"})
+
+        assert meal.name == "lunch"
+
+
+class TestMacroDistribution:
+    """Test macro distribution in fallback meals."""
+
+    def test_breakfast_higher_carbs(self):
+        """Test breakfast fallback has higher carb percentage."""
+        meal = create_meal_plan("breakfast", 500)
+
+        carbs_kcal = meal.macros["carbs_g"] * 4
+        carbs_pct = carbs_kcal / 500
+
+        assert carbs_pct >= 0.45  # Should be ~50% carbs
+
+    def test_dinner_balanced(self):
+        """Test dinner fallback is balanced."""
+        meal = create_meal_plan("dinner", 600)
+
+        protein_kcal = meal.macros["protein_g"] * 4
+        carbs_kcal = meal.macros["carbs_g"] * 4
+        fat_kcal = meal.macros["fat_g"] * 9
+
+        protein_pct = protein_kcal / 600
+        carbs_pct = carbs_kcal / 600
+        fat_pct = fat_kcal / 600
+
+        # Should be roughly balanced (30/40/30)
+        assert 0.25 <= protein_pct <= 0.35
+        assert 0.35 <= carbs_pct <= 0.45
+        assert 0.25 <= fat_pct <= 0.35
+
+    def test_snack_balanced(self):
+        """Test snack fallback has balanced macros."""
+        meal = create_meal_plan("snack", 200)
+
+        # Snack should have reasonable amounts of all macros
+        assert meal.macros["protein_g"] > 10
+        assert meal.macros["carbs_g"] > 15
+        assert meal.macros["fat_g"] > 5

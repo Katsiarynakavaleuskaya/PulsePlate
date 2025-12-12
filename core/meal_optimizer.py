@@ -110,7 +110,7 @@ def optimize_micro_coverage(
         return meals, coverage
 
     # Add boosters for deficient micros (simplified)
-    optimized_meals = meals.copy()
+    optimized_meals = meals[:]  # Shallow copy sufficient
 
     # Priority order: most deficient first
     sorted_deficient = sorted(deficient_micros.items(), key=lambda x: x[1])
@@ -287,9 +287,8 @@ def _reduce_cost_preserving_quality(
     # Calculate reduction factor
     reduction_factor = max_budget / current_cost
 
-    # Ensure we don't reduce quality too much
-    if reduction_factor < min_quality_score:
-        reduction_factor = min_quality_score
+    # Ensure we don't reduce quality too much (floor at min_quality_score)
+    reduction_factor = max(reduction_factor, min_quality_score)
 
     optimized = []
     for meal in meals:

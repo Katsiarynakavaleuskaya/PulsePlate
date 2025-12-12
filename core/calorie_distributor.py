@@ -97,6 +97,8 @@ def distribute_calories(
     """
     if meal_splits is None:
         meal_splits = DEFAULT_MEAL_SPLITS.copy()
+    else:
+        meal_splits = meal_splits.copy()
 
     # Adjust for 3-meal pattern (no snack)
     if num_meals == 3 and "snack" in meal_splits:

@@ -1525,6 +1525,7 @@ starlette
 uvicorn
 
 # Moved Casella (proper name) to project names list; removed from general dictionary
+макробаланс
 aiomysql
 aiosqlite
 Ardle
