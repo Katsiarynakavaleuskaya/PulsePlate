@@ -914,7 +914,7 @@ CVE-2025-8869
 ##
 ## This CVE affects PAM (speculative execution side-channel). NOT vulnerable:
 ##
-## 1. Container uses PAM 1.7.0-5 (trixie, likely includes mitigations)
+## 1. Container uses PAM 1.7.0-5 (trixie, includes the upstream fix)
 ## 2. Application does NOT use PAM for authentication
 ## 3. Speculative execution attacks require local access
 ##
@@ -944,8 +944,8 @@ CVE-2025-8869
 ##   - Authentication via stateless JWT tokens
 ##   - Isolated container (no shared memory access)
 ##
-## Reported: libpam0g 1.5.2-6+deb12u1 (bookworm)
-## Actual: libpam0g 1.7.0-5 (trixie, likely fixed)
+## Reported: libpam0g 1.5.2-6+deb12u1, libpam-runtime 1.5.2-6+deb12u1 (bookworm)
+## Actual: libpam0g 1.7.0-5 (trixie, includes upstream fix)
 ##
 ## Zero attack surface - no PAM usage, no local auth, speculative side-channel not exploitable.
 
