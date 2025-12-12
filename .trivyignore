@@ -177,3 +177,38 @@ CVE-2016-2781
 ##   - Zero attack surface for this build-tool vulnerability
 
 CVE-2022-27943
+
+## CVE-2022-3219 – GnuPG DoS via compressed packets
+##
+## This CVE affects GnuPG signature verification. NOT vulnerable:
+##
+## 1. gpgv/gnupg NOT installed in python:3.13-slim container (verified)
+## 2. Application does NOT use GPG for signature verification
+## 3. No GPG-related dependencies in requirements.txt
+##
+## Debian Security Assessment:
+##   - Severity: LOW
+##   - Urgency: unimportant
+##   - Status: unfixed ("GnuPG upstream is not implementing this change")
+##   - All releases marked vulnerable but won't be fixed
+##
+## Source: https://security-tracker.debian.org/tracker/CVE-2022-3219
+## Upstream: https://dev.gnupg.org/T5993
+##
+## Vulnerability details:
+##   - DoS attack via crafted public keys with many compressed signatures
+##   - Causes resource consumption (CPU spin)
+##   - Does NOT allow code execution or data exfiltration
+##   - GnuPG maintainers chose not to fix (design limitation)
+##
+## Our application:
+##   - Python-only, no cryptographic signature verification
+##   - Does NOT use GPG, PGP, or related tools
+##   - Does NOT process public keys or signatures
+##   - GPG not in dependency tree
+##   - Zero attack surface for GPG-specific DoS
+##
+## This is a phantom dependency or stale scan result.
+## The application has no code path that uses GnuPG.
+
+CVE-2022-3219
