@@ -370,9 +370,9 @@ class TestDistributeCaloriesToPortions:
         portions = distribute_calories_to_portions(2000, 3, [0.3, 0.4, 0.3])
 
         assert len(portions) == 3
-        assert portions[0] == 600.0
-        assert portions[1] == 800.0
-        assert portions[2] == 600.0
+        assert portions[0] == pytest.approx(600.0)
+        assert portions[1] == pytest.approx(800.0)
+        assert portions[2] == pytest.approx(600.0)
 
     def test_equal_distribution_for_non_three_portions(self) -> None:
         """Test equal distribution for portion counts other than 3."""
@@ -381,7 +381,7 @@ class TestDistributeCaloriesToPortions:
         assert len(portions) == 4
         # Each portion gets 25%
         for portion in portions:
-            assert portion == 500.0
+            assert portion == pytest.approx(500.0)
 
     def test_distribution_length_mismatch_raises_error(self) -> None:
         """Test that mismatched distribution length raises ValueError."""

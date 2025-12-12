@@ -138,6 +138,95 @@ def test_handle_sync_test_mode_awaitable_uses_new_event_loop(
     assert caller_called == [3]
 
 
+def test_handle_sync_test_mode_no_interval_appends_stop() -> None:
+    """When no interval is provided, 'stop' should be recorded."""
+    calls: Dict[str, Any] = {}
+
+    def target() -> str:
+        calls["called"] = True
+        return "ok"
+
+    caller_called: List[Any] = []
+    scheduler_helpers.handle_sync_test_mode(
+        target, update_interval_hours=None, caller_called=caller_called
+    )
+
+    assert calls.get("called") is True
+    assert caller_called == ["stop"]
+
+
+def test_handle_sync_test_mode_coroutine_with_running_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Awaitable with running loop should use ensure_future."""
+    calls: Dict[str, Any] = {}
+
+    async def _coro() -> None:
+        calls["coro_started"] = True
+
+    def target(update_interval_hours: int) -> Any:
+        calls["arg"] = update_interval_hours
+        return _coro()
+
+    created: List[Any] = []
+
+    def _fake_ensure_future(obj: Any) -> None:
+        created.append(obj)
+
+    class FakeLoop: ...
+
+    def _get_running_loop() -> asyncio.AbstractEventLoop:
+        return FakeLoop()  # type: ignore[return-value]
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "get_running_loop", _get_running_loop)
+    monkeypatch.setattr(scheduler_helpers.asyncio, "ensure_future", _fake_ensure_future)
+
+    caller_called: List[Any] = []
+    scheduler_helpers.handle_sync_test_mode(
+        target, update_interval_hours=5, caller_called=caller_called
+    )
+
+    assert calls.get("arg") == 5
+    assert created, "Expected ensure_future to be called with coroutine"
+    # Avoid 'coroutine was never awaited' warnings in teardown
+    for obj in created:
+        if hasattr(obj, "close"):
+            obj.close()
+    assert caller_called == [5]
+
+
+def test_handle_sync_test_mode_coroutine_uses_asyncio_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Coroutine without running loop should be executed via asyncio.run."""
+    calls: Dict[str, Any] = {}
+
+    async def _coro() -> None:
+        calls["coro_started"] = True
+
+    def target(update_interval_hours: int) -> Any:
+        calls["arg"] = update_interval_hours
+        return _coro()
+
+    def _get_running_loop() -> asyncio.AbstractEventLoop:
+        raise RuntimeError("no loop")
+
+    run_args: List[Any] = []
+
+    def _fake_run(obj: Any) -> None:
+        if hasattr(obj, "close"):
+            obj.close()
+        run_args.append(obj)
+
+    monkeypatch.setattr(scheduler_helpers.asyncio, "get_running_loop", _get_running_loop)
+    monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)
+
+    caller_called: List[Any] = []
+    scheduler_helpers.handle_sync_test_mode(
+        target, update_interval_hours=9, caller_called=caller_called
+    )
+
+    assert calls.get("arg") == 9
+    assert run_args, "Expected asyncio.run to be called with coroutine"
+    assert caller_called == [9]
+
+
 def _sync_starter(update_interval_hours: int) -> int:
     return update_interval_hours
 
@@ -238,7 +327,9 @@ def test_safe_stop_with_cleanup_awaitable_calls_asyncio_run(
         return _coro()
 
     def _fake_run(obj: Any) -> None:
-        # Record the object passed to asyncio.run without actually running it
+        # Record the object passed to asyncio.run and close coroutine to avoid warnings
+        if hasattr(obj, "close"):
+            obj.close()
         called["run_arg"] = obj
 
     monkeypatch.setattr(scheduler_helpers.asyncio, "run", _fake_run)

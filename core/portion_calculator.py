@@ -198,7 +198,7 @@ class PortionCalculator:
             ValueError: If daily_calories is non-positive
 
         Examples:
-            >>> from meal_types import MealType
+            >>> from core.meal_types import MealType
             >>> calc = PortionCalculator()
             >>> portion = calc.calculate_meal_portion(
             ...     MealType.BREAKFAST, 2000, 150
