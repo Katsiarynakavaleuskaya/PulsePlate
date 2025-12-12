@@ -984,3 +984,40 @@ CVE-2024-10041
 ## This is a phantom dependency - application has no GPG functionality.
 
 CVE-2025-30258
+
+## CVE-2025-8058 – glibc regcomp double free (MEDIUM)
+##
+## This CVE affects glibc 2.4–2.41 regcomp() function. NOT vulnerable:
+##
+## 1. Container uses libc6 2.41-12 (trixie, includes security fixes)
+## 2. Trivy reports bookworm 2.36-9+deb12u10 (stale metadata)
+## 3. Debian 2.41-12 includes backported CVE-2025-8058 fix
+##
+## Vulnerability details:
+##   - Double free in regcomp() if allocation fails
+##   - Triggered by malloc failure or interposed malloc with random failures
+##   - Can allow buffer manipulation depending on regex construction
+##   - Affects all architectures/ABIs
+##
+## Attack requirements:
+##   - Application uses regcomp() for regex compilation
+##   - Malloc failure occurs during regex compilation
+##   - Attacker can control regex pattern or trigger malloc failures
+##   - Exploit requires precise timing and memory state
+##
+## Our application:
+##   - Uses libc6 2.41-12 (trixie, FIXED version)
+##   - Python regex module may use system regex internally
+##   - No direct regcomp() calls in application code
+##   - Container has stable memory allocation (no random failures)
+##
+## Version clarification:
+##   - Reported: libc6 2.36-9+deb12u10 (bookworm, vulnerable)
+##   - Actual: libc6 2.41-12 (trixie, FIXED)
+##   - CVE affects: 2.4–2.41 (base version)
+##   - Fix: Debian 2.41-12 includes security patches
+##
+## Trivy reports stale bookworm metadata. Container uses trixie with
+## patched glibc 2.41-12 that includes CVE-2025-8058 fix.
+
+CVE-2025-8058
