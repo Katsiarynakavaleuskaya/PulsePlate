@@ -8,8 +8,10 @@ EN: Router for generating weekly meal plans.
 import math
 from typing import Dict, List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
+
+from app.middleware.api_tiers import require_pro_tier
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
@@ -123,8 +125,25 @@ def estimate_targets_minimal(
     }
 
 
-@router.post("/plan/week-flexible", response_model=WeekPlanResponse)
+@router.post(
+    "/plan/week-flexible", response_model=WeekPlanResponse, dependencies=[Depends(require_pro_tier)]
+)
 async def generate_week_plan(req: WeekPlanRequest):
+    """
+    Generate weekly meal plan with PRO tier features.
+
+    RU: Генерация недельного плана питания с функциями PRO уровня.
+    EN: Generate weekly meal plan with PRO tier features.
+
+    Requires: PRO tier API key in X-API-Key header
+
+    Features:
+    - WHO-based nutrition targets
+    - Macro and micronutrient planning
+    - Dietary restrictions support
+    - Weekly shopping list
+    - Cost estimation
+    """
     # 0) Загрузка БД (можно держать как синглтоны)
     fooddb = FoodDB("data/food_db_new.csv")
     recipedb = RecipeDB("data/recipes_new.csv", fooddb)

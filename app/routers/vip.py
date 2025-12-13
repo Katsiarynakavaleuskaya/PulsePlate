@@ -605,15 +605,24 @@ def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header
 @router.post(
     "/weekly-plan",
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
-    summary="Generate weekly meal plan",
-    description="Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.",
+    summary="[DEPRECATED] Generate weekly meal plan",
+    description="⚠️ DEPRECATED: Use /api/v1/vip/menu/weekly/plan instead. This endpoint will be removed in v2.0.",
     dependencies=[Depends(_require_api_key_dev_legacy)],
+    deprecated=True,
 )
 async def weekly_menu_plan_alias(
     request: WeeklyPlanRequest, x_api_key: str = Header(None)
 ) -> Union[WeeklyPlanResponse, ErrorResponse]:
     """
-    Generate a weekly meal plan based on user profile.
+    [DEPRECATED] Generate a weekly meal plan based on user profile.
+
+    ⚠️ DEPRECATED: This endpoint is deprecated and will be removed in v2.0.
+    Please use /api/v1/vip/menu/weekly/plan instead.
+
+    Migration guide:
+    - Update your API client to use /api/v1/vip/menu/weekly/plan
+    - Use strict API key validation (X-API-Key header required in production)
+    - No changes to request/response format required
 
     Args:
         request: Weekly plan request with user profile data
@@ -622,6 +631,11 @@ async def weekly_menu_plan_alias(
     Returns:
         WeeklyPlanResponse with generated plan or ErrorResponse on failure
     """
+    # Log deprecation warning
+    logging.warning(
+        "DEPRECATED endpoint /api/v1/vip/weekly-plan was called. "
+        "Use /api/v1/vip/menu/weekly/plan instead."
+    )
     if make_weekly_menu is None:
         return ErrorResponse(message="Weekly menu generation not available")
 
@@ -1080,13 +1094,6 @@ def synthesize_recipe(request: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
         },
         "message": "Recipe synthesis in echo mode",
     }
-
-
-@router.post("/recipe/synthesize", dependencies=[Depends(_require_api_key_strict)])
-def synthesize_recipe_alias(request: Dict[str, Any]) -> Dict[str, Any]:
-    """Alias for singular recipe synthesis endpoint."""
-    result: Dict[str, Any] = synthesize_recipe(request)
-    return result
 
 
 @router.post("/recipes/weekly", dependencies=[Depends(_require_api_key_strict)])
