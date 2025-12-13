@@ -82,8 +82,8 @@ def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:
     Examples:
         >>> normalize_diet_flags({"VEGAN"})
         {'VEGAN', 'VEG', 'DAIRY_FREE'}
-        >>> normalize_diet_flags({"KETO", "VEGAN"})
-        {'VEGAN', 'VEG', 'DAIRY_FREE', 'LOW_CARB', 'HIGH_PROTEIN'}
+        >>> normalize_diet_flags({"KETO", "LOW_FAT"})
+        {'KETO', 'LOW_CARB', 'HIGH_PROTEIN'}
     """
     result = normalize_diet_flags_detailed(diet_flags)
     return result.flags

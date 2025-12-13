@@ -86,6 +86,22 @@ BOOSTER_FOODS: Dict[str, List[BoosterFood]] = {
 }
 
 
+def _calculate_deviations(
+    current_macros: Dict[str, float],
+    target_macros: Dict[str, float],
+) -> Dict[str, float]:
+    """Calculate deviation from targets for each macro.
+
+    Deviation is computed as abs(current-target)/target for targets > 0.
+    """
+    deviations: Dict[str, float] = {}
+    for macro, target in target_macros.items():
+        if target > 0:
+            current = current_macros.get(macro, 0.0)
+            deviations[macro] = abs(current - target) / target
+    return deviations
+
+
 def optimize_macro_balance(
     meals: List[Dict[str, Any]],
     target_macros: Dict[str, float],
@@ -118,12 +134,7 @@ def optimize_macro_balance(
     current_macros = _aggregate_macros(meals)
 
     # Calculate deviation from targets
-    deviations = {}
-    for macro, target in target_macros.items():
-        if target > 0:
-            current = current_macros.get(macro, 0)
-            deviation = abs(current - target) / target
-            deviations[macro] = deviation
+    deviations = _calculate_deviations(current_macros, target_macros)
 
     # Calculate balance score (inverse of average deviation)
     avg_deviation = sum(deviations.values()) / len(deviations) if deviations else 0
@@ -138,12 +149,7 @@ def optimize_macro_balance(
 
     # Recalculate score
     new_macros = _aggregate_macros(optimized_meals)
-    new_deviations = {}
-    for macro, target in target_macros.items():
-        if target > 0:
-            current = new_macros.get(macro, 0)
-            deviation = abs(current - target) / target
-            new_deviations[macro] = deviation
+    new_deviations = _calculate_deviations(new_macros, target_macros)
 
     new_avg_deviation = sum(new_deviations.values()) / len(new_deviations) if new_deviations else 0
     new_score = max(0.0, 1.0 - new_avg_deviation)
