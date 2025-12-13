@@ -39,6 +39,23 @@ class TestDistributeCalories:
         assert abs(dinner - 600) <= 1  # 30% of 2000
         assert abs(snack - 200) <= 1  # 10% of 2000
 
+    def test_daily_calorie_distribution_lazy_cache(self) -> None:
+        """Test that DailyCalorieDistribution builds meal lookup cache lazily."""
+        dist = DailyCalorieDistribution(
+            total_kcal=1000,
+            meals=[MealCalories(name="breakfast", kcal=300, percentage=0.30)],
+        )
+
+        # Cache should be None before first access
+        assert dist._meal_lookup is None
+
+        # First access should build cache
+        assert dist.get_meal_kcal("breakfast") == 300
+
+        # Cache should now be populated
+        assert dist._meal_lookup is not None
+        assert dist._meal_lookup == {"breakfast": 300}
+
     def test_distribute_calories_3_meals(self) -> None:
         """Test distribution with 3 meals (no snack)."""
         dist = distribute_calories(2100, num_meals=3)

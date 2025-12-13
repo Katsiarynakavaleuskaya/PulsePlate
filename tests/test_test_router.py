@@ -9,8 +9,12 @@ import os
 
 @pytest.fixture
 def mock_env_staging():
-    """Mock environment to staging for test router inclusion."""
-    with patch.dict(os.environ, {"APP_ENV": "staging"}):
+    """Mock environment to staging for test router inclusion.
+
+    Note: Staging requires ENABLE_TEST_ROUTES=1 to include test endpoints
+    for security (staging may be externally accessible).
+    """
+    with patch.dict(os.environ, {"APP_ENV": "staging", "ENABLE_TEST_ROUTES": "1"}):
         yield
 
 

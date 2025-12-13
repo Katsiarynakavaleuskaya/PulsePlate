@@ -744,7 +744,100 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error("Error stopping background updates: %s", e)
 
 
-app = FastAPI(title="PulsePlate", lifespan=lifespan)
+# OpenAPI/Swagger metadata for API documentation
+tags_metadata: list[dict[str, str]] = [
+    {
+        "name": "health",
+        "description": "Health check and system status endpoints",
+    },
+    {
+        "name": "bmi",
+        "description": "BMI calculation endpoints (FREE tier)",
+    },
+    {
+        "name": "foods",
+        "description": "Food database search and retrieval (FREE tier)",
+    },
+    {
+        "name": "recipes",
+        "description": "Recipe database search and preview (FREE tier)",
+    },
+    {
+        "name": "users",
+        "description": "User management endpoints (FREE tier)",
+    },
+    {
+        "name": "premium",
+        "description": "PRO tier features - weekly meal planning, nutrition targets. **Requires PRO API key**.",
+    },
+    {
+        "name": "vip",
+        "description": "VIP tier features - micronutrients, auto-repair, recipe synthesis, shopping lists. **Requires VIP API key**.",
+    },
+    {
+        "name": "business",
+        "description": "Business analytics and Bayesian analysis (Internal use)",
+    },
+    {
+        "name": "export",
+        "description": "Export endpoints for meal plans and shopping lists",
+    },
+]
+
+# Build API description with environment-specific content
+# Reuse _app_env defined earlier (line 302) to avoid duplication
+_is_dev_env = _app_env in {"", "local", "dev", "development", "test", "testing"}
+
+_api_description = """
+## PulsePlate - Nutrition & Meal Planning API
+
+**Mobile-first API** for iOS and web applications with tiered subscription access.
+
+### Subscription Tiers
+
+- **FREE**: BMI calculations, food/recipe search, user management
+- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking
+- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists
+
+### Authentication
+
+Premium endpoints require API key in `X-API-Key` header:
+- PRO tier: Use API key with PRO access level
+- VIP tier: Use API key with VIP access level
+"""
+
+if _is_dev_env:
+    _api_description += """
+### Test API Keys (Development Only)
+
+- PRO: `YOUR_PRO_TEST_KEY`
+- VIP: `YOUR_VIP_TEST_KEY`
+
+**Note**: Replace with actual test keys from your environment variables or Config.plist.
+**Production**: Test keys are disabled in production environments.
+"""
+
+_api_description += """
+### Documentation
+
+- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`
+- iOS Integration: `docs/IOS_API_INTEGRATION.md`
+"""
+
+app = FastAPI(
+    title="PulsePlate",
+    version="0.1.0",
+    description=_api_description,
+    contact={
+        "name": "PulsePlate API Support",
+        "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate",
+    },
+    license_info={
+        "name": "MIT",
+    },
+    openapi_tags=tags_metadata,
+    lifespan=lifespan,
+)
 
 
 # The previous explicit startup handler using @app.on_event("startup")
@@ -898,8 +991,11 @@ if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
     app.include_router(premium_week_router)
 
 # Conditionally include test router for non-production environments
-_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
-if _app_env in {"", "local", "dev", "development", "staging", "test"}:
+# Reuse _app_env defined earlier (line 302) to avoid duplication
+# Exclude staging from test endpoints for security (staging may be externally accessible)
+if _app_env in {"", "local", "dev", "development", "test"} or (
+    _app_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1"
+):
     try:
         from app.routers import test as test_router
 
