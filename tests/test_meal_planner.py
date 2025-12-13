@@ -530,3 +530,116 @@ class TestMacroDistribution:
 
         recipe = _select_recipe_for_meal("lunch", 400, {"VEGAN"}, recipe_list)
         assert recipe is None
+
+    def test_convert_recipe_to_dict_with_object(self):
+        """Test _convert_recipe_to_dict with recipe object (covers lines 179-191)."""
+        from core.meal_planner import _convert_recipe_to_dict
+        from dataclasses import dataclass
+
+        @dataclass
+        class RecipeObj:
+            name: str
+            kcal: int
+            macros: dict
+            ingredients: dict
+
+        recipe_obj = RecipeObj(
+            name="Test Recipe",
+            kcal=500,
+            macros={"protein_g": 20, "carbs_g": 60, "fat_g": 15},
+            ingredients={"chicken": 150, "rice": 200},
+        )
+
+        result = _convert_recipe_to_dict(recipe_obj)
+        assert result["name"] == "Test Recipe"
+        assert result["kcal"] == 500
+        assert "macros" in result
+        assert "ingredients" in result
+
+    def test_generate_shopping_list_aggregation(self):
+        """Test _generate_shopping_list aggregates ingredients (covers lines 368-371)."""
+        from core.meal_planner import _generate_shopping_list, DailyMealPlan, MealPlan
+
+        meal1 = MealPlan(
+            name="breakfast",
+            kcal_target=500,
+            recipe_name="Oatmeal",
+            macros={"protein_g": 10, "carbs_g": 60, "fat_g": 8, "fiber_g": 10},
+            ingredients={"oats": 50, "milk": 200},
+        )
+        meal2 = MealPlan(
+            name="lunch",
+            kcal_target=600,
+            recipe_name="Salad",
+            macros={"protein_g": 15, "carbs_g": 40, "fat_g": 12, "fiber_g": 8},
+            ingredients={"lettuce": 100, "chicken": 150},
+        )
+
+        day1 = DailyMealPlan(
+            day=1,
+            total_kcal=1100,
+            meals=[meal1, meal2],
+            total_macros={"protein_g": 25, "carbs_g": 100, "fat_g": 20, "fiber_g": 18},
+            total_cost=5.0,
+        )
+
+        meal3 = MealPlan(
+            name="breakfast",
+            kcal_target=500,
+            recipe_name="Eggs",
+            macros={"protein_g": 20, "carbs_g": 10, "fat_g": 15, "fiber_g": 2},
+            ingredients={"eggs": 2, "milk": 100},  # milk overlaps with day1
+        )
+
+        day2 = DailyMealPlan(
+            day=2,
+            total_kcal=500,
+            meals=[meal3],
+            total_macros={"protein_g": 20, "carbs_g": 10, "fat_g": 15, "fiber_g": 2},
+            total_cost=3.0,
+        )
+
+        shopping_list = _generate_shopping_list([day1, day2])
+
+        # Should aggregate milk: 200 + 100 = 300
+        assert shopping_list["milk"] == 300
+        assert shopping_list["oats"] == 50
+        assert shopping_list["chicken"] == 150
+        assert shopping_list["lettuce"] == 100
+        assert shopping_list["eggs"] == 2
+
+    def test_select_recipe_exception_handling(self):
+        """Test _select_recipe_for_meal exception handling (covers lines 152-154)."""
+        from core.meal_planner import _select_recipe_for_meal
+
+        # Object that raises AttributeError when accessed
+        class BadRecipeDB:
+            def __getattr__(self, name):
+                raise AttributeError("Bad attribute")
+
+        recipe = _select_recipe_for_meal("lunch", 500, {"VEGAN"}, BadRecipeDB())
+        assert recipe is None  # Should handle exception gracefully
+
+    def test_convert_recipe_missing_micros(self):
+        """Test _convert_recipe_to_dict with object missing micros attr (covers line 187)."""
+        from core.meal_planner import _convert_recipe_to_dict
+        from dataclasses import dataclass
+
+        @dataclass
+        class RecipeWithoutMicros:
+            name: str
+            kcal: int
+            macros: dict
+            ingredients: dict
+            # No micros attribute
+
+        recipe_obj = RecipeWithoutMicros(
+            name="Simple Recipe",
+            kcal=400,
+            macros={"protein_g": 15, "carbs_g": 50, "fat_g": 10},
+            ingredients={"rice": 200},
+        )
+
+        result = _convert_recipe_to_dict(recipe_obj)
+        assert "micros" not in result  # Should not add micros if not present
+        assert result["name"] == "Simple Recipe"

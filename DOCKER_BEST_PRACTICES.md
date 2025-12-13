@@ -113,14 +113,14 @@ docker stop test && docker rm test
 - Use non-root user (already implemented)
 - Set proper environment variables
 - Configure health checks
-- Use appropriate base images (python:3.13-slim)
+- Use appropriate base images (python:3.13-slim-trixie)
 
 ## 🛡️ **Security Best Practices**
 
 ### Image Security
 
 - ✅ Non-root user (pulseplate)
-- ✅ Minimal base image (python:3.13-slim)
+- ✅ Minimal base image (python:3.13-slim-trixie)
 - ✅ No secrets in image layers
 - ✅ Regular security scanning with Trivy
 

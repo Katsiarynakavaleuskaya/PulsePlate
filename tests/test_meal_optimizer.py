@@ -392,3 +392,112 @@ class TestOptimizeMicroCoverageWithDietRestrictions:
         # Should not crash, but may not have booster_suggestions
         # (depends on whether unknown_micro is recognized)
         assert len(optimized) > 0
+
+
+class TestCoverageEdgeCases:
+    """Test edge cases for better coverage."""
+
+    def test_optimize_micro_no_meals_for_boosters(self):
+        """Test optimize_micro_coverage with deficient but no meals (covers line 217)."""
+        # Empty meals list - should trigger line 217 (break if not optimized_meals)
+        meals = []
+        targets = {"iron_mg": 18.0, "calcium_mg": 1000}
+
+        optimized, coverage = optimize_micro_coverage(meals, targets, min_coverage_pct=80.0)
+
+        assert optimized == []
+        assert coverage == {}
+
+    def test_suggest_booster_vegan_incompatible(self):
+        """Test suggest_booster_food when VEGAN but booster not VEGAN (covers line 399)."""
+        from core.meal_optimizer import BOOSTER_FOODS, BoosterFood
+
+        # Temporarily add a non-vegan booster to test the rejection path
+        original = BOOSTER_FOODS.get("vitamin_b12_mcg", [])
+        test_booster = BoosterFood(
+            name="Beef liver", compatible_diets=set(), allergens=set()  # NOT vegan - empty set
+        )
+        BOOSTER_FOODS["vitamin_b12_mcg"] = [test_booster]
+
+        try:
+            booster = suggest_booster_food("vitamin_b12_mcg", {"VEGAN"}, set())
+            # Should not return beef liver for VEGAN (line 399: is_diet_compatible = False)
+            assert booster is None
+        finally:
+            # Restore original
+            if original:
+                BOOSTER_FOODS["vitamin_b12_mcg"] = original
+            else:
+                BOOSTER_FOODS.pop("vitamin_b12_mcg", None)
+
+    def test_suggest_booster_veg_not_vegan(self):
+        """Test suggest_booster_food for VEG diet not matching VEGAN (covers line 405)."""
+        from core.meal_optimizer import BOOSTER_FOODS, BoosterFood
+
+        # Create a booster that's VEGAN only (not VEG)
+        test_booster = BoosterFood(
+            name="Vegan supplement",
+            compatible_diets={"VEGAN"},  # Only VEGAN, not VEG
+            allergens=set(),
+        )
+        BOOSTER_FOODS["test_vitamin"] = [test_booster]
+
+        try:
+            # VEG user should still accept VEGAN booster
+            booster = suggest_booster_food("test_vitamin", {"VEG"}, set())
+            assert booster == "Vegan supplement"
+        finally:
+            BOOSTER_FOODS.pop("test_vitamin", None)
+
+    def test_suggest_booster_no_candidates(self):
+        """Test suggest_booster_food for unknown micronutrient (covers line 416)."""
+        booster = suggest_booster_food("unknown_vitamin_xyz", set(), set())
+        assert booster is None
+
+    def test_reduce_cost_already_under_budget(self):
+        """Test _reduce_cost_preserving_quality when already under budget (covers line 429)."""
+        from core.meal_optimizer import _reduce_cost_preserving_quality
+
+        meals = [
+            {
+                "estimated_cost": 3.0,
+                "macros": {"protein_g": 20, "carbs_g": 40, "fat_g": 10},
+                "kcal": 300,
+            }
+        ]
+
+        # Already under budget
+        result = _reduce_cost_preserving_quality(meals, max_budget=5.0, min_quality_score=0.7)
+        assert result == meals
+
+    def test_nutrition_quality_score_zero_kcal(self):
+        """Test _nutrition_quality_score with zero calories (covers line 468)."""
+        from core.meal_optimizer import _nutrition_quality_score
+
+        meals = [{"kcal": 0, "macros": {"protein_g": 0, "carbs_g": 0, "fat_g": 0}}]
+        score = _nutrition_quality_score(meals)
+        assert score == 1.0  # Default when no kcal
+
+    def test_nutrition_quality_score_no_macros(self):
+        """Test _nutrition_quality_score with no valid macros (covers line 489)."""
+        from core.meal_optimizer import _nutrition_quality_score
+
+        meals = [{"kcal": 500, "macros": {"protein_g": 0, "carbs_g": 0, "fat_g": 0}}]
+        score = _nutrition_quality_score(meals)
+        assert score == 1.0  # Default when no scores
+
+    def test_score_pct_zero(self):
+        """Test _score_pct_in_range with zero percentage (covers line 497)."""
+        from core.meal_optimizer import _score_pct_in_range
+
+        score = _score_pct_in_range(0.0, 10.0, 30.0)
+        assert score == 0.0
+
+    def test_score_pct_above_max(self):
+        """Test _score_pct_in_range with percentage above max (covers line 501-502)."""
+        from core.meal_optimizer import _score_pct_in_range
+
+        # pct > max_pct should return max_pct / pct
+        score = _score_pct_in_range(50.0, 10.0, 30.0)
+        expected = 30.0 / 50.0  # max_pct / pct = 0.6
+        assert abs(score - expected) < 0.01

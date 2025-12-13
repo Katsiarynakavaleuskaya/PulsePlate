@@ -339,3 +339,17 @@ class TestEdgeCases:
 
         total_meal_kcal = sum(meal.kcal for meal in dist.meals)
         assert total_meal_kcal == 2000
+
+    def test_meal_splits_all_zeros(self):
+        """Test meal splits with all zero values (covers lines 115-116)."""
+        # All zeros should trigger total_pct <= 0 and fallback to defaults
+        dist = distribute_calories(
+            2000, meal_splits={"breakfast": 0.0, "lunch": 0.0, "dinner": 0.0}
+        )
+
+        # Should fallback to default splits and create meals
+        assert dist.total_kcal == 2000
+        assert len(dist.meals) > 0
+        # Total should match target
+        total = sum(m.kcal for m in dist.meals)
+        assert total == 2000

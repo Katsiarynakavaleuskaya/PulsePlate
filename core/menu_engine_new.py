@@ -12,7 +12,7 @@ for nutrient deficiencies.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_tip
@@ -35,6 +35,53 @@ def _percent(got: float, need: float) -> float:
     return 0.0 if need <= 0 else min(200.0, 100.0 * got / need)
 
 
+_DB_MICRO_TO_ALIAS: Dict[str, str] = {
+    "Fe_mg": "iron_mg",
+    "Ca_mg": "calcium_mg",
+    "Mg_mg": "magnesium_mg",
+    "K_mg": "potassium_mg",
+    "Iodine_ug": "iodine_ug",
+    "VitD_IU": "vitamin_d_iu",
+    "B12_ug": "b12_ug",
+    "Folate_ug": "folate_ug",
+}
+
+
+def _coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_micro_targets(micro_targets: Any) -> Dict[str, float]:
+    """Normalize micronutrient target keys to DB format expected by MICRO_KEYS.
+
+    Accepts either DB keys (Fe_mg/Ca_mg/...) or WHO/alias keys (iron_mg/calcium_mg/...).
+    """
+    if not isinstance(micro_targets, dict):
+        return {}
+
+    normalized: Dict[str, float] = {}
+    # Prefer DB keys when present; otherwise fall back to alias keys.
+    for db_key in MICRO_KEYS:
+        raw = micro_targets.get(db_key)
+        if raw is None:
+            alias_key = _DB_MICRO_TO_ALIAS.get(db_key)
+            if alias_key is not None:
+                raw = micro_targets.get(alias_key)
+        value = _coerce_float(raw)
+        if value is not None and value >= 0:
+            normalized[db_key] = value
+    return normalized
+
+
 def build_plate_day(
     targets: dict,
     diet_flags: List[str],
@@ -42,6 +89,7 @@ def build_plate_day(
     fooddb: FoodDB,
     recipedb: RecipeDB,
 ) -> DayPlan:
+    micro_targets = _normalize_micro_targets(targets.get("micro", {}))
     splits = [0.25, 0.35, 0.30, 0.10]
     kcal_split = [int(targets["kcal"] * s) for s in splits]
 
@@ -63,7 +111,7 @@ def build_plate_day(
             micros_sum[mk] += m.micros.get(mk, 0.0)
 
     # покрытие микро до бустеров
-    cov = {k: _percent(micros_sum[k], targets["micro"].get(k, 0.0)) for k in MICRO_KEYS}
+    cov = {k: _percent(micros_sum[k], micro_targets.get(k, 0.0)) for k in MICRO_KEYS}
     tips: List[str] = []
 
     # бустеры для провалов <80%
@@ -132,7 +180,7 @@ def build_plate_day(
             tip_key = f"low_{mk}"
             tips.append(translate_tip(lang, tip_key, donor))
 
-    cov = {k: _percent(micros_sum[k], targets["micro"].get(k, 0.0)) for k in MICRO_KEYS}
+    cov = {k: _percent(micros_sum[k], micro_targets.get(k, 0.0)) for k in MICRO_KEYS}
 
     out_meals = []
     for m in meals:
