@@ -95,10 +95,10 @@ class APIClient {
 
     // MARK: - Generic Request Method
 
-    func request<T: Decodable>(
+    func request<T: Decodable, Body: Encodable>(
         endpoint: String,
         method: String = "GET",
-        body: Encodable? = nil,
+        body: Body? = nil,
         tier: SubscriptionTier? = nil
     ) async throws -> T {
         guard let url = URL(string: "\(baseURL)\(endpoint)") else {
@@ -226,7 +226,7 @@ struct UserProfile: Codable {
         case sedentary, light, moderate, active, veryActive = "very_active"
     }
 
-    enum Goal: String: Codable {
+    enum Goal: String, Codable {
         case loss, maintain, gain
     }
 
