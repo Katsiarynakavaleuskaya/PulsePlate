@@ -14,19 +14,31 @@ import os
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 
 class TestPRORouter:
     """Test PRO tier router endpoints."""
 
-    def setup_method(self, client: TestClient):
+    def setup_method(self):
         """Setup test environment."""
+        self._orig_api_key = os.environ.get("API_KEY")
+        self._orig_allow_anon = os.environ.get("ALLOW_ANONYMOUS_API_KEYS")
         os.environ["API_KEY"] = "test_key"
         # Enable PRO tier test key
         os.environ["ALLOW_ANONYMOUS_API_KEYS"] = "true"
 
-    def test_pro_meal_weekly_without_api_key(self, client: TestClient):
+    def teardown_method(self):
+        """Cleanup test environment."""
+        if self._orig_api_key is None:
+            os.environ.pop("API_KEY", None)
+        else:
+            os.environ["API_KEY"] = self._orig_api_key
+        if self._orig_allow_anon is None:
+            os.environ.pop("ALLOW_ANONYMOUS_API_KEYS", None)
+        else:
+            os.environ["ALLOW_ANONYMOUS_API_KEYS"] = self._orig_allow_anon
+
+    def test_pro_meal_weekly_without_api_key(self, client):
         """Test PRO meal weekly endpoint without API key."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -43,7 +55,7 @@ class TestPRORouter:
         # In test environment, middleware may allow but should still validate
         assert response.status_code in [200, 401, 403, 400, 422]
 
-    def test_pro_meal_weekly_with_pro_key(self, client: TestClient):
+    def test_pro_meal_weekly_with_pro_key(self, client):
         """Test PRO meal weekly endpoint with PRO tier API key."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -61,7 +73,7 @@ class TestPRORouter:
         # Exclude 500/503 to catch server errors
         assert response.status_code in [200, 400, 422]
 
-    def test_pro_meal_weekly_with_vip_key(self, client: TestClient):
+    def test_pro_meal_weekly_with_vip_key(self, client):
         """Test PRO meal weekly endpoint with VIP tier API key (should work)."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -78,7 +90,7 @@ class TestPRORouter:
         # VIP key should grant PRO access - should succeed (200) or validation error (400/422)
         assert response.status_code in [200, 400, 422]
 
-    def test_pro_meal_weekly_with_targets(self, client: TestClient):
+    def test_pro_meal_weekly_with_targets(self, client):
         """Test PRO meal weekly endpoint with ready targets."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -97,7 +109,7 @@ class TestPRORouter:
         # Should succeed (200) or return validation error (400/422)
         assert response.status_code in [200, 400, 422]
 
-    def test_pro_meal_weekly_validation_error(self, client: TestClient):
+    def test_pro_meal_weekly_validation_error(self, client):
         """Test PRO meal weekly endpoint with invalid data."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -110,7 +122,7 @@ class TestPRORouter:
         # Should return validation error
         assert response.status_code in [400, 422]
 
-    def test_pro_meal_weekly_invalid_macros(self, client: TestClient):
+    def test_pro_meal_weekly_invalid_macros(self, client):
         """Test PRO meal weekly endpoint with invalid macros (negative, non-numeric)."""
         # Test 1: Negative value
         response = client.post(
@@ -142,7 +154,7 @@ class TestPRORouter:
         )
         assert response.status_code in [400, 422]
 
-    def test_pro_meal_weekly_invalid_micro(self, client: TestClient):
+    def test_pro_meal_weekly_invalid_micro(self, client):
         """Test PRO meal weekly endpoint with invalid micro values."""
         # Test 1: Negative micro value
         response = client.post(
@@ -174,7 +186,7 @@ class TestPRORouter:
         )
         assert response.status_code in [400, 422]
 
-    def test_pro_meal_weekly_invalid_nan_macros_and_micro(self, client: TestClient):
+    def test_pro_meal_weekly_invalid_nan_macros_and_micro(self, client):
         """Test PRO meal weekly endpoint with NaN macro and micro values.
 
         Note: NaN cannot be sent via JSON, so we test the validator directly.
@@ -191,7 +203,7 @@ class TestPRORouter:
                 water_ml=2000,
             )
 
-    def test_pro_meal_weekly_invalid_inf_macros_and_micro(self, client: TestClient):
+    def test_pro_meal_weekly_invalid_inf_macros_and_micro(self, client):
         """Test PRO meal weekly endpoint with infinite macro and micro values.
 
         Note: Infinity cannot be sent via JSON, so we test the validator directly.
@@ -208,7 +220,7 @@ class TestPRORouter:
                 water_ml=2000,
             )
 
-    def test_pro_meal_weekly_invalid_non_numeric_macros_and_micro(self, client: TestClient):
+    def test_pro_meal_weekly_invalid_non_numeric_macros_and_micro(self, client):
         """Test PRO meal weekly endpoint with non-numeric macro and micro values."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -232,7 +244,7 @@ class TestPRORouter:
         # Should return validation error due to non-numeric macro/micro entries
         assert response.status_code in [400, 422]
 
-    def test_pro_meal_weekly_boundary_values_age(self, client: TestClient):
+    def test_pro_meal_weekly_boundary_values_age(self, client):
         """Test PRO meal weekly endpoint with boundary values for age (ge=10, le=100)."""
         # Test minimum boundary (age = 10, should be valid)
         response = client.post(
@@ -294,7 +306,7 @@ class TestPRORouter:
         )
         assert response.status_code in [400, 422]
 
-    def test_pro_meal_weekly_boundary_values_height(self, client: TestClient):
+    def test_pro_meal_weekly_boundary_values_height(self, client):
         """Test PRO meal weekly endpoint with boundary values for height_cm (gt=100, lt=250)."""
         # Test just above minimum (height_cm = 100.1, should be valid)
         response = client.post(
@@ -386,7 +398,7 @@ class TestPRORouter:
         )
         assert response.status_code in [400, 422]
 
-    def test_backward_compatibility_premium_endpoint(self, client: TestClient):
+    def test_backward_compatibility_premium_endpoint(self, client):
         """Test that deprecated premium endpoint behaves consistently with PRO endpoint."""
         payload = {
             "sex": "female",
@@ -425,7 +437,7 @@ class TestPRORouter:
             assert isinstance(premium_data["total_cost"], (int, float))
             assert isinstance(pro_data["total_cost"], (int, float))
 
-    def test_pro_endpoint_structure(self, client: TestClient):
+    def test_pro_endpoint_structure(self, client):
         """Test that PRO endpoint returns correct structure for successful responses."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -460,7 +472,7 @@ class TestPRORouter:
 class TestPRORouterAPITierValidation:
     """Test API tier validation for PRO endpoints."""
 
-    def test_pro_endpoint_rejects_free_tier(self, client: TestClient):
+    def test_pro_endpoint_rejects_free_tier(self, client):
         """Test that PRO endpoint rejects requests without proper tier."""
         # In production mode, this should fail
         # In dev mode with ALLOW_ANONYMOUS_API_KEYS=false, should also fail
@@ -480,7 +492,7 @@ class TestPRORouterAPITierValidation:
             # Should reject invalid key
             assert response.status_code in [401, 403]
 
-    def test_pro_endpoint_accepts_pro_tier(self, client: TestClient):
+    def test_pro_endpoint_accepts_pro_tier(self, client):
         """Test that PRO endpoint accepts PRO tier key."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
@@ -497,7 +509,7 @@ class TestPRORouterAPITierValidation:
         # Should accept PRO key - succeed (200) or validation error (400/422)
         assert response.status_code in [200, 400, 422]
 
-    def test_pro_endpoint_accepts_vip_tier(self, client: TestClient):
+    def test_pro_endpoint_accepts_vip_tier(self, client):
         """Test that PRO endpoint accepts VIP tier key (VIP includes PRO)."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
