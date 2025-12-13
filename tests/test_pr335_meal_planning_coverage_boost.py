@@ -76,7 +76,6 @@ def test_calorie_distributor_handles_zero_splits_by_falling_back() -> None:
 def test_meal_planner_select_recipe_handles_typeerror_gracefully() -> None:
     """Test that _select_recipe_for_meal re-raises TypeError for unexpected errors."""
     from core.meal_planner import _select_recipe_for_meal
-    import pytest
 
     class BadRecipeDB:
         def get_recipes_by_category(self, _categories: Any) -> Any:
@@ -227,10 +226,14 @@ def test_meal_optimizer_branch_coverage_for_scoring_and_diet_filters() -> None:
             "estimated_cost": 10.0,
             "kcal": 1000,
             "macros": {"protein_g": 50.0, "fat_g": 30.0, "carbs_g": 100.0, "fiber_g": 10.0},
+            "micros": {"iron_mg": 18.0},
+            "ingredients": {"spinach": 200.0},
         }
     ]
     optimized = _reduce_cost_preserving_quality(meals, max_budget=1.0, min_quality_score=0.0)
     assert optimized[0]["estimated_cost"] < meals[0]["estimated_cost"]
+    assert optimized[0]["micros"]["iron_mg"] == pytest.approx(1.8)
+    assert optimized[0]["ingredients"]["spinach"] == pytest.approx(20.0)
 
     with patch(
         "core.meal_optimizer.BOOSTER_FOODS",
@@ -239,3 +242,57 @@ def test_meal_optimizer_branch_coverage_for_scoring_and_diet_filters() -> None:
         from core.meal_optimizer import suggest_booster_food
 
         assert suggest_booster_food("x", diet_flags={"VEG"}, allergens=set()) is None
+
+
+def test_dietary_constraints_recipe_compatibility_edge_cases() -> None:
+    """Additional edge cases for recipe compatibility checks to boost coverage."""
+    from core.dietary_constraints import is_recipe_compatible
+
+    # Test dairy in flags (not just name)
+    assert is_recipe_compatible({"milk"}, {"DAIRY_FREE"}) is False
+    assert is_recipe_compatible({"cheese"}, {"DAIRY_FREE"}) is False
+    assert is_recipe_compatible({"butter"}, {"DAIRY_FREE"}) is False
+
+    # Test VEG with meat in name
+    assert is_recipe_compatible(set(), {"VEG"}, recipe_name="Chicken Soup") is False
+    assert is_recipe_compatible(set(), {"VEG"}, recipe_name="Fish Tacos") is False
+    assert is_recipe_compatible(set(), {"VEG"}, recipe_name="Beef Stew") is False
+
+    # Test SOY_FREE compatibility
+    assert is_recipe_compatible({"soy"}, {"SOY_FREE"}) is False
+    assert is_recipe_compatible({"tofu"}, {"SOY_FREE"}) is False
+
+
+def test_dietary_constraints_macro_adjustment_branches() -> None:
+    """Cover untested branches in adjust_macros_for_diet to boost patch coverage."""
+    from core.dietary_constraints import adjust_macros_for_diet
+    from core.targets import KETO_CARB_FLOOR_G, KETO_MAX_CARB_PERCENT
+
+    # Test LOW_CARB when carbs already within limit (line 382 not taken)
+    macros_low = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 30.0, "fiber_g": 25.0}
+    result = adjust_macros_for_diet(macros_low, {"LOW_CARB"}, 70, 2000)
+    assert result["carbs_g"] >= 30.0
+
+    # Test KETO when carbs already within limit (line 391 not taken)
+    macros_keto = {"protein_g": 100.0, "fat_g": 80.0, "carbs_g": 25.0, "fiber_g": 25.0}
+    result_keto = adjust_macros_for_diet(macros_keto, {"KETO"}, 70, 2000)
+    assert result_keto["carbs_g"] >= KETO_CARB_FLOOR_G - 1
+
+    # Test MEDITERRANEAN when fat already sufficient (line 403 not taken)
+    macros_med = {"protein_g": 75.0, "fat_g": 100.0, "carbs_g": 150.0, "fiber_g": 30.0}
+    result_med = adjust_macros_for_diet(macros_med, {"MEDITERRANEAN"}, 70, 2000)
+    assert result_med["fat_g"] >= 90.0
+    assert result_med["fiber_g"] >= 30.0
+
+    # Test LOW_FAT when fat already within limit (line 411 not taken)
+    macros_lf = {"protein_g": 100.0, "fat_g": 40.0, "carbs_g": 200.0, "fiber_g": 25.0}
+    result_lf = adjust_macros_for_diet(macros_lf, {"LOW_FAT"}, 70, 2000)
+    max_fat = (2000 * 0.25) / 9
+    assert result_lf["fat_g"] <= max_fat + 5
+
+    # Test when remaining_kcal is positive (no rebalancing needed - line 424 false)
+    macros_bal = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 150.0, "fiber_g": 25.0}
+    result_bal = adjust_macros_for_diet(macros_bal, {"HIGH_PROTEIN"}, 70, 2000)
+    total_kcal = result_bal["protein_g"] * 4 + result_bal["fat_g"] * 9 + result_bal["carbs_g"] * 4
+    assert total_kcal > 0
+    assert result_bal["protein_g"] >= 140.0  # HIGH_PROTEIN minimum: 70kg * 2.0
