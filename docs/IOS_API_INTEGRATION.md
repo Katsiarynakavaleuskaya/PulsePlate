@@ -81,6 +81,12 @@ class APIClient {
 
     private init() {
         #if DEBUG
+        // IMPORTANT: localhost won't work on physical devices
+        // You need to either:
+        // 1. Use your Mac's IP (e.g., "http://192.168.1.100:8000")
+        // 2. Add ATS exception to Info.plist for localhost:8000
+        // 3. Use port forwarding (device USB to Mac)
+        // For simulator, localhost works fine
         self.baseURL = "http://localhost:8000"
         #else
         self.baseURL = "https://api.pulseplate.com"
@@ -93,15 +99,33 @@ class APIClient {
         self.session = URLSession(configuration: config)
     }
 
-    // MARK: - Generic Request Method
+    // MARK: - Generic Request Methods
 
+    /// Request without body (for GET requests)
+    func request<T: Decodable>(
+        endpoint: String,
+        method: String = "GET",
+        tier: SubscriptionTier? = nil
+    ) async throws -> T {
+        return try await request(endpoint: endpoint, method: method, body: Optional<EmptyBody>.none, tier: tier)
+    }
+
+    /// Request with body (for POST/PUT requests)
     func request<T: Decodable, Body: Encodable>(
         endpoint: String,
         method: String = "GET",
         body: Body? = nil,
         tier: SubscriptionTier? = nil
     ) async throws -> T {
-        guard let url = URL(string: "\(baseURL)\(endpoint)") else {
+        // Build URL using URLComponents for safer query handling
+        var urlString = "\(baseURL)\(endpoint)"
+
+        // Parse endpoint to check if it has query params
+        if let components = URLComponents(string: urlString) {
+            urlString = components.url?.absoluteString ?? urlString
+        }
+
+        guard let url = URL(string: urlString) else {
             throw APIError.invalidURL
         }
 
@@ -181,14 +205,18 @@ class APIClient {
 
     private func getAPIKey(for tier: SubscriptionTier) async throws -> String {
         #if DEBUG
-        // Use test keys in development
+        // Development: retrieve from environment/config
+        // NOTE: Never hardcode real API keys - use Config.plist or environment
+        // For testing, see docs/MOBILE_API_MIGRATION_GUIDE.md
         switch tier {
         case .free:
             return "" // FREE tier doesn't need API key
         case .pro:
-            return "test_pro_key"
+            // TODO: Load from Config.plist or environment variable
+            return ProcessInfo.processInfo.environment["TEST_PRO_KEY"] ?? "YOUR_DEV_PRO_KEY"
         case .vip:
-            return "test_vip_key"
+            // TODO: Load from Config.plist or environment variable
+            return ProcessInfo.processInfo.environment["TEST_VIP_KEY"] ?? "YOUR_DEV_VIP_KEY"
         }
         #else
         // Production: retrieve from Keychain
@@ -199,6 +227,10 @@ class APIClient {
         #endif
     }
 }
+
+// MARK: - Empty Body Type
+
+private struct EmptyBody: Encodable {}
 ```
 
 ### 2. Create Models
@@ -237,7 +269,11 @@ struct UserProfile: Codable {
     }
 
     enum Language: String, Codable {
-        case en, ru, es, de, fr
+        // Supported languages (backend supports en/ru/es only)
+        case en, ru, es
+
+        // Future/unsupported languages - will fallback to English
+        // case de, fr  // TODO: Enable when backend adds support
     }
 
     enum CodingKeys: String, CodingKey {
@@ -383,15 +419,31 @@ class NutritionService {
     // MARK: - FREE Tier (No API Key)
 
     func searchFoods(query: String) async throws -> [Food] {
+        // Use URLComponents for safer query parameter handling
+        var components = URLComponents(string: "/api/v1/foods/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+
+        guard let endpoint = components?.url?.path else {
+            throw APIError.invalidURL
+        }
+
         return try await client.request(
-            endpoint: "/api/v1/foods/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")",
+            endpoint: endpoint + "?" + (components?.query ?? ""),
             method: "GET"
         )
     }
 
     func searchRecipes(query: String) async throws -> [Recipe] {
+        // Use URLComponents for safer query parameter handling
+        var components = URLComponents(string: "/api/v1/recipes/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+
+        guard let endpoint = components?.url?.path else {
+            throw APIError.invalidURL
+        }
+
         return try await client.request(
-            endpoint: "/api/v1/recipes/search?q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")",
+            endpoint: endpoint + "?" + (components?.query ?? ""),
             method: "GET"
         )
     }
@@ -495,7 +547,9 @@ class APIKeyManager {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+            // Use WhenUnlockedThisDeviceOnly for better security
+            // API keys won't sync via iCloud or backup, but more secure
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
         // Delete existing item
@@ -587,7 +641,7 @@ class SubscriptionManager: ObservableObject {
         "com.pulseplate.subscription.vip.monthly"
     ]
 
-    private var updateListenerTask: Task<Void, Error>?
+    private var updateListenerTask: Task<Void, Never>?
 
     private init() {
         updateListenerTask = listenForTransactions()
@@ -677,9 +731,16 @@ class SubscriptionManager: ObservableObject {
 
     // MARK: - Transaction Listener
 
-    private func listenForTransactions() -> Task<Void, Error> {
-        return Task.detached {
+    private func listenForTransactions() -> Task<Void, Never> {
+        // Use regular Task instead of detached to inherit MainActor context
+        // and respect parent task cancellation
+        return Task { [weak self] in
             for await result in Transaction.updates {
+                guard let self = self else { return }
+
+                // Check for cancellation
+                if Task.isCancelled { return }
+
                 guard case .verified(let transaction) = result else {
                     continue
                 }
@@ -805,7 +866,10 @@ struct SubscriptionView: View {
                 .padding()
             }
             .navigationTitle("Subscriptions")
-            .alert("Error", isPresented: .constant(errorMessage != nil)) {
+            .alert("Error", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
                 Button("OK") {
                     errorMessage = nil
                 }
@@ -1126,10 +1190,11 @@ final class APIClientTests: XCTestCase {
 
 1. **Always handle tier errors gracefully** - Prompt users to upgrade when needed
 2. **Cache API responses** - Reduce network calls and improve offline experience
-3. **Store API keys securely** - Use Keychain, never UserDefaults
+3. **Store API keys securely** - Use Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, never UserDefaults
 4. **Implement retry logic** - Handle transient network errors
 5. **Monitor subscription status** - Listen for transaction updates
-6. **Test with test keys** - Use `test_pro_key` and `test_vip_key` in development
+6. **Never hardcode API keys** - Use environment variables or Config.plist for development keys
+7. **Use URLComponents** - Build URLs safely to avoid encoding issues
 
 ---
 

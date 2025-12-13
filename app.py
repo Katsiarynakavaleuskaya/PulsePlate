@@ -785,7 +785,7 @@ tags_metadata: list[dict[str, str]] = [
 ]
 
 # Build API description with environment-specific content
-_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
+# Reuse _app_env defined earlier (line 302) to avoid duplication
 _is_dev_env = _app_env in {"", "local", "dev", "development", "test", "testing"}
 
 _api_description = """
@@ -990,7 +990,7 @@ if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
     app.include_router(premium_week_router)
 
 # Conditionally include test router for non-production environments
-_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
+# Reuse _app_env defined earlier (line 302) to avoid duplication
 if _app_env in {"", "local", "dev", "development", "staging", "test"}:
     try:
         from app.routers import test as test_router

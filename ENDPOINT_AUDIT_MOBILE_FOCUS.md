@@ -9,6 +9,7 @@
 ## 🎯 Core Architecture Understanding
 
 ### Mobile App Strategy
+
 - **Primary**: iOS mobile application (see `IOS_DEVELOPMENT_ROADMAP.md`)
 - **Secondary**: Web frontend (React)
 - **Subscription Tiers**:
@@ -17,6 +18,7 @@
   - **VIP**: Premium features (micronutrients, auto-repair, recipe synthesis, shopping lists)
 
 ### Payment Flow (Mobile)
+
 - Frontend mocks: `/api/purchase`, `/api/restore`
 - Paywall component: `frontend/src/components/Paywall/BeforeAfter.tsx`
 - Revenue models: Freemium + subscription (from `business_bayesian_analyzer.py`)
@@ -28,6 +30,7 @@
 ### 1. FREE Tier Endpoints
 
 #### `/api/v1/bmi` (bmi_pro.py)
+
 ```
 POST /api/v1/bmi/pro
 - BMI calculation with WHR, WHTR, FFMI
@@ -36,6 +39,7 @@ POST /api/v1/bmi/pro
 ```
 
 #### `/api/v1/foods` (foods.py)
+
 ```
 GET  /api/v1/foods
 GET  /api/v1/foods/search
@@ -46,6 +50,7 @@ GET  /api/v1/foods/{food_id}
 ```
 
 #### `/api/v1/recipes` (recipes.py)
+
 ```
 GET  /api/v1/recipes
 GET  /api/v1/recipes/search
@@ -57,6 +62,7 @@ POST /api/v1/recipes/preview
 ```
 
 #### `/api/v1/users` (users.py)
+
 ```
 POST   /api/v1/users           (Create user)
 GET    /api/v1/users           (List users)
@@ -70,6 +76,7 @@ DELETE /api/v1/users/{user_id} (Delete user)
 ### 2. PRO Tier Endpoints
 
 #### `/api/v1/premium` (premium_week.py)
+
 ```
 POST /api/v1/premium/plan/week-flexible
 - Generate weekly meal plan
@@ -80,6 +87,7 @@ POST /api/v1/premium/plan/week-flexible
 ```
 
 **Issues:**
+
 - Missing API key validation for PRO tier
 - Confusion with VIP `/menu/weekly/plan`
 
@@ -88,6 +96,7 @@ POST /api/v1/premium/plan/week-flexible
 #### `/api/v1/vip` (vip.py - 51.3KB, 19 endpoints)
 
 **Core VIP Features:**
+
 ```
 ✅ Strict API Key Required (_require_api_key_strict)
 
@@ -126,6 +135,7 @@ GET  /api/v1/vip/auto-repair/strategies
 ### 4. Business/Analytics Endpoints
 
 #### `/api/v1/business` (business.py)
+
 ```
 POST /api/v1/business/analyze
 GET  /api/v1/business/status
@@ -137,6 +147,7 @@ GET  /api/v1/business/status
 ### 5. Export/Utility Endpoints
 
 #### Shoplist Export (shoplist_export.py)
+
 ```
 GET /api/v1/shoplist/export
 GET /api/v1/shoplist/export.csv
@@ -146,6 +157,7 @@ GET /api/v1/shoplist/export.pdf
 ```
 
 #### Plan Export (plan_export.py)
+
 ```
 Various export endpoints
 - NO API key check ⚠️
@@ -156,6 +168,7 @@ Various export endpoints
 ## 🚨 Critical Issues Found
 
 ### Issue #1: Duplicate Meal Planning Endpoints
+
 **Problem**: 3 different endpoints for weekly meal planning!
 
 ```
@@ -165,16 +178,19 @@ Various export endpoints
 ```
 
 **Impact**:
+
 - Mobile app doesn't know which to use
 - Inconsistent API key enforcement
 - Maintenance burden (3 implementations)
 
 **Recommendation**:
+
 - **Keep**: `/api/v1/vip/menu/weekly/plan` (strict key, main endpoint)
 - **Deprecate**: `/api/v1/vip/weekly-plan` (legacy, remove after mobile migration)
 - **Repurpose**: `/api/v1/premium/plan/week-flexible` for PRO tier with proper API key
 
 ### Issue #2: Duplicate Recipe Synthesis
+
 **Problem**: 2 endpoints for same feature
 
 ```
@@ -183,12 +199,14 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ```
 
 **Recommendation**:
+
 - Keep plural version for consistency
 - Remove singular or make it an alias
 
 ### Issue #3: Missing API Key Validation
 
 **Endpoints without API key checks:**
+
 - `/api/v1/premium/*` - Should require PRO tier
 - `/api/v1/business/*` - Should be internal only
 - Export endpoints - Should require authentication
@@ -196,6 +214,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ### Issue #4: Inconsistent Prefixes
 
 **Current structure:**
+
 ```
 /api/v1/bmi/*        (FREE)
 /api/v1/foods/*      (FREE)
@@ -211,6 +230,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ## 🎯 Proposed API Structure for Mobile App
 
 ### Tier 1: FREE (No API Key)
+
 ```
 /api/v1/auth/*          - Login, register, logout
 /api/v1/users/*         - User profile CRUD
@@ -220,6 +240,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ```
 
 ### Tier 2: PRO (API Key Required - Level 1)
+
 ```
 /api/v1/pro/bmi/advanced    - BMI Pro with WHR, WHTR, FFMI
 /api/v1/pro/meal/weekly     - Weekly meal plan (macros only)
@@ -228,6 +249,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ```
 
 ### Tier 3: VIP (API Key Required - Level 2)
+
 ```
 /api/v1/vip/meal/weekly/plan     - Weekly plan with micronutrients
 /api/v1/vip/meal/weekly/repair   - Auto-repair meal plans
@@ -240,6 +262,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ```
 
 ### Internal Only (Admin API Key)
+
 ```
 /api/v1/admin/business/analyze  - Business analytics
 /api/v1/admin/logs/*            - Log management
@@ -251,9 +274,11 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 ## 📱 Mobile App Integration Plan
 
 ### Phase 1: Consolidation (1 week)
+
 **Goal**: Remove duplicates, fix API key validation
 
 **Tasks**:
+
 1. ✅ Audit complete (this document)
 2. Deprecate `/api/v1/vip/weekly-plan` (add deprecation warning)
 3. Remove `/api/v1/vip/recipe/synthesize` (singular)
@@ -262,14 +287,17 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 6. Document migration path for mobile app
 
 **Files to modify**:
+
 - `app/routers/vip.py` - Remove legacy endpoint
 - `app/routers/premium_week.py` - Add API key check
 - `app/routers/business.py` - Add admin-only check
 
 ### Phase 2: API Key Tiers (1 week)
+
 **Goal**: Implement 3-tier API key system
 
 **New middleware**:
+
 ```python
 # app/middleware/api_tiers.py
 def require_pro_tier(api_key: str) -> bool:
@@ -282,6 +310,7 @@ def require_vip_tier(api_key: str) -> bool:
 ```
 
 **Database schema**:
+
 ```sql
 CREATE TABLE subscriptions (
     user_id TEXT PRIMARY KEY,
@@ -294,9 +323,11 @@ CREATE TABLE subscriptions (
 ```
 
 ### Phase 3: iOS Integration (2 weeks)
+
 **Goal**: Connect iOS app to consolidated API
 
 **Tasks**:
+
 1. Update iOS networking layer to use new endpoints
 2. Implement IAP (In-App Purchase) → API key flow
 3. Add receipt validation
@@ -304,14 +335,17 @@ CREATE TABLE subscriptions (
 5. Add proper error handling for API tier restrictions
 
 **iOS changes**:
+
 - `ios/PulsePlate/Network/APIClient.swift` - Update endpoints
 - `ios/PulsePlate/Store/SubscriptionManager.swift` - IAP integration
 - `ios/PulsePlate/Models/Subscription.swift` - Tier model
 
 ### Phase 4: Frontend Migration (1 week)
+
 **Goal**: Update web frontend to use new structure
 
 **Tasks**:
+
 1. Update API calls in `frontend/src/`
 2. Migrate paywall to use new tier system
 3. Update mocks in `frontend/src/mocks/handlers.ts`
@@ -321,6 +355,7 @@ CREATE TABLE subscriptions (
 ## 🔄 Migration Strategy
 
 ### Step 1: Add New Endpoints (No Breaking Changes)
+
 ```
 Week 1:
 - Add /api/v1/pro/* with proper validation
@@ -329,6 +364,7 @@ Week 1:
 ```
 
 ### Step 2: Mobile App Migration
+
 ```
 Week 2-3:
 - Update iOS app to use new endpoints
@@ -337,6 +373,7 @@ Week 2-3:
 ```
 
 ### Step 3: Remove Legacy Endpoints
+
 ```
 Week 4:
 - Remove /api/v1/vip/weekly-plan
@@ -349,6 +386,7 @@ Week 4:
 ## 📝 Action Items
 
 ### ✅ Completed (PR 4.3.1)
+
 - [x] Create API tier middleware (`app/middleware/api_tiers.py`) - ✅ Done
 - [x] Add deprecation warnings to legacy endpoints - ✅ `/weekly-plan` deprecated
 - [x] Add API key validation to premium endpoints - ✅ `/premium/plan/week-flexible`
@@ -356,17 +394,20 @@ Week 4:
 - [x] Create comprehensive tests for middleware - ✅ 22 tests passing
 
 ### Immediate (Next Steps)
+
 - [ ] Document new structure in OpenAPI/Swagger
 - [ ] Update iOS app to use new test keys
 - [ ] Create migration guide for mobile developers
 
 ### Short-term (2-3 PRs)
+
 - [ ] Implement subscription database schema
 - [ ] Create subscription management endpoints
 - [ ] Update iOS app networking layer
 - [ ] Add receipt validation for App Store
 
 ### Long-term (Phase 2+)
+
 - [ ] Android app support
 - [ ] Web subscription management UI
 - [ ] Analytics dashboard for subscription metrics
@@ -377,12 +418,14 @@ Week 4:
 ## 🎯 Success Metrics
 
 **Technical**:
+
 - ✅ Zero duplicate endpoints
 - ✅ 100% API key coverage on paid endpoints
 - ✅ <200ms latency for mobile endpoints
 - ✅ 99.9% uptime for payment/subscription APIs
 
 **Business**:
+
 - Track FREE → PRO conversion rate
 - Track PRO → VIP conversion rate
 - Monitor API key usage by tier
@@ -407,6 +450,7 @@ Week 4:
 **Why**: Clean up existing mess before adding new endpoints
 
 **Scope**:
+
 1. Remove duplicate endpoints (2-3 files)
 2. Add API tier middleware (1 new file)
 3. Update tests (3-4 test files)
@@ -418,6 +462,7 @@ Week 4:
 ---
 
 **Questions for Discussion**:
+
 1. Should PRO and VIP use different API key prefixes? (e.g., `pro_` vs `vip_`)
 2. Receipt validation: Server-side or client-side?
 3. Grace period for expired subscriptions?
