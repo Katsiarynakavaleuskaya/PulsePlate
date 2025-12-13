@@ -155,12 +155,14 @@ class APIClient {
         if let errorResponse = try? decoder.decode(APIErrorResponse.self, from: data) {
             switch response.statusCode {
             case 401:
+                // 401 = authentication failure (invalid/missing API key)
+                throw APIError.invalidAPIKey
+
+            case 403:
+                // 403 = authorization failure (valid key but insufficient tier/permissions)
                 let required = SubscriptionTier(rawValue: errorResponse.tierRequired ?? "FREE") ?? .free
                 let current = SubscriptionTier(rawValue: errorResponse.tierCurrent ?? "FREE") ?? .free
                 throw APIError.insufficientTier(required: required, current: current)
-
-            case 403:
-                throw APIError.invalidAPIKey
 
             case 429:
                 let retryAfter = Double(response.value(forHTTPHeaderField: "Retry-After") ?? "60") ?? 60
@@ -1116,7 +1118,7 @@ final class APIClientTests: XCTestCase {
 
 - **Mobile API Migration Guide**: `MOBILE_API_MIGRATION_GUIDE.md`
 - **Endpoint Audit**: `ENDPOINT_AUDIT_MOBILE_FOCUS.md`
-- **API Documentation**: http://localhost:8000/docs (Swagger UI)
+- **API Documentation**: <http://localhost:8000/docs> (Swagger UI)
 
 ---
 
