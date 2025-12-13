@@ -10,7 +10,7 @@ across different meals and snacks based on nutritional best practices.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
 
 # Minimum daily calorie floor for safety
@@ -38,22 +38,19 @@ class DailyCalorieDistribution:
     RU: Распределение калорий на день.
     EN: Daily calorie distribution.
 
-    Note: Uses __post_init__ to populate _meal_lookup cache for O(1) meal access.
+    Note: Uses lazy caching via _meal_lookup for O(1) meal access.
     """
 
     total_kcal: int
     meals: List[MealCalories]
-    _meal_lookup: Dict[str, int] = field(default_factory=dict, init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        """Populate meal lookup cache after initialization."""
-        self._meal_lookup = {meal.name: meal.kcal for meal in self.meals}
 
     def get_meal_kcal(self, meal_name: MealName) -> int:
         """Get calorie target for specific meal.
 
         Uses dict lookup for O(1) performance instead of linear search.
         """
+        if not hasattr(self, "_meal_lookup"):
+            self._meal_lookup = {meal.name: meal.kcal for meal in self.meals}
         return self._meal_lookup.get(meal_name, 0)
 
 
