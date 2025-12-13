@@ -451,7 +451,7 @@ class TestVIPCoverageWorkingExtended:
 
         # The endpoint always returns success in echo mode, so no mock needed
         response = client.post(
-            "/api/v1/vip/recipe/synthesize",
+            "/api/v1/vip/recipes/synthesize",
             json={"week_plan": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )
@@ -467,7 +467,7 @@ class TestVIPCoverageWorkingExtended:
 
         # The endpoint always returns success in echo mode, so no mock needed
         response = client.post(
-            "/api/v1/vip/recipe/synthesize",
+            "/api/v1/vip/recipes/synthesize",
             json={"week_plan": {"days": []}},
             headers={"X-API-Key": "test-key"},
         )

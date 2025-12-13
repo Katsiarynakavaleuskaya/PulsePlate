@@ -892,7 +892,10 @@ FEATURE_PREMIUM_WEEK_ENABLED = (
     os.getenv("FEATURE_PREMIUM_WEEK_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 ) or VIP_MODULE_ENABLED  # Also enable if VIP module is enabled
 if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
-    app.include_router(premium_week_router, dependencies=[protected_dependency])
+    # premium_week endpoints enforce tier access internally via app.middleware.api_tiers
+    # (e.g., require_pro_tier). Do not add the global API_KEY guard here, otherwise
+    # PRO/VIP test keys (test_pro_key/test_vip_key) are rejected when API_KEY is set.
+    app.include_router(premium_week_router)
 
 # Conditionally include test router for non-production environments
 _app_env = (os.getenv("APP_ENV", "") or "").strip().lower()

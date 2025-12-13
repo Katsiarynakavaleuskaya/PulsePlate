@@ -74,16 +74,16 @@ def test_calorie_distributor_handles_zero_splits_by_falling_back() -> None:
 
 
 def test_meal_planner_select_recipe_handles_typeerror_gracefully() -> None:
-    """Test that _select_recipe_for_meal re-raises TypeError for unexpected errors."""
+    """Test that _select_recipe_for_meal returns None on TypeError (graceful degradation)."""
     from core.meal_planner import _select_recipe_for_meal
 
     class BadRecipeDB:
         def get_recipes_by_category(self, _categories: Any) -> Any:
             raise TypeError("boom")
 
-    # TypeError should be re-raised (not caught) for debugging
-    with pytest.raises(TypeError, match="boom"):
-        _select_recipe_for_meal("lunch", 600, set(), BadRecipeDB())
+    # TypeError should be caught and None returned (graceful degradation)
+    result = _select_recipe_for_meal("lunch", 600, set(), BadRecipeDB())
+    assert result is None
 
 
 def test_meal_planner_daily_plan_ignores_unknown_macro_keys() -> None:

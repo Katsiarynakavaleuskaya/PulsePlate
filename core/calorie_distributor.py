@@ -10,7 +10,7 @@ across different meals and snacks based on nutritional best practices.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional
 
 # Minimum daily calorie floor for safety
@@ -38,22 +38,22 @@ class DailyCalorieDistribution:
     RU: Распределение калорий на день.
     EN: Daily calorie distribution.
 
-    Note: This dataclass is intentionally mutable to support lazy caching
-    via the _meal_lookup attribute for O(1) meal lookup performance.
+    Note: Uses __post_init__ to populate _meal_lookup cache for O(1) meal access.
     """
 
     total_kcal: int
     meals: List[MealCalories]
+    _meal_lookup: Dict[str, int] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        """Populate meal lookup cache after initialization."""
+        self._meal_lookup = {meal.name: meal.kcal for meal in self.meals}
 
     def get_meal_kcal(self, meal_name: MealName) -> int:
         """Get calorie target for specific meal.
 
         Uses dict lookup for O(1) performance instead of linear search.
-        Lazy initialization: _meal_lookup cache is created on first access.
         """
-        # Create lookup dict on first access (lazy initialization)
-        if not hasattr(self, "_meal_lookup"):
-            self._meal_lookup = {meal.name: meal.kcal for meal in self.meals}
         return self._meal_lookup.get(meal_name, 0)
 
 
@@ -147,6 +147,8 @@ def distribute_calories(
     if allocated_kcal != total_kcal and meals:
         diff = total_kcal - allocated_kcal
         meals[-1].kcal += diff
+        # Update percentage to reflect actual allocation
+        meals[-1].percentage = meals[-1].kcal / total_kcal if total_kcal > 0 else 0.0
 
     return DailyCalorieDistribution(total_kcal=total_kcal, meals=meals)
 

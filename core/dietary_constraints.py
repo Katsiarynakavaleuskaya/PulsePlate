@@ -1,17 +1,19 @@
-"""
-Dietary Constraints - Diet Flag Processing and Recipe Compatibility
+"""Dietary Constraints - Diet Flag Processing and Recipe Compatibility
 
 RU: Модуль обработки диетических ограничений и совместимости рецептов.
 EN: Module for processing dietary restrictions and recipe compatibility.
 
 This module handles dietary flags (VEGAN, KETO, PALEO, etc.) and ensures
 recipes and meal plans comply with user's dietary preferences and restrictions.
+
+Public API:
+    DIET_FLAGS: Dictionary of supported diet flags and descriptions
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from core.targets import (
     DEFAULT_CARB_FLOOR_G,
@@ -29,6 +31,8 @@ from core.targets import (
     MIN_PROTEIN_ABSOLUTE_G,
     MIN_PROTEIN_G_PER_KG,
 )
+
+__all__ = ["DIET_FLAGS"]
 
 # Diet flag constants
 DIET_FLAGS = {
@@ -161,7 +165,7 @@ class NormalizedDietFlags:
 
     flags: Set[str]
     overridden_flags: Set[str]
-    conflicts_resolved: list[tuple[str, Set[str]]]  # (chosen_diet, removed_flags)
+    conflicts_resolved: List[Tuple[str, Set[str]]]  # (chosen_diet, removed_flags)
 
 
 def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:

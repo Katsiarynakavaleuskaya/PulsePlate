@@ -577,6 +577,23 @@ class TestMacroDistribution:
         recipe = _select_recipe_for_meal("lunch", 400, {"VEGAN"}, recipe_list)
         assert recipe is None
 
+    def test_pick_recipe_skips_non_dict_items(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Test _select_recipe_for_meal skips non-dict items (covers lines 174-175)."""
+        import logging
+
+        from core.meal_planner import _select_recipe_for_meal
+
+        caplog.set_level(logging.WARNING)
+        recipe_list = [
+            "not-a-recipe",
+            {"name": "Plain Meal", "kcal": 400, "flags": []},
+        ]
+
+        recipe = _select_recipe_for_meal("lunch", 400, set(), recipe_list)
+        assert recipe is not None
+        assert recipe["name"] == "Plain Meal"
+        assert "Skipping non-dict recipe item" in caplog.text
+
     def test_convert_recipe_to_dict_with_object(self) -> None:
         """Test _convert_recipe_to_dict with recipe object (covers lines 179-191)."""
         from core.meal_planner import _convert_recipe_to_dict

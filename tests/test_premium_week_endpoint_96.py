@@ -73,7 +73,7 @@ class TestPremiumWeekEndpoint96:
             response = client.post(
                 "/api/v1/premium/plan/week-flexible",
                 json=payload,
-                headers={"X-API-Key": "test_api_key"},
+                headers={"X-API-Key": "test_pro_key"},
             )
 
             assert response.status_code == 200
@@ -127,7 +127,7 @@ class TestPremiumWeekEndpoint96:
             response = client.post(
                 "/api/v1/premium/plan/week-flexible",
                 json=payload,
-                headers={"X-API-Key": "test_api_key"},
+                headers={"X-API-Key": "test_pro_key"},
             )
 
             assert response.status_code == 200
@@ -185,7 +185,7 @@ class TestPremiumWeekEndpoint96:
             response = client.post(
                 "/api/v1/premium/plan/week-flexible",
                 json=payload,
-                headers={"X-API-Key": "test_api_key"},
+                headers={"X-API-Key": "test_pro_key"},
             )
 
             assert response.status_code == 200
@@ -222,7 +222,7 @@ class TestPremiumWeekEndpoint96:
             response = client.post(
                 "/api/v1/premium/plan/week-flexible",
                 json=payload,
-                headers={"X-API-Key": "test_api_key"},
+                headers={"X-API-Key": "test_pro_key"},
             )
 
             assert response.status_code == 400  # HTTPException for missing profile data
@@ -271,7 +271,7 @@ class TestPremiumWeekEndpoint96:
             response = client.post(
                 "/api/v1/premium/plan/week-flexible",
                 json=payload,
-                headers={"X-API-Key": "test_api_key"},
+                headers={"X-API-Key": "test_pro_key"},
             )
 
             assert response.status_code == 400
@@ -328,7 +328,7 @@ class TestPremiumWeekEndpoint96:
                 response = client.post(
                     "/api/v1/premium/plan/week-flexible",
                     json=payload,
-                    headers={"X-API-Key": "test_api_key"},
+                    headers={"X-API-Key": "test_pro_key"},
                 )
 
                 assert response.status_code == 200
@@ -391,7 +391,7 @@ class TestPremiumWeekEndpoint96:
                 response = client.post(
                     "/api/v1/premium/plan/week-flexible",
                     json=payload,
-                    headers={"X-API-Key": "test_api_key"},
+                    headers={"X-API-Key": "test_pro_key"},
                 )
 
                 assert response.status_code == 200

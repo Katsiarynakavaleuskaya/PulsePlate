@@ -128,6 +128,40 @@ class TestOptimizeMicroCoverage:
         optimized, coverage = optimize_micro_coverage(meals, target_micros)
         assert coverage["iron_mg"] == 200.0
 
+    def test_optimize_does_not_mutate_input_meals(self) -> None:
+        """Ensure optimize_micro_coverage does not mutate the original meals list."""
+        base_booster = {"id": "existing_booster"}
+        booster_suggestions = [base_booster]
+        meals = [
+            {
+                "micros": {"iron_mg": 5, "calcium_mg": 200},
+                "booster_suggestions": booster_suggestions,
+            }
+        ]
+        target_micros = {"iron_mg": 18, "calcium_mg": 1000}
+
+        optimized, coverage = optimize_micro_coverage(
+            meals,
+            target_micros,
+            min_coverage_pct=80.0,
+        )
+
+        # Original meals list and nested booster_suggestions list should be unchanged.
+        assert len(meals) == 1
+        assert meals[0]["booster_suggestions"] is booster_suggestions
+        assert len(booster_suggestions) == 1
+        assert booster_suggestions[0] is base_booster
+
+        # The optimizer should return a different structure.
+        assert optimized is not meals
+        assert optimized[0] is not meals[0]
+
+        # The optimized meal may have additional booster suggestions, but they must not
+        # be stored in the original booster_suggestions list.
+        assert "booster_suggestions" in optimized[0]
+        assert optimized[0]["booster_suggestions"] is not booster_suggestions
+        assert len(optimized[0]["booster_suggestions"]) >= len(booster_suggestions)
+
 
 class TestOptimizeCost:
     """Test optimize_cost function."""
