@@ -1526,6 +1526,7 @@ uvicorn
 
 # Moved Casella (proper name) to project names list; removed from general dictionary
 макробаланс
+микронутриентов
 aiomysql
 aiosqlite
 Ardle
@@ -1557,6 +1558,7 @@ Macronutrient
 MACRONUTRIENT
 Macronutrients
 maxsize
+mediterranean
 micronutrients
 mysql
 noqa

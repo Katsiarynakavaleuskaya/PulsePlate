@@ -70,7 +70,6 @@ def create_meal_plan(
     kcal_target: int,
     diet_flags: Optional[Set[str]] = None,
     recipe_db: Optional[Any] = None,
-    food_db: Optional[Any] = None,
 ) -> MealPlan:
     """
     RU: Создает план для одного приема пищи.
@@ -81,7 +80,6 @@ def create_meal_plan(
         kcal_target: Target calories for this meal
         diet_flags: Dietary restrictions/preferences
         recipe_db: Recipe database (optional)
-        food_db: Food database (optional)
 
     Returns:
         MealPlan with selected recipe and nutrients
@@ -202,9 +200,21 @@ def _create_fallback_meal(
     RU: Создает запасной вариант приема пищи.
     EN: Creates fallback meal option.
     """
-    # Simple macro distribution based on meal type
-    if meal_name == "breakfast":
-        # Higher carbs for energy
+    # Adjust macro distribution for key dietary patterns first
+    normalized_flags = normalize_diet_flags(diet_flags)
+
+    if "KETO" in normalized_flags:
+        # Very low carb, high fat pattern
+        protein_pct = 0.25
+        carbs_pct = 0.05
+        fat_pct = 0.70
+    elif "LOW_CARB" in normalized_flags:
+        # Moderately low carb, higher fat and protein
+        protein_pct = 0.35
+        carbs_pct = 0.20
+        fat_pct = 0.45
+    elif meal_name == "breakfast":
+        # Higher carbs for morning energy
         protein_pct = 0.25
         carbs_pct = 0.50
         fat_pct = 0.25
@@ -241,7 +251,6 @@ def create_daily_meal_plan(
     diet_flags: Optional[Set[str]] = None,
     num_meals: int = 4,
     recipe_db: Optional[Any] = None,
-    food_db: Optional[Any] = None,
 ) -> DailyMealPlan:
     """
     RU: Создает план питания на день.
@@ -252,7 +261,6 @@ def create_daily_meal_plan(
         diet_flags: Dietary restrictions/preferences
         num_meals: Number of meals (3 or 4)
         recipe_db: Recipe database (optional)
-        food_db: Food database (optional)
 
     Returns:
         DailyMealPlan with all meals for the day
@@ -266,6 +274,7 @@ def create_daily_meal_plan(
     # Create individual meals
     meals: List[MealPlan] = []
     total_macros = {"protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
+    total_cost = 0.0
 
     for meal_cal in distribution.meals:
         meal = create_meal_plan(
@@ -273,20 +282,21 @@ def create_daily_meal_plan(
             kcal_target=meal_cal.kcal,
             diet_flags=diet_flags,
             recipe_db=recipe_db,
-            food_db=food_db,
         )
         meals.append(meal)
 
-        # Aggregate macros
+        # Aggregate macros and cost
         for macro, value in meal.macros.items():
             if macro in total_macros:
                 total_macros[macro] += value
+        total_cost += meal.estimated_cost
 
     return DailyMealPlan(
         day=1,
         total_kcal=total_kcal,
         meals=meals,
         total_macros=total_macros,
+        total_cost=total_cost,
     )
 
 
@@ -295,7 +305,6 @@ def create_weekly_meal_plan(
     diet_flags: Optional[Set[str]] = None,
     num_meals: int = 4,
     recipe_db: Optional[Any] = None,
-    food_db: Optional[Any] = None,
 ) -> WeeklyMealPlan:
     """
     RU: Создает план питания на неделю.
@@ -306,7 +315,6 @@ def create_weekly_meal_plan(
         diet_flags: Dietary restrictions/preferences
         num_meals: Number of meals per day (3 or 4)
         recipe_db: Recipe database (optional)
-        food_db: Food database (optional)
 
     Returns:
         WeeklyMealPlan with 7 days of meal plans
@@ -326,7 +334,6 @@ def create_weekly_meal_plan(
             diet_flags=diet_flags,
             num_meals=num_meals,
             recipe_db=recipe_db,
-            food_db=food_db,
         )
         daily_plan.day = day_index + 1
         days.append(daily_plan)

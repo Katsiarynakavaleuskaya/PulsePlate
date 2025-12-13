@@ -10,6 +10,7 @@ recipes and meal plans comply with user's dietary preferences and restrictions.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, Optional, Set
 
 # Diet flag constants
@@ -34,7 +35,6 @@ DIET_FLAGS = {
 
 # Incompatible diet flag combinations
 INCOMPATIBLE_COMBINATIONS = [
-    {"KETO", "HIGH_CARB"},
     {"LOW_FAT", "KETO"},
     {"LOW_FAT", "MEDITERRANEAN"},
     {"VEGAN", "PALEO"},  # Paleo restricts legumes which are vegan protein source
@@ -48,6 +48,23 @@ DIET_IMPLICATIONS = {
 }
 
 
+@dataclass
+class NormalizedDietFlags:
+    """
+    RU: Результат нормализации диетических флагов.
+    EN: Result of diet flags normalization.
+
+    Attributes:
+        flags: Normalized set of diet flags
+        overridden_flags: Flags that were removed due to conflicts
+        conflicts_resolved: List of conflict resolutions (winner, losers)
+    """
+
+    flags: Set[str]
+    overridden_flags: Set[str]
+    conflicts_resolved: list[tuple[str, Set[str]]]  # (chosen_diet, removed_flags)
+
+
 def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:
     """
     RU: Нормализует диетические флаги, разрешая конфликты и добавляя импликации.
@@ -57,7 +74,10 @@ def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:
         diet_flags: Raw set of diet flags from user
 
     Returns:
-        Normalized set of diet flags
+        Normalized set of diet flags (for backward compatibility)
+
+    Note:
+        Use normalize_diet_flags_detailed() to get information about overridden flags.
 
     Examples:
         >>> normalize_diet_flags({"VEGAN"})
@@ -65,22 +85,55 @@ def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:
         >>> normalize_diet_flags({"KETO", "VEGAN"})
         {'VEGAN', 'VEG', 'DAIRY_FREE', 'LOW_CARB', 'HIGH_PROTEIN'}
     """
+    result = normalize_diet_flags_detailed(diet_flags)
+    return result.flags
+
+
+def normalize_diet_flags_detailed(diet_flags: Set[str]) -> NormalizedDietFlags:
+    """
+    RU: Нормализует диетические флаги с детальной информацией о конфликтах.
+    EN: Normalizes diet flags with detailed conflict information.
+
+    Args:
+        diet_flags: Raw set of diet flags from user
+
+    Returns:
+        NormalizedDietFlags with flags, overridden_flags, and conflicts_resolved
+
+    Examples:
+        >>> result = normalize_diet_flags_detailed({"VEGAN"})
+        >>> result.flags
+        {'VEGAN', 'VEG', 'DAIRY_FREE'}
+        >>> result.overridden_flags
+        set()
+        >>> result = normalize_diet_flags_detailed({"LOW_FAT", "KETO"})
+        >>> result.flags
+        {'KETO', 'LOW_CARB', 'HIGH_PROTEIN'}
+        >>> result.overridden_flags
+        {'LOW_FAT'}
+        >>> result.conflicts_resolved
+        [('KETO', {'LOW_FAT'})]
+    """
     if not diet_flags:
-        return set()
+        return NormalizedDietFlags(flags=set(), overridden_flags=set(), conflicts_resolved=[])
 
     normalized = set(diet_flags)
+    overridden_flags: Set[str] = set()
+    conflicts_resolved: list[tuple[str, Set[str]]] = []
 
     # Resolve incompatible combinations
     for incompatible_pair in INCOMPATIBLE_COMBINATIONS:
         if incompatible_pair.issubset(normalized):
             # Prefer more specific/restrictive diet
-            # KETO > VEGAN > VEG, etc.
+            # KETO > VEGAN > PALEO > VEG > MEDITERRANEAN
             priority_order = ["KETO", "VEGAN", "PALEO", "VEG", "MEDITERRANEAN"]
             for diet in priority_order:
                 if diet in incompatible_pair and diet in normalized:
-                    # Keep this one, remove others
-                    normalized -= incompatible_pair
-                    normalized.add(diet)
+                    # Keep this one (chosen_diet), remove ONLY the other conflicting flags
+                    removed_flags = incompatible_pair - {diet}
+                    normalized -= removed_flags
+                    overridden_flags.update(removed_flags)
+                    conflicts_resolved.append((diet, removed_flags))
                     break
 
     # Add implications
@@ -88,7 +141,11 @@ def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:
         if base_diet in normalized:
             normalized.update(implied_flags)
 
-    return normalized
+    return NormalizedDietFlags(
+        flags=normalized,
+        overridden_flags=overridden_flags,
+        conflicts_resolved=conflicts_resolved,
+    )
 
 
 def is_recipe_compatible(
@@ -195,28 +252,33 @@ def is_recipe_compatible(
 
 
 def adjust_macros_for_diet(
-    macros: Dict[str, int],
+    macros: Dict[str, float],
     diet_flags: Set[str],
     weight_kg: float,
     kcal: int,
-) -> Dict[str, int]:
+) -> Dict[str, float]:
     """
     RU: Адаптирует макронутриенты под диетические флаги.
     EN: Adjusts macronutrients for dietary flags.
 
     Args:
-        macros: Base macros {"protein_g", "fat_g", "carbs_g", "fiber_g"}
+        macros: Base macros {"protein_g", "fat_g", "carbs_g", "fiber_g"} as floats
         diet_flags: User's dietary flags (normalized)
         weight_kg: User's body weight in kg
         kcal: Target daily calories
 
     Returns:
-        Adjusted macros dictionary
+        Adjusted macros dictionary with float values (preserves precision)
+
+    Note:
+        Returns float values to preserve calculation precision. Callers should
+        round to int at the point of display/storage if needed.
 
     Examples:
-        >>> macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 200, "fiber_g": 25}
-        >>> adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
-        {"protein_g": 140, "fat_g": 50, "carbs_g": 165, "fiber_g": 25}
+        >>> macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
+        >>> result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
+        >>> result["protein_g"]
+        140.0
     """
     normalized = normalize_diet_flags(diet_flags)
 
@@ -319,10 +381,10 @@ def adjust_macros_for_diet(
         carbs = computed_carbs
 
     return {
-        "protein_g": int(round(protein)),
-        "fat_g": int(round(fat)),
-        "carbs_g": int(round(carbs)),
-        "fiber_g": int(round(fiber)),
+        "protein_g": protein,
+        "fat_g": fat,
+        "carbs_g": carbs,
+        "fiber_g": fiber,
     }
 
 

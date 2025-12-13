@@ -157,6 +157,7 @@ class TestCreateDailyMealPlan:
                 "kcal": 500,
                 "macros": {"protein_g": 20, "carbs_g": 70, "fat_g": 15, "fiber_g": 10},
                 "ingredients": {},
+                "cost": 2.5,
             }
         ]
 
@@ -166,6 +167,8 @@ class TestCreateDailyMealPlan:
         # At least one meal should use the recipe
         recipe_names = [meal.recipe_name for meal in plan.meals]
         assert any("Breakfast Bowl" in str(name) for name in recipe_names)
+        # Daily total_cost should include recipe costs
+        assert plan.total_cost > 0.0
 
 
 class TestCreateWeeklyMealPlan:
@@ -224,6 +227,32 @@ class TestCreateWeeklyMealPlan:
         # All days should have 3 meals
         for day in plan.days:
             assert len(day.meals) == 3
+
+    def test_weekly_total_cost_aggregates_daily_costs(self):
+        """Weekly total_cost should equal sum of daily total_cost values."""
+
+        class CostRecipeDB:
+            def get_recipes_by_category(self, categories):
+                return [
+                    {
+                        "name": "Any Meal",
+                        "kcal": 500,
+                        "macros": {
+                            "protein_g": 20,
+                            "carbs_g": 60,
+                            "fat_g": 15,
+                            "fiber_g": 8,
+                        },
+                        "ingredients": {},
+                        "cost": 3.0,
+                        "flags": [],
+                    }
+                ]
+
+        plan = create_weekly_meal_plan(2000, recipe_db=CostRecipeDB())
+
+        assert plan.total_cost == pytest.approx(sum(day.total_cost for day in plan.days))
+        assert plan.total_cost > 0.0
 
 
 class TestMealPlanDataclass:
@@ -439,3 +468,24 @@ class TestMacroDistribution:
         assert meal.macros["protein_g"] > 10
         assert meal.macros["carbs_g"] > 15
         assert meal.macros["fat_g"] > 5
+
+    def test_keto_fallback_has_very_low_carbs(self):
+        """KETO fallback meals should be very low in carbs and high in fat."""
+        meal = create_meal_plan("dinner", 600, diet_flags={"KETO"})
+
+        protein_kcal = meal.macros["protein_g"] * 4
+        carbs_kcal = meal.macros["carbs_g"] * 4
+        fat_kcal = meal.macros["fat_g"] * 9
+
+        carbs_pct = carbs_kcal / 600 if 600 else 0
+        fat_pct = fat_kcal / 600 if 600 else 0
+
+        assert carbs_pct <= 0.10 + 0.02  # allow small rounding slack
+        assert fat_pct >= 0.65  # high fat emphasis
+
+    def test_low_carb_fallback_reduces_carbs_vs_default(self):
+        """LOW_CARB fallback should have fewer carbs than default dinner."""
+        default_meal = create_meal_plan("dinner", 600)
+        low_carb_meal = create_meal_plan("dinner", 600, diet_flags={"LOW_CARB"})
+
+        assert low_carb_meal.macros["carbs_g"] < default_meal.macros["carbs_g"]

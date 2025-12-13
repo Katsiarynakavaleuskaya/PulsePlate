@@ -10,6 +10,7 @@ from core.meal_optimizer import (
     optimize_cost,
     optimize_macro_balance,
     optimize_micro_coverage,
+    suggest_booster_food,
 )
 
 
@@ -277,3 +278,118 @@ class TestScalingLimits:
 
         optimized, total_cost = optimize_cost(meals, max_budget=5.0, min_quality_score=0.8)
         assert total_cost >= 20.0 * 0.8
+
+
+class TestSuggestBoosterFood:
+    """Test suggest_booster_food function with diet and allergen filters."""
+
+    def test_suggest_no_restrictions(self):
+        """Test suggesting booster without any restrictions."""
+        result = suggest_booster_food("iron_mg")
+        assert result is not None
+        assert result in ["Spinach", "Lentils", "Beef"]
+
+    def test_suggest_vegan_diet(self):
+        """Test suggesting booster for VEGAN diet."""
+        result = suggest_booster_food("iron_mg", diet_flags={"VEGAN"})
+        assert result in ["Spinach", "Lentils"]
+        assert result != "Beef"  # Beef not compatible with VEGAN
+
+    def test_suggest_veg_diet(self):
+        """Test suggesting booster for VEG diet."""
+        result = suggest_booster_food("iron_mg", diet_flags={"VEG"})
+        assert result in ["Spinach", "Lentils"]
+        # VEG should also exclude Beef
+
+    def test_suggest_calcium_vegan_no_dairy(self):
+        """Test calcium booster for VEGAN diet excludes dairy."""
+        result = suggest_booster_food("calcium_mg", diet_flags={"VEGAN"})
+        assert result != "Dairy yogurt"
+        assert result in ["Kale", "Fortified plant milk"]
+
+    def test_suggest_with_nut_allergen(self):
+        """Test suggesting magnesium booster with nut allergy."""
+        result = suggest_booster_food("magnesium_mg", allergens={"NUT"})
+        assert result != "Almonds"
+        assert result in ["Pumpkin seeds", "Dark chocolate"]
+
+    def test_suggest_with_dairy_allergen(self):
+        """Test suggesting calcium booster with dairy allergy."""
+        result = suggest_booster_food("calcium_mg", allergens={"DAIRY"})
+        assert result != "Dairy yogurt"
+        assert result in ["Kale", "Fortified plant milk"]
+
+    def test_suggest_with_egg_allergen(self):
+        """Test suggesting B12 booster with egg allergy."""
+        result = suggest_booster_food("b12_ug", allergens={"EGG"})
+        assert result != "Eggs"
+        assert result in ["Nutritional yeast", "Fortified cereals"]
+
+    def test_suggest_vegan_and_allergen(self):
+        """Test suggesting with both diet restriction and allergen."""
+        result = suggest_booster_food("magnesium_mg", diet_flags={"VEGAN"}, allergens={"NUT"})
+        assert result != "Almonds"
+        assert result in ["Pumpkin seeds", "Dark chocolate"]
+
+    def test_suggest_unknown_micronutrient(self):
+        """Test suggesting for unknown micronutrient."""
+        result = suggest_booster_food("unknown_micro")
+        assert result is None
+
+    def test_suggest_no_compatible_booster(self):
+        """Test when no compatible booster exists (edge case)."""
+        # If all boosters for a micronutrient are excluded, should return None
+        # This is a theoretical edge case with current database
+        result = suggest_booster_food("iron_mg", diet_flags={"VEGAN"}, allergens=set())
+        assert result is not None  # Should find Spinach or Lentils
+
+    def test_booster_respects_diet_priority(self):
+        """Test that first compatible booster is returned."""
+        result = suggest_booster_food("iron_mg", diet_flags={"VEGAN"})
+        # Should return first compatible: Spinach (before Lentils)
+        assert result == "Spinach"
+
+
+class TestOptimizeMicroCoverageWithDietRestrictions:
+    """Test optimize_micro_coverage with diet and allergen filters."""
+
+    def test_optimize_respects_vegan_diet(self):
+        """Test that booster suggestions respect VEGAN diet."""
+        meals = [{"micros": {"iron_mg": 5}}]
+        target_micros = {"iron_mg": 18}
+
+        optimized, coverage = optimize_micro_coverage(
+            meals, target_micros, min_coverage_pct=80.0, diet_flags={"VEGAN"}
+        )
+
+        assert "booster_suggestions" in optimized[-1]
+        booster_food = optimized[-1]["booster_suggestions"][0]["suggested_food"]
+        assert booster_food in ["Spinach", "Lentils"]
+        assert booster_food != "Beef"
+
+    def test_optimize_respects_allergens(self):
+        """Test that booster suggestions respect allergens."""
+        meals = [{"micros": {"calcium_mg": 300}}]
+        target_micros = {"calcium_mg": 1000}
+
+        optimized, coverage = optimize_micro_coverage(
+            meals, target_micros, min_coverage_pct=80.0, allergens={"DAIRY"}
+        )
+
+        assert "booster_suggestions" in optimized[-1]
+        booster_food = optimized[-1]["booster_suggestions"][0]["suggested_food"]
+        assert booster_food != "Dairy yogurt"
+        assert booster_food in ["Kale", "Fortified plant milk"]
+
+    def test_optimize_no_compatible_booster(self):
+        """Test when no compatible booster found (should not add suggestion)."""
+        meals = [{"micros": {"unknown_micro": 10}}]
+        target_micros = {"unknown_micro": 100}
+
+        optimized, coverage = optimize_micro_coverage(
+            meals, target_micros, min_coverage_pct=80.0, diet_flags={"VEGAN"}
+        )
+
+        # Should not crash, but may not have booster_suggestions
+        # (depends on whether unknown_micro is recognized)
+        assert len(optimized) > 0

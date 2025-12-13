@@ -10,7 +10,80 @@ macro balance, micronutrient coverage, cost, and user preferences.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+
+@dataclass
+class BoosterFood:
+    """
+    RU: Информация о продукте-бустере.
+    EN: Booster food information.
+
+    Attributes:
+        name: Food name
+        compatible_diets: Set of diet flags this food is compatible with
+        allergens: Set of common allergens present in this food
+    """
+
+    name: str
+    compatible_diets: Set[str]
+    allergens: Set[str]
+
+
+# Booster food database with diet and allergen metadata
+BOOSTER_FOODS: Dict[str, List[BoosterFood]] = {
+    "iron_mg": [
+        BoosterFood("Spinach", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()),
+        BoosterFood("Lentils", {"VEGAN", "VEG", "MEDITERRANEAN"}, set()),
+        BoosterFood("Beef", {"PALEO", "KETO"}, set()),
+    ],
+    "calcium_mg": [
+        BoosterFood("Kale", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()),
+        BoosterFood("Dairy yogurt", {"VEG", "KETO", "MEDITERRANEAN"}, {"DAIRY"}),
+        BoosterFood("Fortified plant milk", {"VEGAN", "VEG", "DAIRY_FREE"}, set()),
+    ],
+    "vitamin_d_iu": [
+        BoosterFood("Mushrooms", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()),
+        BoosterFood("Fatty fish", {"PALEO", "KETO", "MEDITERRANEAN"}, set()),
+    ],
+    "b12_ug": [
+        BoosterFood("Nutritional yeast", {"VEGAN", "VEG", "PALEO", "KETO", "GF"}, set()),
+        BoosterFood("Eggs", {"VEG", "PALEO", "KETO"}, {"EGG"}),
+        BoosterFood("Fortified cereals", {"VEGAN", "VEG"}, set()),
+    ],
+    "folate_ug": [
+        BoosterFood("Lentils", {"VEGAN", "VEG", "MEDITERRANEAN"}, set()),
+        BoosterFood("Asparagus", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()),
+    ],
+    "magnesium_mg": [
+        BoosterFood(
+            "Pumpkin seeds", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()
+        ),
+        BoosterFood("Dark chocolate", {"VEGAN", "VEG", "PALEO", "KETO"}, set()),
+        BoosterFood("Almonds", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, {"NUT"}),
+    ],
+    "potassium_mg": [
+        BoosterFood("Banana", {"VEGAN", "VEG", "PALEO", "GF", "MEDITERRANEAN"}, set()),
+        BoosterFood("Avocado", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()),
+    ],
+    "zinc_mg": [
+        BoosterFood("Chickpeas", {"VEGAN", "VEG", "MEDITERRANEAN"}, set()),
+        BoosterFood(
+            "Pumpkin seeds", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()
+        ),
+    ],
+    "vitamin_c_mg": [
+        BoosterFood(
+            "Bell peppers", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()
+        ),
+        BoosterFood("Citrus fruits", {"VEGAN", "VEG", "PALEO", "GF", "MEDITERRANEAN"}, set()),
+    ],
+    "vitamin_a_iu": [
+        BoosterFood("Carrots", {"VEGAN", "VEG", "PALEO", "KETO", "GF", "MEDITERRANEAN"}, set()),
+        BoosterFood("Sweet potato", {"VEGAN", "VEG", "PALEO", "GF", "MEDITERRANEAN"}, set()),
+    ],
+}
 
 
 def optimize_macro_balance(
@@ -82,6 +155,8 @@ def optimize_micro_coverage(
     meals: List[Dict[str, Any]],
     target_micros: Dict[str, float],
     min_coverage_pct: float = 80.0,
+    diet_flags: Optional[Set[str]] = None,
+    allergens: Optional[Set[str]] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
     """
     RU: Оптимизирует покрытие микронутриентов.
@@ -91,10 +166,16 @@ def optimize_micro_coverage(
         meals: List of meal dictionaries
         target_micros: Target micronutrients (RDA values)
         min_coverage_pct: Minimum acceptable coverage (default 80%)
+        diet_flags: User's dietary flags (e.g., {"VEGAN", "GF"})
+        allergens: User's allergen restrictions (e.g., {"NUT", "DAIRY"})
 
     Returns:
         Tuple of (optimized_meals, coverage_report)
         coverage_report: {micronutrient: coverage_percentage}
+
+    Note:
+        Booster suggestions respect dietary restrictions and allergens.
+        If no compatible booster is found, no suggestion is added.
     """
     if not meals or not target_micros:
         return meals, {}
@@ -109,35 +190,35 @@ def optimize_micro_coverage(
     if not deficient_micros:
         return meals, coverage
 
-    # Add boosters for deficient micros (simplified)
-    optimized_meals = meals[:]  # Shallow copy sufficient
+    # Add boosters for deficient micros (advisory only – no nutrient changes)
+    optimized_meals = [meal.copy() for meal in meals]
 
     # Priority order: most deficient first
     sorted_deficient = sorted(deficient_micros.items(), key=lambda x: x[1])
 
     for micro, current_pct in sorted_deficient[:3]:  # Limit to top 3 deficiencies
         # Add booster suggestion to last meal (usually dinner)
-        if optimized_meals:
-            last_meal = optimized_meals[-1]
-            if "booster_suggestions" not in last_meal:
-                last_meal["booster_suggestions"] = []
+        if not optimized_meals:
+            break
+        last_meal = optimized_meals[-1]
+        if "booster_suggestions" not in last_meal:
+            last_meal["booster_suggestions"] = []
 
-            booster = _suggest_booster_food(micro)
-            if booster:
-                last_meal["booster_suggestions"].append(
-                    {
-                        "micronutrient": micro,
-                        "current_coverage": current_pct,
-                        "target_coverage": min_coverage_pct,
-                        "suggested_food": booster,
-                    }
-                )
+        # Get compatible booster respecting dietary restrictions
+        booster = suggest_booster_food(micro, diet_flags, allergens)
+        if booster:  # Only add if compatible booster found
+            last_meal["booster_suggestions"].append(
+                {
+                    "micronutrient": micro,
+                    "current_coverage": current_pct,
+                    "target_coverage": min_coverage_pct,
+                    "suggested_food": booster,
+                }
+            )
 
-    # Recalculate coverage
-    new_micros = _aggregate_micros(optimized_meals)
-    new_coverage = _calculate_coverage(new_micros, target_micros)
-
-    return optimized_meals, new_coverage
+    # Boosters are advisory only and do not alter micronutrient totals,
+    # so we return the original coverage numbers.
+    return optimized_meals, coverage
 
 
 def optimize_cost(
@@ -254,22 +335,70 @@ def _scale_meals_to_targets(
     return optimized
 
 
-def _suggest_booster_food(micronutrient: str) -> Optional[str]:
-    """Suggest food rich in specific micronutrient."""
-    booster_map = {
-        "iron_mg": "Spinach",
-        "calcium_mg": "Kale",
-        "vitamin_d_iu": "Mushrooms",
-        "b12_ug": "Nutritional yeast",
-        "folate_ug": "Lentils",
-        "magnesium_mg": "Pumpkin seeds",
-        "potassium_mg": "Banana",
-        "zinc_mg": "Chickpeas",
-        "vitamin_c_mg": "Bell peppers",
-        "vitamin_a_iu": "Carrots",
-    }
+def suggest_booster_food(
+    micronutrient: str,
+    diet_flags: Optional[Set[str]] = None,
+    allergens: Optional[Set[str]] = None,
+) -> Optional[str]:
+    """
+    RU: Предлагает продукт с учетом диетических ограничений и аллергий.
+    EN: Suggests food rich in specific micronutrient respecting dietary restrictions.
 
-    return booster_map.get(micronutrient)
+    Args:
+        micronutrient: Micronutrient to boost (e.g., "iron_mg", "calcium_mg")
+        diet_flags: User's dietary flags (e.g., {"VEGAN", "GF"})
+        allergens: User's allergen restrictions (e.g., {"NUT", "DAIRY", "EGG"})
+
+    Returns:
+        Food name that is compatible, or None if no compatible food found
+
+    Examples:
+        >>> _suggest_booster_food("iron_mg", {"VEGAN"}, set())
+        'Spinach'
+        >>> _suggest_booster_food("calcium_mg", {"VEGAN"}, set())
+        'Kale'
+        >>> _suggest_booster_food("calcium_mg", {"VEGAN"}, {"DAIRY"})
+        'Fortified plant milk'
+        >>> _suggest_booster_food("magnesium_mg", {"VEGAN"}, {"NUT"})
+        'Pumpkin seeds'
+    """
+    if diet_flags is None:
+        diet_flags = set()
+    if allergens is None:
+        allergens = set()
+
+    # Get candidate boosters for this micronutrient
+    candidates = BOOSTER_FOODS.get(micronutrient, [])
+
+    if not candidates:
+        return None
+
+    # Filter by diet compatibility and allergens
+    for booster in candidates:
+        # Check if user's diet flags are compatible with this food
+        # If user has VEGAN flag, food must have VEGAN in compatible_diets
+        is_diet_compatible = True
+        if diet_flags:
+            # Check key restrictive diets
+            if "VEGAN" in diet_flags and "VEGAN" not in booster.compatible_diets:
+                is_diet_compatible = False
+            elif (
+                "VEG" in diet_flags
+                and "VEG" not in booster.compatible_diets
+                and "VEGAN" not in booster.compatible_diets
+            ):
+                is_diet_compatible = False
+            # For other diets (KETO, PALEO), just prefer compatible options
+            # but don't strictly require (they're preferences, not restrictions)
+
+        # Check allergens - strict requirement
+        has_allergen = bool(booster.allergens.intersection(allergens))
+
+        if is_diet_compatible and not has_allergen:
+            return booster.name
+
+    # No compatible booster found
+    return None
 
 
 def _reduce_cost_preserving_quality(
@@ -284,11 +413,14 @@ def _reduce_cost_preserving_quality(
     if current_cost <= max_budget:
         return meals
 
-    # Calculate reduction factor
+    # Calculate reduction factor based purely on budget
     reduction_factor = max_budget / current_cost
 
-    # Ensure we don't reduce quality too much (floor at min_quality_score)
-    reduction_factor = max(reduction_factor, min_quality_score)
+    # If meeting the budget would require reducing portions below the
+    # allowed quality threshold, keep the original meals and let the
+    # caller decide how to handle the budget shortfall.
+    if reduction_factor < min_quality_score:
+        return meals
 
     optimized = []
     for meal in meals:
