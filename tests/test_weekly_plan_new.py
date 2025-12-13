@@ -156,5 +156,38 @@ def test_build_week_multilingual():
         assert len(week_plan["shopping_list"]) > 0
 
 
+def test_build_week_accepts_alias_micro_targets() -> None:
+    """build_week should accept WHO-style (alias) micro keys and still compute coverage."""
+    food_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "food_db_new.csv")
+    recipe_csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "recipes_new.csv")
+
+    food_db = FoodDB(food_csv_path)
+    recipe_db = RecipeDB(recipe_csv_path, food_db)
+
+    # Same targets, but micro keys in alias format (iron_mg/etc.)
+    targets = {
+        "kcal": 2000,
+        "macros": {"protein_g": 100, "fat_g": 70, "carbs_g": 250, "fiber_g": 30},
+        "micro": {
+            "iron_mg": 18.0,
+            "calcium_mg": 1000.0,
+            "vitamin_d_iu": 600.0,
+            "b12_ug": 2.4,
+            "folate_ug": 400.0,
+            "iodine_ug": 150.0,
+            "potassium_mg": 3500.0,
+            "magnesium_mg": 400.0,
+        },
+    }
+
+    week_plan = build_week(targets, [], "en", food_db, recipe_db)
+
+    assert isinstance(week_plan.get("weekly_coverage"), dict)
+    assert "Fe_mg" in week_plan["weekly_coverage"]
+    assert "Ca_mg" in week_plan["weekly_coverage"]
+    # At least some coverage should be non-zero when needs are provided.
+    assert any(v > 0 for v in week_plan["weekly_coverage"].values())
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

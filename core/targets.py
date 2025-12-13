@@ -438,3 +438,39 @@ def _life_stage_warnings(age: int, life_stage: LifeStage, lang: str = "en") -> L
 # Note: WHO/EFSA do not set an upper intake limit for fiber. Only minimum values
 # are used in this codebase based on authoritative guidelines.
 FIBER_MIN_G: float = 25.0  # Minimum daily fiber intake (g), per WHO/EFSA guidelines
+
+# Diet-specific macro adjustment constants
+# These constants define the macro distribution parameters for various dietary patterns
+# Reference: Dietary Guidelines for Americans 2020-2025, WHO macronutrient intake recommendations
+
+# HIGH_PROTEIN diet minimum (g/kg body weight)
+HIGH_PROTEIN_MIN_G_PER_KG: float = 2.0  # 2.0 g/kg for high protein diets
+
+# LOW_CARB diet maximum carbohydrate percentage of total calories
+LOW_CARB_MAX_PERCENT: float = 0.25  # Max 25% calories from carbs
+LOW_CARB_CARB_FLOOR_G: float = 40.0  # Minimum carbs for LOW_CARB (g)
+
+# KETO diet maximum carbohydrate percentage of total calories
+KETO_MAX_CARB_PERCENT: float = 0.10  # Max 10% calories from carbs (very strict)
+KETO_CARB_FLOOR_G: float = 30.0  # Minimum carbs for KETO (g)
+
+# MEDITERRANEAN diet fat percentage of total calories
+MEDITERRANEAN_FAT_MIN_PERCENT: float = 0.35  # Min 35% calories from healthy fats
+MEDITERRANEAN_FIBER_MIN_G: float = 30.0  # Increased fiber target for Mediterranean
+MEDITERRANEAN_FAT_TO_PROTEIN_RATIO: float = (
+    1.2  # Healthy fat-to-protein ratio (g fat per g protein)
+)
+
+# LOW_FAT diet maximum fat percentage of total calories
+LOW_FAT_MAX_PERCENT: float = 0.25  # Max 25% calories from fat
+
+# Default carb floor for non-specific diets (g)
+DEFAULT_CARB_FLOOR_G: float = 50.0  # Minimum carbs for general diets
+
+# Minimum healthy fat intake (g/kg body weight)
+MIN_HEALTHY_FAT_G_PER_KG: float = 0.6  # 0.6 g/kg minimum
+MIN_HEALTHY_FAT_ABSOLUTE_G: float = 30.0  # Absolute minimum 30g
+
+# Minimum protein intake (g/kg body weight)
+MIN_PROTEIN_G_PER_KG: float = 1.6  # 1.6 g/kg minimum
+MIN_PROTEIN_ABSOLUTE_G: float = 50.0  # Absolute minimum 50g

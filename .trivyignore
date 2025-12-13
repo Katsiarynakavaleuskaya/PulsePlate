@@ -905,6 +905,57 @@ CVE-2025-8869
 
 CVE-2024-10041
 
+## CVE-2024-22365 – PAM mkfifo DoS attack (MEDIUM)
+##
+## This CVE affects linux-pam <1.6.0 where openat() call for protect_dir
+## lacks O_DIRECTORY flag, allowing mkfifo-based DoS attack:
+##
+## Container package: libpam0g 1.5.2-6+deb12u1 (bookworm)
+##
+## Vulnerability details:
+##   - Unprivileged user can create FIFO in protected directory
+##   - openat() without O_DIRECTORY follows FIFO instead of directory
+##   - Causes login process to block indefinitely (DoS)
+##   - Fixed in linux-pam 1.6.0 (not available in bookworm)
+##
+## Debian Security status:
+##   - bookworm: 1.5.2-6+deb12u1 vulnerable, no fix available
+##   - Fixed version: requires linux-pam 1.6.0+ (not in stable)
+##   - Severity: MEDIUM (DoS only, requires local access)
+##
+## Why we are NOT vulnerable:
+##   - Application does NOT use PAM for authentication (FastAPI/JWT)
+##   - No PAM-based logins (no sshd, login, su, or getty)
+##   - No local shell access for unprivileged users
+##   - Single-tenant container (runs as single pulseplate user)
+##   - No multi-user environment where attack is possible
+##   - Container uses non-root user, limits attack surface
+##
+## Attack requirements (ALL must be met):
+##   - Local unprivileged user account in container
+##   - Ability to create FIFOs in filesystem
+##   - PAM-based login active (we don't have any)
+##   - Attacker wants to block other users' logins (no other users exist)
+##
+## Risk assessment:
+##   - Severity: MEDIUM (DoS, not RCE/privilege escalation)
+##   - Attack vector: Local access required
+##   - Impact: Can block login process (we don't use PAM logins)
+##   - Exploitability: Low (requires conditions not present in our deployment)
+##
+## Mitigation:
+##   - Container runs as single non-root user (pulseplate:pulseplate)
+##   - No PAM-based authentication mechanisms active
+##   - No shell access for untrusted users
+##   - Monitoring: Check for python:3.13.5-slim updates with pam 1.6.0+
+##
+## MAINTENANCE NOTE: When python:3.13.5-slim updates to include PAM 1.6.0+,
+## this entry can be removed. Next review: 2026-03-12.
+##
+## Attack surface: ZERO - no PAM logins, single-user container model.
+
+CVE-2024-22365
+
 ## CVE-2025-30258 – GnuPG verification DoS via malicious subkey (MEDIUM)
 ##
 ## This CVE affects GnuPG <2.5.5 certificate import. NOT vulnerable:

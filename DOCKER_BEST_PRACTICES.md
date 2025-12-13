@@ -5,9 +5,11 @@
 ### Before Every Push
 
 - [ ] Test Docker build locally: `make docker-build`
-- [ ] Verify health check: `curl http://localhost:8000/health`
+- [ ] Verify health check from host: `curl http://localhost:8000/health`
 - [ ] Check image size: `docker images pulseplate`
 - [ ] Clean old images: `make docker-clean-images`
+
+> **Note**: Health check validation uses `curl` from the **host machine**, not inside the container. The container itself uses Python's `urllib` for internal health checks (no curl installed in slim image).
 
 ### Weekly Maintenance
 
@@ -24,8 +26,9 @@
 # Build with versioning
 make docker-build  # Creates :latest and :<commit-hash>
 
-# Test locally
+# Test locally (curl from host to test exposed port)
 docker run -d --name pulseplate-test -p 8000:8000 pulseplate:latest
+# Execute this curl command from your host machine, not inside the container:
 curl http://localhost:8000/health
 docker stop pulseplate-test && docker rm pulseplate-test
 
@@ -78,7 +81,7 @@ docker system df
 make docker-build
 docker run -d --name test -p 8000:8000 pulseplate:latest
 
-# Wait for application to be ready with retry
+# Wait for application to be ready with retry (using curl from HOST)
 max_attempts=30
 attempt=0
 echo "Waiting for application to be ready..."
@@ -99,6 +102,8 @@ echo "✅ Application is ready"
 docker stop test && docker rm test
 ```
 
+> **Note**: The above script uses `curl` from your **host machine** to test the exposed port. Inside the container, the Dockerfile HEALTHCHECK uses Python's `urllib.request.urlopen()` instead, as `curl` is not installed in the slim Python image to minimize attack surface.
+
 ## 📊 **Performance Tips**
 
 ### Build Optimization
@@ -112,15 +117,22 @@ docker stop test && docker rm test
 
 - Use non-root user (already implemented)
 - Set proper environment variables
-- Configure health checks
-- Use appropriate base images (python:3.13-slim)
+- Configure health checks (Python-based, no curl dependency)
+- Use appropriate base images (python:3.13.5-slim-bookworm - pinned stable version)
+
+> **Health Check Details**: The Dockerfile uses Python's `urllib.request.urlopen()` for health checks instead of `curl` to avoid installing unnecessary packages. Example:
+> ```dockerfile
+> HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
+> ```
 
 ## 🛡️ **Security Best Practices**
 
 ### Image Security
 
 - ✅ Non-root user (pulseplate)
-- ✅ Minimal base image (python:3.13-slim)
+- ✅ Minimal base image (python:3.13.5-slim-bookworm - pinned to Debian Bookworm stable)
+- ✅ No unnecessary tools installed (curl, wget removed to reduce attack surface)
+- ✅ Python-based health checks (no external dependencies)
 - ✅ No secrets in image layers
 - ✅ Regular security scanning with Trivy
 
