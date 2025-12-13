@@ -40,7 +40,9 @@ class TestOptimizeMacroBalance:
 
         optimized, score = optimize_macro_balance(meals, target_macros)
 
-        assert score >= 0.0
+        assert 0.0 <= score <= 1.0
+        # Verify meals were modified (scaled)
+        assert optimized[0]["macros"]["protein_g"] >= 30
         assert len(optimized) == 2
 
     def test_optimize_within_tolerance(self):
@@ -97,7 +99,11 @@ class TestOptimizeMicroCoverage:
         target_micros = {"iron_mg": 18, "calcium_mg": 1000, "vitamin_d_iu": 600}
 
         optimized, coverage = optimize_micro_coverage(meals, target_micros, min_coverage_pct=80.0)
-        assert coverage is not None
+        assert "iron_mg" in coverage
+        assert coverage["iron_mg"] < 80.0  # Should still show deficiency
+        # Verify booster suggestions were added to the meal
+        assert "booster_suggestions" in optimized[0]
+        assert len(optimized[0]["booster_suggestions"]) > 0
 
     def test_optimize_empty_meals(self):
         """Test optimization with empty meals."""

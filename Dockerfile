@@ -2,7 +2,7 @@
 # Optimized for production with minimal image size and security
 
 # Stage 1: Build stage
-FROM python:3.13-slim-trixie AS builder
+FROM python:3.13.5-slim-bookworm AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -26,7 +26,7 @@ RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
-FROM python:3.13-slim-trixie AS production
+FROM python:3.13.5-slim-bookworm AS production
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

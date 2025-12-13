@@ -52,11 +52,15 @@ class TestCreateMealPlan:
         assert "fat_g" in meal.macros
 
     def test_create_meal_plan_with_diet_flags(self):
-        """Test meal creation with dietary restrictions."""
-        meal = create_meal_plan("dinner", 600, diet_flags={"VEGAN"})
+        """Test meal creation with dietary restrictions affects macros."""
+        vegan_meal = create_meal_plan("dinner", 600, diet_flags={"VEGAN"})
+        keto_meal = create_meal_plan("dinner", 600, diet_flags={"KETO"})
 
-        assert meal.name == "dinner"
-        assert meal.kcal_target == 600
+        assert vegan_meal.name == "dinner"
+        assert vegan_meal.kcal_target == 600
+        # KETO should have very low carbs (< 10% of calories)
+        keto_carbs_kcal = keto_meal.macros["carbs_g"] * 4
+        assert keto_carbs_kcal / 600 < 0.15  # Should be well under 15%
 
     def test_create_meal_plan_breakfast_macros(self):
         """Test breakfast has higher carb ratio."""
@@ -144,10 +148,13 @@ class TestCreateDailyMealPlan:
         assert plan.total_macros["fat_g"] > 0
 
     def test_create_daily_plan_with_diet_flags(self):
-        """Test daily plan respects diet flags."""
-        plan = create_daily_meal_plan(2000, diet_flags={"VEGAN", "GF"})
+        """Test daily plan respects diet flags and affects macros."""
+        keto_plan = create_daily_meal_plan(2000, diet_flags={"KETO"})
+        regular_plan = create_daily_meal_plan(2000)
 
-        assert len(plan.meals) > 0
+        assert len(keto_plan.meals) > 0
+        # KETO should have significantly fewer carbs than regular
+        assert keto_plan.total_macros["carbs_g"] < regular_plan.total_macros["carbs_g"]
 
     def test_create_daily_plan_with_recipe_db(self):
         """Test daily plan with recipe database."""
@@ -390,19 +397,55 @@ class TestShoppingListGeneration:
     """Test shopping list generation logic."""
 
     def test_shopping_list_aggregates_ingredients(self):
-        """Test shopping list combines ingredients from all meals."""
-        # Create plan with known ingredients (via fallback)
-        plan = create_weekly_meal_plan(2000)
+        """Test shopping list combines ingredients from multiple days with real recipes."""
+        from core.meal_planner import _generate_shopping_list, DailyMealPlan, MealPlan
 
-        # Shopping list should be a dict
-        assert isinstance(plan.shopping_list, dict)
+        # Create meals with overlapping ingredients
+        meal1 = MealPlan(
+            name="breakfast",
+            kcal_target=500,
+            recipe_name="Oatmeal",
+            macros={"protein_g": 10, "carbs_g": 60, "fat_g": 8, "fiber_g": 10},
+            ingredients={"oats": 50, "milk": 200, "banana": 100},
+        )
+        meal2 = MealPlan(
+            name="breakfast",
+            kcal_target=500,
+            recipe_name="Smoothie",
+            macros={"protein_g": 15, "carbs_g": 50, "fat_g": 10, "fiber_g": 8},
+            ingredients={"milk": 150, "banana": 150, "berries": 100},  # milk and banana overlap
+        )
 
-    def test_shopping_list_empty_for_fallback_meals(self):
-        """Test shopping list when using fallback meals (no ingredients)."""
-        plan = create_weekly_meal_plan(2000)
+        day1 = DailyMealPlan(day=1, total_kcal=500, meals=[meal1], total_macros={}, total_cost=0.0)
+        day2 = DailyMealPlan(day=2, total_kcal=500, meals=[meal2], total_macros={}, total_cost=0.0)
 
-        # Fallback meals have no ingredients, so shopping list will be empty
-        assert isinstance(plan.shopping_list, dict)
+        shopping_list = _generate_shopping_list([day1, day2])
+
+        # Verify aggregation: milk should be 200 + 150 = 350
+        assert shopping_list["milk"] == 350
+        # banana should be 100 + 150 = 250
+        assert shopping_list["banana"] == 250
+        # oats and berries only appear once
+        assert shopping_list["oats"] == 50
+        assert shopping_list["berries"] == 100
+
+    def test_shopping_list_empty_for_no_ingredients(self):
+        """Test shopping list is empty when meals have no ingredients."""
+        from core.meal_planner import _generate_shopping_list, DailyMealPlan, MealPlan
+
+        meal = MealPlan(
+            name="fallback",
+            kcal_target=500,
+            recipe_name="Balanced meal",
+            macros={"protein_g": 20, "carbs_g": 60, "fat_g": 15, "fiber_g": 10},
+            ingredients={},  # No ingredients
+        )
+        day = DailyMealPlan(day=1, total_kcal=500, meals=[meal], total_macros={}, total_cost=0.0)
+
+        shopping_list = _generate_shopping_list([day])
+
+        # Should be empty dict
+        assert shopping_list == {}
 
 
 class TestRecipeSelection:
@@ -423,12 +466,13 @@ class TestRecipeSelection:
         assert meal.recipe_name == "Oatmeal"
 
     def test_recipe_respects_diet_flags(self):
-        """Test recipe selection respects dietary flags."""
-        # This would require proper recipe_db implementation
-        # For now, test that function doesn't crash
-        meal = create_meal_plan("lunch", 700, diet_flags={"VEGAN"})
+        """Test recipe selection respects dietary flags and creates appropriate fallback."""
+        vegan_meal = create_meal_plan("lunch", 700, diet_flags={"VEGAN"})
+        keto_meal = create_meal_plan("lunch", 700, diet_flags={"KETO"})
 
-        assert meal.name == "lunch"
+        assert vegan_meal.name == "lunch"
+        # KETO meal should have lower carbs than VEGAN meal
+        assert keto_meal.macros["carbs_g"] < vegan_meal.macros["carbs_g"]
 
 
 class TestMacroDistribution:

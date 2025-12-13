@@ -13,6 +13,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Set
 
+from core.targets import (
+    DEFAULT_CARB_FLOOR_G,
+    HIGH_PROTEIN_MIN_G_PER_KG,
+    KETO_CARB_FLOOR_G,
+    KETO_MAX_CARB_PERCENT,
+    LOW_CARB_CARB_FLOOR_G,
+    LOW_CARB_MAX_PERCENT,
+    LOW_FAT_MAX_PERCENT,
+    MEDITERRANEAN_FAT_MIN_PERCENT,
+    MEDITERRANEAN_FIBER_MIN_G,
+    MIN_HEALTHY_FAT_ABSOLUTE_G,
+    MIN_HEALTHY_FAT_G_PER_KG,
+    MIN_PROTEIN_ABSOLUTE_G,
+    MIN_PROTEIN_G_PER_KG,
+)
+
 # Diet flag constants
 DIET_FLAGS = {
     # Dietary patterns
@@ -78,6 +94,18 @@ NON_VEG_INDICATORS = {
     "beef",
     "pork",
 }
+
+# Gluten indicators for GF compatibility checks
+GLUTEN_INDICATORS = {"глютен", "gluten", "пшеница", "wheat", "овсянка", "oats"}
+
+# Dairy indicators for DAIRY_FREE compatibility checks
+DAIRY_INDICATORS = {"молоко", "milk", "сыр", "cheese", "йогурт", "yogurt", "творог"}
+
+# Nut indicators for NUT_FREE compatibility checks
+NUT_INDICATORS = {"орех", "nut", "миндаль", "almond", "арахис", "peanut"}
+
+# Soy indicators for SOY_FREE compatibility checks
+SOY_INDICATORS = {"соя", "soy", "тофу", "tofu", "эдамаме", "edamame"}
 
 
 @dataclass
@@ -228,38 +256,34 @@ def is_recipe_compatible(
 
     # Gluten-free checks
     if "GF" in normalized_diet:
-        gluten_indicators = {"глютен", "gluten", "пшеница", "wheat", "овсянка", "oats"}
-        if recipe_flags.intersection(gluten_indicators):
+        if recipe_flags.intersection(GLUTEN_INDICATORS):
             return False
         if recipe_name:
             name_lower = recipe_name.lower()
-            if any(indicator in name_lower for indicator in gluten_indicators):
+            if any(indicator in name_lower for indicator in GLUTEN_INDICATORS):
                 return False
 
     # Dairy-free checks
     if "DAIRY_FREE" in normalized_diet:
-        dairy_indicators = {"молоко", "milk", "сыр", "cheese", "йогурт", "yogurt", "творог"}
-        if recipe_flags.intersection(dairy_indicators):
+        if recipe_flags.intersection(DAIRY_INDICATORS):
             return False
 
     # Nut-free checks
     if "NUT_FREE" in normalized_diet:
-        nut_indicators = {"орех", "nut", "миндаль", "almond", "арахис", "peanut"}
-        if recipe_flags.intersection(nut_indicators):
+        if recipe_flags.intersection(NUT_INDICATORS):
             return False
         if recipe_name:
             name_lower = recipe_name.lower()
-            if any(indicator in name_lower for indicator in nut_indicators):
+            if any(indicator in name_lower for indicator in NUT_INDICATORS):
                 return False
 
     # Soy-free checks
     if "SOY_FREE" in normalized_diet:
-        soy_indicators = {"соя", "soy", "тофу", "tofu", "эдамаме", "edamame"}
-        if recipe_flags.intersection(soy_indicators):
+        if recipe_flags.intersection(SOY_INDICATORS):
             return False
         if recipe_name:
             name_lower = recipe_name.lower()
-            if any(indicator in name_lower for indicator in soy_indicators):
+            if any(indicator in name_lower for indicator in SOY_INDICATORS):
                 return False
 
     return True
@@ -307,25 +331,25 @@ def adjust_macros_for_diet(
 
     changed = False
 
-    # HIGH_PROTEIN: 2.0 g/kg minimum
+    # HIGH_PROTEIN: minimum protein based on body weight
     if "HIGH_PROTEIN" in normalized:
-        target_protein = max(protein, weight_kg * 2.0)
+        target_protein = max(protein, weight_kg * HIGH_PROTEIN_MIN_G_PER_KG)
         if target_protein > protein:
             protein = target_protein
             changed = True
 
-    # LOW_CARB: max 25% calories from carbs, minimum 40g
+    # LOW_CARB: max percentage calories from carbs, with minimum floor
     carb_ceiling: Optional[float] = None
     if "LOW_CARB" in normalized:
-        low_carb_cap = max(40.0, (kcal * 0.25) / 4)
+        low_carb_cap = max(LOW_CARB_CARB_FLOOR_G, (kcal * LOW_CARB_MAX_PERCENT) / 4)
         if carbs > low_carb_cap:
             carbs = low_carb_cap
             changed = True
         carb_ceiling = low_carb_cap
 
-    # KETO: max 10% calories from carbs (very strict)
+    # KETO: max percentage calories from carbs (very strict)
     if "KETO" in normalized:
-        keto_carb_cap = max(30.0, (kcal * 0.10) / 4)
+        keto_carb_cap = max(KETO_CARB_FLOOR_G, (kcal * KETO_MAX_CARB_PERCENT) / 4)
         if carbs > keto_carb_cap:
             carbs = keto_carb_cap
             changed = True
@@ -338,21 +362,21 @@ def adjust_macros_for_diet(
             fat = max(fat, remaining_kcal / 9)
             changed = True
 
-    # MEDITERRANEAN: higher healthy fats (35-40% kcal), more fiber
+    # MEDITERRANEAN: higher healthy fats, more fiber
     if "MEDITERRANEAN" in normalized:
-        # Fat should be at least 35% of calories
-        desired_fat = max(fat, (kcal * 0.35) / 9)
+        # Fat should be at least specified percentage of calories
+        desired_fat = max(fat, (kcal * MEDITERRANEAN_FAT_MIN_PERCENT) / 9)
         # Also ensure fat >= 1.2 * protein (healthy ratio)
         desired_fat = max(desired_fat, protein * 1.2)
         if desired_fat > fat:
             fat = desired_fat
             changed = True
         # Increase fiber target
-        fiber = max(fiber, 30.0)
+        fiber = max(fiber, MEDITERRANEAN_FIBER_MIN_G)
 
-    # LOW_FAT: max 25% calories from fat
+    # LOW_FAT: max percentage calories from fat
     if "LOW_FAT" in normalized:
-        low_fat_cap = (kcal * 0.25) / 9
+        low_fat_cap = (kcal * LOW_FAT_MAX_PERCENT) / 9
         if fat > low_fat_cap:
             fat = low_fat_cap
             changed = True
@@ -368,7 +392,7 @@ def adjust_macros_for_diet(
     if remaining_kcal < 0:
         # Reduce fat first (if not MEDITERRANEAN or KETO)
         if "MEDITERRANEAN" not in normalized and "KETO" not in normalized:
-            min_fat = max(0.6 * weight_kg, 30.0)  # Minimum healthy fat
+            min_fat = max(MIN_HEALTHY_FAT_G_PER_KG * weight_kg, MIN_HEALTHY_FAT_ABSOLUTE_G)
             if fat > min_fat:
                 reduction = min((-remaining_kcal) / 9, fat - min_fat)
                 fat -= reduction
@@ -377,9 +401,9 @@ def adjust_macros_for_diet(
 
         # If still negative, reduce protein slightly
         if remaining_kcal < 0:
-            min_protein = max(1.6 * weight_kg, 50.0)
+            min_protein = max(MIN_PROTEIN_G_PER_KG * weight_kg, MIN_PROTEIN_ABSOLUTE_G)
             if "HIGH_PROTEIN" in normalized:
-                min_protein = max(min_protein, 2.0 * weight_kg)
+                min_protein = max(min_protein, HIGH_PROTEIN_MIN_G_PER_KG * weight_kg)
             if protein > min_protein:
                 reduction = min((-remaining_kcal) / 4, protein - min_protein)
                 protein -= reduction
@@ -387,9 +411,9 @@ def adjust_macros_for_diet(
                 remaining_kcal = kcal - protein_kcal - fat_kcal
 
     # Calculate final carbs
-    carb_floor = 40.0 if "LOW_CARB" in normalized else 50.0
+    carb_floor = LOW_CARB_CARB_FLOOR_G if "LOW_CARB" in normalized else DEFAULT_CARB_FLOOR_G
     if "KETO" in normalized:
-        carb_floor = 30.0
+        carb_floor = KETO_CARB_FLOOR_G
 
     computed_carbs = max(carb_floor, remaining_kcal / 4 if remaining_kcal > 0 else carb_floor)
 

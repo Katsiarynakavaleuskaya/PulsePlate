@@ -39,11 +39,14 @@ class DailyCalorieDistribution:
     meals: List[MealCalories]
 
     def get_meal_kcal(self, meal_name: MealName) -> int:
-        """Get calorie target for specific meal."""
-        for meal in self.meals:
-            if meal.name == meal_name:
-                return meal.kcal
-        return 0
+        """Get calorie target for specific meal.
+
+        Uses dict lookup for O(1) performance instead of linear search.
+        """
+        # Create lookup dict on first access (lazy initialization)
+        if not hasattr(self, "_meal_lookup"):
+            self._meal_lookup = {meal.name: meal.kcal for meal in self.meals}
+        return self._meal_lookup.get(meal_name, 0)
 
 
 # Standard meal split percentages based on nutritional recommendations
