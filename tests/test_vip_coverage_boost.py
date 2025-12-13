@@ -117,7 +117,15 @@ class TestVIPCoverageBoost:
 
             response = client.post(
                 "/api/v1/vip/recipes/synthesize",
-                json={"ingredients": ["chicken", "rice"]},
+                json={
+                    "ingredients": [
+                        {"name": "chicken", "amount": 200, "unit": "g"},
+                        {"name": "rice", "amount": 150, "unit": "g"},
+                    ],
+                    "cuisine_preference": "asian",
+                    "difficulty_preference": "easy",
+                    "servings": 2,
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
@@ -222,7 +230,15 @@ class TestVIPCoverageBoost:
             # Тест recipe synthesis
             response = client.post(
                 "/api/v1/vip/recipes/synthesize",
-                json={"ingredients": ["chicken", "rice"]},
+                json={
+                    "ingredients": [
+                        {"name": "chicken", "amount": 200, "unit": "g"},
+                        {"name": "rice", "amount": 150, "unit": "g"},
+                    ],
+                    "cuisine_preference": "asian",
+                    "difficulty_preference": "easy",
+                    "servings": 2,
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200

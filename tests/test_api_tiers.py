@@ -72,6 +72,21 @@ class TestValidateAPIKeyTier:
         with pytest.raises(NotImplementedError, match="API key validation not implemented"):
             _validate_api_key_tier(TEST_KEY_PRO, SubscriptionTier.PRO)
 
+    @patch.dict(
+        os.environ,
+        {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "true"},
+    )
+    def test_production_db_enabled_raises_lookup_not_implemented(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test production mode with DB enabled reaches the lookup placeholder path."""
+        caplog.set_level("ERROR")
+        with pytest.raises(
+            NotImplementedError, match="Subscription database lookup not implemented"
+        ):
+            _validate_api_key_tier("prod_key", SubscriptionTier.PRO)
+        assert "Subscription database lookup not implemented" in caplog.text
+
 
 class TestRequireProTier:
     """Test require_pro_tier dependency function."""
