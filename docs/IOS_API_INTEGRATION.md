@@ -84,7 +84,18 @@ class APIClient {
         // IMPORTANT: localhost won't work on physical devices
         // You need to either:
         // 1. Use your Mac's IP (e.g., "http://192.168.1.100:8000")
-        // 2. Add ATS exception to Info.plist for localhost:8000
+        // 2. Add ATS exception to Info.plist for localhost:8000:
+        //    <key>NSAppTransportSecurity</key>
+        //    <dict>
+        //        <key>NSExceptionDomains</key>
+        //        <dict>
+        //            <key>localhost</key>
+        //            <dict>
+        //                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        //                <true/>
+        //            </dict>
+        //        </dict>
+        //    </dict>
         // 3. Use port forwarding (device USB to Mac)
         // For simulator, localhost works fine
         self.baseURL = "http://localhost:8000"
@@ -423,14 +434,12 @@ class NutritionService {
         var components = URLComponents(string: "/api/v1/foods/search")
         components?.queryItems = [URLQueryItem(name: "q", value: query)]
 
-        guard let endpoint = components?.url?.path else {
+        guard let query = components?.percentEncodedQuery else {
             throw APIError.invalidURL
         }
 
-        return try await client.request(
-            endpoint: endpoint + "?" + (components?.query ?? ""),
-            method: "GET"
-        )
+        let fullEndpoint = "/api/v1/foods/search?" + query
+        return try await client.request(endpoint: fullEndpoint, method: "GET")
     }
 
     func searchRecipes(query: String) async throws -> [Recipe] {
@@ -438,14 +447,12 @@ class NutritionService {
         var components = URLComponents(string: "/api/v1/recipes/search")
         components?.queryItems = [URLQueryItem(name: "q", value: query)]
 
-        guard let endpoint = components?.url?.path else {
+        guard let query = components?.percentEncodedQuery else {
             throw APIError.invalidURL
         }
 
-        return try await client.request(
-            endpoint: endpoint + "?" + (components?.query ?? ""),
-            method: "GET"
-        )
+        let fullEndpoint = "/api/v1/recipes/search?" + query
+        return try await client.request(endpoint: fullEndpoint, method: "GET")
     }
 
     // MARK: - PRO Tier (Requires PRO API Key)
@@ -627,6 +634,7 @@ Create `Services/SubscriptionManager.swift`:
 
 ```swift
 import StoreKit
+import OSLog  // For Logger
 
 @MainActor
 class SubscriptionManager: ObservableObject {
@@ -662,7 +670,12 @@ class SubscriptionManager: ObservableObject {
             products = try await Product.products(for: productIDs)
                 .sorted { $0.price < $1.price }
         } catch {
-            print("Failed to load products: \(error)")
+            // Use Logger instead of print for production-ready code
+            if #available(iOS 14.0, *) {
+                Logger(subsystem: "com.pulseplate", category: "IAP").error("Failed to load products: \(error.localizedDescription)")
+            } else {
+                NSLog("Failed to load products: %@", error.localizedDescription)
+            }
         }
     }
 

@@ -810,10 +810,11 @@ if _is_dev_env:
     _api_description += """
 ### Test API Keys (Development Only)
 
-- PRO: `test_pro_key`
-- VIP: `test_vip_key`
+- PRO: `YOUR_PRO_TEST_KEY`
+- VIP: `YOUR_VIP_TEST_KEY`
 
-**Note**: Test keys only work in development/test environments.
+**Note**: Replace with actual test keys from your environment variables or Config.plist.
+**Production**: Test keys are disabled in production environments.
 """
 
 _api_description += """
@@ -991,7 +992,10 @@ if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
 
 # Conditionally include test router for non-production environments
 # Reuse _app_env defined earlier (line 302) to avoid duplication
-if _app_env in {"", "local", "dev", "development", "staging", "test"}:
+# Exclude staging from test endpoints for security (staging may be externally accessible)
+if _app_env in {"", "local", "dev", "development", "test"} or (
+    _app_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1"
+):
     try:
         from app.routers import test as test_router
 
