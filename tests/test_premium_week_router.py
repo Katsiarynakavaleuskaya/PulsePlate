@@ -59,6 +59,7 @@ class TestPremiumWeekRouter:
                 "diet_flags": ["vegetarian"],
                 "lang": "en",
             },
+            headers={"X-API-Key": "test_pro_key"},
         )
 
         assert response.status_code == 200
@@ -113,6 +114,7 @@ class TestPremiumWeekRouter:
                 "diet_flags": [],
                 "lang": "en",
             },
+            headers={"X-API-Key": "test_pro_key"},
         )
 
         assert response.status_code == 200
@@ -134,6 +136,7 @@ class TestPremiumWeekRouter:
                 "activity": "moderate",
                 "goal": "maintain",
             },
+            headers={"X-API-Key": "test_pro_key"},
         )
 
         assert response.status_code == 400
@@ -166,6 +169,7 @@ class TestPremiumWeekRouter:
                 "activity": "moderate",
                 "goal": "maintain",
             },
+            headers={"X-API-Key": "test_pro_key"},
         )
 
         assert response.status_code == 400

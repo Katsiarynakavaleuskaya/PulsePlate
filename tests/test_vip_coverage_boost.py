@@ -116,7 +116,7 @@ class TestVIPCoverageBoost:
             client = TestClient(cast(ASGIApp, app.app))
 
             response = client.post(
-                "/api/v1/vip/recipe/synthesize",
+                "/api/v1/vip/recipes/synthesize",
                 json={"ingredients": ["chicken", "rice"]},
                 headers={"X-API-Key": "test_key"},
             )
@@ -221,7 +221,7 @@ class TestVIPCoverageBoost:
 
             # Тест recipe synthesis
             response = client.post(
-                "/api/v1/vip/recipe/synthesize",
+                "/api/v1/vip/recipes/synthesize",
                 json={"ingredients": ["chicken", "rice"]},
                 headers={"X-API-Key": "test_key"},
             )
