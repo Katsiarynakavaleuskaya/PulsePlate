@@ -824,8 +824,8 @@ _api_description += """
 """
 
 app = FastAPI(
-    title="PulsePlate API",
-    version="1.0.0",
+    title="PulsePlate",
+    version="0.1.0",
     description=_api_description,
     contact={
         "name": "PulsePlate API Support",
