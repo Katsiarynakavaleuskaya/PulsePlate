@@ -39,6 +39,20 @@ class TestDistributeCalories:
         assert abs(dinner - 600) <= 1  # 30% of 2000
         assert abs(snack - 200) <= 1  # 10% of 2000
 
+    def test_daily_calorie_distribution_post_init_populates_lookup(self) -> None:
+        """Ensure DailyCalorieDistribution __post_init__ populates the meal lookup cache."""
+        import importlib
+
+        import core.calorie_distributor as calorie_distributor
+
+        mod = importlib.reload(calorie_distributor)
+        dist = mod.DailyCalorieDistribution(
+            total_kcal=1000,
+            meals=[mod.MealCalories(name="breakfast", kcal=300, percentage=0.30)],
+        )
+
+        assert dist.get_meal_kcal("breakfast") == 300
+
     def test_distribute_calories_3_meals(self) -> None:
         """Test distribution with 3 meals (no snack)."""
         dist = distribute_calories(2100, num_meals=3)
