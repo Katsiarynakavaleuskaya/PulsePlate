@@ -47,6 +47,38 @@ DIET_IMPLICATIONS = {
     "PALEO": {"HIGH_PROTEIN", "GF", "DAIRY_FREE"},
 }
 
+# Non-vegan food indicators (for recipe compatibility checks)
+NON_VEGAN_INDICATORS = {
+    "курица",
+    "chicken",
+    "лосось",
+    "salmon",
+    "рыба",
+    "fish",
+    "мясо",
+    "meat",
+    "молоко",
+    "milk",
+    "яйцо",
+    "egg",
+    "сыр",
+    "cheese",
+}
+
+# Non-vegetarian food indicators (for recipe compatibility checks)
+NON_VEG_INDICATORS = {
+    "курица",
+    "chicken",
+    "лосось",
+    "salmon",
+    "рыба",
+    "fish",
+    "мясо",
+    "meat",
+    "beef",
+    "pork",
+}
+
 
 @dataclass
 class NormalizedDietFlags:
@@ -180,46 +212,18 @@ def is_recipe_compatible(
         if "VEGAN" not in recipe_flags:
             return False
         # Check for animal products in name/flags
-        non_vegan_indicators = {
-            "курица",
-            "chicken",
-            "лосось",
-            "salmon",
-            "рыба",
-            "fish",
-            "мясо",
-            "meat",
-            "молоко",
-            "milk",
-            "яйцо",
-            "egg",
-            "сыр",
-            "cheese",
-        }
         if recipe_name:
             name_lower = recipe_name.lower()
-            if any(indicator in name_lower for indicator in non_vegan_indicators):
+            if any(indicator in name_lower for indicator in NON_VEGAN_INDICATORS):
                 return False
 
     elif "VEG" in normalized_diet:
         # Recipe must be VEG or VEGAN
         if not recipe_flags.intersection({"VEG", "VEGAN"}):
             # Check name for meat/fish
-            non_veg_indicators = {
-                "курица",
-                "chicken",
-                "лосось",
-                "salmon",
-                "рыба",
-                "fish",
-                "мясо",
-                "meat",
-                "beef",
-                "pork",
-            }
             if recipe_name:
                 name_lower = recipe_name.lower()
-                if any(indicator in name_lower for indicator in non_veg_indicators):
+                if any(indicator in name_lower for indicator in NON_VEG_INDICATORS):
                     return False
 
     # Gluten-free checks
@@ -248,6 +252,16 @@ def is_recipe_compatible(
             if any(indicator in name_lower for indicator in nut_indicators):
                 return False
 
+    # Soy-free checks
+    if "SOY_FREE" in normalized_diet:
+        soy_indicators = {"соя", "soy", "тофу", "tofu", "эдамаме", "edamame"}
+        if recipe_flags.intersection(soy_indicators):
+            return False
+        if recipe_name:
+            name_lower = recipe_name.lower()
+            if any(indicator in name_lower for indicator in soy_indicators):
+                return False
+
     return True
 
 
@@ -265,7 +279,7 @@ def adjust_macros_for_diet(
         macros: Base macros {"protein_g", "fat_g", "carbs_g", "fiber_g"} as floats
         diet_flags: User's dietary flags (normalized)
         weight_kg: User's body weight in kg
-        kcal: Target daily calories
+        kcal: Target daily calories (must be > 0)
 
     Returns:
         Adjusted macros dictionary with float values (preserves precision)
@@ -280,6 +294,10 @@ def adjust_macros_for_diet(
         >>> result["protein_g"]
         140.0
     """
+    # Guard against invalid input
+    if kcal <= 0:
+        return macros
+
     normalized = normalize_diet_flags(diet_flags)
 
     protein = float(macros["protein_g"])

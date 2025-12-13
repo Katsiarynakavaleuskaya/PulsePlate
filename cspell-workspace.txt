@@ -1527,6 +1527,7 @@ uvicorn
 # Moved Casella (proper name) to project names list; removed from general dictionary
 макробаланс
 микронутриентов
+человекочитаемое
 aiomysql
 aiosqlite
 Ardle
@@ -1551,11 +1552,13 @@ hashlib
 importlib
 isfinite
 isinstance
+issubset
 katch
 lstrip
 macronutrient
 Macronutrient
 MACRONUTRIENT
+macronutrients
 Macronutrients
 maxsize
 mediterranean
@@ -1564,6 +1567,8 @@ mysql
 noqa
 postgresql
 pulseplate
+rebalance
+rebalancing
 retriable
 russian
 sched

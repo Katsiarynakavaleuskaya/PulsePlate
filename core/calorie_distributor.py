@@ -95,7 +95,8 @@ def distribute_calories(
         >>> dist.get_meal_kcal("lunch")
         700
     """
-    if meal_splits is None:
+    # Treat None or empty dict as "use defaults"
+    if not meal_splits:
         meal_splits = DEFAULT_MEAL_SPLITS.copy()
     else:
         # Always copy to avoid modifying caller's dict
@@ -109,6 +110,10 @@ def distribute_calories(
 
     # Validate splits sum to 1.0
     total_pct = sum(meal_splits.values())
+    if total_pct <= 0:
+        # Invalid split values (e.g., all zeros). Fall back to defaults.
+        meal_splits = DEFAULT_MEAL_SPLITS.copy()
+        total_pct = sum(meal_splits.values())
     if abs(total_pct - 1.0) > 0.01:
         # Normalize if needed
         meal_splits = {k: v / total_pct for k, v in meal_splits.items()}

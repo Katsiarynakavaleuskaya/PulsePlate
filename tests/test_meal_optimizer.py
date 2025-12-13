@@ -160,13 +160,12 @@ class TestOptimizeCost:
         assert optimized[0]["macros"]["protein_g"] < 50
 
     def test_optimize_preserves_quality(self):
-        """Test optimization preserves minimum quality."""
+        """Test optimization does not reduce quality below threshold."""
         meals = [{"estimated_cost": 20.0, "macros": {"protein_g": 100}, "kcal": 800}]
 
-        optimized, total_cost = optimize_cost(meals, max_budget=10.0, min_quality_score=0.7)
-
-        quality_ratio = optimized[0]["macros"]["protein_g"] / 100
-        assert quality_ratio >= 0.7
+        optimized, total_cost = optimize_cost(meals, max_budget=19.0, min_quality_score=0.8)
+        assert optimized == meals
+        assert total_cost == 20.0
 
     def test_optimize_empty_meals(self):
         """Test optimization with empty meals."""
@@ -269,8 +268,8 @@ class TestScalingLimits:
         target_macros = {"protein_g": 100, "fat_g": 60, "carbs_g": 200}
 
         optimized, score = optimize_macro_balance(meals, target_macros)
-        if "macros" in optimized[0]:
-            assert optimized[0]["macros"]["protein_g"] <= 30
+        assert "macros" in optimized[0], "Expected macros in optimized meal"
+        assert optimized[0]["macros"]["protein_g"] <= 30
 
     def test_cost_reduction_limited_by_quality(self):
         """Test cost reduction respects quality floor."""

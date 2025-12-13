@@ -223,6 +223,13 @@ class TestIsRecipeCompatible:
         assert is_recipe_compatible({"almond"}, {"NUT_FREE"}) is False
         assert is_recipe_compatible(set(), {"NUT_FREE"}, recipe_name="Almond Butter") is False
 
+    def test_soy_free_rejects_soy(self):
+        """Test SOY_FREE rejects soy-containing recipes."""
+        assert is_recipe_compatible({"soy"}, {"SOY_FREE"}) is False
+        assert is_recipe_compatible({"tofu"}, {"SOY_FREE"}) is False
+        assert is_recipe_compatible(set(), {"SOY_FREE"}, recipe_name="Tofu Bowl") is False
+        assert is_recipe_compatible(set(), {"SOY_FREE"}, recipe_name="Rice Bowl") is True
+
     def test_no_restrictions_accepts_all(self):
         """Test no diet flags accepts any recipe."""
         assert is_recipe_compatible({"anything"}, set()) is True
@@ -408,10 +415,24 @@ class TestEdgeCases:
 
     def test_adjust_macros_zero_weight(self):
         """Test macro adjustment with zero weight."""
-        macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 200, "fiber_g": 25}
+        macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         # Should handle gracefully (use minimums)
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 0.1, 2000)
         assert all(v >= 0 for v in result.values())
+
+    def test_adjust_macros_zero_calories(self):
+        """Test macro adjustment with zero calories (guard against division by zero)."""
+        macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
+        # Should return original macros unchanged
+        result = adjust_macros_for_diet(macros, {"KETO"}, 70, 0)
+        assert result == macros
+
+    def test_adjust_macros_negative_calories(self):
+        """Test macro adjustment with negative calories (invalid input)."""
+        macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
+        # Should return original macros unchanged
+        result = adjust_macros_for_diet(macros, {"LOW_CARB"}, 70, -500)
+        assert result == macros
 
     def test_adjust_macros_very_low_calories(self):
         """Test macro adjustment with very low calories."""
@@ -431,6 +452,18 @@ class TestEdgeCases:
         # Should scale appropriately
         total_kcal = result["protein_g"] * 4 + result["fat_g"] * 9 + result["carbs_g"] * 4
         assert total_kcal >= 4500  # Close to target
+
+    def test_adjust_macros_negative_remaining_kcal(self):
+        """Test rebalancing when macros exceed calorie budget (negative remaining)."""
+        # Very high protein/fat that exceeds budget
+        macros = {"protein_g": 250, "fat_g": 150, "carbs_g": 50, "fiber_g": 30}
+        result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 80, 2000)
+
+        # Should attempt rebalancing (may not fit perfectly due to minimums)
+        total_kcal = result["protein_g"] * 4 + result["fat_g"] * 9 + result["carbs_g"] * 4
+        # Rebalancing has limits due to minimums, so allow wider tolerance
+        assert total_kcal > 2000  # May exceed due to minimum constraints
+        assert result["protein_g"] >= 160  # Should maintain HIGH_PROTEIN minimum (2.0 * 80kg)
 
 
 class TestDietImplications:

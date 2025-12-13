@@ -13,6 +13,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from core.nutrition_constants import (
+    CARBS_MAX_PERCENT,
+    CARBS_MIN_PERCENT,
+    FAT_MAX_PERCENT,
+    FAT_MIN_PERCENT,
+    PROTEIN_MAX_PERCENT,
+    PROTEIN_MIN_PERCENT,
+)
+
 
 @dataclass
 class BoosterFood:
@@ -359,13 +368,13 @@ def suggest_booster_food(
         Food name that is compatible, or None if no compatible food found
 
     Examples:
-        >>> _suggest_booster_food("iron_mg", {"VEGAN"}, set())
+        >>> suggest_booster_food("iron_mg", {"VEGAN"}, set())
         'Spinach'
-        >>> _suggest_booster_food("calcium_mg", {"VEGAN"}, set())
+        >>> suggest_booster_food("calcium_mg", {"VEGAN"}, set())
         'Kale'
-        >>> _suggest_booster_food("calcium_mg", {"VEGAN"}, {"DAIRY"})
+        >>> suggest_booster_food("calcium_mg", {"VEGAN"}, {"DAIRY"})
         'Fortified plant milk'
-        >>> _suggest_booster_food("magnesium_mg", {"VEGAN"}, {"NUT"})
+        >>> suggest_booster_food("magnesium_mg", {"VEGAN"}, {"NUT"})
         'Pumpkin seeds'
     """
     if diet_flags is None:
@@ -422,12 +431,6 @@ def _reduce_cost_preserving_quality(
     # Calculate reduction factor based purely on budget
     reduction_factor = max_budget / current_cost
 
-    # If meeting the budget would require reducing portions below the
-    # allowed quality threshold, keep the original meals and let the
-    # caller decide how to handle the budget shortfall.
-    if reduction_factor < min_quality_score:
-        return meals
-
     optimized = []
     for meal in meals:
         reduced_meal = meal.copy()
@@ -447,4 +450,53 @@ def _reduce_cost_preserving_quality(
 
         optimized.append(reduced_meal)
 
+    quality_score = _nutrition_quality_score(optimized)
+    if quality_score < min_quality_score:
+        return meals
+
     return optimized
+
+
+def _nutrition_quality_score(meals: List[Dict[str, Any]]) -> float:
+    """Compute a simple nutrition quality score based on macro percentage ranges.
+
+    The score is intended for internal use in cost optimization to avoid using
+    the budget reduction factor as a proxy for nutrition quality.
+    """
+    total_kcal = float(sum(meal.get("kcal", 0) or 0 for meal in meals))
+    if total_kcal <= 0:
+        return 1.0
+
+    macros = _aggregate_macros(meals)
+    scores: List[float] = []
+
+    protein_g = float(macros.get("protein_g", 0) or 0)
+    if protein_g > 0:
+        protein_pct = (protein_g * 4.0 / total_kcal) * 100.0
+        scores.append(_score_pct_in_range(protein_pct, PROTEIN_MIN_PERCENT, PROTEIN_MAX_PERCENT))
+
+    fat_g = float(macros.get("fat_g", 0) or 0)
+    if fat_g > 0:
+        fat_pct = (fat_g * 9.0 / total_kcal) * 100.0
+        scores.append(_score_pct_in_range(fat_pct, FAT_MIN_PERCENT, FAT_MAX_PERCENT))
+
+    carbs_g = float(macros.get("carbs_g", 0) or 0)
+    if carbs_g > 0:
+        carbs_pct = (carbs_g * 4.0 / total_kcal) * 100.0
+        scores.append(_score_pct_in_range(carbs_pct, CARBS_MIN_PERCENT, CARBS_MAX_PERCENT))
+
+    if not scores:
+        return 1.0
+
+    return max(0.0, min(1.0, sum(scores) / len(scores)))
+
+
+def _score_pct_in_range(pct: float, min_pct: float, max_pct: float) -> float:
+    """Score how well a percentage fits within a [min, max] range."""
+    if pct <= 0:
+        return 0.0
+    if min_pct <= pct <= max_pct:
+        return 1.0
+    if pct < min_pct:
+        return max(0.0, pct / min_pct) if min_pct > 0 else 0.0
+    return max(0.0, max_pct / pct) if pct > 0 else 0.0

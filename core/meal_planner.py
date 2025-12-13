@@ -199,16 +199,18 @@ def _create_fallback_meal(
     """
     RU: Создает запасной вариант приема пищи.
     EN: Creates fallback meal option.
-    """
-    # Adjust macro distribution for key dietary patterns first
-    normalized_flags = normalize_diet_flags(diet_flags)
 
-    if "KETO" in normalized_flags:
+    Note:
+        Expects diet_flags to already be normalized by the caller.
+    """
+    # Adjust macro distribution for key dietary patterns
+    # diet_flags should already be normalized by caller
+    if "KETO" in diet_flags:
         # Very low carb, high fat pattern
         protein_pct = 0.25
         carbs_pct = 0.05
         fat_pct = 0.70
-    elif "LOW_CARB" in normalized_flags:
+    elif "LOW_CARB" in diet_flags:
         # Moderately low carb, higher fat and protein
         protein_pct = 0.35
         carbs_pct = 0.20

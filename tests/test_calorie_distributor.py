@@ -252,7 +252,7 @@ class TestMealCalories:
         assert meal.kcal == 500
         assert meal.percentage == 0.25
 
-    def test_meal_calories_immutable(self):
+    def test_meal_calories_is_dataclass(self):
         """Test that MealCalories is a dataclass."""
         meal = MealCalories(name="lunch", kcal=700, percentage=0.35)
 
@@ -324,9 +324,18 @@ class TestEdgeCases:
         assert total == 10000
 
     def test_empty_meal_splits(self):
-        """Test behavior with empty meal splits."""
-        # Should use defaults
+        """Test behavior with truly empty meal splits (edge case).
+
+        Empty meal splits should fall back to DEFAULT_MEAL_SPLITS rather than
+        producing an empty meal list.
+        """
         dist = distribute_calories(2000, meal_splits={})
 
-        # Falls back to no meals or handles gracefully
         assert dist.total_kcal == 2000
+        assert len(dist.meals) > 0
+
+        meal_names = {meal.name for meal in dist.meals}
+        assert {"breakfast", "lunch", "dinner", "snack"}.issubset(meal_names)
+
+        total_meal_kcal = sum(meal.kcal for meal in dist.meals)
+        assert total_meal_kcal == 2000

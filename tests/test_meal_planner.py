@@ -477,8 +477,8 @@ class TestMacroDistribution:
         carbs_kcal = meal.macros["carbs_g"] * 4
         fat_kcal = meal.macros["fat_g"] * 9
 
-        carbs_pct = carbs_kcal / 600 if 600 else 0
-        fat_pct = fat_kcal / 600 if 600 else 0
+        carbs_pct = carbs_kcal / 600
+        fat_pct = fat_kcal / 600
 
         assert carbs_pct <= 0.10 + 0.02  # allow small rounding slack
         assert fat_pct >= 0.65  # high fat emphasis
@@ -489,3 +489,44 @@ class TestMacroDistribution:
         low_carb_meal = create_meal_plan("dinner", 600, diet_flags={"LOW_CARB"})
 
         assert low_carb_meal.macros["carbs_g"] < default_meal.macros["carbs_g"]
+
+    def test_pick_recipe_with_list_db(self):
+        """Test _select_recipe_for_meal with recipe_db as a list (covers lines 147-150)."""
+        from core.meal_planner import _select_recipe_for_meal
+
+        recipe_list = [
+            {
+                "name": "Vegan Salad",
+                "kcal": 400,
+                "flags": ["VEGAN"],
+                "macros": {"protein_g": 10, "carbs_g": 50, "fat_g": 15},
+            },
+        ]
+
+        recipe = _select_recipe_for_meal("lunch", 400, {"VEGAN"}, recipe_list)
+        assert recipe is not None
+        assert recipe["name"] == "Vegan Salad"
+
+    def test_pick_recipe_with_dict_db(self):
+        """Test _select_recipe_for_meal with recipe_db as a dict (covers lines 147-150)."""
+        from core.meal_planner import _select_recipe_for_meal
+
+        recipe_dict = {
+            "salad": {
+                "name": "Green Salad",
+                "kcal": 350,
+                "flags": ["VEGAN"],
+            },
+        }
+
+        recipe = _select_recipe_for_meal("dinner", 350, {"VEGAN"}, recipe_dict)
+        assert recipe is not None
+
+    def test_pick_recipe_no_compatible(self):
+        """Test _select_recipe_for_meal returns None when no compatible recipes (covers line 171)."""
+        from core.meal_planner import _select_recipe_for_meal
+
+        recipe_list = [{"name": "Chicken Soup", "kcal": 400, "flags": []}]
+
+        recipe = _select_recipe_for_meal("lunch", 400, {"VEGAN"}, recipe_list)
+        assert recipe is None
