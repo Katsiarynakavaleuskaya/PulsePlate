@@ -10,7 +10,7 @@ across different meals and snacks based on nutritional best practices.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional
 
 # Minimum daily calorie floor for safety
@@ -43,13 +43,17 @@ class DailyCalorieDistribution:
 
     total_kcal: int
     meals: List[MealCalories]
+    _meal_lookup: Optional[Dict[str, int]] = field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     def get_meal_kcal(self, meal_name: MealName) -> int:
         """Get calorie target for specific meal.
 
         Uses dict lookup for O(1) performance instead of linear search.
+        Builds cache lazily on first access.
         """
-        if not hasattr(self, "_meal_lookup"):
+        if self._meal_lookup is None:
             self._meal_lookup = {meal.name: meal.kcal for meal in self.meals}
         return self._meal_lookup.get(meal_name, 0)
 
