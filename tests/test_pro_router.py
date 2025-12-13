@@ -122,6 +122,24 @@ class TestPRORouter:
         # Should return validation error
         assert response.status_code in [400, 422]
 
+    def test_pro_meal_weekly_null_activity_and_goal(self, client):
+        """Test PRO meal weekly endpoint with null activity and goal."""
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 165,
+                "weight_kg": 60,
+                "activity": None,  # Explicitly null
+                "goal": None,  # Explicitly null
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        # Should return 400 with clear error message
+        assert response.status_code == 400
+        assert "All profile fields are required" in response.json()["detail"]
+
     def test_pro_meal_weekly_invalid_macros(self, client):
         """Test PRO meal weekly endpoint with invalid macros (negative, non-numeric)."""
         # Test 1: Negative value

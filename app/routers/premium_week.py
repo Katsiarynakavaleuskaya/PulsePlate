@@ -170,9 +170,13 @@ async def generate_week_plan(req: WeekPlanRequest):
         targets = req.targets.model_dump()
     else:
         # Temporary calculation via bmi_core (BMR/TDEE + macros + micro table)
-        # activity and goal have defaults, so only check required fields
+        # Check required profile fields
         if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
             raise HTTPException(status_code=400, detail="Missing user profile data")
+
+        # Check activity and goal (they have defaults but can be explicitly set to None)
+        if not req.activity or not req.goal:
+            raise HTTPException(status_code=400, detail="All profile fields are required")
 
         targets = estimate_targets_minimal(
             sex=req.sex,  # type: ignore
