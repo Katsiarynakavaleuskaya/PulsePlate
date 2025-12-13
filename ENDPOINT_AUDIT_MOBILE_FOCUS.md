@@ -1,7 +1,7 @@
 # API Endpoints Audit - Mobile App Focus
 
-**Date**: 2025-12-13  
-**Context**: iOS mobile app development + PRO/VIP subscription tiers  
+**Date**: 2025-12-13
+**Context**: iOS mobile app development + PRO/VIP subscription tiers
 **Issue**: Endpoint duplication and confusion between PRO and VIP tiers
 
 ---
@@ -11,7 +11,7 @@
 ### Mobile App Strategy
 - **Primary**: iOS mobile application (see `IOS_DEVELOPMENT_ROADMAP.md`)
 - **Secondary**: Web frontend (React)
-- **Subscription Tiers**: 
+- **Subscription Tiers**:
   - **FREE**: Basic features
   - **PRO**: Advanced features (BMI Pro, basic meal planning)
   - **VIP**: Premium features (micronutrients, auto-repair, recipe synthesis, shopping lists)
@@ -275,7 +275,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 def require_pro_tier(api_key: str) -> bool:
     """Validate PRO tier access."""
     # Check against subscription database
-    
+
 def require_vip_tier(api_key: str) -> bool:
     """Validate VIP tier access."""
     # Check against subscription database
@@ -412,7 +412,7 @@ Week 4:
 3. Update tests (3-4 test files)
 4. Update documentation
 
-**Timeline**: 2-3 days  
+**Timeline**: 2-3 days
 **Risk**: Low (backward compatible with deprecation warnings)
 
 ---

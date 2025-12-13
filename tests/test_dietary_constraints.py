@@ -26,12 +26,12 @@ from core.targets import (
 class TestNormalizeDietFlags:
     """Test normalize_diet_flags function."""
 
-    def test_normalize_empty_flags(self):
+    def test_normalize_empty_flags(self) -> None:
         """Test with empty set."""
         result = normalize_diet_flags(set())
         assert result == set()
 
-    def test_normalize_vegan_implications(self):
+    def test_normalize_vegan_implications(self) -> None:
         """Test VEGAN implies VEG and DAIRY_FREE."""
         result = normalize_diet_flags({"VEGAN"})
         assert "VEGAN" in result
@@ -46,7 +46,7 @@ class TestNormalizeDietFlags:
         # KETO uses moderate protein, not high protein
         assert "HIGH_PROTEIN" not in result
 
-    def test_normalize_paleo_implications(self):
+    def test_normalize_paleo_implications(self) -> None:
         """Test PALEO implies HIGH_PROTEIN, GF, and DAIRY_FREE."""
         result = normalize_diet_flags({"PALEO"})
         assert "PALEO" in result
@@ -67,7 +67,7 @@ class TestNormalizeDietFlags:
         assert "LOW_CARB" in result
         assert "HIGH_PROTEIN" not in result
 
-    def test_normalize_multiple_compatible_flags(self):
+    def test_normalize_multiple_compatible_flags(self) -> None:
         """Test multiple compatible flags."""
         result = normalize_diet_flags({"GF", "DAIRY_FREE", "NUT_FREE"})
 
@@ -75,7 +75,7 @@ class TestNormalizeDietFlags:
         assert "DAIRY_FREE" in result
         assert "NUT_FREE" in result
 
-    def test_normalize_preserves_non_conflicting_flags(self):
+    def test_normalize_preserves_non_conflicting_flags(self) -> None:
         """Test that non-conflicting flags are preserved."""
         result = normalize_diet_flags({"HIGH_PROTEIN", "GF", "LOW_COST"})
 
@@ -87,7 +87,7 @@ class TestNormalizeDietFlags:
 class TestNormalizeDietFlagsDetailed:
     """Test normalize_diet_flags_detailed function with overridden flags tracking."""
 
-    def test_detailed_no_conflicts(self):
+    def test_detailed_no_conflicts(self) -> None:
         """Test detailed normalization with no conflicts."""
         result = normalize_diet_flags_detailed({"VEGAN", "GF"})
 
@@ -116,7 +116,7 @@ class TestNormalizeDietFlagsDetailed:
         assert chosen == "KETO"
         assert "LOW_FAT" in removed
 
-    def test_detailed_low_fat_mediterranean_conflict(self):
+    def test_detailed_low_fat_mediterranean_conflict(self) -> None:
         """Test LOW_FAT + MEDITERRANEAN conflict: MEDITERRANEAN wins."""
         result = normalize_diet_flags_detailed({"LOW_FAT", "MEDITERRANEAN"})
 
@@ -133,7 +133,7 @@ class TestNormalizeDietFlagsDetailed:
         assert chosen == "MEDITERRANEAN"
         assert "LOW_FAT" in removed
 
-    def test_detailed_vegan_paleo_conflict(self):
+    def test_detailed_vegan_paleo_conflict(self) -> None:
         """Test VEGAN + PALEO conflict: VEGAN wins (higher priority)."""
         result = normalize_diet_flags_detailed({"VEGAN", "PALEO"})
 
@@ -151,7 +151,7 @@ class TestNormalizeDietFlagsDetailed:
         assert chosen == "VEGAN"
         assert "PALEO" in removed
 
-    def test_detailed_preserves_chosen_diet_from_conflict(self):
+    def test_detailed_preserves_chosen_diet_from_conflict(self) -> None:
         """Test that chosen diet from conflict is NOT in overridden_flags."""
         result = normalize_diet_flags_detailed({"KETO", "LOW_FAT"})
 
@@ -163,7 +163,7 @@ class TestNormalizeDietFlagsDetailed:
         assert "LOW_FAT" in result.overridden_flags
         assert "LOW_FAT" not in result.flags
 
-    def test_detailed_empty_input(self):
+    def test_detailed_empty_input(self) -> None:
         """Test detailed normalization with empty input."""
         result = normalize_diet_flags_detailed(set())
 
@@ -171,7 +171,7 @@ class TestNormalizeDietFlagsDetailed:
         assert result.overridden_flags == set()
         assert result.conflicts_resolved == []
 
-    def test_detailed_backward_compatibility(self):
+    def test_detailed_backward_compatibility(self) -> None:
         """Test that normalize_diet_flags returns same result as before."""
         # Old function should return just flags
         old_result = normalize_diet_flags({"KETO", "LOW_FAT"})
@@ -185,21 +185,21 @@ class TestNormalizeDietFlagsDetailed:
 class TestIsRecipeCompatible:
     """Test is_recipe_compatible function."""
 
-    def test_vegan_recipe_for_vegan_user(self):
+    def test_vegan_recipe_for_vegan_user(self) -> None:
         """Test VEGAN recipe is compatible with VEGAN diet."""
         assert is_recipe_compatible({"VEGAN"}, {"VEGAN"}) is True
 
-    def test_veg_recipe_for_vegan_user(self):
+    def test_veg_recipe_for_vegan_user(self) -> None:
         """Test VEG recipe is NOT compatible with VEGAN diet."""
         assert is_recipe_compatible({"VEG"}, {"VEGAN"}) is False
 
-    def test_non_vegan_name_rejected(self):
+    def test_non_vegan_name_rejected(self) -> None:
         """Test recipe with animal product in name rejected for VEGAN."""
         assert is_recipe_compatible({"VEGAN"}, {"VEGAN"}, recipe_name="Chicken Salad") is False
 
         assert is_recipe_compatible({"VEGAN"}, {"VEGAN"}, recipe_name="Salmon Bowl") is False
 
-    def test_vegan_name_accepted(self):
+    def test_vegan_name_accepted(self) -> None:
         """Test recipe with plant-based name accepted for VEGAN."""
         assert is_recipe_compatible({"VEGAN"}, {"VEGAN"}, recipe_name="Tofu Stir-fry") is True
 
@@ -215,24 +215,24 @@ class TestIsRecipeCompatible:
         # Recipe with VEG flag and no meat is accepted
         assert is_recipe_compatible({"VEG"}, {"VEG"}, recipe_name="Veggie Bowl") is True
 
-    def test_gluten_free_rejects_gluten(self):
+    def test_gluten_free_rejects_gluten(self) -> None:
         """Test GF diet rejects gluten-containing recipes."""
         assert is_recipe_compatible({"gluten"}, {"GF"}) is False
         assert is_recipe_compatible({"wheat"}, {"GF"}) is False
         assert is_recipe_compatible(set(), {"GF"}, recipe_name="Wheat Bread") is False
 
-    def test_gluten_free_accepts_gf_recipe(self):
+    def test_gluten_free_accepts_gf_recipe(self) -> None:
         """Test GF diet accepts gluten-free recipes."""
         assert is_recipe_compatible({"GF"}, {"GF"}) is True
         assert is_recipe_compatible(set(), {"GF"}, recipe_name="Rice Bowl") is True
 
-    def test_dairy_free_rejects_dairy(self):
+    def test_dairy_free_rejects_dairy(self) -> None:
         """Test DAIRY_FREE rejects dairy products."""
         assert is_recipe_compatible({"milk"}, {"DAIRY_FREE"}) is False
         assert is_recipe_compatible({"cheese"}, {"DAIRY_FREE"}) is False
         assert is_recipe_compatible({"yogurt"}, {"DAIRY_FREE"}) is False
 
-    def test_nut_free_rejects_nuts(self):
+    def test_nut_free_rejects_nuts(self) -> None:
         """Test NUT_FREE rejects nuts."""
         assert is_recipe_compatible({"nut"}, {"NUT_FREE"}) is False
         assert is_recipe_compatible({"almond"}, {"NUT_FREE"}) is False
@@ -240,7 +240,7 @@ class TestIsRecipeCompatible:
         assert is_recipe_compatible(set(), {"NUT_FREE"}) is True
         assert is_recipe_compatible(set(), {"NUT_FREE"}, recipe_name="Rice Bowl") is True
 
-    def test_soy_free_rejects_soy(self):
+    def test_soy_free_rejects_soy(self) -> None:
         """Test SOY_FREE rejects soy-containing recipes."""
         assert is_recipe_compatible({"soy"}, {"SOY_FREE"}) is False
         assert is_recipe_compatible({"tofu"}, {"SOY_FREE"}) is False
@@ -248,12 +248,12 @@ class TestIsRecipeCompatible:
         assert is_recipe_compatible(set(), {"SOY_FREE"}, recipe_name="Rice Bowl") is True
         assert is_recipe_compatible(set(), {"SOY_FREE"}) is True
 
-    def test_no_restrictions_accepts_all(self):
+    def test_no_restrictions_accepts_all(self) -> None:
         """Test no diet flags accepts any recipe."""
         assert is_recipe_compatible({"anything"}, set()) is True
         assert is_recipe_compatible(set(), set(), recipe_name="Anything") is True
 
-    def test_case_insensitive_matching(self):
+    def test_case_insensitive_matching(self) -> None:
         """Test matching is case-insensitive."""
         assert is_recipe_compatible(set(), {"VEGAN"}, recipe_name="CHICKEN SALAD") is False
 
@@ -263,14 +263,14 @@ class TestIsRecipeCompatible:
 class TestAdjustMacrosForDiet:
     """Test adjust_macros_for_diet function."""
 
-    def test_no_diet_flags_no_change(self):
+    def test_no_diet_flags_no_change(self) -> None:
         """Test macros unchanged with no diet flags."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, set(), 70, 2000)
 
         assert result == macros
 
-    def test_returns_float_values(self):
+    def test_returns_float_values(self) -> None:
         """Test that function returns float values (preserves precision)."""
         macros = {"protein_g": 100.5, "fat_g": 50.3, "carbs_g": 200.7, "fiber_g": 25.2}
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
@@ -306,7 +306,7 @@ class TestAdjustMacrosForDiet:
         assert result["protein_g"] == pytest.approx(140.0)
         assert result["fiber_g"] >= 30.0
 
-    def test_high_protein_increases_protein(self):
+    def test_high_protein_increases_protein(self) -> None:
         """Test HIGH_PROTEIN increases protein to 2.0 g/kg."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
@@ -314,7 +314,7 @@ class TestAdjustMacrosForDiet:
         # Should be at least 70 * 2.0 = 140g
         assert result["protein_g"] >= 140.0
 
-    def test_high_protein_already_sufficient(self):
+    def test_high_protein_already_sufficient(self) -> None:
         """Test HIGH_PROTEIN doesn't increase if already sufficient."""
         macros = {"protein_g": 150.0, "fat_g": 50.0, "carbs_g": 180.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
@@ -322,7 +322,7 @@ class TestAdjustMacrosForDiet:
         # Should not decrease
         assert result["protein_g"] >= 150.0
 
-    def test_low_carb_reduces_carbs(self):
+    def test_low_carb_reduces_carbs(self) -> None:
         """Test LOW_CARB caps carbs at 25% of calories."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 300.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"LOW_CARB"}, 70, 2000)
@@ -330,7 +330,7 @@ class TestAdjustMacrosForDiet:
         # Max 25% of 2000 = 500 kcal = 125g carbs
         assert result["carbs_g"] <= 125.0
 
-    def test_low_carb_minimum_40g(self):
+    def test_low_carb_minimum_40g(self) -> None:
         """Test LOW_CARB enforces minimum 40g carbs."""
         macros = {"protein_g": 150.0, "fat_g": 100.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"LOW_CARB"}, 70, 1500)
@@ -338,7 +338,7 @@ class TestAdjustMacrosForDiet:
         # Even with strict limit, should have at least 40g
         assert result["carbs_g"] >= 40.0
 
-    def test_keto_very_low_carbs(self):
+    def test_keto_very_low_carbs(self) -> None:
         """Test KETO caps carbs at 10% of calories."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 250.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"KETO"}, 70, 2000)
@@ -346,7 +346,7 @@ class TestAdjustMacrosForDiet:
         # Max 10% of 2000 = 200 kcal = 50g carbs
         assert result["carbs_g"] <= 50.0
 
-    def test_keto_increases_fat(self):
+    def test_keto_increases_fat(self) -> None:
         """Test KETO increases fat to fill calorie gap."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"KETO"}, 70, 2000)
@@ -354,7 +354,7 @@ class TestAdjustMacrosForDiet:
         # Fat should increase significantly
         assert result["fat_g"] > 100.0
 
-    def test_mediterranean_high_fat(self):
+    def test_mediterranean_high_fat(self) -> None:
         """Test MEDITERRANEAN increases fat to 35% of calories."""
         macros = {"protein_g": 100.0, "fat_g": 40.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"MEDITERRANEAN"}, 70, 2000)
@@ -362,14 +362,14 @@ class TestAdjustMacrosForDiet:
         # At least 35% of 2000 = 700 kcal = 78g fat
         assert result["fat_g"] >= 75.0
 
-    def test_mediterranean_increases_fiber(self):
+    def test_mediterranean_increases_fiber(self) -> None:
         """Test MEDITERRANEAN increases fiber to 30g."""
         macros = {"protein_g": 100.0, "fat_g": 60.0, "carbs_g": 180.0, "fiber_g": 20.0}
         result = adjust_macros_for_diet(macros, {"MEDITERRANEAN"}, 70, 2000)
 
         assert result["fiber_g"] >= 30.0
 
-    def test_mediterranean_fat_protein_ratio(self):
+    def test_mediterranean_fat_protein_ratio(self) -> None:
         """Test MEDITERRANEAN maintains fat >= 1.2 * protein."""
         macros = {"protein_g": 100.0, "fat_g": 40.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"MEDITERRANEAN"}, 70, 2000)
@@ -377,7 +377,7 @@ class TestAdjustMacrosForDiet:
         # Fat should be at least 1.2 * protein
         assert result["fat_g"] >= result["protein_g"] * 1.1  # Allow small tolerance
 
-    def test_low_fat_reduces_fat(self):
+    def test_low_fat_reduces_fat(self) -> None:
         """Test LOW_FAT caps fat at 25% of calories."""
         macros = {"protein_g": 100.0, "fat_g": 100.0, "carbs_g": 150.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"LOW_FAT"}, 70, 2000)
@@ -385,7 +385,7 @@ class TestAdjustMacrosForDiet:
         # Max 25% of 2000 = 500 kcal = 56g fat
         assert result["fat_g"] <= 56.0
 
-    def test_carbs_rebalanced_after_adjustments(self):
+    def test_carbs_rebalanced_after_adjustments(self) -> None:
         """Test carbs are rebalanced to match calorie target."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
@@ -394,7 +394,7 @@ class TestAdjustMacrosForDiet:
         total_kcal = result["protein_g"] * 4 + result["fat_g"] * 9 + result["carbs_g"] * 4
         assert abs(total_kcal - 2000) <= 100  # Allow 100 kcal tolerance
 
-    def test_macros_never_negative(self):
+    def test_macros_never_negative(self) -> None:
         """Test macros never go negative."""
         macros = {"protein_g": 50.0, "fat_g": 30.0, "carbs_g": 100.0, "fiber_g": 20.0}
         result = adjust_macros_for_diet(macros, {"KETO"}, 70, 1200)
@@ -404,7 +404,7 @@ class TestAdjustMacrosForDiet:
         assert result["carbs_g"] > 0.0
         assert result["fiber_g"] > 0.0
 
-    def test_multiple_diet_flags_combined(self):
+    def test_multiple_diet_flags_combined(self) -> None:
         """Test combining multiple diet flags."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN", "LOW_CARB"}, 70, 2000)
@@ -417,27 +417,27 @@ class TestAdjustMacrosForDiet:
 class TestGetDietDescription:
     """Test get_diet_description function."""
 
-    def test_no_diet_flags(self):
+    def test_no_diet_flags(self) -> None:
         """Test description with no diet flags."""
         desc = get_diet_description(set())
         assert desc == "No dietary restrictions"
 
-    def test_single_flag_description(self):
+    def test_single_flag_description(self) -> None:
         """Test description with single flag."""
         desc = get_diet_description({"VEGAN"})
         assert "plant-based" in desc.lower()
 
-    def test_multiple_flags_description(self):
+    def test_multiple_flags_description(self) -> None:
         """Test description with multiple flags."""
         desc = get_diet_description({"VEGAN", "GF"})
         assert "," in desc  # Should be comma-separated
 
-    def test_unknown_flag_handled(self):
+    def test_unknown_flag_handled(self) -> None:
         """Test unknown flag doesn't crash."""
         desc = get_diet_description({"UNKNOWN_FLAG"})
         assert desc == "Custom diet"
 
-    def test_mixed_known_unknown_flags(self):
+    def test_mixed_known_unknown_flags(self) -> None:
         """Test mix of known and unknown flags."""
         desc = get_diet_description({"VEGAN", "UNKNOWN"})
         # Should include known flag description
@@ -447,47 +447,47 @@ class TestGetDietDescription:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_normalize_none_equivalent(self):
+    def test_normalize_none_equivalent(self) -> None:
         """Test normalize handles None-like inputs."""
         assert normalize_diet_flags(set()) == set()
 
-    def test_recipe_compatibility_empty_inputs(self):
+    def test_recipe_compatibility_empty_inputs(self) -> None:
         """Test recipe compatibility with empty inputs."""
         assert is_recipe_compatible(set(), set()) is True
         assert is_recipe_compatible(set(), set(), recipe_name="") is True
 
-    def test_adjust_macros_zero_weight(self):
+    def test_adjust_macros_zero_weight(self) -> None:
         """Test macro adjustment with zero weight."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         # Should handle gracefully (use minimums)
         result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 0.1, 2000)
         assert all(v >= 0 for v in result.values())
 
-    def test_adjust_macros_zero_calories(self):
+    def test_adjust_macros_zero_calories(self) -> None:
         """Test macro adjustment with zero calories (guard against division by zero)."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         # Should return original macros unchanged
         result = adjust_macros_for_diet(macros, {"KETO"}, 70, 0)
         assert result == macros
 
-    def test_adjust_macros_negative_calories(self):
+    def test_adjust_macros_negative_calories(self) -> None:
         """Test macro adjustment with negative calories (invalid input)."""
         macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 200.0, "fiber_g": 25.0}
         # Should return original macros unchanged
         result = adjust_macros_for_diet(macros, {"LOW_CARB"}, 70, -500)
         assert result == macros
 
-    def test_adjust_macros_very_low_calories(self):
+    def test_adjust_macros_very_low_calories(self) -> None:
         """Test macro adjustment with very low calories."""
-        macros = {"protein_g": 30, "fat_g": 20, "carbs_g": 50, "fiber_g": 10}
-        result = adjust_macros_for_diet(macros, {"KETO"}, 70, 800)
+        macros = {"protein_g": 30.0, "fat_g": 20.0, "carbs_g": 50.0, "fiber_g": 10.0}
+        result = adjust_macros_for_diet(macros, {"KETO"}, 70, 800.0)
 
         # Should enforce minimums
         assert result["carbs_g"] >= 30  # KETO minimum
         assert result["protein_g"] > 0
         assert result["fat_g"] > 0
 
-    def test_adjust_macros_very_high_calories(self):
+    def test_adjust_macros_very_high_calories(self) -> None:
         """Test macro adjustment with very high calories."""
         macros = {"protein_g": 200, "fat_g": 100, "carbs_g": 400, "fiber_g": 40}
         result = adjust_macros_for_diet(macros, {"MEDITERRANEAN"}, 100, 5000)
@@ -496,7 +496,7 @@ class TestEdgeCases:
         total_kcal = result["protein_g"] * 4 + result["fat_g"] * 9 + result["carbs_g"] * 4
         assert total_kcal >= 4500  # Close to target
 
-    def test_adjust_macros_negative_remaining_kcal(self):
+    def test_adjust_macros_negative_remaining_kcal(self) -> None:
         """Test rebalancing when macros exceed calorie budget (negative remaining)."""
         # Very high protein/fat that exceeds budget
         macros = {"protein_g": 250, "fat_g": 150, "carbs_g": 50, "fiber_g": 30}
@@ -508,7 +508,7 @@ class TestEdgeCases:
         assert total_kcal > 2000  # May exceed due to minimum constraints
         assert result["protein_g"] >= 160  # Should maintain HIGH_PROTEIN minimum (2.0 * 80kg)
 
-    def test_adjust_macros_negative_remaining_non_special_diet(self):
+    def test_adjust_macros_negative_remaining_non_special_diet(self) -> None:
         """Test rebalancing without MEDITERRANEAN/KETO (covers lines 370-376)."""
         # HIGH_PROTEIN diet with low protein but excessive fat
         # protein=100 < 140 (2.0*70), so will increase to 140
@@ -518,7 +518,7 @@ class TestEdgeCases:
         # Should reduce fat (lines 370-376 since not MEDITERRANEAN/KETO)
         assert result["fat_g"] < 200  # Fat should be reduced from 200
 
-    def test_adjust_macros_protein_reduction(self):
+    def test_adjust_macros_protein_reduction(self) -> None:
         """Test protein reduction when fat already at min (covers lines 379-387)."""
         # LOW_CARB diet: caps carbs at max(40, 1500*0.25/4) = 93.75g
         # protein=300, fat=42, carbs will be capped to ~94
@@ -530,7 +530,7 @@ class TestEdgeCases:
         assert result["protein_g"] >= min_protein
         assert result["protein_g"] < 300  # Should be reduced from original
 
-    def test_adjust_macros_carb_floor_low_carb(self):
+    def test_adjust_macros_carb_floor_low_carb(self) -> None:
         """Test carb floor calculation for LOW_CARB (covers line 390)."""
         macros = {"protein_g": 100, "fat_g": 50, "carbs_g": 150, "fiber_g": 25}
         result = adjust_macros_for_diet(macros, {"LOW_CARB"}, 70, 2000)
@@ -542,14 +542,14 @@ class TestEdgeCases:
 class TestDietImplications:
     """Test DIET_IMPLICATIONS constant and usage."""
 
-    def test_vegan_implications_applied(self):
+    def test_vegan_implications_applied(self) -> None:
         """Test VEGAN implications are in normalized flags."""
         result = normalize_diet_flags({"VEGAN"})
         expected_implications = DIET_IMPLICATIONS["VEGAN"]
         for implied_flag in expected_implications:
             assert implied_flag in result
 
-    def test_keto_implications_applied(self):
+    def test_keto_implications_applied(self) -> None:
         """Test KETO implications are in normalized flags."""
         result = normalize_diet_flags({"KETO"})
         expected_implications = DIET_IMPLICATIONS["KETO"]

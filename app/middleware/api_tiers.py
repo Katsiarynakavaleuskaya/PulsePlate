@@ -62,6 +62,13 @@ ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower(
     "yes",
     "on",
 )
+# Subscription database feature flag (set to 'true' when DB is implemented)
+SUBSCRIPTION_DB_ENABLED = os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+    "on",
+)
 
 
 def _is_production_environment() -> tuple[bool, str]:
@@ -106,6 +113,7 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
             return True
 
         # In dev mode with anonymous access enabled, allow any key
+        # Check env var dynamically to support testing with mock.patch.dict
         allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
             "true",
             "1",
@@ -118,9 +126,23 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
             )
             return True
 
-    # Production mode: Query database for subscription tier
-    # TODO: Implement database lookup for production
-    # Example:
+        # Invalid key in dev mode: reject
+        return False
+
+    # Production mode: Query database
+    # Fail-fast if database not configured
+    if not SUBSCRIPTION_DB_ENABLED:
+        logger.critical(
+            "Production mode requires SUBSCRIPTION_DB_ENABLED=true. "
+            "Set environment variable and implement subscription database lookup."
+        )
+        raise NotImplementedError(
+            "API key validation not implemented for production. "
+            "Set SUBSCRIPTION_DB_ENABLED=true and implement get_subscription_by_api_key() function."
+        )
+
+    # TODO: Implement database lookup for production when SUBSCRIPTION_DB_ENABLED=true
+    # from app.services.subscriptions import get_subscription_by_api_key
     # subscription = get_subscription_by_api_key(api_key)
     # if not subscription or subscription.is_expired():
     #     return False
@@ -128,12 +150,14 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
     #     return subscription.tier == SubscriptionTier.VIP
     # elif required_tier == SubscriptionTier.PRO:
     #     return subscription.tier in [SubscriptionTier.PRO, SubscriptionTier.VIP]
+    # return True
 
-    logger.error(
-        f"API key validation not implemented for production. "
-        f"Key: {api_key[:8]}..., Tier: {required_tier.value}"
+    # This code path should never be reached after DB implementation
+    logger.error(f"Subscription database lookup not implemented. Tier: {required_tier.value}")
+    raise NotImplementedError(
+        "Subscription database lookup not implemented. "
+        "Implement get_subscription_by_api_key() in app/services/subscriptions.py"
     )
-    return False
 
 
 async def require_pro_tier(x_api_key: Optional[str] = Header(None)) -> str:
@@ -166,13 +190,13 @@ async def require_pro_tier(x_api_key: Optional[str] = Header(None)) -> str:
         )
 
     if not _validate_api_key_tier(x_api_key, SubscriptionTier.PRO):
-        logger.warning(f"Invalid API key for PRO tier: {x_api_key[:8]}...")
+        logger.warning("Invalid API key for PRO tier")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API key does not have PRO tier access",
         )
 
-    logger.debug(f"PRO tier access granted for key: {x_api_key[:8]}...")
+    logger.debug("PRO tier access granted")
     return x_api_key
 
 
@@ -206,13 +230,13 @@ async def require_vip_tier(x_api_key: Optional[str] = Header(None)) -> str:
         )
 
     if not _validate_api_key_tier(x_api_key, SubscriptionTier.VIP):
-        logger.warning(f"Invalid API key for VIP tier: {x_api_key[:8]}...")
+        logger.warning("Invalid API key for VIP tier")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API key does not have VIP tier access. Upgrade to VIP to access this feature.",
         )
 
-    logger.debug(f"VIP tier access granted for key: {x_api_key[:8]}...")
+    logger.debug("VIP tier access granted")
     return x_api_key
 
 
@@ -242,7 +266,15 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
             return SubscriptionTier.PRO
 
     # Production mode: Query database
+    # Fail-fast if database not configured
+    if is_production and not SUBSCRIPTION_DB_ENABLED:
+        raise NotImplementedError(
+            "Subscription database not implemented. "
+            "Set SUBSCRIPTION_DB_ENABLED=true and implement get_subscription_by_api_key()."
+        )
+
     # TODO: Implement database lookup
+    # from app.services.subscriptions import get_subscription_by_api_key
     # subscription = get_subscription_by_api_key(api_key)
     # return subscription.tier if subscription else SubscriptionTier.FREE
 

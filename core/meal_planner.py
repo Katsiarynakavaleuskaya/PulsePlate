@@ -12,6 +12,7 @@ and nutrient coverage optimization.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
@@ -36,7 +37,7 @@ class MealPlan:
     ingredients: Dict[str, float] = field(default_factory=dict)
     macros: Dict[str, float] = field(default_factory=dict)
     micros: Dict[str, float] = field(default_factory=dict)
-    boosters: List[Dict] = field(default_factory=list)
+    boosters: List[Dict[str, Any]] = field(default_factory=list)
     estimated_cost: float = 0.0
 
 
@@ -160,15 +161,22 @@ def _select_recipe_for_meal(
         logger.debug(f"Recipe DB does not support expected interface: {e}")
         return None
     except TypeError as e:
-        # Unexpected type error - log and re-raise for debugging
+        # Unexpected type error - log and return None (graceful degradation)
         logger.error(f"Unexpected TypeError in recipe selection: {e}", exc_info=True)
-        raise
+        return None
 
     # Filter by compatibility
     compatible_recipes = []
     for recipe in recipes:
+        # Guard against non-dict items
+        if not isinstance(recipe, dict):
+            logger.warning(f"Skipping non-dict recipe item: {type(recipe).__name__}")
+            continue
+
+        # Safely extract recipe attributes with defaults
         recipe_flags = set(recipe.get("flags", []))
         recipe_name = recipe.get("name", "")
+
         if is_recipe_compatible(recipe_flags, diet_flags, recipe_name):
             compatible_recipes.append(recipe)
 
@@ -186,11 +194,11 @@ def _convert_recipe_to_dict(recipe: Any) -> Dict[str, Any]:
     """Convert recipe object to dictionary format.
 
     Ensures 'cost' key is always present for downstream code.
+    Returns a new dict without mutating the input.
     """
     if isinstance(recipe, dict):
-        # Ensure cost key exists with default value
-        recipe["cost"] = recipe.get("cost", 0.0)
-        return recipe
+        # Return new dict with cost defaulted (avoid mutating input)
+        return {**recipe, "cost": recipe.get("cost", 0.0)}
 
     recipe_dict = {}
     if hasattr(recipe, "name"):
@@ -384,14 +392,11 @@ def _generate_shopping_list(days: List[DailyMealPlan]) -> Dict[str, float]:
     RU: Генерирует список покупок на неделю.
     EN: Generates shopping list for the week.
     """
-    shopping_list: Dict[str, float] = {}
+    shopping_list: defaultdict[str, float] = defaultdict(float)
 
     for day in days:
         for meal in day.meals:
             for ingredient, amount in meal.ingredients.items():
-                if ingredient in shopping_list:
-                    shopping_list[ingredient] += amount
-                else:
-                    shopping_list[ingredient] = amount
+                shopping_list[ingredient] += amount
 
-    return shopping_list
+    return dict(shopping_list)

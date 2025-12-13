@@ -62,12 +62,15 @@ class TestValidateAPIKeyTier:
         assert _validate_api_key_tier("any_random_key", SubscriptionTier.PRO) is True
         assert _validate_api_key_tier("any_random_key", SubscriptionTier.VIP) is True
 
-    @patch.dict(os.environ, {"APP_ENV": "production", "DEBUG": "false"})
-    def test_production_mode_returns_false_no_db(self) -> None:
-        """Test production mode returns False when DB not implemented."""
-        # TODO: Update this test when database lookup is implemented
-        assert _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP) is False
-        assert _validate_api_key_tier(TEST_KEY_PRO, SubscriptionTier.PRO) is False
+    @patch.dict(
+        os.environ, {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"}
+    )
+    def test_production_mode_raises_not_implemented(self) -> None:
+        """Test production mode raises NotImplementedError when DB not enabled."""
+        with pytest.raises(NotImplementedError, match="API key validation not implemented"):
+            _validate_api_key_tier(TEST_KEY_VIP, SubscriptionTier.VIP)
+        with pytest.raises(NotImplementedError, match="API key validation not implemented"):
+            _validate_api_key_tier(TEST_KEY_PRO, SubscriptionTier.PRO)
 
 
 class TestRequireProTier:
@@ -160,12 +163,16 @@ class TestGetSubscriptionTier:
         """Test invalid key returns FREE tier."""
         assert get_subscription_tier("invalid_key") == SubscriptionTier.FREE
 
-    @patch.dict(os.environ, {"APP_ENV": "production", "DEBUG": "false"})
-    def test_production_returns_free_no_db(self) -> None:
-        """Test production mode returns FREE when DB not implemented."""
-        # TODO: Update this test when database lookup is implemented
-        assert get_subscription_tier(TEST_KEY_VIP) == SubscriptionTier.FREE
-        assert get_subscription_tier(TEST_KEY_PRO) == SubscriptionTier.FREE
+    @patch.dict(
+        os.environ, {"APP_ENV": "production", "DEBUG": "false", "SUBSCRIPTION_DB_ENABLED": "false"}
+    )
+    def test_production_raises_not_implemented(self) -> None:
+        """Test production mode raises NotImplementedError when DB not enabled."""
+        # Database not implemented yet, should raise NotImplementedError
+        with pytest.raises(NotImplementedError):
+            get_subscription_tier(TEST_KEY_VIP)
+        with pytest.raises(NotImplementedError):
+            get_subscription_tier(TEST_KEY_PRO)
 
 
 class TestEnvironmentConfiguration:

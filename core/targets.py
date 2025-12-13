@@ -457,9 +457,8 @@ KETO_CARB_FLOOR_G: float = 30.0  # Minimum carbs for KETO (g)
 # MEDITERRANEAN diet fat percentage of total calories
 MEDITERRANEAN_FAT_MIN_PERCENT: float = 0.35  # Min 35% calories from healthy fats
 MEDITERRANEAN_FIBER_MIN_G: float = 30.0  # Increased fiber target for Mediterranean
-MEDITERRANEAN_FAT_TO_PROTEIN_RATIO: float = (
-    1.2  # Healthy fat-to-protein ratio (g fat per g protein)
-)
+# Healthy fat-to-protein ratio (g fat per g protein) for Mediterranean diet
+MEDITERRANEAN_FAT_TO_PROTEIN_RATIO: float = 1.2
 
 # LOW_FAT diet maximum fat percentage of total calories
 LOW_FAT_MAX_PERCENT: float = 0.25  # Max 25% calories from fat
