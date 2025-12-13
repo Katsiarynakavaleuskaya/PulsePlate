@@ -1,4 +1,6 @@
 from typing import cast
+from unittest.mock import patch
+import os
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -13,6 +15,7 @@ def _make_client() -> TestClient:
     return TestClient(cast(ASGIApp, app))
 
 
+@patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_premium_week_missing_profile_fields_returns_400():
     client = _make_client()
     # Missing height/weight triggers the first 400 branch
@@ -26,11 +29,16 @@ def test_premium_week_missing_profile_fields_returns_400():
         "diet_flags": [],
         "lang": "en",
     }
-    resp = client.post("/api/v1/premium/plan/week-flexible", json=payload)
+    resp = client.post(
+        "/api/v1/premium/plan/week-flexible",
+        json=payload,
+        headers={"X-API-Key": "test_pro_key"},
+    )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "Missing user profile data"
 
 
+@patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_premium_week_activity_goal_required_branch_returns_400():
     client = _make_client()
     # Provide core fields, but set activity/goal to null to hit second 400 branch
@@ -44,11 +52,16 @@ def test_premium_week_activity_goal_required_branch_returns_400():
         "diet_flags": [],
         "lang": "en",
     }
-    resp = client.post("/api/v1/premium/plan/week-flexible", json=payload)
+    resp = client.post(
+        "/api/v1/premium/plan/week-flexible",
+        json=payload,
+        headers={"X-API-Key": "test_pro_key"},
+    )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "All profile fields are required"
 
 
+@patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
 def test_premium_week_with_explicit_targets_happy_path_200():
     client = _make_client()
     # Use explicit targets path to avoid relying on data-derived estimation
@@ -73,7 +86,11 @@ def test_premium_week_with_explicit_targets_happy_path_200():
         "diet_flags": [],
         "lang": "en",
     }
-    resp = client.post("/api/v1/premium/plan/week-flexible", json=payload)
+    resp = client.post(
+        "/api/v1/premium/plan/week-flexible",
+        json=payload,
+        headers={"X-API-Key": "test_pro_key"},
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert "daily_menus" in body and isinstance(body["daily_menus"], list)

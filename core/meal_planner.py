@@ -11,6 +11,7 @@ and nutrient coverage optimization.
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -194,11 +195,15 @@ def _convert_recipe_to_dict(recipe: Any) -> Dict[str, Any]:
     """Convert recipe object to dictionary format.
 
     Ensures 'cost' key is always present for downstream code.
-    Returns a new dict without mutating the input.
+    Returns a deep copy to avoid shared nested state with input.
     """
     if isinstance(recipe, dict):
-        # Return new dict with cost defaulted (avoid mutating input)
-        return {**recipe, "cost": recipe.get("cost", 0.0)}
+        # Deep copy to avoid shared nested mutable objects
+        recipe_copy = copy.deepcopy(recipe)
+        # Ensure cost key exists with default value
+        if "cost" not in recipe_copy:
+            recipe_copy["cost"] = 0.0
+        return recipe_copy
 
     recipe_dict = {}
     if hasattr(recipe, "name"):

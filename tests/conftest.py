@@ -195,14 +195,17 @@ def setup_test_environment():
     """Set up test environment variables before any tests run.
 
     This fixture runs automatically for the entire session to ensure
-    API_KEY is configured before the app module is loaded.
+    API_KEY and APP_ENV are configured before the app module is loaded.
     """
-    # Set API key for the entire test session
+    # Set API key and environment for the entire test session
     os.environ["API_KEY"] = "test_key"
+    os.environ["APP_ENV"] = "test"
+    os.environ["DEBUG"] = "true"
     yield
     # Clean up after all tests
-    if "API_KEY" in os.environ:
-        del os.environ["API_KEY"]
+    for key in ["API_KEY", "APP_ENV", "DEBUG"]:
+        if key in os.environ:
+            del os.environ[key]
 
 
 _CACHED_APP_MODULE: ModuleType | None = None

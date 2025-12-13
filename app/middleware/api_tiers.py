@@ -62,13 +62,7 @@ ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower(
     "yes",
     "on",
 )
-# Subscription database feature flag (set to 'true' when DB is implemented)
-SUBSCRIPTION_DB_ENABLED = os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
+# Note: SUBSCRIPTION_DB_ENABLED is checked dynamically in code to support testing
 
 
 def _is_production_environment() -> tuple[bool, str]:
@@ -131,7 +125,14 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
 
     # Production mode: Query database
     # Fail-fast if database not configured
-    if not SUBSCRIPTION_DB_ENABLED:
+    # Check env var dynamically to support testing with mock.patch.dict
+    subscription_db_enabled = os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    )
+    if not subscription_db_enabled:
         logger.critical(
             "Production mode requires SUBSCRIPTION_DB_ENABLED=true. "
             "Set environment variable and implement subscription database lookup."
@@ -267,7 +268,14 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
 
     # Production mode: Query database
     # Fail-fast if database not configured
-    if is_production and not SUBSCRIPTION_DB_ENABLED:
+    # Check env var dynamically to support testing with mock.patch.dict
+    subscription_db_enabled = os.getenv("SUBSCRIPTION_DB_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    )
+    if is_production and not subscription_db_enabled:
         raise NotImplementedError(
             "Subscription database not implemented. "
             "Set SUBSCRIPTION_DB_ENABLED=true and implement get_subscription_by_api_key()."
