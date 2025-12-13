@@ -22,6 +22,7 @@ from core.targets import (
     LOW_CARB_MAX_PERCENT,
     LOW_FAT_MAX_PERCENT,
     MEDITERRANEAN_FAT_MIN_PERCENT,
+    MEDITERRANEAN_FAT_TO_PROTEIN_RATIO,
     MEDITERRANEAN_FIBER_MIN_G,
     MIN_HEALTHY_FAT_ABSOLUTE_G,
     MIN_HEALTHY_FAT_G_PER_KG,
@@ -57,9 +58,10 @@ INCOMPATIBLE_COMBINATIONS = [
 ]
 
 # Diet implications (flags that imply other flags)
+# Note: KETO uses moderate protein (~1.2-1.7 g/kg), not high protein (>2.0 g/kg)
 DIET_IMPLICATIONS = {
     "VEGAN": {"VEG", "DAIRY_FREE"},
-    "KETO": {"LOW_CARB", "HIGH_PROTEIN"},
+    "KETO": {"LOW_CARB"},  # KETO implies LOW_CARB but NOT HIGH_PROTEIN (moderate protein)
     "PALEO": {"HIGH_PROTEIN", "GF", "DAIRY_FREE"},
 }
 
@@ -99,10 +101,47 @@ NON_VEG_INDICATORS = {
 GLUTEN_INDICATORS = {"глютен", "gluten", "пшеница", "wheat", "овсянка", "oats"}
 
 # Dairy indicators for DAIRY_FREE compatibility checks
-DAIRY_INDICATORS = {"молоко", "milk", "сыр", "cheese", "йогурт", "yogurt", "творог"}
+DAIRY_INDICATORS = {
+    "молоко",
+    "milk",
+    "сыр",
+    "cheese",
+    "йогурт",
+    "yogurt",
+    "творог",
+    "масло",
+    "butter",
+    "сливки",
+    "cream",
+    "сметана",
+    "sour cream",
+    "кефир",
+    "kefir",
+    "ряженка",
+    "сливочное",  # creamy/buttery
+}
 
 # Nut indicators for NUT_FREE compatibility checks
-NUT_INDICATORS = {"орех", "nut", "миндаль", "almond", "арахис", "peanut"}
+NUT_INDICATORS = {
+    "орех",
+    "nut",
+    "миндаль",
+    "almond",
+    "арахис",
+    "peanut",
+    "кешью",
+    "cashew",
+    "грецкий",
+    "walnut",
+    "пекан",
+    "pecan",
+    "фундук",
+    "hazelnut",
+    "фисташка",
+    "pistachio",
+    "макадамия",
+    "macadamia",
+}
 
 # Soy indicators for SOY_FREE compatibility checks
 SOY_INDICATORS = {"соя", "soy", "тофу", "tofu", "эдамаме", "edamame"}
@@ -143,7 +182,7 @@ def normalize_diet_flags(diet_flags: Set[str]) -> Set[str]:
         >>> normalize_diet_flags({"VEGAN"})
         {'VEGAN', 'VEG', 'DAIRY_FREE'}
         >>> normalize_diet_flags({"KETO", "LOW_FAT"})
-        {'KETO', 'LOW_CARB', 'HIGH_PROTEIN'}
+        {'KETO', 'LOW_CARB'}
     """
     result = normalize_diet_flags_detailed(diet_flags)
     return result.flags
@@ -168,7 +207,7 @@ def normalize_diet_flags_detailed(diet_flags: Set[str]) -> NormalizedDietFlags:
         set()
         >>> result = normalize_diet_flags_detailed({"LOW_FAT", "KETO"})
         >>> result.flags
-        {'KETO', 'LOW_CARB', 'HIGH_PROTEIN'}
+        {'KETO', 'LOW_CARB'}
         >>> result.overridden_flags
         {'LOW_FAT'}
         >>> result.conflicts_resolved
@@ -259,13 +298,14 @@ def is_recipe_compatible(
                 return False
 
     elif "VEG" in normalized_diet:
-        # Recipe must be VEG or VEGAN
+        # Recipe must be VEG or VEGAN (require explicit flag for safety)
         if not recipe_flags.intersection({"VEG", "VEGAN"}):
-            # Check name for meat/fish
-            if recipe_name:
-                name_lower = recipe_name.lower()
-                if any(indicator in name_lower for indicator in NON_VEG_INDICATORS):
-                    return False
+            return False
+        # Additional check: reject if name contains meat/fish indicators
+        if recipe_name:
+            name_lower = recipe_name.lower()
+            if any(indicator in name_lower for indicator in NON_VEG_INDICATORS):
+                return False
 
     # Gluten-free checks
     if "GF" in normalized_diet:
@@ -380,8 +420,8 @@ def adjust_macros_for_diet(
     if "MEDITERRANEAN" in normalized:
         # Fat should be at least specified percentage of calories
         desired_fat = max(fat, (kcal * MEDITERRANEAN_FAT_MIN_PERCENT) / 9)
-        # Also ensure fat >= 1.2 * protein (healthy ratio)
-        desired_fat = max(desired_fat, protein * 1.2)
+        # Also ensure fat >= MEDITERRANEAN_FAT_TO_PROTEIN_RATIO * protein (healthy ratio)
+        desired_fat = max(desired_fat, protein * MEDITERRANEAN_FAT_TO_PROTEIN_RATIO)
         if desired_fat > fat:
             fat = desired_fat
             changed = True

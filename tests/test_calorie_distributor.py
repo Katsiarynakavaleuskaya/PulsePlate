@@ -39,7 +39,7 @@ class TestDistributeCalories:
         assert abs(dinner - 600) <= 1  # 30% of 2000
         assert abs(snack - 200) <= 1  # 10% of 2000
 
-    def test_distribute_calories_3_meals(self):
+    def test_distribute_calories_3_meals(self) -> None:
         """Test distribution with 3 meals (no snack)."""
         dist = distribute_calories(2100, num_meals=3)
 
@@ -59,6 +59,10 @@ class TestDistributeCalories:
 
         # Dinner should have snack's 10% added to its 30% (total 40%)
         assert abs(dinner - 840) <= 2  # 40% of 2100
+
+        # Ensure total calories are conserved
+        total_calories = breakfast + lunch + dinner + snack
+        assert abs(total_calories - 2100) <= 2
 
     def test_distribute_calories_custom_splits(self):
         """Test distribution with custom meal splits."""
@@ -128,13 +132,38 @@ class TestDistributeCalories:
         total = sum(meal.kcal for meal in dist.meals)
         assert total == 2000
 
-    def test_distribute_calories_meal_percentages(self):
+    def test_distribute_calories_meal_percentages(self) -> None:
         """Test that meal objects contain correct percentages."""
         dist = distribute_calories(2000)
 
         for meal in dist.meals:
             expected_pct = DEFAULT_MEAL_SPLITS[meal.name]
             assert abs(meal.percentage - expected_pct) < 0.01
+
+    def test_distribute_calories_fallback_with_3_meals(self) -> None:
+        """Test fallback to defaults with 3 meals (covers lines 130-132)."""
+        # Invalid splits (all zeros) should trigger fallback
+        invalid_splits = {
+            "breakfast": 0.0,
+            "lunch": 0.0,
+            "dinner": 0.0,
+            "snack": 0.0,
+        }
+
+        # With num_meals=3, should fall back to defaults AND re-apply 3-meal adjustment
+        dist = distribute_calories(2100, meal_splits=invalid_splits, num_meals=3)
+
+        # Should use default splits
+        assert dist.total_kcal == 2100
+        assert len(dist.meals) == 3
+
+        # Snack should be 0 (3-meal adjustment applied after fallback)
+        snack = dist.get_meal_kcal("snack")
+        assert snack == 0
+
+        # Dinner should have snack's calories added (40% total)
+        dinner = dist.get_meal_kcal("dinner")
+        assert abs(dinner - 840) <= 2  # 40% of 2100 (30% base + 10% from snack)
 
 
 class TestGetMealSplitList:

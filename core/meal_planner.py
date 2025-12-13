@@ -11,11 +11,16 @@ and nutrient coverage optimization.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
 from .calorie_distributor import distribute_calories, apply_weekly_variation
 from .dietary_constraints import normalize_diet_flags, is_recipe_compatible
+from .targets import LOW_CARB_MAX_PERCENT
+from .rules_who import WHO_MACRONUTRIENT_RANGES
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -150,8 +155,14 @@ def _select_recipe_for_meal(
                 recipes = recipe_db
             else:
                 recipes = []
-    except (AttributeError, TypeError):
+    except AttributeError as e:
+        # Expected: recipe_db doesn't support the interface
+        logger.debug(f"Recipe DB does not support expected interface: {e}")
         return None
+    except TypeError as e:
+        # Unexpected type error - log and re-raise for debugging
+        logger.error(f"Unexpected TypeError in recipe selection: {e}", exc_info=True)
+        raise
 
     # Filter by compatibility
     compatible_recipes = []
@@ -172,8 +183,13 @@ def _select_recipe_for_meal(
 
 
 def _convert_recipe_to_dict(recipe: Any) -> Dict[str, Any]:
-    """Convert recipe object to dictionary format."""
+    """Convert recipe object to dictionary format.
+
+    Ensures 'cost' key is always present for downstream code.
+    """
     if isinstance(recipe, dict):
+        # Ensure cost key exists with default value
+        recipe["cost"] = recipe.get("cost", 0.0)
         return recipe
 
     recipe_dict = {}
@@ -187,6 +203,8 @@ def _convert_recipe_to_dict(recipe: Any) -> Dict[str, Any]:
         recipe_dict["micros"] = recipe.micros
     if hasattr(recipe, "kcal"):
         recipe_dict["kcal"] = recipe.kcal
+    # Always set cost key (from object attribute or default)
+    recipe_dict["cost"] = recipe.cost if hasattr(recipe, "cost") else 0.0
 
     return recipe_dict
 
@@ -202,38 +220,44 @@ def _create_fallback_meal(
 
     Note:
         Expects diet_flags to already be normalized by the caller.
+        Uses WHO-based macro percentages from core/targets.py and core/rules_who.py.
     """
     # Adjust macro distribution for key dietary patterns
     # diet_flags should already be normalized by caller
     if "KETO" in diet_flags:
-        # Very low carb, high fat pattern
-        protein_pct = 0.25
-        carbs_pct = 0.05
-        fat_pct = 0.70
+        # Very low carb, high fat pattern (using KETO_MAX_CARB_PERCENT from targets.py)
+        protein_pct = 0.25  # 25% protein
+        carbs_pct = 0.05  # 5% carbs (stricter than KETO_MAX_CARB_PERCENT for fallback)
+        fat_pct = 0.70  # 70% fat (high fat emphasis)
     elif "LOW_CARB" in diet_flags:
-        # Moderately low carb, higher fat and protein
-        protein_pct = 0.35
-        carbs_pct = 0.20
-        fat_pct = 0.45
+        # Moderately low carb (using LOW_CARB_MAX_PERCENT from targets.py)
+        protein_pct = 0.35  # 35% protein (at WHO upper range)
+        carbs_pct = LOW_CARB_MAX_PERCENT  # 25% carbs (from targets.py)
+        fat_pct = 1.0 - protein_pct - carbs_pct  # Remaining for fat (40%)
     elif meal_name == "breakfast":
-        # Higher carbs for morning energy
-        protein_pct = 0.25
-        carbs_pct = 0.50
-        fat_pct = 0.25
+        # Higher carbs for morning energy (WHO balanced range)
+        protein_pct = 0.25  # 25% protein
+        carbs_pct = 0.50  # 50% carbs (mid WHO range)
+        fat_pct = 0.25  # 25% fat
     elif meal_name == "snack":
-        # Balanced, smaller portions
-        protein_pct = 0.30
-        carbs_pct = 0.40
-        fat_pct = 0.30
+        # Balanced, smaller portions (WHO balanced range)
+        protein_pct = 0.30  # 30% protein
+        carbs_pct = 0.40  # 40% carbs
+        fat_pct = 0.30  # 30% fat
     else:  # lunch, dinner
-        # Balanced meal
-        protein_pct = 0.30
-        carbs_pct = 0.40
-        fat_pct = 0.30
+        # Balanced meal (WHO balanced range)
+        protein_pct = 0.30  # 30% protein
+        carbs_pct = 0.40  # 40% carbs
+        fat_pct = 0.30  # 30% fat
 
     protein_g = (kcal_target * protein_pct) / 4
     carbs_g = (kcal_target * carbs_pct) / 4
     fat_g = (kcal_target * fat_pct) / 9
+
+    # Calculate fiber based on WHO recommendation: 14g per 1000 kcal
+    # Reference: WHO_MACRONUTRIENT_RANGES["fiber_g_per_1000_cal"] = 14
+    fiber_per_1000_cal = WHO_MACRONUTRIENT_RANGES["fiber_g_per_1000_cal"]
+    fiber_g = round((kcal_target / 1000.0) * fiber_per_1000_cal, 1)
 
     return MealPlan(
         name=meal_name,
@@ -243,7 +267,7 @@ def _create_fallback_meal(
             "protein_g": round(protein_g, 1),
             "carbs_g": round(carbs_g, 1),
             "fat_g": round(fat_g, 1),
-            "fiber_g": 8.0,
+            "fiber_g": fiber_g,
         },
     )
 

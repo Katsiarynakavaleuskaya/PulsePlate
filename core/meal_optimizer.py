@@ -206,7 +206,14 @@ def optimize_micro_coverage(
         return meals, coverage
 
     # Add boosters for deficient micros (advisory only – no nutrient changes)
-    optimized_meals = [meal.copy() for meal in meals]
+    # Use shallow copy but explicitly copy booster_suggestions list to avoid mutation
+    optimized_meals = []
+    for meal in meals:
+        new_meal = meal.copy()
+        # Explicitly copy booster_suggestions list to prevent mutating original
+        if "booster_suggestions" in meal:
+            new_meal["booster_suggestions"] = list(meal["booster_suggestions"])
+        optimized_meals.append(new_meal)
 
     # Priority order: most deficient first
     sorted_deficient = sorted(deficient_micros.items(), key=lambda x: x[1])

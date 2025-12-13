@@ -13,6 +13,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional
 
+# Minimum daily calorie floor for safety
+# Reference: WHO/Academy of Nutrition and Dietetics minimum safe daily intake
+MIN_DAILY_KCAL: int = 1200  # Minimum safe daily calorie intake
+
 MealName = Literal["breakfast", "lunch", "dinner", "snack"]
 
 
@@ -215,5 +219,5 @@ def apply_weekly_variation(
     variation = variation_pct * ((day_index % 3) - 1)
     adjusted_kcal = int(round(base_kcal * (1 + variation)))
 
-    # Ensure minimum 1200 kcal
-    return max(1200, adjusted_kcal)
+    # Ensure minimum safe daily intake (MIN_DAILY_KCAL)
+    return max(MIN_DAILY_KCAL, adjusted_kcal)
