@@ -54,15 +54,18 @@ class TestNormalizeDietFlags:
         assert "GF" in result
         assert "DAIRY_FREE" in result
 
-    def test_normalize_resolves_keto_vegan_conflict(self):
-        """Test KETO + VEGAN conflict resolution (prefers VEGAN)."""
+    def test_normalize_handles_keto_and_vegan_compatibly(self) -> None:
+        """Test KETO + VEGAN are preserved and implications are applied."""
         result = normalize_diet_flags({"KETO", "VEGAN"})
 
-        # VEGAN should win in conflict resolution
         assert "VEGAN" in result
-        # Should still have VEGAN implications
+        assert "KETO" in result
+
+        # Implications
         assert "VEG" in result
         assert "DAIRY_FREE" in result
+        assert "LOW_CARB" in result
+        assert "HIGH_PROTEIN" not in result
 
     def test_normalize_multiple_compatible_flags(self):
         """Test multiple compatible flags."""
@@ -204,6 +207,8 @@ class TestIsRecipeCompatible:
         """Test VEG diet requires explicit VEG flag and rejects meat in recipe name."""
         # Recipe without VEG/VEGAN flag is rejected
         assert is_recipe_compatible(set(), {"VEG"}) is False
+        # Recipe with VEG flag and no name is accepted
+        assert is_recipe_compatible({"VEG"}, {"VEG"}) is True
         # Recipe with VEG flag but meat in name is rejected
         assert is_recipe_compatible({"VEG"}, {"VEG"}, recipe_name="Beef Stew") is False
         assert is_recipe_compatible({"VEG"}, {"VEG"}, recipe_name="Fish Tacos") is False
@@ -232,6 +237,8 @@ class TestIsRecipeCompatible:
         assert is_recipe_compatible({"nut"}, {"NUT_FREE"}) is False
         assert is_recipe_compatible({"almond"}, {"NUT_FREE"}) is False
         assert is_recipe_compatible(set(), {"NUT_FREE"}, recipe_name="Almond Butter") is False
+        assert is_recipe_compatible(set(), {"NUT_FREE"}) is True
+        assert is_recipe_compatible(set(), {"NUT_FREE"}, recipe_name="Rice Bowl") is True
 
     def test_soy_free_rejects_soy(self):
         """Test SOY_FREE rejects soy-containing recipes."""
@@ -239,6 +246,7 @@ class TestIsRecipeCompatible:
         assert is_recipe_compatible({"tofu"}, {"SOY_FREE"}) is False
         assert is_recipe_compatible(set(), {"SOY_FREE"}, recipe_name="Tofu Bowl") is False
         assert is_recipe_compatible(set(), {"SOY_FREE"}, recipe_name="Rice Bowl") is True
+        assert is_recipe_compatible(set(), {"SOY_FREE"}) is True
 
     def test_no_restrictions_accepts_all(self):
         """Test no diet flags accepts any recipe."""
@@ -272,6 +280,31 @@ class TestAdjustMacrosForDiet:
         assert isinstance(result["fat_g"], float)
         assert isinstance(result["carbs_g"], float)
         assert isinstance(result["fiber_g"], float)
+
+    def test_keto_does_not_increase_fat_when_remaining_kcal_non_positive(self) -> None:
+        """Test KETO does not add fat when remaining calories are non-positive."""
+        macros = {"protein_g": 300.0, "fat_g": 0.0, "carbs_g": 10.0, "fiber_g": 10.0}
+        result = adjust_macros_for_diet(macros, {"KETO"}, 70, 800)
+        assert result == macros
+
+    def test_mediterranean_no_change_when_already_meets_targets(self) -> None:
+        """Test MEDITERRANEAN does not modify macros when already at/above targets."""
+        macros = {"protein_g": 120.0, "fat_g": 200.0, "carbs_g": 50.0, "fiber_g": 30.0}
+        result = adjust_macros_for_diet(macros, {"MEDITERRANEAN"}, 70, 2000)
+        assert result == macros
+
+    def test_low_fat_no_change_when_under_cap(self) -> None:
+        """Test LOW_FAT does not modify macros when fat is already under the cap."""
+        macros = {"protein_g": 100.0, "fat_g": 20.0, "carbs_g": 200.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"LOW_FAT"}, 70, 2000)
+        assert result == macros
+
+    def test_mediterranean_high_protein_triggers_protein_reduction(self) -> None:
+        """Test negative remaining kcal path reduces protein with HIGH_PROTEIN under MEDITERRANEAN."""
+        macros = {"protein_g": 300.0, "fat_g": 0.0, "carbs_g": 0.0, "fiber_g": 0.0}
+        result = adjust_macros_for_diet(macros, {"MEDITERRANEAN", "HIGH_PROTEIN"}, 70, 800)
+        assert result["protein_g"] == pytest.approx(140.0)
+        assert result["fiber_g"] >= 30.0
 
     def test_high_protein_increases_protein(self):
         """Test HIGH_PROTEIN increases protein to 2.0 g/kg."""
@@ -535,13 +568,16 @@ class TestDietaryConstraintsEdgeCases:
     """Additional edge case tests to improve coverage."""
 
     def test_normalize_fallback_conflict_resolution(self) -> None:
-        """Test fallback alphabetical conflict resolution (lines 224-231)."""
-        # Create a hypothetical conflict not in priority_order
-        # This tests the fallback mechanism at lines 224-231
-        result = normalize_diet_flags_detailed({"GF", "LOW_COST"})
-        # These are compatible, so no conflict
-        assert "GF" in result.flags
-        assert "LOW_COST" in result.flags
+        """Test fallback alphabetical conflict resolution when no priority diet matches."""
+        from unittest.mock import patch
+
+        import core.dietary_constraints as dc
+
+        with patch.object(dc, "INCOMPATIBLE_COMBINATIONS", [{"AAA", "BBB"}]):
+            result = dc.normalize_diet_flags_detailed({"AAA", "BBB"})
+            assert result.flags == {"AAA"}
+            assert result.overridden_flags == {"BBB"}
+            assert result.conflicts_resolved == [("AAA", {"BBB"})]
 
     def test_gluten_indicator_in_name(self) -> None:
         """Test gluten detection in recipe name (line 294)."""
@@ -583,6 +619,12 @@ class TestDietaryConstraintsEdgeCases:
         assert result["fat_g"] > macros["fat_g"]
         # Carbs should be capped
         assert result["carbs_g"] < macros["carbs_g"]
+
+    def test_adjust_macros_skips_protein_reduction_at_minimum(self) -> None:
+        """Test protein reduction is skipped when already at HIGH_PROTEIN minimum."""
+        macros = {"protein_g": 140.0, "fat_g": 200.0, "carbs_g": 300.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN", "LOW_CARB"}, 70, 800)
+        assert result["protein_g"] == pytest.approx(140.0)
 
     def test_adjust_macros_mediterranean_fat_increase(self) -> None:
         """Test MEDITERRANEAN increases fat (lines 399-407)."""
@@ -636,3 +678,66 @@ class TestDietaryConstraintsEdgeCases:
         # Carbs should be capped at KETO max
         keto_carb_cap = max(KETO_CARB_FLOOR_G, (2000 * KETO_MAX_CARB_PERCENT) / 4)
         assert result["carbs_g"] <= keto_carb_cap + 1
+
+    def test_dairy_indicator_in_flags(self) -> None:
+        """Test dairy detection in recipe flags (line 305)."""
+        # Dairy in flags should be rejected
+        assert is_recipe_compatible({"milk"}, {"DAIRY_FREE"}) is False
+        assert is_recipe_compatible({"butter"}, {"DAIRY_FREE"}) is False
+        assert is_recipe_compatible({"cream"}, {"DAIRY_FREE"}) is False
+        # No dairy should pass
+        assert is_recipe_compatible(set(), {"DAIRY_FREE"}) is True
+
+    def test_adjust_macros_low_carb_already_within_limit(self) -> None:
+        """Test LOW_CARB when carbs already within limit (line 382 not taken)."""
+        # Carbs already low - should not be reduced
+        macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 30.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"LOW_CARB"}, 70, 2000)
+        # Carbs should stay the same or be set to floor
+        assert result["carbs_g"] >= 30.0
+
+    def test_adjust_macros_keto_already_within_limit(self) -> None:
+        """Test KETO when carbs already within limit (line 391 not taken)."""
+        # Carbs already very low - should not be reduced further
+        macros = {"protein_g": 100.0, "fat_g": 80.0, "carbs_g": 25.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"KETO"}, 70, 2000)
+        # Carbs should be at or above floor
+        assert result["carbs_g"] >= KETO_CARB_FLOOR_G - 1
+
+    def test_adjust_macros_mediterranean_already_high_fat(self) -> None:
+        """Test MEDITERRANEAN when fat already sufficient (line 403 not taken)."""
+        # Fat already high enough
+        macros = {"protein_g": 75.0, "fat_g": 100.0, "carbs_g": 150.0, "fiber_g": 30.0}
+        result = adjust_macros_for_diet(macros, {"MEDITERRANEAN"}, 70, 2000)
+        # Fat should remain high
+        assert result["fat_g"] >= 90.0
+        # Fiber should be at least 30g
+        assert result["fiber_g"] >= 30.0
+
+    def test_adjust_macros_low_fat_already_within_limit(self) -> None:
+        """Test LOW_FAT when fat already within limit (line 411 not taken)."""
+        # Fat already low
+        macros = {"protein_g": 100.0, "fat_g": 40.0, "carbs_g": 200.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"LOW_FAT"}, 70, 2000)
+        # Fat should remain low or be capped
+        max_fat = (2000 * 0.25) / 9
+        assert result["fat_g"] <= max_fat + 5  # Allow some tolerance
+
+    def test_adjust_macros_no_rebalance_needed(self) -> None:
+        """Test when remaining_kcal is positive (line 424 condition false)."""
+        # Well-balanced macros within calorie budget
+        macros = {"protein_g": 100.0, "fat_g": 50.0, "carbs_g": 150.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"HIGH_PROTEIN"}, 70, 2000)
+        # Should have valid result without needing rebalancing
+        total_kcal = result["protein_g"] * 4 + result["fat_g"] * 9 + result["carbs_g"] * 4
+        assert total_kcal > 0
+        assert result["protein_g"] >= 140.0  # HIGH_PROTEIN minimum: 70kg * 2.0
+
+    def test_adjust_macros_keto_fat_increase_when_negative_remaining(self) -> None:
+        """Test KETO fat compensation when remaining_kcal <= 0 (line 399 false)."""
+        # Very high protein and carbs leave no room for fat increase
+        macros = {"protein_g": 200.0, "fat_g": 80.0, "carbs_g": 100.0, "fiber_g": 25.0}
+        result = adjust_macros_for_diet(macros, {"KETO"}, 70, 2000)
+        # Should still process without error
+        assert "fat_g" in result
+        assert result["fat_g"] > 0

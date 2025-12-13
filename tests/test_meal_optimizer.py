@@ -185,6 +185,8 @@ class TestOptimizeCost:
             {
                 "estimated_cost": 10.0,
                 "macros": {"protein_g": 50, "carbs_g": 100, "fat_g": 25},
+                "micros": {"iron_mg": 18.0, "vitamin_d_iu": 600.0},
+                "ingredients": {"spinach": 200.0, "chicken": 150.0},
                 "kcal": 800,
             }
         ]
@@ -193,6 +195,8 @@ class TestOptimizeCost:
         # With min quality 0.5, can reduce to half
         assert abs(total_cost - 5.0) < 0.5
         assert abs(optimized[0]["macros"]["protein_g"] - 25) < 3
+        assert abs(optimized[0]["micros"]["iron_mg"] - 9.0) < 1.0
+        assert abs(optimized[0]["ingredients"]["spinach"] - 100.0) < 5.0
 
 
 class TestEdgeCases:

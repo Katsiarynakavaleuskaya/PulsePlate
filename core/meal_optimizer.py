@@ -455,6 +455,16 @@ def _reduce_cost_preserving_quality(
         if "kcal" in reduced_meal:
             reduced_meal["kcal"] = int(reduced_meal["kcal"] * reduction_factor)
 
+        if "micros" in reduced_meal:
+            reduced_meal["micros"] = {
+                k: v * reduction_factor for k, v in reduced_meal["micros"].items()
+            }
+
+        if "ingredients" in reduced_meal:
+            reduced_meal["ingredients"] = {
+                k: v * reduction_factor for k, v in reduced_meal["ingredients"].items()
+            }
+
         optimized.append(reduced_meal)
 
     quality_score = _nutrition_quality_score(optimized)
