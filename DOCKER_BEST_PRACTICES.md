@@ -28,6 +28,7 @@ make docker-build  # Creates :latest and :<commit-hash>
 
 # Test locally (curl from host to test exposed port)
 docker run -d --name pulseplate-test -p 8000:8000 pulseplate:latest
+# Execute this curl command from your host machine, not inside the container:
 curl http://localhost:8000/health
 docker stop pulseplate-test && docker rm pulseplate-test
 

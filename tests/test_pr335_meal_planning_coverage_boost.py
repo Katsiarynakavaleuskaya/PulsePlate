@@ -116,8 +116,14 @@ def test_menu_engine_new_coercion_and_normalization_helpers() -> None:
 
 
 def test_menu_engine_new_total_cost_parses_string_price_estimates() -> None:
+    """Test that build_plate_day correctly parses price_est string to float."""
     from core.menu_engine_new import build_plate_day
     from core.recipe_db_new import Meal as RMeal
+
+    class MealWithPrice(RMeal):
+        """Meal subclass with price_est attribute for testing cost parsing."""
+
+        price_est: str = "0.0"
 
     class FakeFoodDB:
         def pick_booster_for(self, _mk: str, _diet_flags: list[str]) -> str | None:
@@ -128,7 +134,7 @@ def test_menu_engine_new_total_cost_parses_string_price_estimates() -> None:
             return object()
 
         def scale_recipe_to_kcal(self, _recipe: object, _kcal_goal: int, _lang: str, **_kw: Any):
-            meal = RMeal(
+            meal = MealWithPrice(
                 title="base",
                 title_translated="base",
                 grams={"x": 100.0},
@@ -136,7 +142,7 @@ def test_menu_engine_new_total_cost_parses_string_price_estimates() -> None:
                 macros={"protein_g": 10.0, "fat_g": 10.0, "carbs_g": 10.0, "fiber_g": 5.0},
                 micros={},
             )
-            meal.price_est = "2.5" if _kcal_goal == 350 else "bad"  # type: ignore[attr-defined]
+            meal.price_est = "2.5" if _kcal_goal == 350 else "bad"
             return meal
 
     day = build_plate_day(

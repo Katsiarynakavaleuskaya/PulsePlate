@@ -6,6 +6,8 @@ Test coverage: 97%+ target
 
 import pytest
 
+from typing import Any, Dict, List, Optional
+
 from core.meal_planner import (
     DailyMealPlan,
     MealPlan,
@@ -19,10 +21,10 @@ from core.meal_planner import (
 class MockRecipeDB:
     """Mock recipe database for testing."""
 
-    def __init__(self, recipes=None):
-        self.recipes = recipes or []
+    def __init__(self, recipes: Optional[List[Dict[str, Any]]] = None) -> None:
+        self.recipes: List[Dict[str, Any]] = recipes or []
 
-    def pick_base_recipe(self, diet_flags, meal_index):
+    def pick_base_recipe(self, diet_flags: List[str], meal_index: int) -> Optional[Dict[str, Any]]:
         """Legacy interface."""
         if self.recipes and meal_index < len(self.recipes):
             return self.recipes[meal_index]
@@ -32,7 +34,7 @@ class MockRecipeDB:
 class TestCreateMealPlan:
     """Test create_meal_plan function."""
 
-    def test_create_meal_plan_basic(self):
+    def test_create_meal_plan_basic(self) -> None:
         """Test basic meal plan creation."""
         meal = create_meal_plan("breakfast", 500)
 
@@ -40,7 +42,7 @@ class TestCreateMealPlan:
         assert meal.kcal_target == 500
         assert meal.recipe_name is not None
 
-    def test_create_meal_plan_fallback(self):
+    def test_create_meal_plan_fallback(self) -> None:
         """Test fallback meal creation when no recipe DB."""
         meal = create_meal_plan("lunch", 700)
 
@@ -51,7 +53,7 @@ class TestCreateMealPlan:
         assert "carbs_g" in meal.macros
         assert "fat_g" in meal.macros
 
-    def test_create_meal_plan_with_diet_flags(self):
+    def test_create_meal_plan_with_diet_flags(self) -> None:
         """Test meal creation with dietary restrictions affects macros."""
         vegan_meal = create_meal_plan("dinner", 600, diet_flags={"VEGAN"})
         keto_meal = create_meal_plan("dinner", 600, diet_flags={"KETO"})
@@ -62,7 +64,7 @@ class TestCreateMealPlan:
         keto_carbs_kcal = keto_meal.macros["carbs_g"] * 4
         assert keto_carbs_kcal / 600 < 0.15  # Should be well under 15%
 
-    def test_create_meal_plan_breakfast_macros(self):
+    def test_create_meal_plan_breakfast_macros(self) -> None:
         """Test breakfast has higher carb ratio."""
         meal = create_meal_plan("breakfast", 500)
 
@@ -70,7 +72,7 @@ class TestCreateMealPlan:
         carbs_ratio = meal.macros["carbs_g"] * 4 / 500
         assert carbs_ratio >= 0.45  # Around 50% ±5%
 
-    def test_create_meal_plan_snack_smaller(self):
+    def test_create_meal_plan_snack_smaller(self) -> None:
         """Test snack has appropriate macros."""
         meal = create_meal_plan("snack", 200)
 
@@ -78,7 +80,7 @@ class TestCreateMealPlan:
         assert meal.macros["protein_g"] > 0
         assert meal.macros["carbs_g"] > 0
 
-    def test_create_meal_plan_with_recipe_db(self):
+    def test_create_meal_plan_with_recipe_db(self) -> None:
         """Test meal creation with mock recipe database."""
         mock_recipe = {
             "name": "Oatmeal Bowl",
@@ -101,7 +103,7 @@ class TestCreateMealPlan:
 class TestCreateDailyMealPlan:
     """Test create_daily_meal_plan function."""
 
-    def test_create_daily_plan_basic(self):
+    def test_create_daily_plan_basic(self) -> None:
         """Test basic daily plan creation."""
         plan = create_daily_meal_plan(2000)
 
@@ -109,13 +111,13 @@ class TestCreateDailyMealPlan:
         assert plan.total_kcal == 2000
         assert len(plan.meals) == 4  # Default 4 meals
 
-    def test_create_daily_plan_3_meals(self):
+    def test_create_daily_plan_3_meals(self) -> None:
         """Test daily plan with 3 meals."""
         plan = create_daily_meal_plan(2000, num_meals=3)
 
         assert len(plan.meals) == 3
 
-    def test_create_daily_plan_meal_names(self):
+    def test_create_daily_plan_meal_names(self) -> None:
         """Test that all expected meals are present."""
         plan = create_daily_meal_plan(2000, num_meals=4)
 
@@ -125,7 +127,7 @@ class TestCreateDailyMealPlan:
         assert "dinner" in meal_names
         assert "snack" in meal_names
 
-    def test_create_daily_plan_calorie_distribution(self):
+    def test_create_daily_plan_calorie_distribution(self) -> None:
         """Test calories are distributed correctly."""
         plan = create_daily_meal_plan(2000)
 
@@ -133,7 +135,7 @@ class TestCreateDailyMealPlan:
         total_meal_kcal = sum(meal.kcal_target for meal in plan.meals)
         assert abs(total_meal_kcal - 2000) <= 5  # Allow small rounding
 
-    def test_create_daily_plan_macro_aggregation(self):
+    def test_create_daily_plan_macro_aggregation(self) -> None:
         """Test macros are aggregated correctly."""
         plan = create_daily_meal_plan(2000)
 
@@ -147,7 +149,7 @@ class TestCreateDailyMealPlan:
         assert plan.total_macros["carbs_g"] > 0
         assert plan.total_macros["fat_g"] > 0
 
-    def test_create_daily_plan_with_diet_flags(self):
+    def test_create_daily_plan_with_diet_flags(self) -> None:
         """Test daily plan respects diet flags and affects macros."""
         keto_plan = create_daily_meal_plan(2000, diet_flags={"KETO"})
         regular_plan = create_daily_meal_plan(2000)
@@ -156,7 +158,7 @@ class TestCreateDailyMealPlan:
         # KETO should have significantly fewer carbs than regular
         assert keto_plan.total_macros["carbs_g"] < regular_plan.total_macros["carbs_g"]
 
-    def test_create_daily_plan_with_recipe_db(self):
+    def test_create_daily_plan_with_recipe_db(self) -> None:
         """Test daily plan with recipe database."""
         mock_recipes = [
             {
@@ -181,7 +183,7 @@ class TestCreateDailyMealPlan:
 class TestCreateWeeklyMealPlan:
     """Test create_weekly_meal_plan function."""
 
-    def test_create_weekly_plan_basic(self):
+    def test_create_weekly_plan_basic(self) -> None:
         """Test basic weekly plan creation."""
         plan = create_weekly_meal_plan(2000)
 
@@ -189,14 +191,14 @@ class TestCreateWeeklyMealPlan:
         # Average will be close to 2000 (variation causes small differences)
         assert abs(plan.average_kcal - 2000) <= 20
 
-    def test_create_weekly_plan_day_numbers(self):
+    def test_create_weekly_plan_day_numbers(self) -> None:
         """Test days are numbered 1-7."""
         plan = create_weekly_meal_plan(2000)
 
         day_numbers = [day.day for day in plan.days]
         assert day_numbers == [1, 2, 3, 4, 5, 6, 7]
 
-    def test_create_weekly_plan_variation(self):
+    def test_create_weekly_plan_variation(self) -> None:
         """Test weekly plan has calorie variation."""
         plan = create_weekly_meal_plan(2000)
 
@@ -206,7 +208,7 @@ class TestCreateWeeklyMealPlan:
         # Not all days should be exactly 2000 (due to variation)
         assert len(set(kcal_targets)) > 1
 
-    def test_create_weekly_plan_average_correct(self):
+    def test_create_weekly_plan_average_correct(self) -> None:
         """Test average calories is correct."""
         plan = create_weekly_meal_plan(2000)
 
@@ -215,19 +217,19 @@ class TestCreateWeeklyMealPlan:
 
         assert abs(calculated_avg - plan.average_kcal) <= 1
 
-    def test_create_weekly_plan_shopping_list(self):
+    def test_create_weekly_plan_shopping_list(self) -> None:
         """Test shopping list is generated."""
         plan = create_weekly_meal_plan(2000)
 
         assert isinstance(plan.shopping_list, dict)
 
-    def test_create_weekly_plan_with_diet_flags(self):
+    def test_create_weekly_plan_with_diet_flags(self) -> None:
         """Test weekly plan with dietary restrictions."""
         plan = create_weekly_meal_plan(2000, diet_flags={"VEGAN"})
 
         assert len(plan.days) == 7
 
-    def test_create_weekly_plan_3_meals_per_day(self):
+    def test_create_weekly_plan_3_meals_per_day(self) -> None:
         """Test weekly plan with 3 meals per day."""
         plan = create_weekly_meal_plan(2000, num_meals=3)
 
@@ -235,11 +237,11 @@ class TestCreateWeeklyMealPlan:
         for day in plan.days:
             assert len(day.meals) == 3
 
-    def test_weekly_total_cost_aggregates_daily_costs(self):
+    def test_weekly_total_cost_aggregates_daily_costs(self) -> None:
         """Weekly total_cost should equal sum of daily total_cost values."""
 
         class CostRecipeDB:
-            def get_recipes_by_category(self, categories):
+            def get_recipes_by_category(self, categories: List[str]) -> List[Dict[str, Any]]:
                 return [
                     {
                         "name": "Any Meal",
@@ -265,7 +267,7 @@ class TestCreateWeeklyMealPlan:
 class TestMealPlanDataclass:
     """Test MealPlan dataclass."""
 
-    def test_meal_plan_creation(self):
+    def test_meal_plan_creation(self) -> None:
         """Test creating MealPlan object."""
         meal = MealPlan(name="breakfast", kcal_target=500)
 
@@ -275,7 +277,7 @@ class TestMealPlanDataclass:
         assert meal.ingredients == {}
         assert meal.macros == {}
 
-    def test_meal_plan_with_all_fields(self):
+    def test_meal_plan_with_all_fields(self) -> None:
         """Test MealPlan with all fields populated."""
         meal = MealPlan(
             name="lunch",
@@ -297,7 +299,7 @@ class TestMealPlanDataclass:
 class TestDailyMealPlanDataclass:
     """Test DailyMealPlan dataclass."""
 
-    def test_daily_plan_creation(self):
+    def test_daily_plan_creation(self) -> None:
         """Test creating DailyMealPlan object."""
         meals = [
             MealPlan(name="breakfast", kcal_target=500),
@@ -310,7 +312,7 @@ class TestDailyMealPlanDataclass:
         assert plan.total_kcal == 1200
         assert len(plan.meals) == 2
 
-    def test_daily_plan_with_all_fields(self):
+    def test_daily_plan_with_all_fields(self) -> None:
         """Test DailyMealPlan with all fields."""
         meals = [MealPlan(name="breakfast", kcal_target=500)]
 
@@ -333,7 +335,7 @@ class TestDailyMealPlanDataclass:
 class TestWeeklyMealPlanDataclass:
     """Test WeeklyMealPlan dataclass."""
 
-    def test_weekly_plan_creation(self):
+    def test_weekly_plan_creation(self) -> None:
         """Test creating WeeklyMealPlan object."""
         days = [DailyMealPlan(day=i, total_kcal=2000, meals=[]) for i in range(1, 8)]
 
@@ -342,7 +344,7 @@ class TestWeeklyMealPlanDataclass:
         assert len(plan.days) == 7
         assert plan.average_kcal == 2000
 
-    def test_weekly_plan_with_shopping_list(self):
+    def test_weekly_plan_with_shopping_list(self) -> None:
         """Test WeeklyMealPlan with shopping list."""
         days = [DailyMealPlan(day=1, total_kcal=2000, meals=[])]
 
@@ -361,32 +363,32 @@ class TestWeeklyMealPlanDataclass:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_create_meal_plan_zero_calories(self):
+    def test_create_meal_plan_zero_calories(self) -> None:
         """Test meal creation with zero calories."""
         meal = create_meal_plan("breakfast", 0)
 
         assert meal.kcal_target == 0
 
-    def test_create_daily_plan_very_low_calories(self):
+    def test_create_daily_plan_very_low_calories(self) -> None:
         """Test daily plan with very low calories."""
         plan = create_daily_meal_plan(800)
 
         assert plan.total_kcal == 800
         assert len(plan.meals) > 0
 
-    def test_create_daily_plan_very_high_calories(self):
+    def test_create_daily_plan_very_high_calories(self) -> None:
         """Test daily plan with very high calories."""
         plan = create_daily_meal_plan(5000)
 
         assert plan.total_kcal == 5000
 
-    def test_create_weekly_plan_empty_diet_flags(self):
+    def test_create_weekly_plan_empty_diet_flags(self) -> None:
         """Test weekly plan with empty diet flags."""
         plan = create_weekly_meal_plan(2000, diet_flags=set())
 
         assert len(plan.days) == 7
 
-    def test_meal_plan_none_recipe_db(self):
+    def test_meal_plan_none_recipe_db(self) -> None:
         """Test meal creation with None recipe_db."""
         meal = create_meal_plan("lunch", 700, recipe_db=None)
 
@@ -396,7 +398,7 @@ class TestEdgeCases:
 class TestShoppingListGeneration:
     """Test shopping list generation logic."""
 
-    def test_shopping_list_aggregates_ingredients(self):
+    def test_shopping_list_aggregates_ingredients(self) -> None:
         """Test shopping list combines ingredients from multiple days with real recipes."""
         from core.meal_planner import _generate_shopping_list, DailyMealPlan, MealPlan
 
@@ -429,7 +431,7 @@ class TestShoppingListGeneration:
         assert shopping_list["oats"] == 50
         assert shopping_list["berries"] == 100
 
-    def test_shopping_list_empty_for_no_ingredients(self):
+    def test_shopping_list_empty_for_no_ingredients(self) -> None:
         """Test shopping list is empty when meals have no ingredients."""
         from core.meal_planner import _generate_shopping_list, DailyMealPlan, MealPlan
 
@@ -451,7 +453,7 @@ class TestShoppingListGeneration:
 class TestRecipeSelection:
     """Test recipe selection logic."""
 
-    def test_recipe_selected_by_meal_type(self):
+    def test_recipe_selected_by_meal_type(self) -> None:
         """Test recipes are selected based on meal type."""
         breakfast_recipe = {
             "name": "Oatmeal",
@@ -465,7 +467,7 @@ class TestRecipeSelection:
 
         assert meal.recipe_name == "Oatmeal"
 
-    def test_recipe_respects_diet_flags(self):
+    def test_recipe_respects_diet_flags(self) -> None:
         """Test recipe selection respects dietary flags and creates appropriate fallback."""
         vegan_meal = create_meal_plan("lunch", 700, diet_flags={"VEGAN"})
         keto_meal = create_meal_plan("lunch", 700, diet_flags={"KETO"})
@@ -478,7 +480,7 @@ class TestRecipeSelection:
 class TestMacroDistribution:
     """Test macro distribution in fallback meals."""
 
-    def test_breakfast_higher_carbs(self):
+    def test_breakfast_higher_carbs(self) -> None:
         """Test breakfast fallback has higher carb percentage."""
         meal = create_meal_plan("breakfast", 500)
 
@@ -487,7 +489,7 @@ class TestMacroDistribution:
 
         assert carbs_pct >= 0.45  # Should be ~50% carbs
 
-    def test_dinner_balanced(self):
+    def test_dinner_balanced(self) -> None:
         """Test dinner fallback is balanced."""
         meal = create_meal_plan("dinner", 600)
 
@@ -504,7 +506,7 @@ class TestMacroDistribution:
         assert 0.35 <= carbs_pct <= 0.45
         assert 0.25 <= fat_pct <= 0.35
 
-    def test_snack_balanced(self):
+    def test_snack_balanced(self) -> None:
         """Test snack fallback has balanced macros."""
         meal = create_meal_plan("snack", 200)
 
@@ -513,7 +515,7 @@ class TestMacroDistribution:
         assert meal.macros["carbs_g"] > 15
         assert meal.macros["fat_g"] > 5
 
-    def test_keto_fallback_has_very_low_carbs(self):
+    def test_keto_fallback_has_very_low_carbs(self) -> None:
         """KETO fallback meals should be very low in carbs and high in fat."""
         meal = create_meal_plan("dinner", 600, diet_flags={"KETO"})
 
@@ -527,14 +529,14 @@ class TestMacroDistribution:
         assert carbs_pct <= 0.10 + 0.02  # allow small rounding slack
         assert fat_pct >= 0.65  # high fat emphasis
 
-    def test_low_carb_fallback_reduces_carbs_vs_default(self):
+    def test_low_carb_fallback_reduces_carbs_vs_default(self) -> None:
         """LOW_CARB fallback should have fewer carbs than default dinner."""
         default_meal = create_meal_plan("dinner", 600)
         low_carb_meal = create_meal_plan("dinner", 600, diet_flags={"LOW_CARB"})
 
         assert low_carb_meal.macros["carbs_g"] < default_meal.macros["carbs_g"]
 
-    def test_pick_recipe_with_list_db(self):
+    def test_pick_recipe_with_list_db(self) -> None:
         """Test _select_recipe_for_meal with recipe_db as a list (covers lines 147-150)."""
         from core.meal_planner import _select_recipe_for_meal
 
@@ -551,7 +553,7 @@ class TestMacroDistribution:
         assert recipe is not None
         assert recipe["name"] == "Vegan Salad"
 
-    def test_pick_recipe_with_dict_db(self):
+    def test_pick_recipe_with_dict_db(self) -> None:
         """Test _select_recipe_for_meal with recipe_db as a dict (covers lines 147-150)."""
         from core.meal_planner import _select_recipe_for_meal
 
@@ -566,7 +568,7 @@ class TestMacroDistribution:
         recipe = _select_recipe_for_meal("dinner", 350, {"VEGAN"}, recipe_dict)
         assert recipe is not None
 
-    def test_pick_recipe_no_compatible(self):
+    def test_pick_recipe_no_compatible(self) -> None:
         """Test _select_recipe_for_meal returns None when no compatible recipes (covers line 171)."""
         from core.meal_planner import _select_recipe_for_meal
 
@@ -575,7 +577,7 @@ class TestMacroDistribution:
         recipe = _select_recipe_for_meal("lunch", 400, {"VEGAN"}, recipe_list)
         assert recipe is None
 
-    def test_convert_recipe_to_dict_with_object(self):
+    def test_convert_recipe_to_dict_with_object(self) -> None:
         """Test _convert_recipe_to_dict with recipe object (covers lines 179-191)."""
         from core.meal_planner import _convert_recipe_to_dict
         from dataclasses import dataclass
@@ -600,7 +602,7 @@ class TestMacroDistribution:
         assert "macros" in result
         assert "ingredients" in result
 
-    def test_generate_shopping_list_aggregation(self):
+    def test_generate_shopping_list_aggregation(self) -> None:
         """Test _generate_shopping_list aggregates ingredients (covers lines 368-371)."""
         from core.meal_planner import _generate_shopping_list, DailyMealPlan, MealPlan
 
@@ -652,7 +654,7 @@ class TestMacroDistribution:
         assert shopping_list["lettuce"] == 100
         assert shopping_list["eggs"] == 2
 
-    def test_select_recipe_exception_handling(self):
+    def test_select_recipe_exception_handling(self) -> None:
         """Test _select_recipe_for_meal exception handling (covers lines 153-154)."""
         from core.meal_planner import _select_recipe_for_meal
 
@@ -664,7 +666,7 @@ class TestMacroDistribution:
         recipe = _select_recipe_for_meal("lunch", 500, {"VEGAN"}, BadRecipeDB())
         assert recipe is None  # Should catch exception and return None
 
-    def test_convert_recipe_missing_micros(self):
+    def test_convert_recipe_missing_micros(self) -> None:
         """Test _convert_recipe_to_dict with object WITH micros attr (covers line 187)."""
         from core.meal_planner import _convert_recipe_to_dict
         from dataclasses import dataclass

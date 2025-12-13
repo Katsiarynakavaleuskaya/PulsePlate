@@ -33,6 +33,9 @@ class DailyCalorieDistribution:
     """
     RU: Распределение калорий на день.
     EN: Daily calorie distribution.
+
+    Note: This dataclass is intentionally mutable to support lazy caching
+    via the _meal_lookup attribute for O(1) meal lookup performance.
     """
 
     total_kcal: int
@@ -42,6 +45,7 @@ class DailyCalorieDistribution:
         """Get calorie target for specific meal.
 
         Uses dict lookup for O(1) performance instead of linear search.
+        Lazy initialization: _meal_lookup cache is created on first access.
         """
         # Create lookup dict on first access (lazy initialization)
         if not hasattr(self, "_meal_lookup"):
@@ -109,7 +113,7 @@ def distribute_calories(
     if num_meals == 3 and "snack" in meal_splits:
         snack_pct = meal_splits.pop("snack")
         # Redistribute snack calories to dinner
-        meal_splits["dinner"] += snack_pct
+        meal_splits["dinner"] = meal_splits.get("dinner", 0.0) + snack_pct
 
     # Validate splits sum to 1.0
     total_pct = sum(meal_splits.values())
@@ -117,6 +121,11 @@ def distribute_calories(
         # Invalid split values (e.g., all zeros). Fall back to defaults.
         meal_splits = DEFAULT_MEAL_SPLITS.copy()
         total_pct = sum(meal_splits.values())
+        # Re-apply 3-meal adjustment after fallback
+        if num_meals == 3 and "snack" in meal_splits:
+            snack_pct = meal_splits.pop("snack")
+            meal_splits["dinner"] = meal_splits.get("dinner", 0.0) + snack_pct
+            total_pct = sum(meal_splits.values())
     if abs(total_pct - 1.0) > 0.01:
         # Normalize if needed
         meal_splits = {k: v / total_pct for k, v in meal_splits.items()}

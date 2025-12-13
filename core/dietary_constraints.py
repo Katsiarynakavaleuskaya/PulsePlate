@@ -187,6 +187,7 @@ def normalize_diet_flags_detailed(diet_flags: Set[str]) -> NormalizedDietFlags:
             # Prefer more specific/restrictive diet
             # KETO > VEGAN > PALEO > VEG > MEDITERRANEAN
             priority_order = ["KETO", "VEGAN", "PALEO", "VEG", "MEDITERRANEAN"]
+            resolved = False
             for diet in priority_order:
                 if diet in incompatible_pair and diet in normalized:
                     # Keep this one (chosen_diet), remove ONLY the other conflicting flags
@@ -194,7 +195,19 @@ def normalize_diet_flags_detailed(diet_flags: Set[str]) -> NormalizedDietFlags:
                     normalized -= removed_flags
                     overridden_flags.update(removed_flags)
                     conflicts_resolved.append((diet, removed_flags))
+                    resolved = True
                     break
+
+            # Fallback: if no priority diet found, remove one arbitrarily
+            # This handles future incompatible combinations not in priority_order
+            if not resolved:
+                # Remove all but the first diet alphabetically (deterministic)
+                sorted_diets = sorted(incompatible_pair)
+                kept_diet = sorted_diets[0]
+                removed_flags = incompatible_pair - {kept_diet}
+                normalized -= removed_flags
+                overridden_flags.update(removed_flags)
+                conflicts_resolved.append((kept_diet, removed_flags))
 
     # Add implications
     for base_diet, implied_flags in DIET_IMPLICATIONS.items():
@@ -348,12 +361,13 @@ def adjust_macros_for_diet(
         carb_ceiling = low_carb_cap
 
     # KETO: max percentage calories from carbs (very strict)
+    # Note: KETO implies LOW_CARB, so this intentionally overwrites the LOW_CARB ceiling
     if "KETO" in normalized:
         keto_carb_cap = max(KETO_CARB_FLOOR_G, (kcal * KETO_MAX_CARB_PERCENT) / 4)
         if carbs > keto_carb_cap:
             carbs = keto_carb_cap
             changed = True
-        carb_ceiling = keto_carb_cap
+        carb_ceiling = keto_carb_cap  # Overwrite LOW_CARB ceiling with stricter KETO limit
         # Increase fat to compensate
         protein_kcal = protein * 4
         carbs_kcal = carbs * 4
