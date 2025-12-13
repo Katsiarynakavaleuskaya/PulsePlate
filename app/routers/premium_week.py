@@ -27,12 +27,9 @@ from core.weekly_plan_new import build_week
 
 router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 
-# Log deprecation warning on module import
+# Deprecation warning will be logged on first use, not at import time
+# to avoid spamming logs on every startup
 logger = logging.getLogger(__name__)
-logger.warning(
-    "app.routers.premium_week is deprecated. "
-    "Use app.routers.pro for new PRO tier endpoints (/api/v1/pro/*)."
-)
 
 
 class TargetsIn(BaseModel):
@@ -175,6 +172,11 @@ async def generate_week_plan(req: WeekPlanRequest):
 
     This endpoint is deprecated. Use /api/v1/pro/meal/weekly instead.
     """
+    # Log deprecation warning on first use (not at import time)
+    logger.warning(
+        "DEPRECATED endpoint /api/v1/premium/plan/week-flexible was called. "
+        "Use /api/v1/pro/meal/weekly instead."
+    )
     # 0) Загрузка БД (можно держать как синглтоны)
     fooddb = FoodDB("data/food_db_new.csv")
     recipedb = RecipeDB("data/recipes_new.csv", fooddb)

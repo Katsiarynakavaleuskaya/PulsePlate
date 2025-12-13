@@ -7,8 +7,14 @@ echo "🔧 Настройка Qoder..."
 
 # 1. Остановить все процессы
 echo "1️⃣ Останавливаем процессы Qoder..."
-pkill -9 -f Qoder 2>/dev/null || true
+# Сначала пытаемся корректно завершить процессы Qoder (SIGTERM)
+# Используем шаблон [Q]oder, чтобы не зацепить саму команду pkill
+pkill -f "[Q]oder" 2>/dev/null || true
 sleep 2
+
+# Затем принудительно завершаем оставшиеся процессы (SIGKILL), если они всё ещё живы
+pkill -9 -f "[Q]oder" 2>/dev/null || true
+sleep 1
 
 # 2. Удалить старое приложение (если нужно переустановить)
 if [ "$1" == "--reinstall" ]; then
@@ -45,6 +51,7 @@ spctl --add --label "Qoder" /Applications/Qoder.app 2>/dev/null || true
 
 # 7. Очистить кэш AppTranslocation
 echo "6️⃣ Очищаем кэш AppTranslocation..."
+# Note: May require sudo for full cleanup
 find /var/folders -name "AppTranslocation" -type d -exec rm -rf {} + 2>/dev/null || true
 echo "✅ Кэш очищен"
 

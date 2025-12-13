@@ -76,9 +76,9 @@ class WeekPlanRequest(BaseModel):
     targets: Optional[TargetsIn] = None
     # Mode B: Quick profile (fallback)
     sex: Optional[Literal["female", "male"]] = None
-    age: Optional[int] = Field(None, gt=10, lt=90)
-    height_cm: Optional[int] = Field(None, gt=100, lt=220)
-    weight_kg: Optional[int] = Field(None, gt=30, lt=300)
+    age: Optional[int] = Field(None, ge=10, le=100)
+    height_cm: Optional[float] = Field(None, gt=100, lt=250)
+    weight_kg: Optional[float] = Field(None, gt=30, lt=300)
     activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = (
         "moderate"
     )
@@ -193,12 +193,9 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
         targets = req.targets.model_dump()
     else:
         # Temporary calculation via bmi_core (BMR/TDEE + macros + micro table)
+        # activity and goal have defaults, so only check required fields
         if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
             raise HTTPException(status_code=400, detail="Missing user profile data")
-
-        # Ensure all required fields are present
-        if not all([req.sex, req.age, req.height_cm, req.weight_kg, req.activity, req.goal]):
-            raise HTTPException(status_code=400, detail="All profile fields are required")
 
         targets = estimate_targets_minimal(
             sex=req.sex,  # type: ignore

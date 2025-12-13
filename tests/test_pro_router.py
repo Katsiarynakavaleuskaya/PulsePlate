@@ -54,8 +54,9 @@ class TestPRORouter:
                 "goal": "maintain",
             },
         )
-        # Should require API key (401) or allow in dev mode
-        assert response.status_code in [200, 401, 403, 422, 500, 503]
+        # Should require API key (401) in strict mode, or allow in dev mode (200)
+        # In dev mode with ALLOW_ANONYMOUS_API_KEYS=true, may return 200
+        assert response.status_code in [200, 401, 403]
 
     def test_pro_meal_weekly_with_pro_key(self):
         """Test PRO meal weekly endpoint with PRO tier API key."""
@@ -71,8 +72,9 @@ class TestPRORouter:
             },
             headers={"X-API-Key": "test_pro_key"},
         )
-        # Should work with PRO key or return validation error
-        assert response.status_code in [200, 400, 422, 500, 503]
+        # Should succeed (200) or return validation error (400/422)
+        # Exclude 500/503 to catch server errors
+        assert response.status_code in [200, 400, 422]
 
     def test_pro_meal_weekly_with_vip_key(self):
         """Test PRO meal weekly endpoint with VIP tier API key (should work)."""
@@ -88,8 +90,8 @@ class TestPRORouter:
             },
             headers={"X-API-Key": "test_vip_key"},
         )
-        # VIP key should grant PRO access
-        assert response.status_code in [200, 400, 422, 500, 503]
+        # VIP key should grant PRO access - should succeed (200) or validation error (400/422)
+        assert response.status_code in [200, 400, 422]
 
     def test_pro_meal_weekly_with_targets(self):
         """Test PRO meal weekly endpoint with ready targets."""
@@ -107,8 +109,8 @@ class TestPRORouter:
             },
             headers={"X-API-Key": "test_pro_key"},
         )
-        # Should work with targets or return validation error
-        assert response.status_code in [200, 400, 422, 500, 503]
+        # Should succeed (200) or return validation error (400/422)
+        assert response.status_code in [200, 400, 422]
 
     def test_pro_meal_weekly_validation_error(self):
         """Test PRO meal weekly endpoint with invalid data."""
@@ -185,6 +187,64 @@ class TestPRORouter:
             },
             headers={"X-API-Key": "test_pro_key"},
         )
+        assert response.status_code in [400, 422]
+
+    def test_pro_meal_weekly_invalid_nan_macros_and_micro(self):
+        """Test PRO meal weekly endpoint with NaN macro and micro values.
+
+        Note: NaN cannot be sent via JSON, so we test the validator directly.
+        """
+        from app.routers.pro import TargetsIn
+        from pydantic import ValidationError
+
+        # Test that Pydantic validator rejects NaN values
+        with pytest.raises(ValidationError):
+            TargetsIn(
+                kcal=2000,
+                macros={"protein_g": float("nan")},
+                micro={"vitamin_c_mg": float("nan")},
+                water_ml=2000,
+            )
+
+    def test_pro_meal_weekly_invalid_inf_macros_and_micro(self):
+        """Test PRO meal weekly endpoint with infinite macro and micro values.
+
+        Note: Infinity cannot be sent via JSON, so we test the validator directly.
+        """
+        from app.routers.pro import TargetsIn
+        from pydantic import ValidationError
+
+        # Test that Pydantic validator rejects infinite values
+        with pytest.raises(ValidationError):
+            TargetsIn(
+                kcal=2000,
+                macros={"protein_g": float("inf")},
+                micro={"vitamin_c_mg": float("inf")},
+                water_ml=2000,
+            )
+
+    def test_pro_meal_weekly_invalid_non_numeric_macros_and_micro(self):
+        """Test PRO meal weekly endpoint with non-numeric macro and micro values."""
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "targets": {
+                    "kcal": 2000,
+                    # Invalid: string and boolean values instead of numbers
+                    "macros": {
+                        "protein_g": "a lot",
+                        "fat_g": True,
+                    },
+                    "micro": {
+                        "vitamin_c_mg": "high",
+                        "iron_mg": False,
+                    },
+                    "water_ml": 2000,
+                },
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        # Should return validation error due to non-numeric macro/micro entries
         assert response.status_code in [400, 422]
 
     def test_backward_compatibility_premium_endpoint(self):
@@ -295,8 +355,8 @@ class TestPRORouterAPITierValidation:
             },
             headers={"X-API-Key": "test_pro_key"},
         )
-        # Should accept PRO key (may still fail on validation or service errors)
-        assert response.status_code in [200, 400, 422, 500, 503]
+        # Should accept PRO key - succeed (200) or validation error (400/422)
+        assert response.status_code in [200, 400, 422]
 
     def test_pro_endpoint_accepts_vip_tier(self):
         """Test that PRO endpoint accepts VIP tier key (VIP includes PRO)."""
@@ -312,5 +372,5 @@ class TestPRORouterAPITierValidation:
             },
             headers={"X-API-Key": "test_vip_key"},
         )
-        # Should accept VIP key (VIP tier includes PRO access)
-        assert response.status_code in [200, 400, 422, 500, 503]
+        # Should accept VIP key (VIP tier includes PRO access) - succeed (200) or validation error (400/422)
+        assert response.status_code in [200, 400, 422]
