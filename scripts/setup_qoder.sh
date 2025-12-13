@@ -67,7 +67,7 @@ else
         echo "   1. Переустановите Qoder из официального источника"
         echo "   2. Или разрешите вручную:"
         echo "      System Settings → Privacy & Security → Allow Qoder"
-        echo "   3. Или запустите: sudo spctl --master-disable"
+        echo "   3. Или в System Settings → Privacy & Security → Security → Allow apps from: App Store and identified developers"
     else
         echo "✅ Qoder запущен"
     fi

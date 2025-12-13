@@ -124,7 +124,8 @@ class TestPRORouter:
         assert response.status_code in [400, 422]
 
     def test_pro_meal_weekly_invalid_macros(self):
-        """Test PRO meal weekly endpoint with invalid macros."""
+        """Test PRO meal weekly endpoint with invalid macros (negative, non-numeric)."""
+        # Test 1: Negative value
         response = client.post(
             "/api/v1/pro/meal/weekly",
             json={
@@ -137,28 +138,96 @@ class TestPRORouter:
             },
             headers={"X-API-Key": "test_pro_key"},
         )
-        # Should return validation error
         assert response.status_code in [400, 422]
 
-    def test_backward_compatibility_premium_endpoint(self):
-        """Test that deprecated premium endpoint still works."""
+        # Test 2: Non-numeric value (string)
         response = client.post(
-            "/api/v1/premium/plan/week-flexible",
+            "/api/v1/pro/meal/weekly",
             json={
-                "sex": "female",
-                "age": 25,
-                "height_cm": 165,
-                "weight_kg": 60,
-                "activity": "moderate",
-                "goal": "maintain",
+                "targets": {
+                    "kcal": 2000,
+                    "macros": {"protein_g": "invalid"},  # Invalid: string
+                    "micro": {},
+                    "water_ml": 2000,
+                },
             },
             headers={"X-API-Key": "test_pro_key"},
         )
-        # Deprecated endpoint should still work
-        assert response.status_code in [200, 400, 422, 500, 503]
+        assert response.status_code in [400, 422]
+
+    def test_pro_meal_weekly_invalid_micro(self):
+        """Test PRO meal weekly endpoint with invalid micro values."""
+        # Test 1: Negative micro value
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "targets": {
+                    "kcal": 2000,
+                    "macros": {"protein_g": 100},
+                    "micro": {"vitamin_c_mg": -50},  # Invalid: negative
+                    "water_ml": 2000,
+                },
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+        # Test 2: Non-numeric micro value
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "targets": {
+                    "kcal": 2000,
+                    "macros": {"protein_g": 100},
+                    "micro": {"vitamin_c_mg": "invalid"},  # Invalid: string
+                    "water_ml": 2000,
+                },
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+    def test_backward_compatibility_premium_endpoint(self):
+        """Test that deprecated premium endpoint behaves consistently with PRO endpoint."""
+        payload = {
+            "sex": "female",
+            "age": 25,
+            "height_cm": 165,
+            "weight_kg": 60,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        premium_response = client.post(
+            "/api/v1/premium/plan/week-flexible",
+            json=payload,
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        pro_response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json=payload,
+            headers={"X-API-Key": "test_pro_key"},
+        )
+
+        # Backward compatibility: both endpoints should behave consistently
+        assert premium_response.status_code == pro_response.status_code
+
+        # If both succeed, their response structure should match
+        if premium_response.status_code == 200:
+            premium_data = premium_response.json()
+            pro_data = pro_response.json()
+
+            # Verify both have the same required fields
+            assert set(premium_data.keys()) == set(pro_data.keys())
+
+            # Verify field types are consistent
+            assert isinstance(premium_data["daily_menus"], list)
+            assert isinstance(pro_data["daily_menus"], list)
+            assert isinstance(premium_data["total_cost"], (int, float))
+            assert isinstance(pro_data["total_cost"], (int, float))
 
     def test_pro_endpoint_structure(self):
-        """Test that PRO endpoint returns correct structure."""
+        """Test that PRO endpoint returns correct structure for successful responses."""
         response = client.post(
             "/api/v1/pro/meal/weekly",
             json={
@@ -174,21 +243,19 @@ class TestPRORouter:
 
         if response.status_code == 200:
             data = response.json()
-            # Check response structure
-            assert "daily_menus" in data or "status" in data
-            # Should have weekly_coverage, shopping_list, total_cost, adherence_score
-            # or error message
-            assert any(
-                key in data
-                for key in [
-                    "weekly_coverage",
-                    "shopping_list",
-                    "total_cost",
-                    "adherence_score",
-                    "status",
-                    "message",
-                ]
-            )
+            # Validate all required fields of WeekPlanResponse are present
+            assert "daily_menus" in data, "daily_menus field is required"
+            assert "weekly_coverage" in data, "weekly_coverage field is required"
+            assert "shopping_list" in data, "shopping_list field is required"
+            assert "total_cost" in data, "total_cost field is required"
+            assert "adherence_score" in data, "adherence_score field is required"
+
+            # Validate types
+            assert isinstance(data["daily_menus"], list)
+            assert isinstance(data["weekly_coverage"], dict)
+            assert isinstance(data["shopping_list"], dict)
+            assert isinstance(data["total_cost"], (int, float))
+            assert isinstance(data["adherence_score"], (int, float))
 
 
 class TestPRORouterAPITierValidation:

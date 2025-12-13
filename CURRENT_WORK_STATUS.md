@@ -52,8 +52,8 @@
 #### ✅ Уже сделано (PR #336)
 
 - [x] Создан API tier middleware (`app/middleware/api_tiers.py`) ✅
-- [x] Добавлены deprecation warnings к legacy endpoints ✅
-- [x] Добавлена API key validation к premium endpoints ✅
+- [x] Добавлены deprecation warnings для legacy endpoints ✅
+- [x] Добавлена API key validation для premium endpoints ✅
 - [x] Удален duplicate endpoint `/vip/recipe/synthesize` ✅
 - [x] Созданы comprehensive tests для middleware (22 теста) ✅
 
