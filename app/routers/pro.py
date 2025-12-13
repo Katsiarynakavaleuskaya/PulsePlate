@@ -12,13 +12,13 @@ Endpoints:
 - /api/v1/pro/nutrition/targets - WHO-based nutrition goals
 """
 
-import math
 from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
+from app.models.nutrition import TargetsIn
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
@@ -30,38 +30,25 @@ from core.weekly_plan_new import build_week
 router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
 
 
-class TargetsIn(BaseModel):
-    """Nutrition targets input model."""
+# Cache database instances for performance
+_food_db_cache: Optional[FoodDB] = None
+_recipe_db_cache: Optional[RecipeDB] = None
 
-    kcal: int = Field(..., gt=500, lt=6000)
-    macros: Dict[str, float]
-    micro: Dict[str, float]
-    water_ml: int = Field(0, ge=0)
-    activity_week: Optional[Dict[str, int]] = None
 
-    @field_validator("macros")
-    @classmethod
-    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
-        """Validate macros are finite numbers >= 0."""
-        for key, val in v.items():
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
-                raise ValueError(f"macros[{key}] must be a finite number >= 0")
+def get_food_db() -> FoodDB:
+    """Get cached FoodDB instance."""
+    global _food_db_cache
+    if _food_db_cache is None:
+        _food_db_cache = FoodDB("data/food_db_new.csv")
+    return _food_db_cache
 
-            if not math.isfinite(val) or val < 0:
-                raise ValueError(f"macros[{key}] must be a finite number >= 0")
-        return v
 
-    @field_validator("micro")
-    @classmethod
-    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
-        """Validate micros are finite numbers >= 0."""
-        for key, val in v.items():
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
-                raise ValueError(f"micro[{key}] must be a finite number >= 0")
-
-            if not math.isfinite(val) or val < 0:
-                raise ValueError(f"micro[{key}] must be a finite number >= 0")
-        return v
+def get_recipe_db() -> RecipeDB:
+    """Get cached RecipeDB instance."""
+    global _recipe_db_cache
+    if _recipe_db_cache is None:
+        _recipe_db_cache = RecipeDB("data/recipes_new.csv", get_food_db())
+    return _recipe_db_cache
 
 
 class WeekPlanRequest(BaseModel):
@@ -184,9 +171,9 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     Raises:
         HTTPException: 400 if profile data is missing or invalid
     """
-    # Load databases (can be kept as singletons)
-    fooddb = FoodDB("data/food_db_new.csv")
-    recipedb = RecipeDB("data/recipes_new.csv", fooddb)
+    # Get cached database instances
+    fooddb = get_food_db()
+    recipedb = get_recipe_db()
 
     # Get targets
     if req.targets:

@@ -243,7 +243,7 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 
 **✅ IMPLEMENTED**: New PRO router at `/api/v1/pro/*`
 
-```
+```plaintext
 POST /api/v1/pro/meal/weekly     - Weekly meal plan (macros only) ✅
 GET  /api/v1/pro/bmi/advanced    - BMI Pro with WHR, WHTR, FFMI (planned)
 GET  /api/v1/pro/meal/daily      - Daily meal plan (planned)

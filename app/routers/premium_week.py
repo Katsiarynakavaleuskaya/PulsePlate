@@ -10,13 +10,13 @@ Please migrate to /api/v1/pro/* endpoints.
 """
 
 import logging
-import math
 from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
+from app.models.nutrition import TargetsIn
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
@@ -31,41 +31,25 @@ router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 # to avoid spamming logs on every startup
 logger = logging.getLogger(__name__)
 
+# Cache database instances for performance (shared with pro.py pattern)
+_premium_food_db_cache: Optional[FoodDB] = None
+_premium_recipe_db_cache: Optional[RecipeDB] = None
 
-class TargetsIn(BaseModel):
-    kcal: int = Field(..., gt=500, lt=6000)
-    macros: Dict[str, float]
-    micro: Dict[str, float]
-    water_ml: int = Field(0, ge=0)
-    activity_week: Optional[Dict[str, int]] = None
 
-    @field_validator("macros")
-    @classmethod
-    def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
-        # Ensure all values are finite numbers >= 0
-        for key, val in v.items():
-            # Check if value is a numeric type (int or float)
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
-                raise ValueError(f"macros[{key}] must be a finite number >= 0")
+def _get_food_db() -> FoodDB:
+    """Get cached FoodDB instance for premium router."""
+    global _premium_food_db_cache
+    if _premium_food_db_cache is None:
+        _premium_food_db_cache = FoodDB("data/food_db_new.csv")
+    return _premium_food_db_cache
 
-            # Check if value is finite (not NaN or Infinity) and non-negative
-            if not math.isfinite(val) or val < 0:
-                raise ValueError(f"macros[{key}] must be a finite number >= 0")
-        return v
 
-    @field_validator("micro")
-    @classmethod
-    def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
-        # Ensure all values are finite numbers >= 0
-        for key, val in v.items():
-            # Check if value is a numeric type (int or float)
-            if not isinstance(val, (int, float)) or isinstance(val, bool):
-                raise ValueError(f"micro[{key}] must be a finite number >= 0")
-
-            # Check if value is finite (not NaN or Infinity) and non-negative
-            if not math.isfinite(val) or val < 0:
-                raise ValueError(f"micro[{key}] must be a finite number >= 0")
-        return v
+def _get_recipe_db() -> RecipeDB:
+    """Get cached RecipeDB instance for premium router."""
+    global _premium_recipe_db_cache
+    if _premium_recipe_db_cache is None:
+        _premium_recipe_db_cache = RecipeDB("data/recipes_new.csv", _get_food_db())
+    return _premium_recipe_db_cache
 
 
 class WeekPlanRequest(BaseModel):
@@ -177,21 +161,18 @@ async def generate_week_plan(req: WeekPlanRequest):
         "DEPRECATED endpoint /api/v1/premium/plan/week-flexible was called. "
         "Use /api/v1/pro/meal/weekly instead."
     )
-    # 0) Загрузка БД (можно держать как синглтоны)
-    fooddb = FoodDB("data/food_db_new.csv")
-    recipedb = RecipeDB("data/recipes_new.csv", fooddb)
+    # Get cached database instances
+    fooddb = _get_food_db()
+    recipedb = _get_recipe_db()
 
-    # 1) Получить targets
+    # Get targets
     if req.targets:
         targets = req.targets.model_dump()
     else:
-        # временный расчет через твой bmi_core (BMR/TDEE + макросы + микро-таблица)
+        # Temporary calculation via bmi_core (BMR/TDEE + macros + micro table)
+        # activity and goal have defaults, so only check required fields
         if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
             raise HTTPException(status_code=400, detail="Missing user profile data")
-
-        # Ensure all required fields are present
-        if not all([req.sex, req.age, req.height_cm, req.weight_kg, req.activity, req.goal]):
-            raise HTTPException(status_code=400, detail="All profile fields are required")
 
         targets = estimate_targets_minimal(
             sex=req.sex,  # type: ignore

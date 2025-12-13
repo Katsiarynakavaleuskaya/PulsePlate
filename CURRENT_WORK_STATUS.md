@@ -61,7 +61,7 @@
 
 **Issue #1: Дублирование Meal Planning Endpoints**
 
-```
+```plaintext
 1. /api/v1/premium/plan/week-flexible   (premium_week.py) - ✅ Теперь с API KEY
 2. /api/v1/vip/menu/weekly/plan         (vip.py) - ✅ STRICT API KEY
 3. /api/v1/vip/weekly-plan              (vip.py) - ⚠️ DEPRECATED, но еще существует
@@ -76,7 +76,7 @@
 
 **Текущая структура**:
 
-```
+```plaintext
 /api/v1/bmi/*        (FREE)
 /api/v1/foods/*      (FREE)
 /api/v1/recipes/*    (FREE)
@@ -87,7 +87,7 @@
 
 **Предложенная структура для iOS** (из ENDPOINT_AUDIT):
 
-```
+```plaintext
 /api/v1/pro/bmi/advanced    - BMI Pro с WHR, WHTR, FFMI
 /api/v1/pro/meal/weekly     - Weekly meal plan (macros only)
 /api/v1/pro/meal/daily      - Daily meal plan
