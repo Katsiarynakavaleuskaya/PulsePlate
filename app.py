@@ -745,7 +745,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 # OpenAPI/Swagger metadata for API documentation
-tags_metadata = [
+tags_metadata: list[dict[str, str]] = [
     {
         "name": "health",
         "description": "Health check and system status endpoints",
@@ -784,38 +784,49 @@ tags_metadata = [
     },
 ]
 
+# Build API description with environment-specific content
+_app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
+_is_dev_env = _app_env in {"", "local", "dev", "development", "test", "testing"}
+
+_api_description = """
+## PulsePlate - Nutrition & Meal Planning API
+
+**Mobile-first API** for iOS and web applications with tiered subscription access.
+
+### Subscription Tiers
+
+- **FREE**: BMI calculations, food/recipe search, user management
+- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking
+- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists
+
+### Authentication
+
+Premium endpoints require API key in `X-API-Key` header:
+- PRO tier: Use API key with PRO access level
+- VIP tier: Use API key with VIP access level
+"""
+
+if _is_dev_env:
+    _api_description += """
+### Test API Keys (Development Only)
+
+- PRO: `test_pro_key`
+- VIP: `test_vip_key`
+
+**Note**: Test keys only work in development/test environments.
+"""
+
+_api_description += """
+### Documentation
+
+- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`
+- iOS Integration: `docs/IOS_API_INTEGRATION.md`
+"""
+
 app = FastAPI(
     title="PulsePlate API",
     version="1.0.0",
-    description="""
-    ## PulsePlate - Nutrition & Meal Planning API
-
-    **Mobile-first API** for iOS and web applications with tiered subscription access.
-
-    ### Subscription Tiers
-
-    - **FREE**: BMI calculations, food/recipe search, user management
-    - **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking
-    - **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists
-
-    ### Authentication
-
-    Premium endpoints require API key in `X-API-Key` header:
-    - PRO tier: Use API key with PRO access level
-    - VIP tier: Use API key with VIP access level
-
-    ### Test API Keys (Development Only)
-
-    - PRO: `test_pro_key`
-    - VIP: `test_vip_key`
-
-    **Note**: Test keys only work in development/test environments.
-
-    ### Documentation
-
-    - Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`
-    - iOS Integration: `docs/IOS_API_INTEGRATION.md`
-    """,
+    description=_api_description,
     contact={
         "name": "PulsePlate API Support",
         "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate",

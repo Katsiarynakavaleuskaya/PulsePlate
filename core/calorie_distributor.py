@@ -43,7 +43,7 @@ class DailyCalorieDistribution:
 
     total_kcal: int
     meals: List[MealCalories]
-    _meal_lookup: Optional[Dict[str, int]] = field(
+    _meal_lookup: Optional[Dict[MealName, int]] = field(
         default=None, init=False, repr=False, compare=False
     )
 
