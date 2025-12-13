@@ -290,10 +290,13 @@ class APIKeyManager {
     static let shared = APIKeyManager()
 
     func storeAPIKey(_ key: String, for tier: SubscriptionTier) {
+        // Safe conversion: Data(key.utf8) is non-failable
+        let keyData = Data(key.utf8)
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "pulseplate_api_key_\(tier.rawValue)",
-            kSecValueData as String: key.data(using: .utf8)!,
+            kSecValueData as String: keyData,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
 
@@ -470,19 +473,32 @@ Response:
 - [ ] Add `X-API-Key` header to PRO/VIP requests
 - [ ] Implement proper error handling (401 vs 403)
 - [ ] Add tier detection logic
-- [ ] Store API keys securely (Keychain on iOS)
-- [ ] Test with `test_pro_key` and `test_vip_key` in dev
+- [ ] Store API keys securely (Keychain on iOS with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
+- [ ] Test with test API keys from Config.plist in dev (never hardcode)
 - [ ] Implement IAP → API key flow
 - [ ] Add retry logic for 429/503 errors
 - [ ] Update Swagger/OpenAPI client if using code generation
+- [ ] **Implement offline resilience**:
+  - [ ] Add response caching (URLCache, NSCache, or custom persistence)
+  - [ ] Implement stale-while-revalidate or cache-first strategies
+  - [ ] Design offline UI states (loading, cached, no-connectivity)
+  - [ ] Add automated tests for offline scenarios
+  - [ ] Test manual offline mode (airplane mode, network disconnection)
+  - [ ] Ensure graceful sync when connectivity returns
 
 ### For New Mobile Apps
 
 - [ ] Review tier structure and choose appropriate endpoints
-- [ ] Use test API keys for development
+- [ ] Use test API keys from Config.plist for development (add Config.plist to .gitignore)
 - [ ] Implement subscription manager
 - [ ] Add proper analytics for tier usage
-- [ ] Test offline mode (cache responses)
+- [ ] **Implement offline resilience**:
+  - [ ] Design cache strategy (TTL, eviction policies, size limits)
+  - [ ] Implement local persistence for critical data
+  - [ ] Test offline mode thoroughly (cache behavior, UI states)
+  - [ ] Validate stale-while-revalidate patterns
+  - [ ] Add offline-first sync logic for write operations
+  - [ ] Test graceful degradation and recovery
 - [ ] Implement graceful degradation (PRO → FREE fallback)
 
 ---

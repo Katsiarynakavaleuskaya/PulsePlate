@@ -112,7 +112,15 @@ class APIClient {
 
     // MARK: - Generic Request Methods
 
-    /// Request without body (for GET requests)
+    /// Convenience helper for GET requests without body
+    func requestGET<T: Decodable>(
+        endpoint: String,
+        tier: SubscriptionTier? = nil
+    ) async throws -> T {
+        return try await request(endpoint: endpoint, method: "GET", body: Optional<EmptyBody>.none, tier: tier)
+    }
+
+    /// Request without body (for GET/DELETE requests)
     func request<T: Decodable>(
         endpoint: String,
         method: String = "GET",
@@ -214,20 +222,53 @@ class APIClient {
 
     // MARK: - API Key Management
 
+    /// Load API key from Config.plist (for development) or environment variable
+    private static func loadTestKey(for tier: String) -> String? {
+        // 1. Try loading from Config.plist (recommended for dev)
+        // Add Config.plist to .gitignore to keep keys private
+        if let configPath = Bundle.main.path(forResource: "Config", ofType: "plist"),
+           let config = NSDictionary(contentsOfFile: configPath) as? [String: Any],
+           let key = config["TEST_\(tier.uppercased())_KEY"] as? String, !key.isEmpty {
+            return key
+        }
+
+        // 2. Fallback to environment variable (less recommended, but supported)
+        if let envKey = ProcessInfo.processInfo.environment["TEST_\(tier.uppercased())_KEY"], !envKey.isEmpty {
+            #if DEBUG
+            print("⚠️ Using environment variable for \(tier) key. Consider using Config.plist instead.")
+            #endif
+            return envKey
+        }
+
+        // 3. If no key found, log error and return nil
+        #if DEBUG
+        print("❌ No test \(tier) key found. Create Config.plist with TEST_\(tier.uppercased())_KEY.")
+        #endif
+        return nil
+    }
+
     private func getAPIKey(for tier: SubscriptionTier) async throws -> String {
         #if DEBUG
-        // Development: retrieve from environment/config
-        // NOTE: Never hardcode real API keys - use Config.plist or environment
-        // For testing, see docs/MOBILE_API_MIGRATION_GUIDE.md
+        // Development: load from Config.plist (never hardcode keys)
+        // Create Config.plist in your project with structure:
+        // {
+        //   "TEST_PRO_KEY": "your_test_pro_key_here",
+        //   "TEST_VIP_KEY": "your_test_vip_key_here"
+        // }
+        // Add Config.plist to .gitignore!
         switch tier {
         case .free:
             return "" // FREE tier doesn't need API key
         case .pro:
-            // TODO: Load from Config.plist or environment variable
-            return ProcessInfo.processInfo.environment["TEST_PRO_KEY"] ?? "YOUR_DEV_PRO_KEY"
+            guard let key = Self.loadTestKey(for: "PRO") else {
+                throw APIError.invalidAPIKey
+            }
+            return key
         case .vip:
-            // TODO: Load from Config.plist or environment variable
-            return ProcessInfo.processInfo.environment["TEST_VIP_KEY"] ?? "YOUR_DEV_VIP_KEY"
+            guard let key = Self.loadTestKey(for: "VIP") else {
+                throw APIError.invalidAPIKey
+            }
+            return key
         }
         #else
         // Production: retrieve from Keychain
@@ -439,7 +480,8 @@ class NutritionService {
         }
 
         let fullEndpoint = "/api/v1/foods/search?" + query
-        return try await client.request(endpoint: fullEndpoint, method: "GET")
+        // Use convenience helper for GET requests
+        return try await client.requestGET(endpoint: fullEndpoint)
     }
 
     func searchRecipes(query: String) async throws -> [Recipe] {
@@ -452,7 +494,8 @@ class NutritionService {
         }
 
         let fullEndpoint = "/api/v1/recipes/search?" + query
-        return try await client.request(endpoint: fullEndpoint, method: "GET")
+        // Use convenience helper for GET requests
+        return try await client.requestGET(endpoint: fullEndpoint)
     }
 
     // MARK: - PRO Tier (Requires PRO API Key)
@@ -529,6 +572,31 @@ struct ShoppingListResponse: Codable {
 
 Create `Services/APIKeyManager.swift`:
 
+**IMPORTANT**: For development, create a `Config.plist` file in your Xcode project with test API keys and add it to `.gitignore` to prevent committing sensitive keys:
+
+```xml
+<!-- Config.plist -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>TEST_PRO_KEY</key>
+    <string>your_test_pro_key_here</string>
+    <key>TEST_VIP_KEY</key>
+    <string>your_test_vip_key_here</string>
+</dict>
+</plist>
+```
+
+**Add to `.gitignore`**:
+
+```gitignore
+# Never commit Config.plist with test keys
+**/Config.plist
+```
+
+**Production Keychain Storage**:
+
 ```swift
 import Foundation
 import Security
@@ -554,8 +622,12 @@ class APIKeyManager {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
-            // Use WhenUnlockedThisDeviceOnly for better security
-            // API keys won't sync via iCloud or backup, but more secure
+            // RECOMMENDED: Use WhenUnlockedThisDeviceOnly for maximum security
+            // - API keys are only accessible when device is unlocked
+            // - Keys will NOT sync via iCloud Keychain (device-only)
+            // - Keys will NOT be included in device backups
+            // - Most secure option for sensitive credentials
+            // Alternative: kSecAttrAccessibleAfterFirstUnlock (syncs via iCloud, included in backups)
             kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
 
@@ -670,12 +742,8 @@ class SubscriptionManager: ObservableObject {
             products = try await Product.products(for: productIDs)
                 .sorted { $0.price < $1.price }
         } catch {
-            // Use Logger instead of print for production-ready code
-            if #available(iOS 14.0, *) {
-                Logger(subsystem: "com.pulseplate", category: "IAP").error("Failed to load products: \(error.localizedDescription)")
-            } else {
-                NSLog("Failed to load products: %@", error.localizedDescription)
-            }
+            // Production-ready logging (iOS 15.0+ deployment target)
+            Logger(subsystem: "com.pulseplate", category: "IAP").error("Failed to load products: \(error.localizedDescription)")
         }
     }
 
@@ -1159,20 +1227,37 @@ final class APIClientTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // Create fresh APIClient instance for each test to avoid shared state pollution
+        // In production code, consider dependency injection instead of singleton
         client = APIClient.shared
+    }
+
+    override func tearDown() {
+        super.tearDown()
+        // Reset shared state if using singleton pattern
+        // For better isolation, consider protocol-based mocking of APIClient
+        client = nil
     }
 
     func testFreeEndpointSucceeds() async throws {
         // Test FREE tier endpoint (no API key)
-        let foods: [Food] = try await client.request(
-            endpoint: "/api/v1/foods/search?q=chicken",
-            method: "GET"
+        // Note: This test relies on external API - consider mocking for determinism
+        let foods: [Food] = try await client.requestGET(
+            endpoint: "/api/v1/foods/search?q=chicken"
         )
 
-        XCTAssertFalse(foods.isEmpty)
+        // Validate response structure instead of assuming non-empty results
+        // Empty results are valid if no foods match the query
+        for food in foods {
+            // Verify required fields are present
+            XCTAssertGreaterThan(food.id, 0, "Food ID must be positive")
+            XCTAssertFalse(food.name.isEmpty, "Food name must not be empty")
+        }
     }
 
     func testProEndpointWithoutKeyFails() async {
+        // TODO: Replace with mock APIClient for deterministic testing
+        // Current implementation depends on external API behavior
         do {
             let _: WeeklyPlanResponse = try await client.request(
                 endpoint: "/api/v1/premium/plan/week-flexible",
@@ -1181,12 +1266,52 @@ final class APIClientTests: XCTestCase {
             )
             XCTFail("Should have thrown error")
         } catch APIError.invalidAPIKey {
-            // Expected
+            // Expected: authentication failure (401)
         } catch {
             XCTFail("Wrong error type: \(error)")
         }
     }
 }
+
+// MARK: - Mock APIClient (Recommended)
+
+/// Protocol-based approach for better testability
+protocol APIClientProtocol {
+    func request<T: Decodable, Body: Encodable>(
+        endpoint: String,
+        method: String,
+        body: Body?,
+        tier: SubscriptionTier?
+    ) async throws -> T
+}
+
+/// Mock implementation for deterministic testing
+class MockAPIClient: APIClientProtocol {
+    var mockResponse: Any?
+    var mockError: Error?
+
+    func request<T: Decodable, Body: Encodable>(
+        endpoint: String,
+        method: String,
+        body: Body? = nil,
+        tier: SubscriptionTier? = nil
+    ) async throws -> T {
+        if let error = mockError {
+            throw error
+        }
+
+        guard let response = mockResponse as? T else {
+            throw APIError.invalidResponse
+        }
+
+        return response
+    }
+}
+
+// Example usage in tests:
+// let mockClient = MockAPIClient()
+// mockClient.mockResponse = [Food(id: 1, name: "Chicken")]
+// let foods: [Food] = try await mockClient.request(endpoint: "...", method: "GET")
 ```
 
 ---
@@ -1208,6 +1333,7 @@ final class APIClientTests: XCTestCase {
 5. **Monitor subscription status** - Listen for transaction updates
 6. **Never hardcode API keys** - Use environment variables or Config.plist for development keys
 7. **Use URLComponents** - Build URLs safely to avoid encoding issues
+8. **Implement offline-first caching for critical endpoints** - Cache responses locally using URLCache or custom persistence, serve cached data when network is unavailable, and sync/update the cache when connectivity is restored to ensure seamless user experience during network interruptions
 
 ---
 

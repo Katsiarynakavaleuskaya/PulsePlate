@@ -41,8 +41,6 @@ class TestDistributeCalories:
 
     def test_daily_calorie_distribution_lazy_cache(self) -> None:
         """Test that DailyCalorieDistribution builds meal lookup cache lazily."""
-        from core.calorie_distributor import DailyCalorieDistribution, MealCalories
-
         dist = DailyCalorieDistribution(
             total_kcal=1000,
             meals=[MealCalories(name="breakfast", kcal=300, percentage=0.30)],
