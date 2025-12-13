@@ -50,6 +50,7 @@ from app.routers.business import router as business_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
 from app.routers.premium_week import router as premium_week_router
+from app.routers.pro import router as pro_router
 from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
@@ -767,8 +768,12 @@ tags_metadata: list[dict[str, str]] = [
         "description": "User management endpoints (FREE tier)",
     },
     {
-        "name": "premium",
+        "name": "pro",
         "description": "PRO tier features - weekly meal planning, nutrition targets. **Requires PRO API key**.",
+    },
+    {
+        "name": "premium",
+        "description": "[DEPRECATED] PRO tier features - use /api/v1/pro/* instead. **Requires PRO API key**.",
     },
     {
         "name": "vip",
@@ -980,7 +985,11 @@ app.include_router(shoplist_router, dependencies=[protected_dependency])
 if VIP_MODULE_ENABLED and vip_router is not None:
     app.include_router(vip_router, dependencies=[protected_dependency])
 
-# Include premium week router (with feature flag)
+# Include PRO tier router (new standard structure for iOS)
+if pro_router is not None:
+    app.include_router(pro_router)
+
+# Include premium week router for backward compatibility (deprecated)
 FEATURE_PREMIUM_WEEK_ENABLED = (
     os.getenv("FEATURE_PREMIUM_WEEK_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 ) or VIP_MODULE_ENABLED  # Also enable if VIP module is enabled
@@ -988,6 +997,7 @@ if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
     # premium_week endpoints enforce tier access internally via app.middleware.api_tiers
     # (e.g., require_pro_tier). Do not add the global API_KEY guard here, otherwise
     # PRO/VIP test keys (test_pro_key/test_vip_key) are rejected when API_KEY is set.
+    # NOTE: This router is deprecated. Use /api/v1/pro/* endpoints instead.
     app.include_router(premium_week_router)
 
 # Conditionally include test router for non-production environments

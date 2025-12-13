@@ -1,15 +1,17 @@
 """
-Premium Week Plan Router
+PRO Tier Router
 
-RU: Роутер для генерации недельного плана питания.
-EN: Router for generating weekly meal plans.
+RU: Роутер для PRO уровня подписки - продвинутые функции питания.
+EN: Router for PRO subscription tier - advanced nutrition features.
 
-⚠️ DEPRECATED: This router is deprecated. Use app.routers.pro instead.
-All endpoints in this router are deprecated and will be removed in v2.0.
-Please migrate to /api/v1/pro/* endpoints.
+This router provides PRO tier endpoints optimized for iOS mobile app integration.
+All endpoints require PRO tier API key validation via require_pro_tier middleware.
+
+Endpoints:
+- /api/v1/pro/meal/weekly - Weekly meal plan (macros only)
+- /api/v1/pro/nutrition/targets - WHO-based nutrition goals
 """
 
-import logging
 import math
 from typing import Dict, List, Literal, Optional
 
@@ -25,17 +27,12 @@ from core.recommendations import build_nutrition_targets
 from core.targets import UserProfile
 from core.weekly_plan_new import build_week
 
-router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
-
-# Log deprecation warning on module import
-logger = logging.getLogger(__name__)
-logger.warning(
-    "app.routers.premium_week is deprecated. "
-    "Use app.routers.pro for new PRO tier endpoints (/api/v1/pro/*)."
-)
+router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
 
 
 class TargetsIn(BaseModel):
+    """Nutrition targets input model."""
+
     kcal: int = Field(..., gt=500, lt=6000)
     macros: Dict[str, float]
     micro: Dict[str, float]
@@ -45,13 +42,11 @@ class TargetsIn(BaseModel):
     @field_validator("macros")
     @classmethod
     def _validate_macros(cls, v: Dict[str, float]) -> Dict[str, float]:
-        # Ensure all values are finite numbers >= 0
+        """Validate macros are finite numbers >= 0."""
         for key, val in v.items():
-            # Check if value is a numeric type (int or float)
             if not isinstance(val, (int, float)) or isinstance(val, bool):
                 raise ValueError(f"macros[{key}] must be a finite number >= 0")
 
-            # Check if value is finite (not NaN or Infinity) and non-negative
             if not math.isfinite(val) or val < 0:
                 raise ValueError(f"macros[{key}] must be a finite number >= 0")
         return v
@@ -59,22 +54,27 @@ class TargetsIn(BaseModel):
     @field_validator("micro")
     @classmethod
     def _validate_micro(cls, v: Dict[str, float]) -> Dict[str, float]:
-        # Ensure all values are finite numbers >= 0
+        """Validate micros are finite numbers >= 0."""
         for key, val in v.items():
-            # Check if value is a numeric type (int or float)
             if not isinstance(val, (int, float)) or isinstance(val, bool):
                 raise ValueError(f"micro[{key}] must be a finite number >= 0")
 
-            # Check if value is finite (not NaN or Infinity) and non-negative
             if not math.isfinite(val) or val < 0:
                 raise ValueError(f"micro[{key}] must be a finite number >= 0")
         return v
 
 
 class WeekPlanRequest(BaseModel):
-    # режим A: передают готовые targets
+    """Request model for weekly meal plan generation.
+
+    Supports two modes:
+    - Mode A: Provide ready targets
+    - Mode B: Quick profile (fallback)
+    """
+
+    # Mode A: Provide ready targets
     targets: Optional[TargetsIn] = None
-    # режим B: быстрый профиль (fallback)
+    # Mode B: Quick profile (fallback)
     sex: Optional[Literal["female", "male"]] = None
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
@@ -88,6 +88,8 @@ class WeekPlanRequest(BaseModel):
 
 
 class WeekPlanResponse(BaseModel):
+    """Response model for weekly meal plan."""
+
     daily_menus: List[Dict]
     weekly_coverage: Dict[str, float]
     shopping_list: Dict[str, float]
@@ -103,7 +105,19 @@ def estimate_targets_minimal(
     activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
     goal: Literal["loss", "maintain", "gain"],
 ) -> dict:
-    """Temporary function to estimate targets from user profile."""
+    """Estimate nutrition targets from user profile.
+
+    Args:
+        sex: Biological sex
+        age: Age in years
+        height_cm: Height in centimeters
+        weight_kg: Weight in kilograms
+        activity: Activity level
+        goal: Nutrition goal
+
+    Returns:
+        Dictionary with nutrition targets (kcal, macros, micro, water, activity)
+    """
     # Create a UserProfile object
     profile = UserProfile(
         sex=sex,
@@ -138,22 +152,11 @@ def estimate_targets_minimal(
 
 
 @router.post(
-    "/plan/week-flexible",
+    "/meal/weekly",
     response_model=WeekPlanResponse,
     dependencies=[Depends(require_pro_tier)],
-    deprecated=True,
-    summary="[DEPRECATED] Generate weekly meal plan",
+    summary="Generate weekly meal plan (PRO tier)",
     description="""
-    ⚠️ **DEPRECATED**: This endpoint is deprecated and will be removed in v2.0.
-
-    Please use `/api/v1/pro/meal/weekly` instead.
-
-    Migration guide:
-    - Update your API client to use `/api/v1/pro/meal/weekly`
-    - Request/response format remains the same
-    - API key validation remains the same (PRO tier required)
-
-    Original description:
     Generate weekly meal plan with PRO tier features.
 
     RU: Генерация недельного плана питания с функциями PRO уровня.
@@ -169,21 +172,27 @@ def estimate_targets_minimal(
     - Cost estimation
     """,
 )
-async def generate_week_plan(req: WeekPlanRequest):
-    """
-    [DEPRECATED] Generate weekly meal plan with PRO tier features.
+async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
+    """Generate weekly meal plan with PRO tier features.
 
-    This endpoint is deprecated. Use /api/v1/pro/meal/weekly instead.
+    Args:
+        req: WeekPlanRequest with targets or user profile
+
+    Returns:
+        WeekPlanResponse with daily menus, coverage, shopping list, and metrics
+
+    Raises:
+        HTTPException: 400 if profile data is missing or invalid
     """
-    # 0) Загрузка БД (можно держать как синглтоны)
+    # Load databases (can be kept as singletons)
     fooddb = FoodDB("data/food_db_new.csv")
     recipedb = RecipeDB("data/recipes_new.csv", fooddb)
 
-    # 1) Получить targets
+    # Get targets
     if req.targets:
         targets = req.targets.model_dump()
     else:
-        # временный расчет через твой bmi_core (BMR/TDEE + макросы + микро-таблица)
+        # Temporary calculation via bmi_core (BMR/TDEE + macros + micro table)
         if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
             raise HTTPException(status_code=400, detail="Missing user profile data")
 
@@ -202,6 +211,6 @@ async def generate_week_plan(req: WeekPlanRequest):
         if not targets:
             raise HTTPException(status_code=400, detail="Unable to derive targets")
 
-    # 2) Построить неделю
+    # Build week
     week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)
     return WeekPlanResponse(**week)
