@@ -609,37 +609,39 @@ class TestMacroDistribution:
         assert shopping_list["eggs"] == 2
 
     def test_select_recipe_exception_handling(self):
-        """Test _select_recipe_for_meal exception handling (covers lines 152-154)."""
+        """Test _select_recipe_for_meal exception handling (covers lines 153-154)."""
         from core.meal_planner import _select_recipe_for_meal
 
-        # Object that raises AttributeError when accessed
+        # Object that raises TypeError during iteration
         class BadRecipeDB:
-            def __getattr__(self, name):
-                raise AttributeError("Bad attribute")
+            def __iter__(self):
+                raise TypeError("Cannot iterate this object")
 
         recipe = _select_recipe_for_meal("lunch", 500, {"VEGAN"}, BadRecipeDB())
-        assert recipe is None  # Should handle exception gracefully
+        assert recipe is None  # Should catch exception and return None
 
     def test_convert_recipe_missing_micros(self):
-        """Test _convert_recipe_to_dict with object missing micros attr (covers line 187)."""
+        """Test _convert_recipe_to_dict with object WITH micros attr (covers line 187)."""
         from core.meal_planner import _convert_recipe_to_dict
         from dataclasses import dataclass
 
         @dataclass
-        class RecipeWithoutMicros:
+        class RecipeWithMicros:
             name: str
             kcal: int
             macros: dict
             ingredients: dict
-            # No micros attribute
+            micros: dict  # HAS micros attribute
 
-        recipe_obj = RecipeWithoutMicros(
-            name="Simple Recipe",
+        recipe_obj = RecipeWithMicros(
+            name="Nutrient Recipe",
             kcal=400,
             macros={"protein_g": 15, "carbs_g": 50, "fat_g": 10},
             ingredients={"rice": 200},
+            micros={"iron_mg": 5.0, "calcium_mg": 100},
         )
 
         result = _convert_recipe_to_dict(recipe_obj)
-        assert "micros" not in result  # Should not add micros if not present
-        assert result["name"] == "Simple Recipe"
+        assert "micros" in result  # Should include micros (line 187)
+        assert result["micros"]["iron_mg"] == 5.0
+        assert result["name"] == "Nutrient Recipe"
