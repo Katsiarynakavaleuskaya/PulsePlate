@@ -27,7 +27,7 @@ from core.weekly_plan_new import build_week
 
 router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 
-# Deprecation warning will be logged on first use, not at import time
+# Deprecation warning will be logged on every call, not at import time
 # to avoid spamming logs on every startup
 logger = logging.getLogger(__name__)
 

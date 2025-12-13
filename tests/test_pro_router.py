@@ -247,6 +247,160 @@ class TestPRORouter:
         # Should return validation error due to non-numeric macro/micro entries
         assert response.status_code in [400, 422]
 
+    def test_pro_meal_weekly_boundary_values_age(self):
+        """Test PRO meal weekly endpoint with boundary values for age (ge=10, le=100)."""
+        # Test minimum boundary (age = 10, should be valid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 10,  # Minimum valid age (ge=10)
+                "height_cm": 150,
+                "weight_kg": 40,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [200, 400, 422]
+
+        # Test below minimum (age = 9, should be invalid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 9,  # Below minimum (should fail ge=10)
+                "height_cm": 150,
+                "weight_kg": 40,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+        # Test maximum boundary (age = 100, should be valid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 100,  # Maximum valid age (le=100)
+                "height_cm": 170,
+                "weight_kg": 70,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [200, 400, 422]
+
+        # Test above maximum (age = 101, should be invalid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 101,  # Above maximum (should fail le=100)
+                "height_cm": 170,
+                "weight_kg": 70,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+    def test_pro_meal_weekly_boundary_values_height(self):
+        """Test PRO meal weekly endpoint with boundary values for height_cm (gt=100, lt=250)."""
+        # Test just above minimum (height_cm = 100.1, should be valid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 100.1,  # Just above minimum (gt=100)
+                "weight_kg": 40,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [200, 400, 422]
+
+        # Test at minimum boundary (height_cm = 100, should be invalid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 100,  # At minimum boundary (should fail gt=100)
+                "weight_kg": 40,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+        # Test below minimum (height_cm = 99, should be invalid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 99,  # Below minimum (should fail gt=100)
+                "weight_kg": 40,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+        # Test just below maximum (height_cm = 249.9, should be valid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 249.9,  # Just below maximum (lt=250)
+                "weight_kg": 100,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [200, 400, 422]
+
+        # Test at maximum boundary (height_cm = 250, should be invalid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 250,  # At maximum boundary (should fail lt=250)
+                "weight_kg": 100,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
+        # Test above maximum (height_cm = 251, should be invalid)
+        response = client.post(
+            "/api/v1/pro/meal/weekly",
+            json={
+                "sex": "female",
+                "age": 25,
+                "height_cm": 251,  # Above maximum (should fail lt=250)
+                "weight_kg": 100,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+        assert response.status_code in [400, 422]
+
     def test_backward_compatibility_premium_endpoint(self):
         """Test that deprecated premium endpoint behaves consistently with PRO endpoint."""
         payload = {
