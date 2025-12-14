@@ -117,8 +117,8 @@ private struct LoadedPlanView: View {
                     // Plan Metrics
                     if let metrics = plan.metrics {
                         PlanMetricsView(
-                            cost: metrics.totalCost ?? 0,
-                            adherence: metrics.adherenceScore ?? 0,
+                            cost: metrics.totalCost,
+                            adherence: metrics.adherenceScore,
                             shoppingListCount: plan.shoppingList?.count ?? 0
                         )
                         .padding(.horizontal)
@@ -155,6 +155,8 @@ private struct VipCTASection: View {
             }
             .buttonStyle(.borderedProminent)
             .padding(.horizontal)
+            .disabled(true)
+            .accessibilityHint("VIP feature")
 
             Button {
                 // TODO: VIP gate → Auto-Repair
@@ -169,6 +171,8 @@ private struct VipCTASection: View {
             }
             .buttonStyle(.bordered)
             .padding(.horizontal)
+            .disabled(true)
+            .accessibilityHint("VIP feature")
         }
     }
 }

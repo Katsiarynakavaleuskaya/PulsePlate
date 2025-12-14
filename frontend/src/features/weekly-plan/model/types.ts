@@ -40,7 +40,7 @@ export interface DayMenu {
     protein_g: number;
     fat_g: number;
     carbs_g: number;
-    fiber_g?: number;
+    fiber_g: number;
   };
 }
 

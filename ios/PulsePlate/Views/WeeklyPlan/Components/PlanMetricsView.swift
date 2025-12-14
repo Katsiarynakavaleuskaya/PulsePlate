@@ -1,23 +1,40 @@
 import SwiftUI
 
 struct PlanMetricsView: View {
-    let cost: Double
-    let adherence: Double
+    let cost: Double?
+    let adherence: Double?
     let shoppingListCount: Int
 
     // TODO: when Region Catalog / currency settings available — inject currencyCode from environment
     private let currencyCode: String = Locale.current.currency?.identifier ?? "USD"
 
     private var clampedAdherence: Double {
-        min(max(adherence, 0), 1)
+        guard let adherence else { return 0 }
+        return min(max(adherence, 0), 1)
     }
 
-    private var moneyText: String {
-        cost.formatted(.currency(code: currencyCode).precision(.fractionLength(0)))
+    private var moneyText: String? {
+        guard let cost else { return nil }
+        return cost.formatted(.currency(code: currencyCode).precision(.fractionLength(0)))
     }
 
-    private var adherenceText: String {
-        (clampedAdherence * 100).formatted(.number.precision(.fractionLength(0))) + "%"
+    private var adherenceText: String? {
+        guard let adherence else { return nil }
+        return (clampedAdherence * 100).formatted(.number.precision(.fractionLength(0))) + "%"
+    }
+
+    private var accessibilityValueText: String {
+        var parts: [String] = []
+        if let moneyText {
+            parts.append("Estimated cost \(moneyText)")
+        }
+        if let adherenceText {
+            parts.append("adherence \(adherenceText)")
+        }
+        if parts.isEmpty {
+            return "no metrics available"
+        }
+        return parts.joined(separator: ", ")
     }
 
     var body: some View {
@@ -28,13 +45,21 @@ struct PlanMetricsView: View {
 
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 12) {
-                        MetricCardView(icon: "💰", title: "Estimated cost", value: moneyText)
-                        MetricCardView(icon: "⭐", title: "Adherence", value: adherenceText)
+                        if let moneyText {
+                            MetricCardView(icon: "💰", title: "Estimated cost", value: moneyText)
+                        }
+                        if let adherenceText {
+                            MetricCardView(icon: "⭐", title: "Adherence", value: adherenceText)
+                        }
                     }
 
                     VStack(spacing: 12) {
-                        MetricCardView(icon: "💰", title: "Estimated cost", value: moneyText)
-                        MetricCardView(icon: "⭐", title: "Adherence", value: adherenceText)
+                        if let moneyText {
+                            MetricCardView(icon: "💰", title: "Estimated cost", value: moneyText)
+                        }
+                        if let adherenceText {
+                            MetricCardView(icon: "⭐", title: "Adherence", value: adherenceText)
+                        }
                     }
                 }
 
@@ -49,7 +74,7 @@ struct PlanMetricsView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Plan metrics")
-        .accessibilityValue("Estimated cost \(moneyText), adherence \(adherenceText)")
+        .accessibilityValue(accessibilityValueText)
     }
 }
 

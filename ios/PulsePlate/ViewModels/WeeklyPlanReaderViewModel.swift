@@ -50,8 +50,9 @@ public final class WeeklyPlanReaderViewModel {
 
     /// Internal load implementation (runs off main thread for network)
     private func _load(targets: [String: Any]? = nil) async {
-        // Store targets for retry
-        await MainActor.run { lastTargets = targets }
+        // Store targets for retry (MainActor isolated access)
+        let targetsToStore = targets
+        await MainActor.run { lastTargets = targetsToStore }
 
         await MainActor.run { state = .loading }
 

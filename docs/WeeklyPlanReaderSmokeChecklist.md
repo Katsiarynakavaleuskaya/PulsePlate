@@ -61,7 +61,7 @@ Verify contract drift protection:
   - No "unlabeled" elements
 - [ ] **Dynamic Type**: Settings → Accessibility → Larger Text → Max size
   - Text doesn't truncate
-  - ViewThatFits switches to VStack on overflow
+  - ViewThatFits switches layout (HStack → VStack when horizontal space insufficient)
 - [ ] **Dark Mode**: Toggle (Cmd+Shift+A) → no contrast issues
 
 ### 5. Multi-Device (30 seconds)
@@ -83,7 +83,7 @@ Quick layout validation:
 ## 🛑 Blockers (Do NOT Merge If)
 
 - **Crash on any state** (loading/loaded/empty/error)
-- **Adapter fails on malformed JSON** (test with `JSONValue` edge cases)
+- **Adapter fails on malformed JSON** (test edge cases: null values, missing keys, wrong types, deeply nested structures)
 - **VoiceOver reads gibberish** ("Button, Button, Button" instead of meal names)
 - **Dark mode text invisible** (white text on white background)
 - **Memory leak detected** (instrument shows growing allocations)

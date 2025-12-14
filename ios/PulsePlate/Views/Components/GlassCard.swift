@@ -32,10 +32,13 @@ struct GlassCard<Content: View>: View {
             // Respect "Reduce Transparency" accessibility setting (HIG)
             shape.fill(.background)
         } else {
-            // Single implementation using thinMaterial.
-            // Reintroduce iOS 26-specific conditional when the
-            // SDK exposes the new Liquid Glass API.
-            shape.fill(.thinMaterial)
+            // iOS 26+ Liquid Glass API
+            if #available(iOS 26.0, *) {
+                shape.fill(.liquidGlass)
+            } else {
+                // iOS 17-25 fallback
+                shape.fill(.thinMaterial)
+            }
         }
     }
 }

@@ -22,7 +22,6 @@ struct DayNavigatorView: View {
     var body: some View {
         HStack(spacing: 12) {
             Button(action: {
-                guard !isFirstDay else { return }
                 onPrevious()
             }) {
                 Image(systemName: "chevron.left")
@@ -44,7 +43,6 @@ struct DayNavigatorView: View {
             .accessibilityLabel("\(dayTitle), \(dayIndexText)")
 
             Button(action: {
-                guard !isLastDay else { return }
                 onNext()
             }) {
                 Image(systemName: "chevron.right")

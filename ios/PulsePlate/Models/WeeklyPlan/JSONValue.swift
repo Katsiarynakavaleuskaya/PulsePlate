@@ -2,7 +2,7 @@ import Foundation
 
 /// Type-safe wrapper for dynamic JSON values from backend
 /// Prevents crashes when API contract changes or returns unexpected data
-enum JSONValue: Decodable {
+enum JSONValue: Decodable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)

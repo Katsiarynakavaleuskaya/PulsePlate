@@ -30,6 +30,18 @@ function safeString(value: unknown, fallback = ''): string {
 }
 
 /**
+ * Log contract drift warning in development
+ */
+function logContractDrift(context: string, details?: string): void {
+  if (import.meta.env.DEV) {
+    const message = details
+      ? `[WeekPlan Adapter] ${context}: ${details}`
+      : `[WeekPlan Adapter] ${context}`;
+    console.warn(message);
+  }
+}
+
+/**
  * Normalize a single meal from raw data
  */
 function normalizeMeal(raw: Record<string, unknown>): Meal {
@@ -121,15 +133,16 @@ export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
     ? raw.daily_menus.map((menu, index) => {
         if (!menu || typeof menu !== 'object') {
           hasIncompleteData = true;
+          logContractDrift('Incomplete data detected', `day ${index + 1}: invalid menu object`);
           return normalizeDayMenu({}, index);
         }
         return normalizeDayMenu(menu, index);
       })
     : [];
 
-  // Log contract drift in development
-  if (import.meta.env.DEV && hasIncompleteData) {
-    console.warn('[WeekPlan Adapter] Incomplete data detected in API response');
+  // Log contract drift summary
+  if (hasIncompleteData) {
+    logContractDrift('API response contains incomplete or malformed data');
   }
 
   // Normalize coverage

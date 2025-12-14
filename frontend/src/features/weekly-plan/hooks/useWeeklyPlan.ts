@@ -71,11 +71,8 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
         return;
       }
 
-      // Cast to our internal type (API schema might differ slightly)
-      const typedResponse = rawResponse as unknown as RawWeekPlanResponse;
-
-      // Normalize to view model
-      const normalized = normalizeWeekPlan(typedResponse);
+      // Normalize to view model (adapter handles type coercion and validation)
+      const normalized = normalizeWeekPlan(rawResponse as RawWeekPlanResponse);
 
       setData(normalized);
       onSuccess?.(normalized);
