@@ -1,0 +1,152 @@
+/**
+ * Weekly Plan Adapter
+ *
+ * Normalizes raw API response into safe, type-strict view model.
+ * Prevents contract drift by providing sensible defaults for missing/malformed data.
+ */
+
+import type { RawWeekPlanResponse, WeekPlanVM, DayMenu, Meal } from './types';
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/**
+ * Safely extract number from unknown value
+ */
+function safeNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && !Number.isNaN(value)) {
+    return value;
+  }
+  return fallback;
+}
+
+/**
+ * Safely extract string from unknown value
+ */
+function safeString(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') {
+    return value;
+  }
+  return fallback;
+}
+
+/**
+ * Normalize a single meal from raw data
+ */
+function normalizeMeal(raw: Record<string, unknown>): Meal {
+  const recipes = Array.isArray(raw.recipes)
+    ? raw.recipes.map((r: unknown) => ({
+        id: safeString((r as Record<string, unknown>)?.id, 'unknown'),
+        name: safeString((r as Record<string, unknown>)?.name, 'Unnamed Recipe'),
+        portions: safeNumber((r as Record<string, unknown>)?.portions, 1),
+      }))
+    : [];
+
+  const totals = raw.totals as Record<string, unknown> | undefined;
+
+  return {
+    meal_type: safeString(raw.meal_type, 'meal'),
+    recipes,
+    totals: {
+      kcal: safeNumber(totals?.kcal),
+      protein_g: safeNumber(totals?.protein_g),
+      fat_g: safeNumber(totals?.fat_g),
+      carbs_g: safeNumber(totals?.carbs_g),
+      fiber_g: safeNumber(totals?.fiber_g),
+    },
+  };
+}
+
+/**
+ * Normalize a single day menu from raw data
+ */
+function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu {
+  const dayNumber = safeNumber(raw.day, index + 1);
+  const meals = Array.isArray(raw.meals) ? raw.meals.map(normalizeMeal) : [];
+
+  // Calculate daily totals from meals if not provided
+  const dailyTotals = raw.daily_totals as Record<string, unknown> | undefined;
+  const calculatedTotals = meals.reduce(
+    (acc, meal) => ({
+      kcal: acc.kcal + (meal.totals.kcal || 0),
+      protein_g: acc.protein_g + (meal.totals.protein_g || 0),
+      fat_g: acc.fat_g + (meal.totals.fat_g || 0),
+      carbs_g: acc.carbs_g + (meal.totals.carbs_g || 0),
+    }),
+    { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 }
+  );
+
+  return {
+    day: dayNumber,
+    dayName: DAY_NAMES[(dayNumber - 1) % 7],
+    meals,
+    daily_totals: {
+      kcal: safeNumber(dailyTotals?.kcal, calculatedTotals.kcal),
+      protein_g: safeNumber(dailyTotals?.protein_g, calculatedTotals.protein_g),
+      fat_g: safeNumber(dailyTotals?.fat_g, calculatedTotals.fat_g),
+      carbs_g: safeNumber(dailyTotals?.carbs_g, calculatedTotals.carbs_g),
+      fiber_g: safeNumber(dailyTotals?.fiber_g),
+    },
+  };
+}
+
+/**
+ * Normalize weekly coverage data
+ */
+function normalizeWeeklyCoverage(raw: Record<string, unknown>): WeekPlanVM['weekly_coverage'] {
+  return {
+    protein: safeNumber(raw.protein, 0),
+    iron: safeNumber(raw.iron, 0),
+    vitamin_c: safeNumber(raw.vitamin_c, 0),
+    calcium: safeNumber(raw.calcium, 0),
+    ...Object.fromEntries(
+      Object.entries(raw)
+        .filter(([key]) => !['protein', 'iron', 'vitamin_c', 'calcium'].includes(key))
+        .map(([key, value]) => [key, safeNumber(value, 0)])
+    ),
+  };
+}
+
+/**
+ * Normalize raw API response into view model
+ *
+ * @param raw - Raw API response
+ * @returns Normalized view model safe for UI consumption
+ */
+export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
+  let hasIncompleteData = false;
+
+  // Normalize days
+  const days = Array.isArray(raw.daily_menus)
+    ? raw.daily_menus.map((menu, index) => {
+        if (!menu || typeof menu !== 'object') {
+          hasIncompleteData = true;
+          return normalizeDayMenu({}, index);
+        }
+        return normalizeDayMenu(menu, index);
+      })
+    : [];
+
+  // Log contract drift in development
+  if (import.meta.env.DEV && hasIncompleteData) {
+    console.warn('[WeekPlan Adapter] Incomplete data detected in API response');
+  }
+
+  // Normalize coverage
+  const weekly_coverage =
+    raw.weekly_coverage && typeof raw.weekly_coverage === 'object'
+      ? normalizeWeeklyCoverage(raw.weekly_coverage)
+      : { protein: 0, iron: 0, vitamin_c: 0, calcium: 0 };
+
+  return {
+    days,
+    weekly_coverage,
+    metrics: {
+      total_cost: safeNumber(raw.total_cost, 0),
+      adherence_score: safeNumber(raw.adherence_score, 0),
+    },
+    meta: {
+      total_days: days.length,
+      has_incomplete_data: hasIncompleteData,
+    },
+  };
+}
