@@ -2,9 +2,13 @@ import Testing
 @testable import PulsePlate
 
 struct WeeklyPlanMealTypeTests {
-    @Test func mealType_mapsBackendSnackVariants() {
+    @Test func mealType_mapsBackendStrings() {
+        // Backend-defined meal types (matches Python core/meal_types.py)
+        #expect(MealType(rawValue: "breakfast") == .breakfast)
         #expect(MealType(rawValue: "morning_snack") == .morningSnack)
+        #expect(MealType(rawValue: "lunch") == .lunch)
         #expect(MealType(rawValue: "afternoon_snack") == .afternoonSnack)
+        #expect(MealType(rawValue: "dinner") == .dinner)
         #expect(MealType(rawValue: "evening_snack") == .eveningSnack)
     }
 

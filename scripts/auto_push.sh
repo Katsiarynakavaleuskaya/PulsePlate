@@ -86,10 +86,14 @@ if [ -d "ios" ] && [ "$(uname)" == "Darwin" ]; then
     if command -v xcodebuild &> /dev/null; then
         cd ios
         # Quick syntax check only (no simulator needed)
-        if swift build -c release > /dev/null 2>&1 || true; then
+        IOS_LOG="$(mktemp -t pulseplate_ios_build.XXXXXX.log)"
+        if swift build -c release >"$IOS_LOG" 2>&1; then
             show_status "iOS синтаксис проверен" "success"
+            rm -f "$IOS_LOG"
         else
-            echo -e "${YELLOW}⚠️  iOS build warnings (non-blocking)${NC}"
+            echo -e "${YELLOW}⚠️  iOS build warnings (non-blocking). Log saved to: $IOS_LOG${NC}" >&2
+            echo -e "${YELLOW}Last 20 lines:${NC}" >&2
+            tail -n 20 "$IOS_LOG" >&2
         fi
         cd ..
     else

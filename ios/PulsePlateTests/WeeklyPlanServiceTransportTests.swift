@@ -25,7 +25,7 @@ struct WeeklyPlanServiceTransportTests {
         } catch let error as WeeklyPlanServiceError {
             switch error {
             case .transport(let message):
-                #expect(!message.isEmpty)
+                #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             default:
                 Issue.record("Expected transport error, got: \(error)")
             }
@@ -55,9 +55,9 @@ struct WeeklyPlanServiceTransportTests {
             Issue.record("Expected WeeklyPlanServiceError.transport for timeout")
         } catch let error as WeeklyPlanServiceError {
             switch error {
-            case .transport:
-                // Success - timeout was wrapped as transport error
-                break
+            case .transport(let message):
+                // Timeout error should have descriptive message
+                #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             default:
                 Issue.record("Expected transport error for timeout, got: \(error)")
             }
@@ -70,8 +70,8 @@ struct WeeklyPlanServiceTransportTests {
 // MARK: - Test URLProtocols
 
 final class FailingURLProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
     }
@@ -79,8 +79,8 @@ final class FailingURLProtocol: URLProtocol {
 }
 
 final class TimeoutURLProtocol: URLProtocol {
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         client?.urlProtocol(self, didFailWithError: URLError(.timedOut))
     }
