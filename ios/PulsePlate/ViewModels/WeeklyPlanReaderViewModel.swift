@@ -19,7 +19,7 @@ public final class WeeklyPlanReaderViewModel {
 
     // MARK: - Private State
 
-    private var lastTargets: [String: Any]?
+    private var lastTargets: JSONValue?
     private var loadTask: Task<Void, Never>?
 
     // MARK: - Initialization
@@ -38,7 +38,7 @@ public final class WeeklyPlanReaderViewModel {
 
     /// Load weekly plan from backend
     /// Cancels any previous in-flight requests to prevent race conditions
-    public func load(targets: [String: Any]? = nil) {
+    public func load(targets: JSONValue? = nil) {
         // Cancel previous task to prevent parallel requests
         loadTask?.cancel()
 
@@ -49,7 +49,7 @@ public final class WeeklyPlanReaderViewModel {
     }
 
     /// Internal load implementation (runs off main thread for network)
-    private func _load(targets: [String: Any]? = nil) async {
+    private func _load(targets: JSONValue? = nil) async {
         // Store targets for retry (MainActor isolated access)
         let targetsToStore = targets
         await MainActor.run { lastTargets = targetsToStore }
@@ -61,7 +61,7 @@ public final class WeeklyPlanReaderViewModel {
             try Task.checkCancellation()
 
             // Prepare request body
-            let body = try JSONSerialization.data(withJSONObject: targets ?? [:])
+            let body = try Self.encodeTargetsBody(targets)
             let request = WeeklyPlanRequest(
                 endpointPath: endpointPath,
                 body: body,
@@ -127,5 +127,26 @@ public final class WeeklyPlanReaderViewModel {
             let targets = await MainActor.run { self.lastTargets }
             await self._load(targets: targets)
         }
+    }
+
+    // MARK: - Encoding helpers
+
+    /// Encodes targets to JSON request body. Uses JSONValue to stay Sendable (Swift 6 safe).
+    private static func encodeTargetsBody(_ targets: JSONValue?) throws -> Data {
+        let encoder = JSONEncoder()
+        // Stable encoding (optional, but helps diffs/logs)
+        if #available(iOS 11.0, *) {
+            encoder.outputFormatting = [.sortedKeys]
+        }
+
+        // If nil: send empty object {}
+        let payload: JSONValue
+        if let targets {
+            payload = targets
+        } else {
+            payload = .object([:])
+        }
+
+        return try encoder.encode(payload)
     }
 }
