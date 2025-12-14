@@ -11,7 +11,7 @@ Please migrate to /api/v1/pro/* endpoints.
 
 import logging
 from threading import Event
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -74,6 +74,21 @@ class WeekPlanResponse(BaseModel):
     shopping_list: Dict[str, float]
     total_cost: float
     adherence_score: float
+
+
+def _is_complete_targets(d: Dict[str, Any]) -> bool:
+    """Check if targets dict has all required keys and non-empty micro/macros."""
+    required_keys = {"kcal", "macros", "micro", "water_ml", "activity_week"}
+    if not required_keys.issubset(d.keys()):
+        return False
+    if not isinstance(d.get("macros"), dict):
+        return False
+    if not isinstance(d.get("micro"), dict):
+        return False
+    # micro must not be empty, otherwise core may produce unexpected results
+    if not d.get("micro"):
+        return False
+    return True
 
 
 # TODO(#286): Deduplicate estimate_targets_minimal by moving it into app/services/nutrition_targets.py
@@ -173,21 +188,21 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     fooddb = _get_food_db()
     recipedb = _get_recipe_db()
 
-    # Get targets
-    if req.targets:
-        targets = req.targets.model_dump()
-    else:
-        # Validate required profile fields (explicit checks for better error messages)
-        if req.sex is None:
-            raise HTTPException(status_code=400, detail="Missing required field: sex")
-        if req.age is None:
-            raise HTTPException(status_code=400, detail="Missing required field: age")
-        if req.height_cm is None:
-            raise HTTPException(status_code=400, detail="Missing required field: height_cm")
-        if req.weight_kg is None:
-            raise HTTPException(status_code=400, detail="Missing required field: weight_kg")
+    # Get targets (treat partial/empty targets as "missing" and fall back to profile derivation)
+    targets_from_request: Dict[str, Any] = (
+        req.targets.model_dump(exclude_none=True) if req.targets is not None else {}
+    )
 
-        # After None checks above, mypy narrows Optional -> concrete types
+    if _is_complete_targets(targets_from_request):
+        targets: Dict[str, Any] = targets_from_request
+    else:
+        # Fallback: derive from profile, otherwise 400 (keep legacy message for tests)
+        if req.sex is None or req.age is None or req.height_cm is None or req.weight_kg is None:
+            raise HTTPException(status_code=400, detail="Missing user profile data")
+        # activity/goal have defaults but can be explicitly set to null
+        if req.activity is None or req.goal is None:
+            raise HTTPException(status_code=400, detail="Missing user profile data")
+
         targets = estimate_targets_minimal(
             sex=req.sex,
             age=req.age,
@@ -196,6 +211,12 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
             activity=req.activity,
             goal=req.goal,
         )
+
+    # Hard guard: never pass None/malformed targets to core
+    if not isinstance(targets, dict):
+        raise HTTPException(status_code=400, detail="Unable to derive targets")
+    if not _is_complete_targets(targets):
+        raise HTTPException(status_code=400, detail="Unable to derive targets")
 
     # 2) Построить неделю
     week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)

@@ -55,6 +55,12 @@ class TestPremiumWeekRouter:
                     "macros": {"protein_g": 150.0, "fat_g": 65.0, "carbs_g": 250.0},
                     "micro": {"vitamin_c_mg": 90.0, "iron_mg": 18.0},
                     "water_ml": 2000,
+                    "activity_week": {
+                        "moderate_aerobic_min": 150,
+                        "vigorous_aerobic_min": 0,
+                        "strength_sessions": 2,
+                        "steps_daily": 10000,
+                    },
                 },
                 "diet_flags": ["vegetarian"],
                 "lang": "en",
@@ -91,6 +97,12 @@ class TestPremiumWeekRouter:
             "macros": {"protein_g": 150.0, "fat_g": 65.0, "carbs_g": 250.0},
             "micro": {"vitamin_c_mg": 90.0},
             "water_ml": 2000,
+            "activity_week": {
+                "moderate_aerobic_min": 150,
+                "vigorous_aerobic_min": 0,
+                "strength_sessions": 2,
+                "steps_daily": 10000,
+            },
         }
 
         # Mock the build_week function
