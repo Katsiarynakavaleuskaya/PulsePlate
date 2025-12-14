@@ -88,7 +88,7 @@ struct WeeklyProgressView: View {
         } message: {
             Text(hk.error?.localizedDescription ?? "")
         }
-        .onChange(of: hk.error?.localizedDescription) { _ in
+        .onChange(of: hk.error?.localizedDescription) {
             showAlert = hk.error != nil
         }
     }

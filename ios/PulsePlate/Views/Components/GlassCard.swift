@@ -34,7 +34,7 @@ struct GlassCard<Content: View>: View {
         } else {
             // iOS 26+ Liquid Glass API
             if #available(iOS 26.0, *) {
-                shape.fill(.liquidGlass)
+                shape.fill(Color.liquidGlass)
             } else {
                 // iOS 17-25 fallback
                 shape.fill(.thinMaterial)

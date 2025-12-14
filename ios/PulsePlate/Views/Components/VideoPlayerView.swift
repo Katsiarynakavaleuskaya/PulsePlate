@@ -30,7 +30,7 @@ struct VideoPlayerView: View {
         .onAppear {
             setupPlayer()
         }
-        .onChange(of: videoName) { _ in
+        .onChange(of: videoName) {
             setupPlayer()
         }
     }

@@ -13,7 +13,7 @@ const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
  * Safely extract number from unknown value
  */
 function safeNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && !Number.isNaN(value)) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
   return fallback;
@@ -47,7 +47,10 @@ function logContractDrift(context: string, details?: string): void {
 function normalizeMeal(raw: Record<string, unknown>): Meal {
   const recipes = Array.isArray(raw.recipes)
     ? raw.recipes
-        .filter((r): r is Record<string, unknown> => r != null && typeof r === 'object')
+        .filter(
+          (r): r is Record<string, unknown> =>
+            r != null && typeof r === 'object' && !Array.isArray(r)
+        )
         .map((r) => ({
           id: safeString(r.id, 'unknown'),
           name: safeString(r.name, 'Unnamed Recipe'),
@@ -74,7 +77,7 @@ function normalizeMeal(raw: Record<string, unknown>): Meal {
  * Normalize a single day menu from raw data
  */
 function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu {
-  const dayNumber = safeNumber(raw.day, index + 1);
+  const dayNumber = Math.max(1, safeNumber(raw.day, index + 1));
   const meals = Array.isArray(raw.meals) ? raw.meals.map(normalizeMeal) : [];
 
   // Calculate daily totals from meals if not provided
@@ -140,7 +143,13 @@ export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
         }
         return normalizeDayMenu(menu, index);
       })
-    : [];
+    : (() => {
+        if (raw.daily_menus !== undefined) {
+          hasIncompleteData = true;
+          logContractDrift('Invalid daily_menus', 'expected array, using empty');
+        }
+        return [];
+      })();
 
   // Log contract drift summary
   if (hasIncompleteData) {
@@ -148,14 +157,14 @@ export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
   }
 
   // Normalize coverage
-  const weekly_coverage =
-    raw.weekly_coverage && typeof raw.weekly_coverage === 'object'
-      ? normalizeWeeklyCoverage(raw.weekly_coverage)
-      : (() => {
-          hasIncompleteData = true;
-          logContractDrift('Missing weekly_coverage', 'using default values');
-          return { protein: 0, iron: 0, vitamin_c: 0, calcium: 0 };
-        })();
+  let weekly_coverage: WeekPlanVM['weekly_coverage'];
+  if (raw.weekly_coverage && typeof raw.weekly_coverage === 'object') {
+    weekly_coverage = normalizeWeeklyCoverage(raw.weekly_coverage);
+  } else {
+    hasIncompleteData = true;
+    logContractDrift('Missing weekly_coverage', 'using default values');
+    weekly_coverage = { protein: 0, iron: 0, vitamin_c: 0, calcium: 0 };
+  }
 
   return {
     days,

@@ -29,7 +29,7 @@ struct LottieAnimationView: View {
         .onAppear {
             loadAnimation()
         }
-        .onChange(of: animationName) { _ in
+        .onChange(of: animationName) {
             loadAnimation()
         }
     }

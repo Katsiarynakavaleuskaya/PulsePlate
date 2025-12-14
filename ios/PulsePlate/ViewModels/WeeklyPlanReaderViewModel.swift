@@ -8,7 +8,7 @@ public final class WeeklyPlanReaderViewModel {
     // MARK: - Published State
 
     public private(set) var state: WeeklyPlanState = .idle
-    public var currentDayIndex: Int = 0
+    public private(set) var currentDayIndex: Int = 0
     public var isCoverageExpanded: Bool = false
 
     // MARK: - Dependencies
@@ -106,6 +106,12 @@ public final class WeeklyPlanReaderViewModel {
     public func prevDay(totalDays: Int) {
         guard totalDays > 0 else { return }
         currentDayIndex = (currentDayIndex - 1 + totalDays) % totalDays
+    }
+
+    /// Set day index with bounds checking (for external navigation)
+    public func setDayIndex(_ index: Int, totalDays: Int) {
+        guard totalDays > 0 else { return }
+        currentDayIndex = max(0, min(index, totalDays - 1))
     }
 
     /// Toggle coverage section expansion

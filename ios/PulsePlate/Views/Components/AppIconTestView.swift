@@ -36,7 +36,7 @@ struct AppIconTestView: View {
                     }
                 }
                 .padding()
-                .background(.surface)
+                .background(Color.surface)
                 .cornerRadius(16)
 
                 // Информация о иконке
@@ -53,7 +53,7 @@ struct AppIconTestView: View {
                     }
                 }
                 .padding()
-                .background(.surface)
+                .background(Color.surface)
                 .cornerRadius(16)
 
                 // Размеры иконок
@@ -73,7 +73,7 @@ struct AppIconTestView: View {
                     }
                 }
                 .padding()
-                .background(.surface)
+                .background(Color.surface)
                 .cornerRadius(16)
             }
             .padding()
@@ -114,7 +114,7 @@ struct SizeCard: View {
                 .foregroundColor(.textTertiary)
         }
         .padding(8)
-        .background(.surfaceElevated)
+        .background(Color.surfaceElevated)
         .cornerRadius(8)
     }
 }

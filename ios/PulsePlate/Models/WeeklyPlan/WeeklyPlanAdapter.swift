@@ -155,8 +155,14 @@ public enum WeeklyPlanAdapter {
 
         guard !cleaned.isEmpty else { return k }
 
+        // Normalize common microgram symbols to "mcg" so they are
+        // handled consistently with other lowercase units.
+        let normalized = cleaned
+            .replacingOccurrences(of: "µg", with: "mcg")
+            .replacingOccurrences(of: "μg", with: "mcg")
+
         // Units (keep human-friendly lowercase)
-        let unitLower: Set<String> = ["mg", "g", "kg", "kcal"]
+        let unitLower: Set<String> = ["mg", "g", "kg", "kcal", "mcg"]
         // Units uppercase
         let unitUpper: Set<String> = ["iu"]
         // Chemical symbols (capitalize properly: Fe, Zn, Ca)
@@ -164,7 +170,7 @@ public enum WeeklyPlanAdapter {
             "fe": "Fe", "zn": "Zn", "ca": "Ca", "na": "Na", "k": "K"
         ]
 
-        let parts = cleaned.split(separator: "_").map { String($0) }
+        let parts = normalized.split(separator: "_").map { String($0) }
 
         let pretty = parts.map { part -> String in
             let lower = part.lowercased()
