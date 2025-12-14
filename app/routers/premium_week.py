@@ -76,6 +76,8 @@ class WeekPlanResponse(BaseModel):
     adherence_score: float
 
 
+# TODO(#286): Deduplicate estimate_targets_minimal by moving it into app/services/nutrition_targets.py
+# Keep parity between /api/v1/pro/meal/weekly and deprecated /api/v1/premium/plan/week-flexible.
 def estimate_targets_minimal(
     sex: Literal["female", "male"],
     age: int,
@@ -84,7 +86,11 @@ def estimate_targets_minimal(
     activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
     goal: Literal["loss", "maintain", "gain"],
 ) -> dict:
-    """Temporary function to estimate targets from user profile."""
+    """Temporary function to estimate targets from user profile (DEPRECATED endpoint).
+
+    WARNING: This function is duplicated in pro.py to maintain backward compatibility.
+    Any changes here MUST be mirrored in pro.py until extraction is complete.
+    """
     # Create a UserProfile object
     profile = UserProfile(
         sex=sex,
