@@ -70,10 +70,14 @@ fi
 if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
     echo -e "${BLUE}  ⚛️  Frontend тесты...${NC}"
     cd frontend
-    if npm run test:ci > /dev/null 2>&1; then
+    FRONTEND_LOG="$(mktemp -t pulseplate_frontend_test.XXXXXX.log)"
+    if npm run test:ci >"$FRONTEND_LOG" 2>&1; then
         show_status "Frontend тесты пройдены" "success"
+        rm -f "$FRONTEND_LOG"
     else
-        echo -e "${YELLOW}⚠️  Frontend тесты не прошли или test:ci не настроен${NC}"
+        echo -e "${YELLOW}⚠️  Frontend тесты не прошли или test:ci не настроен. Log: $FRONTEND_LOG${NC}" >&2
+        echo -e "${YELLOW}Last 20 lines:${NC}" >&2
+        tail -n 20 "$FRONTEND_LOG" >&2
     fi
     cd ..
 else

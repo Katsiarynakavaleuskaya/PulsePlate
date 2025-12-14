@@ -82,8 +82,9 @@ public final class WeeklyPlanReaderViewModel {
                 if planVM.isEmpty {
                     state = .empty
                 } else {
-                    // Clamp current day index to valid range
-                    currentDayIndex = min(currentDayIndex, max(0, planVM.days.count - 1))
+                    // Clamp current day index to valid range [0, days.count-1]
+                    let maxIndex = max(0, planVM.days.count - 1)
+                    currentDayIndex = max(0, min(currentDayIndex, maxIndex))
                     state = .loaded(planVM)
                 }
             }

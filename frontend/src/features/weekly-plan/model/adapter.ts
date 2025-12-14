@@ -46,11 +46,13 @@ function logContractDrift(context: string, details?: string): void {
  */
 function normalizeMeal(raw: Record<string, unknown>): Meal {
   const recipes = Array.isArray(raw.recipes)
-    ? raw.recipes.map((r: unknown) => ({
-        id: safeString((r as Record<string, unknown>)?.id, 'unknown'),
-        name: safeString((r as Record<string, unknown>)?.name, 'Unnamed Recipe'),
-        portions: safeNumber((r as Record<string, unknown>)?.portions, 1),
-      }))
+    ? raw.recipes
+        .filter((r): r is Record<string, unknown> => r != null && typeof r === 'object')
+        .map((r) => ({
+          id: safeString(r.id, 'unknown'),
+          name: safeString(r.name, 'Unnamed Recipe'),
+          portions: safeNumber(r.portions, 1),
+        }))
     : [];
 
   const totals = raw.totals as Record<string, unknown> | undefined;
@@ -149,7 +151,11 @@ export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
   const weekly_coverage =
     raw.weekly_coverage && typeof raw.weekly_coverage === 'object'
       ? normalizeWeeklyCoverage(raw.weekly_coverage)
-      : { protein: 0, iron: 0, vitamin_c: 0, calcium: 0 };
+      : (() => {
+          hasIncompleteData = true;
+          logContractDrift('Missing weekly_coverage', 'using default values');
+          return { protein: 0, iron: 0, vitamin_c: 0, calcium: 0 };
+        })();
 
   return {
     days,
