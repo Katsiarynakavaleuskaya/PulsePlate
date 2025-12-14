@@ -1,16 +1,17 @@
 """
-Premium Week Plan Router
+PRO Tier Router
 
-RU: Роутер для генерации недельного плана питания.
-EN: Router for generating weekly meal plans.
+RU: Роутер для PRO уровня подписки - продвинутые функции питания.
+EN: Router for PRO subscription tier - advanced nutrition features.
 
-⚠️ DEPRECATED: This router is deprecated. Use app.routers.pro instead.
-All endpoints in this router are deprecated and will be removed in v2.0.
-Please migrate to /api/v1/pro/* endpoints.
+This router provides PRO tier endpoints optimized for iOS mobile app integration.
+All endpoints require PRO tier API key validation via require_pro_tier middleware.
+
+Endpoints:
+- /api/v1/pro/meal/weekly - Weekly meal plan (macros only)
+- /api/v1/pro/nutrition/targets - WHO-based nutrition goals
 """
 
-import logging
-from threading import Event
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -26,38 +27,41 @@ from core.recommendations import build_nutrition_targets
 from core.targets import UserProfile
 from core.weekly_plan_new import build_week
 
-router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
-
-# Deprecation warning logged only once to avoid log spam (thread-safe)
-_deprecation_logged = Event()
-
-logger = logging.getLogger(__name__)
-
-# Cache database instances for performance (shared with pro.py pattern)
-_premium_food_db_cache: Optional[FoodDB] = None
-_premium_recipe_db_cache: Optional[RecipeDB] = None
+router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
 
 
-def _get_food_db() -> FoodDB:
-    """Get cached FoodDB instance for premium router."""
-    global _premium_food_db_cache
-    if _premium_food_db_cache is None:
-        _premium_food_db_cache = FoodDB("data/food_db_new.csv")
-    return _premium_food_db_cache
+# Cache database instances for performance
+_food_db_cache: Optional[FoodDB] = None
+_recipe_db_cache: Optional[RecipeDB] = None
 
 
-def _get_recipe_db() -> RecipeDB:
-    """Get cached RecipeDB instance for premium router."""
-    global _premium_recipe_db_cache
-    if _premium_recipe_db_cache is None:
-        _premium_recipe_db_cache = RecipeDB("data/recipes_new.csv", _get_food_db())
-    return _premium_recipe_db_cache
+def get_food_db() -> FoodDB:
+    """Get cached FoodDB instance."""
+    global _food_db_cache
+    if _food_db_cache is None:
+        _food_db_cache = FoodDB("data/food_db_new.csv")
+    return _food_db_cache
+
+
+def get_recipe_db() -> RecipeDB:
+    """Get cached RecipeDB instance."""
+    global _recipe_db_cache
+    if _recipe_db_cache is None:
+        _recipe_db_cache = RecipeDB("data/recipes_new.csv", get_food_db())
+    return _recipe_db_cache
 
 
 class WeekPlanRequest(BaseModel):
-    # режим A: передают готовые targets
+    """Request model for weekly meal plan generation.
+
+    Supports two modes:
+    - Mode A: Provide ready targets
+    - Mode B: Quick profile (fallback)
+    """
+
+    # Mode A: Provide ready targets
     targets: Optional[TargetsIn] = None
-    # режим B: быстрый профиль (fallback)
+    # Mode B: Quick profile (fallback)
     sex: Optional[Literal["female", "male"]] = None
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
@@ -71,6 +75,8 @@ class WeekPlanRequest(BaseModel):
 
 
 class WeekPlanResponse(BaseModel):
+    """Response model for weekly meal plan."""
+
     daily_menus: List[Dict]
     weekly_coverage: Dict[str, float]
     shopping_list: Dict[str, float]
@@ -121,10 +127,21 @@ def estimate_targets_minimal(
     activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
     goal: Literal["loss", "maintain", "gain"],
 ) -> Dict[str, Any]:
-    """Temporary function to estimate targets from user profile (DEPRECATED endpoint).
+    """Estimate nutrition targets from user profile.
 
-    WARNING: This function is duplicated in pro.py to maintain backward compatibility.
-    Any changes here MUST be mirrored in pro.py until extraction is complete.
+    WARNING: This function is duplicated in premium_week.py to maintain backward compatibility.
+    Any changes here MUST be mirrored in premium_week.py until extraction is complete.
+
+    Args:
+        sex: Biological sex
+        age: Age in years
+        height_cm: Height in centimeters
+        weight_kg: Weight in kilograms
+        activity: Activity level
+        goal: Nutrition goal
+
+    Returns:
+        Dictionary with nutrition targets (kcal, macros, micro, water, activity)
     """
     # Create a UserProfile object
     profile = UserProfile(
@@ -160,22 +177,11 @@ def estimate_targets_minimal(
 
 
 @router.post(
-    "/plan/week-flexible",
+    "/meal/weekly",
     response_model=WeekPlanResponse,
     dependencies=[Depends(require_pro_tier)],
-    deprecated=True,
-    summary="[DEPRECATED] Generate weekly meal plan",
+    summary="Generate weekly meal plan (PRO tier)",
     description="""
-    ⚠️ **DEPRECATED**: This endpoint is deprecated and will be removed in v2.0.
-
-    Please use `/api/v1/pro/meal/weekly` instead.
-
-    Migration guide:
-    - Update your API client to use `/api/v1/pro/meal/weekly`
-    - Request/response format remains the same
-    - API key validation remains the same (PRO tier required)
-
-    Original description:
     Generate weekly meal plan with PRO tier features.
 
     RU: Генерация недельного плана питания с функциями PRO уровня.
@@ -192,21 +198,20 @@ def estimate_targets_minimal(
     """,
 )
 async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
-    """
-    [DEPRECATED] Generate weekly meal plan with PRO tier features.
+    """Generate weekly meal plan with PRO tier features.
 
-    This endpoint is deprecated. Use /api/v1/pro/meal/weekly instead.
+    Args:
+        req: WeekPlanRequest with targets or user profile
+
+    Returns:
+        WeekPlanResponse with daily menus, coverage, shopping list, and metrics
+
+    Raises:
+        HTTPException: 400 if profile data is missing or invalid
     """
-    # Log deprecation warning only once to avoid log spam (thread-safe)
-    if not _deprecation_logged.is_set():
-        logger.warning(
-            "DEPRECATED endpoint /api/v1/premium/plan/week-flexible was called. "
-            "Use /api/v1/pro/meal/weekly instead."
-        )
-        _deprecation_logged.set()
     # Get cached database instances
-    fooddb = _get_food_db()
-    recipedb = _get_recipe_db()
+    fooddb = get_food_db()
+    recipedb = get_recipe_db()
 
     # Get targets (treat partial/empty targets as "missing" and fall back to profile derivation)
     targets_from_request: Dict[str, Any] = (
@@ -247,6 +252,6 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     if not _is_complete_targets(targets):
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
-    # 2) Построить неделю
+    # Build week
     week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)
     return WeekPlanResponse(**week)

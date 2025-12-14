@@ -241,12 +241,19 @@ POST /api/v1/vip/recipe/synthesize   ← Singular (one) ⚠️
 
 ### Tier 2: PRO (API Key Required - Level 1)
 
+**✅ IMPLEMENTED**: New PRO router at `/api/v1/pro/*`
+
+```plaintext
+POST /api/v1/pro/meal/weekly     - Weekly meal plan (macros only) ✅
+GET  /api/v1/pro/bmi/advanced    - BMI Pro with WHR, WHTR, FFMI (planned)
+GET  /api/v1/pro/meal/daily      - Daily meal plan (planned)
+POST /api/v1/pro/nutrition/targets - WHO-based nutrition goals (planned)
 ```
-/api/v1/pro/bmi/advanced    - BMI Pro with WHR, WHTR, FFMI
-/api/v1/pro/meal/weekly     - Weekly meal plan (macros only)
-/api/v1/pro/meal/daily      - Daily meal plan
-/api/v1/pro/nutrition/targets - WHO-based nutrition goals
-```
+
+**Migration Status**:
+
+- ✅ `/api/v1/pro/meal/weekly` - **NEW** (replaces `/api/v1/premium/plan/week-flexible`)
+- ⚠️ `/api/v1/premium/plan/week-flexible` - **DEPRECATED** (still works, will be removed in v2.0)
 
 ### Tier 3: VIP (API Key Required - Level 2)
 
@@ -385,19 +392,24 @@ Week 4:
 
 ## 📝 Action Items
 
-### ✅ Completed (PR 4.3.1)
+### ✅ Completed (PR 4.3.1 + Current Work)
 
 - [x] Create API tier middleware (`app/middleware/api_tiers.py`) - ✅ Done
 - [x] Add deprecation warnings to legacy endpoints - ✅ `/weekly-plan` deprecated
 - [x] Add API key validation to premium endpoints - ✅ `/premium/plan/week-flexible`
 - [x] Remove duplicate endpoint `/vip/recipe/synthesize` - ✅ Removed
 - [x] Create comprehensive tests for middleware - ✅ 22 tests passing
+- [x] Create new PRO router (`app/routers/pro.py`) - ✅ Done
+- [x] Implement `/api/v1/pro/meal/weekly` endpoint - ✅ Done
+- [x] Add deprecation to `/api/v1/premium/plan/week-flexible` - ✅ Done
+- [x] Create tests for PRO router - ✅ Done
 
 ### Immediate (Next Steps)
 
-- [ ] Document new structure in OpenAPI/Swagger
-- [ ] Update iOS app to use new test keys
-- [ ] Create migration guide for mobile developers
+- [x] Document new structure in OpenAPI/Swagger - ✅ Updated tags
+- [ ] Update iOS app to use new `/api/v1/pro/*` endpoints
+- [x] Create migration guide for mobile developers - ✅ This document
+- [ ] Add remaining PRO endpoints (BMI advanced, daily meal, nutrition targets)
 
 ### Short-term (2-3 PRs)
 

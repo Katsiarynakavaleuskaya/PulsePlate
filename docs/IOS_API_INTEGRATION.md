@@ -513,7 +513,7 @@ class NutritionService {
         )
 
         return try await client.request(
-            endpoint: "/api/v1/premium/plan/week-flexible",
+            endpoint: "/api/v1/pro/meal/weekly",
             method: "POST",
             body: request,
             tier: .pro
@@ -1260,7 +1260,7 @@ final class APIClientTests: XCTestCase {
         // Current implementation depends on external API behavior
         do {
             let _: WeeklyPlanResponse = try await client.request(
-                endpoint: "/api/v1/premium/plan/week-flexible",
+                endpoint: "/api/v1/pro/meal/weekly",
                 method: "POST",
                 tier: nil // No API key
             )

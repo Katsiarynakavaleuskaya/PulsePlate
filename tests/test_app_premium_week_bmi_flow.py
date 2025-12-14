@@ -181,5 +181,5 @@ class TestPremiumWeekPlanEndToEnd:
             json=payload,
         )
         # Use non-deprecated 422 constant to avoid DeprecationWarning
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert "macros" in response.text

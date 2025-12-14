@@ -1,3 +1,17 @@
+**/.venv/**
+**/venv/**
+**/node_modules/**
+**/__pycache__/**
+**/.pytest_cache/**
+**/.ruff_cache/**
+**/.mypy_cache/**
+**/.hypothesis/**
+**/htmlcov/**
+**/cache/**
+**/dist/**
+**/build/**
+**/*.log
+
 node_modules/
 cache/
 htmlcov/

@@ -81,8 +81,8 @@ repos:
           - -r
           - app
           - core
-        # Explicitly exclude .claude/ and tests directories using glob patterns
-        exclude: ".claude/*,tests/*"
+        # Explicitly exclude .claude/ and tests directories using regex
+        exclude: '^(\.claude/.*|tests/.*)'
 
   # --- Vulnerabilities: pip-audit (replacement for safety)
   - repo: https://github.com/pypa/pip-audit
