@@ -48,7 +48,7 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
     if (!targets || !enabled) {
@@ -58,13 +58,7 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
       return;
     }
 
-    // Abort previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+    const requestId = ++requestIdRef.current;
 
     setLoading(true);
     setError(null);
@@ -72,8 +66,8 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
     try {
       const rawResponse = await getWeeklyPlan(targets);
 
-      // Check if request was aborted
-      if (abortController.signal.aborted) {
+      // Ignore late responses (prevents state updates after a newer request)
+      if (requestId !== requestIdRef.current) {
         return;
       }
 
@@ -86,8 +80,8 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
       setData(normalized);
       onSuccess?.(normalized);
     } catch (err) {
-      // Ignore errors from aborted requests
-      if (abortController.signal.aborted) {
+      // Ignore errors from cancelled requests
+      if (requestId !== requestIdRef.current) {
         return;
       }
 
@@ -95,7 +89,7 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
       setError(errorMessage);
       onError?.(err instanceof Error ? err : new Error(errorMessage));
     } finally {
-      if (!abortController.signal.aborted) {
+      if (requestId === requestIdRef.current) {
         setLoading(false);
       }
     }
@@ -103,12 +97,6 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
 
   useEffect(() => {
     fetchData();
-
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
   }, [fetchData, retryKey]);
 
   const refetch = useCallback(() => {
@@ -118,9 +106,6 @@ export function useWeeklyPlan(options: UseWeeklyPlanOptions): UseWeeklyPlanRetur
   const clearData = useCallback(() => {
     setData(null);
     setError(null);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
   }, []);
 
   return {

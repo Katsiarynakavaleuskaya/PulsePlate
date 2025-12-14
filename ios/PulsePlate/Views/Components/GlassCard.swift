@@ -24,16 +24,10 @@ struct GlassCard<Content: View>: View {
 
     @ViewBuilder
     private var background: some View {
-        if #available(iOS 26.0, *) {
-            // iOS 26 "Liquid Glass" effect
-            // NOTE: glassBackgroundEffect() might not be available yet in current SDK
-            // Fallback to thinMaterial until iOS 26 SDK is released
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.thinMaterial)
-        } else {
-            // iOS 17-25 premium glass fallback
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.thinMaterial)
-        }
+        // Single implementation using thinMaterial.
+        // Reintroduce iOS 26-specific conditional when the
+        // SDK exposes the new Liquid Glass API.
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.thinMaterial)
     }
 }

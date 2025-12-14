@@ -71,8 +71,9 @@ function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu 
       protein_g: acc.protein_g + (meal.totals.protein_g || 0),
       fat_g: acc.fat_g + (meal.totals.fat_g || 0),
       carbs_g: acc.carbs_g + (meal.totals.carbs_g || 0),
+      fiber_g: acc.fiber_g + (meal.totals.fiber_g || 0),
     }),
-    { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 }
+    { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0, fiber_g: 0 }
   );
 
   return {
@@ -84,7 +85,7 @@ function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu 
       protein_g: safeNumber(dailyTotals?.protein_g, calculatedTotals.protein_g),
       fat_g: safeNumber(dailyTotals?.fat_g, calculatedTotals.fat_g),
       carbs_g: safeNumber(dailyTotals?.carbs_g, calculatedTotals.carbs_g),
-      fiber_g: safeNumber(dailyTotals?.fiber_g),
+      fiber_g: safeNumber(dailyTotals?.fiber_g, calculatedTotals.fiber_g),
     },
   };
 }
