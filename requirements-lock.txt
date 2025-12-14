@@ -33,7 +33,7 @@ dparse==0.6.4
 email-validator==2.3.0
 execnet==2.1.2
 Faker==38.2.0
-fastapi==0.124.2
+fastapi==0.124.4
 fastuuid==0.14.0
 filelock==3.20.0
 fonttools==4.61.0
