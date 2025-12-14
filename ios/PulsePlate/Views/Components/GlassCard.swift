@@ -4,7 +4,9 @@ import SwiftUI
 /// Centralizes glass effects to handle future API changes gracefully
 struct GlassCard<Content: View>: View {
     let cornerRadius: CGFloat
-    @ViewBuilder var content: Content
+    let content: Content
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     init(cornerRadius: CGFloat = 18, @ViewBuilder content: () -> Content) {
         self.cornerRadius = cornerRadius
@@ -16,6 +18,7 @@ struct GlassCard<Content: View>: View {
             .padding(14)
             .background(background)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(.white.opacity(0.10), lineWidth: 1)
@@ -24,10 +27,15 @@ struct GlassCard<Content: View>: View {
 
     @ViewBuilder
     private var background: some View {
-        // Single implementation using thinMaterial.
-        // Reintroduce iOS 26-specific conditional when the
-        // SDK exposes the new Liquid Glass API.
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.thinMaterial)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if reduceTransparency {
+            // Respect "Reduce Transparency" accessibility setting (HIG)
+            shape.fill(.background)
+        } else {
+            // Single implementation using thinMaterial.
+            // Reintroduce iOS 26-specific conditional when the
+            // SDK exposes the new Liquid Glass API.
+            shape.fill(.thinMaterial)
+        }
     }
 }

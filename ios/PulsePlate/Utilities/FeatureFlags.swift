@@ -22,10 +22,13 @@ public enum FeatureFlags {
     /// - Smoke checklist passed (see WeeklyPlanReaderSmokeChecklist.md)
     ///
     /// **Current behavior**:
-    /// - DEBUG: Enabled (mock service available)
-    /// - RELEASE: Disabled (awaiting TestFlight validation)
+    /// - WEEKLY_PLAN_READER_ENABLED: Enabled (for TestFlight QA)
+    /// - DEBUG: Enabled (for development)
+    /// - RELEASE: Disabled (awaiting production rollout)
     public static var weeklyPlanReaderEnabled: Bool {
-        #if DEBUG
+        #if WEEKLY_PLAN_READER_ENABLED
+        return true
+        #elseif DEBUG
         return true
         #else
         return false
@@ -38,25 +41,13 @@ public enum FeatureFlags {
     ///
     /// **Status**: Planned for next iteration
     /// **Dependencies**: weeklyPlanReaderEnabled must be true
-    public static var weeklyPlanSplitViewEnabled: Bool {
-        #if DEBUG
-        return false // Enable when implemented
-        #else
-        return false
-        #endif
-    }
+    public static let weeklyPlanSplitViewEnabled: Bool = false
 
     /// VIP/Premium paywall gates
     ///
     /// **Status**: Architecture ready, UI pending
     /// **Note**: When enabled, Weekly Plan Reader requires active subscription
-    public static var vipGatesEnabled: Bool {
-        #if DEBUG
-        return false
-        #else
-        return false
-        #endif
-    }
+    public static let vipGatesEnabled: Bool = false
 }
 
 // MARK: - Usage Example

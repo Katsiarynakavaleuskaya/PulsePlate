@@ -251,6 +251,10 @@ public enum WeeklyPlanPreviewData {
 
     // MARK: - Shopping List
 
+    /// Shopping list quantities
+    /// - Weights in grams (e.g., Chicken Breast: 800)
+    /// - Liquids in ml (e.g., Olive Oil: 250)
+    /// - Discrete items as count (e.g., Eggs: 12)
     private static let sampleShoppingList: [String: Double] = [
         "Chicken Breast": 800,
         "Salmon Fillet": 300,
