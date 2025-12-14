@@ -78,7 +78,11 @@ function normalizeMeal(raw: Record<string, unknown>): Meal {
  */
 function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu {
   const dayNumber = Math.max(1, safeNumber(raw.day, index + 1));
-  const meals = Array.isArray(raw.meals) ? raw.meals.map(normalizeMeal) : [];
+  const meals = Array.isArray(raw.meals)
+    ? raw.meals
+        .filter((m): m is Record<string, unknown> => m != null && typeof m === 'object' && !Array.isArray(m))
+        .map(normalizeMeal)
+    : [];
 
   // Calculate daily totals from meals if not provided
   const dailyTotals = raw.daily_totals as Record<string, unknown> | undefined;
@@ -171,7 +175,7 @@ export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
     weekly_coverage,
     metrics: {
       total_cost: safeNumber(raw.total_cost, 0),
-      adherence_score: safeNumber(raw.adherence_score, 0),
+      adherence_score: Math.min(1, Math.max(0, safeNumber(raw.adherence_score, 0))),
     },
     meta: {
       total_days: days.length,

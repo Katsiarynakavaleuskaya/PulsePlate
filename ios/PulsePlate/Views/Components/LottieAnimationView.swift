@@ -27,19 +27,19 @@ struct LottieAnimationView: View {
             }
         }
         .onAppear {
-            loadAnimation()
+            loadAnimation(named: animationName)
         }
-        .onChange(of: animationName) {
-            loadAnimation()
+        .onChange(of: animationName) { newValue in
+            loadAnimation(named: newValue)
         }
     }
 
-    private func loadAnimation() {
-        animation = LottieAnimation.named(animationName, bundle: .main)
+    private func loadAnimation(named name: String) {
+        animation = LottieAnimation.named(name, bundle: .main)
         if animation != nil {
-            print("✅ Lottie animation loaded: \(animationName)")
+            print("✅ Lottie animation loaded: \(name)")
         } else {
-            print("❌ Failed to load Lottie animation: \(animationName)")
+            print("❌ Failed to load Lottie animation: \(name)")
         }
     }
 }

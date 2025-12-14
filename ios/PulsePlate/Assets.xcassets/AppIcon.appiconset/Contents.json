@@ -2,7 +2,7 @@
   "images" : [
     {
       "filename" : "AppIcon.png",
-      "idiom" : "universal",
+      "idiom" : "ios-marketing",
       "platform" : "ios",
       "size" : "1024x1024"
     }

@@ -161,7 +161,7 @@ struct PlateViewPP: View {
           .padding()
         }
       }
-      .background(Color.navy)
+      .background(Color.navy.ignoresSafeArea())
       .accessibilityLabel("Plate Screen")
       .onAppear {
         // Load real nutrition data

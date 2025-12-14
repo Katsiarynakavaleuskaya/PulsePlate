@@ -12,14 +12,9 @@ extension ShapeStyle where Self == Color {
         Color.white.opacity(0.12)
     }
 
-    /// Liquid glass effect - works on iOS 17+
-    /// Can be tweaked per iOS version later without breaking compilation
+    /// Liquid glass effect for glassmorphism UI
     static var liquidGlass: Color {
-        if #available(iOS 18.0, *) {
-            return Color.white.opacity(0.15)
-        } else {
-            return Color.white.opacity(0.15)
-        }
+        Color.white.opacity(0.15)
     }
 }
 
