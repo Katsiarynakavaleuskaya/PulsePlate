@@ -9,4 +9,9 @@ public struct WeeklyPlanDTO: Decodable, Sendable {
         let container = try decoder.singleValueContainer()
         self.root = try container.decode(JSONValue.self)
     }
+
+    // For testing: allow direct initialization with JSONValue
+    public init(root: JSONValue) {
+        self.root = root
+    }
 }
