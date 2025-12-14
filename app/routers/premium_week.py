@@ -10,7 +10,7 @@ Please migrate to /api/v1/pro/* endpoints.
 """
 
 import logging
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -184,16 +184,18 @@ async def generate_week_plan(req: WeekPlanRequest):
         if not req.activity or not req.goal:
             raise HTTPException(status_code=400, detail="All profile fields are required")
 
+        # After validation, these fields are guaranteed to be non-None
+        # Use cast for type narrowing (mypy-safe alternative to assert)
         targets = estimate_targets_minimal(
-            sex=req.sex,  # type: ignore
-            age=req.age,  # type: ignore
-            height_cm=req.height_cm,  # type: ignore
-            weight_kg=req.weight_kg,  # type: ignore
-            activity=req.activity,  # type: ignore
-            goal=req.goal,  # type: ignore
+            sex=cast(Literal["female", "male"], req.sex),
+            age=cast(int, req.age),
+            height_cm=float(cast(int, req.height_cm)),  # Convert int to float for core function
+            weight_kg=float(cast(int, req.weight_kg)),  # Convert int to float for core function
+            activity=cast(
+                Literal["sedentary", "light", "moderate", "active", "very_active"], req.activity
+            ),
+            goal=cast(Literal["loss", "maintain", "gain"], req.goal),
         )
-        if not targets:
-            raise HTTPException(status_code=400, detail="Unable to derive targets")
 
     # 2) Построить неделю
     week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)
