@@ -7,7 +7,21 @@
 
 import type { RawWeekPlanResponse, WeekPlanVM, DayMenu, Meal } from './types';
 
-const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+/**
+ * Clamp number to range
+ */
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * Safely extract coverage percentage (0-300%)
+ */
+function safeCoverage(value: unknown): number {
+  return clamp(safeNumber(value, 0), 0, 300);
+}
 
 /**
  * Safely extract number from unknown value
@@ -54,7 +68,7 @@ function normalizeMeal(raw: Record<string, unknown>): Meal {
         .map((r) => ({
           id: safeString(r.id, 'unknown'),
           name: safeString(r.name, 'Unnamed Recipe'),
-          portions: safeNumber(r.portions, 1),
+          portions: Math.max(1, Math.trunc(safeNumber(r.portions, 1))),
         }))
     : [];
 
@@ -77,7 +91,7 @@ function normalizeMeal(raw: Record<string, unknown>): Meal {
  * Normalize a single day menu from raw data
  */
 function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu {
-  const dayNumber = Math.max(1, safeNumber(raw.day, index + 1));
+  const dayNumber = Math.min(7, Math.max(1, Math.trunc(safeNumber(raw.day, index + 1))));
   const meals = Array.isArray(raw.meals)
     ? raw.meals
         .filter((m): m is Record<string, unknown> => m != null && typeof m === 'object' && !Array.isArray(m))
@@ -99,7 +113,7 @@ function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu 
 
   return {
     day: dayNumber,
-    dayName: DAY_NAMES[(dayNumber - 1) % 7],
+    dayName: DAY_NAMES[dayNumber - 1],
     meals,
     daily_totals: {
       kcal: safeNumber(dailyTotals?.kcal, calculatedTotals.kcal),
@@ -115,16 +129,21 @@ function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu 
  * Normalize weekly coverage data
  */
 function normalizeWeeklyCoverage(raw: Record<string, unknown>): WeekPlanVM['weekly_coverage'] {
+  const blockedKeys = new Set(['__proto__', 'constructor', 'prototype']);
+  const extras: Record<string, number> = Object.create(null);
+
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === 'protein' || key === 'iron' || key === 'vitamin_c' || key === 'calcium') continue;
+    if (blockedKeys.has(key)) continue;
+    extras[key] = safeCoverage(value);
+  }
+
   return {
-    protein: safeNumber(raw.protein, 0),
-    iron: safeNumber(raw.iron, 0),
-    vitamin_c: safeNumber(raw.vitamin_c, 0),
-    calcium: safeNumber(raw.calcium, 0),
-    ...Object.fromEntries(
-      Object.entries(raw)
-        .filter(([key]) => !['protein', 'iron', 'vitamin_c', 'calcium'].includes(key))
-        .map(([key, value]) => [key, safeNumber(value, 0)])
-    ),
+    protein: safeCoverage(raw.protein),
+    iron: safeCoverage(raw.iron),
+    vitamin_c: safeCoverage(raw.vitamin_c),
+    calcium: safeCoverage(raw.calcium),
+    ...extras,
   };
 }
 
@@ -140,7 +159,7 @@ export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
   // Normalize days
   const days = Array.isArray(raw.daily_menus)
     ? raw.daily_menus.map((menu, index) => {
-        if (!menu || typeof menu !== 'object') {
+        if (!menu || typeof menu !== 'object' || Array.isArray(menu)) {
           hasIncompleteData = true;
           logContractDrift('Incomplete data detected', `day ${index + 1}: invalid menu object`);
           return normalizeDayMenu({}, index);

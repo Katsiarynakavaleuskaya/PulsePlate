@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import OSLog
 
 /// RU: Компонент для воспроизведения MP4 анимаций FitChef
 /// EN: Component for playing FitChef MP4 animations
@@ -7,6 +8,8 @@ struct VideoPlayerView: View {
     let videoName: String
     @State private var player: AVPlayer?
     @State private var playerObserver: NSObjectProtocol?
+
+    private static let logger = Logger(subsystem: "PulsePlate", category: "VideoPlayerView")
 
     var body: some View {
         Group {
@@ -22,7 +25,7 @@ struct VideoPlayerView: View {
         .onAppear {
             setupPlayer()
         }
-        .onChange(of: videoName) {
+        .onChange(of: videoName) { _ in
             setupPlayer()
         }
         .onDisappear {
@@ -35,10 +38,8 @@ struct VideoPlayerView: View {
         removeObserver()
         cleanupPlayer()
 
-        // Try to find video file in Bundle
-        guard let url = Bundle.main.url(forResource: videoName, withExtension: "mp4")
-            ?? Bundle.main.url(forResource: videoName, withExtension: nil) else {
-            print("❌ Video file not found: \(videoName)")
+        guard let url = resolveVideoURL(name: videoName) else {
+            Self.logger.error("Video file not found: \(videoName, privacy: .public)")
             return
         }
 
@@ -46,6 +47,18 @@ struct VideoPlayerView: View {
         player = newPlayer
         setupPlayerLoop(for: newPlayer)
         newPlayer.play()
+    }
+
+    private func resolveVideoURL(name: String) -> URL? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.lowercased().hasSuffix(".mp4") {
+            let base = String(trimmed.dropLast(4))
+            return Bundle.main.url(forResource: base, withExtension: "mp4")
+        } else {
+            return Bundle.main.url(forResource: trimmed, withExtension: "mp4")
+        }
     }
 
     private func setupPlayerLoop(for player: AVPlayer) {
@@ -56,8 +69,9 @@ struct VideoPlayerView: View {
             object: player.currentItem,
             queue: .main
         ) { _ in
-            player.seek(to: .zero)
-            player.play()
+            player.seek(to: .zero) { _ in
+                player.play()
+            }
         }
     }
 
