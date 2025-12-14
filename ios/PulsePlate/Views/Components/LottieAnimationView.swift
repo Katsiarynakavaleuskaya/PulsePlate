@@ -1,5 +1,6 @@
 import SwiftUI
 import Lottie
+import OSLog
 
 /// RU: Компонент для Lottie анимаций FitChef
 /// EN: Component for FitChef Lottie animations
@@ -7,6 +8,8 @@ struct LottieAnimationView: View {
     let animationName: String
     @State private var animation: LottieAnimation?
     @State private var isPlaying = false
+
+    private static let logger = Logger(subsystem: "PulsePlate", category: "LottieAnimationView")
 
     var body: some View {
         Group {
@@ -27,19 +30,28 @@ struct LottieAnimationView: View {
             }
         }
         .onAppear {
-            loadAnimation()
+            loadAnimation(named: animationName)
         }
-        .onChange(of: animationName) { _ in
-            loadAnimation()
+        .onChange(of: animationName) { newValue in
+            loadAnimation(named: newValue)
         }
     }
 
-    private func loadAnimation() {
-        animation = LottieAnimation.named(animationName, bundle: .main)
-        if animation != nil {
-            print("✅ Lottie animation loaded: \(animationName)")
+    private func loadAnimation(named name: String) {
+        guard !name.isEmpty else {
+            animation = nil
+            Self.logger.warning("Empty Lottie animation name; clearing animation.")
+            return
+        }
+
+        // NOTE: if Lottie JSON is packaged in a module bundle (SPM), .main will fail.
+        let loaded = LottieAnimation.named(name, bundle: .main)
+        animation = loaded
+
+        if loaded != nil {
+            Self.logger.debug("Lottie animation loaded: \(name, privacy: .public)")
         } else {
-            print("❌ Failed to load Lottie animation: \(animationName)")
+            Self.logger.error("Failed to load Lottie animation: \(name, privacy: .public)")
         }
     }
 }

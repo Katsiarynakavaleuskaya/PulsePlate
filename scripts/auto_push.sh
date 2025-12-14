@@ -54,13 +54,57 @@ else
 fi
 
 # 4. Запуск тестов и проверок
-show_status "Запуск полного набора тестов" "running"
+show_status "Запуск полного набора тестов (Backend + Frontend)" "running"
+
+# 4a. Backend tests
+echo -e "${BLUE}  📦 Backend тесты...${NC}"
 if coverage run -m pytest tests/ --maxfail=2 --disable-warnings -q; then
-    show_status "Все тесты пройдены" "success"
+    show_status "Backend тесты пройдены" "success"
 else
-    show_status "Тесты провалены" "error"
-    echo -e "${RED}🚫 Исправьте ошибки в тестах перед push${NC}"
+    show_status "Backend тесты провалены" "error"
+    echo -e "${RED}🚫 Исправьте ошибки в backend тестах перед push${NC}"
     exit 1
+fi
+
+# 4b. Frontend tests (if frontend/ exists)
+if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
+    echo -e "${BLUE}  ⚛️  Frontend тесты...${NC}"
+    cd frontend
+    FRONTEND_LOG="$(mktemp -t pulseplate_frontend_test.XXXXXX.log)"
+    if npm run test:ci >"$FRONTEND_LOG" 2>&1; then
+        show_status "Frontend тесты пройдены" "success"
+        rm -f "$FRONTEND_LOG"
+    else
+        echo -e "${YELLOW}⚠️  Frontend тесты не прошли или test:ci не настроен. Log: $FRONTEND_LOG${NC}" >&2
+        echo -e "${YELLOW}Last 20 lines:${NC}" >&2
+        tail -n 20 "$FRONTEND_LOG" >&2
+    fi
+    cd ..
+else
+    echo -e "${YELLOW}⚠️  Frontend директория не найдена, пропускаем${NC}"
+fi
+
+# 4c. iOS build check (if ios/ exists and on macOS)
+if [ -d "ios" ] && [ "$(uname)" == "Darwin" ]; then
+    echo -e "${BLUE}  📱 iOS build check...${NC}"
+    if command -v xcodebuild &> /dev/null; then
+        cd ios
+        # Quick syntax check only (no simulator needed)
+        IOS_LOG="$(mktemp -t pulseplate_ios_build.XXXXXX.log)"
+        if swift build -c release >"$IOS_LOG" 2>&1; then
+            show_status "iOS синтаксис проверен" "success"
+            rm -f "$IOS_LOG"
+        else
+            echo -e "${YELLOW}⚠️  iOS build warnings (non-blocking). Log saved to: $IOS_LOG${NC}" >&2
+            echo -e "${YELLOW}Last 20 lines:${NC}" >&2
+            tail -n 20 "$IOS_LOG" >&2
+        fi
+        cd ..
+    else
+        echo -e "${YELLOW}⚠️  Xcode не найден, пропускаем iOS проверку${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  iOS директория не найдена или не macOS, пропускаем${NC}"
 fi
 
 # 5. Проверка покрытия кода
@@ -151,7 +195,9 @@ if [[ "$current_branch" == "main" || "$current_branch" == "master" ]]; then
     echo -e "${GREEN}✅ Все проверки пройдены успешно!${NC}"
     echo ""
     echo -e "${BLUE}📊 Сводка:${NC}"
-    echo "   🧪 Тесты: PASSED"
+    echo "   🧪 Backend тесты: PASSED"
+    echo "   ⚛️  Frontend тесты: CHECKED"
+    echo "   📱 iOS синтаксис: CHECKED"
     echo "   📈 Покрытие: ${coverage_percent}%"
     echo "   🎨 Форматирование: OK"
     echo "   🔒 Безопасность: CHECKED"

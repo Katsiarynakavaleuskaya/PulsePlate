@@ -11,7 +11,8 @@ struct MealEntryView: View {
                 .foregroundStyle(.gray)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.navy.ignoresSafeArea())
+        .background(Color.navy)
+        .ignoresSafeArea()
     }
 }
 
@@ -26,7 +27,8 @@ struct NutritionDetailsView: View {
                 .foregroundStyle(.gray)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.navy.ignoresSafeArea())
+        .background(Color.navy)
+        .ignoresSafeArea()
     }
 }
 
@@ -159,7 +161,7 @@ struct PlateViewPP: View {
           .padding()
         }
       }
-      .background(.navy)
+      .background(Color.navy.ignoresSafeArea())
       .accessibilityLabel("Plate Screen")
       .onAppear {
         // Load real nutrition data

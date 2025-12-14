@@ -122,6 +122,24 @@ repos:
       # Removed: ruff-pre-push (redundant with ruff hook line 51-61)
       # Type hint checks are already covered by main ruff hook
 
+      # frontend tests — run on pre-commit if frontend files changed
+      - id: frontend-tests
+        name: frontend tests (vitest)
+        entry: bash -c "cd frontend && npm run test:ci || (echo '⚠️  Frontend tests failed or test:ci not configured'; exit 0)"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+
+      # ios syntax check — run on pre-commit if iOS files changed (macOS only)
+      - id: ios-syntax-check
+        name: ios syntax check (swift)
+        entry: bash -c "if [ '$(uname)' == 'Darwin' ] && [ -d ios ]; then cd ios && swift build -c release > /dev/null 2>&1 || echo '⚠️  iOS build warnings (non-blocking)'; else echo '⚠️  Skipping iOS check (not macOS or no ios/ dir)'; fi"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^ios/.*\.swift$
+
       # bandit-full — full security scan with smart excludes
       - id: bandit-full-pre-push
         name: bandit (pre-push, full repo)

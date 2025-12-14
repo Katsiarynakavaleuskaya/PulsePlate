@@ -6,6 +6,10 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B6B04C2D2EEF4BC4005E0955 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = B6B04C2C2EEF4BC4005E0955 /* Lottie */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B6169A432E893CF200B218D8 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -68,6 +72,7 @@
 		B6169A302E893CF100B218D8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				B6B04C2D2EEF4BC4005E0955 /* Lottie in Frameworks */,
 			);
 		};
 		B6169A3F2E893CF200B218D8 /* Frameworks */ = {
@@ -132,6 +137,9 @@
 				B6169A352E893CF100B218D8 /* PulsePlate */,
 			);
 			name = PulsePlate;
+			packageProductDependencies = (
+				B6B04C2C2EEF4BC4005E0955 /* Lottie */,
+			);
 			productName = PulsePlate;
 			productReference = B6169A332E893CF100B218D8 /* PulsePlate.app */;
 			productType = "com.apple.product-type.application";
@@ -206,6 +214,9 @@
 			);
 			mainGroup = B6169A2A2E893CF100B218D8;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B6B04C2B2EEF4BC4005E0955 /* XCRemoteSwiftPackageReference "lottie-ios" */,
+			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = B6169A342E893CF100B218D8 /* Products */;
 			projectDirPath = "";
@@ -414,6 +425,7 @@
 				DEVELOPMENT_TEAM = 3J6YL696KR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -460,6 +472,7 @@
 				DEVELOPMENT_TEAM = 3J6YL696KR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -624,6 +637,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B6B04C2B2EEF4BC4005E0955 /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.5.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B6B04C2C2EEF4BC4005E0955 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B6B04C2B2EEF4BC4005E0955 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B6169A2B2E893CF100B218D8 /* Project object */;
 }

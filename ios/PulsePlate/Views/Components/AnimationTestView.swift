@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import Combine
 
 /// RU: Обёртка для AVPlayer, чтобы сохранить состояние плеера между обновлениями view
 /// EN: Wrapper for AVPlayer to preserve player state across view updates
@@ -53,7 +54,7 @@ struct AnimationTestView: View {
                         debounceWorkItem?.cancel()
 
                         // Schedule new work item with debounce delay
-                        debounceWorkItem = DispatchWorkItem {
+                        let workItem = DispatchWorkItem {
                             if let newUrl = Bundle.main.url(forResource: videos[newVideo], withExtension: "mp4") {
                                 setupPlayer(with: newUrl)
                                 if isPlaying {
@@ -62,8 +63,10 @@ struct AnimationTestView: View {
                             }
                         }
 
+                        debounceWorkItem = workItem
+
                         // Execute after 0.3 seconds delay to prevent rapid tap issues
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: debounceWorkItem)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: workItem)
                     }
                     .onChange(of: isPlaying) { _, playing in
                         if playing {

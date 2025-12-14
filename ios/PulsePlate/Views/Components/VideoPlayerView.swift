@@ -1,25 +1,20 @@
 import SwiftUI
 import AVKit
+import OSLog
 
 /// RU: Компонент для воспроизведения MP4 анимаций FitChef
 /// EN: Component for playing FitChef MP4 animations
 struct VideoPlayerView: View {
     let videoName: String
     @State private var player: AVPlayer?
-    @State private var isPlaying = false
+    @State private var playerObserver: NSObjectProtocol?
+
+    private static let logger = Logger(subsystem: "PulsePlate", category: "VideoPlayerView")
 
     var body: some View {
         Group {
             if let player = player {
                 VideoPlayer(player: player)
-                    .onAppear {
-                        player.play()
-                        isPlaying = true
-                    }
-                    .onDisappear {
-                        player.pause()
-                        isPlaying = false
-                    }
             } else {
                 // Fallback image if video fails to load
                 Image("FitChef")
@@ -33,38 +28,63 @@ struct VideoPlayerView: View {
         .onChange(of: videoName) { _ in
             setupPlayer()
         }
+        .onDisappear {
+            removeObserver()
+            cleanupPlayer()
+        }
     }
 
     private func setupPlayer() {
-        // Try to find video file in Bundle
-        guard let url = Bundle.main.url(forResource: videoName, withExtension: "mp4") else {
-            print("❌ Video file not found: \(videoName).mp4")
-            // Try alternative path
-            if let altUrl = Bundle.main.url(forResource: videoName, withExtension: nil) {
-                player = AVPlayer(url: altUrl)
-                setupPlayerLoop()
-                return
-            }
+        removeObserver()
+        cleanupPlayer()
+
+        guard let url = resolveVideoURL(name: videoName) else {
+            Self.logger.error("Video file not found: \(videoName, privacy: .public)")
             return
         }
 
-        player = AVPlayer(url: url)
-        setupPlayerLoop()
-        player?.play()
+        let newPlayer = AVPlayer(url: url)
+        player = newPlayer
+        setupPlayerLoop(for: newPlayer)
+        newPlayer.play()
     }
 
-    private func setupPlayerLoop() {
-        player?.actionAtItemEnd = .none
+    private func resolveVideoURL(name: String) -> URL? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
 
-        // Loop the video
-        NotificationCenter.default.addObserver(
+        if trimmed.lowercased().hasSuffix(".mp4") {
+            let base = String(trimmed.dropLast(4))
+            return Bundle.main.url(forResource: base, withExtension: "mp4")
+        } else {
+            return Bundle.main.url(forResource: trimmed, withExtension: "mp4")
+        }
+    }
+
+    private func setupPlayerLoop(for player: AVPlayer) {
+        player.actionAtItemEnd = .none
+
+        playerObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
-            object: player?.currentItem,
+            object: player.currentItem,
             queue: .main
         ) { _ in
-            player?.seek(to: .zero)
-            player?.play()
+            player.seek(to: .zero) { _ in
+                player.play()
+            }
         }
+    }
+
+    private func removeObserver() {
+        if let token = playerObserver {
+            NotificationCenter.default.removeObserver(token)
+            playerObserver = nil
+        }
+    }
+
+    private func cleanupPlayer() {
+        player?.pause()
+        player = nil
     }
 }
 

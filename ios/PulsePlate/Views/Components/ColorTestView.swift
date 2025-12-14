@@ -35,9 +35,9 @@ struct ColorTestView: View {
                         .foregroundColor(.white)
 
                     HStack(spacing: 12) {
-                        ColorCard(name: "Surface", color: .surface)
-                        ColorCard(name: "Elevated", color: .surfaceElevated)
-                        ColorCard(name: "Highlight", color: .surfaceHighlight)
+                        ColorCard(name: "Surface", color: Color.surface)
+                        ColorCard(name: "Elevated", color: Color.surfaceElevated)
+                        ColorCard(name: "Highlight", color: Color.surfaceHighlight)
                     }
                 }
 
