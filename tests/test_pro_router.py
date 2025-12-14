@@ -432,64 +432,90 @@ class TestPRORouter:
             "goal": "maintain",
         }
 
-        premium_response = client.post(
-            "/api/v1/premium/plan/week-flexible",
-            json=payload,
-            headers={"X-API-Key": "test_pro_key"},
-        )
-        pro_response = client.post(
-            "/api/v1/pro/meal/weekly",
-            json=payload,
-            headers={"X-API-Key": "test_pro_key"},
-        )
+        # Mock build_week to avoid test interference from xdist and real core logic
+        fake_week = {
+            "daily_menus": [{"day": 1, "meals": [], "totals": {"kcal": 2000}}],
+            "weekly_coverage": {"protein": 100.0},
+            "shopping_list": {"tomato": 500.0, "chicken": 300.0},
+            "total_cost": 150.0,
+            "adherence_score": 0.95,
+        }
+
+        with (
+            patch("app.routers.premium_week.build_week", return_value=fake_week),
+            patch("app.routers.pro.build_week", return_value=fake_week),
+        ):
+            premium_response = client.post(
+                "/api/v1/premium/plan/week-flexible",
+                json=payload,
+                headers={"X-API-Key": "test_pro_key"},
+            )
+            pro_response = client.post(
+                "/api/v1/pro/meal/weekly",
+                json=payload,
+                headers={"X-API-Key": "test_pro_key"},
+            )
 
         # Backward compatibility: both endpoints should behave consistently
         assert premium_response.status_code == pro_response.status_code
+        assert (
+            premium_response.status_code == 200
+        ), f"Expected 200, got {premium_response.status_code}"
 
-        # If both succeed, their response structure should match
-        if premium_response.status_code == 200:
-            premium_data = premium_response.json()
-            pro_data = pro_response.json()
+        # Both endpoints should return the same structure
+        premium_data = premium_response.json()
+        pro_data = pro_response.json()
 
-            # Verify both have the same required fields
-            assert set(premium_data.keys()) == set(pro_data.keys())
+        # Verify both have the same required fields
+        assert set(premium_data.keys()) == set(pro_data.keys())
 
-            # Verify field types are consistent
-            assert isinstance(premium_data["daily_menus"], list)
-            assert isinstance(pro_data["daily_menus"], list)
-            assert isinstance(premium_data["total_cost"], (int, float))
-            assert isinstance(pro_data["total_cost"], (int, float))
+        # Verify field types are consistent
+        assert isinstance(premium_data["daily_menus"], list)
+        assert isinstance(pro_data["daily_menus"], list)
+        assert isinstance(premium_data["total_cost"], (int, float))
+        assert isinstance(pro_data["total_cost"], (int, float))
 
     def test_pro_endpoint_structure(self, client):
         """Test that PRO endpoint returns correct structure for successful responses."""
-        response = client.post(
-            "/api/v1/pro/meal/weekly",
-            json={
-                "sex": "female",
-                "age": 25,
-                "height_cm": 165,
-                "weight_kg": 60,
-                "activity": "moderate",
-                "goal": "maintain",
-            },
-            headers={"X-API-Key": "test_pro_key"},
-        )
+        # Mock build_week to avoid test interference from xdist
+        fake_week = {
+            "daily_menus": [{"day": 1, "meals": []}],
+            "weekly_coverage": {"protein": 100.0},
+            "shopping_list": {"tomato": 500.0, "chicken": 300.0},
+            "total_cost": 150.0,
+            "adherence_score": 0.95,
+        }
 
-        if response.status_code == 200:
-            data = response.json()
-            # Validate all required fields of WeekPlanResponse are present
-            assert "daily_menus" in data, "daily_menus field is required"
-            assert "weekly_coverage" in data, "weekly_coverage field is required"
-            assert "shopping_list" in data, "shopping_list field is required"
-            assert "total_cost" in data, "total_cost field is required"
-            assert "adherence_score" in data, "adherence_score field is required"
+        with patch("app.routers.pro.build_week", return_value=fake_week):
+            response = client.post(
+                "/api/v1/pro/meal/weekly",
+                json={
+                    "sex": "female",
+                    "age": 25,
+                    "height_cm": 165,
+                    "weight_kg": 60,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                },
+                headers={"X-API-Key": "test_pro_key"},
+            )
 
-            # Validate types
-            assert isinstance(data["daily_menus"], list)
-            assert isinstance(data["weekly_coverage"], dict)
-            assert isinstance(data["shopping_list"], dict)
-            assert isinstance(data["total_cost"], (int, float))
-            assert isinstance(data["adherence_score"], (int, float))
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        data = response.json()
+
+        # Validate all required fields of WeekPlanResponse are present
+        assert "daily_menus" in data, "daily_menus field is required"
+        assert "weekly_coverage" in data, "weekly_coverage field is required"
+        assert "shopping_list" in data, "shopping_list field is required"
+        assert "total_cost" in data, "total_cost field is required"
+        assert "adherence_score" in data, "adherence_score field is required"
+
+        # Validate types
+        assert isinstance(data["daily_menus"], list)
+        assert isinstance(data["weekly_coverage"], dict)
+        assert isinstance(data["shopping_list"], dict)
+        assert isinstance(data["total_cost"], (int, float))
+        assert isinstance(data["adherence_score"], (int, float))
 
 
 class TestPRORouterAPITierValidation:
