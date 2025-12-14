@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Adaptive glass card with iOS 26 Liquid Glass support and iOS 17+ fallback
-/// Centralizes glass effects to handle future API changes gracefully
+/// Adaptive glass card with visual Liquid Glass approximation
+/// Uses system materials on iOS 17–25 and a tuned glass-like color on iOS 26+
+/// Centralizes glass styling to allow easy migration to real Liquid Glass APIs when available
 struct GlassCard<Content: View>: View {
     let cornerRadius: CGFloat
     let content: Content

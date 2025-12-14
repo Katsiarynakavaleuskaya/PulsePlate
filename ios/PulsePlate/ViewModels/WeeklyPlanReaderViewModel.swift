@@ -3,6 +3,7 @@ import Observation
 
 /// Observable ViewModel for Weekly Plan Reader screen
 /// Manages loading state, day navigation, and UI interactions
+@MainActor
 @Observable
 public final class WeeklyPlanReaderViewModel {
     // MARK: - Published State
@@ -50,11 +51,10 @@ public final class WeeklyPlanReaderViewModel {
 
     /// Internal load implementation (runs off main thread for network)
     private func _load(targets: JSONValue? = nil) async {
-        // Store targets for retry (MainActor isolated access)
-        let targetsToStore = targets
-        await MainActor.run { lastTargets = targetsToStore }
+        // Store targets for retry
+        lastTargets = targets
 
-        await MainActor.run { state = .loading }
+        state = .loading
 
         do {
             // Check for cancellation before starting work
@@ -78,21 +78,19 @@ public final class WeeklyPlanReaderViewModel {
             let planVM = WeeklyPlanAdapter.toVM(dto: dto)
 
             // Update state on main thread
-            await MainActor.run {
-                if planVM.isEmpty {
-                    state = .empty
-                } else {
-                    // Clamp current day index to valid range [0, days.count-1]
-                    let maxIndex = max(0, planVM.days.count - 1)
-                    currentDayIndex = max(0, min(currentDayIndex, maxIndex))
-                    state = .loaded(planVM)
-                }
+            if planVM.isEmpty {
+                state = .empty
+            } else {
+                // Clamp current day index to valid range [0, days.count-1]
+                let maxIndex = max(0, planVM.days.count - 1)
+                currentDayIndex = max(0, min(currentDayIndex, maxIndex))
+                state = .loaded(planVM)
             }
         } catch is CancellationError {
             // Ignore cancellation - don't set failed state
             return
         } catch {
-            await MainActor.run { state = .failed(error.localizedDescription) }
+            state = .failed(error.localizedDescription)
         }
     }
 
@@ -124,8 +122,7 @@ public final class WeeklyPlanReaderViewModel {
         loadTask?.cancel()
         loadTask = Task { [weak self] in
             guard let self else { return }
-            let targets = await MainActor.run { self.lastTargets }
-            await self._load(targets: targets)
+            await self._load(targets: self.lastTargets)
         }
     }
 
@@ -135,9 +132,7 @@ public final class WeeklyPlanReaderViewModel {
     private static func encodeTargetsBody(_ targets: JSONValue?) throws -> Data {
         let encoder = JSONEncoder()
         // Stable encoding (optional, but helps diffs/logs)
-        if #available(iOS 11.0, *) {
-            encoder.outputFormatting = [.sortedKeys]
-        }
+        encoder.outputFormatting = [.sortedKeys]
 
         // If nil: send empty object {}
         let payload: JSONValue
