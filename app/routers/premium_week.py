@@ -27,8 +27,9 @@ from core.weekly_plan_new import build_week
 
 router = APIRouter(prefix="/api/v1/premium", tags=["premium"])
 
-# Deprecation warning will be logged on every call, not at import time
-# to avoid spamming logs on every startup
+# Deprecation warning logged only once to avoid log spam
+_deprecation_logged = False
+
 logger = logging.getLogger(__name__)
 
 # Cache database instances for performance (shared with pro.py pattern)
@@ -156,17 +157,20 @@ def estimate_targets_minimal(
     - Cost estimation
     """,
 )
-async def generate_week_plan(req: WeekPlanRequest):
+async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     """
     [DEPRECATED] Generate weekly meal plan with PRO tier features.
 
     This endpoint is deprecated. Use /api/v1/pro/meal/weekly instead.
     """
-    # Log deprecation warning on first use (not at import time)
-    logger.warning(
-        "DEPRECATED endpoint /api/v1/premium/plan/week-flexible was called. "
-        "Use /api/v1/pro/meal/weekly instead."
-    )
+    # Log deprecation warning only once to avoid log spam
+    global _deprecation_logged
+    if not _deprecation_logged:
+        logger.warning(
+            "DEPRECATED endpoint /api/v1/premium/plan/week-flexible was called. "
+            "Use /api/v1/pro/meal/weekly instead."
+        )
+        _deprecation_logged = True
     # Get cached database instances
     fooddb = _get_food_db()
     recipedb = _get_recipe_db()
