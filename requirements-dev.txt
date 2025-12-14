@@ -14,7 +14,7 @@ anyio==4.12.0
     #   httpx
 asgi-lifespan==2.1.0
     # via -r requirements-dev.in
-authlib==1.6.5
+authlib==1.6.6
     # via safety
 bandit==1.9.2
     # via -r requirements-dev.in
@@ -270,9 +270,9 @@ typing-inspection==0.4.2
     # via
     #   -c requirements.txt
     #   pydantic
-tzdata==2025.2
+tzdata==2025.3
     # via faker
-urllib3==2.6.1
+urllib3==2.6.2
     # via requests
 
 # The following packages are considered to be unsafe in a requirements file:

@@ -30,9 +30,9 @@ diff-cover>=9.7.2  # Updated to match requirements-dev.txt
 
 # Production runtime packages (mirror requirements.txt minimums)
 fastapi>=0.122.0
-# Starlette capped due to known breaking changes in 0.50.0
+# Starlette 0.50.0 is compatible with FastAPI 0.124.4+
 # See: https://github.com/encode/starlette/releases/tag/0.50.0
-starlette>=0.49.1,<0.50.0
+starlette>=0.50.0
 uvicorn>=0.38.0
 pydantic>=2.12.5
 openai>=2.8.1
