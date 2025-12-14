@@ -66,8 +66,10 @@ class WeekPlanRequest(BaseModel):
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
     weight_kg: Optional[int] = Field(None, gt=30, lt=300)
-    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = "moderate"
-    goal: Literal["loss", "maintain", "gain"] = "maintain"
+    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = (
+        "moderate"
+    )
+    goal: Optional[Literal["loss", "maintain", "gain"]] = "maintain"
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
 
@@ -99,6 +101,9 @@ def _is_complete_targets(d: Dict[str, Any]) -> bool:
     # micro must not be empty, otherwise core may produce unexpected results
     if not d.get("micro"):
         return False
+    # macros must not be empty, for consistency with micro validation
+    if not d.get("macros"):
+        return False
     return True
 
 
@@ -111,7 +116,7 @@ def estimate_targets_minimal(
     weight_kg: float,
     activity: Literal["sedentary", "light", "moderate", "active", "very_active"],
     goal: Literal["loss", "maintain", "gain"],
-) -> dict:
+) -> Dict[str, Any]:
     """Estimate nutrition targets from user profile.
 
     WARNING: This function is duplicated in premium_week.py to maintain backward compatibility.
