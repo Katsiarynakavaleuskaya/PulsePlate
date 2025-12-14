@@ -132,6 +132,11 @@ Quick layout validation:
 
 ---
 
+**Last Updated**: 2025-12-14
+**Owner**: iOS Team
+**Review Frequency**: Before every Weekly Plan Reader PR
+---
+
 **Last Updated**: 2024-12-14
 **Owner**: iOS Team
 **Review Frequency**: Before every Weekly Plan Reader PR

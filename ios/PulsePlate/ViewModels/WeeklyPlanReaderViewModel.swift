@@ -7,7 +7,7 @@ import Observation
 public final class WeeklyPlanReaderViewModel {
     // MARK: - Published State
 
-    public private(set) var state: WeekPlanState = .idle
+    public private(set) var state: WeeklyPlanState = .idle
     public var currentDayIndex: Int = 0
     public var isCoverageExpanded: Bool = false
 

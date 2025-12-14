@@ -106,13 +106,16 @@ public struct PlanMetricsVM: Equatable, Sendable {
 }
 
 public enum MealType: String, CaseIterable, Sendable {
-    case breakfast, lunch, dinner, snacks, other
+    case breakfast, morningSnack = "morning_snack", lunch, afternoonSnack = "afternoon_snack", dinner, eveningSnack = "evening_snack", snacks, other
 
     public var emoji: String {
         switch self {
         case .breakfast: return "🍳"
+        case .morningSnack: return "🍎"
         case .lunch: return "🍽️"
+        case .afternoonSnack: return "🥨"
         case .dinner: return "🍴"
+        case .eveningSnack: return "🍵"
         case .snacks: return "🍎"
         case .other: return "🍽️"
         }
@@ -121,8 +124,11 @@ public enum MealType: String, CaseIterable, Sendable {
     public var displayName: String {
         switch self {
         case .breakfast: return "Breakfast"
+        case .morningSnack: return "Morning snack"
         case .lunch: return "Lunch"
+        case .afternoonSnack: return "Afternoon snack"
         case .dinner: return "Dinner"
+        case .eveningSnack: return "Evening snack"
         case .snacks: return "Snacks"
         case .other: return "Meal"
         }
@@ -132,16 +138,19 @@ public enum MealType: String, CaseIterable, Sendable {
     public var sortRank: Int {
         switch self {
         case .breakfast: return 0
-        case .lunch: return 1
-        case .dinner: return 2
-        case .snacks: return 3
-        case .other: return 4
+        case .morningSnack: return 1
+        case .lunch: return 2
+        case .afternoonSnack: return 3
+        case .dinner: return 4
+        case .eveningSnack: return 5
+        case .snacks: return 6
+        case .other: return 7
         }
     }
 }
 
 // MARK: - Loading States
-public enum WeekPlanState: Equatable {
+public enum WeeklyPlanState: Equatable {
     case idle
     case loading
     case loaded(WeeklyPlanVM)

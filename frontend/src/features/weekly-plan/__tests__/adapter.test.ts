@@ -88,12 +88,12 @@ describe('normalizeWeekPlan', () => {
             {
               meal_type: 'breakfast',
               recipes: [],
-              totals: { kcal: 500, protein_g: 20, fat_g: 15, carbs_g: 60 },
+              totals: { kcal: 500, protein_g: 20, fat_g: 15, carbs_g: 60, fiber_g: 4 },
             },
             {
               meal_type: 'lunch',
               recipes: [],
-              totals: { kcal: 700, protein_g: 35, fat_g: 25, carbs_g: 80 },
+              totals: { kcal: 700, protein_g: 35, fat_g: 25, carbs_g: 80, fiber_g: 9 },
             },
           ],
           // No daily_totals provided
@@ -111,6 +111,44 @@ describe('normalizeWeekPlan', () => {
     expect(result.days[0].daily_totals.protein_g).toBe(55);
     expect(result.days[0].daily_totals.fat_g).toBe(40);
     expect(result.days[0].daily_totals.carbs_g).toBe(140);
+    expect(result.days[0].daily_totals.fiber_g).toBe(13);
+  });
+
+  it('should use daily_totals.fiber_g when provided (overrides calculated fallback)', () => {
+    const raw: RawWeekPlanResponse = {
+      daily_menus: [
+        {
+          day: 1,
+          meals: [
+            {
+              meal_type: 'breakfast',
+              recipes: [],
+              totals: { kcal: 200, protein_g: 10, fat_g: 5, carbs_g: 30, fiber_g: 4 },
+            },
+            {
+              meal_type: 'lunch',
+              recipes: [],
+              totals: { kcal: 400, protein_g: 25, fat_g: 15, carbs_g: 45, fiber_g: 9 },
+            },
+          ],
+          daily_totals: {
+            kcal: 600,
+            protein_g: 35,
+            fat_g: 20,
+            carbs_g: 75,
+            fiber_g: 99, // Explicit value overrides calculated (4 + 9 = 13)
+          },
+        },
+      ],
+      weekly_coverage: {},
+      shopping_list: {},
+      total_cost: 0,
+      adherence_score: 0,
+    };
+
+    const result = normalizeWeekPlan(raw);
+
+    expect(result.days[0].daily_totals.fiber_g).toBe(99);
   });
 
   it('should handle missing meal recipes gracefully', () => {
