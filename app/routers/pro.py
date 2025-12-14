@@ -201,12 +201,38 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     if _is_complete_targets(targets_from_request):
         targets: Dict[str, Any] = targets_from_request
     else:
-        # Fallback: derive from profile, otherwise 400 (keep legacy message for tests)
-        if req.sex is None or req.age is None or req.height_cm is None or req.weight_kg is None:
-            raise HTTPException(status_code=400, detail="Missing user profile data")
+        # Fallback: derive from profile, otherwise 400 (combined message for backward compatibility)
+        if req.sex is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing user profile data (Missing required field: sex)",
+            )
+        if req.age is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing user profile data (Missing required field: age)",
+            )
+        if req.height_cm is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing user profile data (Missing required field: height_cm)",
+            )
+        if req.weight_kg is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing user profile data (Missing required field: weight_kg)",
+            )
         # activity/goal have defaults but can be explicitly set to null
-        if req.activity is None or req.goal is None:
-            raise HTTPException(status_code=400, detail="Missing user profile data")
+        if req.activity is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing user profile data (Missing required field: activity)",
+            )
+        if req.goal is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing user profile data (Missing required field: goal)",
+            )
 
         targets = estimate_targets_minimal(
             sex=req.sex,
