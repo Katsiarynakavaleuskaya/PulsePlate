@@ -12,7 +12,7 @@ Endpoints:
 - /api/v1/pro/nutrition/targets - WHO-based nutrition goals
 """
 
-from typing import Dict, List, Literal, Optional, cast
+from typing import Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -66,10 +66,8 @@ class WeekPlanRequest(BaseModel):
     age: Optional[int] = Field(None, gt=10, lt=90)
     height_cm: Optional[int] = Field(None, gt=100, lt=220)
     weight_kg: Optional[int] = Field(None, gt=30, lt=300)
-    activity: Optional[Literal["sedentary", "light", "moderate", "active", "very_active"]] = (
-        "moderate"
-    )
-    goal: Optional[Literal["loss", "maintain", "gain"]] = "maintain"
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = "moderate"
+    goal: Literal["loss", "maintain", "gain"] = "maintain"
     diet_flags: List[str] = Field(default_factory=list)
     lang: Language = "en"
 
@@ -184,26 +182,24 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     if req.targets:
         targets = req.targets.model_dump()
     else:
-        # Temporary calculation via bmi_core (BMR/TDEE + macros + micro table)
-        # Check required profile fields
-        if not all([req.sex, req.age, req.height_cm, req.weight_kg]):
-            raise HTTPException(status_code=400, detail="Missing user profile data")
+        # Validate required profile fields (explicit checks for better error messages)
+        if req.sex is None:
+            raise HTTPException(status_code=400, detail="Missing required field: sex")
+        if req.age is None:
+            raise HTTPException(status_code=400, detail="Missing required field: age")
+        if req.height_cm is None:
+            raise HTTPException(status_code=400, detail="Missing required field: height_cm")
+        if req.weight_kg is None:
+            raise HTTPException(status_code=400, detail="Missing required field: weight_kg")
 
-        # Check activity and goal (they have defaults but can be explicitly set to None)
-        if not req.activity or not req.goal:
-            raise HTTPException(status_code=400, detail="All profile fields are required")
-
-        # After validation, these fields are guaranteed to be non-None
-        # Use cast for type narrowing (mypy-safe alternative to assert)
+        # After None checks above, mypy narrows Optional -> concrete types
         targets = estimate_targets_minimal(
-            sex=cast(Literal["female", "male"], req.sex),
-            age=cast(int, req.age),
-            height_cm=float(cast(int, req.height_cm)),  # Convert int to float for core function
-            weight_kg=float(cast(int, req.weight_kg)),  # Convert int to float for core function
-            activity=cast(
-                Literal["sedentary", "light", "moderate", "active", "very_active"], req.activity
-            ),
-            goal=cast(Literal["loss", "maintain", "gain"], req.goal),
+            sex=req.sex,
+            age=req.age,
+            height_cm=float(req.height_cm),
+            weight_kg=float(req.weight_kg),
+            activity=req.activity,
+            goal=req.goal,
         )
 
     # Build week

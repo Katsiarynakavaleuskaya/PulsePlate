@@ -31,8 +31,8 @@ echo "✅ Кэш проекта очищен"
 
 # 4. Проверить процессы
 echo "4️⃣ Проверяем процессы..."
-QODER_PROCS=$(ps aux | grep -i qoder | grep -v grep | wc -l | tr -d ' ')
-LSP_PROCS=$(ps aux | grep -E "lsp_server|pylance|pyright" | grep -v grep | wc -l | tr -d ' ')
+QODER_PROCS=$(pgrep -i qoder | wc -l)
+LSP_PROCS=$(pgrep -E "lsp_server|pylance|pyright" | wc -l)
 
 echo "   Процессов Qoder: $QODER_PROCS"
 echo "   Языковых серверов: $LSP_PROCS"
