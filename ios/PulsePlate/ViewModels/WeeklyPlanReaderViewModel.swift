@@ -56,6 +56,9 @@ public final class WeeklyPlanReaderViewModel {
         await MainActor.run { state = .loading }
 
         do {
+            // Check for cancellation before starting work
+            try Task.checkCancellation()
+
             // Prepare request body
             let body = try JSONSerialization.data(withJSONObject: targets ?? [:])
             let request = WeeklyPlanRequest(
@@ -66,6 +69,9 @@ public final class WeeklyPlanReaderViewModel {
 
             // Fetch from service (off main thread)
             let dto = try await service.fetchWeeklyPlan(request: request)
+
+            // Check for cancellation after network call
+            try Task.checkCancellation()
 
             // Adapt to VM (off main thread)
             let planVM = WeeklyPlanAdapter.toVM(dto: dto)
@@ -80,6 +86,9 @@ public final class WeeklyPlanReaderViewModel {
                     state = .loaded(planVM)
                 }
             }
+        } catch is CancellationError {
+            // Ignore cancellation - don't set failed state
+            return
         } catch {
             await MainActor.run { state = .failed(error.localizedDescription) }
         }

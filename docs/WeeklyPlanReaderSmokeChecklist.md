@@ -21,10 +21,12 @@
 Test all 4 states using mock service or previews:
 
 #### Loading State
+
 - [ ] Skeleton view displays correctly
 - [ ] No layout glitches during animation
 
 #### Loaded State
+
 - [ ] All 7 days render with correct data
 - [ ] Day navigation works (swipe left/right)
 - [ ] Meal sections expand/collapse smoothly
@@ -33,10 +35,12 @@ Test all 4 states using mock service or previews:
 - [ ] Shopping list renders (if available)
 
 #### Empty State
+
 - [ ] "No plan available" message displays
 - [ ] Retry button visible and tappable
 
 #### Error State
+
 - [ ] Error message displays clearly
 - [ ] Retry button works (triggers reload)
 
@@ -98,6 +102,7 @@ Quick layout validation:
 ## 🎯 Success Criteria
 
 **Minimum bar for merge**:
+
 - ✅ All 6 checklist sections completed
 - ✅ Zero blockers
 - ✅ PR description includes:
@@ -106,6 +111,7 @@ Quick layout validation:
   - Device matrix tested (iPhone/iPad)
 
 **Gold standard** (ship to production):
+
 - ✅ All optional items checked
 - ✅ Backend API deployed and stable
 - ✅ VIP/Paywall gates implemented
@@ -133,10 +139,5 @@ Quick layout validation:
 ---
 
 **Last Updated**: 2025-12-14
-**Owner**: iOS Team
-**Review Frequency**: Before every Weekly Plan Reader PR
----
-
-**Last Updated**: 2024-12-14
 **Owner**: iOS Team
 **Review Frequency**: Before every Weekly Plan Reader PR

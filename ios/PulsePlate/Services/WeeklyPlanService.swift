@@ -68,7 +68,15 @@ public final class DefaultWeeklyPlanService: WeeklyPlanServicing, @unchecked Sen
 
         urlRequest.httpBody = request.body
 
-        let (data, response) = try await session.data(for: urlRequest)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: urlRequest)
+        } catch {
+            // Wrap URLSession errors (network timeout, connection refused, etc.) as transport errors
+            let message = (error as NSError).localizedDescription
+            throw WeeklyPlanServiceError.transport(message)
+        }
 
         guard let http = response as? HTTPURLResponse else {
             throw WeeklyPlanServiceError.transport("Invalid response type")

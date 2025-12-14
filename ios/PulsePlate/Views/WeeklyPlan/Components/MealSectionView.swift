@@ -30,7 +30,9 @@ struct MealSectionView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text(section.mealType.emoji).font(.title3)
+            Text(section.mealType.emoji)
+                .font(.title3)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(section.title).font(.headline)

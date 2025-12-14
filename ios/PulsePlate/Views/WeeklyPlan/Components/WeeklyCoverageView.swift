@@ -5,12 +5,18 @@ struct WeeklyCoverageView: View {
     let isExpanded: Bool
     let onToggle: () -> Void
 
+    private static let maxVisibleItems = 12
+    private static let maxPercentForProgressBar: Double = 300.0
+
     var body: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 10) {
                 Button(action: onToggle) {
                     HStack {
-                        Text("📊 Weekly Coverage").font(.headline)
+                        Text("📊")
+                            .accessibilityHidden(true)
+                        Text("Weekly Coverage")
+                            .font(.headline)
                         Spacer()
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .foregroundStyle(.secondary)
@@ -21,7 +27,7 @@ struct WeeklyCoverageView: View {
                 .accessibilityHint(isExpanded ? "Collapse" : "Expand")
 
                 if isExpanded {
-                    let topItems = Array(coverage.prefix(12))
+                    let topItems = Array(coverage.prefix(Self.maxVisibleItems))
 
                     VStack(spacing: 10) {
                         ForEach(topItems) { item in
@@ -33,7 +39,7 @@ struct WeeklyCoverageView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                ProgressView(value: min(item.percent, 200.0), total: 200.0)
+                                ProgressView(value: min(item.percent, Self.maxPercentForProgressBar), total: Self.maxPercentForProgressBar)
                             }
                             .accessibilityElement(children: .combine)
                             .accessibilityLabel("\(item.label), \(Int(item.percent.rounded())) percent")
