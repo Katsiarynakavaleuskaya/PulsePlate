@@ -93,6 +93,27 @@ class TestPRORouterDiffCoverage:
             }
         )
 
+        # Valid targets without activity_week (optional field)
+        assert _is_complete_targets(
+            {
+                "kcal": 2000,
+                "macros": {"protein_g": 100},
+                "micro": {"Fe": 10.0},
+                "water_ml": 2000,
+            }
+        )
+
+        # Invalid: activity_week wrong type (not dict)
+        assert not _is_complete_targets(
+            {
+                "kcal": 2000,
+                "macros": {"protein_g": 100},
+                "micro": {"Fe": 10.0},
+                "water_ml": 2000,
+                "activity_week": "invalid_type",
+            }
+        )
+
     def test_cache_init_and_reuse_branches(self, monkeypatch):
         """Cover cache initialization (None → instance) and reuse paths."""
         from app.routers import pro as pro_router
@@ -225,6 +246,27 @@ class TestPremiumWeekDiffCoverage:
                 "micro": {"Fe": 10.0},
                 "water_ml": 2000,
                 "activity_week": {"steps_daily": 8000},
+            }
+        )
+
+        # Valid without activity_week (optional)
+        assert _is_complete_targets(
+            {
+                "kcal": 2000,
+                "macros": {"protein_g": 100},
+                "micro": {"Fe": 10.0},
+                "water_ml": 2000,
+            }
+        )
+
+        # Invalid: activity_week wrong type
+        assert not _is_complete_targets(
+            {
+                "kcal": 2000,
+                "macros": {"protein_g": 100},
+                "micro": {"Fe": 10.0},
+                "water_ml": 2000,
+                "activity_week": "invalid",
             }
         )
 

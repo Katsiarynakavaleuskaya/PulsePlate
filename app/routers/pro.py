@@ -85,19 +85,29 @@ class WeekPlanResponse(BaseModel):
 
 
 def _missing_profile_detail(field: str) -> str:
-    """Generate error detail with legacy prefix + field-specific hint."""
+    """Generate error detail with legacy prefix + field-specific hint.
+
+    TODO: Add i18n support via t(lang, "translation_key") for multilingual error messages.
+    """
     return f"Missing user profile data (Missing required field: {field})"
 
 
 def _is_complete_targets(d: Dict[str, Any]) -> bool:
-    """Check if targets dict has all required keys and non-empty micro/macros."""
-    required_keys = {"kcal", "macros", "micro", "water_ml", "activity_week"}
+    """Check if targets dict has all required keys and non-empty micro/macros.
+
+    Note: activity_week is optional but validated if present.
+    """
+    required_keys = {"kcal", "macros", "micro", "water_ml"}
     if not required_keys.issubset(d.keys()):
         return False
     if not isinstance(d.get("macros"), dict):
         return False
     if not isinstance(d.get("micro"), dict):
         return False
+    # If activity_week is present, it must be a dict
+    if "activity_week" in d and d.get("activity_week") is not None:
+        if not isinstance(d["activity_week"], dict):
+            return False
     # micro must not be empty, otherwise core may produce unexpected results
     if not d.get("micro"):
         return False
