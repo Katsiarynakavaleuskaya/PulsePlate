@@ -82,6 +82,11 @@ class WeekPlanResponse(BaseModel):
     adherence_score: float
 
 
+def _missing_profile_detail(field: str) -> str:
+    """Generate error detail with legacy prefix + field-specific hint."""
+    return f"Missing user profile data (Missing required field: {field})"
+
+
 def _is_complete_targets(d: Dict[str, Any]) -> bool:
     """Check if targets dict has all required keys and non-empty micro/macros."""
     required_keys = {"kcal", "macros", "micro", "water_ml", "activity_week"}
@@ -201,39 +206,22 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     if _is_complete_targets(targets_from_request):
         targets: Dict[str, Any] = targets_from_request
     else:
-        # Fallback: derive from profile, otherwise 400 (combined message for backward compatibility)
+        # Fallback: derive from profile, otherwise 400 (DRY error messages with helper)
         if req.sex is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing user profile data (Missing required field: sex)",
-            )
+            raise HTTPException(status_code=400, detail=_missing_profile_detail("sex"))
         if req.age is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing user profile data (Missing required field: age)",
-            )
+            raise HTTPException(status_code=400, detail=_missing_profile_detail("age"))
         if req.height_cm is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing user profile data (Missing required field: height_cm)",
-            )
+            raise HTTPException(status_code=400, detail=_missing_profile_detail("height_cm"))
         if req.weight_kg is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing user profile data (Missing required field: weight_kg)",
-            )
+            raise HTTPException(status_code=400, detail=_missing_profile_detail("weight_kg"))
         # activity/goal have defaults but can be explicitly set to null
         if req.activity is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing user profile data (Missing required field: activity)",
-            )
+            raise HTTPException(status_code=400, detail=_missing_profile_detail("activity"))
         if req.goal is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing user profile data (Missing required field: goal)",
-            )
+            raise HTTPException(status_code=400, detail=_missing_profile_detail("goal"))
 
+        # After all None checks above, types are narrowed to non-None
         targets = estimate_targets_minimal(
             sex=req.sex,
             age=req.age,
