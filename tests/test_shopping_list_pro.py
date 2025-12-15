@@ -501,12 +501,26 @@ def test_shopping_list_rejects_imperial_units(client: TestClient) -> None:
 
 
 def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
-    """Test that exclude_items/dietary_tags are rejected with 422."""
+    """Test that exclude_items are rejected with 422."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={
             "plan_data": {"daily_menus": []},
             "preferences": {"exclude_items": ["sugar"]},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 422
+    assert "not supported" in response.text.lower()
+
+
+def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
+    """Test that dietary_tags are rejected with 422."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": {"daily_menus": []},
+            "preferences": {"dietary_tags": ["VEG"]},
         },
         headers={"X-API-Key": "test_pro_key"},
     )
