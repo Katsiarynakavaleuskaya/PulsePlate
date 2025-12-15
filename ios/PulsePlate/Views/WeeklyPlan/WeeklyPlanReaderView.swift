@@ -180,13 +180,15 @@ private struct VipCTASection: View {
 #Preview {
     WeeklyPlanReaderView(
         vm: WeeklyPlanReaderViewModel(
-            service: MockWeeklyPlanService()
+            service: PreviewWeeklyPlanService()
         )
     )
 }
 
-// MARK: - Mock Service (for preview)
-private final class MockWeeklyPlanService: WeeklyPlanServicing {
+// MARK: - Preview Service
+
+/// Simplified preview service for SwiftUI previews (non-Sendable OK for preview-only)
+private final class PreviewWeeklyPlanService: WeeklyPlanServicing {
     func fetchWeeklyPlan(request: WeeklyPlanRequest) async throws -> WeeklyPlanDTO {
         // Simulate network delay
         try? await Task.sleep(for: .milliseconds(300))
