@@ -12,7 +12,7 @@ This module orchestrates the shopping list generation pipeline:
 
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from app.schemas.shopping_list import (
     ShoppingListCategory,
@@ -30,7 +30,7 @@ from .normalize import humanize_title, normalize_key
 def generate_shopping_list_from_plan(
     plan_data: Dict[str, Any],
     preferences: ShoppingListPreferences,
-    source: str = "inline_plan",
+    source: Literal["weekly_plan_id", "inline_plan"] = "inline_plan",
 ) -> ShoppingListDTO:
     """Generate shopping list from weekly plan data.
 
