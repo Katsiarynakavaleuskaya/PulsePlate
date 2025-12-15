@@ -6,10 +6,9 @@ unit normalization, and duplicate merging.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, HTTPException, status
 
+from app.core.shopping_list.generator import generate_shopping_list_from_plan
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListRequest
 
 router = APIRouter(prefix="/api/v1/pro/meal", tags=["pro", "shopping-list"])
@@ -29,13 +28,12 @@ def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDTO:
     - Total item count
     - Generation metadata
 
-    **TODO(#XXX):** Implement core logic:
-    1. Load weekly plan (from DB or inline data)
-    2. Extract ingredients from all meals/recipes
-    3. Normalize units (metric/imperial)
-    4. Merge duplicate ingredients
-    5. Group by category
-    6. Return structured DTO
+    **Algorithm:**
+    1. Validate input (XOR: weekly_plan_id OR plan_data)
+    2. Extract ingredients from plan_data
+    3. Normalize keys and aggregate quantities
+    4. Group by categories
+    5. Return structured DTO with warnings
     """
     # Validate input (both conditions must be checked with proper handling of empty dicts)
     has_plan_id = request.weekly_plan_id is not None
@@ -53,38 +51,29 @@ def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDTO:
             detail="Must provide either weekly_plan_id or plan_data",
         )
 
-    # TODO(#XXX): Replace with actual implementation
-    # For now, return minimal valid response
-    from app.schemas.shopping_list import (
-        ShoppingListCategory,
-        ShoppingListItem,
-        ShoppingListMeta,
-    )
+    # Determine source and plan_data
+    if has_plan_id:
+        # TODO(future): Fetch plan_data from database using weekly_plan_id
+        # For now, this path requires implementation when DB integration is ready
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="weekly_plan_id support not yet implemented",
+        )
 
-    # Stub implementation
-    return ShoppingListDTO(
-        categories=[
-            ShoppingListCategory(
-                key="proteins",
-                title="Proteins",
-                items=[
-                    ShoppingListItem(
-                        key="chicken_breast",
-                        name="Chicken breast",
-                        quantity=500.0,
-                        unit="g",
-                        recipe_refs=["lunch_day1", "dinner_day3"],
-                    )
-                ],
-            )
-        ],
-        total_items=1,
-        generated_at=datetime.now(timezone.utc),
-        meta=ShoppingListMeta(
-            source="weekly_plan_id" if request.weekly_plan_id else "inline_plan",
-            unit_system=request.preferences.unit_system,
-            warnings=["stub_implementation_active"],
-        ),
+    # Use inline plan_data (validated non-None by XOR check above)
+    # Type narrowing: if we reach here, plan_data must be non-None
+    if request.plan_data is None:
+        # Should never happen due to XOR validation above
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error: plan_data is None",
+        )
+
+    # Generate shopping list using core logic
+    return generate_shopping_list_from_plan(
+        plan_data=request.plan_data,
+        preferences=request.preferences,
+        source="inline_plan",
     )
 
 
