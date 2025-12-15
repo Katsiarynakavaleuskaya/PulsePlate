@@ -18,7 +18,8 @@ def test_shopping_list_requires_plan_source(client: TestClient) -> None:
         headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 422
-    assert "weekly_plan_id" in response.text or "plan_data" in response.text
+    detail = str(response.json().get("detail", ""))
+    assert "weekly_plan_id" in detail or "plan_data" in detail
 
 
 def test_shopping_list_rejects_both_sources(client: TestClient) -> None:
@@ -34,8 +35,9 @@ def test_shopping_list_rejects_both_sources(client: TestClient) -> None:
     assert response.status_code == 422
     # Pydantic validator raises ValueError which becomes 422 with detail in body
     detail = response.json().get("detail", "")
+    detail_lower = str(detail).lower()
     # Check if error mentions the XOR constraint
-    assert "both" in str(detail).lower() or "weekly_plan_id" in str(detail)
+    assert "both" in detail_lower or "weekly_plan_id" in detail_lower
 
 
 def test_shopping_list_stub_inline_plan(client: TestClient) -> None:
@@ -368,7 +370,7 @@ def test_shopping_list_rounding_preferences(client: TestClient) -> None:
         for item in cat["items"]:
             if item["key"] == "rice":
                 rice_qty1 = item["quantity"]
-    assert rice_qty1 == 123.5  # Rounded to 1 decimal
+    assert rice_qty1 == pytest.approx(123.5)  # Rounded to 1 decimal
 
     # Test with round_quantities=False
     response2 = client.post(
@@ -386,7 +388,7 @@ def test_shopping_list_rounding_preferences(client: TestClient) -> None:
         for item in cat["items"]:
             if item["key"] == "rice":
                 rice_qty2 = item["quantity"]
-    assert rice_qty2 == 123.46  # Rounded to 2 decimals
+    assert rice_qty2 == pytest.approx(123.46)  # Rounded to 2 decimals
 
 
 def test_shopping_list_nan_inf_values(client: TestClient) -> None:
@@ -483,7 +485,8 @@ def test_shopping_list_rejects_group_by_recipe(client: TestClient) -> None:
         headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 422
-    assert "recipe" in response.text.lower() or "not supported" in response.text.lower()
+    detail = str(response.json().get("detail", "")).lower()
+    assert "recipe" in detail or "not supported" in detail
 
 
 def test_shopping_list_rejects_imperial_units(client: TestClient) -> None:
@@ -497,7 +500,8 @@ def test_shopping_list_rejects_imperial_units(client: TestClient) -> None:
         headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 422
-    assert "imperial" in response.text.lower() or "not supported" in response.text.lower()
+    detail = str(response.json().get("detail", "")).lower()
+    assert "imperial" in detail or "not supported" in detail
 
 
 def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
@@ -511,7 +515,8 @@ def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
         headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 422
-    assert "not supported" in response.text.lower()
+    detail = str(response.json().get("detail", "")).lower()
+    assert "not supported" in detail
 
 
 def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
@@ -525,4 +530,5 @@ def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
         headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 422
-    assert "not supported" in response.text.lower()
+    detail = str(response.json().get("detail", "")).lower()
+    assert "not supported" in detail
