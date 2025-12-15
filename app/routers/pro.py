@@ -10,11 +10,13 @@ All endpoints require PRO tier API key validation via require_pro_tier middlewar
 Endpoints:
 - /api/v1/pro/meal/weekly - Weekly meal plan (macros only)
 - /api/v1/pro/nutrition/targets - WHO-based nutrition goals
+- /api/v1/pro/nutrition/daily - Daily nutrition tracking (Plate view)
 """
 
+from datetime import date as Date
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
@@ -82,6 +84,37 @@ class WeekPlanResponse(BaseModel):
     shopping_list: Dict[str, float]
     total_cost: float
     adherence_score: float
+
+
+class NutritionSegmentData(BaseModel):
+    """Single nutrition segment (e.g., Vegetables, Protein, Carbs, Fats)."""
+
+    name: str = Field(..., description="Segment name (e.g., 'Vegetables')")
+    current_value: float = Field(..., description="Current servings consumed")
+    target_value: float = Field(..., description="Target servings for the day")
+    percentage: float = Field(..., description="Percentage of plate (visual representation)")
+    color: str = Field(..., description="Color identifier (e.g., 'green', 'red')")
+    icon: str = Field(..., description="SF Symbol icon name (e.g., 'leaf.fill')")
+
+
+class DailyGoals(BaseModel):
+    """Daily nutrition goals."""
+
+    vegetables: float = Field(..., description="Target vegetable servings")
+    protein: float = Field(..., description="Target protein servings")
+    carbs: float = Field(..., description="Target carbohydrate servings")
+    fats: float = Field(..., description="Target fat servings")
+
+
+class DailyNutritionResponse(BaseModel):
+    """Daily nutrition data for Plate view."""
+
+    date: str = Field(..., description="Date in ISO 8601 format (YYYY-MM-DD)")
+    segments: List[NutritionSegmentData] = Field(
+        ..., description="Nutrition segments for plate visualization"
+    )
+    total_progress: float = Field(..., ge=0, le=1, description="Overall daily progress (0.0-1.0)")
+    daily_goals: DailyGoals = Field(..., description="Daily nutrition goals")
 
 
 def _missing_profile_detail(field: str) -> str:
@@ -255,3 +288,184 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     # Build week
     week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)
     return WeekPlanResponse(**week)
+
+
+@router.get(
+    "/nutrition/daily",
+    response_model=DailyNutritionResponse,
+    dependencies=[Depends(require_pro_tier)],
+    summary="Get daily nutrition data (PRO tier)",
+    description="""
+    Get daily nutrition tracking data for Plate view based on WHO targets.
+
+    RU: Получить данные по питанию за день для визуализации тарелки на основе таргетов ВОЗ.
+    EN: Get daily nutrition tracking data for Plate view based on WHO targets.
+
+    Requires: PRO tier API key in X-API-Key header
+
+    Features:
+    - WHO/USDA-based personalized targets
+    - Plate segment visualization
+    - Overall progress tracking
+
+    Query Parameters:
+    - date: Date in YYYY-MM-DD format (required)
+    - sex: Biological sex (required)
+    - age: Age in years (required)
+    - height_cm: Height in centimeters (required)
+    - weight_kg: Weight in kilograms (required)
+    - activity: Activity level (optional, default: moderate)
+    - goal: Nutrition goal (optional, default: maintain)
+
+    Note: Current consumption values (current_value) are 0.0 until meal logging is implemented.
+    """,
+)
+async def get_daily_nutrition(
+    date_str: str = Query(
+        ...,
+        alias="date",
+        description="Date in ISO 8601 format (YYYY-MM-DD)",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    ),
+    # RU: Обязательные параметры профиля пользователя
+    # EN: Required user profile parameters
+    sex: Literal["female", "male"] = Query(..., description="Biological sex"),
+    age: int = Query(..., gt=10, lt=100, description="Age in years"),
+    height_cm: float = Query(..., gt=100, lt=250, description="Height in centimeters"),
+    weight_kg: float = Query(..., gt=30, lt=300, description="Weight in kilograms"),
+    # RU: Опциональные параметры с разумными дефолтами
+    # EN: Optional parameters with sensible defaults
+    activity: Literal["sedentary", "light", "moderate", "active", "very_active"] = Query(
+        "moderate", description="Activity level"
+    ),
+    goal: Literal["loss", "maintain", "gain"] = Query("maintain", description="Nutrition goal"),
+) -> DailyNutritionResponse:
+    """Get daily nutrition data for Plate visualization using WHO targets engine.
+
+    RU: Получить данные питания за день с использованием WHO/USDA таргетов.
+    EN: Get daily nutrition data using WHO/USDA targets engine.
+
+    Args:
+        date_str: Date string in YYYY-MM-DD format
+        sex: Biological sex (female/male)
+        age: Age in years (10-100)
+        height_cm: Height in centimeters (100-250)
+        weight_kg: Weight in kilograms (30-300)
+        activity: Activity level (sedentary/light/moderate/active/very_active)
+        goal: Nutrition goal (loss/maintain/gain)
+
+    Returns:
+        DailyNutritionResponse with WHO-based targets and segments
+
+    Raises:
+        HTTPException: 400 if date format is invalid or profile validation fails
+
+    Note:
+        Current intake values (current_value, total_progress) are 0.0 until
+        meal logging/HealthKit integration is implemented. Targets are calculated
+        using WHO/USDA/EFSA evidence-based recommendations.
+    """
+    # Validate date format
+    # RU: Валидация формата даты
+    # EN: Validate date format
+    try:
+        Date.fromisoformat(date_str)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid date format: {date_str}. Expected YYYY-MM-DD"
+        ) from e
+
+    # Build user profile for WHO targets calculation
+    # RU: Создание профиля пользователя для расчёта WHO таргетов
+    # EN: Build user profile for WHO targets calculation
+    try:
+        profile = UserProfile(
+            sex=sex,
+            age=age,
+            height_cm=height_cm,
+            weight_kg=weight_kg,
+            activity=activity,
+            goal=goal,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid user profile: {str(e)}") from e
+
+    # Calculate WHO-based nutrition targets
+    # RU: Расчёт целевых значений питания на основе рекомендаций ВОЗ
+    # EN: Calculate WHO-based nutrition targets
+    try:
+        targets = build_nutrition_targets(profile)
+    except Exception as e:
+        # Fallback to safe defaults if targets calculation fails
+        # RU: Безопасные дефолты при ошибке расчёта таргетов
+        # EN: Safe defaults on targets calculation failure
+        raise HTTPException(
+            status_code=500, detail=f"Failed to calculate nutrition targets: {str(e)}"
+        ) from e
+
+    # Convert WHO targets to Plate segments
+    # RU: Преобразование WHO таргетов в сегменты тарелки
+    # EN: Convert WHO targets to Plate segments
+    # Simplified servings calculation based on macros
+    # Vegetables: assume ~25 kcal per serving
+    # Protein: protein_g / 25 (rough estimate)
+    # Carbs: carbs_g / 30 (rough estimate)
+    # Fats: fat_g / 10 (rough estimate)
+    vegetables_servings = 4.0  # Standard WHO recommendation
+    protein_servings = round(targets.macros.protein_g / 25, 1)
+    carbs_servings = round(targets.macros.carbs_g / 30, 1)
+    fats_servings = round(targets.macros.fat_g / 10, 1)
+
+    # Calculate percentages for visual plate representation
+    # RU: Расчёт процентов для визуализации тарелки
+    # EN: Calculate percentages for visual plate representation
+    total_servings = vegetables_servings + protein_servings + carbs_servings + fats_servings
+    veg_pct = (vegetables_servings / total_servings) * 100 if total_servings > 0 else 25.0
+    protein_pct = (protein_servings / total_servings) * 100 if total_servings > 0 else 25.0
+    carbs_pct = (carbs_servings / total_servings) * 100 if total_servings > 0 else 25.0
+    fats_pct = (fats_servings / total_servings) * 100 if total_servings > 0 else 25.0
+
+    return DailyNutritionResponse(
+        date=date_str,
+        segments=[
+            NutritionSegmentData(
+                name="Vegetables",
+                current_value=0.0,  # TODO: Integrate with meal logging
+                target_value=vegetables_servings,
+                percentage=round(veg_pct, 1),
+                color="green",
+                icon="leaf.fill",
+            ),
+            NutritionSegmentData(
+                name="Protein",
+                current_value=0.0,  # TODO: Integrate with meal logging
+                target_value=protein_servings,
+                percentage=round(protein_pct, 1),
+                color="red",
+                icon="fish.fill",
+            ),
+            NutritionSegmentData(
+                name="Carbs",
+                current_value=0.0,  # TODO: Integrate with meal logging
+                target_value=carbs_servings,
+                percentage=round(carbs_pct, 1),
+                color="orange",
+                icon="grain.fill",
+            ),
+            NutritionSegmentData(
+                name="Fats",
+                current_value=0.0,  # TODO: Integrate with meal logging
+                target_value=fats_servings,
+                percentage=round(fats_pct, 1),
+                color="yellow",
+                icon="drop.fill",
+            ),
+        ],
+        total_progress=0.0,  # TODO: Calculate from actual meal logging
+        daily_goals=DailyGoals(
+            vegetables=vegetables_servings,
+            protein=protein_servings,
+            carbs=carbs_servings,
+            fats=fats_servings,
+        ),
+    )
