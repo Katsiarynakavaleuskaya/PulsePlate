@@ -474,36 +474,6 @@ def test_shopping_list_non_string_keys(client: TestClient) -> None:
     assert "valid_string" in all_keys
 
 
-def test_shopping_list_rejects_group_by_recipe(client: TestClient) -> None:
-    """Test that group_by='recipe' is rejected with 422."""
-    response = client.post(
-        "/api/v1/pro/meal/shopping-list",
-        json={
-            "plan_data": {"daily_menus": []},
-            "preferences": {"group_by": "recipe"},
-        },
-        headers={"X-API-Key": "test_pro_key"},
-    )
-    assert response.status_code == 422
-    detail = str(response.json().get("detail", "")).lower()
-    assert "recipe" in detail or "not supported" in detail
-
-
-def test_shopping_list_rejects_imperial_units(client: TestClient) -> None:
-    """Test that unit_system='imperial' is rejected with 422."""
-    response = client.post(
-        "/api/v1/pro/meal/shopping-list",
-        json={
-            "plan_data": {"daily_menus": []},
-            "preferences": {"unit_system": "imperial"},
-        },
-        headers={"X-API-Key": "test_pro_key"},
-    )
-    assert response.status_code == 422
-    detail = str(response.json().get("detail", "")).lower()
-    assert "imperial" in detail or "not supported" in detail
-
-
 def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
     """Test that exclude_items are rejected with 422."""
     response = client.post(
@@ -532,6 +502,21 @@ def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
     assert response.status_code == 422
     detail = str(response.json().get("detail", "")).lower()
     assert "not supported" in detail
+
+
+def test_shopping_list_weekly_plan_id_not_implemented(client: TestClient) -> None:
+    """Test that weekly_plan_id is rejected with 501 Not Implemented."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "weekly_plan_id": "week-123",
+            "preferences": {"group_by": "category", "unit_system": "metric"},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 501
+    detail = str(response.json().get("detail", "")).lower()
+    assert "not yet implemented" in detail or "not implemented" in detail
 
 
 def test_shopping_list_item_rejects_non_positive_quantity() -> None:

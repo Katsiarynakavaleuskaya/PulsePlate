@@ -38,21 +38,11 @@ async def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDT
     4. Group by categories
     5. Return structured DTO with warnings
     """
-    # Validate preferences (reject unsupported features)
+    # Validate preferences (reject unsupported features that bypass schema validation)
     prefs = request.preferences
 
-    if prefs.group_by not in ("category", None):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="group_by='recipe' is not supported yet",
-        )
-
-    if prefs.unit_system == "imperial":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="unit_system='imperial' is not supported yet",
-        )
-
+    # Note: group_by and unit_system are already constrained by Pydantic Literal types
+    # Only check for future-extensibility fields that have default values
     if prefs.exclude_items or prefs.dietary_tags:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -70,18 +60,10 @@ async def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDT
             detail="weekly_plan_id support not yet implemented",
         )
 
-    # Use inline plan_data (guaranteed non-None by Pydantic validator)
-    # Type narrowing: if we reach here, plan_data must be non-None
-    if request.plan_data is None:
-        # Should never happen due to XOR validation in model
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal error: plan_data is None",
-        )
-
+    # Use inline plan_data (guaranteed non-None by Pydantic XOR validator)
     # Generate shopping list using core logic
     return generate_shopping_list_from_plan(
-        plan_data=request.plan_data,
+        plan_data=request.plan_data,  # type: ignore[arg-type]  # Pydantic ensures non-None
         preferences=request.preferences,
         source="inline_plan",
     )
