@@ -52,6 +52,7 @@ from app.routers.plan_export import export_router, plan_router
 from app.routers.premium_week import router as premium_week_router
 from app.routers.pro import router as pro_router
 from app.routers.recipes import router as recipes_router
+from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
@@ -988,6 +989,9 @@ if VIP_MODULE_ENABLED and vip_router is not None:
 # Include PRO tier router (new standard structure for iOS)
 if pro_router is not None:
     app.include_router(pro_router)
+
+# Include PRO Shopping List Generator router
+app.include_router(shopping_list_pro_router)
 
 # Include premium week router for backward compatibility (deprecated)
 FEATURE_PREMIUM_WEEK_ENABLED = (
