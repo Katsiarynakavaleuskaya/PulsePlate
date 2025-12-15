@@ -474,28 +474,22 @@ def test_shopping_list_non_string_keys(client: TestClient) -> None:
     assert "valid_string" in all_keys
 
 
-def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
-    """Test that exclude_items are rejected with 422."""
+@pytest.mark.parametrize(
+    "preference_key,preference_value",
+    [
+        ("exclude_items", ["sugar"]),
+        ("dietary_tags", ["VEG"]),
+    ],
+)
+def test_shopping_list_rejects_future_features(
+    client: TestClient, preference_key: str, preference_value: list
+) -> None:
+    """Test that future extensibility fields are rejected with 422."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={
             "plan_data": {"daily_menus": []},
-            "preferences": {"exclude_items": ["sugar"]},
-        },
-        headers={"X-API-Key": "test_pro_key"},
-    )
-    assert response.status_code == 422
-    detail = str(response.json().get("detail", "")).lower()
-    assert "not supported" in detail
-
-
-def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
-    """Test that dietary_tags are rejected with 422."""
-    response = client.post(
-        "/api/v1/pro/meal/shopping-list",
-        json={
-            "plan_data": {"daily_menus": []},
-            "preferences": {"dietary_tags": ["VEG"]},
+            "preferences": {preference_key: preference_value},
         },
         headers={"X-API-Key": "test_pro_key"},
     )
