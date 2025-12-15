@@ -8,6 +8,9 @@ struct HomeView: View {
         Text("Coming soon…").foregroundStyle(.secondary)
       }.padding()
     }
+    .safeAreaInset(edge: .bottom) {
+      Color.clear.frame(height: 80)
+    }
     .accessibilityElement(children: .combine)
     .accessibilityLabel("Home Screen")
   }

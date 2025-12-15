@@ -32,6 +32,9 @@ struct ProfileView: View {
                 }
             }
             .navigationTitle("Profile")
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 80)
+            }
             .sheet(isPresented: $showAnimationTest) {
                 SimpleVideoTest()
             }

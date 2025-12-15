@@ -33,3 +33,18 @@
 "abbr_fat" = "G";
 "abbr_carbs" = "C";
 "unit_gram" = "g";
+
+/* Profile View */
+"profile_language_section" = "Idioma";
+"profile_language_value" = "Inglés / Ruso / Español";
+"profile_legal_section" = "Legal";
+"profile_privacy_policy" = "Política de Privacidad";
+"profile_terms_of_use" = "Términos de Uso";
+"profile_screen_accessibility_label" = "Pantalla de perfil";
+
+/* Shopping List */
+"shopping_list_title" = "Lista de Compras";
+"shopping_list_error_title" = "Error al cargar";
+"shopping_list_warnings_title" = "Advertencias";
+"shopping_list_total_items_fmt" = "%d productos";
+"shopping_list_source_fmt" = "Fuente: %@";

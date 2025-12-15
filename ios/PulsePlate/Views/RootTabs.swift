@@ -8,6 +8,13 @@ struct RootTabs: View {
       ProgressViewPP().tabItem { Label("Progress", systemImage: "chart.line.uptrend.xyaxis") }
       WeeklyProgressView().tabItem { Label("Неделя", systemImage: "calendar") }
       ProfileView().tabItem { Label("Profile", systemImage: "person") }
+
+      #if DEBUG
+      NavigationStack {
+        DebugToolsScreen()
+      }
+      .tabItem { Label("Debug", systemImage: "hammer.fill") }
+      #endif
     }
   }
 }

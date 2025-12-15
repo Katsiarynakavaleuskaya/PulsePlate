@@ -32,7 +32,6 @@ class NutritionService: ObservableObject {
   @Published var isLoading = false
   @Published var error: String?
 
-  private let baseURL = "https://api.pulseplate.app" // Replace with actual API URL
   private let healthKitManager = HealthKitManager()
 
   func fetchNutritionData(for date: Date = Date()) async {
@@ -47,7 +46,8 @@ class NutritionService: ObservableObject {
       dateFormatter.timeZone = TimeZone(identifier: "UTC")
       let dateString = dateFormatter.string(from: date)
 
-      guard let url = URL(string: "\(baseURL)/api/nutrition/\(dateString)") else {
+      let baseURL = AppConfig.baseURL()
+      guard let url = URL(string: "\(baseURL.absoluteString)/api/nutrition/\(dateString)") else {
         throw APIError.invalidURL
       }
 

@@ -17,32 +17,31 @@ public enum WeeklyPlanAdapter {
     // MARK: - Parsers
 
     private static func parseDays(from root: JSONValue) -> [DayPlanVM] {
-        let arr = root["daily_menus"].arrayValue ?? root["days"].arrayValue ?? []
+        let arr = root["daily_menus"]?.arrayValue ?? root["days"]?.arrayValue ?? []
         if arr.isEmpty { return [] }
 
         return arr.enumerated().map { idx, dayVal in
             let dayTitle =
-                dayVal["title"].stringValue ??
-                dayVal["day_name"].stringValue ??
-                dayVal["weekday"].stringValue ??
+                dayVal["title"]?.stringValue ??
+                dayVal["day_name"]?.stringValue ??
+                dayVal["weekday"]?.stringValue ??
                 "Day \(idx + 1)"
 
             let meals = parseMeals(from: dayVal)
 
             // Fallback: daily_totals OR totals
-            let totalsRoot = dayVal["daily_totals"].objectValue != nil
-                ? dayVal["daily_totals"]
-                : dayVal["totals"]
+            let totalsRoot: JSONValue? =
+                (dayVal["daily_totals"]?.objectValue != nil) ? dayVal["daily_totals"] : dayVal["totals"]
 
             let totals = MacroTotalsVM(
-                kcal: totalsRoot["kcal"].intRounded,
-                proteinG: totalsRoot["protein_g"].intRounded,
-                fatG: totalsRoot["fat_g"].intRounded,
-                carbsG: totalsRoot["carbs_g"].intRounded
+                kcal: totalsRoot?["kcal"]?.intRounded,
+                proteinG: totalsRoot?["protein_g"]?.intRounded,
+                fatG: totalsRoot?["fat_g"]?.intRounded,
+                carbsG: totalsRoot?["carbs_g"]?.intRounded
             )
 
             return DayPlanVM(
-                id: dayVal["id"].stringValue ?? "day-\(idx)",
+                id: dayVal["id"]?.stringValue ?? "day-\(idx)",
                 index: idx,
                 title: dayTitle,
                 meals: meals,
@@ -52,23 +51,23 @@ public enum WeeklyPlanAdapter {
     }
 
     private static func parseMeals(from dayVal: JSONValue) -> [MealSectionVM] {
-        let mealsArr = dayVal["meals"].arrayValue ?? []
+        let mealsArr = dayVal["meals"]?.arrayValue ?? []
         let sections = mealsArr.enumerated().compactMap { i, mealVal -> MealSectionVM? in
-            let typeRaw = mealVal["meal_type"].stringValue?.lowercased()
-                ?? mealVal["type"].stringValue?.lowercased()
+            let typeRaw = mealVal["meal_type"]?.stringValue?.lowercased()
+                ?? mealVal["type"]?.stringValue?.lowercased()
 
             let mealType = MealType(rawValue: typeRaw ?? "") ?? .other
-            let title = mealVal["title"].stringValue ?? mealType.displayName
+            let title = mealVal["title"]?.stringValue ?? mealType.displayName
 
             // kcal can be at meal.kcal OR meal.totals.kcal
-            let kcal = mealVal["kcal"].intRounded
-                ?? mealVal["totals"]["kcal"].intRounded
+            let kcal = mealVal["kcal"]?.intRounded
+                ?? mealVal["totals"]?["kcal"]?.intRounded
 
-            let recipes = mealVal["recipes"].arrayValue ?? mealVal["items"].arrayValue ?? []
+            let recipes = mealVal["recipes"]?.arrayValue ?? mealVal["items"]?.arrayValue ?? []
             let items: [MealItemVM] = recipes.enumerated().map { j, r in
-                let name = r["name"].stringValue ?? r["title"].stringValue ?? "Item"
-                let id = r["id"].stringValue ?? "\(mealType.rawValue)-\(i)-\(j)"
-                let portions = r["portions"].doubleValue ?? r["portion"].doubleValue
+                let name = r["name"]?.stringValue ?? r["title"]?.stringValue ?? "Item"
+                let id = r["id"]?.stringValue ?? "\(mealType.rawValue)-\(i)-\(j)"
+                let portions = r["portions"]?.doubleValue ?? r["portion"]?.doubleValue
                 return MealItemVM(id: id, name: name, portions: portions)
             }
 
@@ -78,7 +77,7 @@ public enum WeeklyPlanAdapter {
             }
 
             return MealSectionVM(
-                id: mealVal["id"].stringValue ?? "\(mealType.rawValue)-\(i)",
+                id: mealVal["id"]?.stringValue ?? "\(mealType.rawValue)-\(i)",
                 mealType: mealType,
                 title: title,
                 kcal: kcal,
@@ -94,7 +93,7 @@ public enum WeeklyPlanAdapter {
         // Possible forms:
         // weekly_coverage: { "protein": 98.5, "iron": 95.1 }
         // or weeklyCoverage: [{label, percent}]
-        if let dict = root["weekly_coverage"].objectValue {
+        if let dict = root["weekly_coverage"]?.objectValue {
             let items = dict.compactMap { k, v -> CoverageItemVM? in
                 guard let p = v.doubleValue else { return nil }
                 // Clamp to prevent UI breaking on bad data
@@ -109,10 +108,10 @@ public enum WeeklyPlanAdapter {
             }
         }
 
-        let arr = root["weekly_coverage"].arrayValue ?? root["weeklyCoverage"].arrayValue ?? []
+        let arr = root["weekly_coverage"]?.arrayValue ?? root["weeklyCoverage"]?.arrayValue ?? []
         let items = arr.compactMap { v -> CoverageItemVM? in
-            guard let label = v["label"].stringValue ?? v["name"].stringValue else { return nil }
-            guard let p = v["percent"].doubleValue ?? v["value"].doubleValue else { return nil }
+            guard let label = v["label"]?.stringValue ?? v["name"]?.stringValue else { return nil }
+            guard let p = v["percent"]?.doubleValue ?? v["value"]?.doubleValue else { return nil }
             let clamped = min(max(p, 0), 300)
             return CoverageItemVM(label: label, percent: clamped)
         }
@@ -125,22 +124,22 @@ public enum WeeklyPlanAdapter {
     }
 
     private static func parseMetrics(from root: JSONValue) -> PlanMetricsVM? {
-        let cost = root["total_cost"].doubleValue ?? root["metrics"]["total_cost"].doubleValue
-        let adherence = root["adherence_score"].doubleValue ?? root["metrics"]["adherence_score"].doubleValue
+        let cost = root["total_cost"]?.doubleValue ?? root["metrics"]?["total_cost"]?.doubleValue
+        let adherence = root["adherence_score"]?.doubleValue ?? root["metrics"]?["adherence_score"]?.doubleValue
         if cost == nil && adherence == nil { return nil }
         return PlanMetricsVM(totalCost: cost, adherenceScore: adherence)
     }
 
     private static func parseShoppingList(from root: JSONValue) -> [String: Double]? {
         // Fallback: shopping_list OR shoppingList
-        let obj = root["shopping_list"].objectValue ?? root["shoppingList"].objectValue
+        let obj = root["shopping_list"]?.objectValue ?? root["shoppingList"]?.objectValue
         guard let dict = obj else { return nil }
 
         var out: [String: Double] = [:]
         for (rawKey, v) in dict {
             guard let qty = v.doubleValue, qty != 0 else { continue }
             // Normalize keys (trim whitespace)
-            let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            let key = rawKey.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             guard !key.isEmpty else { continue }
             out[key] = qty
         }
@@ -153,7 +152,7 @@ public enum WeeklyPlanAdapter {
         let cleaned = k
             .replacingOccurrences(of: "-", with: "_")
             .replacingOccurrences(of: " ", with: "_")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
         guard !cleaned.isEmpty else { return k }
 
