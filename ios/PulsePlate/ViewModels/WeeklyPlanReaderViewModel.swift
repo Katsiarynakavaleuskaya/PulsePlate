@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 
+/// Reference MVVM implementation for backend-driven features
+/// Use this as a template for new screens consuming dynamic API data
+///
 /// Observable ViewModel for Weekly Plan Reader screen
 /// Manages loading state, day navigation, and UI interactions
 @MainActor

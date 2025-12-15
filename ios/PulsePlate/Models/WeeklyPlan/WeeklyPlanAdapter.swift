@@ -1,5 +1,9 @@
 import Foundation
 
+/// Reference Adapter implementation for DTO→ViewModel transformation
+/// Demonstrates: Defensive parsing, safe defaults, key normalization, stable sorting
+///
+/// Converts WeeklyPlanDTO (raw API response) to WeeklyPlanVM (strongly-typed UI model)
 public enum WeeklyPlanAdapter {
     public static func toVM(dto: WeeklyPlanDTO) -> WeeklyPlanVM {
         let root = dto.root

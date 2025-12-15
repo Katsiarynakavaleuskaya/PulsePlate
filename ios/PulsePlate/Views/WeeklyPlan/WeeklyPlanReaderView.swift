@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Reference MVVM View implementation for backend-driven screens
+/// Demonstrates: State-based rendering, ViewModel injection, proper lifecycle
+///
 /// Main Weekly Plan Reader screen
 /// Read-only viewer for generated meal plans with day navigation
 struct WeeklyPlanReaderView: View {
