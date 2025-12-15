@@ -15,6 +15,7 @@
 		<false/>
 	</dict>
 	<!-- Production configuration - update with actual production values -->
+	<!-- TODO: Before TestFlight/App Store release, uncomment and configure: -->
 	<!-- <key>BASE_URL</key> -->
 	<!-- <string>https://api.pulseplate.app</string> -->
 	<!-- <key>PRO_API_KEY</key> -->
