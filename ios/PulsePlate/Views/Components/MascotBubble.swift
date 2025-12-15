@@ -7,9 +7,17 @@ struct MascotBubble: View {
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
-      Image("FitChef")
-        .resizable().scaledToFit().frame(width: 48, height: 48)
-        .accessibilityHidden(true)
+      // Fallback to SF Symbol if FitChef asset images are missing
+      if UIImage(named: "FitChef") != nil {
+        Image("FitChef")
+          .resizable().scaledToFit().frame(width: 48, height: 48)
+          .accessibilityHidden(true)
+      } else {
+        Image(systemName: "fork.knife.circle.fill")
+          .font(.system(size: 48))
+          .foregroundStyle(.white.opacity(0.8))
+          .accessibilityHidden(true)
+      }
       VStack(alignment: .leading, spacing: 6) {
         Text(textKey).foregroundStyle(.white)
         Text("FitChef").font(.caption).foregroundStyle(.white.opacity(0.7))

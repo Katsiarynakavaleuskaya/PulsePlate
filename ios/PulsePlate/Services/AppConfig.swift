@@ -2,22 +2,30 @@ import Foundation
 
 enum AppConfig {
     static func baseURL() -> URL {
-        // SPM projects: use ProcessInfo for environment-based config
-        // For dev: set via Xcode scheme environment variables
-        // For prod: hardcode or use config file
-
         #if DEBUG
-        // Development: local backend
-        // Set BASE_URL in Xcode Scheme → Run → Environment Variables
-        // Example: BASE_URL = http://127.0.0.1:8000
+        // Development: Read from Info.plist first, then environment variables
+        // Info-Debug.plist contains BASE_URL key
+        if let infoPlistURL = Bundle.main.object(forInfoDictionaryKey: "BASE_URL") as? String,
+           let url = URL(string: infoPlistURL) {
+            return url
+        }
+
+        // Fallback: check environment variable (Xcode Scheme)
         if let envURL = ProcessInfo.processInfo.environment["BASE_URL"],
            let url = URL(string: envURL) {
             return url
         }
-        // Fallback: use 127.0.0.1 instead of localhost to avoid IPv6 issues
+
+        // Final fallback: use 127.0.0.1 instead of localhost to avoid IPv6 issues
         return URL(string: "http://127.0.0.1:8000")!
         #else
-        // Production: hardcode or load from config
+        // Production: Read from Info-Release.plist
+        if let infoPlistURL = Bundle.main.object(forInfoDictionaryKey: "BASE_URL") as? String,
+           let url = URL(string: infoPlistURL) {
+            return url
+        }
+
+        // Fallback production URL if not configured
         guard let url = URL(string: "https://api.pulseplate.com") else {
             fatalError("Invalid production BASE_URL")
         }

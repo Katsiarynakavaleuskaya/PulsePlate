@@ -11,8 +11,7 @@ struct MealEntryView: View {
                 .foregroundStyle(.gray)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.navy)
-        .ignoresSafeArea()
+        .background(Color.navy.ignoresSafeArea())
     }
 }
 
@@ -27,8 +26,7 @@ struct NutritionDetailsView: View {
                 .foregroundStyle(.gray)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.navy)
-        .ignoresSafeArea()
+        .background(Color.navy.ignoresSafeArea())
     }
 }
 
@@ -130,41 +128,44 @@ struct PlateViewPP: View {
                 .fadeIn(isActive: selectedSegment != nil, delay: 0.1)
             }
           }
-
-          // Mascot hint with pulsing animation
+        }
+        .padding(.bottom, 12)
+      }
+      .background(Color.navy.ignoresSafeArea())
+      .navigationDestination(isPresented: $showMealEntry) {
+        MealEntryView()
+      }
+      .navigationDestination(isPresented: $showNutritionDetails) {
+        NutritionDetailsView()
+      }
+      .safeAreaInset(edge: .bottom) {
+        VStack(spacing: 12) {
+          // Mascot hint always visible above action buttons
           MascotBubble(textKey: "mascot.plate.hint")
             .padding(.horizontal)
-            .pulsing(isActive: selectedSegment == nil, scale: 1.02)
-            .fadeIn(isActive: !nutritionService.isLoading, delay: 0.5)
 
-          // Quick actions with staggered animation
           HStack(spacing: 16) {
             Button("Add Meal") {
               showMealEntry = true
             }
             .buttonStyle(.bordered)
-            .foregroundStyle(.white)
-            .slideIn(isActive: !nutritionService.isLoading, delay: 0.6)
-            .navigationDestination(isPresented: $showMealEntry) {
-              MealEntryView()
-            }
 
             Button("View Details") {
               showNutritionDetails = true
             }
             .buttonStyle(.borderedProminent)
-            .slideIn(isActive: !nutritionService.isLoading, delay: 0.7)
-            .navigationDestination(isPresented: $showNutritionDetails) {
-              NutritionDetailsView()
-            }
           }
-          .padding()
+          .padding(.horizontal)
         }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal)
+        .padding(.bottom, 8)
       }
-      .background(Color.navy.ignoresSafeArea())
       .accessibilityLabel("Plate Screen")
       .onAppear {
-        // Load real nutrition data
+        // Try to load from API, fallback to mock data if endpoint not ready (404/501)
         Task {
           await nutritionService.fetchNutritionData(for: Date())
         }

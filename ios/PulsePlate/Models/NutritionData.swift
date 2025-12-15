@@ -34,6 +34,9 @@ class NutritionService: ObservableObject {
 
   private let healthKitManager = HealthKitManager()
 
+  // TODO: Backend endpoint /api/nutrition/{date} not yet implemented (GitHub issue)
+  // This method is ready for integration when the endpoint is available
+  // For now, falls back to mock data if endpoint returns 404/501
   func fetchNutritionData(for date: Date = Date()) async {
     await MainActor.run {
       isLoading = true
@@ -51,11 +54,27 @@ class NutritionService: ObservableObject {
         throw APIError.invalidURL
       }
 
-      let (data, response) = try await URLSession.shared.data(from: url)
+      var request = URLRequest(url: url)
+      request.setValue("application/json", forHTTPHeaderField: "Accept")
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-      guard let httpResponse = response as? HTTPURLResponse,
-            httpResponse.statusCode == 200 else {
+      let (data, response) = try await URLSession.shared.data(for: request)
+
+      guard let httpResponse = response as? HTTPURLResponse else {
         throw APIError.invalidResponse
+      }
+
+      // Fallback to mock data if endpoint not implemented (404) or not ready (501)
+      if httpResponse.statusCode == 404 || httpResponse.statusCode == 501 {
+        await MainActor.run {
+          self.loadMockData()
+          self.isLoading = false
+        }
+        return
+      }
+
+      guard httpResponse.statusCode == 200 else {
+        throw APIError.serverError(statusCode: httpResponse.statusCode)
       }
 
       let nutritionData = try JSONDecoder().decode(NutritionData.self, from: data)
@@ -64,11 +83,32 @@ class NutritionService: ObservableObject {
         self.nutritionData = nutritionData
         self.isLoading = false
       }
+    } catch let decodingError as DecodingError {
+      // In DEBUG, fallback to mock data on decoding errors
+      #if DEBUG
+      await MainActor.run {
+        self.loadMockData()
+        self.isLoading = false
+      }
+      #else
+      await MainActor.run {
+        self.error = "Decoding failed: \(decodingError.localizedDescription)"
+        self.isLoading = false
+      }
+      #endif
     } catch {
+      // In DEBUG, fallback to mock data on network/server errors
+      #if DEBUG
+      await MainActor.run {
+        self.loadMockData()
+        self.isLoading = false
+      }
+      #else
       await MainActor.run {
         self.error = error.localizedDescription
         self.isLoading = false
       }
+      #endif
     }
   }
 
@@ -83,6 +123,7 @@ enum APIError: Error, LocalizedError {
   case invalidURL
   case invalidResponse
   case noData
+  case serverError(statusCode: Int)
 
   var errorDescription: String? {
     switch self {
@@ -92,6 +133,8 @@ enum APIError: Error, LocalizedError {
       return "Invalid response from server"
     case .noData:
       return "No data received"
+    case .serverError(let code):
+      return "Server error (HTTP \(code))"
     }
   }
 }
