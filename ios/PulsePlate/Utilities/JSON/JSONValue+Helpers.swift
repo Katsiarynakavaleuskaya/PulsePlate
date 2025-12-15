@@ -18,30 +18,24 @@ extension JSONValue {
     /// Encodes JSONValue to Data with sorted keys
     /// Useful for stable request body encoding
     ///
-    /// - Parameter encoder: Optional custom encoder. If nil, creates one with `.sortedKeys`.
-    ///   Pass your own encoder to control date/data strategies or custom formatting.
-    /// - Returns: Encoded JSON data
+    /// - Parameter encoder: Optional custom encoder for date/data strategies.
+    ///   The method always ensures `.sortedKeys` formatting is applied.
+    /// - Returns: Encoded JSON data with sorted keys
     public func encodeSorted(using encoder: JSONEncoder? = nil) throws -> Data {
-        if let encoder {
-            return try encoder.encode(self)
-        }
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.sortedKeys]
+        let enc = encoder ?? JSONEncoder()
+        enc.outputFormatting.insert(.sortedKeys)
         return try enc.encode(self)
     }
 
     /// Encodes JSONValue to Data with pretty printing
     /// Useful for debugging and logging
     ///
-    /// - Parameter encoder: Optional custom encoder. If nil, creates one with `.prettyPrinted + .sortedKeys`.
-    ///   Pass your own encoder to control date/data strategies or custom formatting.
+    /// - Parameter encoder: Optional custom encoder for date/data strategies.
+    ///   The method always ensures `.prettyPrinted` formatting is applied.
     /// - Returns: Pretty-printed JSON data
     public func encodePretty(using encoder: JSONEncoder? = nil) throws -> Data {
-        if let encoder {
-            return try encoder.encode(self)
-        }
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let enc = encoder ?? JSONEncoder()
+        enc.outputFormatting.insert(.prettyPrinted)
         return try enc.encode(self)
     }
 }

@@ -50,6 +50,10 @@ public enum JSONValue: Codable, Sendable {
             return
         }
 
+        // Unexpected type - could indicate API contract change
+        #if DEBUG
+        assertionFailure("JSONValue: unable to decode value from container")
+        #endif
         self = .null
     }
 
