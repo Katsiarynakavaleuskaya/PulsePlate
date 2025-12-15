@@ -2,7 +2,7 @@ import Foundation
 
 /// Type-safe wrapper for dynamic JSON values from backend
 /// Prevents crashes when API contract changes or returns unexpected data
-public enum JSONValue: Decodable, Sendable {
+public enum JSONValue: Codable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -45,6 +45,25 @@ public enum JSONValue: Decodable, Sendable {
 
         self = .null
     }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+
+        switch self {
+        case .null:
+            try container.encodeNil()
+        case .bool(let value):
+            try container.encode(value)
+        case .number(let value):
+            try container.encode(value)
+        case .string(let value):
+            try container.encode(value)
+        case .object(let value):
+            try container.encode(value)
+        case .array(let value):
+            try container.encode(value)
+        }
+    }
 }
 
 // MARK: - Convenience Accessors
@@ -85,10 +104,5 @@ extension JSONValue {
     var boolValue: Bool? {
         if case .bool(let value) = self { return value }
         return nil
-    }
-
-    /// Safe subscript for object access
-    subscript(_ key: String) -> JSONValue {
-        self.objectValue?[key] ?? .null
     }
 }
