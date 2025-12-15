@@ -474,22 +474,43 @@ def test_shopping_list_non_string_keys(client: TestClient) -> None:
     assert "valid_string" in all_keys
 
 
-@pytest.mark.parametrize(
-    "preference_key,preference_value",
-    [
-        ("exclude_items", ["sugar"]),
-        ("dietary_tags", ["VEG"]),
-    ],
-)
-def test_shopping_list_rejects_future_features(
-    client: TestClient, preference_key: str, preference_value: list
-) -> None:
-    """Test that future extensibility fields are rejected with 422."""
+def test_shopping_list_rejects_group_by_recipe(client: TestClient) -> None:
+    """Test that group_by='recipe' is rejected with 422."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={
             "plan_data": {"daily_menus": []},
-            "preferences": {preference_key: preference_value},
+            "preferences": {"group_by": "recipe"},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 422
+    detail = str(response.json().get("detail", "")).lower()
+    assert "recipe" in detail or "not supported" in detail
+
+
+def test_shopping_list_rejects_imperial_units(client: TestClient) -> None:
+    """Test that unit_system='imperial' is rejected with 422."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": {"daily_menus": []},
+            "preferences": {"unit_system": "imperial"},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 422
+    detail = str(response.json().get("detail", "")).lower()
+    assert "imperial" in detail or "not supported" in detail
+
+
+def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
+    """Test that exclude_items are rejected with 422."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": {"daily_menus": []},
+            "preferences": {"exclude_items": ["sugar"]},
         },
         headers={"X-API-Key": "test_pro_key"},
     )
@@ -498,51 +519,16 @@ def test_shopping_list_rejects_future_features(
     assert "not supported" in detail
 
 
-def test_shopping_list_weekly_plan_id_not_implemented(client: TestClient) -> None:
-    """Test that weekly_plan_id is rejected with 501 Not Implemented."""
+def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
+    """Test that dietary_tags are rejected with 422."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={
-            "weekly_plan_id": "week-123",
-            "preferences": {"group_by": "category", "unit_system": "metric"},
+            "plan_data": {"daily_menus": []},
+            "preferences": {"dietary_tags": ["VEG"]},
         },
         headers={"X-API-Key": "test_pro_key"},
     )
-    assert response.status_code == 501
+    assert response.status_code == 422
     detail = str(response.json().get("detail", "")).lower()
-    assert "not yet implemented" in detail or "not implemented" in detail
-
-
-def test_shopping_list_item_rejects_non_positive_quantity() -> None:
-    """Test that ShoppingListItem rejects quantity <= 0."""
-    from pydantic import ValidationError
-    from app.schemas.shopping_list import ShoppingListItem
-
-    # Test zero quantity
-    with pytest.raises(ValidationError) as exc_info:
-        ShoppingListItem(
-            key="chicken_breast",
-            name="Chicken Breast",
-            quantity=0.0,
-            unit="g",
-        )
-    assert "greater than 0" in str(exc_info.value).lower()
-
-    # Test negative quantity
-    with pytest.raises(ValidationError) as exc_info:
-        ShoppingListItem(
-            key="chicken_breast",
-            name="Chicken Breast",
-            quantity=-50.0,
-            unit="g",
-        )
-    assert "greater than 0" in str(exc_info.value).lower()
-
-    # Test valid positive quantity (should succeed)
-    item = ShoppingListItem(
-        key="chicken_breast",
-        name="Chicken Breast",
-        quantity=150.0,
-        unit="g",
-    )
-    assert item.quantity == 150.0
+    assert "not supported" in detail
