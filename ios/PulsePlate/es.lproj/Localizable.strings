@@ -44,6 +44,8 @@
 
 /* Shopping List */
 "shopping_list_title" = "Lista de Compras";
+"shopping_list_empty_title" = "Sin Productos";
+"shopping_list_empty_description" = "Tu plan no contiene productos para comprar.";
 "shopping_list_error_title" = "Error al cargar";
 "shopping_list_warnings_title" = "Advertencias";
 "shopping_list_total_items_fmt" = "%d productos";

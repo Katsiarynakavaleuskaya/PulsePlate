@@ -28,6 +28,13 @@ struct ShoppingListReaderScreen: View {
         case .idle, .loading:
             ProgressView()
 
+        case .empty:
+            ContentUnavailableView(
+                NSLocalizedString("shopping_list_empty_title", comment: ""),
+                systemImage: "cart",
+                description: Text(NSLocalizedString("shopping_list_empty_description", comment: ""))
+            )
+
         case .error(let message):
             VStack(spacing: 12) {
                 Text(NSLocalizedString("shopping_list_error_title", comment: ""))
@@ -82,9 +89,6 @@ struct ShoppingListReaderScreen: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 110)
             }
         }
     }

@@ -20,6 +20,7 @@ public enum ShoppingListServiceError: Error, LocalizedError, Sendable {
     case http(Int, String?)
     case decoding(String)
     case transport(String)
+    case noContent  // 204 or empty response
 
     public var errorDescription: String? {
         switch self {
@@ -29,6 +30,8 @@ public enum ShoppingListServiceError: Error, LocalizedError, Sendable {
             return "Failed to decode response: \(msg)"
         case .transport(let msg):
             return "Network error: \(msg)"
+        case .noContent:
+            return "No shopping list items available"
         }
     }
 }
@@ -90,16 +93,7 @@ public final class DefaultShoppingListService: ShoppingListServicing, @unchecked
 
         // Handle 204 No Content or empty response
         if http.statusCode == 204 || data.isEmpty {
-            // Return empty shopping list as minimal valid DTO
-            let emptyData = Data("""
-            {
-                "categories": [],
-                "total_items": 0,
-                "generated_at": "\(ISO8601DateFormatter().string(from: Date()))",
-                "meta": {"source": "inline_plan", "unit_system": "metric", "warnings": ["empty_response"]}
-            }
-            """.utf8)
-            return try JSONDecoder().decode(ShoppingListDTO.self, from: emptyData)
+            throw ShoppingListServiceError.noContent
         }
 
         do {

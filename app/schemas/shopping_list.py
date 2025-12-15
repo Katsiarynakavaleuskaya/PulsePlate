@@ -17,8 +17,8 @@ SourceType: TypeAlias = Literal["weekly_plan_id", "inline_plan"]
 class ShoppingListPreferences(BaseModel):
     """User preferences for shopping list generation."""
 
-    group_by: Literal["category", "recipe"] = "category"
-    unit_system: Literal["metric", "imperial"] = "metric"
+    group_by: Literal["category"] = "category"  # recipe support planned for future
+    unit_system: Literal["metric"] = "metric"  # imperial support planned for future
     merge_similar_items: bool = True
     round_quantities: bool = True
 
@@ -51,27 +51,37 @@ class ShoppingListRequest(BaseModel):
 class ShoppingListItem(BaseModel):
     """Individual shopping list item."""
 
-    key: str  # Stable identifier (e.g., "chicken_breast")
-    name: str  # Display name
-    quantity: float = Field(..., gt=0)  # Must be positive
-    unit: str  # "g", "kg", "pcs", etc.
-    recipe_refs: List[str] = Field(default_factory=list)  # Recipe IDs/titles
+    key: str = Field(..., description="Stable identifier (e.g., 'chicken_breast').")
+    name: str = Field(..., description="User-facing display name for the ingredient.")
+    quantity: float = Field(..., gt=0, description="Required quantity (must be positive).")
+    unit: str = Field(..., description="Unit of measurement (e.g., 'g', 'kg', 'pcs').")
+    recipe_refs: List[str] = Field(
+        default_factory=list,
+        description="Optional list of recipe/meal references that contributed to this item.",
+    )
 
 
 class ShoppingListCategory(BaseModel):
     """Category of shopping list items."""
 
-    key: str  # Machine-friendly key (e.g., "proteins")
-    title: str  # Display title (e.g., "Proteins")
-    items: List[ShoppingListItem]
+    key: str = Field(..., description="Machine-friendly category key (e.g., 'proteins').")
+    title: str = Field(..., description="User-facing category title (e.g., 'Proteins').")
+    items: List[ShoppingListItem] = Field(..., description="List of items in this category.")
 
 
 class ShoppingListMeta(BaseModel):
     """Metadata about shopping list generation."""
 
-    source: SourceType
-    unit_system: Literal["metric", "imperial"]
-    warnings: List[str] = Field(default_factory=list)
+    source: SourceType = Field(
+        ..., description="Data source type: 'weekly_plan_id' or 'inline_plan'."
+    )
+    unit_system: Literal["metric", "imperial"] = Field(
+        ..., description="Unit system used for quantities."
+    )
+    warnings: List[str] = Field(
+        default_factory=list,
+        description="Diagnostic warnings (e.g., 'unknown_unit:xyz', 'missing_ingredients').",
+    )
 
 
 class ShoppingListDTO(BaseModel):

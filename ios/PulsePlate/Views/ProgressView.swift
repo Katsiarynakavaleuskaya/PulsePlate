@@ -8,9 +8,6 @@ struct ProgressViewPP: View {
         Text("Charts coming…").foregroundStyle(.secondary)
       }.padding()
     }
-    .safeAreaInset(edge: .bottom) {
-      Color.clear.frame(height: 80)
-    }
     .accessibilityElement(children: .combine)
   }
 }

@@ -7,6 +7,7 @@ final class ShoppingListReaderViewModel: ObservableObject {
         case idle
         case loading
         case loaded(ShoppingListViewData)
+        case empty  // 204 No Content or empty response
         case error(String)
     }
 
@@ -33,6 +34,14 @@ final class ShoppingListReaderViewModel: ObservableObject {
             let dto = try await service.fetchShoppingList(request: request)
             let viewData = ShoppingListAdapter.adapt(dto: dto)
             state = .loaded(viewData)
+        } catch let error as ShoppingListServiceError {
+            // Handle service-specific errors with explicit states
+            switch error {
+            case .noContent:
+                state = .empty
+            default:
+                state = .error(error.localizedDescription)
+            }
         } catch {
             state = .error(error.localizedDescription)
         }

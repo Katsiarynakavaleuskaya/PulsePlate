@@ -1,5 +1,13 @@
 import SwiftUI
 
+private enum Layout {
+    /// Extra spacing to keep List content above the floating tab bar capsule in debug builds.
+    /// (Standard TabView inset is not enough in this UI.)
+    static let bottomInset: CGFloat = 140
+    /// Maximum message length for network error truncation.
+    static let maxMessageLength = 50
+}
+
 struct DebugToolsScreen: View {
     @State private var networkTestResult: String = "Not tested"
 
@@ -20,7 +28,8 @@ struct DebugToolsScreen: View {
 
                 Text(networkTestResult)
                     .font(.caption)
-                    .foregroundStyle(networkTestResult.contains("✅") ? .green : .orange)
+                    .foregroundStyle(networkResultColor)
+                    .accessibilityLabel("\(networkResultA11yPrefix): \(networkTestResult)")
             }
 
             Section("Configuration") {
@@ -53,8 +62,20 @@ struct DebugToolsScreen: View {
         .navigationTitle("Debug Tools")
         .navigationBarTitleDisplayMode(.large)
         .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 140)
+            Color.clear.frame(height: Layout.bottomInset)
         }
+    }
+
+    private var networkResultColor: Color {
+        if networkTestResult.contains("✅") { return .green }
+        if networkTestResult.contains("❌") { return .red }
+        return .orange
+    }
+
+    private var networkResultA11yPrefix: String {
+        if networkTestResult.contains("✅") { return "Success" }
+        if networkTestResult.contains("❌") { return "Error" }
+        return "Status"
     }
 
     private func makeShoppingListScreen() -> some View {
@@ -82,11 +103,11 @@ struct DebugToolsScreen: View {
         } catch let error as NSError {
             let msg = error.localizedDescription
             if msg.contains("App Transport Security") {
-                networkTestResult = "❌ ATS BLOCKED: \(msg.prefix(60))..."
+                networkTestResult = "❌ ATS BLOCKED: \(msg.prefix(Layout.maxMessageLength))..."
             } else if msg.contains("refused") || msg.contains("offline") {
-                networkTestResult = "✅ ATS OK (backend not running): \(msg.prefix(40))..."
+                networkTestResult = "✅ ATS OK (backend not running): \(msg.prefix(Layout.maxMessageLength))..."
             } else {
-                networkTestResult = "⚠️ Error: \(msg.prefix(50))..."
+                networkTestResult = "⚠️ Error: \(msg.prefix(Layout.maxMessageLength))..."
             }
         }
     }

@@ -160,9 +160,6 @@ struct PlateViewPP: View {
           }
           .padding()
         }
-        .safeAreaInset(edge: .bottom) {
-          Color.clear.frame(height: 80)
-        }
       }
       .background(Color.navy.ignoresSafeArea())
       .accessibilityLabel("Plate Screen")
