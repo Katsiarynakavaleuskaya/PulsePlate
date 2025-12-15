@@ -255,3 +255,119 @@ def test_shopping_list_normalizes_keys(client: TestClient):
     # Should NOT have un-normalized versions
     assert "Chicken Breast" not in all_keys
     assert "  Rice  " not in all_keys
+
+
+def test_shopping_list_edge_cases_invalid_data(client: TestClient):
+    """Test extraction with invalid/malformed data structures."""
+    # Test various edge cases that should be handled gracefully
+    # All test cases must pass basic request validation (have plan_data key)
+    test_cases = [
+        # Non-list daily_menus
+        {"daily_menus": "not_a_list"},
+        # Non-dict day
+        {"daily_menus": ["not_a_dict"]},
+        # Non-list meals
+        {"daily_menus": [{"meals": "not_a_list"}]},
+        # Non-dict meal
+        {"daily_menus": [{"meals": ["not_a_dict"]}]},
+        # Non-dict grams
+        {"daily_menus": [{"meals": [{"grams": "not_a_dict"}]}]},
+        # Non-string ingredient key (JSON converts int key to string, but simulating via list)
+        {"daily_menus": [{"meals": [{"grams": []}]}]},  # empty list instead of dict
+        # Invalid quantity (non-numeric)
+        {"daily_menus": [{"meals": [{"grams": {"rice": "not_a_number"}}]}]},
+        # Zero quantity (should be skipped)
+        {"daily_menus": [{"meals": [{"grams": {"rice": 0}}]}]},
+        # Negative quantity (should be skipped)
+        {"daily_menus": [{"meals": [{"grams": {"rice": -50.0}}]}]},
+    ]
+
+    for plan_data in test_cases:
+        response = client.post(
+            "/api/v1/pro/meal/shopping-list",
+            json={"plan_data": plan_data},
+        )
+        # Should handle gracefully without crashing
+        assert response.status_code == 200
+        data = response.json()
+        # Should produce valid response (might be empty)
+        assert "categories" in data
+        assert "meta" in data
+        # Invalid/empty data should result in missing_ingredients warning
+        assert "missing_ingredients" in data["meta"]["warnings"]
+        assert data["total_items"] == 0
+
+
+def test_shopping_list_meal_without_title(client: TestClient):
+    """Test that meals without title get fallback indexed key."""
+    plan_data = {
+        "daily_menus": [
+            {
+                "meals": [
+                    {
+                        # No title field - should use fallback meal_0_0
+                        "grams": {"rice": 100.0}
+                    }
+                ]
+            }
+        ]
+    }
+
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={"plan_data": plan_data},
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Find rice item
+    rice_item = None
+    for category in data["categories"]:
+        for item in category["items"]:
+            if item["key"] == "rice":
+                rice_item = item
+                break
+
+    assert rice_item is not None
+    # Should have fallback recipe_ref
+    assert len(rice_item["recipe_refs"]) == 1
+    assert rice_item["recipe_refs"][0] == "meal_0_0"
+
+
+def test_shopping_list_rounding_preferences(client: TestClient):
+    """Test quantity rounding based on preferences."""
+    plan_data = {"daily_menus": [{"meals": [{"title": "meal1", "grams": {"rice": 123.456}}]}]}
+
+    # Test with round_quantities=True (default)
+    response1 = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": plan_data,
+            "preferences": {"round_quantities": True},
+        },
+    )
+    assert response1.status_code == 200
+    data1 = response1.json()
+    rice_qty1 = None
+    for cat in data1["categories"]:
+        for item in cat["items"]:
+            if item["key"] == "rice":
+                rice_qty1 = item["quantity"]
+    assert rice_qty1 == 123.5  # Rounded to 1 decimal
+
+    # Test with round_quantities=False
+    response2 = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": plan_data,
+            "preferences": {"round_quantities": False},
+        },
+    )
+    assert response2.status_code == 200
+    data2 = response2.json()
+    rice_qty2 = None
+    for cat in data2["categories"]:
+        for item in cat["items"]:
+            if item["key"] == "rice":
+                rice_qty2 = item["quantity"]
+    assert rice_qty2 == 123.46  # Rounded to 2 decimals
