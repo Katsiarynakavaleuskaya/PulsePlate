@@ -464,10 +464,51 @@ def test_shopping_list_non_string_keys(client: TestClient) -> None:
     # Should have at least the valid_string item
     # (numeric keys might be auto-converted to strings by JSON, which is fine)
     assert data["total_items"] >= 1
-
     all_keys = []
     for category in data["categories"]:
         for item in category["items"]:
             all_keys.append(item["key"])
 
     assert "valid_string" in all_keys
+
+
+def test_shopping_list_rejects_group_by_recipe(client: TestClient) -> None:
+    """Test that group_by='recipe' is rejected with 422."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": {"daily_menus": []},
+            "preferences": {"group_by": "recipe"},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 422
+    assert "recipe" in response.text.lower() or "not supported" in response.text.lower()
+
+
+def test_shopping_list_rejects_imperial_units(client: TestClient) -> None:
+    """Test that unit_system='imperial' is rejected with 422."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": {"daily_menus": []},
+            "preferences": {"unit_system": "imperial"},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 422
+    assert "imperial" in response.text.lower() or "not supported" in response.text.lower()
+
+
+def test_shopping_list_rejects_exclude_items(client: TestClient) -> None:
+    """Test that exclude_items/dietary_tags are rejected with 422."""
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={
+            "plan_data": {"daily_menus": []},
+            "preferences": {"exclude_items": ["sugar"]},
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 422
+    assert "not supported" in response.text.lower()
