@@ -19,11 +19,18 @@ extension JSONValue {
     /// Useful for stable request body encoding
     ///
     /// - Parameter encoder: Optional custom encoder for date/data strategies.
-    ///   The method always ensures `.sortedKeys` formatting is applied.
+    ///   The method creates a copy to avoid mutating the provided encoder.
+    ///   Always ensures `.sortedKeys` formatting is applied.
     /// - Returns: Encoded JSON data with sorted keys
     public func encodeSorted(using encoder: JSONEncoder? = nil) throws -> Data {
-        let enc = encoder ?? JSONEncoder()
-        enc.outputFormatting.insert(.sortedKeys)
+        let enc: JSONEncoder
+        if let provided = encoder {
+            enc = Self.makeEncoderCopy(provided)
+            enc.outputFormatting.insert(.sortedKeys)
+        } else {
+            enc = JSONEncoder()
+            enc.outputFormatting = [.sortedKeys]
+        }
         return try enc.encode(self)
     }
 
@@ -31,12 +38,30 @@ extension JSONValue {
     /// Useful for debugging and logging
     ///
     /// - Parameter encoder: Optional custom encoder for date/data strategies.
-    ///   The method always ensures `.prettyPrinted` formatting is applied.
+    ///   The method creates a copy to avoid mutating the provided encoder.
+    ///   Always ensures `.prettyPrinted` formatting is applied.
     /// - Returns: Pretty-printed JSON data
     public func encodePretty(using encoder: JSONEncoder? = nil) throws -> Data {
-        let enc = encoder ?? JSONEncoder()
-        enc.outputFormatting.insert(.prettyPrinted)
+        let enc: JSONEncoder
+        if let provided = encoder {
+            enc = Self.makeEncoderCopy(provided)
+            enc.outputFormatting.insert(.prettyPrinted)
+        } else {
+            enc = JSONEncoder()
+            enc.outputFormatting = [.prettyPrinted]
+        }
         return try enc.encode(self)
+    }
+
+    /// Creates a copy of the encoder with all strategies preserved
+    private static func makeEncoderCopy(_ existing: JSONEncoder) -> JSONEncoder {
+        let copy = JSONEncoder()
+        copy.outputFormatting = existing.outputFormatting
+        copy.dateEncodingStrategy = existing.dateEncodingStrategy
+        copy.dataEncodingStrategy = existing.dataEncodingStrategy
+        copy.keyEncodingStrategy = existing.keyEncodingStrategy
+        copy.userInfo = existing.userInfo
+        return copy
     }
 }
 
