@@ -52,6 +52,9 @@ struct DebugToolsScreen: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Debug Tools")
         .navigationBarTitleDisplayMode(.large)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: 110)
+        }
     }
 
     private func makeShoppingListScreen() -> some View {
@@ -69,7 +72,7 @@ struct DebugToolsScreen: View {
     private func testBackendConnection() async {
         networkTestResult = "Testing..."
         do {
-            let url = URL(string: "\(AppConfig.baseURL())/docs")!
+            let url = AppConfig.baseURL().appendingPathComponent("docs")
             let (_, response) = try await URLSession.shared.data(from: url)
             if let http = response as? HTTPURLResponse {
                 networkTestResult = "✅ Connected: HTTP \(http.statusCode)"
