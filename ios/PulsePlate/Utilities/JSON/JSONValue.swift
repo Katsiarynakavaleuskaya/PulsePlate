@@ -4,6 +4,10 @@ import Foundation
 /// Prevents crashes when API contract changes or returns unexpected data
 ///
 /// Swift 6 safe: Codable + Sendable
+///
+/// - Important: Subscript semantics changed for clarity:
+///   - `json["key"]` returns `JSONValue?` (nil = key missing, .null = explicit JSON null)
+///   - This replaces older sentinel-style APIs where missing keys returned `.null`
 public enum JSONValue: Codable, Sendable {
     case string(String)
     case number(Double)
