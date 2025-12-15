@@ -532,3 +532,38 @@ def test_shopping_list_rejects_dietary_tags(client: TestClient) -> None:
     assert response.status_code == 422
     detail = str(response.json().get("detail", "")).lower()
     assert "not supported" in detail
+
+
+def test_shopping_list_item_rejects_non_positive_quantity() -> None:
+    """Test that ShoppingListItem rejects quantity <= 0."""
+    from pydantic import ValidationError
+    from app.schemas.shopping_list import ShoppingListItem
+
+    # Test zero quantity
+    with pytest.raises(ValidationError) as exc_info:
+        ShoppingListItem(
+            key="chicken_breast",
+            name="Chicken Breast",
+            quantity=0.0,
+            unit="g",
+        )
+    assert "greater than 0" in str(exc_info.value).lower()
+
+    # Test negative quantity
+    with pytest.raises(ValidationError) as exc_info:
+        ShoppingListItem(
+            key="chicken_breast",
+            name="Chicken Breast",
+            quantity=-50.0,
+            unit="g",
+        )
+    assert "greater than 0" in str(exc_info.value).lower()
+
+    # Test valid positive quantity (should succeed)
+    item = ShoppingListItem(
+        key="chicken_breast",
+        name="Chicken Breast",
+        quantity=150.0,
+        unit="g",
+    )
+    assert item.quantity == 150.0

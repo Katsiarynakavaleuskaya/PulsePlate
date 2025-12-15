@@ -53,7 +53,7 @@ struct DebugToolsScreen: View {
         .navigationTitle("Debug Tools")
         .navigationBarTitleDisplayMode(.large)
         .safeAreaInset(edge: .bottom) {
-            Color.clear.frame(height: 110)
+            Color.clear.frame(height: 140)
         }
     }
 

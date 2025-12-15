@@ -53,7 +53,7 @@ class ShoppingListItem(BaseModel):
 
     key: str  # Stable identifier (e.g., "chicken_breast")
     name: str  # Display name
-    quantity: float
+    quantity: float = Field(..., gt=0)  # Must be positive
     unit: str  # "g", "kg", "pcs", etc.
     recipe_refs: List[str] = Field(default_factory=list)  # Recipe IDs/titles
 
