@@ -1,5 +1,7 @@
 import Foundation
 
+/// Reference Adapter implementation for DTO→ViewModel transformation
+/// Demonstrates: Defensive parsing, safe defaults, key normalization, stable sorting
 public enum WeeklyPlanAdapter {
     public static func toVM(dto: WeeklyPlanDTO) -> WeeklyPlanVM {
         let root = dto.root

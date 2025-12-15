@@ -1,8 +1,15 @@
 import Foundation
+import OSLog
 
 /// Type-safe wrapper for dynamic JSON values from backend
 /// Prevents crashes when API contract changes or returns unexpected data
-public enum JSONValue: Decodable, Sendable {
+///
+/// Swift 6 safe: Codable + Sendable
+///
+/// - Important: Subscript semantics changed for clarity:
+///   - `json["key"]` returns `JSONValue?` (nil = key missing, .null = explicit JSON null)
+///   - This replaces older sentinel-style APIs where missing keys returned `.null`
+public enum JSONValue: Codable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -10,6 +17,9 @@ public enum JSONValue: Decodable, Sendable {
     case array([JSONValue])
     case null
 
+    private static let logger = Logger(subsystem: "PulsePlate", category: "JSONValue")
+
+    // MARK: - Decodable
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
@@ -43,7 +53,32 @@ public enum JSONValue: Decodable, Sendable {
             return
         }
 
+        // Unexpected type - could indicate API contract change
+        #if DEBUG
+        assertionFailure("JSONValue: unable to decode value from container")
+        #else
+        Self.logger.error("JSONValue: unable to decode value from container; falling back to .null")
+        #endif
         self = .null
+    }
+
+    // MARK: - Encodable
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .null:
+            try container.encodeNil()
+        case .bool(let v):
+            try container.encode(v)
+        case .number(let v):
+            try container.encode(v)
+        case .string(let v):
+            try container.encode(v)
+        case .object(let v):
+            try container.encode(v)
+        case .array(let v):
+            try container.encode(v)
+        }
     }
 }
 
@@ -85,10 +120,5 @@ extension JSONValue {
     var boolValue: Bool? {
         if case .bool(let value) = self { return value }
         return nil
-    }
-
-    /// Safe subscript for object access
-    subscript(_ key: String) -> JSONValue {
-        self.objectValue?[key] ?? .null
     }
 }

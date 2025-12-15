@@ -131,6 +131,7 @@ struct AnimatedFitChefVideo: View {
 struct AnimatedMascotBubbleVideo: View {
     var textKey: LocalizedStringKey
     @State private var showVideo = false
+    @State private var delayTask: Task<Void, Never>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -168,12 +169,18 @@ struct AnimatedMascotBubbleVideo: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("FitChef, ") + Text(textKey))
         .onAppear {
-            // Show video after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Show video after a short delay using cancellable Task
+            delayTask = Task {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: 0.3)) {
                     showVideo = true
                 }
             }
+        }
+        .onDisappear {
+            delayTask?.cancel()
+            delayTask = nil
         }
     }
 }
