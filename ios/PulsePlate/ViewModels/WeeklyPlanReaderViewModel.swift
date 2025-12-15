@@ -1,6 +1,9 @@
 import Foundation
 import Observation
 
+/// Reference MVVM implementation for backend-driven features
+/// Use this as a template for new screens consuming dynamic API data
+///
 /// Observable ViewModel for Weekly Plan Reader screen
 /// Manages loading state, day navigation, and UI interactions
 @MainActor
@@ -130,18 +133,7 @@ public final class WeeklyPlanReaderViewModel {
 
     /// Encodes targets to JSON request body. Uses JSONValue to stay Sendable (Swift 6 safe).
     private static func encodeTargetsBody(_ targets: JSONValue?) throws -> Data {
-        let encoder = JSONEncoder()
-        // Stable encoding (optional, but helps diffs/logs)
-        encoder.outputFormatting = [.sortedKeys]
-
-        // If nil: send empty object {}
-        let payload: JSONValue
-        if let targets {
-            payload = targets
-        } else {
-            payload = .object([:])
-        }
-
-        return try encoder.encode(payload)
+        let payload = targets ?? .emptyObject()
+        return try payload.encodeSorted()
     }
 }
