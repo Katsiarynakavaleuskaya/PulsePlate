@@ -426,7 +426,7 @@
 				DEVELOPMENT_TEAM = 3J6YL696KR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = PulsePlate/Info.plist;
+				INFOPLIST_FILE = PulsePlate/Info-Debug.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -508,7 +508,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 			};
-			name = Debug;
+			name = Release;
 		};
 		B6169A5A2E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlateTests" */ = {
 			isa = XCBuildConfiguration;

@@ -9,7 +9,7 @@ struct ShoppingListReaderScreen: View {
     init(
         vm: ShoppingListReaderViewModel,
         planData: [String: Any],
-        preferences: [String: Any]? = ["group_by": "category", "unit_system": "metric"]
+        preferences: [String: Any]? = nil
     ) {
         _vm = StateObject(wrappedValue: vm)
         self.planData = planData

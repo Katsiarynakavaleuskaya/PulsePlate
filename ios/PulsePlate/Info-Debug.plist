@@ -9,8 +9,6 @@
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Allow HTTP for local development (127.0.0.1, localhost, LAN) -->
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
