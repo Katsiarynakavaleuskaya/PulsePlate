@@ -12,7 +12,7 @@ This module orchestrates the shopping list generation pipeline:
 
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, TypeAlias
+from typing import Any, Dict, List
 
 from app.schemas.shopping_list import (
     ShoppingListCategory,
@@ -20,14 +20,12 @@ from app.schemas.shopping_list import (
     ShoppingListItem,
     ShoppingListMeta,
     ShoppingListPreferences,
+    SourceType,
 )
 
 from .categories import CATEGORY_TITLES, category_for_ingredient
 from .extractor import extract_ingredients_from_plan
 from .normalize import humanize_title, normalize_key
-
-# Type alias for source validation
-SourceType: TypeAlias = Literal["weekly_plan_id", "inline_plan"]
 
 
 def generate_shopping_list_from_plan(

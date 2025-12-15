@@ -6,9 +6,12 @@ Provides strongly typed contracts for the PRO shopping list generation endpoint.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, TypeAlias
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+# Type alias for source validation
+SourceType: TypeAlias = Literal["weekly_plan_id", "inline_plan"]
 
 
 class ShoppingListPreferences(BaseModel):
@@ -35,6 +38,15 @@ class ShoppingListRequest(BaseModel):
 
     preferences: ShoppingListPreferences = Field(default_factory=ShoppingListPreferences)
 
+    @model_validator(mode="after")
+    def validate_input_source(self) -> "ShoppingListRequest":
+        """Validate that exactly one input source is provided (XOR)."""
+        if self.weekly_plan_id and self.plan_data:
+            raise ValueError("Cannot provide both weekly_plan_id and plan_data")
+        if not self.weekly_plan_id and not self.plan_data:
+            raise ValueError("Must provide either weekly_plan_id or plan_data")
+        return self
+
 
 class ShoppingListItem(BaseModel):
     """Individual shopping list item."""
@@ -57,7 +69,7 @@ class ShoppingListCategory(BaseModel):
 class ShoppingListMeta(BaseModel):
     """Metadata about shopping list generation."""
 
-    source: Literal["weekly_plan_id", "inline_plan"]
+    source: SourceType
     unit_system: Literal["metric", "imperial"]
     warnings: List[str] = Field(default_factory=list)
 

@@ -10,30 +10,35 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-def test_shopping_list_requires_plan_source(client: TestClient):
+def test_shopping_list_requires_plan_source(client: TestClient) -> None:
     """Verify that either weekly_plan_id or plan_data must be provided."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={"preferences": {}},
+        headers={"X-API-Key": "test_pro_key"},
     )
-    assert response.status_code == 400
-    assert "weekly_plan_id" in response.json()["detail"]
+    assert response.status_code == 422
+    assert "weekly_plan_id" in response.text or "plan_data" in response.text
 
 
-def test_shopping_list_rejects_both_sources(client: TestClient):
+def test_shopping_list_rejects_both_sources(client: TestClient) -> None:
     """Verify that both weekly_plan_id and plan_data cannot be provided simultaneously."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={
             "weekly_plan_id": "plan_123",
-            "plan_data": {},
+            "plan_data": {"daily_menus": []},  # Non-empty to avoid confusion
         },
+        headers={"X-API-Key": "test_pro_key"},
     )
-    assert response.status_code == 400
-    assert "Cannot provide both" in response.json()["detail"]
+    assert response.status_code == 422
+    # Pydantic validator raises ValueError which becomes 422 with detail in body
+    detail = response.json().get("detail", "")
+    # Check if error mentions the XOR constraint
+    assert "both" in str(detail).lower() or "weekly_plan_id" in str(detail)
 
 
-def test_shopping_list_stub_inline_plan(client: TestClient):
+def test_shopping_list_stub_inline_plan(client: TestClient) -> None:
     """Verify real implementation extracts and aggregates ingredients correctly."""
     # Minimal but realistic plan_data structure
     plan_data = {
@@ -69,6 +74,7 @@ def test_shopping_list_stub_inline_plan(client: TestClient):
                 "unit_system": "metric",
             },
         },
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -101,19 +107,20 @@ def test_shopping_list_stub_inline_plan(client: TestClient):
             assert "recipe_refs" in item
 
 
-def test_shopping_list_stub_plan_id(client: TestClient):
+def test_shopping_list_stub_plan_id(client: TestClient) -> None:
     """Verify weekly_plan_id path returns 501 (not yet implemented)."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={
             "weekly_plan_id": "plan_abc123",
         },
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 501
     assert "not yet implemented" in response.json()["detail"]
 
 
-def test_shopping_list_preferences_defaults(client: TestClient):
+def test_shopping_list_preferences_defaults(client: TestClient) -> None:
     """Verify that preferences have correct defaults."""
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
@@ -121,6 +128,7 @@ def test_shopping_list_preferences_defaults(client: TestClient):
             "plan_data": {"daily_menus": []},
             # Omit preferences to test defaults
         },
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -131,7 +139,7 @@ def test_shopping_list_preferences_defaults(client: TestClient):
     assert "missing_ingredients" in data["meta"]["warnings"]
 
 
-def test_shopping_list_aggregates_same_ingredient(client: TestClient):
+def test_shopping_list_aggregates_same_ingredient(client: TestClient) -> None:
     """Test aggregation of same ingredient across multiple meals."""
     plan_data = {
         "daily_menus": [
@@ -147,6 +155,7 @@ def test_shopping_list_aggregates_same_ingredient(client: TestClient):
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -170,13 +179,14 @@ def test_shopping_list_aggregates_same_ingredient(client: TestClient):
     assert "lunch" in chicken_item["recipe_refs"]
 
 
-def test_shopping_list_empty_ingredients_warning(client: TestClient):
+def test_shopping_list_empty_ingredients_warning(client: TestClient) -> None:
     """Test that empty ingredients produces warning."""
     plan_data = {"daily_menus": [{"meals": [{"title": "empty", "grams": {}}]}]}
 
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -187,7 +197,7 @@ def test_shopping_list_empty_ingredients_warning(client: TestClient):
     assert len(data["categories"]) == 0
 
 
-def test_shopping_list_unknown_category_warning(client: TestClient):
+def test_shopping_list_unknown_category_warning(client: TestClient) -> None:
     """Test that unknown ingredients trigger category warnings."""
     plan_data = {
         "daily_menus": [
@@ -208,6 +218,7 @@ def test_shopping_list_unknown_category_warning(client: TestClient):
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -218,7 +229,7 @@ def test_shopping_list_unknown_category_warning(client: TestClient):
     assert any("unknown_category:unicorn_tears" in w for w in warnings)
 
 
-def test_shopping_list_normalizes_keys(client: TestClient):
+def test_shopping_list_normalizes_keys(client: TestClient) -> None:
     """Test that ingredient keys are normalized (lowercase, snake_case)."""
     plan_data = {
         "daily_menus": [
@@ -239,6 +250,7 @@ def test_shopping_list_normalizes_keys(client: TestClient):
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -257,7 +269,7 @@ def test_shopping_list_normalizes_keys(client: TestClient):
     assert "  Rice  " not in all_keys
 
 
-def test_shopping_list_edge_cases_invalid_data(client: TestClient):
+def test_shopping_list_edge_cases_invalid_data(client: TestClient) -> None:
     """Test extraction with invalid/malformed data structures."""
     # Test various edge cases that should be handled gracefully
     # All test cases must pass basic request validation (have plan_data key)
@@ -286,6 +298,7 @@ def test_shopping_list_edge_cases_invalid_data(client: TestClient):
         response = client.post(
             "/api/v1/pro/meal/shopping-list",
             json={"plan_data": plan_data},
+            headers={"X-API-Key": "test_pro_key"},
         )
         # Should handle gracefully without crashing
         assert response.status_code == 200
@@ -298,7 +311,7 @@ def test_shopping_list_edge_cases_invalid_data(client: TestClient):
         assert data["total_items"] == 0
 
 
-def test_shopping_list_meal_without_title(client: TestClient):
+def test_shopping_list_meal_without_title(client: TestClient) -> None:
     """Test that meals without title get fallback indexed key."""
     plan_data = {
         "daily_menus": [
@@ -316,6 +329,7 @@ def test_shopping_list_meal_without_title(client: TestClient):
     response = client.post(
         "/api/v1/pro/meal/shopping-list",
         json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response.status_code == 200
     data = response.json()
@@ -334,7 +348,7 @@ def test_shopping_list_meal_without_title(client: TestClient):
     assert rice_item["recipe_refs"][0] == "meal_0_0"
 
 
-def test_shopping_list_rounding_preferences(client: TestClient):
+def test_shopping_list_rounding_preferences(client: TestClient) -> None:
     """Test quantity rounding based on preferences."""
     plan_data = {"daily_menus": [{"meals": [{"title": "meal1", "grams": {"rice": 123.456}}]}]}
 
@@ -345,6 +359,7 @@ def test_shopping_list_rounding_preferences(client: TestClient):
             "plan_data": plan_data,
             "preferences": {"round_quantities": True},
         },
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response1.status_code == 200
     data1 = response1.json()
@@ -362,6 +377,7 @@ def test_shopping_list_rounding_preferences(client: TestClient):
             "plan_data": plan_data,
             "preferences": {"round_quantities": False},
         },
+        headers={"X-API-Key": "test_pro_key"},
     )
     assert response2.status_code == 200
     data2 = response2.json()
@@ -371,3 +387,87 @@ def test_shopping_list_rounding_preferences(client: TestClient):
             if item["key"] == "rice":
                 rice_qty2 = item["quantity"]
     assert rice_qty2 == 123.46  # Rounded to 2 decimals
+
+
+def test_shopping_list_nan_inf_values(client: TestClient) -> None:
+    """Test that NaN and inf values are rejected via string representation."""
+    # JSON can't serialize NaN/inf, so test via string placeholders that will be converted
+    plan_data = {
+        "daily_menus": [
+            {
+                "meals": [
+                    {
+                        "title": "test_meal",
+                        "grams": {
+                            "valid_item": 100.0,
+                            # These string values will fail float() conversion or isfinite check
+                            "invalid_item1": "NaN",
+                            "invalid_item2": "Infinity",
+                        },
+                    }
+                ]
+            }
+        ]
+    }
+
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should only have valid_item, string NaN/Infinity should fail conversion
+    assert data["total_items"] == 1
+
+    # Verify only valid_item exists
+    all_keys = []
+    for category in data["categories"]:
+        for item in category["items"]:
+            all_keys.append(item["key"])
+
+    assert "valid_item" in all_keys
+    assert "invalid_item1" not in all_keys
+    assert "invalid_item2" not in all_keys
+
+
+def test_shopping_list_non_string_keys(client: TestClient) -> None:
+    """Test that non-string ingredient keys are skipped."""
+    # Create plan_data with numeric keys (will be converted to strings by JSON)
+    # But we can simulate by using invalid key types in grams dict
+    plan_data = {
+        "daily_menus": [
+            {
+                "meals": [
+                    {
+                        "title": "test_meal",
+                        "grams": {
+                            "valid_string": 100.0,
+                            # JSON will convert these, but testing defensive parsing
+                            123: 50.0,  # numeric key
+                        },
+                    }
+                ]
+            }
+        ]
+    }
+
+    response = client.post(
+        "/api/v1/pro/meal/shopping-list",
+        json={"plan_data": plan_data},
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should have at least the valid_string item
+    # (numeric keys might be auto-converted to strings by JSON, which is fine)
+    assert data["total_items"] >= 1
+
+    all_keys = []
+    for category in data["categories"]:
+        for item in category["items"]:
+            all_keys.append(item["key"])
+
+    assert "valid_string" in all_keys

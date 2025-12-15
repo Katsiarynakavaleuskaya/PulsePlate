@@ -6,16 +6,19 @@ unit normalization, and duplicate merging.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.shopping_list.generator import generate_shopping_list_from_plan
+from app.middleware.api_tiers import require_pro_tier
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListRequest
 
 router = APIRouter(prefix="/api/v1/pro/meal", tags=["pro", "shopping-list"])
 
 
-@router.post("/shopping-list", response_model=ShoppingListDTO)
-def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDTO:
+@router.post(
+    "/shopping-list", response_model=ShoppingListDTO, dependencies=[Depends(require_pro_tier)]
+)
+async def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDTO:
     """Generate shopping list from weekly meal plan.
 
     **Input:**
@@ -35,24 +38,31 @@ def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDTO:
     4. Group by categories
     5. Return structured DTO with warnings
     """
-    # Validate input (both conditions must be checked with proper handling of empty dicts)
-    has_plan_id = request.weekly_plan_id is not None
-    has_plan_data = request.plan_data is not None
+    # Validate preferences (reject unsupported features)
+    prefs = request.preferences
 
-    if has_plan_id and has_plan_data:
+    if prefs.group_by not in ("category", None):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot provide both weekly_plan_id and plan_data",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="group_by='recipe' is not supported yet",
         )
 
-    if not has_plan_id and not has_plan_data:
+    if prefs.unit_system == "imperial":
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide either weekly_plan_id or plan_data",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="unit_system='imperial' is not supported yet",
         )
 
-    # Determine source and plan_data
-    if has_plan_id:
+    if prefs.exclude_items or prefs.dietary_tags:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="exclude_items and dietary_tags are not supported yet",
+        )
+
+    # Validate input (XOR constraint now handled by Pydantic model_validator)
+    # But we still need to check which source is provided
+    # Determine source
+    if request.weekly_plan_id:
         # TODO(future): Fetch plan_data from database using weekly_plan_id
         # For now, this path requires implementation when DB integration is ready
         raise HTTPException(
@@ -60,10 +70,10 @@ def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDTO:
             detail="weekly_plan_id support not yet implemented",
         )
 
-    # Use inline plan_data (validated non-None by XOR check above)
+    # Use inline plan_data (guaranteed non-None by Pydantic validator)
     # Type narrowing: if we reach here, plan_data must be non-None
     if request.plan_data is None:
-        # Should never happen due to XOR validation above
+        # Should never happen due to XOR validation in model
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal error: plan_data is None",

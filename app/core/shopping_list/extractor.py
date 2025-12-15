@@ -6,6 +6,7 @@ EN: Extract ingredients from plan_data.
 This module safely extracts ingredients from the weekly plan structure.
 """
 
+import math
 from typing import Any, Dict, List, TypedDict
 
 
@@ -66,6 +67,10 @@ def extract_ingredients_from_plan(plan_data: Dict[str, Any]) -> List[RawIngredie
                 try:
                     qty = float(quantity)
                 except (TypeError, ValueError):
+                    continue
+
+                # Skip NaN/inf values
+                if not math.isfinite(qty):
                     continue
 
                 # Skip zero/negative quantities
