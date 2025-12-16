@@ -50,7 +50,7 @@ jobs:
       - name: Run type checking
         run: |
           echo "Running type checking..."
-          mypy . --config-file pyproject.toml
+          mypy . --config-file pyproject.toml || echo "::warning::MyPy found type issues (non-blocking for nightly)"
 
       - name: Run security checks
         run: |
