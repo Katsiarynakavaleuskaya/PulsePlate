@@ -52,5 +52,5 @@ email-validator>=2.3.0
 cryptography>=46.0.3
 # PyArrow wheels for Python 3.13 (cp313) available since pyarrow 18.1.0
 pyarrow>=18.1.0
-# (Removed) packaging constraint: conflicts with pinned packaging in requirements*.txt on CI
-# If you need agentops locally, use a separate constraints-agentops.txt or install agentops in isolated venv
+# Constraint for agentops compatibility (requires packaging<25); >=20 keeps modern packaging features
+# For agentops, use isolated venv or separate constraints-agentops.txt to avoid conflict with current lock

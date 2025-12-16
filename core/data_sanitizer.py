@@ -23,7 +23,7 @@ class _NH3Protocol(Protocol):
 
 
 try:
-    import nh3  # type: ignore[import-untyped]
+    import nh3
 
     _nh3: Optional[ModuleType] = nh3
 except ModuleNotFoundError:  # pragma: no cover
