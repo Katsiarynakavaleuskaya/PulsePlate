@@ -119,8 +119,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
-          # Explicit nh3 install as safety measure for premium plate endpoints
-          python -m pip install "nh3==0.3.2"
 
       - name: Diagnostics - Python, pip, and nh3 installation
         run: |
