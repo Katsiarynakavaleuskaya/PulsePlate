@@ -23,9 +23,11 @@ class FoodItem(BaseModel):
     group: Optional[str] = None
     per_g: float = 100.0  # RU: норма на 100 г; EN: per 100g baseline
     kcal: float
-    protein_g: float
-    fat_g: float
-    carbs_g: float
+    # Primary macronutrients: defaults to 0.0 for sources that omit them
+    # (e.g., USDA may omit carbs_g for pure protein/fat foods like chicken breast)
+    protein_g: float = 0.0
+    fat_g: float = 0.0
+    carbs_g: float = 0.0
     fiber_g: float = 0.0
     Fe_mg: float = 0.0
     Ca_mg: float = 0.0
@@ -39,7 +41,7 @@ class FoodItem(BaseModel):
     brand: Optional[str] = None
     gtin: Optional[str] = None
     fdc_id: Optional[str] = None
-    source: str = "USDA|OFF"
+    source: str = "USDA"  # Changed from "USDA|OFF" - use single source identifier
     source_priority: int = 0
     version_date: str
     price_per_100g: float = 0.0
@@ -54,6 +56,7 @@ class FoodHit(BaseModel):
     id: str
     name: str
     kcal: float
-    protein_g: float
-    fat_g: float
-    carbs_g: float
+    # Macronutrients: defaults to 0.0 for consistency with FoodItem
+    protein_g: float = 0.0
+    fat_g: float = 0.0
+    carbs_g: float = 0.0

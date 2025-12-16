@@ -40,8 +40,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -c constraints.txt
-          pip install -r requirements-dev.txt -c constraints.txt
+          python -m pip install -r requirements.txt -c constraints.txt
+          python -m pip install -r requirements-dev.txt -c constraints.txt
 
       - name: Ruff Lint
         run: ruff check . --output-format=github
@@ -117,8 +117,28 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt -c constraints.txt
-          pip install -r requirements-dev.txt -c constraints.txt
+          python -m pip install -r requirements.txt -c constraints.txt
+          python -m pip install -r requirements-dev.txt -c constraints.txt
+
+      # Diagnostics enabled in PR jobs only to reduce CI noise and verify nh3 availability
+      # after runtime import fix (see core/data_sanitizer.py _require_nh3)
+      - name: Diagnostics - Python, pip, and nh3 installation
+        run: |
+          echo "=== Python ==="
+          which python
+          python --version
+          echo "=== pip ==="
+          python -m pip --version
+          which pip || true
+          pip --version || true
+          echo "=== nh3 in requirements files ==="
+          grep -n "^nh3" requirements.txt requirements-dev.txt || echo "nh3 not found in requirements"
+          echo "=== nh3 installation check ==="
+          python -m pip show nh3 || echo "nh3 not installed"
+          echo "=== nh3 import test ==="
+          python -c "import nh3; print('nh3 OK, version:', getattr(nh3, '__version__', '?'))" || echo "nh3 import failed"
+          echo "=== nh3 in freeze ==="
+          python -m pip freeze | grep -i nh3 || echo "nh3 not in freeze output"
 
       - name: Initialize test database
         env:

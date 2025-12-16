@@ -127,7 +127,10 @@ class TestAPIEndpoints:
         """Test health endpoint."""
         response = self.client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
+        # Verify new fields exist (version, git_sha, timestamp, environment)
+        assert {"version", "git_sha", "timestamp", "environment"}.issubset(data.keys())
 
     def test_metrics_endpoint(self):
         """Test metrics endpoint."""

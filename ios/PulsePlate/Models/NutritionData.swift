@@ -56,7 +56,6 @@ class NutritionService: ObservableObject {
 
       var request = URLRequest(url: url)
       request.setValue("application/json", forHTTPHeaderField: "Accept")
-      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
       let (data, response) = try await URLSession.shared.data(for: request)
 

@@ -20,6 +20,8 @@ psycopg[binary]>=3.2.3,<4.0.0
 email-validator>=2.3.0,<3.0.0
 cryptography>=46.0.3,<47.0.0
 # HTML sanitizer for XSS protection (Rust-based, 20x faster than deprecated bleach)
-nh3>=0.2.14,<1.0.0
+# Optional: Required for premium endpoints (plate visualization with HTML sanitization).
+# Runtime-guarded via _require_nh3(); raises clear error if missing.
+nh3>=0.3.2,<1.0.0
 # PyArrow wheels for Python 3.13+ (using 20.0.0 for stability)
 pyarrow>=20.0.0,<23.0.0

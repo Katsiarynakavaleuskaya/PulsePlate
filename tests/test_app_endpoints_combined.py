@@ -23,13 +23,19 @@ class TestHealthAndMonitoringEndpoints:
         """Test /health endpoint returns status ok"""
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
+        # Verify new fields exist (version, git_sha, timestamp, environment)
+        assert {"version", "git_sha", "timestamp", "environment"}.issubset(data.keys())
 
     def test_v1_health_ok(self, client: TestClient) -> None:
         """Test /api/v1/health endpoint returns status ok"""
         response = client.get("/api/v1/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
+        # Verify new fields exist (version, git_sha, timestamp, environment)
+        assert {"version", "git_sha", "timestamp", "environment"}.issubset(data.keys())
 
     @pytest.mark.skipif(
         os.getenv("METRICS_ENABLED", "true").lower() != "true",

@@ -12,7 +12,7 @@ enum ProKeyProvider {
            !envKey.isEmpty {
             return envKey
         }
-        // Fallback для локального тестирования
+        // Fallback for local testing
         return "test_pro_key"
         #else
         // Production: retrieve from Keychain or secure storage

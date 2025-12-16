@@ -14,11 +14,13 @@
 		<key>NSAllowsLocalNetworking</key>
 		<false/>
 	</dict>
-	<!-- Production configuration - update with actual production values -->
-	<!-- TODO: Before TestFlight/App Store release, uncomment and configure: -->
+	<!-- Production configuration -->
+	<!-- SECURITY WARNING: DO NOT store API keys or secrets in Info.plist -->
+	<!-- For production keys, use the existing ProKeyProvider.swift Keychain pattern -->
+	<!-- See: ios/PulsePlate/Services/ProKeyProvider.swift for secure storage implementation -->
+	<!-- For CI/CD: Inject secrets via build environment or secure provisioning -->
+	<!-- Example production BASE_URL (safe to hardcode): -->
 	<!-- <key>BASE_URL</key> -->
 	<!-- <string>https://api.pulseplate.app</string> -->
-	<!-- <key>PRO_API_KEY</key> -->
-	<!-- <string>REPLACE_WITH_PRODUCTION_KEY</string> -->
 </dict>
 </plist>

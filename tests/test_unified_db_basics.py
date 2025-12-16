@@ -64,13 +64,13 @@ class TestUnifiedFoodItemConversions:
     """Test UnifiedFoodItem conversion methods."""
 
     def test_from_usda_item(self):
-        """Test conversion from USDA item."""
-        # Create mock USDA item
+        """Test conversion from USDA item with macronutrient defaults."""
+        # Create mock USDA item with partial nutrients (missing carbs_g)
         usda_item = USDAFoodItem(
             fdc_id=12345,
             description="Chicken, broilers or fryers, breast, meat only, cooked, roasted",
             food_category="Poultry Products",
-            nutrients_per_100g={"protein": 31.0, "calories": 165.0},
+            nutrients_per_100g={"protein_g": 31.0, "kcal": 165.0, "fat_g": 3.6},
             data_type="Foundation",
             publication_date="2019-04-01",
         )
@@ -82,7 +82,11 @@ class TestUnifiedFoodItemConversions:
         assert (
             unified_item.name == "Chicken, broilers or fryers, breast, meat only, cooked, roasted"
         )
-        assert unified_item.nutrients_per_100g == {"protein": 31.0, "calories": 165.0}
+        # Check that defaults were added for missing macros
+        assert unified_item.nutrients_per_100g["protein_g"] == 31.0
+        assert unified_item.nutrients_per_100g["fat_g"] == 3.6
+        assert unified_item.nutrients_per_100g["carbs_g"] == 0.0  # Default added
+        assert unified_item.nutrients_per_100g["kcal"] == 165.0
         assert unified_item.cost_per_100g == 4.0
         assert unified_item.tags == ["protein", "meat"]
         assert unified_item.availability_regions == ["US", "BY", "RU"]
@@ -92,11 +96,11 @@ class TestUnifiedFoodItemConversions:
 
     @patch("core.food_apis.unified_db.OFF_AVAILABLE", True)
     def test_from_off_item(self):
-        """Test conversion from Open Food Facts item."""
-        # Create mock OFF item
+        """Test conversion from Open Food Facts item with macronutrient defaults."""
+        # Create mock OFF item with partial nutrients (missing fat_g and carbs_g)
         mock_off_item = MagicMock()
         mock_off_item.product_name = "Greek Yogurt"
-        mock_off_item.nutrients_per_100g = {"protein": 10.0, "calories": 59.0}
+        mock_off_item.nutrients_per_100g = {"protein_g": 10.0, "kcal": 59.0}
         mock_off_item._generate_tags.return_value = ["dairy", "protein"]
         mock_off_item.countries = ["US", "Canada"]
         mock_off_item.code = "1234567890123"
@@ -105,7 +109,11 @@ class TestUnifiedFoodItemConversions:
         unified_item = UnifiedFoodItem.from_off_item(mock_off_item, estimated_cost=2.5)
 
         assert unified_item.name == "Greek Yogurt"
-        assert unified_item.nutrients_per_100g == {"protein": 10.0, "calories": 59.0}
+        # Check that defaults were added for missing macros
+        assert unified_item.nutrients_per_100g["protein_g"] == 10.0
+        assert unified_item.nutrients_per_100g["fat_g"] == 0.0  # Default added
+        assert unified_item.nutrients_per_100g["carbs_g"] == 0.0  # Default added
+        assert unified_item.nutrients_per_100g["kcal"] == 59.0
         assert unified_item.cost_per_100g == 2.5
         assert unified_item.tags == ["dairy", "protein"]
         assert unified_item.availability_regions == ["US", "Canada"]

@@ -1442,3 +1442,35 @@ def test_meals_item_not_dict() -> None:
         ValidationError, match="(Meal items must be dictionaries|validation failed)"
     ):
         sanity_filter_plate_data(invalid_data)
+
+
+def test_require_nh3_raises_when_missing(monkeypatch) -> None:
+    """Test that _require_nh3() raises RuntimeError when nh3 module is not available.
+
+    This test covers the ModuleNotFoundError branch by simulating missing nh3.
+    """
+    import builtins
+    import importlib
+
+    import core.data_sanitizer as ds
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        if name == "nh3":
+            raise ModuleNotFoundError("No module named 'nh3'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    # Reload module so the top-level try/except runs under patched import
+    ds_reloaded = importlib.reload(ds)
+
+    # Verify that _require_nh3() raises RuntimeError with clear install instructions
+    with pytest.raises(
+        RuntimeError, match="Optional dependency 'nh3' is required.*pip install nh3"
+    ):
+        ds_reloaded._require_nh3()
+
+    # Restore module to clean state for subsequent tests (test isolation)
+    importlib.reload(ds)

@@ -42,11 +42,8 @@ enum ShoppingListFixtures {
         )
     }
 
-    static func requestBodyJSON(planData: [String: Any], preferences: [String: Any]? = nil) throws -> Data {
-        var payload: [String: Any] = ["plan_data": planData]
-        if let preferences {
-            payload["preferences"] = preferences
-        }
-        return try JSONSerialization.data(withJSONObject: payload, options: [])
+    static func requestBodyJSON(plan: ShoppingPlan, preferences: [String: Any]? = nil) throws -> Data {
+        let payload = ShoppingListRequestPayload(planData: plan, preferences: preferences)
+        return try JSONEncoder().encode(payload)
     }
 }
