@@ -1760,8 +1760,12 @@ async def health() -> Dict[str, Any]:
 
 
 @app.get("/api/v1/health")
-async def health_v1() -> Dict[str, str]:
-    return {"status": "ok"}
+async def health_v1() -> Dict[str, Any]:
+    """Health check endpoint (v1 alias) with version info for debugging.
+
+    Returns the same extended payload as /health for consistency.
+    """
+    return await health()
 
 
 @app.get("/metrics")

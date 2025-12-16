@@ -506,13 +506,19 @@ class TestValidateData:
 
     @pytest.mark.asyncio
     async def test_validate_food_data_missing_nutrients(self, mock_manager):
-        """Test validation with missing nutrients."""
-        food_missing_nutrients = UnifiedFoodItem(
+        """Test validation with missing primary macronutrients.
+
+        Validation requires protein_g OR fat_g with value > 0.
+        Foods with both protein=0 and fat=0 (or missing) should be rejected.
+        """
+        food_missing_primary_macros = UnifiedFoodItem(
             name="Incomplete Food",
             source="test",
             nutrients_per_100g={
-                "protein_g": 0.3,
-                # Missing fat_g and carbs_g
+                "carbs_g": 10.0,
+                "protein_g": 0.0,
+                "fat_g": 0.0,
+                # Both primary macros are 0 - should fail validation
             },
             source_id="incomplete_001",
             cost_per_100g=1.0,
@@ -520,11 +526,11 @@ class TestValidateData:
             availability_regions=["US"],
         )
 
-        foods = {"incomplete": food_missing_nutrients}
+        foods = {"incomplete": food_missing_primary_macros}
 
         errors = await mock_manager._validate_food_data(foods)
         assert len(errors) > 0
-        assert "missing nutrients" in errors[0]
+        assert "missing primary macronutrients" in errors[0].lower()
 
     @pytest.mark.asyncio
     async def test_validate_food_data_negative_values(self, mock_manager):

@@ -52,3 +52,5 @@ email-validator>=2.3.0
 cryptography>=46.0.3
 # PyArrow wheels for Python 3.13 (cp313) available since pyarrow 18.1.0
 pyarrow>=18.1.0
+# Constraint for agentops compatibility (requires packaging<25, but pytest needs >=20)
+packaging>=20,<25

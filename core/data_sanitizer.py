@@ -4,12 +4,30 @@ Provides strict validation and normalization to prevent injection attacks,
 invalid data, and ensure type safety.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Set, cast
+from __future__ import annotations
 
+from types import ModuleType
+from typing import Any, Dict, List, Literal, Optional, Protocol, Set, cast
+
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
 from typing_extensions import TypedDict
 
-import nh3
-from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
+
+class _NH3Protocol(Protocol):
+    """Protocol for nh3 module interface (type-safe soft import)."""
+
+    def clean(
+        self, html: str, *, tags: Set[str], attributes: Dict[str, Set[str]]
+    ) -> str:  # pragma: no cover
+        ...
+
+
+try:
+    import nh3  # type: ignore[import-untyped]
+
+    _nh3: Optional[ModuleType] = nh3
+except ModuleNotFoundError:  # pragma: no cover
+    _nh3 = None
 
 # Constants for validation
 MAX_STRING_LENGTH = 500
@@ -24,6 +42,23 @@ NH3_ALLOWED_TAGS = {"b", "i", "em", "strong", "u", "br", "p", "span"}
 NH3_ALLOWED_ATTRS: Dict[str, Set[str]] = (
     {}
 )  # No attributes allowed at all (no href, src, onclick, etc.)
+
+
+def _require_nh3() -> _NH3Protocol:
+    """Ensure nh3 dependency is available for sanitization.
+
+    Returns:
+        The nh3 module with type-safe interface (guaranteed after runtime check)
+
+    Raises:
+        RuntimeError: If nh3 is not installed
+    """
+    if _nh3 is None:
+        raise RuntimeError(
+            "Optional dependency 'nh3' is required for plate data sanitization. "
+            "Install it with: python -m pip install nh3"
+        )
+    return cast(_NH3Protocol, _nh3)
 
 
 class MacrosDict(TypedDict):
@@ -58,6 +93,7 @@ def _sanitize_micros(
     if len(v) > max_items:
         raise ValueError(f"Too many micronutrients (max {max_items})")
 
+    nh3 = _require_nh3()  # Ensure nh3 is available before sanitization
     sanitized = {}
     for key, value in v.items():
         if not isinstance(key, str):
@@ -103,6 +139,7 @@ class VisualShapeSchema(BaseModel):
         Output is safe for HTML rendering. Additional context-specific escaping (e.g., for
         attributes or plain-text contexts) should be done at render time if needed.
         """
+        nh3 = _require_nh3()  # Ensure nh3 is available before sanitization
         # Use nh3 with strict allowlist - only basic formatting tags, no attributes
         v = nh3.clean(v, tags=NH3_ALLOWED_TAGS, attributes=NH3_ALLOWED_ATTRS)
         # Enforce max length on the sanitized output
@@ -131,6 +168,7 @@ class MealSchema(BaseModel):
         Output is safe for HTML rendering. Additional context-specific escaping (e.g., for
         attributes or plain-text contexts) should be done at render time if needed.
         """
+        nh3 = _require_nh3()  # Ensure nh3 is available before sanitization
         # Use nh3 with strict allowlist - only basic formatting tags, no attributes
         v = nh3.clean(v, tags=NH3_ALLOWED_TAGS, attributes=NH3_ALLOWED_ATTRS)
         # Enforce max length on the sanitized output
