@@ -237,11 +237,10 @@ def translate_nutrition_segment(lang: Language, segment_key: str) -> str:
     Returns:
         Translated segment name with EN fallback
     """
-    if lang not in NUTRITION_SEGMENT_TRANSLATIONS:
-        # Fallback to English if language not supported
-        lang = "en"
+    # Use fallback language if not supported (avoid parameter reassignment)
+    selected_lang = lang if lang in NUTRITION_SEGMENT_TRANSLATIONS else "en"
 
-    translations = NUTRITION_SEGMENT_TRANSLATIONS[lang]
+    translations = NUTRITION_SEGMENT_TRANSLATIONS[selected_lang]
     return translations.get(segment_key, segment_key)
 
 

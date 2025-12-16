@@ -3,12 +3,12 @@ import SwiftUI
 struct ShoppingListReaderScreen: View {
     @StateObject private var vm: ShoppingListReaderViewModel
 
-    private let planData: [String: Any]
+    private let planData: ShoppingPlan
     private let preferences: [String: Any]?
 
     init(
         vm: ShoppingListReaderViewModel,
-        planData: [String: Any],
+        planData: ShoppingPlan,
         preferences: [String: Any]? = nil
     ) {
         _vm = StateObject(wrappedValue: vm)
@@ -19,7 +19,12 @@ struct ShoppingListReaderScreen: View {
     var body: some View {
         content
             .navigationTitle(NSLocalizedString("shopping_list_title", comment: ""))
-            .task { await vm.load(planData: planData, preferences: preferences) }
+            .task {
+                // Convert typed ShoppingPlan to Data for API
+                if let planDataEncoded = try? JSONEncoder().encode(planData) {
+                    await vm.load(planData: planDataEncoded, preferences: preferences)
+                }
+            }
     }
 
     @ViewBuilder

@@ -5,19 +5,31 @@ import SwiftUI
 struct MascotBubble: View {
   var textKey: LocalizedStringKey
 
-  var body: some View {
-    HStack(alignment: .top, spacing: 12) {
-      // Fallback to SF Symbol if FitChef asset images are missing
-      if UIImage(named: "FitChef") != nil {
+  // Cache FitChef asset existence to avoid repeated lookups on every body evaluation
+  private static let hasFitChefAsset = UIImage(named: "FitChef") != nil
+
+  private var mascotImage: some View {
+    Group {
+      if Self.hasFitChefAsset {
         Image("FitChef")
-          .resizable().scaledToFit().frame(width: 48, height: 48)
+          .resizable()
+          .scaledToFit()
+          .frame(width: 48, height: 48)
           .accessibilityHidden(true)
       } else {
         Image(systemName: "fork.knife.circle.fill")
-          .font(.system(size: 48))
+          .resizable()
+          .scaledToFit()
+          .frame(width: 48, height: 48)
           .foregroundStyle(.white.opacity(0.8))
           .accessibilityHidden(true)
       }
+    }
+  }
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      mascotImage
       VStack(alignment: .leading, spacing: 6) {
         Text(textKey).foregroundStyle(.white)
         Text("FitChef").font(.caption).foregroundStyle(.white.opacity(0.7))

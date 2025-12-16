@@ -21,10 +21,10 @@ final class ShoppingListReaderViewModel: ObservableObject {
         self.apiKeyProvider = apiKeyProvider
     }
 
-    func load(planData: [String: Any], preferences: [String: Any]? = nil) async {
+    func load(planData: Data, preferences: [String: Any]? = nil) async {
         state = .loading
         do {
-            let body = try ShoppingListFixtures.requestBodyJSON(planData: planData, preferences: preferences)
+            let body = try ShoppingListFixtures.requestBodyJSON(planDataEncoded: planData, preferences: preferences)
             let request = ShoppingListRequest(
                 endpointPath: "/api/v1/pro/meal/shopping-list",
                 body: body,
