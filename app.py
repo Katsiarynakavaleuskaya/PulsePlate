@@ -3444,6 +3444,33 @@ def sanitize_plate_data(plate_data_raw: Dict[str, Any]) -> Dict[str, Any]:
     return sanity_filter_plate_data(plate_data_raw)
 
 
+def _iter_exception_chain(exc: BaseException) -> list[BaseException]:
+    """Iterate over an exception and its causes/contexts (deduplicated)."""
+    chain: list[BaseException] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        chain.append(current)
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return chain
+
+
+def _is_missing_nh3_error(err: BaseException) -> bool:
+    """Detect whether an error (or its causes) is due to missing nh3.
+
+    This matches the RuntimeError raised by _require_nh3() in core.data_sanitizer
+    when nh3 is not installed. We intentionally use substring matching on the
+    error message so that both direct RuntimeError and wrapped ValidationError
+    messages are detected.
+    """
+    needle = "optional dependency 'nh3' is required for plate data sanitization".lower()
+    for exc in _iter_exception_chain(err):
+        if needle in str(exc).lower():
+            return True
+    return False
+
+
 async def aggregate_day_micros(
     meals: List[Dict[str, Any]], candidates: list[Any]
 ) -> Dict[str, float]:
@@ -3679,11 +3706,37 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     except HTTPException:
         raise
     except ValueError as e:
+        if _is_missing_nh3_error(e):
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_424_FAILED_DEPENDENCY,
+                detail={
+                    "error": "missing_dependency",
+                    "dependency": "nh3",
+                    "message": (
+                        "HTML sanitization library (nh3) is required for premium plate "
+                        "sanitization."
+                    ),
+                    "action": "Install server dependency: python -m pip install nh3",
+                },
+            ) from e
         logger.error("premium_plate validation error: %s", e)
         raise HTTPException(
             status_code=400, detail=f"Enhanced plate generation failed: {str(e)}"
         ) from e
     except Exception as e:
+        if _is_missing_nh3_error(e):
+            raise HTTPException(
+                status_code=fastapi_status.HTTP_424_FAILED_DEPENDENCY,
+                detail={
+                    "error": "missing_dependency",
+                    "dependency": "nh3",
+                    "message": (
+                        "HTML sanitization library (nh3) is required for premium plate "
+                        "sanitization."
+                    ),
+                    "action": "Install server dependency: python -m pip install nh3",
+                },
+            ) from e
         logger.error(f"premium_plate error: {e}")
         raise HTTPException(
             status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
