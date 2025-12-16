@@ -248,53 +248,53 @@ def test_daily_nutrition_invalid_profile_values(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-def test_daily_nutrition_different_goals(client: TestClient) -> None:
+@pytest.mark.parametrize("goal", ["loss", "maintain", "gain"])
+def test_daily_nutrition_different_goals(client: TestClient, goal: str) -> None:
     """Test endpoint with different nutrition goals.
 
     RU: Тест с различными целями питания.
     EN: Test with different nutrition goals.
     """
-    for goal in ["loss", "maintain", "gain"]:
-        response = client.get(
-            "/api/v1/pro/nutrition/daily",
-            params={
-                "date": "2025-12-15",
-                "sex": "female",
-                "age": 30,
-                "height_cm": 165,
-                "weight_kg": 65,
-                "activity": "moderate",
-                "goal": goal,
-            },
-            headers={"X-API-Key": "test_pro_key"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        # All goals should produce valid targets
-        assert all(s["target_value"] > 0 for s in data["segments"])
+    response = client.get(
+        "/api/v1/pro/nutrition/daily",
+        params={
+            "date": "2025-12-15",
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": goal,
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    # All goals should produce valid targets
+    assert all(s["target_value"] > 0 for s in data["segments"])
 
 
-def test_daily_nutrition_different_activities(client: TestClient) -> None:
+@pytest.mark.parametrize("activity", ["sedentary", "light", "moderate", "active", "very_active"])
+def test_daily_nutrition_different_activities(client: TestClient, activity: str) -> None:
     """Test endpoint with different activity levels.
 
     RU: Тест с различными уровнями активности.
     EN: Test with different activity levels.
     """
-    for activity in ["sedentary", "light", "moderate", "active", "very_active"]:
-        response = client.get(
-            "/api/v1/pro/nutrition/daily",
-            params={
-                "date": "2025-12-15",
-                "sex": "male",
-                "age": 35,
-                "height_cm": 180,
-                "weight_kg": 80,
-                "activity": activity,
-                "goal": "maintain",
-            },
-            headers={"X-API-Key": "test_pro_key"},
-        )
-        assert response.status_code == 200
+    response = client.get(
+        "/api/v1/pro/nutrition/daily",
+        params={
+            "date": "2025-12-15",
+            "sex": "male",
+            "age": 35,
+            "height_cm": 180,
+            "weight_kg": 80,
+            "activity": activity,
+            "goal": "maintain",
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+    assert response.status_code == 200
 
 
 def test_daily_nutrition_requires_pro_key(client: TestClient) -> None:
@@ -469,3 +469,46 @@ def test_daily_nutrition_invalid_profile_validation(client: TestClient) -> None:
         assert response.json()["detail"] == "Invalid user profile"
         # Ensure internal validation details are NOT leaked to client
         assert "age must be positive" not in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "lang,expected_name",
+    [
+        ("en", "Vegetables"),
+        ("ru", "Овощи"),
+        ("es", "Verduras"),
+    ],
+)
+def test_daily_nutrition_localizes_segment_names(
+    client: TestClient, lang: str, expected_name: str
+) -> None:
+    """Test endpoint returns localized segment names based on lang parameter.
+
+    RU: Тест возврата локализованных названий сегментов на основе lang параметра.
+    EN: Test endpoint returns localized segment names based on lang parameter.
+    """
+    response = client.get(
+        "/api/v1/pro/nutrition/daily",
+        params={
+            "date": "2025-12-15",
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+            "lang": lang,
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Extract all segment names
+    segment_names = [s["name"] for s in data["segments"]]
+
+    # Verify first segment (vegetables) is localized correctly
+    assert expected_name in segment_names, (
+        f"Expected '{expected_name}' in segment names for lang={lang}, " f"got: {segment_names}"
+    )

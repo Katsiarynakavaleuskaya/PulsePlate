@@ -24,7 +24,7 @@ from app.middleware.api_tiers import require_pro_tier
 from app.models.nutrition import TargetsIn
 
 from core.food_db_new import FoodDB
-from core.meal_i18n import Language
+from core.meal_i18n import Language, translate_nutrition_segment
 from core.recipe_db_new import RecipeDB
 from core.recommendations import build_nutrition_targets
 from core.targets import UserProfile
@@ -33,6 +33,25 @@ from core.weekly_plan_new import build_week
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
+
+# --- Plate serving conversion constants ---
+# RU: Конвертация грамм макросов в "servings" для визуализации тарелки.
+# EN: Convert macro grams into approximate servings for plate visualization.
+PROTEIN_GRAMS_PER_SERVING = 25.0
+CARBS_GRAMS_PER_SERVING = 30.0
+FATS_GRAMS_PER_SERVING = 10.0
+
+# RU: Минимальная рекомендация ВОЗ по овощам (в servings).
+# EN: WHO minimum daily recommendation for vegetables (servings).
+VEGETABLES_SERVINGS_WHO_STANDARD = 4.0
+
+# RU/EN: Централизованная конфигурация сегментов (цвет/иконка)
+SEGMENT_STYLE: Dict[str, Dict[str, str]] = {
+    "vegetables": {"color": "green", "icon": "leaf.fill"},
+    "protein": {"color": "red", "icon": "fish.fill"},
+    "carbs": {"color": "orange", "icon": "grain.fill"},
+    "fats": {"color": "yellow", "icon": "drop.fill"},
+}
 
 
 # Cache database instances for performance
@@ -319,6 +338,7 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     - weight_kg: Weight in kilograms (required)
     - activity: Activity level (optional, default: moderate)
     - goal: Nutrition goal (optional, default: maintain)
+    - lang: Language for localized segment names (optional, default: en)
 
     Note: Current consumption values (current_value) are 0.0 until meal logging is implemented.
     """,
@@ -342,6 +362,9 @@ async def get_daily_nutrition(
         "moderate", description="Activity level"
     ),
     goal: Literal["loss", "maintain", "gain"] = Query("maintain", description="Nutrition goal"),
+    # RU: Язык интерфейса для локализованных названий сегментов
+    # EN: Interface language for localized segment names
+    lang: Language = Query("en", description="Language for localized content"),
 ) -> DailyNutritionResponse:
     """Get daily nutrition data for Plate visualization using WHO targets engine.
 
@@ -356,6 +379,7 @@ async def get_daily_nutrition(
         weight_kg: Weight in kilograms (30-300)
         activity: Activity level (sedentary/light/moderate/active/very_active)
         goal: Nutrition goal (loss/maintain/gain)
+        lang: Language for localized segment names (en/ru/es)
 
     Returns:
         DailyNutritionResponse with WHO-based targets and segments
@@ -415,18 +439,13 @@ async def get_daily_nutrition(
         # EN: Return generic error message to client (avoid info leak)
         raise HTTPException(status_code=500, detail="Failed to calculate nutrition targets") from e
 
-    # Convert WHO targets to Plate segments
-    # RU: Преобразование WHO таргетов в сегменты тарелки
-    # EN: Convert WHO targets to Plate segments
-    # Simplified servings calculation based on macros
-    # Vegetables: assume ~25 kcal per serving
-    # Protein: protein_g / 25 (rough estimate)
-    # Carbs: carbs_g / 30 (rough estimate)
-    # Fats: fat_g / 10 (rough estimate)
-    vegetables_servings = 4.0  # Standard WHO recommendation
-    protein_servings = round(targets.macros.protein_g / 25, 1)
-    carbs_servings = round(targets.macros.carbs_g / 30, 1)
-    fats_servings = round(targets.macros.fat_g / 10, 1)
+    # Convert WHO targets to Plate segments using conversion constants
+    # RU: Преобразование WHO таргетов в сегменты тарелки с использованием констант
+    # EN: Convert WHO targets to Plate segments using conversion constants
+    vegetables_servings = VEGETABLES_SERVINGS_WHO_STANDARD
+    protein_servings = round(targets.macros.protein_g / PROTEIN_GRAMS_PER_SERVING, 1)
+    carbs_servings = round(targets.macros.carbs_g / CARBS_GRAMS_PER_SERVING, 1)
+    fats_servings = round(targets.macros.fat_g / FATS_GRAMS_PER_SERVING, 1)
 
     # Calculate percentages for visual plate representation
     # RU: Расчёт процентов для визуализации тарелки
@@ -442,41 +461,28 @@ async def get_daily_nutrition(
     carbs_pct = (carbs_servings / denom) * 100
     fats_pct = (fats_servings / denom) * 100
 
+    # Build segments using centralized configuration and i18n
+    # RU: Формирование сегментов с использованием централизованной конфигурации и i18n
+    # EN: Build segments using centralized configuration and i18n
+    segments_data = [
+        ("vegetables", vegetables_servings, round(veg_pct, 1)),
+        ("protein", protein_servings, round(protein_pct, 1)),
+        ("carbs", carbs_servings, round(carbs_pct, 1)),
+        ("fats", fats_servings, round(fats_pct, 1)),
+    ]
+
     return DailyNutritionResponse(
         date=date_str,
         segments=[
             NutritionSegmentData(
-                name="Vegetables",
+                name=translate_nutrition_segment(lang, key),
                 current_value=0.0,  # TODO: Integrate with meal logging
-                target_value=vegetables_servings,
-                percentage=round(veg_pct, 1),
-                color="green",
-                icon="leaf.fill",
-            ),
-            NutritionSegmentData(
-                name="Protein",
-                current_value=0.0,  # TODO: Integrate with meal logging
-                target_value=protein_servings,
-                percentage=round(protein_pct, 1),
-                color="red",
-                icon="fish.fill",
-            ),
-            NutritionSegmentData(
-                name="Carbs",
-                current_value=0.0,  # TODO: Integrate with meal logging
-                target_value=carbs_servings,
-                percentage=round(carbs_pct, 1),
-                color="orange",
-                icon="grain.fill",
-            ),
-            NutritionSegmentData(
-                name="Fats",
-                current_value=0.0,  # TODO: Integrate with meal logging
-                target_value=fats_servings,
-                percentage=round(fats_pct, 1),
-                color="yellow",
-                icon="drop.fill",
-            ),
+                target_value=target,
+                percentage=pct,
+                color=SEGMENT_STYLE[key]["color"],
+                icon=SEGMENT_STYLE[key]["icon"],
+            )
+            for key, target, pct in segments_data
         ],
         total_progress=0.0,  # TODO: Calculate from actual meal logging
         daily_goals=DailyGoals(
