@@ -1471,3 +1471,6 @@ def test_require_nh3_raises_when_missing(monkeypatch) -> None:
         RuntimeError, match="Optional dependency 'nh3' is required.*pip install nh3"
     ):
         ds_reloaded._require_nh3()
+
+    # Restore module to clean state for subsequent tests (test isolation)
+    importlib.reload(ds)
