@@ -17,11 +17,17 @@ class _NH3Protocol(Protocol):
     """Protocol for nh3 module interface (type-safe soft import)."""
 
     def clean(
-        self, html: str, *, tags: Set[str], attributes: Dict[str, Set[str]]
+        self,
+        html: str,
+        *,
+        tags: Optional[Set[str]] = None,
+        attributes: Optional[Dict[str, Set[str]]] = None,
     ) -> str:  # pragma: no cover
         ...
 
 
+# nh3 is a runtime requirement for production (sanitization/security).
+# We still soft-import it to fail with a clear error in minimal/dev installs or misconfigured envs.
 try:
     import nh3
 
