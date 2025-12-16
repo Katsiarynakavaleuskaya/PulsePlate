@@ -6,7 +6,6 @@ invalid data, and ensure type safety.
 
 from __future__ import annotations
 
-from types import ModuleType
 from typing import Any, Dict, List, Literal, Optional, Protocol, Set, cast
 
 from pydantic import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
@@ -27,13 +26,8 @@ class _NH3Protocol(Protocol):
 
 
 # nh3 is a runtime requirement for production (sanitization/security).
-# We still soft-import it to fail with a clear error in minimal/dev installs or misconfigured envs.
-try:
-    import nh3
-
-    _nh3: Optional[ModuleType] = nh3
-except ModuleNotFoundError:  # pragma: no cover
-    _nh3 = None
+# We use lazy import (import at call time) instead of module-level import
+# to avoid caching None in pytest-xdist workers or hot-reload scenarios.
 
 # Constants for validation
 MAX_STRING_LENGTH = 500
@@ -53,18 +47,24 @@ NH3_ALLOWED_ATTRS: Dict[str, Set[str]] = (
 def _require_nh3() -> _NH3Protocol:
     """Ensure nh3 dependency is available for sanitization.
 
+    Uses lazy import (import at runtime) to avoid issues with pytest-xdist workers,
+    hot-reload, and cached module-level imports.
+
     Returns:
         The nh3 module with type-safe interface (guaranteed after runtime check)
 
     Raises:
         RuntimeError: If nh3 is not installed
     """
-    if _nh3 is None:
+    try:
+        import nh3  # Runtime import - always fresh, no caching issues
+
+        return cast(_NH3Protocol, nh3)
+    except ModuleNotFoundError as e:
         raise RuntimeError(
             "Optional dependency 'nh3' is required for plate data sanitization. "
             "Install it with: python -m pip install nh3"
-        )
-    return cast(_NH3Protocol, _nh3)
+        ) from e
 
 
 class MacrosDict(TypedDict):
