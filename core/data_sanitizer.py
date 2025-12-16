@@ -18,7 +18,6 @@ class _NH3Protocol(Protocol):
     def clean(
         self,
         html: str,
-        *,
         tags: Optional[Set[str]] = None,
         attributes: Optional[Dict[str, Set[str]]] = None,
     ) -> str:  # pragma: no cover
