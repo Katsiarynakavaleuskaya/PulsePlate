@@ -55,7 +55,7 @@ final class ShoppingListReaderViewModel: ObservableObject {
     /// - Parameters:
     ///   - message: User-facing error message (shown in UI)
     ///   - underlying: Optional underlying error (logged for debugging)
-    func handleError(_ message: String, underlying: Error? = nil) {
+    private func handleError(_ message: String, underlying: Error? = nil) {
         if let underlying {
             logger.error("\(message, privacy: .public) | \(underlying.localizedDescription, privacy: .public)")
         } else {
