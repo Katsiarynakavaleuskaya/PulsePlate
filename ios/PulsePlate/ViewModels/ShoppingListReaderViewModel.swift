@@ -23,10 +23,11 @@ final class ShoppingListReaderViewModel: ObservableObject {
         self.apiKeyProvider = apiKeyProvider
     }
 
-    func load(planData: Data, preferences: [String: Any]? = nil) async {
+    func load(planData: ShoppingPlan, preferences: [String: Any]? = nil) async {
         state = .loading
         do {
-            let body = try ShoppingListFixtures.requestBodyJSON(planDataEncoded: planData, preferences: preferences)
+            let payload = ShoppingListRequestPayload(planData: planData, preferences: preferences)
+            let body = try JSONEncoder().encode(payload)
             let request = ShoppingListRequest(
                 endpointPath: "/api/v1/pro/meal/shopping-list",
                 body: body,
@@ -45,7 +46,7 @@ final class ShoppingListReaderViewModel: ObservableObject {
                 handleError("Failed to fetch shopping list.", underlying: error)
             }
         } catch {
-            handleError("Failed to load shopping list.", underlying: error)
+            handleError("Failed to build request or load shopping list.", underlying: error)
         }
     }
 

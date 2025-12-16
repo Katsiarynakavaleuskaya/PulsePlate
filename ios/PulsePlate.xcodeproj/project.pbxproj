@@ -426,7 +426,7 @@
 				DEVELOPMENT_TEAM = 3J6YL696KR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = PulsePlate/Info-Debug.plist;
+				INFOPLIST_FILE = "PulsePlate/Info-Debug.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -474,7 +474,7 @@
 				DEVELOPMENT_TEAM = 3J6YL696KR;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = PulsePlate/Info-Release.plist;
+				INFOPLIST_FILE = "PulsePlate/Info-Release.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your nutrition and weight data from Health to calculate your diet according to your goals and show progress.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
