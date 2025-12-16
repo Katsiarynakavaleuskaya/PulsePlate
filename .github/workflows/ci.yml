@@ -121,24 +121,6 @@ jobs:
           ENVIRONMENT: test
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
 
-      - name: Diagnostics - Python, pip, and nh3 installation
-        run: |
-          echo "=== Python ==="
-          which python
-          python --version
-          echo "=== pip ==="
-          python -m pip --version
-          which pip || true
-          pip --version || true
-          echo "=== nh3 in requirements files ==="
-          grep -n "^nh3" requirements.txt requirements-dev.txt || echo "nh3 not found in requirements"
-          echo "=== nh3 installation check ==="
-          python -m pip show nh3 || echo "nh3 not installed"
-          echo "=== nh3 import test ==="
-          python -c "import nh3; print('nh3 OK, version:', getattr(nh3, '__version__', '?'))" || echo "nh3 import failed"
-          echo "=== nh3 in freeze ==="
-          python -m pip freeze | grep -i nh3 || echo "nh3 not in freeze output"
-
       - name: Run tests with coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"

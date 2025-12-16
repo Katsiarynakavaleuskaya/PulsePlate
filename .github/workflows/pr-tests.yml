@@ -120,6 +120,8 @@ jobs:
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
 
+      # Diagnostics enabled in PR jobs only to reduce CI noise and verify nh3 availability
+      # after runtime import fix (see core/data_sanitizer.py _require_nh3)
       - name: Diagnostics - Python, pip, and nh3 installation
         run: |
           echo "=== Python ==="
