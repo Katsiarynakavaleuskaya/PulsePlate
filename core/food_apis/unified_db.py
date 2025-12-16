@@ -68,10 +68,23 @@ class UnifiedFoodItem:
     def from_usda_item(
         cls, usda_item: USDAFoodItem, estimated_cost: float = 1.0
     ) -> "UnifiedFoodItem":
-        """Convert USDA item to unified format."""
+        """Convert USDA item to unified format.
+
+        Note: Ensures all primary macronutrients (protein_g, fat_g, carbs_g) have
+        default 0.0 values if missing from USDA response. Pure protein/fat foods
+        (e.g., chicken breast, salmon) may have 0 carbs and USDA may omit the field.
+        """
+        # Normalize nutrients - ensure primary macros have defaults
+        nutrients = dict(usda_item.nutrients_per_100g)
+
+        # Set defaults for primary macronutrients if missing
+        nutrients.setdefault("protein_g", 0.0)
+        nutrients.setdefault("fat_g", 0.0)
+        nutrients.setdefault("carbs_g", 0.0)
+
         return cls(
             name=usda_item.description,
-            nutrients_per_100g=usda_item.nutrients_per_100g,
+            nutrients_per_100g=nutrients,
             cost_per_100g=estimated_cost,
             tags=usda_item._generate_tags(),
             availability_regions=["US", "BY", "RU"],  # Assume global availability
@@ -84,10 +97,22 @@ class UnifiedFoodItem:
     def from_off_item(
         cls, off_item: "OFFFoodItemType", estimated_cost: float = 1.5
     ) -> "UnifiedFoodItem":
-        """Convert Open Food Facts item to unified format."""
+        """Convert Open Food Facts item to unified format.
+
+        Note: Ensures all primary macronutrients (protein_g, fat_g, carbs_g) have
+        default 0.0 values if missing from Open Food Facts response.
+        """
+        # Normalize nutrients - ensure primary macros have defaults
+        nutrients = dict(off_item.nutrients_per_100g)
+
+        # Set defaults for primary macronutrients if missing
+        nutrients.setdefault("protein_g", 0.0)
+        nutrients.setdefault("fat_g", 0.0)
+        nutrients.setdefault("carbs_g", 0.0)
+
         return cls(
             name=off_item.product_name,
-            nutrients_per_100g=off_item.nutrients_per_100g,
+            nutrients_per_100g=nutrients,
             cost_per_100g=estimated_cost,
             tags=off_item._generate_tags(),
             availability_regions=off_item.countries,

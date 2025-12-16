@@ -23,8 +23,12 @@ _VERSION_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 
 def _is_valid_version(value: str) -> bool:
-    """Check that the version string matches an allowed pattern."""
-    return any(pattern.match(value) for pattern in _VERSION_PATTERNS)
+    """Check that the version string matches an allowed pattern.
+
+    Uses fullmatch() to ensure entire string conforms to pattern,
+    preventing partial matches (e.g., '1.0.0extra' would fail).
+    """
+    return any(pattern.fullmatch(value) for pattern in _VERSION_PATTERNS)
 
 
 def validate_food_aliases(file_path: Path) -> list[str]:

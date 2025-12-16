@@ -861,17 +861,21 @@ class TestDatabaseUpdateManagerComprehensive:
             assert "missing required fields" in errors[0]
 
     def test_validate_food_data_missing_nutrients(self):
-        """Test _validate_food_data with missing nutrients."""
+        """Test _validate_food_data with missing primary macronutrients.
+
+        Note: Validation now requires at least ONE primary macro (protein_g OR fat_g).
+        carbs_g is optional as pure protein/fat foods may have 0 carbs.
+        """
         from core.food_apis.unified_db import UnifiedFoodItem
         from core.food_apis.update_manager import DatabaseUpdateManager
 
         with tempfile.TemporaryDirectory() as temp_dir:
             manager = DatabaseUpdateManager(cache_dir=temp_dir)
 
-            # Create food item with missing required nutrients
+            # Create food item with NO primary macronutrients (should fail)
             invalid_food = UnifiedFoodItem(
                 name="Test Food",
-                nutrients_per_100g={},  # Missing required nutrients
+                nutrients_per_100g={},  # Missing both protein_g AND fat_g
                 cost_per_100g=1.0,
                 tags=["test"],
                 availability_regions=["US"],
@@ -883,7 +887,8 @@ class TestDatabaseUpdateManagerComprehensive:
             errors = asyncio.run(manager._validate_food_data(foods))
 
             assert len(errors) > 0
-            assert "missing nutrients" in errors[0]
+            assert "missing primary macronutrients" in errors[0]
+            assert "needs protein_g OR fat_g" in errors[0]
 
     def test_validate_food_data_negative_values(self):
         """Test _validate_food_data with negative nutrient values."""
@@ -942,6 +947,56 @@ class TestDatabaseUpdateManagerComprehensive:
 
             assert len(errors) > 0
             assert "unrealistic" in str(errors[0]).lower()
+
+    def test_validate_food_data_optional_carbs(self):
+        """Test _validate_food_data accepts foods with missing carbs_g.
+
+        This test verifies the fix for chicken breast/salmon validation failures.
+        Pure protein/fat foods (chicken, fish) may have 0 carbs and USDA may
+        omit carbs_g field entirely. Validation should accept these.
+        """
+        from core.food_apis.unified_db import UnifiedFoodItem
+        from core.food_apis.update_manager import DatabaseUpdateManager
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manager = DatabaseUpdateManager(cache_dir=temp_dir)
+
+            # Create food items simulating USDA chicken breast (missing carbs_g)
+            chicken = UnifiedFoodItem(
+                name="Chicken Breast",
+                nutrients_per_100g={
+                    "protein_g": 31.0,  # High protein
+                    "fat_g": 3.6,  # Low fat
+                    # carbs_g intentionally missing (0 carbs, USDA omits field)
+                    "kcal": 165.0,
+                },
+                cost_per_100g=4.0,
+                tags=["protein", "meat"],
+                availability_regions=["US"],
+                source="USDA",
+                source_id="12345",
+            )
+
+            # Also test pure fat food (olive oil)
+            olive_oil = UnifiedFoodItem(
+                name="Olive Oil",
+                nutrients_per_100g={
+                    "fat_g": 100.0,  # Pure fat
+                    # protein_g and carbs_g intentionally missing
+                    "kcal": 884.0,
+                },
+                cost_per_100g=8.0,
+                tags=["fat", "oil"],
+                availability_regions=["US"],
+                source="USDA",
+                source_id="54321",
+            )
+
+            foods = {"chicken": chicken, "olive_oil": olive_oil}
+            errors = asyncio.run(manager._validate_food_data(foods))
+
+            # Both should pass validation (no errors)
+            assert len(errors) == 0, f"Unexpected validation errors: {errors}"
 
     @pytest.mark.asyncio
     async def test_create_backup_exception(self):

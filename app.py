@@ -1739,8 +1739,24 @@ async def favicon() -> Response:
 
 
 @app.get("/health")
-async def health() -> Dict[str, str]:
-    return {"status": "ok"}
+async def health() -> Dict[str, Any]:
+    """Health check endpoint with version info for debugging.
+
+    Returns server status, version, and timestamp for iOS debugging.
+    Helps diagnose "Connection refused" errors (backend offline).
+    """
+    import datetime
+
+    # Get git SHA if available (for version tracking)
+    git_sha = os.getenv("GIT_SHA", "unknown")
+
+    return {
+        "status": "ok",
+        "version": "1.0.0",  # TODO: Read from pyproject.toml
+        "git_sha": git_sha[:8] if len(git_sha) > 8 else git_sha,
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "environment": os.getenv("ENVIRONMENT", "development"),
+    }
 
 
 @app.get("/api/v1/health")

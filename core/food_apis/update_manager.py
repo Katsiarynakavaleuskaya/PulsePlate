@@ -778,11 +778,16 @@ class DatabaseUpdateManager:
             # Check nutrition data quality
             nutrients = food.nutrients_per_100g
 
-            # Should have at least basic macronutrients
-            required_nutrients = ["protein_g", "fat_g", "carbs_g"]
-            missing_nutrients = [n for n in required_nutrients if n not in nutrients]
-            if missing_nutrients:
-                errors.append(f"Food {name} missing nutrients: {missing_nutrients}")
+            # Should have at least ONE primary macronutrient (protein or fat)
+            # Note: carbs_g is optional - pure protein/fat foods may have 0 carbs
+            # and USDA may omit the field entirely (e.g., chicken breast, salmon)
+            has_protein = "protein_g" in nutrients
+            has_fat = "fat_g" in nutrients
+
+            if not has_protein and not has_fat:
+                errors.append(
+                    f"Food {name} missing primary macronutrients (needs protein_g OR fat_g)"
+                )
 
             # Check for reasonable values
             for nutrient, value in nutrients.items():

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import os.log
 
 @MainActor
 final class ShoppingListReaderViewModel: ObservableObject {
@@ -15,6 +16,7 @@ final class ShoppingListReaderViewModel: ObservableObject {
 
     private let service: ShoppingListServicing
     private let apiKeyProvider: () -> String?
+    private let logger = Logger(subsystem: "PulsePlate", category: "ShoppingListReader")
 
     init(service: ShoppingListServicing, apiKeyProvider: @escaping () -> String?) {
         self.service = service
@@ -40,10 +42,24 @@ final class ShoppingListReaderViewModel: ObservableObject {
             case .noContent:
                 state = .empty
             default:
-                state = .error(error.localizedDescription)
+                handleError("Failed to fetch shopping list.", underlying: error)
             }
         } catch {
-            state = .error(error.localizedDescription)
+            handleError("Failed to load shopping list.", underlying: error)
         }
+    }
+
+    /// Centralized error handler: logs error details and sets user-facing error state.
+    ///
+    /// - Parameters:
+    ///   - message: User-facing error message (shown in UI)
+    ///   - underlying: Optional underlying error (logged for debugging)
+    func handleError(_ message: String, underlying: Error? = nil) {
+        if let underlying {
+            logger.error("\(message, privacy: .public) | \(underlying.localizedDescription, privacy: .public)")
+        } else {
+            logger.error("\(message, privacy: .public)")
+        }
+        state = .error(message)
     }
 }
