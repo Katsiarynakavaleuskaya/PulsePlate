@@ -47,10 +47,13 @@ jobs:
           ruff check . --config pyproject.toml
           black --check . --config pyproject.toml
 
-      - name: Run type checking
+      - name: Run type checking (non-blocking)
+        continue-on-error: true
         run: |
           echo "Running type checking..."
-          mypy . --config-file pyproject.toml
+          # NOTE: mypy is enforced in PR CI via lint/pre-commit.
+          # Nightly is focused on long-running tests; mypy is non-blocking here by design.
+          mypy app tests --config-file pyproject.toml
 
       - name: Run security checks
         run: |

@@ -112,6 +112,28 @@ MEAL_TRANSLATIONS = {
     },
 }
 
+# Translation dictionaries for nutrition segments (plate view)
+NUTRITION_SEGMENT_TRANSLATIONS = {
+    "ru": {
+        "vegetables": "Овощи",
+        "protein": "Белок",
+        "carbs": "Углеводы",
+        "fats": "Жиры",
+    },
+    "en": {
+        "vegetables": "Vegetables",
+        "protein": "Protein",
+        "carbs": "Carbs",
+        "fats": "Fats",
+    },
+    "es": {
+        "vegetables": "Verduras",
+        "protein": "Proteína",
+        "carbs": "Carbohidratos",
+        "fats": "Grasas",
+    },
+}
+
 # Translation dictionaries for tips and messages
 TIP_TRANSLATIONS = {
     "ru": {
@@ -202,6 +224,25 @@ def translate_meal_type(lang: Language, meal_type: str) -> str:
 
     translations = MEAL_TRANSLATIONS[lang]
     return translations.get(meal_type, meal_type)
+
+
+def translate_nutrition_segment(lang: Language, segment_key: str) -> str:
+    """
+    Translate a nutrition segment name to the specified language.
+
+    Args:
+        lang: Language code ("ru", "en", or "es")
+        segment_key: Segment key ("vegetables", "protein", "carbs", "fats")
+
+    Returns:
+        Translated segment name with EN fallback
+    """
+    if lang not in NUTRITION_SEGMENT_TRANSLATIONS:
+        # Fallback to English if language not supported
+        lang = "en"
+
+    translations = NUTRITION_SEGMENT_TRANSLATIONS[lang]
+    return translations.get(segment_key, segment_key)
 
 
 def translate_tip(lang: Language, tip_key: str, donor_food: str = "") -> str:

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- Strict ATS for Release builds - HTTPS only -->
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSAllowsLocalNetworking</key>
+		<false/>
+	</dict>
+	<!-- Production configuration - update with actual production values -->
+	<!-- TODO: Before TestFlight/App Store release, uncomment and configure: -->
+	<!-- <key>BASE_URL</key> -->
+	<!-- <string>https://api.pulseplate.app</string> -->
+	<!-- <key>PRO_API_KEY</key> -->
+	<!-- <string>REPLACE_WITH_PRODUCTION_KEY</string> -->
+</dict>
+</plist>

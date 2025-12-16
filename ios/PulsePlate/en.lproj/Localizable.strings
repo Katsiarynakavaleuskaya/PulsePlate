@@ -28,3 +28,10 @@
 "profile_privacy_policy" = "Privacy Policy";
 "profile_terms_of_use" = "Terms of Use";
 "profile_screen_accessibility_label" = "Profile screen";
+"shopping_list_title" = "Shopping List";
+"shopping_list_empty_title" = "No Items";
+"shopping_list_empty_description" = "Your plan does not contain purchasable items.";
+"shopping_list_error_title" = "Failed to load";
+"shopping_list_warnings_title" = "Warnings";
+"shopping_list_total_items_fmt" = "%d items";
+"shopping_list_source_fmt" = "Source: %@";

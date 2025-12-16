@@ -15,7 +15,7 @@ import re
 import tokenize
 from pathlib import Path
 from types import ModuleType
-from typing import Any, cast
+from typing import Any
 from dataclasses import dataclass
 from enum import Enum
 from io import StringIO
@@ -220,9 +220,9 @@ class BusinessBayesianAnalyzer:
     def _import_yaml_module() -> ModuleType | None:
         """Attempt to import PyYAML, returning None if unavailable."""
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml
 
-            return cast(ModuleType, yaml)
+            return yaml
         except (ModuleNotFoundError, ImportError):
             return None
         # Let other exceptions (version conflicts, corrupt installs) propagate

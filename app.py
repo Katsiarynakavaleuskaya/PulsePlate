@@ -27,7 +27,7 @@ from typing import (
 )
 
 import dotenv
-from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import (
     BaseModel,
@@ -992,6 +992,42 @@ if pro_router is not None:
 
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)
+
+
+# Legacy alias for iOS nutrition endpoint compatibility
+# Maps /api/nutrition/{date} to /api/v1/pro/nutrition/daily with default profile
+@app.get("/api/nutrition/{date_str}", tags=["pro", "legacy"])
+async def get_daily_nutrition_legacy(
+    date_str: str,
+    sex: str = Query("female", description="Biological sex (female/male)"),
+    age: int = Query(30, gt=10, lt=100, description="Age in years"),
+    height_cm: float = Query(165, gt=100, lt=250, description="Height in cm"),
+    weight_kg: float = Query(65, gt=30, lt=300, description="Weight in kg"),
+    activity: str = Query("moderate", description="Activity level"),
+    goal: str = Query("maintain", description="Nutrition goal"),
+    api_key: str = Depends(api_key_header),
+) -> Dict[str, Any]:
+    """Legacy alias for iOS nutrition endpoint - redirects to PRO endpoint.
+
+    RU: Устаревший алиас для iOS совместимости - перенаправляет на PRO endpoint.
+    EN: Legacy alias for iOS compatibility - redirects to PRO endpoint.
+
+    NOTE: This route is deprecated. Use /api/v1/pro/nutrition/daily instead.
+    """
+    from app.routers.pro import get_daily_nutrition
+
+    # Call the canonical PRO endpoint with profile parameters
+    response = await get_daily_nutrition(
+        date_str=date_str,
+        sex=sex,  # type: ignore
+        age=age,
+        height_cm=height_cm,
+        weight_kg=weight_kg,
+        activity=activity,  # type: ignore
+        goal=goal,  # type: ignore
+    )
+    return response.model_dump()
+
 
 # Include premium week router for backward compatibility (deprecated)
 FEATURE_PREMIUM_WEEK_ENABLED = (
