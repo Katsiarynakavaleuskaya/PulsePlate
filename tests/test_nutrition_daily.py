@@ -11,6 +11,8 @@ Coverage targets:
 - Error handling (500 on targets failure)
 """
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -99,15 +101,38 @@ def test_daily_nutrition_with_defaults(client: TestClient) -> None:
 
 
 def test_daily_nutrition_invalid_date_format(client: TestClient) -> None:
-    """Test endpoint rejects invalid date format.
+    """Test endpoint rejects invalid date format (semantic validation).
 
-    RU: Тест отклонения невалидного формата даты.
-    EN: Test rejection of invalid date format.
+    RU: Тест отклонения невалидного формата даты (семантическая валидация).
+    EN: Test rejection of invalid date format (semantic validation).
     """
     response = client.get(
         "/api/v1/pro/nutrition/daily",
         params={
-            "date": "2025-13-45",  # Invalid date
+            "date": "2025-13-45",  # Passes regex but invalid month/day
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165,
+            "weight_kg": 65,
+        },
+        headers={"X-API-Key": "test_pro_key"},
+    )
+
+    # Date.fromisoformat() raises ValueError → 400
+    assert response.status_code == 400
+    assert "Invalid date format" in response.json()["detail"]
+
+
+def test_daily_nutrition_invalid_semantic_date(client: TestClient) -> None:
+    """Test endpoint rejects semantically invalid date (e.g., Feb 30).
+
+    RU: Тест отклонения семантически невалидной даты (например, 30 февраля).
+    EN: Test rejection of semantically invalid date (e.g., Feb 30).
+    """
+    response = client.get(
+        "/api/v1/pro/nutrition/daily",
+        params={
+            "date": "2025-02-30",  # Passes regex but invalid calendar date
             "sex": "female",
             "age": 30,
             "height_cm": 165,
@@ -165,7 +190,7 @@ def test_daily_nutrition_boundary_values(client: TestClient) -> None:
         params={
             "date": "2025-12-15",
             "sex": "female",
-            "age": 11,  # gt=10
+            "age": 10,  # ge=10 (inclusive)
             "height_cm": 101,  # gt=100
             "weight_kg": 31,  # gt=30
         },
@@ -179,7 +204,7 @@ def test_daily_nutrition_boundary_values(client: TestClient) -> None:
         params={
             "date": "2025-12-15",
             "sex": "male",
-            "age": 99,  # lt=100
+            "age": 100,  # le=100 (inclusive)
             "height_cm": 249,  # lt=250
             "weight_kg": 299,  # lt=300
         },
@@ -370,6 +395,9 @@ def test_nutrition_targets_integration(client: TestClient) -> None:
     # - Carbs: ~4-10 servings (based on TDEE)
     # - Fats: ~2-5 servings (based on weight)
 
+    # NOTE: Ranges are coupled to current WHO/EFSA target formulas in build_nutrition_targets.
+    # RU: Диапазоны привязаны к текущим формулам WHO/EFSA в build_nutrition_targets.
+    # EN: If formulas change, adjust these ranges rather than removing the checks.
     goals = data["daily_goals"]
     assert 3.0 <= goals["vegetables"] <= 5.0
     assert 2.0 <= goals["protein"] <= 6.0
@@ -379,3 +407,34 @@ def test_nutrition_targets_integration(client: TestClient) -> None:
     # Verify percentages sum to ~100%
     total_pct = sum(s["percentage"] for s in data["segments"])
     assert 95.0 <= total_pct <= 105.0  # Allow small rounding difference
+
+
+def test_daily_nutrition_targets_calculation_failure(client: TestClient) -> None:
+    """Test endpoint returns 500 when WHO targets calculation fails.
+
+    RU: Тест возврата 500 при ошибке расчёта WHO targets.
+    EN: Test 500 return when WHO targets calculation fails.
+    """
+    with patch("app.routers.pro.build_nutrition_targets") as mock_build:
+        # Simulate internal error in targets calculation
+        mock_build.side_effect = RuntimeError("Internal calculation error")
+
+        response = client.get(
+            "/api/v1/pro/nutrition/daily",
+            params={
+                "date": "2025-12-15",
+                "sex": "female",
+                "age": 30,
+                "height_cm": 165,
+                "weight_kg": 65,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+
+        assert response.status_code == 500
+        # Verify generic error message (no info leak)
+        assert response.json()["detail"] == "Failed to calculate nutrition targets"
+        # Ensure internal error details are NOT leaked to client
+        assert "Internal calculation error" not in response.json()["detail"]

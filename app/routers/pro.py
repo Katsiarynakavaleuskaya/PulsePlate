@@ -13,6 +13,7 @@ Endpoints:
 - /api/v1/pro/nutrition/daily - Daily nutrition tracking (Plate view)
 """
 
+import logging
 from datetime import date as Date
 from typing import Any, Dict, List, Literal, Optional
 
@@ -28,6 +29,8 @@ from core.recipe_db_new import RecipeDB
 from core.recommendations import build_nutrition_targets
 from core.targets import UserProfile
 from core.weekly_plan_new import build_week
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
 
@@ -90,9 +93,9 @@ class NutritionSegmentData(BaseModel):
     """Single nutrition segment (e.g., Vegetables, Protein, Carbs, Fats)."""
 
     name: str = Field(..., description="Segment name (e.g., 'Vegetables')")
-    current_value: float = Field(..., description="Current servings consumed")
-    target_value: float = Field(..., description="Target servings for the day")
-    percentage: float = Field(..., description="Percentage of plate (visual representation)")
+    current_value: float = Field(..., ge=0.0, description="Current servings consumed")
+    target_value: float = Field(..., ge=0.0, description="Target servings for the day")
+    percentage: float = Field(..., ge=0.0, le=100.0, description="Percentage of plate (0-100)")
     color: str = Field(..., description="Color identifier (e.g., 'green', 'red')")
     icon: str = Field(..., description="SF Symbol icon name (e.g., 'leaf.fill')")
 
@@ -100,10 +103,10 @@ class NutritionSegmentData(BaseModel):
 class DailyGoals(BaseModel):
     """Daily nutrition goals."""
 
-    vegetables: float = Field(..., description="Target vegetable servings")
-    protein: float = Field(..., description="Target protein servings")
-    carbs: float = Field(..., description="Target carbohydrate servings")
-    fats: float = Field(..., description="Target fat servings")
+    vegetables: float = Field(..., ge=0.0, description="Target vegetable servings")
+    protein: float = Field(..., ge=0.0, description="Target protein servings")
+    carbs: float = Field(..., ge=0.0, description="Target carbohydrate servings")
+    fats: float = Field(..., ge=0.0, description="Target fat servings")
 
 
 class DailyNutritionResponse(BaseModel):
@@ -330,7 +333,7 @@ async def get_daily_nutrition(
     # RU: Обязательные параметры профиля пользователя
     # EN: Required user profile parameters
     sex: Literal["female", "male"] = Query(..., description="Biological sex"),
-    age: int = Query(..., gt=10, lt=100, description="Age in years"),
+    age: int = Query(..., ge=10, le=100, description="Age in years (10-100 inclusive)"),
     height_cm: float = Query(..., gt=100, lt=250, description="Height in centimeters"),
     weight_kg: float = Query(..., gt=30, lt=300, description="Weight in kilograms"),
     # RU: Опциональные параметры с разумными дефолтами
@@ -348,7 +351,7 @@ async def get_daily_nutrition(
     Args:
         date_str: Date string in YYYY-MM-DD format
         sex: Biological sex (female/male)
-        age: Age in years (10-100)
+        age: Age in years (10-100 inclusive)
         height_cm: Height in centimeters (100-250)
         weight_kg: Weight in kilograms (30-300)
         activity: Activity level (sedentary/light/moderate/active/very_active)
@@ -396,12 +399,14 @@ async def get_daily_nutrition(
     try:
         targets = build_nutrition_targets(profile)
     except Exception as e:
-        # Fallback to safe defaults if targets calculation fails
-        # RU: Безопасные дефолты при ошибке расчёта таргетов
-        # EN: Safe defaults on targets calculation failure
-        raise HTTPException(
-            status_code=500, detail=f"Failed to calculate nutrition targets: {str(e)}"
-        ) from e
+        # Log internal error details for debugging
+        # RU: Логируем внутренние детали ошибки для отладки
+        # EN: Log internal error details for debugging
+        logger.exception("Failed to calculate nutrition targets for profile: %s", profile)
+        # Return generic error message to client (avoid info leak)
+        # RU: Возвращаем общее сообщение об ошибке клиенту (избегаем утечки информации)
+        # EN: Return generic error message to client (avoid info leak)
+        raise HTTPException(status_code=500, detail="Failed to calculate nutrition targets") from e
 
     # Convert WHO targets to Plate segments
     # RU: Преобразование WHO таргетов в сегменты тарелки
@@ -420,10 +425,15 @@ async def get_daily_nutrition(
     # RU: Расчёт процентов для визуализации тарелки
     # EN: Calculate percentages for visual plate representation
     total_servings = vegetables_servings + protein_servings + carbs_servings + fats_servings
-    veg_pct = (vegetables_servings / total_servings) * 100 if total_servings > 0 else 25.0
-    protein_pct = (protein_servings / total_servings) * 100 if total_servings > 0 else 25.0
-    carbs_pct = (carbs_servings / total_servings) * 100 if total_servings > 0 else 25.0
-    fats_pct = (fats_servings / total_servings) * 100 if total_servings > 0 else 25.0
+
+    # RU: total_servings не должен быть 0 (vegetables_servings=4.0), но страхуемся от деления на 0
+    # EN: total_servings should never be 0 (vegetables_servings=4.0), but guard against division by zero
+    denom = total_servings if total_servings > 0 else 1.0
+
+    veg_pct = (vegetables_servings / denom) * 100
+    protein_pct = (protein_servings / denom) * 100
+    carbs_pct = (carbs_servings / denom) * 100
+    fats_pct = (fats_servings / denom) * 100
 
     return DailyNutritionResponse(
         date=date_str,
