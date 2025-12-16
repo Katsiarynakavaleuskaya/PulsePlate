@@ -438,3 +438,34 @@ def test_daily_nutrition_targets_calculation_failure(client: TestClient) -> None
         assert response.json()["detail"] == "Failed to calculate nutrition targets"
         # Ensure internal error details are NOT leaked to client
         assert "Internal calculation error" not in response.json()["detail"]
+
+
+def test_daily_nutrition_invalid_profile_validation(client: TestClient) -> None:
+    """Test endpoint returns 400 when UserProfile validation fails.
+
+    RU: Тест возврата 400 при ошибке валидации UserProfile.
+    EN: Test 400 return when UserProfile validation fails.
+    """
+    with patch("app.routers.pro.UserProfile") as mock_profile:
+        # Simulate validation error in UserProfile
+        mock_profile.side_effect = ValueError("age must be positive")
+
+        response = client.get(
+            "/api/v1/pro/nutrition/daily",
+            params={
+                "date": "2025-12-15",
+                "sex": "female",
+                "age": 30,
+                "height_cm": 165,
+                "weight_kg": 65,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "test_pro_key"},
+        )
+
+        assert response.status_code == 400
+        # Verify generic error message (no info leak)
+        assert response.json()["detail"] == "Invalid user profile"
+        # Ensure internal validation details are NOT leaked to client
+        assert "age must be positive" not in response.json()["detail"]

@@ -391,7 +391,14 @@ async def get_daily_nutrition(
             goal=goal,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid user profile: {str(e)}") from e
+        # Log validation details for debugging
+        # RU: Логируем детали валидации для отладки
+        # EN: Log validation details for debugging
+        logger.warning("Invalid user profile for daily nutrition: %s", str(e))
+        # Return generic error message to client (avoid info leak)
+        # RU: Возвращаем общее сообщение об ошибке клиенту (избегаем утечки информации)
+        # EN: Return generic error message to client (avoid info leak)
+        raise HTTPException(status_code=400, detail="Invalid user profile") from e
 
     # Calculate WHO-based nutrition targets
     # RU: Расчёт целевых значений питания на основе рекомендаций ВОЗ
