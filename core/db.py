@@ -502,9 +502,6 @@ class Base(DeclarativeBase):
     """Base class for declarative SQLAlchemy models."""
 
 
-SessionLocal = None
-
-
 def get_session() -> Generator[Session, None, None]:
     """RU: Зависимость FastAPI, возвращающая сессию базы данных.
 
