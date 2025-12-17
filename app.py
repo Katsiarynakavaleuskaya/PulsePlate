@@ -19,6 +19,7 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
     NoReturn,
@@ -3446,7 +3447,7 @@ def sanitize_plate_data(plate_data_raw: Dict[str, Any]) -> Dict[str, Any]:
     return sanity_filter_plate_data(plate_data_raw)
 
 
-def _iter_exception_chain(err: BaseException):
+def _iter_exception_chain(err: BaseException) -> Iterator[BaseException]:
     """Yield an exception and its causes/contexts without cycles."""
     seen: set[int] = set()
     cur: BaseException | None = err
