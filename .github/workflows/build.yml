@@ -18,10 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
-    outputs:
-      tags: ${{ steps.meta.outputs.tags }}
-      first_tag: ${{ steps.validate-tags.outputs.first_tag }}
 
     steps:
       - name: Checkout repository
@@ -30,142 +26,28 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
 
-      - name: Set lowercase image name
-        id: image-name
-        run: |
-          echo "image_name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
-      - name: Log in to Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
-          tags: |
-            type=raw,value=${{ github.sha }}
-            type=raw,value=sha-${{ github.sha }}
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Validate metadata tags
-        id: validate-tags
-        if: github.event_name != 'pull_request'
-        run: |
-          tags_output='${{ steps.meta.outputs.tags }}'
-          echo "Tags output: $tags_output"
-
-          # Parse newline-separated tags
-          if [ -z "$tags_output" ]; then
-            echo "Error: No tags found"
-            exit 1
-          fi
-
-          # Get first tag (first line)
-          first_tag=$(echo "$tags_output" | head -n1)
-          if [ -z "$first_tag" ]; then
-            echo "Error: No valid tags found"
-            exit 1
-          fi
-
-          echo "First tag: $first_tag"
-          echo "first_tag=$first_tag" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
+      - name: Build Docker image (local, for tests)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: pulseplate:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: production
-
-      - name: Generate SBOM
-        if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
-        with:
-          image: ${{ steps.validate-tags.outputs.first_tag }}
-          format: spdx-json
-          output-file: sbom.spdx.json
-
-      - name: Upload SBOM
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: sbom
-          path: sbom.spdx.json
-          retention-days: 30
-
-  # Security scan
-  security-scan:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: read
-      security-events: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
-
-      - name: Run Trivy vulnerability scanner (PR filesystem scan)
-        if: github.event_name == 'pull_request'
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
-        with:
-          scan-type: 'fs'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Run Trivy vulnerability scanner (image scan)
-        if: github.event_name != 'pull_request'
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
-        with:
-          image-ref: ${{ needs.build.outputs.first_tag }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
-        with:
-          sarif_file: 'trivy-results.sarif'
-
-  # Test Docker image
-  test:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
-
-      - name: Build test image
-        run: |
-          docker build -t pulseplate:test --target production .
 
       - name: Test Docker image
         run: |
           # Set up cleanup trap to ensure container is always removed
           trap "docker stop pulseplate-test 2>/dev/null || true; docker rm pulseplate-test 2>/dev/null || true" EXIT
 
-          # Start container
-          docker run -d --name pulseplate-test -p 8000:8000 pulseplate:test
+          # Start container with tightened security
+          docker run -d --name pulseplate-test -p 8000:8000 \
+            --cap-drop=ALL \
+            --security-opt no-new-privileges \
+            pulseplate:test
 
           # Wait for container to start
           echo "Waiting for container to start..."
@@ -200,6 +82,122 @@ jobs:
           curl -f http://localhost:8000/health || exit 1
 
           echo "✅ Docker image test completed successfully"
+
+  # Security scan
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Run Trivy vulnerability scanner (filesystem scan)
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
+        with:
+          scan-type: 'fs'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
+        if: ${{ always() }}
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Publish tested Docker image
+  publish:
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+
+      - name: Set lowercase image name
+        id: image-name
+        run: |
+          echo "image_name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=sha-${{ github.sha }}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+
+      - name: Build and push Docker image (multi-arch)
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: production
+
+      - name: Set image ref for SBOM and image scan
+        id: image-ref
+        run: |
+          echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Run Trivy vulnerability scanner (image scan, report-only)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
+        with:
+          scan-type: 'image'
+          image-ref: ${{ steps.image-ref.outputs.ref }}
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy image scan results
+        uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
+        with:
+          sarif_file: 'trivy-image.sarif'
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
+        with:
+          image: ${{ steps.image-ref.outputs.ref }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 30
 
   # Deploy to staging (if on main branch)
   # TODO: Enable when staging deployment is ready
