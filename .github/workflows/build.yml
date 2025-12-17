@@ -179,6 +179,7 @@ jobs:
         continue-on-error: true
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
         with:
+          scan-type: 'image'
           image-ref: ${{ steps.image-ref.outputs.ref }}
           format: 'sarif'
           output: 'trivy-image.sarif'
