@@ -5,7 +5,7 @@ Focus on error handling and edge cases.
 
 import os
 from typing import Any, Tuple
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, NonCallableMock, patch
 
 import pytest
 from faker import Faker
@@ -324,14 +324,29 @@ class TestDbMissingLinesCoverage:
             mock_engine.dialect = Mock()
             mock_engine.driver = "sqlite"
 
-            # EngineCompat now supports both callable factories and direct engine instances
-            # Wrap in lambda to make it a non-callable for this test (simulating direct engine pass)
+            # EngineCompat supports callable factories and direct engine instances.
+            # Wrap in a lambda to exercise the factory branch.
             engine_compat = EngineCompat(lambda: mock_engine)
 
             # Test attribute delegation
             assert engine_compat.url == "sqlite:///test.db"
             assert engine_compat.dialect == mock_engine.dialect
             assert engine_compat.driver == "sqlite"
+
+        except ImportError:
+            pass
+
+    def test_engine_compat_getattr_delegation_direct_engine(self):
+        """Test EngineCompat.__getattr__ delegation for direct engine instances."""
+        try:
+            from core.db import EngineCompat
+
+            mock_engine = NonCallableMock()
+            mock_engine.url = "sqlite:///test.db"
+
+            engine_compat = EngineCompat(mock_engine)
+
+            assert engine_compat.url == "sqlite:///test.db"
 
         except ImportError:
             pass
