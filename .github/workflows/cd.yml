@@ -95,8 +95,80 @@ jobs:
       #   run: |
       #     curl -fsS --max-time 5 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null
 
+  # Pre-production quality gates
+  production-gates:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Verify semantic version tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$'; then
+            echo "❌ Invalid semantic version tag: $TAG"
+            echo "Expected format: v1.2.3 or v1.2.3-beta"
+            exit 1
+          fi
+          echo "✅ Valid semantic version: $TAG"
+
+      - name: Check last nightly test status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_COMMIT=$(git rev-parse "${GITHUB_REF#refs/tags/}")
+
+          LAST_NIGHTLY_CONCLUSION=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
+          LAST_NIGHTLY_COMMIT=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
+
+          if [ "$LAST_NIGHTLY_CONCLUSION" != "success" ] || [ "$LAST_NIGHTLY_CONCLUSION" = "null" ]; then
+            echo "❌ Last nightly test did not pass or is missing: $LAST_NIGHTLY_CONCLUSION"
+            echo "Production deploy requires a passing nightly run on main"
+            exit 1
+          fi
+
+          if [ "$LAST_NIGHTLY_COMMIT" = "null" ] || [ -z "$LAST_NIGHTLY_COMMIT" ]; then
+            echo "❌ Unable to determine head commit for last nightly run on main"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" "$LAST_NIGHTLY_COMMIT"; then
+            echo "❌ Tag commit $TAG_COMMIT was not tested by last nightly run on main ($LAST_NIGHTLY_COMMIT)"
+            exit 1
+          fi
+
+          echo "✅ Last nightly test passed and covers tag commit $TAG_COMMIT"
+
+      - name: Verify CI passed on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_COMMIT=$(git rev-parse "${GITHUB_REF#refs/tags/}")
+
+          MAIN_CI_CONCLUSION=$(gh run list --workflow=ci.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion // "null"')
+          MAIN_CI_COMMIT=$(gh run list --workflow=ci.yml --branch=main --limit=1 --json headSha --jq '.[0].headSha // "null"')
+
+          if [ "$MAIN_CI_CONCLUSION" != "success" ] || [ "$MAIN_CI_CONCLUSION" = "null" ]; then
+            echo "❌ CI on main branch did not pass or is missing: $MAIN_CI_CONCLUSION"
+            exit 1
+          fi
+
+          if [ "$MAIN_CI_COMMIT" = "null" ] || [ -z "$MAIN_CI_COMMIT" ]; then
+            echo "❌ Unable to determine head commit for last CI run on main"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" "$MAIN_CI_COMMIT"; then
+            echo "❌ Tag commit $TAG_COMMIT was not tested by last CI run on main ($MAIN_CI_COMMIT)"
+            exit 1
+          fi
+
+          echo "✅ CI on main passed and covers tag commit $TAG_COMMIT"
+
   build-production:
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: production-gates
     runs-on: ubuntu-latest
     environment:
       name: production
