@@ -219,7 +219,9 @@ DATABASE_URL = _build_engine_url()
 # Lazily initialized synchronous engine and session factory.
 _RAW_ENGINE: Optional["Engine"] = None
 SessionLocal: Optional[sessionmaker[Session]] = None
-_init_lock = threading.Lock()
+# Use RLock to allow reentrant calls (same thread can acquire multiple times)
+# This prevents deadlocks if any SQLAlchemy callback triggers lazy initialization
+_init_lock = threading.RLock()
 
 
 def _get_raw_engine() -> "Engine":
@@ -630,7 +632,13 @@ def init_db() -> None:
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
+    # Double-check pattern: check outside lock, create outside lock, check+assign inside lock
+    with _init_lock:
+        current_engine = _RAW_ENGINE
+        current_url = None if current_engine is None else str(current_engine.url)
+        needs_new = current_engine is None or current_url != db_url
+
+    if needs_new:
         # Create engine and sessionmaker OUTSIDE lock to avoid holding lock during I/O
         new_engine = create_engine(
             db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
@@ -638,10 +646,13 @@ def init_db() -> None:
         new_session_local = sessionmaker(
             bind=new_engine, autoflush=False, autocommit=False, future=True
         )
-        # Assign to globals UNDER lock to prevent race with lazy getters
+        # Assign to globals UNDER lock with re-check (prevent race overwrites)
         with _init_lock:
-            _RAW_ENGINE = new_engine
-            SessionLocal = new_session_local
+            current_engine = _RAW_ENGINE
+            current_url = None if current_engine is None else str(current_engine.url)
+            if current_engine is None or current_url != db_url:
+                _RAW_ENGINE = new_engine
+                SessionLocal = new_session_local
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).

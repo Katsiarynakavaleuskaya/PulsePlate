@@ -2,7 +2,9 @@
 Global test configuration and fixtures for the project.
 """
 
+import faulthandler
 import os
+import signal
 import sys
 import pytest
 import importlib.util
@@ -10,6 +12,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from typing import cast, Iterator
 from starlette.types import ASGIApp
+
+# Enable faulthandler for debugging hangs/deadlocks in CI
+# Use SIGUSR1 to dump all thread stacks without killing the process
+faulthandler.enable()
+faulthandler.register(signal.SIGUSR1)
 
 
 def pytest_configure(config: pytest.Config) -> None:
