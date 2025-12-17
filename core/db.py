@@ -240,7 +240,8 @@ def _get_raw_engine() -> "Engine":
                 _RAW_ENGINE = create_engine(
                     db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
                 )
-                # Reset SessionLocal so it rebuilds with new engine
+                # Clear SessionLocal so next call rebuilds a sessionmaker bound to the new engine,
+                # avoiding sessions tied to a stale URL (e.g., pytest-xdist overrides).
                 SessionLocal = None
 
     return _RAW_ENGINE
@@ -632,7 +633,9 @@ def init_db() -> None:
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    # Double-check pattern: check outside lock, create outside lock, check+assign inside lock
+    # Build engines outside the lock to avoid holding it during I/O-heavy creation.
+    # Re-check under the lock to prevent race overwrites, and rely on the final
+    # guard below to ensure _RAW_ENGINE is set before create_all runs.
     with _init_lock:
         current_engine = _RAW_ENGINE
         current_url = None if current_engine is None else str(current_engine.url)

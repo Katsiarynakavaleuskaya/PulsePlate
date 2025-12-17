@@ -341,6 +341,7 @@ class TestDbMissingLinesCoverage:
         try:
             from core.db import EngineCompat
 
+            # NonCallableMock avoids callable Mock, forcing direct-engine branch.
             mock_engine = NonCallableMock()
             mock_engine.url = "sqlite:///test.db"
 
