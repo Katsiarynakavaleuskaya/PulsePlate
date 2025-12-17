@@ -13,10 +13,14 @@ from fastapi.testclient import TestClient
 from typing import cast, Iterator
 from starlette.types import ASGIApp
 
-# Enable faulthandler for debugging hangs/deadlocks in CI
-# Use SIGUSR1 to dump all thread stacks without killing the process
-faulthandler.enable()
-faulthandler.register(signal.SIGUSR1)
+# Enable faulthandler for debugging hangs/deadlocks (CI only to avoid noise)
+# In CI: dumps thread stacks after 180s hang, repeating every 60s
+# Manual trigger: kill -USR1 <pytest_pid> to dump stacks on demand
+if os.getenv("CI") or os.getenv("PYTEST_CURRENT_TEST"):
+    faulthandler.enable()
+    faulthandler.register(signal.SIGUSR1)  # Manual trigger
+    # Auto-dump after 180s hang, repeat every 60s (catches init hangs)
+    faulthandler.dump_traceback_later(timeout=180, repeat=True)
 
 
 def pytest_configure(config: pytest.Config) -> None:
