@@ -225,17 +225,22 @@ _init_lock = threading.Lock()
 def _get_raw_engine() -> "Engine":
     """Return the singleton SQLAlchemy Engine, creating it lazily on first use.
 
-    Thread-safe double-checked locking pattern prevents race conditions
-    during concurrent initialization.
+    Thread-safe and DATABASE_URL-aware: recreates engine if DATABASE_URL changes.
+    Critical for pytest-xdist workers where each worker may have different DATABASE_URL.
     """
-    global _RAW_ENGINE
-    if _RAW_ENGINE is None:
+    global _RAW_ENGINE, SessionLocal
+
+    db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+
+    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
         with _init_lock:
-            if _RAW_ENGINE is None:
-                db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+            if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
                 _RAW_ENGINE = create_engine(
                     db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
                 )
+                # Reset SessionLocal so it rebuilds with new engine
+                SessionLocal = None
+
     return _RAW_ENGINE
 
 
@@ -625,15 +630,15 @@ def init_db() -> None:
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
-        # Reset SessionLocal first to ensure lazy getter rebuilds with new engine
-        SessionLocal = None
-        _RAW_ENGINE = create_engine(
-            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
-        )
-        SessionLocal = sessionmaker(
-            bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
-        )
+    # MUST use lock to prevent race with lazy getters
+    with _init_lock:
+        if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
+            _RAW_ENGINE = create_engine(
+                db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+            )
+            SessionLocal = sessionmaker(
+                bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
+            )
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
