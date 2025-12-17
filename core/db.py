@@ -666,9 +666,10 @@ async def init_db_async() -> None:
 
 
 def __getattr__(name: str) -> Any:
-    """Provide lazy access to engine and SessionLocal for backwards compatibility."""
-    if name == "_RAW_ENGINE":
-        return _get_raw_engine()
-    if name == "SessionLocal":
-        return _get_session_local()
-    raise AttributeError(name)
+    """Raise AttributeError for undefined module attributes.
+
+    Note: _RAW_ENGINE and SessionLocal are defined as module-level globals,
+    so this function will not be called for them. This only handles truly
+    undefined attributes to provide clear error messages.
+    """
+    raise AttributeError(f"module 'core.db' has no attribute '{name}'")

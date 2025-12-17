@@ -449,3 +449,13 @@ class TestDbMissingLinesCoverage:
 
         except ImportError:
             pass
+
+    def test_module_getattr_unknown_attribute(self):
+        """Test __getattr__ raises AttributeError for unknown attributes."""
+        import core.db
+
+        # Try to access a nonexistent attribute
+        with pytest.raises(
+            AttributeError, match="module 'core.db' has no attribute 'nonexistent_attr'"
+        ):
+            _ = core.db.nonexistent_attr
