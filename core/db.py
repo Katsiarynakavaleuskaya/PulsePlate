@@ -674,6 +674,9 @@ def init_db() -> None:
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
+    # At this point _RAW_ENGINE is guaranteed to be initialized by the logic above
+    if _RAW_ENGINE is None:
+        raise RuntimeError("Engine must be initialized before creating tables")
     metadata.create_all(bind=_RAW_ENGINE)
 
 
