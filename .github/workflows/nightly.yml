@@ -235,6 +235,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt -c constraints.txt
           python -m pip install -r requirements-dev.txt -c constraints.txt
+          python -m pip install psycopg2-binary -c constraints.txt
 
       - name: Run integration tests
         env:
@@ -245,10 +246,18 @@ jobs:
           export START_TIME
           echo "START_TIME=$START_TIME" >> $GITHUB_ENV
           echo "Running integration tests..."
+          set +e
           pytest tests/ \
             -m integration \
             --tb=short \
             -v
+          EXIT_CODE=$?
+          set -e
+          if [ "$EXIT_CODE" -eq 5 ]; then
+            echo "No integration tests collected; treating as success."
+            exit 0
+          fi
+          exit "$EXIT_CODE"
 
       - name: Generate test report
         if: always()
