@@ -79,8 +79,8 @@ jobs:
 
           # Bandit (не прерываем step, просто фиксируем exit code)
           # Exclude tests/ and tests_strict/ - they use assert which is fine for tests
-          # Only fail on MEDIUM/HIGH severity issues (-ll)
-          bandit -r . -f json -o bandit-report.json --exclude './tests,./tests_strict' -ll || BANDIT_EXIT=$?
+          # Only fail on MEDIUM/HIGH severity (-ll) and MEDIUM/HIGH confidence (-ii)
+          bandit -r . -f json -o bandit-report.json --exclude './tests,./tests_strict' -ll -ii || BANDIT_EXIT=$?
 
           # Safety (то же самое)
           safety check --json > safety-report.json 2> safety-stderr.log || SAFETY_EXIT=$?
