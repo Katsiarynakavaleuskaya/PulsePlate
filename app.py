@@ -19,8 +19,10 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
+    Iterator,
     List,
     Literal,
+    NoReturn,
     Optional,
     Union,
     cast,
@@ -71,6 +73,7 @@ from core.db import get_session, init_db
 from core.i18n import Language, t
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
+from core.data_sanitizer import MissingOptionalDependencyError
 import core.utils as core_utils
 from nutrition_core import calculate_all_bmr, calculate_all_tdee
 from app.scheduler_helpers import (
@@ -3444,6 +3447,39 @@ def sanitize_plate_data(plate_data_raw: Dict[str, Any]) -> Dict[str, Any]:
     return sanity_filter_plate_data(plate_data_raw)
 
 
+def _iter_exception_chain(err: BaseException) -> Iterator[BaseException]:
+    """Yield an exception and its causes/contexts without cycles."""
+    seen: set[int] = set()
+    cur: BaseException | None = err
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        yield cur
+        cur = cur.__cause__ or cur.__context__
+
+
+def _is_missing_nh3_error(err: BaseException) -> bool:
+    """Detect whether an error (or its causes) is due to missing nh3."""
+    for exc in _iter_exception_chain(err):
+        if (
+            isinstance(exc, MissingOptionalDependencyError)
+            and getattr(exc, "dependency", None) == "nh3"
+        ):
+            return True
+    return False
+
+
+def _raise_missing_nh3_http_error(exc: Exception) -> NoReturn:
+    raise HTTPException(
+        status_code=fastapi_status.HTTP_424_FAILED_DEPENDENCY,
+        detail={
+            "error": "missing_dependency",
+            "dependency": "nh3",
+            "message": "HTML sanitization library (nh3) is required for premium plate sanitization.",
+            "action": "Install server dependency: python -m pip install nh3",
+        },
+    ) from exc
+
+
 async def aggregate_day_micros(
     meals: List[Dict[str, Any]], candidates: list[Any]
 ) -> Dict[str, float]:
@@ -3679,11 +3715,15 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     except HTTPException:
         raise
     except ValueError as e:
+        if _is_missing_nh3_error(e):
+            _raise_missing_nh3_http_error(e)
         logger.error("premium_plate validation error: %s", e)
         raise HTTPException(
             status_code=400, detail=f"Enhanced plate generation failed: {str(e)}"
         ) from e
     except Exception as e:
+        if _is_missing_nh3_error(e):
+            _raise_missing_nh3_http_error(e)
         logger.error(f"premium_plate error: {e}")
         raise HTTPException(
             status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"

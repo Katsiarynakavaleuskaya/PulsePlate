@@ -28,6 +28,15 @@ class _NH3Protocol(Protocol):
 # We use lazy import (import at call time) instead of module-level import
 # to avoid caching None in pytest-xdist workers or hot-reload scenarios.
 
+
+class MissingOptionalDependencyError(RuntimeError):
+    """Raised when an optional runtime dependency is missing."""
+
+    def __init__(self, dependency: str, message: str) -> None:
+        super().__init__(message)
+        self.dependency = dependency
+
+
 # Constants for validation
 MAX_STRING_LENGTH = 500
 MAX_MEALS = 10
@@ -53,16 +62,19 @@ def _require_nh3() -> _NH3Protocol:
         The nh3 module with type-safe interface (guaranteed after runtime check)
 
     Raises:
-        RuntimeError: If nh3 is not installed
+        MissingOptionalDependencyError: If nh3 is not installed
     """
     try:
         import nh3  # Runtime import - always fresh, no caching issues
 
         return cast(_NH3Protocol, nh3)
     except ModuleNotFoundError as e:
-        raise RuntimeError(
-            "Optional dependency 'nh3' is required for plate data sanitization. "
-            "Install it with: python -m pip install nh3"
+        raise MissingOptionalDependencyError(
+            "nh3",
+            (
+                "Optional dependency 'nh3' is required for plate data sanitization. "
+                "Install it with: python -m pip install nh3"
+            ),
         ) from e
 
 

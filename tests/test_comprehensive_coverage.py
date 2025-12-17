@@ -536,6 +536,46 @@ class TestComprehensiveCoverage:
             )
             assert response.status_code == 500
 
+    def test_premium_plate_missing_nh3_returns_424(self) -> None:
+        """Test premium plate endpoint returns 424 when nh3 dependency is missing."""
+        from core.data_sanitizer import MissingOptionalDependencyError
+
+        with patch.dict(os.environ, {"FEATURE_PREMIUM_NUTRITION": "true"}, clear=False):
+            import core.data_sanitizer as data_sanitizer
+
+            with patch.object(data_sanitizer, "_require_nh3") as mock_require:
+                mock_require.side_effect = MissingOptionalDependencyError(
+                    "nh3",
+                    (
+                        "Optional dependency 'nh3' is required for plate data sanitization. "
+                        "Install it with: python -m pip install nh3"
+                    ),
+                )
+
+                payload = {
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175,
+                    "weight_kg": 70,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                }
+
+                response = self.client.post(
+                    "/api/v1/premium/plate",
+                    json=payload,
+                    headers={"X-API-Key": "test_key"},
+                )
+
+        assert response.status_code == 424
+        body = response.json()
+        assert isinstance(body.get("detail"), dict)
+        detail = body["detail"]
+        assert detail.get("error") == "missing_dependency"
+        assert detail.get("dependency") == "nh3"
+        assert detail.get("message", "").startswith("HTML sanitization library (nh3)")
+        assert "pip install nh3" in detail.get("action", "")
+
     def test_who_targets_endpoint_success(self) -> None:
         """Test WHO targets endpoint success case."""
         with patch("app.build_nutrition_targets") as mock_build_targets:

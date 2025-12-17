@@ -154,7 +154,7 @@ class TestTargetedCoverage:
             "/api/v1/premium/gaps", json=data, headers={"X-API-Key": "test-key"}
         )
         # This might fail due to missing dependencies, but that's OK for coverage
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code in [200, 424, 500, 503]
 
     def test_weekly_menu_endpoint(self):
         """Test weekly menu endpoint - covers lines 1136, 1158, 1187-1196."""
@@ -176,7 +176,7 @@ class TestTargetedCoverage:
             "/api/v1/premium/plan/week", json=data, headers={"X-API-Key": "test-key"}
         )
         # This might fail due to missing dependencies, but that's OK for coverage
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code in [200, 424, 500, 503]
 
     def test_who_targets_endpoint(self):
         """Test WHO targets endpoint - covers lines 1235-1236, 1279-1280."""
@@ -198,7 +198,7 @@ class TestTargetedCoverage:
             "/api/v1/premium/targets", json=data, headers={"X-API-Key": "test-key"}
         )
         # This might fail due to missing dependencies, but that's OK for coverage
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code in [200, 424, 500, 503]
 
     def test_premium_plate_endpoint(self):
         """Test premium plate endpoint - covers lines 1307-1308, 1332."""
@@ -219,7 +219,7 @@ class TestTargetedCoverage:
             "/api/v1/premium/plate", json=data, headers={"X-API-Key": "test-key"}
         )
         # This might fail due to missing dependencies, but that's OK for coverage
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code in [200, 424, 500, 503]
 
 
 if __name__ == "__main__":
