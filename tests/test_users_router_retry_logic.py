@@ -13,6 +13,20 @@ from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError, IntegrityError
 
 
+def _wire_session_factory(mock_db: MagicMock, mock_session: MagicMock) -> MagicMock:
+    """Make db_module.get_session_factory() return a callable factory.
+
+    The factory() returns mock_session directly (not a context manager),
+    matching the actual code pattern where session_factory() returns a Session
+    and code explicitly calls session.close() and session.rollback().
+    """
+    session_factory = MagicMock(name="session_factory")
+    session_factory.return_value = mock_session
+
+    mock_db.get_session_factory.return_value = session_factory
+    return session_factory
+
+
 class TestUsersRetryMechanism:
     """Test the _execute_with_retry retry mechanism with real timing."""
 
@@ -37,7 +51,7 @@ class TestUsersRetryMechanism:
             # 4th attempt succeeds
             return {"user_id": 123, "email": "test@example.com"}
 
-        mock_db.SessionLocal.return_value = mock_session
+        session_factory = _wire_session_factory(mock_db, mock_session)
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
         # Mock time.sleep to verify exponential backoff delays without actually sleeping
@@ -54,7 +68,7 @@ class TestUsersRetryMechanism:
         mock_sleep.assert_has_calls(expected_delays, any_order=False)
 
         # Verify session cleanup: 1 initial + 3 retries = 4 sessions created and closed
-        assert mock_db.SessionLocal.call_count == 4
+        assert session_factory.call_count == 4
         assert mock_session.close.call_count == 4
 
     def test_integrity_error_bypasses_retry_returns_409_immediately(
@@ -65,7 +79,7 @@ class TestUsersRetryMechanism:
 
         mock_db = MagicMock()
         mock_session = MagicMock()
-        mock_db.SessionLocal.return_value = mock_session
+        session_factory = _wire_session_factory(mock_db, mock_session)
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
         def action_with_integrity_error(session):
@@ -82,7 +96,7 @@ class TestUsersRetryMechanism:
         assert "conflict" in exc_info.value.detail.lower()
 
         # Verify NO retries happened (only 1 attempt)
-        assert mock_db.SessionLocal.call_count == 1
+        assert session_factory.call_count == 1
         assert mock_session.close.call_count == 1
         assert mock_session.rollback.call_count == 1
 
@@ -94,7 +108,7 @@ class TestUsersRetryMechanism:
 
         mock_db = MagicMock()
         mock_session = MagicMock()
-        mock_db.SessionLocal.return_value = mock_session
+        session_factory = _wire_session_factory(mock_db, mock_session)
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
         call_count = 0
@@ -118,7 +132,7 @@ class TestUsersRetryMechanism:
         assert exc_info.value.status_code == 409
         assert call_count == 2
         # Verify exactly one retry happened
-        assert mock_db.SessionLocal.call_count == 2
+        assert session_factory.call_count == 2
         assert mock_session.close.call_count == 2
 
     def test_retry_exhaustion_with_fallback_returns_fallback_value(
@@ -129,7 +143,7 @@ class TestUsersRetryMechanism:
 
         mock_db = MagicMock()
         mock_session = MagicMock()
-        mock_db.SessionLocal.return_value = mock_session
+        session_factory = _wire_session_factory(mock_db, mock_session)
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
         def always_fails(session):
@@ -141,7 +155,7 @@ class TestUsersRetryMechanism:
         # Should return fallback after exhausting retries
         assert result is fallback_value
         # 1 initial + 3 retries (hardcoded) = 4 attempts
-        assert mock_db.SessionLocal.call_count == 4
+        assert session_factory.call_count == 4
 
     def test_retry_exhaustion_without_fallback_raises_503(
         self, monkeypatch: pytest.MonkeyPatch
@@ -151,7 +165,7 @@ class TestUsersRetryMechanism:
 
         mock_db = MagicMock()
         mock_session = MagicMock()
-        mock_db.SessionLocal.return_value = mock_session
+        session_factory = _wire_session_factory(mock_db, mock_session)
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
         def always_fails(session):
@@ -163,7 +177,7 @@ class TestUsersRetryMechanism:
         assert exc_info.value.status_code == 503
         assert "unavailable" in exc_info.value.detail.lower()
         # 1 initial + 3 retries (hardcoded) = 4 attempts
-        assert mock_db.SessionLocal.call_count == 4
+        assert session_factory.call_count == 4
 
     def test_http_exception_propagates_without_retry(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """HTTPException raised by action should rollback and propagate without retries."""
@@ -171,7 +185,7 @@ class TestUsersRetryMechanism:
 
         mock_db = MagicMock()
         mock_session = MagicMock()
-        mock_db.SessionLocal.return_value = mock_session
+        session_factory = _wire_session_factory(mock_db, mock_session)
         monkeypatch.setattr("app.routers.users.db_module", mock_db)
 
         def action_raises_http(session):
@@ -181,7 +195,7 @@ class TestUsersRetryMechanism:
             users._execute_with_retry(action_raises_http)
 
         assert exc_info.value.status_code == 400
-        mock_db.SessionLocal.assert_called_once()
+        session_factory.assert_called_once()
         mock_session.rollback.assert_called_once()
         mock_session.close.assert_called_once()
 
