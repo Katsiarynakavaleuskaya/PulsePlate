@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Checkout repository
@@ -158,27 +157,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Validate metadata tags
-        id: validate-tags
-        run: |
-          tags_output='${{ steps.meta.outputs.tags }}'
-          echo "Tags output: $tags_output"
-
-          # Parse newline-separated tags
-          if [ -z "$tags_output" ]; then
-            echo "Error: No tags found"
-            exit 1
-          fi
-
-          # Get first tag (first line)
-          first_tag=$(echo "$tags_output" | head -n1)
-          if [ -z "$first_tag" ]; then
-            echo "Error: No valid tags found"
-            exit 1
-          fi
-
-          echo "First tag: $first_tag"
-          echo "first_tag=$first_tag" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image (multi-arch)
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
@@ -192,10 +170,29 @@ jobs:
           cache-to: type=gha,mode=max
           target: production
 
+      - name: Set image ref for SBOM and image scan
+        id: image-ref
+        run: |
+          echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Run Trivy vulnerability scanner (image scan, report-only)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
+        with:
+          image-ref: ${{ steps.image-ref.outputs.ref }}
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy image scan results
+        uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
+        with:
+          sarif_file: 'trivy-image.sarif'
+
       - name: Generate SBOM
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
-          image: ${{ steps.validate-tags.outputs.first_tag }}
+          image: ${{ steps.image-ref.outputs.ref }}
           format: spdx-json
           output-file: sbom.spdx.json
 
