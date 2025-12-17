@@ -82,8 +82,14 @@ jobs:
           # Only fail on MEDIUM/HIGH severity (-ll) and MEDIUM/HIGH confidence (-ii)
           bandit -r . -f json -o bandit-report.json --exclude './tests,./tests_strict' -ll -ii || BANDIT_EXIT=$?
 
-          # Safety (то же самое)
-          safety check --json > safety-report.json 2> safety-stderr.log || SAFETY_EXIT=$?
+          # Safety (prefer scan; fallback to deprecated check for compatibility)
+          safety scan --json > safety-report.json 2> safety-stderr.log
+          SAFETY_EXIT=$?
+          if [ "$SAFETY_EXIT" -ne 0 ]; then
+            echo "safety scan failed (exit=$SAFETY_EXIT). Trying deprecated safety check as fallback..."
+            safety check --json > safety-report.json 2> safety-stderr.log
+            SAFETY_EXIT=$?
+          fi
 
           echo "Bandit exit code: $BANDIT_EXIT"
           echo "Safety exit code:  $SAFETY_EXIT"

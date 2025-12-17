@@ -26,14 +26,14 @@ import os
 from urllib.parse import urlparse, parse_qs, urlencode
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable
 
 from sqlalchemy import create_engine, text
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
-    from sqlalchemy.engine import Connection, Result
+    from sqlalchemy.engine import Connection, Result, Engine
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
     from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
@@ -215,6 +215,31 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
 DATABASE_URL = _build_engine_url()
 
 
+# Lazily initialized synchronous engine and session factory.
+_RAW_ENGINE: Optional["Engine"] | None = None
+SessionLocal: Optional[sessionmaker[Session]] | None = None
+
+
+def _get_raw_engine() -> "Engine":
+    """Return the singleton SQLAlchemy Engine, creating it lazily on first use."""
+    global _RAW_ENGINE
+    if _RAW_ENGINE is None:
+        db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+        _RAW_ENGINE = create_engine(
+            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+        )
+    return _RAW_ENGINE
+
+
+def _get_session_local() -> sessionmaker[Session]:
+    """Return the current SessionLocal, creating it lazily on first use."""
+    global SessionLocal
+    if SessionLocal is None:
+        engine = _get_raw_engine()
+        SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    return SessionLocal
+
+
 class _ResultWithConnectionCleanup:
     """Wrapper for SQLAlchemy Result that closes connection when result is closed.
 
@@ -297,9 +322,14 @@ class EngineCompat:
     EN: Adds an ``execute`` method that proxies to a Connection in SQLAlchemy 2.x.
     """
 
-    def __init__(self, engine: Any) -> None:
-        """Wrap a SQLAlchemy Engine to expose a legacy-like execute method."""
-        self._engine = engine
+    def __init__(self, engine_getter: Callable[[], Any]) -> None:
+        """Wrap a SQLAlchemy Engine factory to expose a legacy-like execute method."""
+        self._engine_getter = engine_getter
+
+    @property
+    def _engine(self) -> Any:
+        """Lazily obtain the underlying engine instance."""
+        return self._engine_getter()
 
     # Delegate unknown attributes to the underlying Engine
     def __getattr__(self, name: str) -> Any:
@@ -403,13 +433,8 @@ class EngineCompat:
             raise
 
 
-# Create the underlying SQLAlchemy Engine instance (2.x style)
-_RAW_ENGINE = create_engine(
-    DATABASE_URL, echo=False, future=True, connect_args=_sqlite_connect_args(DATABASE_URL)
-)
-
 # Public engine exposes a legacy-compatible .execute attribute expected by tests
-engine = EngineCompat(_RAW_ENGINE)
+engine = EngineCompat(_get_raw_engine)
 
 
 # Async engine configuration (optional)
@@ -466,7 +491,7 @@ class Base(DeclarativeBase):
     """Base class for declarative SQLAlchemy models."""
 
 
-SessionLocal = sessionmaker(bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True)
+SessionLocal = None
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -474,7 +499,8 @@ def get_session() -> Generator[Session, None, None]:
 
     EN: FastAPI dependency that yields a scoped database session.
     """
-    session = SessionLocal()
+    session_factory = _get_session_local()
+    session = session_factory()
     try:
         yield session
     finally:
@@ -487,7 +513,8 @@ def session_scope() -> Generator[Session, None, None]:
 
     EN: Context manager that wraps short-lived database operations.
     """
-    session = SessionLocal()
+    session_factory = _get_session_local()
+    session = session_factory()
     try:
         yield session
         session.commit()
@@ -570,7 +597,7 @@ def init_db() -> None:
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    if str(_RAW_ENGINE.url) != db_url:
+    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
         _RAW_ENGINE = create_engine(
             db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
         )
@@ -610,7 +637,7 @@ def get_session_factory() -> sessionmaker[Session]:
     Returns:
         Current sessionmaker instance configured by init_db().
     """
-    return SessionLocal
+    return _get_session_local()
 
 
 async def init_db_async() -> None:
@@ -620,8 +647,17 @@ async def init_db_async() -> None:
     metadata = Base.metadata
 
     if _ASYNC_ENGINE is None:
-        metadata.create_all(bind=_RAW_ENGINE)
+        metadata.create_all(bind=_get_raw_engine())
         return
 
     async with _ASYNC_ENGINE.begin() as conn:
         await conn.run_sync(metadata.create_all)
+
+
+def __getattr__(name: str) -> Any:
+    """Provide lazy access to engine and SessionLocal for backwards compatibility."""
+    if name == "_RAW_ENGINE":
+        return _get_raw_engine()
+    if name == "SessionLocal":
+        return _get_session_local()
+    raise AttributeError(name)
