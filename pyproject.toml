@@ -16,8 +16,6 @@ warn_return_any = true
 no_implicit_optional = false
 ignore_missing_imports = true
 plugins = []
-explicit_package_bases = true
-files = ["app", "tests"]
 # Exclude files/dirs that cause duplicate module mapping or are heavy/generated.
 # - app.py conflicts with package module "app" (app/__init__.py) for mypy module resolution.
 # - Exclude caches and build artifacts to keep runs stable and fast.
