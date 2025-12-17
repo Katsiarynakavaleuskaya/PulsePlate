@@ -23,10 +23,11 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+import threading
 from urllib.parse import urlparse, parse_qs, urlencode
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable, Union
 
 from sqlalchemy import create_engine, text
 from sqlalchemy import exc as sa_exc
@@ -218,25 +219,40 @@ DATABASE_URL = _build_engine_url()
 # Lazily initialized synchronous engine and session factory.
 _RAW_ENGINE: Optional["Engine"] = None
 SessionLocal: Optional[sessionmaker[Session]] = None
+_init_lock = threading.Lock()
 
 
 def _get_raw_engine() -> "Engine":
-    """Return the singleton SQLAlchemy Engine, creating it lazily on first use."""
+    """Return the singleton SQLAlchemy Engine, creating it lazily on first use.
+
+    Thread-safe double-checked locking pattern prevents race conditions
+    during concurrent initialization.
+    """
     global _RAW_ENGINE
     if _RAW_ENGINE is None:
-        db_url = os.getenv("DATABASE_URL", DATABASE_URL)
-        _RAW_ENGINE = create_engine(
-            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
-        )
+        with _init_lock:
+            if _RAW_ENGINE is None:
+                db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+                _RAW_ENGINE = create_engine(
+                    db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+                )
     return _RAW_ENGINE
 
 
 def _get_session_local() -> sessionmaker[Session]:
-    """Return the current SessionLocal, creating it lazily on first use."""
+    """Return the current SessionLocal, creating it lazily on first use.
+
+    Thread-safe double-checked locking pattern prevents race conditions
+    during concurrent initialization.
+    """
     global SessionLocal
     if SessionLocal is None:
-        engine = _get_raw_engine()
-        SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+        with _init_lock:
+            if SessionLocal is None:
+                engine = _get_raw_engine()
+                SessionLocal = sessionmaker(
+                    bind=engine, autoflush=False, autocommit=False, future=True
+                )
     return SessionLocal
 
 
@@ -315,6 +331,10 @@ class _ResultWithConnectionCleanup:
         return attr
 
 
+# Type alias for EngineCompat: supports both callable factories and direct engine instances
+EngineGetter = Union[Callable[[], "Engine"], "Engine"]
+
+
 class EngineCompat:
     """Compatibility wrapper to expose Engine.execute for SQLAlchemy 2.x.
 
@@ -322,7 +342,7 @@ class EngineCompat:
     EN: Adds an ``execute`` method that proxies to a Connection in SQLAlchemy 2.x.
     """
 
-    def __init__(self, engine_getter: Callable[[], Any]) -> None:
+    def __init__(self, engine_getter: EngineGetter) -> None:
         """Wrap a SQLAlchemy Engine factory or engine instance to expose a legacy-like execute method.
 
         Args:
