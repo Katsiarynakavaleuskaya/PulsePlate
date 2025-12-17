@@ -95,8 +95,50 @@ jobs:
       #   run: |
       #     curl -fsS --max-time 5 "https://${{ secrets.STAGING_DOMAIN }}/health" > /dev/null
 
+  # Pre-production quality gates
+  production-gates:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Verify semantic version tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if ! echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$'; then
+            echo "❌ Invalid semantic version tag: $TAG"
+            echo "Expected format: v1.2.3 or v1.2.3-beta"
+            exit 1
+          fi
+          echo "✅ Valid semantic version: $TAG"
+
+      - name: Check last nightly test status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LAST_NIGHTLY=$(gh run list --workflow=nightly.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion')
+          if [ "$LAST_NIGHTLY" != "success" ]; then
+            echo "❌ Last nightly test did not pass: $LAST_NIGHTLY"
+            echo "Production deploy requires passing nightly tests"
+            exit 1
+          fi
+          echo "✅ Last nightly test passed"
+
+      - name: Verify CI passed on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          MAIN_CI=$(gh run list --workflow=ci.yml --branch=main --limit=1 --json conclusion --jq '.[0].conclusion')
+          if [ "$MAIN_CI" != "success" ]; then
+            echo "❌ CI on main branch did not pass: $MAIN_CI"
+            exit 1
+          fi
+          echo "✅ CI on main passed"
+
   build-production:
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: production-gates
     runs-on: ubuntu-latest
     environment:
       name: production
