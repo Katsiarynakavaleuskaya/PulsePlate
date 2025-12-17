@@ -630,15 +630,18 @@ def init_db() -> None:
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    # MUST use lock to prevent race with lazy getters
-    with _init_lock:
-        if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
-            _RAW_ENGINE = create_engine(
-                db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
-            )
-            SessionLocal = sessionmaker(
-                bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
-            )
+    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
+        # Create engine and sessionmaker OUTSIDE lock to avoid holding lock during I/O
+        new_engine = create_engine(
+            db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+        )
+        new_session_local = sessionmaker(
+            bind=new_engine, autoflush=False, autocommit=False, future=True
+        )
+        # Assign to globals UNDER lock to prevent race with lazy getters
+        with _init_lock:
+            _RAW_ENGINE = new_engine
+            SessionLocal = new_session_local
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
