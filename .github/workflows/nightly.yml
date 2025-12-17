@@ -73,6 +73,7 @@ jobs:
           : > bandit-report.json
           : > safety-report.json
           : > safety-stderr.log
+          : > safety-text-report.txt
 
           BANDIT_EXIT=0
           SAFETY_EXIT=0
@@ -82,14 +83,17 @@ jobs:
           # Only fail on MEDIUM/HIGH severity (-ll) and MEDIUM/HIGH confidence (-ii)
           bandit -r . -f json -o bandit-report.json --exclude './tests,./tests_strict' -ll -ii || BANDIT_EXIT=$?
 
-          # Safety (use supported scan command, produces clean JSON)
-          safety scan --json > safety-report.json 2> safety-stderr.log || SAFETY_EXIT=$?
+          # Safety (v3: use scan with --save-as, check is deprecated)
+          safety scan --stage cicd --save-as json safety-report.json > safety-text-report.txt 2> safety-stderr.log || SAFETY_EXIT=$?
 
           echo "Bandit exit code: $BANDIT_EXIT"
           echo "Safety exit code:  $SAFETY_EXIT"
 
           echo "--- safety-stderr.log (first 120 lines) ---"
           sed -n '1,120p' safety-stderr.log || true
+
+          echo "--- safety-text-report.txt (first 120 lines) ---"
+          sed -n '1,120p' safety-text-report.txt || true
 
           echo "--- safety-report.json (first 120 lines) ---"
           sed -n '1,120p' safety-report.json || true
@@ -157,6 +161,7 @@ jobs:
           path: |
             bandit-report.json
             safety-report.json
+            safety-text-report.txt
             safety-stderr.log
           retention-days: 30
 

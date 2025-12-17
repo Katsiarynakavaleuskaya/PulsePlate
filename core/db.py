@@ -216,8 +216,8 @@ DATABASE_URL = _build_engine_url()
 
 
 # Lazily initialized synchronous engine and session factory.
-_RAW_ENGINE: Optional["Engine"] | None = None
-SessionLocal: Optional[sessionmaker[Session]] | None = None
+_RAW_ENGINE: Optional["Engine"] = None
+SessionLocal: Optional[sessionmaker[Session]] = None
 
 
 def _get_raw_engine() -> "Engine":
