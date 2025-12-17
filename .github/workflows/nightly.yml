@@ -59,9 +59,37 @@ jobs:
 
       - name: Run security checks
         run: |
+          set -euo pipefail
           echo "Running security checks..."
+
+          echo "Bandit version:"
+          bandit --version || true
+
+          echo "Safety version:"
+          safety --version || true
+          command -v safety || true
+
+          # Bandit (обычно ок)
           bandit -r . -f json -o bandit-report.json
-          safety check --json > safety-report.json
+
+          # Safety: гарантируем, что файл существует даже при падении safety до stdout
+          : > safety-report.json
+          : > safety-stderr.log
+
+          set +e
+          safety check --json > safety-report.json 2> safety-stderr.log
+          SAFETY_EXIT=$?
+          set -e
+
+          echo "Safety exit code: ${SAFETY_EXIT}"
+
+          echo "--- safety-stderr.log (first 80 lines) ---"
+          sed -n '1,80p' safety-stderr.log || true
+
+          echo "--- safety-report.json (first 80 lines) ---"
+          sed -n '1,80p' safety-report.json || true
+
+          exit "${SAFETY_EXIT}"
 
       - name: Run tests with coverage
         env:
@@ -121,6 +149,7 @@ jobs:
           path: |
             bandit-report.json
             safety-report.json
+            safety-stderr.log
           retention-days: 30
 
   performance-test:
