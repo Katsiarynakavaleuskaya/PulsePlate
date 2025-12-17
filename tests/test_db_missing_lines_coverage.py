@@ -324,7 +324,9 @@ class TestDbMissingLinesCoverage:
             mock_engine.dialect = Mock()
             mock_engine.driver = "sqlite"
 
-            engine_compat = EngineCompat(mock_engine)
+            # EngineCompat now supports both callable factories and direct engine instances
+            # Wrap in lambda to make it a non-callable for this test (simulating direct engine pass)
+            engine_compat = EngineCompat(lambda: mock_engine)
 
             # Test attribute delegation
             assert engine_compat.url == "sqlite:///test.db"

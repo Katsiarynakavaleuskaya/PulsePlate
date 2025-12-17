@@ -323,13 +323,24 @@ class EngineCompat:
     """
 
     def __init__(self, engine_getter: Callable[[], Any]) -> None:
-        """Wrap a SQLAlchemy Engine factory to expose a legacy-like execute method."""
+        """Wrap a SQLAlchemy Engine factory or engine instance to expose a legacy-like execute method.
+
+        Args:
+            engine_getter: Either a callable that returns an Engine, or an Engine instance directly.
+        """
         self._engine_getter = engine_getter
 
     @property
     def _engine(self) -> Any:
-        """Lazily obtain the underlying engine instance."""
-        return self._engine_getter()
+        """Lazily obtain the underlying engine instance.
+
+        Supports both callable factories (lazy init) and direct Engine instances (tests/mocks).
+        """
+        engine_or_factory = self._engine_getter
+        # Support both lazy factories and direct engine instances
+        if callable(engine_or_factory):
+            return engine_or_factory()
+        return engine_or_factory
 
     # Delegate unknown attributes to the underlying Engine
     def __getattr__(self, name: str) -> Any:
