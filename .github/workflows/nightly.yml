@@ -59,37 +59,41 @@ jobs:
 
       - name: Run security checks
         run: |
-          set -euo pipefail
+          set -u
           echo "Running security checks..."
 
-          echo "Bandit version:"
+          # Версии (не должны валить step)
           bandit --version || true
-
-          echo "Safety version:"
           safety --version || true
           command -v safety || true
 
-          # Bandit (обычно ок)
-          bandit -r . -f json -o bandit-report.json
-
-          # Safety: гарантируем, что файл существует даже при падении safety до stdout
+          # Гарантируем, что файлы всегда существуют для upload-artifact
+          : > bandit-report.json
           : > safety-report.json
           : > safety-stderr.log
 
-          set +e
-          safety check --json > safety-report.json 2> safety-stderr.log
-          SAFETY_EXIT=$?
-          set -e
+          BANDIT_EXIT=0
+          SAFETY_EXIT=0
 
-          echo "Safety exit code: ${SAFETY_EXIT}"
+          # Bandit (не прерываем step, просто фиксируем exit code)
+          bandit -r . -f json -o bandit-report.json || BANDIT_EXIT=$?
 
-          echo "--- safety-stderr.log (first 80 lines) ---"
-          sed -n '1,80p' safety-stderr.log || true
+          # Safety (то же самое)
+          safety check --json > safety-report.json 2> safety-stderr.log || SAFETY_EXIT=$?
 
-          echo "--- safety-report.json (first 80 lines) ---"
-          sed -n '1,80p' safety-report.json || true
+          echo "Bandit exit code: $BANDIT_EXIT"
+          echo "Safety exit code:  $SAFETY_EXIT"
 
-          exit "${SAFETY_EXIT}"
+          echo "--- safety-stderr.log (first 120 lines) ---"
+          sed -n '1,120p' safety-stderr.log || true
+
+          echo "--- safety-report.json (first 120 lines) ---"
+          sed -n '1,120p' safety-report.json || true
+
+          # Гейт: валим step, если кто-то из инструментов упал
+          if [ "$BANDIT_EXIT" -ne 0 ] || [ "$SAFETY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Run tests with coverage
         env:
