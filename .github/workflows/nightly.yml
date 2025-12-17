@@ -59,7 +59,9 @@ jobs:
 
       - name: Run security checks
         run: |
-          set -u
+          set +e  # Отключаем немедленный выход при ошибке
+          set -u  # Проверяем неопределённые переменные
+
           echo "Running security checks..."
 
           # Версии (не должны валить step)
