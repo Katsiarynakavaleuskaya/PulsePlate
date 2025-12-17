@@ -626,6 +626,8 @@ def init_db() -> None:
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
     if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
+        # Reset SessionLocal first to ensure lazy getter rebuilds with new engine
+        SessionLocal = None
         _RAW_ENGINE = create_engine(
             db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
         )
