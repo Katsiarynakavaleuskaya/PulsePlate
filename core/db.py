@@ -23,17 +23,18 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+import threading
 from urllib.parse import urlparse, parse_qs, urlencode
 from contextlib import asynccontextmanager, contextmanager
 from types import ModuleType, TracebackType
-from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING
+from typing import Any, AsyncGenerator, Generator, Optional, TYPE_CHECKING, Callable, Union
 
 from sqlalchemy import create_engine, text
 from sqlalchemy import exc as sa_exc
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 if TYPE_CHECKING:  # pragma: no cover - type check only
-    from sqlalchemy.engine import Connection, Result
+    from sqlalchemy.engine import Connection, Result, Engine
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
     from sqlalchemy.ext.asyncio import async_sessionmaker as AsyncSessionmaker
 
@@ -215,6 +216,54 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
 DATABASE_URL = _build_engine_url()
 
 
+# Lazily initialized synchronous engine and session factory.
+_RAW_ENGINE: Optional["Engine"] = None
+SessionLocal: Optional[sessionmaker[Session]] = None
+# Use RLock to allow reentrant calls (same thread can acquire multiple times)
+# This prevents deadlocks if any SQLAlchemy callback triggers lazy initialization
+_init_lock = threading.RLock()
+
+
+def _get_raw_engine() -> "Engine":
+    """Return the singleton SQLAlchemy Engine, creating it lazily on first use.
+
+    Thread-safe and DATABASE_URL-aware: recreates engine if DATABASE_URL changes.
+    Critical for pytest-xdist workers where each worker may have different DATABASE_URL.
+    """
+    global _RAW_ENGINE, SessionLocal
+
+    db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+
+    if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
+        with _init_lock:
+            if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:  # pragma: no branch
+                _RAW_ENGINE = create_engine(
+                    db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
+                )
+                # Clear SessionLocal so next call rebuilds a sessionmaker bound to the new engine,
+                # avoiding sessions tied to a stale URL (e.g., pytest-xdist overrides).
+                SessionLocal = None
+
+    return _RAW_ENGINE
+
+
+def _get_session_local() -> sessionmaker[Session]:
+    """Return the current SessionLocal, creating it lazily on first use.
+
+    Thread-safe double-checked locking pattern prevents race conditions
+    during concurrent initialization.
+    """
+    global SessionLocal
+    if SessionLocal is None:
+        with _init_lock:
+            if SessionLocal is None:  # pragma: no branch
+                engine = _get_raw_engine()
+                SessionLocal = sessionmaker(
+                    bind=engine, autoflush=False, autocommit=False, future=True
+                )
+    return SessionLocal
+
+
 class _ResultWithConnectionCleanup:
     """Wrapper for SQLAlchemy Result that closes connection when result is closed.
 
@@ -290,6 +339,10 @@ class _ResultWithConnectionCleanup:
         return attr
 
 
+# Type alias for EngineCompat: supports both callable factories and direct engine instances
+EngineGetter = Union[Callable[[], "Engine"], "Engine"]
+
+
 class EngineCompat:
     """Compatibility wrapper to expose Engine.execute for SQLAlchemy 2.x.
 
@@ -297,9 +350,25 @@ class EngineCompat:
     EN: Adds an ``execute`` method that proxies to a Connection in SQLAlchemy 2.x.
     """
 
-    def __init__(self, engine: Any) -> None:
-        """Wrap a SQLAlchemy Engine to expose a legacy-like execute method."""
-        self._engine = engine
+    def __init__(self, engine_getter: EngineGetter) -> None:
+        """Wrap a SQLAlchemy Engine factory or engine instance to expose a legacy-like execute method.
+
+        Args:
+            engine_getter: Either a callable that returns an Engine, or an Engine instance directly.
+        """
+        self._engine_getter = engine_getter
+
+    @property
+    def _engine(self) -> Any:
+        """Lazily obtain the underlying engine instance.
+
+        Supports both callable factories (lazy init) and direct Engine instances (tests/mocks).
+        """
+        engine_or_factory = self._engine_getter
+        # Support both lazy factories and direct engine instances
+        if callable(engine_or_factory):
+            return engine_or_factory()
+        return engine_or_factory
 
     # Delegate unknown attributes to the underlying Engine
     def __getattr__(self, name: str) -> Any:
@@ -403,13 +472,8 @@ class EngineCompat:
             raise
 
 
-# Create the underlying SQLAlchemy Engine instance (2.x style)
-_RAW_ENGINE = create_engine(
-    DATABASE_URL, echo=False, future=True, connect_args=_sqlite_connect_args(DATABASE_URL)
-)
-
 # Public engine exposes a legacy-compatible .execute attribute expected by tests
-engine = EngineCompat(_RAW_ENGINE)
+engine = EngineCompat(_get_raw_engine)
 
 
 # Async engine configuration (optional)
@@ -466,15 +530,13 @@ class Base(DeclarativeBase):
     """Base class for declarative SQLAlchemy models."""
 
 
-SessionLocal = sessionmaker(bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True)
-
-
 def get_session() -> Generator[Session, None, None]:
     """RU: Зависимость FastAPI, возвращающая сессию базы данных.
 
     EN: FastAPI dependency that yields a scoped database session.
     """
-    session = SessionLocal()
+    session_factory = _get_session_local()
+    session = session_factory()
     try:
         yield session
     finally:
@@ -487,7 +549,8 @@ def session_scope() -> Generator[Session, None, None]:
 
     EN: Context manager that wraps short-lived database operations.
     """
-    session = SessionLocal()
+    session_factory = _get_session_local()
+    session = session_factory()
     try:
         yield session
         session.commit()
@@ -570,13 +633,29 @@ def init_db() -> None:
 
     # Recreate engine if DATABASE_URL changed (critical for pytest-xdist workers)
     # Each worker gets a unique DATABASE_URL but may inherit stale engine from fork
-    if str(_RAW_ENGINE.url) != db_url:
-        _RAW_ENGINE = create_engine(
+    # Build engines outside the lock to avoid holding it during I/O-heavy creation.
+    # Re-check under the lock to prevent race overwrites, and rely on the final
+    # guard below to ensure _RAW_ENGINE is set before create_all runs.
+    with _init_lock:
+        current_engine = _RAW_ENGINE
+        current_url = None if current_engine is None else str(current_engine.url)
+        needs_new = current_engine is None or current_url != db_url
+
+    if needs_new:
+        # Create engine and sessionmaker OUTSIDE lock to avoid holding lock during I/O
+        new_engine = create_engine(
             db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
         )
-        SessionLocal = sessionmaker(
-            bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
+        new_session_local = sessionmaker(
+            bind=new_engine, autoflush=False, autocommit=False, future=True
         )
+        # Assign to globals UNDER lock with re-check (prevent race overwrites)
+        with _init_lock:
+            current_engine = _RAW_ENGINE
+            current_url = None if current_engine is None else str(current_engine.url)
+            if current_engine is None or current_url != db_url:
+                _RAW_ENGINE = new_engine
+                SessionLocal = new_session_local
 
     # Wrap create_all in a callable object with an assert_called_once helper,
     # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
@@ -598,6 +677,9 @@ def init_db() -> None:
         setattr(metadata, "create_all", _CreateAllWrapper(create_all))
 
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
+    # At this point _RAW_ENGINE is guaranteed to be initialized by the logic above
+    if _RAW_ENGINE is None:
+        raise RuntimeError("Engine must be initialized before creating tables")
     metadata.create_all(bind=_RAW_ENGINE)
 
 
@@ -610,7 +692,7 @@ def get_session_factory() -> sessionmaker[Session]:
     Returns:
         Current sessionmaker instance configured by init_db().
     """
-    return SessionLocal
+    return _get_session_local()
 
 
 async def init_db_async() -> None:
@@ -620,8 +702,18 @@ async def init_db_async() -> None:
     metadata = Base.metadata
 
     if _ASYNC_ENGINE is None:
-        metadata.create_all(bind=_RAW_ENGINE)
+        metadata.create_all(bind=_get_raw_engine())
         return
 
     async with _ASYNC_ENGINE.begin() as conn:
         await conn.run_sync(metadata.create_all)
+
+
+def __getattr__(name: str) -> Any:
+    """Raise AttributeError for undefined module attributes.
+
+    Note: _RAW_ENGINE and SessionLocal are defined as module-level globals,
+    so this function will not be called for them. This only handles truly
+    undefined attributes to provide clear error messages.
+    """
+    raise AttributeError(f"module 'core.db' has no attribute '{name}'")

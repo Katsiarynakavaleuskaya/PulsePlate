@@ -41,9 +41,10 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
     max_retries = 3
     base_delay = 0.1  # 100ms base delay
     last_error: Exception | None = None
+    session_factory = db_module.get_session_factory()
 
     # First attempt with fresh session (thread-safe)
-    session = db_module.SessionLocal()
+    session = session_factory()
     try:
         return action(session)
     except HTTPException:
@@ -77,7 +78,7 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
         time.sleep(delay)
 
         # Create fresh session for retry
-        retry_session = db_module.SessionLocal()
+        retry_session = session_factory()
         try:
             result = action(retry_session)
             logger.info("Database operation succeeded on retry attempt %s", attempt)

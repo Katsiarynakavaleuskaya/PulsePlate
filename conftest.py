@@ -2,7 +2,9 @@
 Global test configuration and fixtures for the project.
 """
 
+import faulthandler
 import os
+import signal
 import sys
 import pytest
 import importlib.util
@@ -10,6 +12,20 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from typing import cast, Iterator
 from starlette.types import ASGIApp
+
+# Enable faulthandler for debugging hangs/deadlocks (CI only to avoid noise)
+# In CI: dumps thread stacks after 180s hang, repeating every 180s
+# Manual trigger (UNIX): kill -USR1 <pytest_pid> to dump stacks on demand
+if os.getenv("CI") or os.getenv("PYTEST_CURRENT_TEST"):
+    faulthandler.enable()
+
+    # SIGUSR1 is UNIX-only; skip on Windows safely
+    sigusr1 = getattr(signal, "SIGUSR1", None)
+    if sigusr1 is not None:
+        faulthandler.register(sigusr1)  # Manual trigger
+
+    # Auto-dump after 180s hang; repeats every 180s (not 60s - repeat uses same timeout)
+    faulthandler.dump_traceback_later(timeout=180, repeat=True)
 
 
 def pytest_configure(config: pytest.Config) -> None:

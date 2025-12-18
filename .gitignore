@@ -362,3 +362,7 @@ ios/.build/
 frontend/tsconfig.node.tsbuildinfo
 frontend/tsconfig.node.tsbuildinfo
 bandit-report.json
+
+# Security scan artifacts
+local-safety-report.json
+**/tmp_security_*/
