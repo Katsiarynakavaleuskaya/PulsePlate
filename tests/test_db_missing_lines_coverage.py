@@ -4,7 +4,6 @@ Focus on error handling and edge cases.
 """
 
 import os
-import threading
 from typing import Any, Tuple
 from unittest.mock import Mock, NonCallableMock, patch
 
@@ -509,7 +508,11 @@ class TestDbMissingLinesCoverage:
             core.db.SessionLocal = original_session
 
     def test_lazy_session_local_initialization(self):
-        """Test _get_session_local lazy initialization with thread safety."""
+        """Test _get_session_local lazy initialization and singleton behavior.
+
+        Verifies that lazy initialization returns a singleton sessionmaker in
+        sequential access - does not test actual thread safety/concurrency.
+        """
         import core.db
 
         # Reset globals
