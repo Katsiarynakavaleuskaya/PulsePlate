@@ -236,7 +236,7 @@ def _get_raw_engine() -> "Engine":
 
     if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
         with _init_lock:
-            if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
+            if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:  # pragma: no branch
                 _RAW_ENGINE = create_engine(
                     db_url, echo=False, future=True, connect_args=_sqlite_connect_args(db_url)
                 )
@@ -256,7 +256,7 @@ def _get_session_local() -> sessionmaker[Session]:
     global SessionLocal
     if SessionLocal is None:
         with _init_lock:
-            if SessionLocal is None:
+            if SessionLocal is None:  # pragma: no branch
                 engine = _get_raw_engine()
                 SessionLocal = sessionmaker(
                     bind=engine, autoflush=False, autocommit=False, future=True

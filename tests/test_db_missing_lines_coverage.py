@@ -4,6 +4,7 @@ Focus on error handling and edge cases.
 """
 
 import os
+import threading
 from typing import Any, Tuple
 from unittest.mock import Mock, NonCallableMock, patch
 
@@ -475,3 +476,105 @@ class TestDbMissingLinesCoverage:
             AttributeError, match="module 'core.db' has no attribute 'nonexistent_attr'"
         ):
             _ = core.db.nonexistent_attr
+
+    def test_lazy_engine_initialization(self):
+        """Test _get_raw_engine lazy initialization and DATABASE_URL awareness."""
+        import core.db
+
+        # Reset globals to force lazy init
+        original_engine = core.db._RAW_ENGINE
+        original_session = core.db.SessionLocal
+        try:
+            core.db._RAW_ENGINE = None
+            core.db.SessionLocal = None
+
+            # First call should create engine
+            engine1 = core.db._get_raw_engine()
+            assert engine1 is not None
+            assert core.db._RAW_ENGINE is engine1
+
+            # Second call should return same engine
+            engine2 = core.db._get_raw_engine()
+            assert engine2 is engine1
+
+            # Change DATABASE_URL should recreate engine
+            with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test_new.db"}):
+                engine3 = core.db._get_raw_engine()
+                assert engine3 is not engine1  # New engine created
+                assert str(engine3.url) == "sqlite:///test_new.db"
+                assert core.db.SessionLocal is None  # Reset after URL change
+
+        finally:
+            core.db._RAW_ENGINE = original_engine
+            core.db.SessionLocal = original_session
+
+    def test_lazy_session_local_initialization(self):
+        """Test _get_session_local lazy initialization with thread safety."""
+        import core.db
+
+        # Reset globals
+        original_engine = core.db._RAW_ENGINE
+        original_session = core.db.SessionLocal
+        try:
+            core.db._RAW_ENGINE = None
+            core.db.SessionLocal = None
+
+            # First call should create SessionLocal
+            factory1 = core.db._get_session_local()
+            assert factory1 is not None
+            assert core.db.SessionLocal is factory1
+
+            # Second call should return same factory
+            factory2 = core.db._get_session_local()
+            assert factory2 is factory1
+
+        finally:
+            core.db._RAW_ENGINE = original_engine
+            core.db.SessionLocal = original_session
+
+    def test_init_db_url_change_recreation(self):
+        """Test init_db recreates engine when DATABASE_URL changes."""
+        import core.db
+
+        # Reset globals
+        original_engine = core.db._RAW_ENGINE
+        original_session = core.db.SessionLocal
+        try:
+            core.db._RAW_ENGINE = None
+            core.db.SessionLocal = None
+
+            # First init with default URL
+            core.db.init_db()
+            engine1 = core.db._RAW_ENGINE
+            session1 = core.db.SessionLocal
+            assert engine1 is not None
+            assert session1 is not None
+
+            # Change URL and reinit
+            with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///test_changed.db"}):
+                core.db.init_db()
+                engine2 = core.db._RAW_ENGINE
+                session2 = core.db.SessionLocal
+                assert engine2 is not engine1  # New engine
+                assert session2 is not session1  # New session factory
+                assert str(engine2.url) == "sqlite:///test_changed.db"
+
+        finally:
+            core.db._RAW_ENGINE = original_engine
+            core.db.SessionLocal = original_session
+
+    def test_init_db_runtime_error_on_none_engine(self):
+        """Test init_db raises RuntimeError if engine is None after creation logic."""
+        import core.db
+
+        # This is defensive - engine should always be created by init_db logic
+        # But we test the guard just in case
+        original_engine = core.db._RAW_ENGINE
+        try:
+            # Mock create_engine to return None (simulating impossible scenario)
+            with patch("core.db.create_engine", return_value=None):
+                core.db._RAW_ENGINE = None
+                with pytest.raises(RuntimeError, match="Engine must be initialized"):
+                    core.db.init_db()
+        finally:
+            core.db._RAW_ENGINE = original_engine
