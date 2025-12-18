@@ -578,3 +578,47 @@ class TestDbMissingLinesCoverage:
                     core.db.init_db()
         finally:
             core.db._RAW_ENGINE = original_engine
+
+    def test_get_session_factory_returns_current(self):
+        """Test get_session_factory() returns current SessionLocal (line 695)."""
+        import core.db
+
+        # Save original
+        original_session = core.db.SessionLocal
+        try:
+            # Reset and initialize
+            core.db.SessionLocal = None
+            factory = core.db.get_session_factory()
+            assert factory is not None
+            assert factory is core.db.SessionLocal
+
+            # Call again should return same
+            factory2 = core.db.get_session_factory()
+            assert factory2 is factory
+
+        finally:
+            core.db.SessionLocal = original_session
+
+    def test_init_db_async_with_no_async_engine(self):
+        """Test init_db_async falls back to sync engine when no async engine (line 705)."""
+        import core.db
+        import asyncio
+
+        # Save originals
+        original_async_engine = core.db._ASYNC_ENGINE
+        original_raw_engine = core.db._RAW_ENGINE
+
+        try:
+            # Ensure no async engine (force fallback path)
+            core.db._ASYNC_ENGINE = None
+            core.db._RAW_ENGINE = None
+
+            # Run async init - should use sync engine fallback
+            asyncio.run(core.db.init_db_async())
+
+            # Verify sync engine was created via lazy getter
+            assert core.db._RAW_ENGINE is not None
+
+        finally:
+            core.db._ASYNC_ENGINE = original_async_engine
+            core.db._RAW_ENGINE = original_raw_engine
