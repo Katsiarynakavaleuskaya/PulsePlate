@@ -5,17 +5,20 @@ RU: Тесты для эндпоинта списка покупок на ден
 
 from __future__ import annotations
 
+from types import ModuleType
+
 import pytest
 from fastapi.testclient import TestClient
 
-# Import app and dependency
-import app as app_module
 from app.middleware.api_tiers import require_pro_tier
 
 
 @pytest.fixture
-def client_with_pro_access():
-    """Create test client with PRO tier access bypassed."""
+def client_with_pro_access(app_module: ModuleType):
+    """Create test client with PRO tier access bypassed.
+
+    Uses app_module fixture from conftest for better test isolation.
+    """
     # Override PRO tier requirement for testing
     app_module.app.dependency_overrides[require_pro_tier] = lambda: "test_api_key"
 
@@ -80,7 +83,7 @@ def test_shoplist_day_missing_date_422(client_with_pro_access):
     assert r.status_code == 422
 
 
-def test_shoplist_day_requires_pro_tier():
+def test_shoplist_day_requires_pro_tier(app_module: ModuleType):
     """Test endpoint requires PRO tier authentication."""
     client = TestClient(app_module.app)
 
