@@ -6,6 +6,7 @@ Provides strongly typed contracts for the PRO shopping list generation endpoint.
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, TypeAlias
 
 from pydantic import BaseModel, Field, model_validator
@@ -82,3 +83,74 @@ class ShoppingListDTO(BaseModel):
     generated_at: datetime
 
     meta: ShoppingListMeta
+
+
+# Day Shopping List (MVP) - iOS offline-first
+# RU: Список покупок на день (MVP) - iOS offline-first
+
+
+class ShopUnit(str, Enum):
+    """Stable units for iOS (do not rename; only extend).
+
+    RU: Стабильные единицы измерения для iOS (не переименовывать, только расширять).
+    """
+
+    g = "g"
+    kg = "kg"
+    ml = "ml"
+    liter = "l"  # noqa: E741 - API contract requires 'l' value
+    pcs = "pcs"
+
+
+class ShopAisle(str, Enum):
+    """Stable aisle/category for iOS (do not rename; only extend).
+
+    RU: Категории для группировки списка покупок (не переименовывать).
+    """
+
+    produce = "Produce"
+    protein = "Protein"
+    dairy = "Dairy"
+    pantry = "Pantry"
+    frozen = "Frozen"
+    other = "Other"
+
+
+class ShoplistSourceDTO(BaseModel):
+    """Optional provenance of an item.
+
+    RU: Источник/происхождение позиции (опционально).
+    """
+
+    type: Literal["plan", "manual", "import"] = "plan"
+    ref: Optional[str] = None
+
+
+class ShoplistDayItemDTO(BaseModel):
+    """One day shopping list item (server → iOS).
+
+    key: stable dedup key (server-side normalized slug or food_id-like).
+    title: localized title for UI.
+
+    RU: Одна строка списка покупок на день (сервер → iOS).
+    """
+
+    key: str = Field(..., min_length=1, max_length=128)
+    title: str = Field(..., min_length=1, max_length=256)
+    qty: float = Field(..., ge=0.0, le=1_000_000.0)
+    unit: ShopUnit
+    aisle: ShopAisle = ShopAisle.other
+    notes: Optional[str] = Field(default=None, max_length=256)
+    source: Optional[ShoplistSourceDTO] = None
+
+
+class ShoplistDayResponse(BaseModel):
+    """Day shopping list suggestions (MVP placeholder).
+
+    RU: Подсказки списка покупок на день (MVP заглушка).
+    """
+
+    date: str = Field(..., description="YYYY-MM-DD")
+    lang: str = Field(..., description="ru|en|es")
+    items: list[ShoplistDayItemDTO] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
