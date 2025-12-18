@@ -116,6 +116,17 @@ class ShopAisle(str, Enum):
     other = "Other"
 
 
+class ShopLang(str, Enum):
+    """Supported languages for shopping list localization.
+
+    RU: Поддерживаемые языки для локализации списка покупок.
+    """
+
+    ru = "ru"
+    en = "en"
+    es = "es"
+
+
 class ShoplistSourceDTO(BaseModel):
     """Optional provenance of an item.
 
@@ -147,10 +158,13 @@ class ShoplistDayItemDTO(BaseModel):
 class ShoplistDayResponse(BaseModel):
     """Day shopping list suggestions (MVP placeholder).
 
+    Note: date field is intentionally str (YYYY-MM-DD) to match API contract,
+    even though handler receives date type. This avoids unintended serialization changes.
+
     RU: Подсказки списка покупок на день (MVP заглушка).
     """
 
     date: str = Field(..., description="YYYY-MM-DD")
-    lang: str = Field(..., description="ru|en|es")
+    lang: ShopLang = Field(..., description="Language code")
     items: list[ShoplistDayItemDTO] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

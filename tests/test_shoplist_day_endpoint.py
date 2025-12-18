@@ -47,6 +47,18 @@ def test_shoplist_day_default_lang(client_with_pro_access):
     assert body["lang"] == "en"
 
 
+@pytest.mark.parametrize("lang_code", ["ru", "en", "es"])
+def test_shoplist_day_all_supported_langs(client_with_pro_access, lang_code):
+    """Test all supported language codes (ru/en/es) work correctly."""
+    r = client_with_pro_access.get(f"/api/v1/pro/shoplist/day?date=2025-12-17&lang={lang_code}")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["lang"] == lang_code
+    assert body["date"] == "2025-12-17"
+    assert isinstance(body["items"], list)
+
+
 def test_shoplist_day_invalid_lang_422(client_with_pro_access):
     """Test invalid language code returns 422."""
     r = client_with_pro_access.get("/api/v1/pro/shoplist/day?date=2025-12-17&lang=de")

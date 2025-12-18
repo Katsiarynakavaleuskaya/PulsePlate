@@ -15,7 +15,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 
 from app.middleware.api_tiers import require_pro_tier
-from app.schemas.shopping_list import ShoplistDayResponse
+from app.schemas.shopping_list import ShopLang, ShoplistDayResponse
 
 router = APIRouter(prefix="/api/v1/pro/shoplist", tags=["pro", "shoplist-day"])
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/v1/pro/shoplist", tags=["pro", "shoplist-day"])
 async def get_shoplist_day(
     _pro: Annotated[Any, Depends(require_pro_tier)],
     day: Annotated[date, Query(alias="date", description="YYYY-MM-DD")],
-    lang: Annotated[str, Query(pattern="^(ru|en|es)$")] = "en",
+    lang: Annotated[ShopLang, Query(description="Language code")] = ShopLang.en,
 ) -> ShoplistDayResponse:
     """MVP placeholder endpoint for day shopping list.
 
