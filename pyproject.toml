@@ -2,11 +2,10 @@
 pythonpath = "."
 testpaths = ["tests"]
 python_files = "test_*.py"
-# Fail fast after 5 failures to catch issues early (especially important for CI)
+# Base options for all test runs (maxfail configured per-environment in CI)
 addopts = [
     "-q",
     "--ignore=tests/disabled_hypothesis/",
-    "--maxfail=5",
     "--tb=short",
 ]
 filterwarnings = [

@@ -8,6 +8,7 @@ Tests verify the actual retry mechanism with exponential backoff:
 """
 
 import pytest
+from typing import Any
 from unittest.mock import patch, MagicMock, call
 from fastapi import HTTPException
 from sqlalchemy.exc import OperationalError, IntegrityError
@@ -149,7 +150,7 @@ class TestUsersRetryMechanism:
         def always_fails(session):
             raise OperationalError("database unavailable", None, None)
 
-        fallback_value = []
+        fallback_value: list[Any] = []
         result = users._execute_with_retry(always_fails, fallback=fallback_value)
 
         # Should return fallback after exhausting retries
