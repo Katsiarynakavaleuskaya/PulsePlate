@@ -12,7 +12,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # Full test suite can take 90-120min, buffer for slower runners
+    timeout-minutes: 60  # Each shard should complete in 15-25min; 60min provides buffer for slow runners
+    env:
+      SHARD_TOTAL: 6  # Total number of test shards (update matrix.shard_id if changed)
     strategy:
       fail-fast: false  # Run all shards even if one fails
       matrix:
@@ -46,12 +48,14 @@ jobs:
           pip list
 
       - name: Run linting
+        if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
         run: |
           echo "Running linting checks..."
           ruff check . --config pyproject.toml
           black --check . --config pyproject.toml
 
       - name: Run type checking (non-blocking)
+        if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
         continue-on-error: true
         run: |
           echo "Running type checking..."
@@ -62,6 +66,7 @@ jobs:
           mypy $(scripts/discover_mypy_targets.sh) --config-file pyproject.toml
 
       - name: Run security checks
+        if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
         run: |
           set +e  # Отключаем немедленный выход при ошибке
           set -u  # Проверяем неопределённые переменные
@@ -115,14 +120,14 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests with coverage (shard ${{ matrix.shard_id }}/6)
+      - name: Run tests with coverage (shard ${{ matrix.shard_id }}/${{ env.SHARD_TOTAL }})
         env:
           PYTHONPATH: .:app:core:tests
           PYTEST_TIMEOUT: 300
         run: |
           START_TIME=$(date +%s)
           export START_TIME
-          echo "Running test suite (shard ${{ matrix.shard_id }}/6)..."
+          echo "Running test suite (shard ${{ matrix.shard_id }}/${SHARD_TOTAL})..."
           # Use tenant-based sharding from pytest_sharding.py
           # Each shard runs tests for specific functional domain
           # -n 4: fixed workers for predictable performance
@@ -157,7 +162,7 @@ jobs:
 
       - name: Upload security reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
-        if: always()
+        if: always() && matrix.shard_id == 1  # Upload once (shard 1 only) to avoid duplicates
         with:
           name: security-reports
           path: |

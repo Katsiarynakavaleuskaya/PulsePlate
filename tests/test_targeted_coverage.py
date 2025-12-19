@@ -27,14 +27,10 @@ class TestTargetedCoverage:
     """Targeted tests to improve coverage for specific missing lines in main.py."""
 
     def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
         """Set up test environment."""
-        # Set a test API key for testing
+        # Set test environment variables
         os.environ["API_KEY"] = "test-key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
