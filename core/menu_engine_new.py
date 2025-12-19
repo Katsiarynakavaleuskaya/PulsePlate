@@ -131,19 +131,29 @@ def build_plate_day(
             if not donor:
                 continue
             fi = fooddb.get_food(donor)
+            if fi is None:
+                continue
+            # Safely coerce macros to float (handles MagicMock/None/invalid values)
+            protein_g = _coerce_float(fi.protein_g) or 0.0
+            carbs_g = _coerce_float(fi.carbs_g) or 0.0
+            fat_g = _coerce_float(fi.fat_g) or 0.0
+            fiber_g = _coerce_float(fi.fiber_g) or 0.0
+            per_g = _coerce_float(fi.per_g) or 100.0
+            if per_g <= 0:
+                per_g = 100.0
             # подберем минимальную порцию, чтобы попасть ≤ лимита kcal
             # грубо прикинем из соотношений 4/9 ккал на г белков/углей и жир
             # возьмем порцию 100 г и масштабируем:
-            kcal_100 = fi.protein_g * 4 + fi.carbs_g * 4 + fi.fat_g * 9
+            kcal_100 = protein_g * 4 + carbs_g * 4 + fat_g * 9
             if kcal_100 <= 0:
                 continue
             grams = min(200.0, max(30.0, (kcal_limit / kcal_100) * 100.0))
             # собираем "мини-блюдо"
             raw_macros = {
-                "protein_g": fi.protein_g * (grams / fi.per_g),
-                "fat_g": fi.fat_g * (grams / fi.per_g),
-                "carbs_g": fi.carbs_g * (grams / fi.per_g),
-                "fiber_g": fi.fiber_g * (grams / fi.per_g),
+                "protein_g": protein_g * (grams / per_g),
+                "fat_g": fat_g * (grams / per_g),
+                "carbs_g": carbs_g * (grams / per_g),
+                "fiber_g": fiber_g * (grams / per_g),
             }
             raw_kcal = (
                 raw_macros["protein_g"] * 4 + raw_macros["carbs_g"] * 4 + raw_macros["fat_g"] * 9
@@ -166,7 +176,10 @@ def build_plate_day(
             if m_kcal <= 0 or grams < 5.0:
                 continue
 
-            m_micros = {k: fi.micros.get(k, 0.0) * (grams / fi.per_g) for k in MICRO_KEYS}
+            m_micros = {
+                k: (_coerce_float(fi.micros.get(k, 0.0)) or 0.0) * (grams / per_g)
+                for k in MICRO_KEYS
+            }
             # Get translated booster food name
             translated_donor = fooddb.get_translated_food_name(donor, lang)
             meals.append(

@@ -4,11 +4,18 @@ Core Database and Food APIs Coverage Tests
 
 RU: Тесты покрытия для core database и food APIs модулей
 EN: Coverage tests for core database and food APIs modules
+
+Note: These tests are marked as 'serial' because they import heavy modules
+(USDA, OpenFoodFacts, RAG, etc.) that can cause xdist workers to hang
+during teardown due to background threads/pools/HTTP clients.
 """
 
 from unittest.mock import patch
 
 import pytest
+
+# Run these tests serially (not in parallel) to avoid xdist hang issues
+pytestmark = pytest.mark.serial
 
 
 class TestCoreDatabaseCoverage:
