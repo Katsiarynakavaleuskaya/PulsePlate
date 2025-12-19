@@ -124,14 +124,28 @@ jobs:
         env:
           PYTHONPATH: .:tests
           PYTEST_TIMEOUT: 300
+          PYTHONFAULTHANDLER: 1
         run: |
           START_TIME=$(date +%s)
           export START_TIME
           echo "Running test suite (shard ${{ matrix.shard_id }}/${SHARD_TOTAL})..."
 
+          run_with_timeout() {
+            timeout --signal=SIGQUIT --kill-after=5m 30m "$@"
+            status=$?
+            if [ "$status" -eq 124 ] || [ "$status" -eq 131 ] || [ "$status" -eq 137 ]; then
+              echo "=== Pytest timeout detected (status=$status) ==="
+              echo "=== Faulthandler stack traces should appear above (SIGQUIT) ==="
+              echo "=== Process snapshot ==="
+              ps -eo pid,ppid,stat,etimes,cmd | head -200 || true
+              pgrep -fa python || true
+            fi
+            return "$status"
+          }
+
           # Step 1: Run parallel tests (exclude serial-marked tests to avoid xdist hang)
           echo "=== Running parallel tests (-n 4, excluding serial) ==="
-          pytest -c pyproject.toml tests/ \
+          run_with_timeout pytest -c pyproject.toml tests/ \
             --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
             --cov=. \
@@ -142,11 +156,12 @@ jobs:
             -v \
             -n 4 \
             --dist loadscope \
+            -o faulthandler_timeout=300 \
             -m "not serial"
 
           # Step 2: Run serial tests (coverage-smoke imports heavy modules that hang xdist)
           echo "=== Running serial tests (-n 0, serial only) ==="
-          pytest -c pyproject.toml tests/ \
+          run_with_timeout pytest -c pyproject.toml tests/ \
             --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
             --cov=. \
@@ -156,7 +171,16 @@ jobs:
             --tb=short \
             -v \
             -n 0 \
+            -o faulthandler_timeout=300 \
             -m serial || true  # Serial tests are coverage-only, non-blocking
+
+      - name: Debug coverage files (shard)
+        if: always()
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la
+          echo "=== looking for .coverage files ==="
+          find . -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -164,7 +188,7 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            .coverage*
+            **/.coverage*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
 
@@ -330,6 +354,16 @@ jobs:
           pattern: coverage-reports-shard-*
           merge-multiple: true
           path: coverage-artifacts
+
+      - name: Debug coverage artifacts
+        if: always()
+        run: |
+          echo "PWD=$(pwd)"
+          echo "=== coverage-artifacts tree ==="
+          ls -la coverage-artifacts || true
+          find coverage-artifacts -maxdepth 3 -type f -print || true
+          echo "=== looking for .coverage files ==="
+          find coverage-artifacts -maxdepth 3 -name ".coverage*" -print || true
 
       - name: Install coverage
         run: |
