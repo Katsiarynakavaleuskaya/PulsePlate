@@ -10,6 +10,7 @@ from types import ModuleType
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from app.middleware.api_tiers import require_pro_tier
 from app.models.plans import DayPlan
@@ -152,8 +153,6 @@ async def test_day_plan_unique_user_date_constraint():
     """Test that (user_id, date) uniqueness is enforced."""
     if AsyncSessionLocal is None:
         pytest.skip("Async SQLAlchemy not configured")
-
-    from sqlalchemy.exc import IntegrityError
 
     test_date = date(2025, 12, 21)
     user_id = 1
