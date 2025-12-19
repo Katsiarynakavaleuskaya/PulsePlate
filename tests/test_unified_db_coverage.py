@@ -24,14 +24,18 @@ class TestUnifiedDBCoverage:
                 UnifiedFoodDatabase()
 
     @pytest.mark.asyncio
-    async def test_unified_db_cache_handling_coverage(self):
-        """Тест покрытия unified_db.py cache handling - проверяем кэширование экземпляра"""
-        # Перезагружаем модуль, чтобы сбросить состояние вместо патчинга приватной переменной
-        import importlib
+    async def test_unified_db_cache_handling_coverage(self, monkeypatch):
+        """Тест покрытия unified_db.py cache handling - проверяем кэширование экземпляра
 
+        Uses monkeypatch to reset the singleton instance instead of reload to avoid
+        cross-module isinstance mismatches when other tests import UnifiedFoodItem
+        or UnifiedFoodDatabase.
+        """
         import core.food_apis.unified_db as unified_db
 
-        importlib.reload(unified_db)
+        # Reset the singleton instance in-place without reloading the module
+        monkeypatch.setattr(unified_db, "_unified_db_instance", None, raising=False)
+
         get_unified_food_db = unified_db.get_unified_food_db
 
         result1 = await get_unified_food_db()

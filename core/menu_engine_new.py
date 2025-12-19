@@ -31,8 +31,14 @@ class DayPlan:
     total_cost: float = 0.0
 
 
-def _percent(got: float, need: float) -> float:
-    return 0.0 if need <= 0 else min(200.0, 100.0 * got / need)
+def _percent(got: Any, need: Any) -> float:
+    got_f = _coerce_float(got)
+    need_f = _coerce_float(need)
+
+    if got_f is None or need_f is None or need_f <= 0:
+        return 0.0
+
+    return min(200.0, 100.0 * got_f / need_f)
 
 
 _DB_MICRO_TO_ALIAS: Dict[str, str] = {
