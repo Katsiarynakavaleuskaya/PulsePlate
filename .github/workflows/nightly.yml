@@ -124,7 +124,6 @@ jobs:
         env:
           PYTHONPATH: .:tests
           PYTEST_TIMEOUT: 300
-          COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
         run: |
           START_TIME=$(date +%s)
           export START_TIME
@@ -165,8 +164,8 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
+            .coverage*
             coverage-shard-${{ matrix.shard_id }}.xml
-            .coverage.shard-${{ matrix.shard_id }}
           retention-days: 30
 
       - name: Upload test results
