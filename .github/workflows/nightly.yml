@@ -164,9 +164,17 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            .coverage*
+            **/.coverage*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
+
+      - name: Debug coverage files (shard)
+        if: always()
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la
+          echo "=== looking for .coverage files ==="
+          find . -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -330,6 +338,15 @@ jobs:
           pattern: coverage-reports-shard-*
           merge-multiple: true
           path: coverage-artifacts
+
+      - name: Debug coverage artifacts
+        run: |
+          echo "PWD=$(pwd)"
+          echo "=== coverage-artifacts tree ==="
+          ls -la coverage-artifacts || true
+          find coverage-artifacts -maxdepth 3 -type f -print || true
+          echo "=== looking for .coverage files ==="
+          find coverage-artifacts -maxdepth 3 -name ".coverage*" -print || true
 
       - name: Install coverage
         run: |
