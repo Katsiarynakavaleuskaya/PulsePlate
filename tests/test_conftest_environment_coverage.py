@@ -4,6 +4,7 @@
 
 import os
 import sys
+from pathlib import Path
 from fastapi.testclient import TestClient
 
 
@@ -110,20 +111,46 @@ class TestConftestEnvironmentCoverage:
         assert os.environ.get("APP_ENV") in ["test", "ci"]
         assert os.environ.get("ALLOW_DEV_API_KEY") == "true"
 
-        # PYTHONPATH can be relative (.:core:app:tests) or absolute (CI) or just "." (CI)
+        # PYTHONPATH contract is enforced by CI workflows.
+        # It must include the repo root and tests, but not standalone 'core' or 'app' entries
+        # to avoid duplicate module loading (e.g. food_apis.* vs core.food_apis.*).
         pythonpath = os.environ.get("PYTHONPATH", "")
-        # Check that PYTHONPATH is set (either "." or explicit paths)
         assert pythonpath, "PYTHONPATH must be set"
-        # If PYTHONPATH is just ".", it's valid (CI mode) - skip directory check
-        if pythonpath.strip() == ".":
+
+        path_segments = [segment for segment in pythonpath.split(os.pathsep) if segment]
+
+        # Allow simple local runs where PYTHONPATH is just "."
+        if path_segments == ["."]:
             return
-        # Verify that key directories are included (when explicit paths are set)
-        required_dirs = ["core", "app", "tests"]
-        path_segments = pythonpath.split(os.pathsep)
-        for dir_name in required_dirs:  # sourcery skip: no-loop-in-tests
-            assert any(
-                dir_name in segment for segment in path_segments
-            ), f"'{dir_name}' not found in PYTHONPATH: {pythonpath}"
+
+        # Allow legacy local layout like ".:core:app:tests" without enforcing CI-specific invariants
+        if "." in path_segments and ("core" in path_segments or "app" in path_segments):
+            return
+
+        repo_root = str(Path(__file__).resolve().parents[1])
+        tests_dir = os.path.join(repo_root, "tests")
+
+        # Repo root must be present explicitly
+        assert any(
+            segment == repo_root for segment in path_segments
+        ), f"Repo root not found in PYTHONPATH: {pythonpath}"
+
+        # Tests directory should be present (either as absolute path or trailing '/tests')
+        assert any(
+            segment == tests_dir or segment.endswith(os.path.sep + "tests")
+            for segment in path_segments
+        ), f"'tests' not found in PYTHONPATH: {pythonpath}"
+
+        # Standalone 'core' and 'app' entries must NOT be present to avoid module duplication
+        assert not any(
+            segment.endswith(os.path.sep + "core") or segment == os.path.join(repo_root, "core")
+            for segment in path_segments
+        ), f"'core' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+
+        assert not any(
+            segment.endswith(os.path.sep + "app") or segment == os.path.join(repo_root, "app")
+            for segment in path_segments
+        ), f"'app' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
 
     def test_conftest_sys_modules_coverage(self):
         """Тест покрытия conftest.py sys.modules"""

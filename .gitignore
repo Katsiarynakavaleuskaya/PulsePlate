@@ -58,9 +58,12 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage*.xml
+*.cov.xml
 junit.xml
 pytest_report.xml
 test_results.xml
+tests/results*.xml
 frontend/tests/*.xml
 frontend/test-results/
 *.cover
