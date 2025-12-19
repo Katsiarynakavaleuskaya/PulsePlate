@@ -119,11 +119,11 @@ jobs:
         env:
           APP_ENV: test
           ENVIRONMENT: test
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+          PYTHONPATH: "${{ github.workspace }}"
 
       - name: Run tests with coverage
         env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -201,11 +201,11 @@ jobs:
         env:
           APP_ENV: test
           ENVIRONMENT: test
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+          PYTHONPATH: "${{ github.workspace }}"
 
       - name: Run tests with coverage
         env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -288,11 +288,11 @@ jobs:
         env:
           APP_ENV: test
           ENVIRONMENT: test
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+          PYTHONPATH: "${{ github.workspace }}"
 
       - name: Run tests with coverage
         env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
           # Force test-like environment for deterministic behavior
           APP_ENV: test

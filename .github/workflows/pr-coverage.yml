@@ -56,7 +56,7 @@ jobs:
 
       - name: Run tests with coverage (xml)
         env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app:${{ github.workspace }}/tests"
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -66,6 +66,15 @@ jobs:
         run: |
           # Use pytest-xdist for parallel execution (2-3x faster)
           pytest -q --disable-warnings --cov=. --cov-report=xml -n auto
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pr-coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Fetch base branch
         if: github.event_name == 'pull_request'

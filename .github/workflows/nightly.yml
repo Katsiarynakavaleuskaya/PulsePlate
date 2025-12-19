@@ -122,7 +122,7 @@ jobs:
 
       - name: Run tests with coverage (shard ${{ matrix.shard_id }}/${{ env.SHARD_TOTAL }})
         env:
-          PYTHONPATH: .:app:core:tests
+          PYTHONPATH: .:tests
           PYTEST_TIMEOUT: 300
           COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
         run: |
@@ -197,7 +197,7 @@ jobs:
 
       - name: Run performance tests
         env:
-          PYTHONPATH: .:app:core:tests
+          PYTHONPATH: .:tests
         run: |
           echo "Running performance benchmarks..."
           pytest tests/ \
@@ -253,7 +253,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          PYTHONPATH: .:app:core:tests
+          PYTHONPATH: .:tests
           DATABASE_URL: postgresql+psycopg://testuser:testpass@localhost:5432/testdb
         run: |
           START_TIME=$(date +%s)
