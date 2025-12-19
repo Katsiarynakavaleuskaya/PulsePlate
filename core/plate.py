@@ -19,7 +19,7 @@ Goal = Literal["loss", "maintain", "gain"]
 SERVE = {
     "protein_palm_g": 30,  # 1 ладонь белка ≈ 25–35 г белка
     "fat_thumb_g": 12,  # 1 «большой палец» жира ≈ 10–15 г жира
-    "carb_cup_g": 40,  # 1 чашка крахмалов ≈ 35–45 г углеводов (сухой вес в пересчёте)
+    "carb_cup_g": 40,  # 1 чашка углеводов ≈ 35–45 г углеводов (сухой вес в пересчёте)
     "veg_cup_g": 80,  # 1 чашка овощей ≈ 70–100 г (низкокалор.)
 }
 
@@ -240,7 +240,7 @@ def _visual_layout(macros: Dict[str, int]) -> List[Dict[str, Any]]:
         {
             "kind": "plate_sector",
             "fraction": round(frac["carbs"] * k, 2),
-            "label": "Крахмалы/Зерно",
+            "label": "Углеводы",
             "tooltip": f"{macros['carbs_g']} г/сут",
         },
         {
