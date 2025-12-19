@@ -80,7 +80,6 @@ def pytest_configure(config: pytest.Config) -> None:
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
-    os.environ["DATABASE_USE_ASYNC"] = "1"  # Enable async SQLAlchemy for tests
     os.environ["TEST_DB_PATH"] = str(db_path)
 
     # Remove stale DB file if it exists (prevent conflicts)
@@ -167,7 +166,6 @@ def init_test_database() -> None:
             # Explicitly surface unexpected FS problems to fail fast in CI/setup.
             raise
         os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
-        os.environ["DATABASE_USE_ASYNC"] = "1"  # Enable async SQLAlchemy for tests
 
         # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
         import importlib

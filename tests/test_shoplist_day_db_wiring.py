@@ -9,11 +9,17 @@ from types import ModuleType
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.middleware.api_tiers import require_pro_tier
 from app.models.plans import DayPlan
 from core.db import AsyncSessionLocal
+
+
+@pytest.fixture(autouse=True)
+def _force_async_db(monkeypatch):
+    """Enable async SQLAlchemy only for this test module."""
+    monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
 
 
 @pytest.fixture
@@ -111,10 +117,12 @@ async def test_day_plan_model_creation():
     if AsyncSessionLocal is None:
         pytest.skip("Async SQLAlchemy not configured")
 
+    test_date = date(2025, 12, 19)
+
     async with AsyncSessionLocal() as session:
         day_plan = DayPlan(
             user_id=1,
-            date=date(2025, 12, 19),
+            date=test_date,
             plan_data={"daily_menus": []},
         )
         session.add(day_plan)
@@ -122,11 +130,60 @@ async def test_day_plan_model_creation():
 
     # Query back in separate session
     async with AsyncSessionLocal() as session:
-        stmt = select(DayPlan).where(DayPlan.user_id == 1).where(DayPlan.date == date(2025, 12, 19))
+        stmt = select(DayPlan).where(DayPlan.user_id == 1).where(DayPlan.date == test_date)
         result = await session.execute(stmt)
         fetched = result.scalars().first()
 
-        assert fetched is not None
-        assert fetched.user_id == 1
-        assert fetched.date == date(2025, 12, 19)
-        assert fetched.plan_data == {"daily_menus": []}
+        try:
+            assert fetched is not None
+            assert fetched.user_id == 1
+            assert fetched.date == test_date
+            assert fetched.plan_data == {"daily_menus": []}
+        finally:
+            delete_stmt = (
+                delete(DayPlan).where(DayPlan.user_id == 1).where(DayPlan.date == test_date)
+            )
+            await session.execute(delete_stmt)
+            await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_day_plan_unique_user_date_constraint():
+    """Test that (user_id, date) uniqueness is enforced."""
+    if AsyncSessionLocal is None:
+        pytest.skip("Async SQLAlchemy not configured")
+
+    from sqlalchemy.exc import IntegrityError
+
+    test_date = date(2025, 12, 21)
+    user_id = 1
+
+    # Create first day plan
+    async with AsyncSessionLocal() as session:
+        day_plan_1 = DayPlan(
+            user_id=user_id,
+            date=test_date,
+            plan_data={"daily_menus": []},
+        )
+        session.add(day_plan_1)
+        await session.commit()
+
+    # Try to create duplicate — should fail
+    try:
+        async with AsyncSessionLocal() as session:
+            day_plan_2 = DayPlan(
+                user_id=user_id,
+                date=test_date,
+                plan_data={"daily_menus": [{"meals": []}]},
+            )
+            session.add(day_plan_2)
+            with pytest.raises(IntegrityError):
+                await session.commit()
+    finally:
+        # Cleanup
+        async with AsyncSessionLocal() as session:
+            delete_stmt = (
+                delete(DayPlan).where(DayPlan.user_id == user_id).where(DayPlan.date == test_date)
+            )
+            await session.execute(delete_stmt)
+            await session.commit()

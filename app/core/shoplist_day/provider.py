@@ -27,11 +27,10 @@ async def fetch_day_plan(day: date, pro_ctx: Any) -> Optional[dict]:
         Plan data dict with daily_menus format, or None if not found
     """
     # Extract user_id from PRO context (placeholder: assume dict-like)
-    user_id = (
-        getattr(pro_ctx, "user_id", None) or pro_ctx.get("user_id")
-        if isinstance(pro_ctx, dict)
-        else None
-    )
+    if isinstance(pro_ctx, dict):
+        user_id = pro_ctx.get("user_id")
+    else:
+        user_id = getattr(pro_ctx, "user_id", None)
 
     if user_id is None:
         # No user_id in context, return None (no plan available)

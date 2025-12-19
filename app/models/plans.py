@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Dict
+from typing import Any, Dict
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, String
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -27,7 +27,7 @@ class WeeklyPlan(Base):
     )
     start_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    plan_data: Mapped[Dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    plan_data: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -37,7 +37,7 @@ class WeeklyPlan(Base):
 
     # Relationships
     day_plans: Mapped[list["DayPlan"]] = relationship(
-        "DayPlan", back_populates="weekly_plan", cascade="all, delete-orphan"
+        "DayPlan", back_populates="weekly_plan", cascade="all"
     )
 
     __table_args__ = (CheckConstraint("start_date <= end_date", name="ck_weekly_plan_date_order"),)
@@ -60,7 +60,7 @@ class DayPlan(Base):
         Integer, ForeignKey("weekly_plans.id", ondelete="CASCADE"), nullable=True, index=True
     )
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    plan_data: Mapped[Dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    plan_data: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -72,3 +72,5 @@ class DayPlan(Base):
     weekly_plan: Mapped["WeeklyPlan | None"] = relationship(
         "WeeklyPlan", back_populates="day_plans"
     )
+
+    __table_args__ = (UniqueConstraint("user_id", "date", name="uq_day_plans_user_date"),)
