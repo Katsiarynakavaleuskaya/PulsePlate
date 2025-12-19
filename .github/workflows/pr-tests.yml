@@ -144,7 +144,7 @@ jobs:
         env:
           APP_ENV: test
           ENVIRONMENT: test
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/core:${{ github.workspace }}/app"
+          PYTHONPATH: "${{ github.workspace }}"
         run: |
           # Ensure database directory exists
           mkdir -p cache
