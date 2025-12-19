@@ -54,6 +54,8 @@ def test_shoplist_day_default_lang(client_with_pro_access):
 
 def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access, monkeypatch):
     """When a day plan is available, endpoint returns non-empty items with valid aisles/units."""
+    from typing import Any
+
     from app.routers import shoplist_day as shoplist_day_module
 
     day_plan = {
@@ -73,7 +75,7 @@ def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access
         ]
     }
 
-    async def _fake_fetch_day_plan(day, pro_ctx):  # type: ignore[unused-argument]
+    async def _fake_fetch_day_plan(day: str, pro_ctx: Any) -> dict[str, Any]:  # type: ignore[unused-argument]
         return day_plan
 
     monkeypatch.setattr(shoplist_day_module, "fetch_day_plan", _fake_fetch_day_plan)
