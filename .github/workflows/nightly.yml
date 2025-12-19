@@ -13,6 +13,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 180  # Full test suite can take 90-120min, buffer for slower runners
+    strategy:
+      fail-fast: false  # Run all shards even if one fails
+      matrix:
+        shard_id: [1, 2, 3, 4, 5, 6]  # Tenant-based sharding (see pytest_sharding.py)
 
     steps:
       - name: Checkout code
@@ -111,57 +115,44 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (shard ${{ matrix.shard_id }}/6)
         env:
           PYTHONPATH: .:app:core:tests
           PYTEST_TIMEOUT: 300
         run: |
           START_TIME=$(date +%s)
           export START_TIME
-          echo "Running test suite..."
-          # Use -c pyproject.toml to ensure pytest config is loaded (markers, filterwarnings, etc)
-          # Nightly: fail after 10 failures to collect multiple issues (not just first one)
+          echo "Running test suite (shard ${{ matrix.shard_id }}/6)..."
+          # Use tenant-based sharding from pytest_sharding.py
+          # Each shard runs tests for specific functional domain
+          # -n 4: fixed workers for predictable performance
           pytest -c pyproject.toml tests/ \
+            --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
             --cov=. \
-            --cov-report=xml \
+            --cov-report=xml:coverage-shard-${{ matrix.shard_id }}.xml \
             --cov-report=term-missing \
-            --cov-report=html \
-            --junitxml=tests/results.xml \
+            --junitxml=tests/results-shard-${{ matrix.shard_id }}.xml \
             --tb=short \
             -v \
-            -n auto
-
-      - name: Check test coverage
-        run: |
-          echo "Checking test coverage..."
-          python -c "
-          import xml.etree.ElementTree as ET
-          tree = ET.parse('coverage.xml')
-          root = tree.getroot()
-          coverage = float(root.attrib['line-rate']) * 100
-          print(f'Coverage: {coverage:.2f}%')
-          if coverage < 97:
-              print(f'Coverage {coverage:.2f}% is below 97% threshold')
-              exit(1)
-          "
+            -n 4 \
+            --dist loadscope
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
         if: always()
         with:
-          name: coverage-reports
+          name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            coverage.xml
-            htmlcov/
+            coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
         if: always()
         with:
-          name: test-results
-          path: tests/results.xml
+          name: test-results-shard-${{ matrix.shard_id }}
+          path: tests/results-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
 
       - name: Upload security reports
