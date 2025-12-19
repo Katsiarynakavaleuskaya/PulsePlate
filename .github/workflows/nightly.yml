@@ -152,6 +152,8 @@ jobs:
             --cov-report=xml:coverage-shard-${{ matrix.shard_id }}.xml \
             --cov-report=term-missing \
             --junitxml=tests/results-shard-${{ matrix.shard_id }}.xml \
+            --durations=25 \
+            --durations-min=10.0 \
             --tb=short \
             -v \
             -n 4 \
@@ -168,6 +170,8 @@ jobs:
             --cov-append \
             --cov-report=xml:coverage-shard-${{ matrix.shard_id }}.xml \
             --junitxml=tests/results-serial-shard-${{ matrix.shard_id }}.xml \
+            --durations=25 \
+            --durations-min=10.0 \
             --tb=short \
             -v \
             -n 0 \
