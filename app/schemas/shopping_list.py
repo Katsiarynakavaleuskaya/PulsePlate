@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Literal, Optional, TypeAlias
 from pydantic import BaseModel, Field, model_validator
 
 # Type alias for source validation
-SourceType: TypeAlias = Literal["weekly_plan_id", "inline_plan", "day_plan"]
+SourceType: TypeAlias = Literal["weekly_plan_id", "inline_plan"]
 
 
 class ShoppingListPreferences(BaseModel):

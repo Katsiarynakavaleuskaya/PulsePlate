@@ -16,8 +16,6 @@ from fastapi import APIRouter, Depends, Query
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.shopping_list import ShopLang, ShoplistDayResponse
-from app.core.shoplist_day.day_generator import generate_day_items
-from app.core.shoplist_day.provider import fetch_day_plan
 
 router = APIRouter(prefix="/api/v1/pro/shoplist", tags=["pro", "shoplist-day"])
 
@@ -32,24 +30,46 @@ async def get_shoplist_day(
     day: Annotated[date, Query(alias="date", description="YYYY-MM-DD")],
     lang: Annotated[ShopLang, Query(description="Language code")] = ShopLang.en,
 ) -> ShoplistDayResponse:
-    """MVP endpoint for day shopping list.
+    """MVP placeholder endpoint for day shopping list.
 
-    PR-2: fetches day plan (if available) and generates real items.
+    Returns empty list for now (real implementation coming in PR-2).
+    Later: fetch actual day plan from database and generate real items.
 
-    If no plan is found, returns empty items with a "no_day_plan" warning
-    to keep the iOS client stable.
+    **URL:** `GET /api/v1/pro/shoplist/day?date=YYYY-MM-DD&lang=ru`
+
+    **Input:**
+    - `date`: Date for shopping list (YYYY-MM-DD, required)
+    - `lang`: Language for item titles (ru|en|es, default: en)
+
+    **Output:**
+    - Flat list of shopping items (client groups by aisle)
+    - Empty warnings array
+
+    **PRO tier required.**
+
+    **Implementation roadmap (PR-2):**
+    1. Fetch day_plan from DB (format: {"daily_menus": [{"meals": [...]}]})
+    2. Call core engine: aggregate_ingredients(day_plan) + round_to_packages()
+    3. Transform to flat day items with aisle mapping (no weekly DTO dependency)
+    4. Localize titles using lang parameter
+    5. Map category → ShopAisle enum (Produce/Protein/Dairy/Pantry/Frozen/Other)
     """
-    plan = await fetch_day_plan(day=day, pro_ctx=_pro)
-    if plan is None:
-        return ShoplistDayResponse(
-            date=day.isoformat(),
-            lang=lang,
-            items=[],
-            warnings=["no_day_plan"],
-        )
+    # TODO: Real implementation in PR-2
+    # from core.shoplist import ShoplistGenerator  # or existing core engine
+    #
+    # # Fetch day plan from database
+    # day_plan = fetch_day_plan_from_db(day)
+    #
+    # # Use core engine directly (not weekly DTO)
+    # generator = ShoplistGenerator()
+    # aggregated = generator.aggregate_ingredients(day_plan)
+    # items_with_packages = generator.round_to_packages(aggregated)
+    #
+    # # Transform to flat ShoplistDayItemDTO format
+    # items = transform_to_day_items(items_with_packages, lang=lang)
+    # return ShoplistDayResponse(date=day.isoformat(), lang=lang, items=items, warnings=[])
 
-    items = generate_day_items(plan_data=plan, lang=lang.value)
-    return ShoplistDayResponse(date=day.isoformat(), lang=lang, items=items, warnings=[])
+    return ShoplistDayResponse(date=day.isoformat(), lang=lang, items=[], warnings=[])
 
 
 __all__ = ["router"]
