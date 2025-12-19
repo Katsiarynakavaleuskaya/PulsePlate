@@ -153,6 +153,7 @@ jobs:
             --cov=. \
             --cov-append \
             --cov-report=xml:coverage-shard-${{ matrix.shard_id }}.xml \
+            --junitxml=tests/results-serial-shard-${{ matrix.shard_id }}.xml \
             --tb=short \
             -v \
             -n 0 \
@@ -173,7 +174,7 @@ jobs:
         if: always()
         with:
           name: test-results-shard-${{ matrix.shard_id }}
-          path: tests/results-shard-${{ matrix.shard_id }}.xml
+          path: tests/results-*-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
 
       - name: Upload security reports
