@@ -174,6 +174,14 @@ jobs:
             -o faulthandler_timeout=300 \
             -m serial || true  # Serial tests are coverage-only, non-blocking
 
+      - name: Debug coverage files (shard)
+        if: always()
+        run: |
+          echo "PWD=$(pwd)"
+          ls -la
+          echo "=== looking for .coverage files ==="
+          find . -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
+
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
         if: always()
@@ -183,14 +191,6 @@ jobs:
             **/.coverage*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
-
-      - name: Debug coverage files (shard)
-        if: always()
-        run: |
-          echo "PWD=$(pwd)"
-          ls -la
-          echo "=== looking for .coverage files ==="
-          find . -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -356,6 +356,7 @@ jobs:
           path: coverage-artifacts
 
       - name: Debug coverage artifacts
+        if: always()
         run: |
           echo "PWD=$(pwd)"
           echo "=== coverage-artifacts tree ==="
