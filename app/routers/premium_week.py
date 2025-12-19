@@ -248,5 +248,8 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
     # 2) Построить неделю
-    week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)
+    from core.menu_engine_new import PlateDayTargets
+    from typing import cast
+
+    week = build_week(cast(PlateDayTargets, targets), req.diet_flags, req.lang, fooddb, recipedb)
     return WeekPlanResponse(**week)

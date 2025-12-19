@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Any, Dict, List
+import warnings
+from typing import Any, Dict, List, NotRequired, TypedDict
 
 from .food_db_new import MICRO_KEYS, FoodDB
 from .meal_i18n import Language, translate_tip
@@ -30,6 +31,26 @@ class DayPlan:
     coverage: Dict[str, float]
     tips: List[str]
     total_cost: float = 0.0
+
+
+class PlateDayTargets(TypedDict):
+    """Input targets for day plan generation.
+
+    Required keys:
+        kcal: Daily calorie target.
+
+    Optional keys:
+        micro: Micronutrient targets keyed by DB or alias names.
+        macros: Macronutrient targets in grams.
+        water_ml: Daily hydration target in ml.
+        activity_week: Weekly activity targets (minutes/sessions).
+    """
+
+    kcal: float
+    micro: NotRequired[Dict[str, float]]
+    macros: NotRequired[Dict[str, float]]
+    water_ml: NotRequired[float]
+    activity_week: NotRequired[Dict[str, int]]
 
 
 def _percent(got: Any, need: Any) -> float:
@@ -91,12 +112,21 @@ def _normalize_micro_targets(micro_targets: Any) -> Dict[str, float]:
 
 
 def build_plate_day(
-    targets: dict,
+    targets: PlateDayTargets,
     diet_flags: List[str],
     lang: Language,
     fooddb: FoodDB,
     recipedb: RecipeDB,
 ) -> DayPlan:
+    """Build a day plan from plate targets.
+
+    Args:
+        targets: Daily targets (kcal required, micro/macros optional).
+        diet_flags: Dietary flags for recipe selection.
+        lang: Language code.
+        fooddb: Food database accessor.
+        recipedb: Recipe database accessor.
+    """
     micro_targets = _normalize_micro_targets(targets.get("micro", {}))
     splits = [0.25, 0.35, 0.30, 0.10]
     kcal_split = [int(targets["kcal"] * s) for s in splits]
@@ -111,8 +141,39 @@ def build_plate_day(
         if r is None:
             continue
         m = recipedb.scale_recipe_to_kcal(r, kcal_goal, lang, prefer_fiber=True)
+
+        raw_kcal = getattr(m, "kcal", None)
+        m_kcal = _coerce_float(raw_kcal)
+
+        if m_kcal is None:
+            # RU/EN: Invalid kcal from recipe scaler. This should not happen in production data.
+            # We warn (observability) and skip to keep the engine robust (tests may use MagicMock).
+            warnings.warn(
+                f"Skipping meal with non-numeric kcal from scaler: {raw_kcal!r}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            continue
+
+        if m_kcal <= 0:
+            # RU/EN: kcal <= 0 is invalid for a meal; warn and skip to avoid hiding data issues silently.
+            warnings.warn(
+                f"Skipping meal with non-positive kcal from scaler: {m_kcal}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            continue
+
+        # Normalize kcal on the meal object to avoid divergence between totals and meal fields.
+        try:
+            # keep type consistent with other code paths (int kcal)
+            m.kcal = int(round(m_kcal))
+        except Exception:  # nosec B110
+            # If the object is immutable, we still keep totals consistent via total_kcal.
+            pass
+
         meals.append(m)
-        total_kcal += m.kcal
+        total_kcal += m_kcal
         for k in macros_sum:
             macros_sum[k] += m.macros[k]
         for mk in MICRO_KEYS:
@@ -233,7 +294,7 @@ def build_plate_day(
 
     return DayPlan(
         meals=out_meals,
-        kcal=int(round(sum(m.kcal for m in meals))),
+        kcal=int(round(total_kcal)),
         macros={k: round(v, 1) for k, v in macros_sum.items()},
         micros={k: round(v, 1) for k, v in micros_sum.items()},
         coverage={k: round(v, 1) for k, v in cov.items()},

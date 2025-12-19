@@ -15,7 +15,7 @@ Endpoints:
 
 import logging
 from datetime import date as Date
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -308,7 +308,9 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
     # Build week
-    week = build_week(targets, req.diet_flags, req.lang, fooddb, recipedb)
+    from core.menu_engine_new import PlateDayTargets
+
+    week = build_week(cast(PlateDayTargets, targets), req.diet_flags, req.lang, fooddb, recipedb)
     return WeekPlanResponse(**week)
 
 
