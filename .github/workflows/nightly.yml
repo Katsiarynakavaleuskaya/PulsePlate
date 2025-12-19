@@ -297,6 +297,7 @@ jobs:
 
   coverage-merge:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Combining coverage should be fast; timeout detects hangs
     needs: test
 
     steps:
@@ -325,3 +326,12 @@ jobs:
         run: |
           coverage combine coverage-artifacts
           coverage report --fail-under=97
+          coverage xml -o coverage-combined.xml
+
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
+        if: always()
+        with:
+          name: coverage-combined
+          path: coverage-combined.xml
+          retention-days: 30
