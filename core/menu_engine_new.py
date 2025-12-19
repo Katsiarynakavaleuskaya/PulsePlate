@@ -173,7 +173,7 @@ def build_plate_day(
             pass
 
         meals.append(m)
-        total_kcal += float(m_kcal)
+        total_kcal += m_kcal
         for k in macros_sum:
             macros_sum[k] += m.macros[k]
         for mk in MICRO_KEYS:
