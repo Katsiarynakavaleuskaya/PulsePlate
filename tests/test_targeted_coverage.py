@@ -38,6 +38,8 @@ class TestTargetedCoverage:
         # Remove the test API key
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        # Remove feature flag to prevent env leakage
+        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
 
     def test_bmi_endpoint_visualization_error_path(self):
         """Test BMI endpoint visualization error path - covers lines 346-351."""

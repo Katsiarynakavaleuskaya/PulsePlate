@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60  # Each shard should complete in 15-25min; 60min provides buffer for slow runners
     env:
-      SHARD_TOTAL: 6  # Total number of test shards (update matrix.shard_id if changed)
+      SHARD_TOTAL: 6  # Total number of test shards (MUST match matrix.shard_id array length below)
     strategy:
       fail-fast: false  # Run all shards even if one fails
       matrix:
-        shard_id: [1, 2, 3, 4, 5, 6]  # Tenant-based sharding (see pytest_sharding.py)
+        shard_id: [1, 2, 3, 4, 5, 6]  # Tenant-based sharding; update SHARD_TOTAL above if adding/removing shards
 
     steps:
       - name: Checkout code
@@ -124,6 +124,7 @@ jobs:
         env:
           PYTHONPATH: .:app:core:tests
           PYTEST_TIMEOUT: 300
+          COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
         run: |
           START_TIME=$(date +%s)
           export START_TIME
@@ -150,6 +151,7 @@ jobs:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
             coverage-shard-${{ matrix.shard_id }}.xml
+            .coverage.shard-${{ matrix.shard_id }}
           retention-days: 30
 
       - name: Upload test results
@@ -292,3 +294,34 @@ jobs:
           name: performance-report
           path: performance-report.md
           retention-days: 30
+
+  coverage-merge:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          pattern: coverage-reports-shard-*
+          merge-multiple: true
+          path: coverage-artifacts
+
+      - name: Install coverage
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install coverage -c constraints.txt
+
+      - name: Combine coverage and enforce threshold
+        run: |
+          coverage combine coverage-artifacts
+          coverage report --fail-under=97
