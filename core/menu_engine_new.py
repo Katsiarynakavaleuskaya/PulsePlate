@@ -111,8 +111,12 @@ def build_plate_day(
         if r is None:
             continue
         m = recipedb.scale_recipe_to_kcal(r, kcal_goal, lang, prefer_fiber=True)
+        # Coerce kcal to float to avoid MagicMock propagation in tests
+        m_kcal = _coerce_float(getattr(m, "kcal", None))
+        if m_kcal is None or m_kcal <= 0:
+            continue
         meals.append(m)
-        total_kcal += m.kcal
+        total_kcal += m_kcal
         for k in macros_sum:
             macros_sum[k] += m.macros[k]
         for mk in MICRO_KEYS:
@@ -233,7 +237,7 @@ def build_plate_day(
 
     return DayPlan(
         meals=out_meals,
-        kcal=int(round(sum(m.kcal for m in meals))),
+        kcal=int(round(total_kcal)),
         macros={k: round(v, 1) for k, v in macros_sum.items()},
         micros={k: round(v, 1) for k, v in micros_sum.items()},
         coverage={k: round(v, 1) for k, v in cov.items()},
