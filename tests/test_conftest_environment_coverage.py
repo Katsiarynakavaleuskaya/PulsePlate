@@ -8,6 +8,50 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
+def _validate_pythonpath(pythonpath: str, repo_root: str) -> None:
+    assert pythonpath, "PYTHONPATH must be set"
+
+    path_segments = [segment for segment in pythonpath.split(os.pathsep) if segment]
+
+    # Allow simple local runs where PYTHONPATH is just "."
+    if path_segments == ["."]:
+        return
+
+    # Allow legacy local layout like ".:core:app:tests" without enforcing CI-specific invariants
+    if "." in path_segments and ("core" in path_segments or "app" in path_segments):
+        return
+
+    root_path = Path(repo_root).resolve()
+    tests_dir = root_path / "tests"
+
+    # Normalize all segments to absolute paths relative to repo_root when needed
+    normalized_segments = []
+    for segment in path_segments:
+        segment_path = Path(segment)
+        if not segment_path.is_absolute():
+            segment_path = (root_path / segment_path).resolve()
+        normalized_segments.append(segment_path)
+
+    # Repo root must be present explicitly
+    assert any(
+        segment == root_path for segment in normalized_segments
+    ), f"Repo root not found in PYTHONPATH: {pythonpath}"
+
+    # Tests directory should be present (either as absolute path or trailing '/tests')
+    assert any(
+        segment == tests_dir for segment in normalized_segments
+    ), f"'tests' not found in PYTHONPATH: {pythonpath}"
+
+    # Standalone 'core' and 'app' entries must NOT be present to avoid module duplication
+    assert not any(
+        segment == root_path / "core" for segment in normalized_segments
+    ), f"'core' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+
+    assert not any(
+        segment == root_path / "app" for segment in normalized_segments
+    ), f"'app' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+
+
 class TestConftestEnvironmentCoverage:
     def test_conftest_reset_environment_fixture_coverage(self):
         """Тест покрытия conftest.py reset_environment fixture (строки 41-44)"""
@@ -100,7 +144,7 @@ class TestConftestEnvironmentCoverage:
         for var in required_vars:  # sourcery skip: no-loop-in-tests
             assert var in os.environ, f"Environment variable {var} not set"
 
-    def test_conftest_environment_values_coverage(self):
+    def test_conftest_environment_values_coverage(self) -> None:
         """Тест покрытия conftest.py environment values"""
         # Тестируем значения переменных окружения
         assert os.environ.get("FEATURE_PREMIUM_NUTRITION") == "true"
@@ -114,43 +158,8 @@ class TestConftestEnvironmentCoverage:
         # PYTHONPATH contract is enforced by CI workflows.
         # It must include the repo root and tests, but not standalone 'core' or 'app' entries
         # to avoid duplicate module loading (e.g. food_apis.* vs core.food_apis.*).
-        pythonpath = os.environ.get("PYTHONPATH", "")
-        assert pythonpath, "PYTHONPATH must be set"
-
-        path_segments = [segment for segment in pythonpath.split(os.pathsep) if segment]
-
-        # Allow simple local runs where PYTHONPATH is just "."
-        if path_segments == ["."]:
-            return
-
-        # Allow legacy local layout like ".:core:app:tests" without enforcing CI-specific invariants
-        if "." in path_segments and ("core" in path_segments or "app" in path_segments):
-            return
-
         repo_root = str(Path(__file__).resolve().parents[1])
-        tests_dir = os.path.join(repo_root, "tests")
-
-        # Repo root must be present explicitly
-        assert any(
-            segment == repo_root for segment in path_segments
-        ), f"Repo root not found in PYTHONPATH: {pythonpath}"
-
-        # Tests directory should be present (either as absolute path or trailing '/tests')
-        assert any(
-            segment == tests_dir or segment.endswith(os.path.sep + "tests")
-            for segment in path_segments
-        ), f"'tests' not found in PYTHONPATH: {pythonpath}"
-
-        # Standalone 'core' and 'app' entries must NOT be present to avoid module duplication
-        assert not any(
-            segment.endswith(os.path.sep + "core") or segment == os.path.join(repo_root, "core")
-            for segment in path_segments
-        ), f"'core' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
-
-        assert not any(
-            segment.endswith(os.path.sep + "app") or segment == os.path.join(repo_root, "app")
-            for segment in path_segments
-        ), f"'app' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+        _validate_pythonpath(os.environ.get("PYTHONPATH", ""), repo_root)
 
     def test_conftest_sys_modules_coverage(self):
         """Тест покрытия conftest.py sys.modules"""
