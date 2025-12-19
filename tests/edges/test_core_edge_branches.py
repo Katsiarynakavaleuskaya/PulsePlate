@@ -559,3 +559,105 @@ def test_menu_engine_new_booster_per_g_negative():
         recipedb=_EmptyRecipeDB(),
     )
     assert isinstance(plan, DayPlan)
+
+
+def test_menu_engine_new_coerces_string_kcal():
+    from types import SimpleNamespace
+
+    from core.food_db_new import MICRO_KEYS
+
+    class _NoBoosterFoodDB:
+        def pick_booster_for(self, _mk: str, _diet_flags: list[str]) -> str | None:
+            return None
+
+    class _OneMealRecipeDB:
+        def pick_base_recipe(self, _diet_flags: list[str], meal_index: int) -> Any:
+            return object() if meal_index == 0 else None
+
+        def scale_recipe_to_kcal(self, _recipe: object, _kcal_goal: int, _lang: str, **_kw: Any):
+            return SimpleNamespace(
+                title="base",
+                title_translated="base",
+                grams={"x": 100.0},
+                kcal="250",
+                macros={"protein_g": 10.0, "fat_g": 5.0, "carbs_g": 20.0, "fiber_g": 3.0},
+                micros={k: 0.0 for k in MICRO_KEYS},
+            )
+
+    plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
+        targets={"kcal": 1000, "micro": {}},
+        diet_flags=[],
+        lang="en",
+        fooddb=_NoBoosterFoodDB(),
+        recipedb=_OneMealRecipeDB(),
+    )
+    assert isinstance(plan, DayPlan)
+    assert plan.meals and isinstance(plan.meals[0]["kcal"], int)
+
+
+def test_menu_engine_new_skips_meal_with_non_numeric_kcal():
+    from types import SimpleNamespace
+
+    from core.food_db_new import MICRO_KEYS
+
+    class _NoBoosterFoodDB:
+        def pick_booster_for(self, _mk: str, _diet_flags: list[str]) -> str | None:
+            return None
+
+    class _BadKcalRecipeDB:
+        def pick_base_recipe(self, _diet_flags: list[str], meal_index: int) -> Any:
+            return object() if meal_index == 0 else None
+
+        def scale_recipe_to_kcal(self, _recipe: object, _kcal_goal: int, _lang: str, **_kw: Any):
+            return SimpleNamespace(
+                title="bad",
+                title_translated="bad",
+                grams={"x": 100.0},
+                kcal="bad",
+                macros={"protein_g": 1.0, "fat_g": 1.0, "carbs_g": 1.0, "fiber_g": 0.0},
+                micros={k: 0.0 for k in MICRO_KEYS},
+            )
+
+    with pytest.warns(RuntimeWarning, match="non-numeric kcal"):
+        plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
+            targets={"kcal": 1000, "micro": {}},
+            diet_flags=[],
+            lang="en",
+            fooddb=_NoBoosterFoodDB(),
+            recipedb=_BadKcalRecipeDB(),
+        )
+    assert plan.meals == []
+
+
+def test_menu_engine_new_skips_meal_with_non_positive_kcal():
+    from types import SimpleNamespace
+
+    from core.food_db_new import MICRO_KEYS
+
+    class _NoBoosterFoodDB:
+        def pick_booster_for(self, _mk: str, _diet_flags: list[str]) -> str | None:
+            return None
+
+    class _ZeroKcalRecipeDB:
+        def pick_base_recipe(self, _diet_flags: list[str], meal_index: int) -> Any:
+            return object() if meal_index == 0 else None
+
+        def scale_recipe_to_kcal(self, _recipe: object, _kcal_goal: int, _lang: str, **_kw: Any):
+            return SimpleNamespace(
+                title="zero",
+                title_translated="zero",
+                grams={"x": 100.0},
+                kcal=0,
+                macros={"protein_g": 1.0, "fat_g": 1.0, "carbs_g": 1.0, "fiber_g": 0.0},
+                micros={k: 0.0 for k in MICRO_KEYS},
+            )
+
+    with pytest.warns(RuntimeWarning, match="non-positive kcal"):
+        plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
+            targets={"kcal": 1000, "micro": {}},
+            diet_flags=[],
+            lang="en",
+            fooddb=_NoBoosterFoodDB(),
+            recipedb=_ZeroKcalRecipeDB(),
+        )
+    assert plan.meals == []

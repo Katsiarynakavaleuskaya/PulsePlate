@@ -12,12 +12,12 @@ from typing import List
 
 from .food_db_new import FoodDB
 from .meal_i18n import Language
-from .menu_engine_new import build_plate_day
+from .menu_engine_new import PlateDayTargets, build_plate_day
 from .recipe_db_new import RecipeDB
 
 
 def build_week(
-    targets: dict,
+    targets: PlateDayTargets,
     diet_flags: List[str],
     lang: Language,
     fooddb: FoodDB,
