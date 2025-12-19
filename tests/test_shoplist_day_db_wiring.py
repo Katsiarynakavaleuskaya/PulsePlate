@@ -6,7 +6,7 @@ EN: Tests for day shopping list database integration.
 
 from datetime import date
 from types import ModuleType
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -55,14 +55,19 @@ async def test_user() -> AsyncGenerator[User, None]:
 
         yield user
 
-        # Cleanup: delete test user and related day plans
-        await session.execute(delete(DayPlan).where(DayPlan.user_id == TEST_USER_ID))
-        await session.execute(delete(User).where(User.id == TEST_USER_ID))
-        await session.commit()
+    # Cleanup: delete test user and related day plans in a fresh session
+    async with AsyncSessionLocal() as session:
+        try:
+            await session.execute(delete(DayPlan).where(DayPlan.user_id == TEST_USER_ID))
+            await session.execute(delete(User).where(User.id == TEST_USER_ID))
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 @pytest.fixture
-def client_with_pro_access(app_module: ModuleType) -> TestClient:
+def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None, None]:
     """Create test client with PRO tier access bypassed.
 
     Returns pro_ctx with user_id for proper fetch_day_plan behavior.
@@ -214,3 +219,4 @@ async def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
         session.add(day_plan_2)
         with pytest.raises(IntegrityError):
             await session.commit()
+        await session.rollback()

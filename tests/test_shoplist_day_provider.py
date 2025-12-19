@@ -1,39 +1,56 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
 from types import SimpleNamespace
+from typing import Any, AsyncContextManager, Callable, Generic, List, TypeVar
 
 import pytest
 
-from app.core.shoplist_day import provider as provider_module
 import core.db as db
+from app.core.shoplist_day import provider as provider_module
 
 
-class _FakeResult:
-    def __init__(self, day_plan):
+DayPlanT = TypeVar("DayPlanT")
+
+
+class _FakeResult(Generic[DayPlanT]):
+    """Fake SQLAlchemy result for testing."""
+
+    def __init__(self, day_plan: DayPlanT) -> None:
         self._day_plan = day_plan
 
-    def scalars(self):
+    def scalars(self) -> "_FakeResult[DayPlanT]":
         return self
 
-    def first(self):
+    def first(self) -> DayPlanT:
         return self._day_plan
 
 
-class _FakeSession:
-    def __init__(self, day_plan):
-        self._day_plan = day_plan
-        self.statement = None
+class _FakeSession(Generic[DayPlanT]):
+    """Fake SQLAlchemy async session for testing."""
 
-    async def execute(self, stmt):
+    def __init__(self, day_plan: DayPlanT) -> None:
+        self._day_plan = day_plan
+        self.statement: Any = None
+        self.compiled_sql: str | None = None
+
+    async def execute(self, stmt: Any) -> _FakeResult[DayPlanT]:
         self.statement = stmt
+        # Compile SQL with literal binds for assertion
+        self.compiled_sql = str(stmt.compile(compile_kwargs={"literal_binds": True}))
         return _FakeResult(self._day_plan)
 
 
-def _session_scope_factory(day_plan, holder):
+def _session_scope_factory(
+    day_plan: DayPlanT,
+    holder: List[_FakeSession[DayPlanT]],
+) -> Callable[[], AsyncContextManager[_FakeSession[DayPlanT]]]:
+    """Create a fake session scope factory for testing."""
+
     @asynccontextmanager
-    async def _scope():
+    async def _scope() -> AsyncIterator[_FakeSession[DayPlanT]]:
         session = _FakeSession(day_plan)
         holder.append(session)
         yield session
@@ -62,8 +79,11 @@ async def test_fetch_day_plan_returns_none_without_user_id_object() -> None:
 
 
 @pytest.mark.asyncio
-async def test_fetch_day_plan_returns_none_when_missing(monkeypatch) -> None:
-    holder = []
+async def test_fetch_day_plan_returns_none_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test fetch_day_plan returns None when no plan exists."""
+    holder: list[_FakeSession] = []
     monkeypatch.setattr(db, "session_scope_async", _session_scope_factory(None, holder))
 
     result = await provider_module.fetch_day_plan(
@@ -73,13 +93,20 @@ async def test_fetch_day_plan_returns_none_when_missing(monkeypatch) -> None:
 
     assert result is None
     assert holder and holder[0].statement is not None
+    # Verify SQL query includes correct filters
+    sql = holder[0].compiled_sql
+    assert sql is not None
+    assert "user_id" in sql
+    assert "10" in sql  # user_id value
+    assert "date" in sql
 
 
 @pytest.mark.asyncio
-async def test_fetch_day_plan_returns_plan_data(monkeypatch) -> None:
+async def test_fetch_day_plan_returns_plan_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test fetch_day_plan returns plan_data when plan exists."""
     plan_data = {"daily_menus": [{"meals": []}]}
     day_plan = SimpleNamespace(plan_data=plan_data)
-    holder = []
+    holder: list[_FakeSession] = []
     monkeypatch.setattr(db, "session_scope_async", _session_scope_factory(day_plan, holder))
 
     result = await provider_module.fetch_day_plan(
@@ -89,3 +116,9 @@ async def test_fetch_day_plan_returns_plan_data(monkeypatch) -> None:
 
     assert result == plan_data
     assert holder and holder[0].statement is not None
+    # Verify SQL query includes correct filters
+    sql = holder[0].compiled_sql
+    assert sql is not None
+    assert "user_id" in sql
+    assert "42" in sql  # user_id value
+    assert "2025-01-04" in sql  # date value
