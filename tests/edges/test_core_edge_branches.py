@@ -460,3 +460,102 @@ def test_menu_engine_new_kcal_100_zero_path():
         recipedb=_StubRecipeDB(),
     )
     assert isinstance(plan, DayPlan)
+
+
+def test_menu_engine_new_booster_food_missing():
+    from core.food_db_new import MICRO_KEYS
+
+    class _MissingFoodDB:
+        def pick_booster_for(self, _mk: str, _diet_flags: list[str]) -> str | None:
+            return "donor"
+
+        def get_food(self, _name: str):
+            return None
+
+    class _EmptyRecipeDB:
+        def pick_base_recipe(self, _diet_flags: list[str], _i: int) -> Any:
+            return None
+
+    targets = {"kcal": 2000, "micro": {k: 100.0 for k in MICRO_KEYS}}
+    plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
+        targets=targets,
+        diet_flags=[],
+        lang="en",
+        fooddb=_MissingFoodDB(),
+        recipedb=_EmptyRecipeDB(),
+    )
+    assert isinstance(plan, DayPlan)
+
+
+def test_menu_engine_new_booster_per_g_defaulted():
+    from core.food_db_new import MICRO_KEYS
+
+    class _PerGInvalidFood:
+        def __init__(self) -> None:
+            self.per_g = "bad"
+            self.protein_g = None
+            self.fat_g = 1.0
+            self.carbs_g = "bad"
+            self.fiber_g = None
+            self.micros = {MICRO_KEYS[0]: "2.5"}
+
+    class _PerGInvalidFoodDB:
+        def pick_booster_for(self, mk: str, _diet_flags: list[str]) -> str | None:
+            return "donor" if mk == MICRO_KEYS[0] else None
+
+        def get_food(self, _name: str) -> _PerGInvalidFood:
+            return _PerGInvalidFood()
+
+        def get_translated_food_name(self, name: str, _lang: str) -> str:
+            return name
+
+    class _EmptyRecipeDB:
+        def pick_base_recipe(self, _diet_flags: list[str], _i: int) -> Any:
+            return None
+
+    targets = {"kcal": 2000, "micro": {MICRO_KEYS[0]: 100.0}}
+    plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
+        targets=targets,
+        diet_flags=[],
+        lang="en",
+        fooddb=_PerGInvalidFoodDB(),
+        recipedb=_EmptyRecipeDB(),
+    )
+    assert isinstance(plan, DayPlan)
+
+
+def test_menu_engine_new_booster_per_g_negative():
+    from core.food_db_new import MICRO_KEYS
+
+    class _PerGNegativeFood:
+        def __init__(self) -> None:
+            self.per_g = -1.0
+            self.protein_g = 1.0
+            self.fat_g = None
+            self.carbs_g = 1.0
+            self.fiber_g = 1.0
+            self.micros = {k: 0.0 for k in MICRO_KEYS}
+
+    class _PerGNegativeFoodDB:
+        def pick_booster_for(self, mk: str, _diet_flags: list[str]) -> str | None:
+            return "donor" if mk == MICRO_KEYS[0] else None
+
+        def get_food(self, _name: str) -> _PerGNegativeFood:
+            return _PerGNegativeFood()
+
+        def get_translated_food_name(self, name: str, _lang: str) -> str:
+            return name
+
+    class _EmptyRecipeDB:
+        def pick_base_recipe(self, _diet_flags: list[str], _i: int) -> Any:
+            return None
+
+    targets = {"kcal": 2000, "micro": {MICRO_KEYS[0]: 100.0}}
+    plan: DayPlan = build_plate_day(  # pyright: ignore[reportArgumentType]
+        targets=targets,
+        diet_flags=[],
+        lang="en",
+        fooddb=_PerGNegativeFoodDB(),
+        recipedb=_EmptyRecipeDB(),
+    )
+    assert isinstance(plan, DayPlan)
