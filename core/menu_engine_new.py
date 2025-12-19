@@ -12,6 +12,7 @@ for nutrient deficiencies.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any, Dict, List
 
 from .food_db_new import MICRO_KEYS, FoodDB
@@ -58,12 +59,13 @@ def _coerce_float(value: Any) -> float | None:
         return None
     if isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
-        return float(value)
     try:
-        return float(str(value).strip())
+        f = float(value)
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(f):
+        return None
+    return f
 
 
 def _normalize_micro_targets(micro_targets: Any) -> Dict[str, float]:

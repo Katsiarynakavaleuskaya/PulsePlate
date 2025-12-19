@@ -49,7 +49,7 @@ def test_shoplist_day_default_lang(client_with_pro_access):
     assert r.status_code == 200
     body = r.json()
     assert body["lang"] == "en"
-    assert body["warnings"]
+    assert body["warnings"] == ["no_day_plan"]
 
 
 def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access, monkeypatch):
