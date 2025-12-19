@@ -54,6 +54,7 @@ from app.routers.plan_export import export_router, plan_router
 from app.routers.premium_week import router as premium_week_router
 from app.routers.pro import router as pro_router
 from app.routers.recipes import router as recipes_router
+from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
@@ -995,6 +996,9 @@ if pro_router is not None:
 
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)
+
+# Include Day Shopping List router (iOS MVP)
+app.include_router(shoplist_day_router)
 
 
 # Legacy alias for iOS nutrition endpoint compatibility
