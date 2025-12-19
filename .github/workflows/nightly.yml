@@ -12,7 +12,13 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 180  # Full test suite can take 90-120min, buffer for slower runners
+    timeout-minutes: 60  # Each shard should complete in 15-25min; 60min provides buffer for slow runners
+    env:
+      SHARD_TOTAL: 6  # Total number of test shards (MUST match matrix.shard_id array length below)
+    strategy:
+      fail-fast: false  # Run all shards even if one fails
+      matrix:
+        shard_id: [1, 2, 3, 4, 5, 6]  # Tenant-based sharding; update SHARD_TOTAL above if adding/removing shards
 
     steps:
       - name: Checkout code
@@ -42,12 +48,14 @@ jobs:
           pip list
 
       - name: Run linting
+        if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
         run: |
           echo "Running linting checks..."
           ruff check . --config pyproject.toml
           black --check . --config pyproject.toml
 
       - name: Run type checking (non-blocking)
+        if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
         continue-on-error: true
         run: |
           echo "Running type checking..."
@@ -58,6 +66,7 @@ jobs:
           mypy $(scripts/discover_mypy_targets.sh) --config-file pyproject.toml
 
       - name: Run security checks
+        if: matrix.shard_id == 1  # Run once (shard 1 only) - codebase-wide check
         run: |
           set +e  # Отключаем немедленный выход при ошибке
           set -u  # Проверяем неопределённые переменные
@@ -111,62 +120,51 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (shard ${{ matrix.shard_id }}/${{ env.SHARD_TOTAL }})
         env:
           PYTHONPATH: .:app:core:tests
           PYTEST_TIMEOUT: 300
+          COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
         run: |
           START_TIME=$(date +%s)
           export START_TIME
-          echo "Running test suite..."
-          # Use -c pyproject.toml to ensure pytest config is loaded (markers, filterwarnings, etc)
-          # Nightly: fail after 10 failures to collect multiple issues (not just first one)
+          echo "Running test suite (shard ${{ matrix.shard_id }}/${SHARD_TOTAL})..."
+          # Use tenant-based sharding from pytest_sharding.py
+          # Each shard runs tests for specific functional domain
+          # -n 4: fixed workers for predictable performance
           pytest -c pyproject.toml tests/ \
+            --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
             --cov=. \
-            --cov-report=xml \
+            --cov-report=xml:coverage-shard-${{ matrix.shard_id }}.xml \
             --cov-report=term-missing \
-            --cov-report=html \
-            --junitxml=tests/results.xml \
+            --junitxml=tests/results-shard-${{ matrix.shard_id }}.xml \
             --tb=short \
             -v \
-            -n auto
-
-      - name: Check test coverage
-        run: |
-          echo "Checking test coverage..."
-          python -c "
-          import xml.etree.ElementTree as ET
-          tree = ET.parse('coverage.xml')
-          root = tree.getroot()
-          coverage = float(root.attrib['line-rate']) * 100
-          print(f'Coverage: {coverage:.2f}%')
-          if coverage < 97:
-              print(f'Coverage {coverage:.2f}% is below 97% threshold')
-              exit(1)
-          "
+            -n 4 \
+            --dist loadscope
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
         if: always()
         with:
-          name: coverage-reports
+          name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            coverage.xml
-            htmlcov/
+            coverage-shard-${{ matrix.shard_id }}.xml
+            .coverage.shard-${{ matrix.shard_id }}
           retention-days: 30
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
         if: always()
         with:
-          name: test-results
-          path: tests/results.xml
+          name: test-results-shard-${{ matrix.shard_id }}
+          path: tests/results-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
 
       - name: Upload security reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
-        if: always()
+        if: always() && matrix.shard_id == 1  # Upload once (shard 1 only) to avoid duplicates
         with:
           name: security-reports
           path: |
@@ -295,4 +293,45 @@ jobs:
         with:
           name: performance-report
           path: performance-report.md
+          retention-days: 30
+
+  coverage-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # Combining coverage should be fast; timeout detects hangs
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5.2.0
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
+        with:
+          pattern: coverage-reports-shard-*
+          merge-multiple: true
+          path: coverage-artifacts
+
+      - name: Install coverage
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install coverage -c constraints.txt
+
+      - name: Combine coverage and enforce threshold
+        run: |
+          coverage combine coverage-artifacts
+          coverage report --fail-under=97
+          coverage xml -o coverage-combined.xml
+
+      - name: Upload combined coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
+        if: always()
+        with:
+          name: coverage-combined
+          path: coverage-combined.xml
           retention-days: 30

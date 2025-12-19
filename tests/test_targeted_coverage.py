@@ -27,14 +27,10 @@ class TestTargetedCoverage:
     """Targeted tests to improve coverage for specific missing lines in main.py."""
 
     def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
         """Set up test environment."""
-        # Set a test API key for testing
+        # Set test environment variables
         os.environ["API_KEY"] = "test-key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
@@ -42,6 +38,8 @@ class TestTargetedCoverage:
         # Remove the test API key
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
+        # Remove feature flag to prevent env leakage
+        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
 
     def test_bmi_endpoint_visualization_error_path(self):
         """Test BMI endpoint visualization error path - covers lines 346-351."""
