@@ -65,10 +65,14 @@ jobs:
           PYTHONWARNINGS: default
         run: |
           # Run parallel tests (exclude serial-marked tests to avoid xdist hang)
-          pytest -q --disable-warnings --cov=. --cov-report=xml -n auto -m "not serial"
+          pytest -q --disable-warnings --cov=. -n auto -m "not serial"
 
           # Run serial tests separately (coverage append mode)
-          pytest -q --disable-warnings --cov=. --cov-append --cov-report=xml -n 0 -m serial || true
+          pytest -q --disable-warnings --cov=. --cov-append -n 0 -m serial
+
+      - name: Generate combined coverage XML
+        run: |
+          python -m coverage xml -i -o coverage.xml
 
       - name: Upload coverage artifact
         if: always()

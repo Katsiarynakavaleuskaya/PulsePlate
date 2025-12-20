@@ -36,21 +36,32 @@ logger = logging.getLogger(__name__)
 # Cache database instances for performance (shared with pro.py pattern)
 _premium_food_db_cache: Optional[FoodDB] = None
 _premium_recipe_db_cache: Optional[RecipeDB] = None
+_premium_food_db_cache_source: object | None = None
+_premium_recipe_db_cache_source: object | None = None
+_premium_recipe_db_food_source: object | None = None
 
 
 def _get_food_db() -> FoodDB:
     """Get cached FoodDB instance for premium router."""
-    global _premium_food_db_cache
-    if _premium_food_db_cache is None:
+    global _premium_food_db_cache, _premium_food_db_cache_source
+    if _premium_food_db_cache is None or _premium_food_db_cache_source is not FoodDB:
         _premium_food_db_cache = FoodDB("data/food_db_new.csv")
+        _premium_food_db_cache_source = FoodDB
     return _premium_food_db_cache
 
 
 def _get_recipe_db() -> RecipeDB:
     """Get cached RecipeDB instance for premium router."""
-    global _premium_recipe_db_cache
-    if _premium_recipe_db_cache is None:
-        _premium_recipe_db_cache = RecipeDB("data/recipes_new.csv", _get_food_db())
+    global _premium_recipe_db_cache, _premium_recipe_db_cache_source, _premium_recipe_db_food_source
+    fooddb = _get_food_db()
+    if (
+        _premium_recipe_db_cache is None
+        or _premium_recipe_db_cache_source is not RecipeDB
+        or _premium_recipe_db_food_source is not fooddb
+    ):
+        _premium_recipe_db_cache = RecipeDB("data/recipes_new.csv", fooddb)
+        _premium_recipe_db_cache_source = RecipeDB
+        _premium_recipe_db_food_source = fooddb
     return _premium_recipe_db_cache
 
 

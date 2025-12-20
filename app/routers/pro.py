@@ -57,21 +57,32 @@ SEGMENT_STYLE: Dict[str, Dict[str, str]] = {
 # Cache database instances for performance
 _food_db_cache: Optional[FoodDB] = None
 _recipe_db_cache: Optional[RecipeDB] = None
+_food_db_cache_source: object | None = None
+_recipe_db_cache_source: object | None = None
+_recipe_db_food_source: object | None = None
 
 
 def get_food_db() -> FoodDB:
     """Get cached FoodDB instance."""
-    global _food_db_cache
-    if _food_db_cache is None:
+    global _food_db_cache, _food_db_cache_source
+    if _food_db_cache is None or _food_db_cache_source is not FoodDB:
         _food_db_cache = FoodDB("data/food_db_new.csv")
+        _food_db_cache_source = FoodDB
     return _food_db_cache
 
 
 def get_recipe_db() -> RecipeDB:
     """Get cached RecipeDB instance."""
-    global _recipe_db_cache
-    if _recipe_db_cache is None:
-        _recipe_db_cache = RecipeDB("data/recipes_new.csv", get_food_db())
+    global _recipe_db_cache, _recipe_db_cache_source, _recipe_db_food_source
+    fooddb = get_food_db()
+    if (
+        _recipe_db_cache is None
+        or _recipe_db_cache_source is not RecipeDB
+        or _recipe_db_food_source is not fooddb
+    ):
+        _recipe_db_cache = RecipeDB("data/recipes_new.csv", fooddb)
+        _recipe_db_cache_source = RecipeDB
+        _recipe_db_food_source = fooddb
     return _recipe_db_cache
 
 
