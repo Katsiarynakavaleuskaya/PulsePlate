@@ -397,8 +397,13 @@ class TestInternalsAndEdgeBranches:
         report = analyzer.generate_test_report()
         assert report["recommendations"] == []
 
+    @pytest.mark.serial
     def test_module_level_helpers_use_global_analyzer(self) -> None:
-        """Global helper functions should delegate and return a BayesianDiagnosis."""
+        """Global helper functions should delegate and return a BayesianDiagnosis.
+
+        Note: Marked as serial because global_analyzer writes to shared state
+        (file/SQLite) which is not process-safe under xdist parallel execution.
+        """
         # Preserve global analyzer state to avoid cross-test pollution
         original_analyzer = bayesian_test_analyzer.get_analyzer()
         try:
