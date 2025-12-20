@@ -51,7 +51,7 @@ jobs:
           MC_SAMPLES: '40'
           MC_SAMPLES_FEW: '15'
         run: |
-          pytest -c pyproject.toml -m "not demo" -n auto -q \
+          pytest -c pyproject.toml -m "not demo" -n auto --dist=loadgroup -q \
             --durations=25 --durations-min=1.0 \
             -r fEsxXw \
             -o faulthandler_timeout=300 \
