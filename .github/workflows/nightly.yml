@@ -125,8 +125,8 @@ jobs:
           PYTHONPATH: .:tests
           PYTEST_TIMEOUT: 300
           PYTHONFAULTHANDLER: 1
-          COV_CORE_DATAFILE: .coverage.shard-${{ matrix.shard_id }}
-          COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
+          COV_CORE_DATAFILE: coverage-data/shard-${{ matrix.shard_id }}/.coverage
+          COVERAGE_FILE: coverage-data/shard-${{ matrix.shard_id }}/.coverage
         run: |
           START_TIME=$(date +%s)
           export START_TIME
@@ -147,8 +147,9 @@ jobs:
 
           # Step 1: Run parallel tests (exclude serial-marked tests to avoid xdist hang)
           echo "=== Running parallel tests (-n 4, excluding serial) ==="
-          export COV_CORE_DATAFILE=".coverage.shard-${{ matrix.shard_id }}"
-          export COVERAGE_FILE=".coverage.shard-${{ matrix.shard_id }}"
+          mkdir -p coverage-data/shard-${{ matrix.shard_id }}
+          export COV_CORE_DATAFILE="coverage-data/shard-${{ matrix.shard_id }}/.coverage"
+          export COVERAGE_FILE="coverage-data/shard-${{ matrix.shard_id }}/.coverage"
           run_with_timeout python -X faulthandler -m pytest -c pyproject.toml tests/ \
             --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
@@ -168,8 +169,8 @@ jobs:
 
           # Step 2: Run serial tests (coverage-smoke imports heavy modules that hang xdist)
           echo "=== Running serial tests (-n 0, serial only) ==="
-          export COV_CORE_DATAFILE=".coverage.shard-${{ matrix.shard_id }}"
-          export COVERAGE_FILE=".coverage.shard-${{ matrix.shard_id }}"
+          export COV_CORE_DATAFILE="coverage-data/shard-${{ matrix.shard_id }}/.coverage"
+          export COVERAGE_FILE="coverage-data/shard-${{ matrix.shard_id }}/.coverage"
           run_with_timeout python -X faulthandler -m pytest -c pyproject.toml tests/ \
             --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
@@ -192,10 +193,8 @@ jobs:
           echo "PWD=$(pwd)"
           echo "COV_CORE_DATAFILE=${COV_CORE_DATAFILE}"
           echo "COVERAGE_FILE=${COVERAGE_FILE}"
-          echo "=== ls repo root ==="
-          ls -la
-          echo "=== find .coverage* files ==="
-          find . -maxdepth 2 -name ".coverage*" -type f -print -exec ls -la {} \; || true
+          echo "=== shard coverage files ==="
+          find coverage-data -type f -maxdepth 3 -print -ls || true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -203,7 +202,7 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            .coverage.shard-${{ matrix.shard_id }}
+            coverage-data/shard-${{ matrix.shard_id }}/.coverage*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
           if-no-files-found: warn
@@ -380,9 +379,9 @@ jobs:
           echo "=== all files (max depth 3) ==="
           find coverage-artifacts -maxdepth 3 -type f -print || true
           echo "=== coverage data files ==="
-          find coverage-artifacts -name ".coverage.shard-*" -print || true
+          find coverage-artifacts/coverage-data -name ".coverage*" -print || true
           echo "=== file count check ==="
-          file_count=$(find coverage-artifacts -type f -name ".coverage.shard-*" | wc -l || true)
+          file_count=$(find coverage-artifacts/coverage-data -type f -name ".coverage*" | wc -l || true)
           echo "${file_count}"
           # NOTE: Each shard may produce multiple coverage files (one per worker)
           # Require at least SHARD_TOTAL files (6), but allow more
@@ -399,12 +398,9 @@ jobs:
 
       - name: Combine coverage and enforce threshold
         run: |
-          mapfile -t coverage_files < <(find coverage-artifacts -type f -name ".coverage.shard-*" -print | sort)
-          if [ "${#coverage_files[@]}" -eq 0 ]; then
-            echo "ERROR: No coverage shard files found to combine."
-            exit 1
-          fi
-          coverage combine "${coverage_files[@]}"
+          coverage combine coverage-artifacts/coverage-data/shard-*
+          coverage debug data
+          coverage report -m | head -n 50
           coverage report --fail-under=97
           coverage xml -o coverage-combined.xml
 
