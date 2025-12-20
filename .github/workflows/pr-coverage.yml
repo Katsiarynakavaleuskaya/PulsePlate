@@ -74,6 +74,13 @@ jobs:
         run: |
           python -m coverage xml -i -o coverage.xml
 
+      - name: Verify coverage XML
+        run: |
+          if [ ! -s coverage.xml ]; then
+            echo "ERROR: coverage.xml was not generated or is empty."
+            exit 1
+          fi
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
