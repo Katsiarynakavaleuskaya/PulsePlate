@@ -195,7 +195,7 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            .coverage.shard-${{ matrix.shard_id }}
+            .coverage.shard-${{ matrix.shard_id }}*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
           if-no-files-found: warn
@@ -371,16 +371,16 @@ jobs:
           ls -la coverage-artifacts || true
           echo "=== all files (max depth 3) ==="
           find coverage-artifacts -maxdepth 3 -type f -print || true
-          echo "=== .coverage* files ==="
-          find coverage-artifacts -name ".coverage*" -print || true
+          echo "=== .coverage.shard-* files ==="
+          find coverage-artifacts -name ".coverage.shard-*" -print || true
           echo "=== file count check ==="
-          file_count=$(find coverage-artifacts -type f -name ".coverage*" | wc -l || true)
+          file_count=$(find coverage-artifacts -type f -name ".coverage.shard-*" | wc -l || true)
           echo "${file_count}"
-          # NOTE: expected_count must match SHARD_TOTAL env and matrix.shard_id array length
-          # TODO: Make dynamic via ${SHARD_TOTAL} once env is accessible in merge job
-          expected_count=6
-          if [ "${file_count}" -ne "${expected_count}" ]; then
-            echo "ERROR: Expected ${expected_count} coverage shard files, found ${file_count}."
+          # NOTE: Each shard may produce multiple coverage files (one per worker)
+          # Require at least SHARD_TOTAL files (6), but allow more
+          expected_min=6
+          if [ "${file_count}" -lt "${expected_min}" ]; then
+            echo "ERROR: Expected at least ${expected_min} coverage shard files, found ${file_count}."
             exit 1
           fi
 
