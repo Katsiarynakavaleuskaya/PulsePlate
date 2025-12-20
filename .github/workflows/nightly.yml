@@ -374,7 +374,13 @@ jobs:
           echo "=== .coverage* files ==="
           find coverage-artifacts -name ".coverage*" -print || true
           echo "=== file count check ==="
-          find coverage-artifacts -type f -name ".coverage*" | wc -l || true
+          file_count=$(find coverage-artifacts -type f -name ".coverage*" | wc -l || true)
+          echo "${file_count}"
+          expected_count=6
+          if [ "${file_count}" -ne "${expected_count}" ]; then
+            echo "ERROR: Expected ${expected_count} coverage shard files, found ${file_count}."
+            exit 1
+          fi
 
       - name: Install coverage
         run: |
