@@ -343,6 +343,12 @@ class BayesianTestAnalyzer:
         Thread-safe: Acquires _analyzer_lock to read execution_history,
         then releases it before file I/O to avoid blocking other operations.
         """
+        # Disable persistence under xdist to prevent in-process reentrant deadlock
+        import os
+
+        if os.environ.get("PYTEST_XDIST_WORKER"):
+            return
+
         # В CI по умолчанию отключаем запись истории, чтобы избежать нестабильных тестов и гонок
         if not self.persist_enabled:
             return
