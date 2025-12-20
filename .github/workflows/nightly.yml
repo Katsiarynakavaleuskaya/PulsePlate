@@ -383,12 +383,16 @@ jobs:
           find coverage-artifacts -maxdepth 3 -type f -print || true
           echo "=== coverage XML shard files ==="
           find coverage-artifacts -type f -name "coverage-shard-*.xml" -print || true
+          echo "=== binary .coverage data files ==="
+          find coverage-artifacts -type f -name ".coverage*" -print || true
           echo "=== file count check ==="
-          file_count=$(find coverage-artifacts -type f -name "coverage-shard-*.xml" | wc -l || true)
+          # Validate binary .coverage files since coverage combine needs them
+          file_count=$(find coverage-artifacts/coverage-data -type f -name ".coverage*" 2>/dev/null | wc -l || echo 0)
           echo "${file_count}"
+          # Must match SHARD_TOTAL in test job (see job "test" near line 17); env vars don't persist across jobs.
           expected_count=6
           if [ "${file_count}" -lt "${expected_count}" ]; then
-            echo "ERROR: Expected ${expected_count} coverage XML shard files, found ${file_count}."
+            echo "ERROR: Expected ${expected_count} binary .coverage data files, found ${file_count}."
             exit 1
           fi
 
@@ -399,7 +403,7 @@ jobs:
 
       - name: Combine coverage and enforce threshold
         run: |
-          coverage combine coverage-artifacts/coverage-data/shard-*
+          coverage combine coverage-artifacts/coverage-data/shard-*/.coverage
           coverage debug data
           coverage report -m | head -n 50
           coverage report --fail-under=97
