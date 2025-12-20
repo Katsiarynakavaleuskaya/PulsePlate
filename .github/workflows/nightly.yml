@@ -147,6 +147,8 @@ jobs:
 
           # Step 1: Run parallel tests (exclude serial-marked tests to avoid xdist hang)
           echo "=== Running parallel tests (-n 4, excluding serial) ==="
+          export COV_CORE_DATAFILE=".coverage.shard-${{ matrix.shard_id }}"
+          export COVERAGE_FILE=".coverage.shard-${{ matrix.shard_id }}"
           run_with_timeout python -X faulthandler -m pytest -c pyproject.toml tests/ \
             --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
@@ -166,6 +168,8 @@ jobs:
 
           # Step 2: Run serial tests (coverage-smoke imports heavy modules that hang xdist)
           echo "=== Running serial tests (-n 0, serial only) ==="
+          export COV_CORE_DATAFILE=".coverage.shard-${{ matrix.shard_id }}"
+          export COVERAGE_FILE=".coverage.shard-${{ matrix.shard_id }}"
           run_with_timeout python -X faulthandler -m pytest -c pyproject.toml tests/ \
             --shard-id=${{ matrix.shard_id }} \
             --maxfail=10 \
