@@ -195,8 +195,7 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            .coverage*
-            **/.coverage*
+            .coverage.shard-*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
           if-no-files-found: warn
@@ -375,7 +374,7 @@ jobs:
           echo "=== .coverage* files ==="
           find coverage-artifacts -name ".coverage*" -print || true
           echo "=== file count check ==="
-          find coverage-artifacts -name ".coverage*" | wc -l || true
+          find coverage-artifacts -type f -name ".coverage*" | wc -l || true
 
       - name: Install coverage
         run: |
