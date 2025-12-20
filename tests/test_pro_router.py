@@ -21,6 +21,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent time.sleep in any core logic to avoid test hangs."""
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
+
 class TestProRouterIsolated:
     """Isolated TestClient tests for app/routers/pro.py endpoints."""
 
