@@ -22,6 +22,16 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
+import app.routers.users as users_mod
+
+
+@pytest.fixture(autouse=True)
+def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent time.sleep in retry logic to avoid test hangs."""
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda _: None)
+
 
 class TestUsersRouter:
     """Test users router with isolated FastAPI app."""
@@ -129,6 +139,10 @@ class TestUsersRouter:
             resp = self.client.get("/api/v1/users/1")
 
             assert resp.status_code == 200
+            data = resp.json()
+            assert data["id"] == 1
+            assert data["email"] == "test@example.com"
+            assert data["name"] == "Test User"
 
     def test_delete_user_success_204(self) -> None:
         """DELETE /api/v1/users/{user_id} returns 204 on success."""
@@ -166,3 +180,20 @@ class TestUsersRouter:
 
             assert resp.status_code == 503
             assert "unavailable" in resp.json()["detail"].lower()
+
+    def test_db_operational_error_then_success(self) -> None:
+        """Test retry recovery: OperationalError on first attempt, then succeeds."""
+        with patch.object(users_mod.db_module, "get_session_factory") as mock_factory:
+            mock_session = MagicMock()
+
+            # First call fails, second succeeds
+            mock_session.execute.side_effect = [
+                OperationalError("DB locked", None, None),
+                MagicMock(scalars=lambda: MagicMock(all=lambda: [])),
+            ]
+            mock_factory.return_value = lambda: mock_session
+
+            resp = self.client.get("/api/v1/users")
+
+            assert resp.status_code == 200
+            assert resp.json() == []
