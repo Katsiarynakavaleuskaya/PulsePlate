@@ -132,6 +132,9 @@ jobs:
           export START_TIME
           echo "Running test suite (shard ${{ matrix.shard_id }}/${SHARD_TOTAL})..."
 
+          # Create coverage directory for this shard
+          mkdir -p coverage-data/shard-${{ matrix.shard_id }}
+
           run_with_timeout() {
             timeout --signal=SIGQUIT --kill-after=5m 30m "$@"
             status=$?
@@ -147,7 +150,6 @@ jobs:
 
           # Step 1: Run parallel tests (exclude serial-marked tests to avoid xdist hang)
           echo "=== Running parallel tests (-n 4, excluding serial) ==="
-          mkdir -p coverage-data/shard-${{ matrix.shard_id }}
           export COV_CORE_DATAFILE="coverage-data/shard-${{ matrix.shard_id }}/.coverage"
           export COVERAGE_FILE="coverage-data/shard-${{ matrix.shard_id }}/.coverage"
           run_with_timeout python -X faulthandler -m pytest -c pyproject.toml tests/ \
