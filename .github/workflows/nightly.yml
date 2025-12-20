@@ -373,15 +373,15 @@ jobs:
           echo "=== all files (max depth 3) ==="
           find coverage-artifacts -maxdepth 3 -type f -print || true
           echo "=== .coverage* files ==="
-          find coverage-artifacts -name ".coverage*" -print || true
+          find coverage-artifacts -name ".coverage.shard-*" -print || true
           echo "=== file count check ==="
-          file_count=$(find coverage-artifacts -type f -name ".coverage*" | wc -l || true)
+          file_count=$(find coverage-artifacts -type f -name ".coverage.shard-*" | wc -l || true)
           echo "${file_count}"
           # NOTE: Each shard may produce multiple coverage files (one per worker)
           # Require at least SHARD_TOTAL files (6), but allow more
           expected_min=6
           if [ "${file_count}" -lt "${expected_min}" ]; then
-            echo "ERROR: Expected at least ${expected_min} coverage data files, found ${file_count}."
+            echo "ERROR: Expected at least ${expected_min} coverage shard files, found ${file_count}."
             exit 1
           fi
 
