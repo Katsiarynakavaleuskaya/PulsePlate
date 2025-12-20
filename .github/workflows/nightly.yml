@@ -125,6 +125,7 @@ jobs:
           PYTHONPATH: .:tests
           PYTEST_TIMEOUT: 300
           PYTHONFAULTHANDLER: 1
+          COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
         run: |
           START_TIME=$(date +%s)
           export START_TIME
@@ -194,9 +195,10 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            **/.coverage*
+            .coverage.shard-*
             coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -367,9 +369,18 @@ jobs:
           echo "PWD=$(pwd)"
           echo "=== coverage-artifacts tree ==="
           ls -la coverage-artifacts || true
+          echo "=== all files (max depth 3) ==="
           find coverage-artifacts -maxdepth 3 -type f -print || true
-          echo "=== looking for .coverage files ==="
-          find coverage-artifacts -maxdepth 3 -name ".coverage*" -print || true
+          echo "=== .coverage* files ==="
+          find coverage-artifacts -name ".coverage*" -print || true
+          echo "=== file count check ==="
+          file_count=$(find coverage-artifacts -type f -name ".coverage*" | wc -l || true)
+          echo "${file_count}"
+          expected_count=6
+          if [ "${file_count}" -ne "${expected_count}" ]; then
+            echo "ERROR: Expected ${expected_count} coverage shard files, found ${file_count}."
+            exit 1
+          fi
 
       - name: Install coverage
         run: |
