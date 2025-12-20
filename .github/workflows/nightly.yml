@@ -125,6 +125,7 @@ jobs:
           PYTHONPATH: .:tests
           PYTEST_TIMEOUT: 300
           PYTHONFAULTHANDLER: 1
+          COV_CORE_DATAFILE: .coverage.shard-${{ matrix.shard_id }}
           COVERAGE_FILE: .coverage.shard-${{ matrix.shard_id }}
         run: |
           START_TIME=$(date +%s)
@@ -185,26 +186,12 @@ jobs:
         if: always()
         run: |
           echo "PWD=$(pwd)"
-          echo "GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
+          echo "COV_CORE_DATAFILE=${COV_CORE_DATAFILE}"
           echo "COVERAGE_FILE=${COVERAGE_FILE}"
           echo "=== ls repo root ==="
           ls -la
-          echo "=== find .coverage* in workspace ==="
-          find "${GITHUB_WORKSPACE}" -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
-
-      - name: Stage coverage data for upload
-        if: always()
-        run: |
-          mkdir -p coverage-data
-          index=0
-          for file in .coverage*; do
-            if [ -f "${file}" ]; then
-              cp "${file}" "coverage-data/coverage-${{ matrix.shard_id }}-${index}.dat"
-              index=$((index+1))
-            fi
-          done
-          echo "Staged ${index} coverage data file(s)"
-          ls -la coverage-data || true
+          echo "=== find .coverage* files ==="
+          find . -maxdepth 2 -name ".coverage*" -type f -print -exec ls -la {} \; || true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -212,10 +199,10 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            ${{ github.workspace }}/coverage-data/coverage-${{ matrix.shard_id }}-*.dat
-            ${{ github.workspace }}/coverage-shard-${{ matrix.shard_id }}.xml
+            .coverage.shard-${{ matrix.shard_id }}
+            coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -389,15 +376,15 @@ jobs:
           echo "=== all files (max depth 3) ==="
           find coverage-artifacts -maxdepth 3 -type f -print || true
           echo "=== coverage data files ==="
-          find coverage-artifacts -name "coverage-*.dat" -print || true
+          find coverage-artifacts -name ".coverage.shard-*" -print || true
           echo "=== file count check ==="
-          file_count=$(find coverage-artifacts -type f -name "coverage-*.dat" | wc -l || true)
+          file_count=$(find coverage-artifacts -type f -name ".coverage.shard-*" | wc -l || true)
           echo "${file_count}"
           # NOTE: Each shard may produce multiple coverage files (one per worker)
           # Require at least SHARD_TOTAL files (6), but allow more
           expected_min=6
           if [ "${file_count}" -lt "${expected_min}" ]; then
-            echo "ERROR: Expected at least ${expected_min} coverage data files, found ${file_count}."
+            echo "ERROR: Expected at least ${expected_min} coverage shard files, found ${file_count}."
             exit 1
           fi
 
@@ -408,9 +395,9 @@ jobs:
 
       - name: Combine coverage and enforce threshold
         run: |
-          mapfile -t coverage_files < <(find coverage-artifacts -type f -name "coverage-*.dat" -print | sort)
+          mapfile -t coverage_files < <(find coverage-artifacts -type f -name ".coverage.shard-*" -print | sort)
           if [ "${#coverage_files[@]}" -eq 0 ]; then
-            echo "ERROR: No coverage data files found to combine."
+            echo "ERROR: No coverage shard files found to combine."
             exit 1
           fi
           coverage combine "${coverage_files[@]}"
