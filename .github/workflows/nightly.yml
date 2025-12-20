@@ -185,9 +185,12 @@ jobs:
         if: always()
         run: |
           echo "PWD=$(pwd)"
+          echo "GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
+          echo "COVERAGE_FILE=${COVERAGE_FILE}"
+          echo "=== ls repo root ==="
           ls -la
-          echo "=== looking for .coverage files ==="
-          find . -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
+          echo "=== find .coverage* in workspace ==="
+          find "${GITHUB_WORKSPACE}" -maxdepth 3 -name ".coverage*" -print -exec ls -la {} \; || true
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
@@ -195,11 +198,10 @@ jobs:
         with:
           name: coverage-reports-shard-${{ matrix.shard_id }}
           path: |
-            .coverage.shard-${{ matrix.shard_id }}*
-            **/.coverage.shard-${{ matrix.shard_id }}*
-            coverage-shard-${{ matrix.shard_id }}.xml
+            ${{ github.workspace }}/.coverage.shard-${{ matrix.shard_id }}*
+            ${{ github.workspace }}/coverage-shard-${{ matrix.shard_id }}.xml
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload test results
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0
