@@ -355,6 +355,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15  # Combining coverage should be fast; timeout detects hangs
     needs: test
+    env:
+      SHARD_TOTAL: 6  # Must match test job matrix.shard_id array length
 
     steps:
       - name: Checkout code
@@ -387,10 +389,11 @@ jobs:
           find coverage-artifacts -type f -name ".coverage*" -print || true
           echo "=== file count check ==="
           # Validate binary .coverage files since coverage combine needs them
+          # SHARD_TOTAL must match matrix.shard_id array length in test job
+          expected_count="${SHARD_TOTAL:-6}"
+          echo "expected_count=${expected_count}"
           file_count=$(find coverage-artifacts/coverage-data -type f -name ".coverage*" 2>/dev/null | wc -l || echo 0)
-          echo "${file_count}"
-          # Must match SHARD_TOTAL in test job (see job "test" near line 17); env vars don't persist across jobs.
-          expected_count=6
+          echo "file_count=${file_count}"
           if [ "${file_count}" -lt "${expected_count}" ]; then
             echo "ERROR: Expected ${expected_count} binary .coverage data files, found ${file_count}."
             exit 1
