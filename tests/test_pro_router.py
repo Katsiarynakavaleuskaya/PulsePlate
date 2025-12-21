@@ -20,6 +20,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+EXPECTED_DAILY_SEGMENTS = ["vegetables", "protein", "carbs", "fats"]
+
 
 @pytest.fixture(autouse=True)
 def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,7 +146,7 @@ class TestProRouterIsolated:
     def test_weekly_meal_plan_happy_path_with_targets(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """POST /meal/weekly with explicit targets returns 200."""
+        """POST /meal/weekly with profile + explicit targets uses targets path."""
         self._patch_week_core(monkeypatch)
 
         payload = {
@@ -154,12 +156,12 @@ class TestProRouterIsolated:
             "weight_kg": 80,
             "activity": "moderate",
             "goal": "maintain",
-            "targets": {
-                "kcal": 2000.0,
+            "targets": {  # Explicit targets override profile-derived values
+                "kcal": 1800.0,
                 "macros": {
-                    "protein_g": 50.0,
-                    "carbs_g": 60.0,
-                    "fat_g": 20.0,
+                    "protein_g": 80.0,
+                    "carbs_g": 200.0,
+                    "fat_g": 60.0,
                 },
                 "micro": {},
             },
@@ -212,7 +214,8 @@ class TestProRouterIsolated:
 
         segments = data["segments"]
         assert isinstance(segments, list)
-        assert len(segments) == 4
+        assert len(segments) == len(EXPECTED_DAILY_SEGMENTS)
+        assert [segment["name"] for segment in segments] == EXPECTED_DAILY_SEGMENTS
 
         for s in segments:
             assert "name" in s
