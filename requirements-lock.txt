@@ -112,7 +112,7 @@ reportlab==4.4.5
 requests==2.32.5
 rich==14.2.0
 rpds-py==0.30.0
-ruamel.yaml==0.18.16
+ruamel.yaml==0.18.17
 ruamel.yaml.clib==0.2.15
 ruff==0.14.9
 safety==3.7.0
