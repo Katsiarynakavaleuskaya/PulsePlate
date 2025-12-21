@@ -1,5 +1,4 @@
-"""
-Basic tests to improve coverage for food_apis modules.
+"""Basic tests to improve coverage for food_apis modules.
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
@@ -9,6 +8,10 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+# Serialize all tests in this file under xdist to prevent worker crashes
+# from scheduler/food API shared state and I/O operations
+pytestmark = [pytest.mark.xdist_group(name="food_api_scheduler")]
 
 
 # Test unified_db module
