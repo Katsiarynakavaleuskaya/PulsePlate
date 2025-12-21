@@ -7,6 +7,7 @@ Covers the technical test analyzer for code quality checks.
 
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 
 import pytest
 import builtins
@@ -521,8 +522,16 @@ class TestOptimizationAndPersistence:
         assert ordered[-1] == "test_low"
         assert set(ordered) == {"test_high", "test_medium", "test_low"}
 
+    @pytest.mark.skipif(
+        os.environ.get("PYTEST_XDIST_WORKER") is not None,
+        reason="Persistence disabled under xdist to avoid shared I/O deadlocks",
+    )
     def test_history_persistence_roundtrip(self, tmp_path: Path) -> None:
-        """Execution history should be persisted and reloaded when enabled."""
+        """Execution history should be persisted and reloaded when enabled.
+
+        Note: Skipped under xdist because save_history() is disabled in parallel
+        mode to prevent file lock contention. Persistence tests run in serial mode.
+        """
         history_file = tmp_path / "test_execution_history.json"
 
         analyzer = BayesianTestAnalyzer(data_file=history_file)
