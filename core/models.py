@@ -260,4 +260,48 @@ class ContextEntry(Base):
     )
 
 
-__all__: list[str] = ["User", "Recipe", "Meal", "FoodItem", "ContextEntry"]
+class AnalyzerStateModel(Base):
+    """RU: Состояние байес-анализатора (source of truth для Postgres/SQLite).
+    EN: Bayesian analyzer state storage with versioning and optimistic locking.
+
+    Stores analyzer state with JSON payload (JSONB on Postgres) for flexibility.
+    Unique constraint on (user_id, analyzer_key) ensures one state per user-analyzer pair.
+    state_version enables optimistic concurrency control for safe multi-worker updates.
+    """
+
+    __tablename__ = "analyzer_state"
+    __table_args__ = (
+        Index("ix_analyzer_state_user_id", "user_id"),
+        Index("ix_analyzer_state_analyzer_key", "analyzer_key"),
+        Index("uq_analyzer_state_user_key", "user_id", "analyzer_key", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    analyzer_key: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    state_schema_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    state_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+
+    # JSON on SQLite, JSONB on Postgres via with_variant
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        MutableDict.as_mutable(JSON),
+        nullable=False,
+        default=lambda: {},
+        server_default=text("'{}'"),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+__all__: list[str] = ["User", "Recipe", "Meal", "FoodItem", "ContextEntry", "AnalyzerStateModel"]
