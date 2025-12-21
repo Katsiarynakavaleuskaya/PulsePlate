@@ -15,6 +15,7 @@ from tests.test_helpers import skip_if_no_plate_micros
 
 
 @pytest.mark.slow
+@pytest.mark.serial  # Hypothesis tests not xdist-safe due to heavy state/randomness
 class TestPlateTargetsMicrosHypothesis:
     """Hypothesis-based tests for Plate → Targets micros integration."""
 
