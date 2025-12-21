@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import time
+from typing import Any, Dict
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+class TestShoppingListProRouterIsolated:
+    """Isolated tests for the PRO shopping list router.
+
+    These tests mount only the /api/v1/pro/meal/shopping-list endpoint on a fresh
+    FastAPI app and override auth/dependencies as needed.
+    """
+
+    app: FastAPI
+    client: TestClient
+    mod: Any
+
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Prevent accidental time.sleep calls from causing flakiness under xdist."""
+
+        monkeypatch.setattr(time, "sleep", lambda *_a, **_kw: None)
+
+    def setup_method(self) -> None:
+        import app.routers.shopping_list_pro as shopping_mod
+
+        self.mod = shopping_mod
+        self.app = FastAPI()
+        self.app.include_router(self.mod.router)
+        self.app.dependency_overrides = {}
+        self.client = TestClient(self.app)
+
+    def teardown_method(self) -> None:
+        self.client.close()
+        self.app.dependency_overrides.clear()
+
+    def _pro_ok(self) -> None:
+        """Bypass PRO tier checks by overriding require_pro_tier."""
+
+        self.app.dependency_overrides[self.mod.require_pro_tier] = lambda: "test_pro_key"
+
+    def test_generate_shopping_list_requires_pro_auth(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Requests without PRO auth should be rejected before generator is called."""
+
+        # Do not override require_pro_tier here: we want the auth guard to run.
+        def _boom(**_kwargs: Any) -> None:
+            raise AssertionError(
+                "generate_shopping_list_from_plan must not be called without PRO access"
+            )
+
+        monkeypatch.setattr(self.mod, "generate_shopping_list_from_plan", _boom)
+
+        payload: Dict[str, Any] = {"plan_data": {"days": []}}
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code in (401, 403), resp.text
+
+    def test_generate_shopping_list_200_inline_plan(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Happy path: inline plan_data with valid preferences returns 200."""
+
+        self._pro_ok()
+
+        expected: Dict[str, Any] = {
+            "categories": [],
+            "total_items": 1,
+            "generated_at": "2025-01-01T00:00:00Z",
+            "meta": {
+                "source": "inline_plan",
+                "unit_system": "metric",
+                "warnings": [],
+            },
+        }
+
+        def _fake_generate(*, plan_data: Any, preferences: Any, source: str) -> Dict[str, Any]:
+            assert source == "inline_plan"
+            assert plan_data == {"days": []}
+            # preferences is a ShoppingListPreferences instance; avoid over-asserting
+            assert preferences.unit_system == "metric"
+            return expected
+
+        monkeypatch.setattr(self.mod, "generate_shopping_list_from_plan", _fake_generate)
+
+        payload: Dict[str, Any] = {
+            "plan_data": {"days": []},
+            "preferences": {
+                "group_by": "category",
+                "unit_system": "metric",
+                "exclude_items": [],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["total_items"] == 1
+        assert body["meta"]["source"] == "inline_plan"
+        assert body["meta"]["unit_system"] == "metric"
+
+    def test_generate_shopping_list_422_group_by_recipe_not_supported(self) -> None:
+        """group_by='recipe' should be rejected with 422, as per router guard."""
+
+        self._pro_ok()
+
+        payload: Dict[str, Any] = {
+            "plan_data": {"days": []},
+            "preferences": {
+                "group_by": "recipe",
+                "unit_system": "metric",
+                "exclude_items": [],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 422, resp.text
+        assert "group_by='recipe' is not supported yet" in resp.json()["detail"]
+
+    def test_generate_shopping_list_422_imperial_not_supported(self) -> None:
+        """unit_system='imperial' should be rejected with 422."""
+
+        self._pro_ok()
+
+        payload: Dict[str, Any] = {
+            "plan_data": {"days": []},
+            "preferences": {
+                "group_by": "category",
+                "unit_system": "imperial",
+                "exclude_items": [],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 422, resp.text
+        assert "unit_system='imperial' is not supported yet" in resp.json()["detail"]
+
+    def test_generate_shopping_list_422_exclude_or_tags_not_supported(self) -> None:
+        """exclude_items or dietary_tags should currently be rejected with 422."""
+
+        self._pro_ok()
+
+        payload: Dict[str, Any] = {
+            "plan_data": {"days": []},
+            "preferences": {
+                "group_by": "category",
+                "unit_system": "metric",
+                "exclude_items": ["milk"],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 422, resp.text
+        assert "exclude_items and dietary_tags are not supported yet" in resp.json()["detail"]
+
+    def test_generate_shopping_list_501_weekly_plan_id_path(self) -> None:
+        """weekly_plan_id path is stubbed and should return 501 Not Implemented."""
+
+        self._pro_ok()
+
+        payload: Dict[str, Any] = {
+            "weekly_plan_id": "plan_abc123",
+            "preferences": {
+                "group_by": "category",
+                "unit_system": "metric",
+                "exclude_items": [],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 501, resp.text
+        assert "weekly_plan_id support not yet implemented" in resp.json()["detail"]
+
+    def test_generate_shopping_list_422_xor_validation_no_sources(self) -> None:
+        """Pydantic model should enforce XOR: missing both sources → 422."""
+
+        self._pro_ok()
+
+        payload: Dict[str, Any] = {
+            "preferences": {
+                "group_by": "category",
+                "unit_system": "metric",
+                "exclude_items": [],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 422, resp.text
+        # Detail format is Pydantic error list; we just check it mentions weekly_plan_id/plan_data.
+        detail_str = str(resp.json()["detail"]).lower()
+        assert "weekly_plan_id" in detail_str or "plan_data" in detail_str
