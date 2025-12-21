@@ -151,6 +151,7 @@ class TestDatabaseUpdateManager:
 
 
 # Test scheduler module
+@pytest.mark.xdist_group(name="food_api_scheduler")
 class TestDatabaseUpdateScheduler:
     """Basic tests for DatabaseUpdateScheduler to improve coverage."""
 
