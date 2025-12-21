@@ -33,7 +33,7 @@ dparse==0.6.4
 email-validator==2.3.0
 execnet==2.1.2
 Faker==38.2.0
-fastapi==0.124.4
+fastapi==0.126.0
 fastuuid==0.14.0
 filelock==3.20.1
 fonttools==4.61.0
@@ -73,7 +73,7 @@ mypy_extensions==1.1.0
 nltk==3.9.2
 nodeenv==1.9.1
 numpy==2.3.5
-openai==2.11.0
+openai==2.14.0
 packageurl-python==0.17.6
 packaging==25.0
 pathspec==0.12.1
