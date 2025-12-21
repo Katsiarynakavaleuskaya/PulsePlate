@@ -107,6 +107,42 @@ class TestBusinessRouterIsolated:
         assert resp.status_code == 413, resp.text
         assert resp.json()["detail"] == "business_payload_too_large"
 
+    def test_analyze_200_payload_at_size_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Exact 100KB payload should be accepted (boundary test for < vs <=)."""
+        self._auth_ok()
+        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+
+        expected = [
+            _AnalyzerResult(
+                test_name="t1",
+                success=True,
+                business_category=_EnumLike("monetization"),
+                error_type=None,
+                error_message=None,
+                revenue_impact="high",
+                cost_impact="low",
+                customer_impact="medium",
+                optimization_potential=None,
+            )
+        ]
+
+        class _FakeAnalyzer:
+            def __init__(self, locale: Optional[str] = None) -> None:  # noqa: D401
+                self.locale = locale
+
+            def analyze(self, code: str, test_name: str) -> list[_AnalyzerResult]:
+                assert len(code.encode("utf-8")) == 100_000
+                return expected
+
+        monkeypatch.setattr(self.mod, "BusinessBayesianAnalyzer", _FakeAnalyzer)
+
+        code_at_limit = "a" * 100_000
+        resp = self.client.post(
+            "/api/v1/business/analyze",
+            json={"code": code_at_limit, "test_name": "t1", "locale": "en"},
+        )
+        assert resp.status_code == 200, resp.text
+
     def test_analyze_happy_path_maps_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
         monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
