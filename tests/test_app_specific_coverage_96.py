@@ -456,8 +456,13 @@ class TestAppSpecificCoverage96:
         }
 
         response = self.client.post("/api/v1/bmi/pro", json=payload)
-        # In test environment with mocked auth: 200, 422 (validation), 403 (strict mode), or 404 (not mounted)
-        assert response.status_code in [200, 422, 403, 404]
+
+        # If endpoint is not mounted in this configuration, skip test explicitly
+        if response.status_code == 404:
+            pytest.skip("BMI Pro endpoint is not mounted in this app configuration")
+
+        # In test environment with mocked auth: 200 (success), 422 (validation), or 403 (strict mode)
+        assert response.status_code in [200, 422, 403]
 
     def test_api_v1_bodyfat_endpoint(self) -> None:
         """Test API v1 bodyfat endpoint (success or validation/auth error)."""
