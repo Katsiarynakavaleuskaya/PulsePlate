@@ -455,6 +455,12 @@ class TestAppSpecificCoverage96:
             "lang": "en",
         }
 
+        # Optional explicit gate for CI configs where BMI Pro is deliberately disabled.
+        # If not set, fall back to probing mounted routes (404 => not mounted).
+        flag = os.environ.get("BMI_PRO_ENABLED")
+        if flag is not None and flag.lower() not in {"1", "true", "yes", "on"}:
+            pytest.skip("BMI Pro endpoint disabled by BMI_PRO_ENABLED")
+
         response = self.client.post("/api/v1/bmi/pro", json=payload)
 
         # If endpoint is not mounted in this configuration, skip test explicitly
