@@ -127,7 +127,7 @@ class TestBusinessRouterIsolated:
         ]
 
         class _FakeAnalyzer:
-            def __init__(self, locale: Optional[str] = None) -> None:  # noqa: D401
+            def __init__(self, locale: Optional[str] = None) -> None:
                 self.locale = locale
 
             def analyze(self, code: str, test_name: str) -> list[_AnalyzerResult]:
@@ -162,7 +162,7 @@ class TestBusinessRouterIsolated:
         ]
 
         class _FakeAnalyzer:
-            def __init__(self, locale: Optional[str] = None) -> None:  # noqa: D401
+            def __init__(self, locale: Optional[str] = None) -> None:
                 self.locale = locale
 
             def analyze(self, code: str, test_name: str) -> list[_AnalyzerResult]:
@@ -202,7 +202,7 @@ class TestBusinessRouterIsolated:
         )
 
         class _BoomAnalyzer:
-            def __init__(self, locale: Optional[str] = None) -> None:  # noqa: D401
+            def __init__(self, locale: Optional[str] = None) -> None:
                 self.locale = locale
 
             def analyze(self, code: str, test_name: str) -> list[Any]:
