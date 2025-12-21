@@ -110,6 +110,7 @@ def test_echo_endpoint(mock_env_staging):
     assert "x-test-timestamp" in response.headers
 
 
+@pytest.mark.xdist_group(name="rate_limit")
 def test_rate_limit_with_cf_ray_header(mock_env_staging):
     """Test rate limit endpoint captures Cloudflare ray ID."""
     import sys
