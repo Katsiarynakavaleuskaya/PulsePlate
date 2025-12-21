@@ -108,27 +108,24 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
         if dialect == "sqlite":
             from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-            stmt = (
-                sqlite_insert(AnalyzerStateModel)
-                .values(
-                    user_id=user_id,
-                    analyzer_key=analyzer_key,
-                    state_schema_version=state_schema_version,
-                    payload=dict(payload),
-                    state_version=1,
-                    updated_at=_utcnow(),
-                )
-                .on_conflict_do_update(
-                    index_elements=["user_id", "analyzer_key"],
-                    set_={
-                        "state_schema_version": state_schema_version,
-                        "payload": dict(payload),
-                        "state_version": AnalyzerStateModel.state_version + 1,
-                        "updated_at": _utcnow(),
-                    },
-                )
+            sqlite_stmt = sqlite_insert(AnalyzerStateModel).values(
+                user_id=user_id,
+                analyzer_key=analyzer_key,
+                state_schema_version=state_schema_version,
+                payload=dict(payload),
+                state_version=1,
+                updated_at=_utcnow(),
             )
-            self._session.execute(stmt)
+            sqlite_stmt_upsert = sqlite_stmt.on_conflict_do_update(
+                index_elements=["user_id", "analyzer_key"],
+                set_={
+                    "state_schema_version": state_schema_version,
+                    "payload": dict(payload),
+                    "state_version": AnalyzerStateModel.state_version + 1,
+                    "updated_at": _utcnow(),
+                },
+            )
+            self._session.execute(sqlite_stmt_upsert)
             self._session.commit()
 
             # SQLite may not support RETURNING reliably in all versions → read after write
@@ -174,8 +171,8 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
             )
         )
 
-        res = self._session.execute(stmt)
-        if res.rowcount == 0:
+        result = self._session.execute(stmt)
+        if result.rowcount == 0:  # type: ignore[attr-defined]
             self._session.rollback()
             return None
 

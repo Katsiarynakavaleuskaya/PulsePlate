@@ -19,6 +19,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -273,7 +274,7 @@ class AnalyzerStateModel(Base):
     __table_args__ = (
         Index("ix_analyzer_state_user_id", "user_id"),
         Index("ix_analyzer_state_analyzer_key", "analyzer_key"),
-        Index("uq_analyzer_state_user_key", "user_id", "analyzer_key", unique=True),
+        UniqueConstraint("user_id", "analyzer_key", name="uq_analyzer_state_user_key"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

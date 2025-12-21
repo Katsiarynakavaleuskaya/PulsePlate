@@ -47,8 +47,8 @@ class TTLCacheAnalyzerStore(AnalyzerStore):
         self._cache: Dict[Tuple[int, str], _CacheItem] = {}
 
     def _now(self) -> float:
-        """Get current time for expiration checks."""
-        return time.time()
+        """Get monotonic time for expiration checks."""
+        return time.monotonic()
 
     def get_state(self, user_id: int, analyzer_key: str) -> Optional[AnalyzerState]:
         """Get state from cache or underlying store, populating cache on miss."""
@@ -92,4 +92,6 @@ class TTLCacheAnalyzerStore(AnalyzerStore):
             self._cache[(user_id, analyzer_key)] = _CacheItem(
                 value=value, expires_at=self._now() + self._ttl
             )
+        else:
+            self._cache.pop((user_id, analyzer_key), None)
         return value

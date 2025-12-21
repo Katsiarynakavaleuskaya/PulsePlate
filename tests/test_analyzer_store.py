@@ -44,12 +44,12 @@ def store(db_session):
 class TestSQLAlchemyAnalyzerStore:
     """Test suite for SQLAlchemyAnalyzerStore."""
 
-    def test_get_state_returns_none_when_missing(self, store: SQLAlchemyAnalyzerStore):
+    def test_get_state_returns_none_when_missing(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test get_state returns None for non-existent state."""
         result = store.get_state(user_id=1, analyzer_key="test_analyzer")
         assert result is None
 
-    def test_upsert_state_creates_new(self, store: SQLAlchemyAnalyzerStore):
+    def test_upsert_state_creates_new(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test upsert_state creates new state with version 1."""
         payload = {"mean": 2000.0, "variance": 100.0}
         result = store.upsert_state(
@@ -63,7 +63,7 @@ class TestSQLAlchemyAnalyzerStore:
         assert result.payload == payload
         assert result.updated_at is not None
 
-    def test_upsert_state_updates_existing(self, store: SQLAlchemyAnalyzerStore):
+    def test_upsert_state_updates_existing(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test upsert_state updates existing state and increments version."""
         # Create initial state
         initial_payload = {"mean": 2000.0, "variance": 100.0}
@@ -80,7 +80,7 @@ class TestSQLAlchemyAnalyzerStore:
         assert result.state_version == 2  # Version incremented
         assert result.payload == updated_payload
 
-    def test_get_state_retrieves_upserted(self, store: SQLAlchemyAnalyzerStore):
+    def test_get_state_retrieves_upserted(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test get_state retrieves previously upserted state."""
         payload = {"mean": 2000.0, "variance": 100.0}
         store.upsert_state(
@@ -94,7 +94,7 @@ class TestSQLAlchemyAnalyzerStore:
         assert result.analyzer_key == "calorie_drift"
         assert result.payload == payload
 
-    def test_update_if_version_matches_succeeds(self, store: SQLAlchemyAnalyzerStore):
+    def test_update_if_version_matches_succeeds(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test update_if_version_matches succeeds with correct version."""
         # Create initial state
         initial_payload = {"mean": 2000.0}
@@ -116,7 +116,9 @@ class TestSQLAlchemyAnalyzerStore:
         assert result.state_version == 2
         assert result.payload == updated_payload
 
-    def test_update_if_version_matches_fails_on_mismatch(self, store: SQLAlchemyAnalyzerStore):
+    def test_update_if_version_matches_fails_on_mismatch(
+        self, store: SQLAlchemyAnalyzerStore
+    ) -> None:
         """Test update_if_version_matches returns None with wrong version."""
         # Create initial state
         initial_payload = {"mean": 2000.0}
@@ -135,7 +137,7 @@ class TestSQLAlchemyAnalyzerStore:
 
         assert result is None
 
-    def test_multiple_users_isolated(self, store: SQLAlchemyAnalyzerStore):
+    def test_multiple_users_isolated(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test state isolation between different users."""
         payload_user1 = {"mean": 2000.0}
         payload_user2 = {"mean": 2500.0}
@@ -155,7 +157,7 @@ class TestSQLAlchemyAnalyzerStore:
         assert state1.payload == payload_user1
         assert state2.payload == payload_user2
 
-    def test_multiple_analyzer_keys_isolated(self, store: SQLAlchemyAnalyzerStore):
+    def test_multiple_analyzer_keys_isolated(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test state isolation between different analyzer keys for same user."""
         payload_drift = {"mean": 2000.0}
         payload_macro = {"protein_ratio": 0.3}
@@ -182,7 +184,7 @@ class TestSQLAlchemyAnalyzerStore:
 class TestTTLCacheAnalyzerStore:
     """Test suite for TTL cache wrapper."""
 
-    def test_cache_hit_returns_cached_value(self, store: SQLAlchemyAnalyzerStore):
+    def test_cache_hit_returns_cached_value(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test cache returns same object within TTL without DB roundtrip."""
         cache = TTLCacheAnalyzerStore(inner=store, ttl_seconds=60)
 
@@ -198,7 +200,7 @@ class TestTTLCacheAnalyzerStore:
         assert state2 is not None
         assert state1.payload == state2.payload
 
-    def test_cache_miss_after_ttl_expiry(self, store: SQLAlchemyAnalyzerStore):
+    def test_cache_miss_after_ttl_expiry(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test cache expires after TTL."""
         cache = TTLCacheAnalyzerStore(inner=store, ttl_seconds=0)  # Immediate expiry
 
@@ -209,7 +211,7 @@ class TestTTLCacheAnalyzerStore:
         state = cache.get_state(user_id=1, analyzer_key="test")
         assert state is not None
 
-    def test_upsert_updates_cache(self, store: SQLAlchemyAnalyzerStore):
+    def test_upsert_updates_cache(self, store: SQLAlchemyAnalyzerStore) -> None:
         """Test upsert updates cache immediately."""
         cache = TTLCacheAnalyzerStore(inner=store, ttl_seconds=60)
 
