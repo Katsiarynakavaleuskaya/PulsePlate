@@ -1,5 +1,4 @@
-"""
-Basic tests to improve coverage for food_apis modules.
+"""Basic tests to improve coverage for food_apis modules.
 These tests focus on exercising the main functions to quickly improve coverage percentages.
 """
 
