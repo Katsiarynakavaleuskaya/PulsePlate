@@ -99,6 +99,7 @@ jobs:
 
       - name: Cache pip dependencies
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -181,6 +182,7 @@ jobs:
 
       - name: Cache pip dependencies
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
@@ -264,6 +266,7 @@ jobs:
 
       - name: Cache pip dependencies
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        continue-on-error: true  # GitHub Actions cache service may be unavailable
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
