@@ -134,7 +134,12 @@ jobs:
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Project standard: maintain 97% coverage for PR branches before merge
           # See .github/copilot-instructions.md and .cursorrules for coverage requirements
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          #
+          # CI stability: fix xdist workers to `-n 4` (avoid `-n auto`) to prevent intermittent
+          # worker crashes and missing coverage data seen with Hypothesis/property-based suites.
+          # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
+          # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -n 4
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -217,7 +222,12 @@ jobs:
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Project standard: maintain 97% coverage for feature branches before merge
           # See .github/copilot-instructions.md and .cursorrules for coverage requirements
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          #
+          # CI stability: fix xdist workers to `-n 4` (avoid `-n auto`) to prevent intermittent
+          # worker crashes and missing coverage data seen with Hypothesis/property-based suites.
+          # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
+          # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -n 4
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -306,7 +316,12 @@ jobs:
           # Use pytest-xdist for parallel execution with proper coverage collection
           # IMPORTANT: main branch must maintain 97% coverage per project standards
           # See .github/copilot-instructions.md and .cursorrules
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy --cov-context=test -n auto
+          #
+          # CI stability: fix xdist workers to `-n 4` (avoid `-n auto`) to prevent intermittent
+          # worker crashes and missing coverage data seen with Hypothesis/property-based suites.
+          # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
+          # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
+          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -n 4
 
       - name: Clean Python cache (post-test)
         if: always()

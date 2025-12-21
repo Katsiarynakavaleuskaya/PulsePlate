@@ -95,11 +95,42 @@ validate_required_secret() {
     fi
 }
 
-# Check OLLAMA_API_KEY (only for production)
-validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
+# Normalize LLM_ENABLED (accept only explicit "true")
+LLM_ENABLED_NORMALIZED="false"
+if [[ "${LLM_ENABLED:-false}" == "true" ]]; then
+    LLM_ENABLED_NORMALIZED="true"
+fi
 
-# Check PULSEPLATE_OPENAI (only for production)
-validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
+# Check LLM secrets (only for production if LLM is enabled)
+# Only validate if LLM_ENABLED is set to true or if LLM_PROVIDER is configured
+if [ "$LLM_ENABLED_NORMALIZED" = "true" ] || [ -n "${LLM_PROVIDER:-}" ]; then
+    # Require secrets based on configured provider
+    case "${LLM_PROVIDER:-}" in
+        openai)
+            validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
+            ;;
+        ollama)
+            validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
+            ;;
+        "")
+            # LLM enabled but provider not specified - fail with clear configuration error
+            if [ "$LLM_ENABLED_NORMALIZED" = "true" ]; then
+                err_msg="LLM_ENABLED=true but LLM_PROVIDER is not set. Set LLM_PROVIDER to 'openai' or 'ollama' (or disable LLM_ENABLED)."
+                echo "::error::$err_msg"
+                ERRORS+=("$err_msg")
+            fi
+            ;;
+        *)
+            # LLM_PROVIDER set but not recognized
+            err_msg="Unsupported LLM_PROVIDER='${LLM_PROVIDER}'. Supported values: openai, ollama."
+            echo "::error::$err_msg"
+            ERRORS+=("$err_msg")
+            ;;
+    esac
+else
+    echo "ℹ️  LLM secrets not required (LLM_ENABLED is not true and LLM_PROVIDER not set)."
+    echo "ℹ️  To enable LLM features, set LLM_ENABLED=true and LLM_PROVIDER=openai|ollama."
+fi
 
 # Check SSH secrets (required for both staging and production when deploying)
 # Only validate if DEPLOY_ENABLED is set to true or if we're explicitly deploying
