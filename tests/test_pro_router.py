@@ -141,6 +141,53 @@ class TestProRouterIsolated:
         resp = self.client.post("/api/v1/pro/meal/weekly", json=payload)
         assert resp.status_code == 422, resp.text
 
+    def test_weekly_meal_plan_happy_path_with_targets(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """POST /meal/weekly with explicit targets returns 200."""
+        self._patch_week_core(monkeypatch)
+
+        payload = {
+            "sex": "male",
+            "age": 30,
+            "height_cm": 180,
+            "weight_kg": 80,
+            "activity": "moderate",
+            "goal": "maintain",
+            "targets": {
+                "kcal": 2000.0,
+                "macros": {
+                    "protein_g": 50.0,
+                    "carbs_g": 60.0,
+                    "fat_g": 20.0,
+                },
+                "micro": {},
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/weekly", json=payload)
+        assert resp.status_code == 200, resp.text
+
+        data = resp.json()
+        assert "daily_menus" in data
+        assert "weekly_coverage" in data
+        assert "shopping_list" in data
+        assert "total_cost" in data
+        assert "adherence_score" in data
+
+    def test_weekly_meal_plan_missing_profile_and_targets_400(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """POST /meal/weekly with missing profile and targets returns 400."""
+        self._patch_week_core(monkeypatch)
+
+        resp = self.client.post("/api/v1/pro/meal/weekly", json={})
+        assert resp.status_code == 400, resp.text
+
+        data = resp.json()
+        assert isinstance(data, dict)
+        assert "detail" in data
+
     def test_daily_nutrition_happy_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """GET /nutrition/daily with valid params returns 200 with segments."""
         self._patch_daily_core_success(monkeypatch)
