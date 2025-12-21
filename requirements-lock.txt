@@ -68,7 +68,7 @@ mdurl==0.1.2
 memorisdk==3.1.0
 msgpack==1.1.2
 multidict==6.7.0
-mypy==1.19.0
+mypy==1.19.1
 mypy_extensions==1.1.0
 nltk==3.9.2
 nodeenv==1.9.1
@@ -114,7 +114,7 @@ rich==14.2.0
 rpds-py==0.30.0
 ruamel.yaml==0.18.16
 ruamel.yaml.clib==0.2.15
-ruff==0.14.9
+ruff==0.14.10
 safety==3.7.0
 safety-schemas==0.0.16
 shellingham==1.5.4
