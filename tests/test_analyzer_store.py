@@ -164,7 +164,10 @@ class TestSQLAlchemyAnalyzerStore:
             user_id=1, analyzer_key="calorie_drift", state_schema_version=1, payload=payload_drift
         )
         store.upsert_state(
-            user_id=1, analyzer_key="macro_sensitivity", state_schema_version=1, payload=payload_macro
+            user_id=1,
+            analyzer_key="macro_sensitivity",
+            state_schema_version=1,
+            payload=payload_macro,
         )
 
         state_drift = store.get_state(user_id=1, analyzer_key="calorie_drift")
@@ -184,9 +187,7 @@ class TestTTLCacheAnalyzerStore:
         cache = TTLCacheAnalyzerStore(inner=store, ttl_seconds=60)
 
         payload = {"mean": 2000.0}
-        cache.upsert_state(
-            user_id=1, analyzer_key="test", state_schema_version=1, payload=payload
-        )
+        cache.upsert_state(user_id=1, analyzer_key="test", state_schema_version=1, payload=payload)
 
         # First get populates cache
         state1 = cache.get_state(user_id=1, analyzer_key="test")
@@ -202,9 +203,7 @@ class TestTTLCacheAnalyzerStore:
         cache = TTLCacheAnalyzerStore(inner=store, ttl_seconds=0)  # Immediate expiry
 
         payload = {"mean": 2000.0}
-        cache.upsert_state(
-            user_id=1, analyzer_key="test", state_schema_version=1, payload=payload
-        )
+        cache.upsert_state(user_id=1, analyzer_key="test", state_schema_version=1, payload=payload)
 
         # Get after TTL expiry should go to DB
         state = cache.get_state(user_id=1, analyzer_key="test")

@@ -17,7 +17,7 @@ from typing import Any, Mapping, Optional, Protocol
 @dataclass(frozen=True)
 class AnalyzerState:
     """Analyzer state snapshot for a specific user and analyzer key.
-    
+
     RU: Снапшот состояния анализатора для конкретного пользователя и ключа.
     EN: Immutable snapshot of analyzer state with versioning for concurrency control.
     """
@@ -32,7 +32,7 @@ class AnalyzerState:
 
 class AnalyzerStore(Protocol):
     """Source-of-truth storage protocol for analyzer state.
-    
+
     RU: Протокол хранилища состояния анализатора (source of truth).
     EN: Protocol defining persistence contract for analyzer state across workers/replicas.
     """
@@ -60,7 +60,7 @@ class AnalyzerStore(Protocol):
         payload: Mapping[str, Any],
     ) -> Optional[AnalyzerState]:
         """Optimistic locking update. Returns None if version mismatch.
-        
+
         RU: Обновление с оптимистической блокировкой. None = версия не совпала.
         """
         ...
