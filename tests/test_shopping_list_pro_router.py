@@ -43,6 +43,20 @@ class TestShoppingListProRouterIsolated:
 
         self.app.dependency_overrides[self.mod.require_pro_tier] = lambda: "test_pro_key"
 
+    def _assert_generator_not_called_on_guard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ensure generate_shopping_list_from_plan is never called on guard failures."""
+
+        def _unexpected_generator_call(*_args: Any, **_kwargs: Any) -> None:
+            raise AssertionError(
+                "generate_shopping_list_from_plan must not be called on 4xx/5xx guard failures"
+            )
+
+        monkeypatch.setattr(
+            self.mod,
+            "generate_shopping_list_from_plan",
+            _unexpected_generator_call,
+        )
+
     def test_generate_shopping_list_requires_pro_auth(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -103,9 +117,12 @@ class TestShoppingListProRouterIsolated:
         assert body["meta"]["source"] == "inline_plan"
         assert body["meta"]["unit_system"] == "metric"
 
-    def test_generate_shopping_list_422_group_by_recipe_not_supported(self) -> None:
+    def test_generate_shopping_list_422_group_by_recipe_not_supported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """group_by='recipe' should be rejected with 422, as per router guard."""
 
+        self._assert_generator_not_called_on_guard(monkeypatch)
         self._pro_ok()
 
         payload: Dict[str, Any] = {
@@ -122,9 +139,12 @@ class TestShoppingListProRouterIsolated:
         assert resp.status_code == 422, resp.text
         assert "group_by='recipe' is not supported yet" in resp.json()["detail"]
 
-    def test_generate_shopping_list_422_imperial_not_supported(self) -> None:
+    def test_generate_shopping_list_422_imperial_not_supported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """unit_system='imperial' should be rejected with 422."""
 
+        self._assert_generator_not_called_on_guard(monkeypatch)
         self._pro_ok()
 
         payload: Dict[str, Any] = {
@@ -141,9 +161,12 @@ class TestShoppingListProRouterIsolated:
         assert resp.status_code == 422, resp.text
         assert "unit_system='imperial' is not supported yet" in resp.json()["detail"]
 
-    def test_generate_shopping_list_422_exclude_or_tags_not_supported(self) -> None:
+    def test_generate_shopping_list_422_exclude_or_tags_not_supported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """exclude_items or dietary_tags should currently be rejected with 422."""
 
+        self._assert_generator_not_called_on_guard(monkeypatch)
         self._pro_ok()
 
         payload: Dict[str, Any] = {
@@ -160,9 +183,12 @@ class TestShoppingListProRouterIsolated:
         assert resp.status_code == 422, resp.text
         assert "exclude_items and dietary_tags are not supported yet" in resp.json()["detail"]
 
-    def test_generate_shopping_list_501_weekly_plan_id_path(self) -> None:
+    def test_generate_shopping_list_501_weekly_plan_id_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """weekly_plan_id path is stubbed and should return 501 Not Implemented."""
 
+        self._assert_generator_not_called_on_guard(monkeypatch)
         self._pro_ok()
 
         payload: Dict[str, Any] = {
@@ -185,6 +211,28 @@ class TestShoppingListProRouterIsolated:
         self._pro_ok()
 
         payload: Dict[str, Any] = {
+            "preferences": {
+                "group_by": "category",
+                "unit_system": "metric",
+                "exclude_items": [],
+                "dietary_tags": [],
+            },
+        }
+
+        resp = self.client.post("/api/v1/pro/meal/shopping-list", json=payload)
+        assert resp.status_code == 422, resp.text
+        # Detail format is Pydantic error list; we just check it mentions weekly_plan_id/plan_data.
+        detail_str = str(resp.json()["detail"]).lower()
+        assert "weekly_plan_id" in detail_str or "plan_data" in detail_str
+
+    def test_generate_shopping_list_422_xor_validation_both_sources(self) -> None:
+        """Pydantic model should enforce XOR: both sources provided → 422."""
+
+        self._pro_ok()
+
+        payload: Dict[str, Any] = {
+            "weekly_plan_id": "plan_abc123",
+            "plan_data": {"days": []},
             "preferences": {
                 "group_by": "category",
                 "unit_system": "metric",
