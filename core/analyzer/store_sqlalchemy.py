@@ -9,20 +9,14 @@ for safe concurrent state updates across multiple workers/replicas.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, cast
 
 from sqlalchemy import select, update
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import CursorResult, Engine
 from sqlalchemy.orm import Session
 
 from core.analyzer.store import AnalyzerState, AnalyzerStore
 from core.models import AnalyzerStateModel
-
-
-def _utcnow() -> datetime:
-    """Get current UTC time with timezone awareness."""
-    return datetime.now(timezone.utc)
 
 
 class SQLAlchemyAnalyzerStore(AnalyzerStore):
@@ -88,7 +82,6 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
                         "state_schema_version": state_schema_version,
                         "payload": dict(payload),
                         "state_version": AnalyzerStateModel.state_version + 1,
-                        "updated_at": _utcnow(),
                     },
                 )
                 .returning(AnalyzerStateModel)
@@ -114,7 +107,6 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
                 state_schema_version=state_schema_version,
                 payload=dict(payload),
                 state_version=1,
-                updated_at=_utcnow(),
             )
             sqlite_stmt_upsert = sqlite_stmt.on_conflict_do_update(
                 index_elements=["user_id", "analyzer_key"],
@@ -122,7 +114,6 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
                     "state_schema_version": state_schema_version,
                     "payload": dict(payload),
                     "state_version": AnalyzerStateModel.state_version + 1,
-                    "updated_at": _utcnow(),
                 },
             )
             self._session.execute(sqlite_stmt_upsert)
@@ -131,14 +122,9 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
             # SQLite may not support RETURNING reliably in all versions → read after write
             result = self.get_state(user_id, analyzer_key)
             if result is None:
-                # Fallback if get_state failed (should not happen after successful insert)
-                return AnalyzerState(
-                    user_id=user_id,
-                    analyzer_key=analyzer_key,
-                    state_schema_version=state_schema_version,
-                    payload=dict(payload),
-                    state_version=1,
-                    updated_at=_utcnow(),
+                raise RuntimeError(
+                    "SQLite UPSERT succeeded but state could not be reloaded. "
+                    "This indicates a database integrity issue."
                 )
             return result
 
@@ -167,13 +153,12 @@ class SQLAlchemyAnalyzerStore(AnalyzerStore):
                 state_schema_version=state_schema_version,
                 payload=dict(payload),
                 state_version=AnalyzerStateModel.state_version + 1,
-                updated_at=_utcnow(),
             )
         )
 
-        result = self._session.execute(stmt)
-        if result.rowcount == 0:  # type: ignore[attr-defined]
-            self._session.rollback()
+        result = cast(CursorResult, self._session.execute(stmt))
+        if result.rowcount == 0:
+            # Version mismatch - let caller handle transaction
             return None
 
         self._session.commit()

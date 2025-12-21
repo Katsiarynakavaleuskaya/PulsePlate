@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -291,7 +292,9 @@ class AnalyzerStateModel(Base):
 
     # JSON on SQLite, JSONB on Postgres via with_variant
     payload: Mapped[dict[str, Any]] = mapped_column(
-        MutableDict.as_mutable(JSON),
+        MutableDict.as_mutable(
+            JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql")
+        ),
         nullable=False,
         default=lambda: {},
         server_default=text("'{}'"),

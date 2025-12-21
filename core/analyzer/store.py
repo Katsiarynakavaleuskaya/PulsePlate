@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from types import MappingProxyType
 from typing import Any, Mapping, Optional, Protocol
 
 
@@ -28,6 +29,10 @@ class AnalyzerState:
     payload: Mapping[str, Any]
     state_version: int
     updated_at: datetime
+
+    def __post_init__(self) -> None:
+        """Ensure payload is immutable to prevent cache corruption."""
+        object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
 
 
 class AnalyzerStore(Protocol):
