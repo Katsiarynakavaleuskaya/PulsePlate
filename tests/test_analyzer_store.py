@@ -6,11 +6,15 @@ EN: Tests for SQLAlchemyAnalyzerStore (works on SQLite in CI, validates Postgres
 
 from __future__ import annotations
 
+from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from core.analyzer.store import AnalyzerState
+from core.analyzer.store import AnalyzerState, AnalyzerStore
 from core.analyzer.store_cache import TTLCacheAnalyzerStore
 from core.analyzer.store_sqlalchemy import SQLAlchemyAnalyzerStore
 from core.db import Base
@@ -180,6 +184,82 @@ class TestSQLAlchemyAnalyzerStore:
         assert state_drift.payload == payload_drift
         assert state_macro.payload == payload_macro
 
+    def test_upsert_state_postgres_branch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test PostgreSQL upsert path with RETURNING branch."""
+        from sqlalchemy.dialects import postgresql as pg_dialect
+
+        session = MagicMock()
+        session.get_bind.return_value = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+
+        row = SimpleNamespace(
+            user_id=7,
+            analyzer_key="macro",
+            state_schema_version=2,
+            payload={"mean": 2100.0},
+            state_version=3,
+            updated_at=datetime.utcnow(),
+        )
+        exec_result = MagicMock()
+        exec_result.scalar_one.return_value = row
+        session.execute.return_value = exec_result
+
+        class FakeInsert:
+            def __init__(self, model):
+                self.model = model
+
+            def values(self, **_kwargs):
+                return self
+
+            def on_conflict_do_update(self, **_kwargs):
+                return self
+
+            def returning(self, _model):
+                return self
+
+        monkeypatch.setattr(pg_dialect, "insert", lambda model: FakeInsert(model))
+
+        store = SQLAlchemyAnalyzerStore(session=session)
+        result = store.upsert_state(
+            user_id=7,
+            analyzer_key="macro",
+            state_schema_version=2,
+            payload={"mean": 2100.0},
+        )
+
+        assert result.user_id == row.user_id
+        assert result.payload == row.payload
+        assert result.state_version == row.state_version
+        session.commit.assert_called_once()
+
+    def test_upsert_state_sqlite_reload_missing_raises(
+        self, store: SQLAlchemyAnalyzerStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """SQLite upsert should raise if state reload fails after commit."""
+        monkeypatch.setattr(store, "get_state", lambda *_args, **_kwargs: None)
+
+        with pytest.raises(RuntimeError, match="SQLite UPSERT succeeded"):
+            store.upsert_state(
+                user_id=1,
+                analyzer_key="calorie_drift",
+                state_schema_version=1,
+                payload={"mean": 2000.0},
+            )
+
+    def test_upsert_state_unsupported_dialect_raises(self) -> None:
+        """Unsupported dialect should raise a clear error."""
+        session = MagicMock()
+        session.get_bind.return_value = SimpleNamespace(dialect=SimpleNamespace(name="mysql"))
+
+        store = SQLAlchemyAnalyzerStore(session=session)
+
+        with pytest.raises(RuntimeError, match="Unsupported DB dialect"):
+            store.upsert_state(
+                user_id=1,
+                analyzer_key="calorie_drift",
+                state_schema_version=1,
+                payload={"mean": 2000.0},
+            )
+
 
 class TestTTLCacheAnalyzerStore:
     """Test suite for TTL cache wrapper."""
@@ -230,3 +310,64 @@ class TestTTLCacheAnalyzerStore:
         state = cache.get_state(user_id=1, analyzer_key="test")
         assert state is not None
         assert state.payload == updated_payload
+
+    def test_update_if_version_matches_updates_cache(self) -> None:
+        """Successful optimistic update should refresh cache entry."""
+        inner = MagicMock(spec=AnalyzerStore)
+        inner.get_state.return_value = None
+        state = AnalyzerState(
+            user_id=1,
+            analyzer_key="test",
+            state_schema_version=1,
+            payload={"mean": 2100.0},
+            state_version=2,
+            updated_at=datetime.utcnow(),
+        )
+        inner.update_if_version_matches.return_value = state
+
+        cache = TTLCacheAnalyzerStore(inner=inner, ttl_seconds=60)
+
+        result = cache.update_if_version_matches(
+            user_id=1,
+            analyzer_key="test",
+            expected_version=1,
+            state_schema_version=1,
+            payload={"mean": 2100.0},
+        )
+
+        assert result is state
+        assert cache.get_state(user_id=1, analyzer_key="test") is state
+
+    def test_update_if_version_matches_clears_cache_on_mismatch(self) -> None:
+        """Failed optimistic update should evict cached entry."""
+        inner = MagicMock(spec=AnalyzerStore)
+        inner.update_if_version_matches.return_value = None
+        inner.get_state.return_value = None
+        seed_state = AnalyzerState(
+            user_id=1,
+            analyzer_key="test",
+            state_schema_version=1,
+            payload={"mean": 2000.0},
+            state_version=1,
+            updated_at=datetime.utcnow(),
+        )
+        inner.upsert_state.return_value = seed_state
+
+        cache = TTLCacheAnalyzerStore(inner=inner, ttl_seconds=60)
+        cache.upsert_state(
+            user_id=1,
+            analyzer_key="test",
+            state_schema_version=1,
+            payload={"mean": 2000.0},
+        )
+
+        result = cache.update_if_version_matches(
+            user_id=1,
+            analyzer_key="test",
+            expected_version=999,
+            state_schema_version=1,
+            payload={"mean": 2100.0},
+        )
+
+        assert result is None
+        assert cache.get_state(user_id=1, analyzer_key="test") is None

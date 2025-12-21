@@ -44,7 +44,7 @@ class AnalyzerStore(Protocol):
 
     def get_state(self, user_id: int, analyzer_key: str) -> Optional[AnalyzerState]:
         """Retrieve analyzer state or None if not found."""
-        ...
+        ...  # pragma: no cover
 
     def upsert_state(
         self,
@@ -54,7 +54,7 @@ class AnalyzerStore(Protocol):
         payload: Mapping[str, Any],
     ) -> AnalyzerState:
         """Insert or update analyzer state, returning the persisted state."""
-        ...
+        ...  # pragma: no cover
 
     def update_if_version_matches(
         self,
@@ -68,4 +68,4 @@ class AnalyzerStore(Protocol):
 
         RU: Обновление с оптимистической блокировкой. None = версия не совпала.
         """
-        ...
+        ...  # pragma: no cover
