@@ -79,6 +79,7 @@ jobs:
         env:
           ENVIRONMENT: production
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          LLM_ENABLED: "false"  # LLM not required for production validation
 
       - name: Production validation complete
         run: |

@@ -95,11 +95,24 @@ validate_required_secret() {
     fi
 }
 
-# Check OLLAMA_API_KEY (only for production)
-validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
-
-# Check PULSEPLATE_OPENAI (only for production)
-validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
+# Check LLM secrets (only for production if LLM is enabled)
+# Only validate if LLM_ENABLED is set to true or if LLM_PROVIDER is configured
+if [ "${LLM_ENABLED:-false}" = "true" ] || [ -n "${LLM_PROVIDER:-}" ]; then
+    # Require secrets based on configured provider
+    if [ "${LLM_PROVIDER:-}" = "openai" ]; then
+        validate_required_secret "PULSEPLATE_OPENAI" "production" "$ENVIRONMENT"
+    elif [ "${LLM_PROVIDER:-}" = "ollama" ]; then
+        validate_required_secret "OLLAMA_API_KEY" "production" "$ENVIRONMENT"
+    elif [ "${LLM_ENABLED}" = "true" ]; then
+        # LLM enabled but provider not specified - fail with clear configuration error
+        err_msg="LLM_ENABLED=true but LLM_PROVIDER is not set. Set LLM_PROVIDER to 'openai' or 'ollama' (or disable LLM_ENABLED)."
+        echo "::error::$err_msg"
+        ERRORS+=("$err_msg")
+    fi
+else
+    echo "ℹ️  LLM secrets not required (LLM_ENABLED is not true and LLM_PROVIDER not set)."
+    echo "ℹ️  To enable LLM features, set LLM_ENABLED=true or configure LLM_PROVIDER (openai|ollama)."
+fi
 
 # Check SSH secrets (required for both staging and production when deploying)
 # Only validate if DEPLOY_ENABLED is set to true or if we're explicitly deploying
