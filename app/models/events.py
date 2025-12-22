@@ -26,13 +26,13 @@ class JSONEncodedDict(TypeDecorator):
 
     def process_bind_param(self, value: Any, dialect: Any) -> str | None:
         if value is not None:
-            value = json.dumps(value)
-        return value
+            return json.dumps(value)
+        return None
 
     def process_result_value(self, value: Any, dialect: Any) -> Dict[str, Any] | None:
         if value is not None:
-            value = json.loads(value)
-        return value
+            return json.loads(value)  # type: ignore[no-any-return]
+        return None
 
 
 class NutritionEvent(Base):

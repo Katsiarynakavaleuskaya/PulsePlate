@@ -34,6 +34,7 @@ class MealLogRequest(BaseModel):
     adherence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     client_event_id: Optional[str] = Field(
         default=None,
+        max_length=64,
         description="Client-provided idempotency key (recommended for mobile retries)",
     )
 
