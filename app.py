@@ -994,6 +994,14 @@ if VIP_MODULE_ENABLED and vip_router is not None:
 if pro_router is not None:
     app.include_router(pro_router)
 
+# Include Bayesian adherence router (PRO/VIP tier)
+try:
+    from app.routers import bayes_adherence
+
+    app.include_router(bayes_adherence.router)
+except ImportError:
+    logger.debug("Bayesian adherence router not available")
+
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)
 
