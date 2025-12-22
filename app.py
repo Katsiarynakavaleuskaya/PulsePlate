@@ -1002,6 +1002,14 @@ try:
 except ImportError as e:
     logger.warning("Bayesian adherence router not loaded: %s", e)
 
+# Include nutrition logging router (PRO tier)
+try:
+    from app.routers import nutrition_log
+
+    app.include_router(nutrition_log.router)
+except ImportError as e:
+    logger.warning("Nutrition log router not loaded: %s", e)
+
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)
 
