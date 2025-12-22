@@ -15,6 +15,7 @@ Targets uncovered lines from CI coverage report:
 
 import builtins
 import sys
+from typing import Any
 from pathlib import Path
 import pytest
 from core.business_bayesian_analyzer import (
@@ -320,7 +321,7 @@ class TestMissingCoveragePaths:
     ) -> None:
         real_import = builtins.__import__
 
-        def _fake_import(name: str, *args: object, **kwargs: object):
+        def _fake_import(name: str, *args: object, **kwargs: object) -> Any:
             if name == "yaml":
                 raise ModuleNotFoundError("yaml missing")
             return real_import(name, *args, **kwargs)
