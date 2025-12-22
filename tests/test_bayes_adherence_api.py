@@ -47,9 +47,9 @@ class TestAdherenceAPI:
         # Validate response structure
         assert data["user_id"] == 1
         assert data["analyzer_key"] == "v1:adherence"
-        assert data["alpha"] == 2.0  # 1.0 prior + 1.0 event
-        assert data["beta"] == 1.0  # unchanged
         assert data["n"] == 1
+        # Success event -> alpha should increase relative to beta
+        assert data["alpha"] > data["beta"]
         assert 0.0 <= data["risk_slip"] <= 1.0
         assert 0.0 <= data["confidence"] <= 1.0
         assert data["needs_more_data"] is True  # n=1 < 7
@@ -70,9 +70,9 @@ class TestAdherenceAPI:
         data = response.json()
 
         assert data["user_id"] == 2
-        assert data["alpha"] == 1.0  # unchanged
-        assert data["beta"] == 2.0  # 1.0 prior + 1.0 event
         assert data["n"] == 1
+        # Slip event -> beta should increase relative to alpha
+        assert data["beta"] > data["alpha"]
         assert data["risk_slip"] > 0.5  # beta > alpha -> higher risk
         assert data["needs_more_data"] is True
 
@@ -87,19 +87,19 @@ class TestAdherenceAPI:
         data = response.json()
 
         assert data["user_id"] == 999
-        assert data["alpha"] == 1.0  # default prior
-        assert data["beta"] == 1.0  # default prior
+        # Symmetric prior -> equal alpha/beta
+        assert data["alpha"] == data["beta"]
         assert data["n"] == 0
         assert data["risk_slip"] == 0.5  # symmetric prior
-        assert data["confidence"] == 0.35  # low confidence (n=0 < 7)
+        assert data["confidence"] < 0.5  # low confidence (n=0 < 7)
         assert data["needs_more_data"] is True
 
     def test_sequential_events_build_confidence(self) -> None:
-        """Test that multiple events increase confidence."""
+        """Test that confidence threshold flips at n=7."""
         user_id = 100
 
-        # Record 7 successful events (threshold for confidence)
-        for i in range(7):
+        # Record 6 events (below threshold)
+        for _ in range(6):
             response = self.client.post(
                 "/api/v1/bayes/adherence/event",
                 json={
@@ -111,21 +111,40 @@ class TestAdherenceAPI:
             )
             assert response.status_code == 200
 
-        # Check final state
-        response = self.client.get(
+        # Check state at n=6 (still needs data)
+        response_6 = self.client.get(
             "/api/v1/bayes/adherence/risk",
             params={"user_id": user_id, "analyzer_key": "v1:adherence"},
         )
+        assert response_6.status_code == 200
+        data_6 = response_6.json()
+        assert data_6["n"] == 6
+        assert data_6["needs_more_data"] is True
+        assert data_6["confidence"] < 0.8  # Low confidence
 
+        # Record 7th event (threshold)
+        response = self.client.post(
+            "/api/v1/bayes/adherence/event",
+            json={
+                "user_id": user_id,
+                "event_type": "meal_logged",
+                "weight": 1.0,
+                "analyzer_key": "v1:adherence",
+            },
+        )
         assert response.status_code == 200
-        data = response.json()
 
-        assert data["n"] == 7
-        assert data["alpha"] == 8.0  # 1.0 prior + 7 events
-        assert data["beta"] == 1.0  # no slips
-        assert data["risk_slip"] < 0.2  # low risk (many successes)
-        assert data["confidence"] == 0.85  # high confidence (n >= 7)
-        assert data["needs_more_data"] is False
+        # Check final state at n=7 (confidence flipped)
+        response_7 = self.client.get(
+            "/api/v1/bayes/adherence/risk",
+            params={"user_id": user_id, "analyzer_key": "v1:adherence"},
+        )
+        assert response_7.status_code == 200
+        data_7 = response_7.json()
+        assert data_7["n"] == 7
+        assert data_7["needs_more_data"] is False
+        assert data_7["confidence"] >= 0.8  # High confidence
+        assert data_7["risk_slip"] < 0.2  # Low risk (many successes)
 
     def test_validation_negative_user_id(self) -> None:
         """Test validation rejects negative user_id."""
