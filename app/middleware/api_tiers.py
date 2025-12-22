@@ -313,7 +313,9 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
     """
     # CodeQL [py/weak-sensitive-data-hashing]: False positive - this is identity derivation,
     # not password hashing. SHA-256 is appropriate for deterministic ID generation.
-    digest = hashlib.sha256(api_key.encode("utf-8")).digest()
+    digest = hashlib.sha256(
+        api_key.encode("utf-8")
+    ).digest()  # lgtm[py/weak-sensitive-data-hashing]
     # Take first 8 bytes, convert to int, mask to positive int64
     return int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF
 
