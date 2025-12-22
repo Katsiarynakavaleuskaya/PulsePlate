@@ -11,10 +11,12 @@ import pytest
 from fastapi import HTTPException
 
 from app.middleware.api_tiers import (
+    CurrentUser,
     SubscriptionTier,
     TEST_KEY_PRO,
     TEST_KEY_VIP,
     _validate_api_key_tier,
+    get_pro_subject_id,
     get_subscription_tier,
     require_pro_tier,
     require_vip_tier,
@@ -188,6 +190,16 @@ class TestGetSubscriptionTier:
             get_subscription_tier(TEST_KEY_VIP)
         with pytest.raises(NotImplementedError):
             get_subscription_tier(TEST_KEY_PRO)
+
+
+class TestGetProSubjectId:
+    """Test get_pro_subject_id helper."""
+
+    @pytest.mark.asyncio
+    async def test_get_pro_subject_id_returns_current_user_id(self) -> None:
+        """Test helper returns subject ID from current user."""
+        current_user = CurrentUser(user_id=123, api_key="test_key")
+        assert await get_pro_subject_id(current_user=current_user) == 123
 
 
 class TestEnvironmentConfiguration:

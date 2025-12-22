@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.analyzer.store import AnalyzerStore
+from core.analyzer.store import AnalyzerState, AnalyzerStore
 
 from .adherence_adapter import DomainEvent, to_adherence_event
 from .adherence_model import (
@@ -95,6 +95,7 @@ class AdherenceService:
         Returns:
             Updated AdherenceResult
         """
+        event_type: AdherenceEventType
         event_type, weight = to_adherence_event(domain_event)
         return self.record_event(
             user_id, event_type=event_type, weight=weight, analyzer_key=analyzer_key
@@ -111,7 +112,7 @@ class AdherenceService:
 
         Args:
             user_id: User ID
-            event_type: Event type ("meal_logged" or "slip")
+            event_type: AdherenceEventType ("meal_logged" or "slip")
             weight: Event weight (default: 1.0)
             analyzer_key: Analyzer key (default: v1:adherence)
 
@@ -129,6 +130,7 @@ class AdherenceService:
 
             updated = update_state(current, event_type=event_type, weight=weight)
 
+            saved: AnalyzerState | None
             if existing is None:
                 # First event for this user/key - simple upsert
                 saved = self._store.upsert_state(
@@ -172,7 +174,7 @@ class AdherenceService:
             )
 
         # Should never reach here due to raise in loop, but satisfy type checker
-        raise RuntimeError("Unexpected: retry loop exhausted without return")
+        raise RuntimeError("Unexpected: retry loop exhausted without return")  # pragma: no cover
 
     def _load_state(self, user_id: int, analyzer_key: str) -> AdherenceState:
         """Load state from store or return default if not found."""

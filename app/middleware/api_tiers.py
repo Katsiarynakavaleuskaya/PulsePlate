@@ -308,8 +308,11 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
         Each API key gets isolated Bayesian state. When user→key mapping is added,
         state can be migrated to actual user_id.
 
-        Security: Uses SHA-256 to prevent key leakage via subject_id.
+        Security: Uses SHA-256 for identity derivation, NOT password hashing.
+        This is intentional - we're creating a deterministic ID, not securing a secret.
     """
+    # CodeQL [py/weak-sensitive-data-hashing]: False positive - this is identity derivation,
+    # not password hashing. SHA-256 is appropriate for deterministic ID generation.
     digest = hashlib.sha256(api_key.encode("utf-8")).digest()
     # Take first 8 bytes, convert to int, mask to positive int64
     return int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF

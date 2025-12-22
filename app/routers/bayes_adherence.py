@@ -7,6 +7,7 @@ EN: Bayesian adherence API endpoints.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.middleware.api_tiers import CurrentUser, get_current_user, require_pro_tier
@@ -34,7 +35,7 @@ def get_adherence_service(session: Session = Depends(get_session)) -> AdherenceS
 
     Note:
         TTL cache is request-scoped because SQLAlchemy session is request-scoped.
-        A process-wide cache requires refactoring store to accept session factory.
+        Process-wide cache would require session factory pattern and careful invalidation.
     """
     base_store = SQLAlchemyAnalyzerStore(session=session)
     store = TTLCacheAnalyzerStore(inner=base_store, ttl_seconds=30)
@@ -46,7 +47,7 @@ def get_adherence_service(session: Session = Depends(get_session)) -> AdherenceS
     response_model=AdherenceResponse,
     summary="Record adherence event (PRO/VIP)",
 )
-def record_event(
+async def record_event(
     payload: AdherenceEventRequest,
     current_user: CurrentUser = Depends(get_current_user),
     service: AdherenceService = Depends(get_adherence_service),
@@ -68,13 +69,23 @@ def record_event(
         user identity is derived from auth context to prevent horizontal privilege escalation.
         Each API key has isolated Bayesian state.
     """
-    result = service.record_event(
+    result = await run_in_threadpool(
+        service.record_event,
         user_id=current_user.user_id,
         event_type=payload.event_type,
         weight=payload.weight,
         analyzer_key=payload.analyzer_key,
     )
-    return AdherenceResponse(**result.__dict__)
+    return AdherenceResponse(
+        user_id=result.user_id,
+        analyzer_key=result.analyzer_key,
+        alpha=result.alpha,
+        beta=result.beta,
+        n=result.n,
+        risk_slip=result.risk_slip,
+        confidence=result.confidence,
+        needs_more_data=result.needs_more_data,
+    )
 
 
 @router.get(
@@ -82,7 +93,7 @@ def record_event(
     response_model=AdherenceResponse,
     summary="Get adherence slip risk (PRO/VIP)",
 )
-def get_risk(
+async def get_risk(
     current_user: CurrentUser = Depends(get_current_user),
     analyzer_key: str = Query("v1:adherence", min_length=3, max_length=64),
     service: AdherenceService = Depends(get_adherence_service),
@@ -103,5 +114,16 @@ def get_risk(
     Security:
         user identity is derived from auth context to prevent horizontal privilege escalation.
     """
-    result = service.get(user_id=current_user.user_id, analyzer_key=analyzer_key)
-    return AdherenceResponse(**result.__dict__)
+    result = await run_in_threadpool(
+        service.get, user_id=current_user.user_id, analyzer_key=analyzer_key
+    )
+    return AdherenceResponse(
+        user_id=result.user_id,
+        analyzer_key=result.analyzer_key,
+        alpha=result.alpha,
+        beta=result.beta,
+        n=result.n,
+        risk_slip=result.risk_slip,
+        confidence=result.confidence,
+        needs_more_data=result.needs_more_data,
+    )
