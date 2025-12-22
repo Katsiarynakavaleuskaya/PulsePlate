@@ -328,3 +328,37 @@ def test_json_encoded_dict_handles_none() -> None:
     codec = JSONEncodedDict()
     assert codec.process_bind_param(None, None) is None
     assert codec.process_result_value(None, None) is None
+
+
+def test_meal_log_slip_type(test_client: TestClient) -> None:
+    """Cover slip log_type branch (lines 104-105)."""
+    api_key = "test_key_meal_slip"
+    payload = {"log_type": "slip"}
+    resp = test_client.post(
+        "/api/v1/pro/nutrition/meal-log", json=payload, headers=_headers(api_key)
+    )
+    assert resp.status_code == 200
+    assert resp.json()["n"] >= 1
+
+
+def test_meal_log_partial_type(test_client: TestClient) -> None:
+    """Cover partial log_type branch with adherence_score (lines 107-113)."""
+    api_key = "test_key_meal_partial"
+    payload = {"log_type": "partial", "adherence_score": 0.7}
+    resp = test_client.post(
+        "/api/v1/pro/nutrition/meal-log", json=payload, headers=_headers(api_key)
+    )
+    assert resp.status_code == 200
+    assert resp.json()["n"] >= 1
+
+
+def test_day_close_slip_weight(test_client: TestClient) -> None:
+    """Cover day-close with score < 1.0 branch (lines 127-128)."""
+    api_key = "test_key_day_close_slip"
+    day = date(2025, 12, 24)
+    payload = {"day": day.isoformat(), "adherence_score": 0.6}
+    resp = test_client.post(
+        "/api/v1/pro/nutrition/day-close", json=payload, headers=_headers(api_key)
+    )
+    assert resp.status_code == 200
+    assert resp.json()["n"] >= 1
