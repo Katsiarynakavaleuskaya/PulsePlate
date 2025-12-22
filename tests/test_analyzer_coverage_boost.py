@@ -64,6 +64,14 @@ class TestNutritionAnalyzerCoverage:
         )
         assert isinstance(results, list)
 
+    def test_validate_macronutrients_negative_protein(self) -> None:
+        """Cover negative protein grams."""
+        analyzer = NutritionBayesianAnalyzer()
+        results = analyzer._validate_macronutrients(
+            protein_grams=-10.0, fat_grams=15.0, carb_grams=25.0, test_name="neg_protein"
+        )
+        assert isinstance(results, list)
+
     def test_validate_macronutrients_negative_carbs(self) -> None:
         """Cover line 532: negative carb grams."""
         analyzer = NutritionBayesianAnalyzer()

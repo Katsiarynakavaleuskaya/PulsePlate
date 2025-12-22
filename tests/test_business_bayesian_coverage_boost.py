@@ -78,8 +78,8 @@ class TestLocaleNormalization:
 
     def test_locale_with_i18n_unavailable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When i18n module unavailable, should use fallback locale validation."""
-        # Simulate i18n module being unavailable with a single monkeypatch operation
-        monkeypatch.setitem(sys.modules, "core.i18n", None)
+        # Remove i18n module from sys.modules to simulate missing module
+        monkeypatch.delitem(sys.modules, "core.i18n", raising=False)
 
         # This will trigger ImportError in _load_monetization_strategies
         analyzer = BusinessBayesianAnalyzer()
