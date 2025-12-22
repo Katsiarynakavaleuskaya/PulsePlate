@@ -101,10 +101,9 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
     # Reload db module to pick up new DATABASE_URL
+    # CRITICAL: Only reload core.db, NOT model modules. Reloading models breaks
+    # SQLAlchemy mapper registry and causes DayPlan→WeeklyPlan resolution failures.
     db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
-
-    models_module = importlib.import_module("core.models")
-    importlib.reload(models_module)
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
@@ -116,30 +115,25 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    # Clear Base.metadata to allow fresh table registration for this xdist worker
-    # CRITICAL: Prevents "Table already defined" errors when models are imported multiple times.
-    # After clearing metadata, conditionally reload models to register with fresh metadata.
-    # Use reload for modules already in sys.modules, import for new ones.
-    from sqlalchemy.schema import MetaData
+    # Import all models ONCE to register with Base.metadata (no reloads!)
+    # The order matters: core.models first, then app.models
+    import core.models  # noqa: F401
+    import app.models.events  # noqa: F401
+    import app.models.plans  # noqa: F401
 
-    if hasattr(db_module_reloaded, "Base"):
-        db_module_reloaded.Base.metadata = MetaData()
-        # Import/reload models to register with fresh metadata (order: core first, then app)
-        try:
-            # Reload core.models to register with fresh metadata
-            importlib.reload(importlib.import_module("core.models"))
-            # app.models.events and app.models.plans: conditionally reload if in sys.modules
-            if "app.models.events" in sys.modules:
-                importlib.reload(sys.modules["app.models.events"])
-            else:
-                import app.models.events  # noqa: F401
+    # Handle dual Base issue from app/__init__.py using spec.loader.exec_module:
+    # app.models.* may have registered tables in a different Base instance.
+    # Copy any missing tables from app.models Base to core.db Base.
+    try:
+        import app.models.events as ev_module
 
-            if "app.models.plans" in sys.modules:
-                importlib.reload(sys.modules["app.models.plans"])
-            else:
-                import app.models.plans  # noqa: F401
-        except ImportError:
-            pass
+        if hasattr(ev_module, "Base") and ev_module.Base is not db_module_reloaded.Base:
+            # Different Base instances - copy tables
+            for table_name, table in ev_module.Base.metadata.tables.items():
+                if table_name not in db_module_reloaded.Base.metadata.tables:
+                    table.to_metadata(db_module_reloaded.Base.metadata)
+    except Exception as e:
+        logger.debug(f"Could not sync app.models tables: {e}")
 
     db_module_reloaded.init_db()
 
