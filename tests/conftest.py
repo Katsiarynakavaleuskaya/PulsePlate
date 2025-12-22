@@ -126,12 +126,14 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     # Copy any missing tables from app.models Base to core.db Base.
     try:
         import app.models.events as ev_module
+        import app.models.plans as plans_module
 
-        if hasattr(ev_module, "Base") and ev_module.Base is not db_module_reloaded.Base:
-            # Different Base instances - copy tables
-            for table_name, table in ev_module.Base.metadata.tables.items():
-                if table_name not in db_module_reloaded.Base.metadata.tables:
-                    table.to_metadata(db_module_reloaded.Base.metadata)
+        for mod in (ev_module, plans_module):
+            if hasattr(mod, "Base") and mod.Base is not db_module_reloaded.Base:
+                # Different Base instances - copy tables
+                for table_name, table in mod.Base.metadata.tables.items():
+                    if table_name not in db_module_reloaded.Base.metadata.tables:
+                        table.to_metadata(db_module_reloaded.Base.metadata)
     except Exception as e:
         logger.debug(f"Could not sync app.models tables: {e}")
 
