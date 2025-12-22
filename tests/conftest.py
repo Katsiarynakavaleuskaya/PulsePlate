@@ -107,7 +107,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     importlib.reload(models_module)
 
     # Import app models BEFORE init_db to register with Base.metadata
-    # NOTE: Use conditional import without reload to avoid "Table already defined" errors
+    # NOTE: Import app models before init_db to ensure they are registered with Base.metadata
     try:
         events_module = importlib.import_module("app.models.events")
         plans_module = importlib.import_module("app.models.plans")
@@ -203,7 +203,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_environment():
+def setup_test_environment() -> Generator[None, None, None]:
     """Set up test environment variables before any tests run.
 
     This fixture runs automatically for the entire session to ensure
@@ -260,7 +260,7 @@ def app(app_module: ModuleType) -> FastAPI:
     """Return the FastAPI app instance with API key mock."""
 
     # Apply lenient API key mode
-    def mock_get_api_key(api_key: str = ""):
+    def mock_get_api_key(api_key: str = "") -> str:
         if not api_key or len(api_key.strip()) < 3:
             from fastapi import HTTPException
 
@@ -280,7 +280,7 @@ def client(app: FastAPI) -> TestClient:
 
 
 @pytest.fixture
-def api_key():
+def api_key() -> str:
     """Return the test API key value.
 
     The actual environment setup is done by setup_test_environment fixture.

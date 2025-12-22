@@ -6,9 +6,10 @@ EN: PRO nutrition logging endpoints that feed the adherence micro-model.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -46,8 +47,48 @@ def _is_idempotency_violation(err: IntegrityError) -> bool:
     if diag and getattr(diag, "constraint_name", None) == IDEMP_CONSTRAINT:
         return True
 
-    # SQLite: check constraint name in error message
-    return IDEMP_CONSTRAINT in str(orig) or IDEMP_CONSTRAINT in str(err)
+    # SQLite: check constraint name or column list in error message
+    orig_str = str(orig) if orig is not None else ""
+    err_str = str(err)
+    if IDEMP_CONSTRAINT in orig_str or IDEMP_CONSTRAINT in err_str:
+        return True
+    sqlite_marker = (
+        "nutrition_events.subject_id",
+        "nutrition_events.day",
+        "nutrition_events.source",
+        "nutrition_events.client_event_id",
+    )
+    return all(marker in err_str for marker in sqlite_marker)
+
+
+def _fetch_existing_event(
+    session: Session, subject_id: int, day: date, source: str, client_event_id: str
+) -> NutritionEvent | None:
+    stmt = (
+        select(NutritionEvent)
+        .where(
+            NutritionEvent.subject_id == subject_id,
+            NutritionEvent.day == day,
+            NutritionEvent.source == source,
+            NutritionEvent.client_event_id == client_event_id,
+        )
+        .limit(1)
+    )
+    return session.scalar(stmt)
+
+
+def _is_event_applied(payload: dict | None) -> bool:
+    return bool(payload and payload.get("applied") is True)
+
+
+def _mark_event_applied(session: Session, event_record: NutritionEvent) -> None:
+    payload = dict(event_record.payload or {})
+    if payload.get("applied") is True:
+        return
+    payload["applied"] = True
+    event_record.payload = payload
+    session.add(event_record)
+    session.commit()
 
 
 def _event_from_meal_log(payload: MealLogRequest) -> DomainEvent:
@@ -100,7 +141,7 @@ async def log_meal(
     EN: Log a meal event and update adherence micro-model.
 
     Idempotency: If client_event_id is provided and matches an existing event,
-    returns success without re-processing.
+    returns current state when the event is already applied.
     """
 
     subject_id = current_user.user_id
@@ -108,6 +149,12 @@ async def log_meal(
     day = datetime.now(timezone.utc).date()
 
     # Write event to append-only log (idempotent if client_event_id provided)
+    event_record: NutritionEvent | None = None
+    event_payload = {
+        "log_type": payload.log_type,
+        "adherence_score": payload.adherence_score,
+        "applied": False,
+    }
     try:
         event_record = NutritionEvent(
             subject_id=subject_id,
@@ -115,10 +162,7 @@ async def log_meal(
             source="meal_log",
             event_type=payload.log_type,  # meal_logged | slip | partial
             client_event_id=payload.client_event_id,
-            payload={
-                "log_type": payload.log_type,
-                "adherence_score": payload.adherence_score,
-            },
+            payload=event_payload,
         )
         session.add(event_record)
         session.commit()
@@ -126,16 +170,25 @@ async def log_meal(
         session.rollback()
         # Narrowed idempotency check: only treat as replay if it's the idempotency constraint
         if payload.client_event_id and _is_idempotency_violation(e):
-            # Event already exists; return current adherence state without re-processing
-            result = await run_in_threadpool(service.get, subject_id)
-            return AdherenceResponse.model_validate(result, from_attributes=True)
+            event_record = _fetch_existing_event(
+                session, subject_id, day, "meal_log", payload.client_event_id
+            )
         else:
             # Other IntegrityError (FK, check, etc.) or no client_event_id - propagate
             raise
 
+    if event_record is None:
+        result = await run_in_threadpool(service.get, subject_id)
+        return AdherenceResponse.model_validate(result, from_attributes=True)
+
+    if _is_event_applied(event_record.payload):
+        result = await run_in_threadpool(service.get, subject_id)
+        return AdherenceResponse.model_validate(result, from_attributes=True)
+
     # Update adherence micro-model (async offload to threadpool)
     event = _event_from_meal_log(payload)
     result = await run_in_threadpool(service.record_domain_event, subject_id, event)
+    _mark_event_applied(session, event_record)
     return AdherenceResponse.model_validate(result, from_attributes=True)
 
 
@@ -162,8 +215,7 @@ async def close_day(
     client_event_id = f"day-close:{day.isoformat()}"
 
     # Write day_closed event to append-only log (idempotent)
-    already_closed = False
-
+    event_record: NutritionEvent | None = None
     try:
         event_record = NutritionEvent(
             subject_id=subject_id,
@@ -173,6 +225,7 @@ async def close_day(
             client_event_id=client_event_id,
             payload={
                 "adherence_score": payload.adherence_score,
+                "applied": False,
             },
         )
         session.add(event_record)
@@ -181,18 +234,24 @@ async def close_day(
         session.rollback()
         # Narrowed idempotency check: only treat as replay if it's the idempotency constraint
         if _is_idempotency_violation(e):
-            # Day already closed - skip re-finalization, return current state
-            already_closed = True
+            event_record = _fetch_existing_event(
+                session, subject_id, day, "day_close", client_event_id
+            )
         else:
             # Other IntegrityError (FK, check, etc.) - propagate
             raise
 
-    # Finalize adherence only if this is the first closure (async offload to threadpool)
-    if not already_closed:
-        event = _event_from_day_close(payload)
-        result = await run_in_threadpool(service.record_domain_event, subject_id, event)
-    else:
-        # Already closed - retrieve current adherence state without re-processing
+    if event_record is None:
         result = await run_in_threadpool(service.get, subject_id)
+        return AdherenceResponse.model_validate(result, from_attributes=True)
+
+    if _is_event_applied(event_record.payload):
+        result = await run_in_threadpool(service.get, subject_id)
+        return AdherenceResponse.model_validate(result, from_attributes=True)
+
+    # Finalize adherence only if this is the first closure (async offload to threadpool)
+    event = _event_from_day_close(payload)
+    result = await run_in_threadpool(service.record_domain_event, subject_id, event)
+    _mark_event_applied(session, event_record)
 
     return AdherenceResponse.model_validate(result, from_attributes=True)
