@@ -26,6 +26,7 @@ Usage:
 import hashlib
 import logging
 import os
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
@@ -314,14 +315,42 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
     return int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF
 
 
-async def get_pro_subject_id(api_key: str = Depends(require_pro_tier)) -> int:
+@dataclass(frozen=True)
+class CurrentUser:
+    """Authenticated user context derived from the API key.
+
+    Attributes:
+        user_id: Stable subject identifier derived from API key
+        api_key: Raw API key used for authentication
+    """
+
+    user_id: int
+    api_key: str
+
+
+async def get_current_user(api_key: str = Depends(require_pro_tier)) -> CurrentUser:
+    """Get authenticated user context for PRO-protected endpoints.
+
+    RU: Получить контекст пользователя для PRO-защищённых endpoint.
+    EN: Get authenticated user context for PRO-protected endpoints.
+
+    Args:
+        api_key: Validated API key from require_pro_tier dependency
+
+    Returns:
+        CurrentUser: User context with derived subject_id
+    """
+    return CurrentUser(user_id=derive_subject_id_from_api_key(api_key), api_key=api_key)
+
+
+async def get_pro_subject_id(current_user: CurrentUser = Depends(get_current_user)) -> int:
     """Get subject_id for PRO-protected endpoints.
 
     RU: Получить subject_id для PRO-защищённых endpoint.
     EN: Get subject_id for PRO-protected endpoints.
 
     Args:
-        api_key: Validated API key from require_pro_tier dependency
+        current_user: Authenticated user context
 
     Returns:
         int: Subject ID derived from API key
@@ -335,4 +364,4 @@ async def get_pro_subject_id(api_key: str = Depends(require_pro_tier)) -> int:
             # Use subject_id instead of user_id from payload
             ...
     """
-    return derive_subject_id_from_api_key(api_key)
+    return current_user.user_id

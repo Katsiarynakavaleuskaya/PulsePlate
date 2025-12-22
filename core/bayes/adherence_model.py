@@ -92,7 +92,7 @@ def update_state(
         alpha += weight
     elif event_type == "slip":
         beta += weight
-    else:
+    else:  # pragma: no cover
         # Should not happen due to typing, but keep defensive.
         raise ValueError(f"Unsupported event_type: {event_type}")
 
@@ -118,7 +118,7 @@ def compute_metrics(state: AdherenceState) -> Tuple[float, float, bool]:
         We treat n < 7 as low confidence.
     """
     denom = state.alpha + state.beta
-    if denom <= 0:
+    if denom <= 0:  # pragma: no cover
         # Shouldn't happen, but be safe.
         p_adherence = 0.5
     else:

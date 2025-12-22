@@ -999,8 +999,8 @@ try:
     from app.routers import bayes_adherence
 
     app.include_router(bayes_adherence.router)
-except ImportError:
-    logger.debug("Bayesian adherence router not available")
+except ImportError as e:
+    logger.warning("Bayesian adherence router not loaded: %s", e)
 
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)

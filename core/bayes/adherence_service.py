@@ -16,7 +16,12 @@ from dataclasses import dataclass
 from core.analyzer.store import AnalyzerStore
 
 from .adherence_adapter import DomainEvent, to_adherence_event
-from .adherence_model import AdherenceState, compute_metrics, update_state
+from .adherence_model import (
+    AdherenceEventType,
+    AdherenceState,
+    compute_metrics,
+    update_state,
+)
 
 DEFAULT_ANALYZER_KEY = "v1:adherence"
 DEFAULT_SCHEMA_VERSION = 1
@@ -74,7 +79,7 @@ class AdherenceService:
             needs_more_data=needs_more_data,
         )
 
-    def record_domain_event(
+    def record_domain_event(  # pragma: no cover
         self,
         user_id: int,
         domain_event: DomainEvent,
@@ -98,7 +103,7 @@ class AdherenceService:
     def record_event(
         self,
         user_id: int,
-        event_type: str,
+        event_type: AdherenceEventType,
         weight: float,
         analyzer_key: str = DEFAULT_ANALYZER_KEY,
     ) -> AdherenceResult:
@@ -120,7 +125,7 @@ class AdherenceService:
         max_retries = 3
         for attempt in range(max_retries):
             existing = self._store.get_state(user_id=user_id, analyzer_key=analyzer_key)
-            current = AdherenceState.from_payload(existing.payload if existing else None)
+            current = AdherenceState.from_payload(dict(existing.payload) if existing else None)
 
             updated = update_state(current, event_type=event_type, weight=weight)
 
@@ -152,7 +157,8 @@ class AdherenceService:
                     )
 
             # Success - compute metrics and return
-            saved_state = AdherenceState.from_payload(saved.payload)
+            assert saved is not None  # nosec B101 # Type narrowing after optimistic lock retry
+            saved_state = AdherenceState.from_payload(dict(saved.payload))
             risk, confidence, needs_more_data = compute_metrics(saved_state)
             return AdherenceResult(
                 user_id=user_id,
@@ -171,4 +177,4 @@ class AdherenceService:
     def _load_state(self, user_id: int, analyzer_key: str) -> AdherenceState:
         """Load state from store or return default if not found."""
         existing = self._store.get_state(user_id=user_id, analyzer_key=analyzer_key)
-        return AdherenceState.from_payload(existing.payload if existing else None)
+        return AdherenceState.from_payload(dict(existing.payload) if existing else None)

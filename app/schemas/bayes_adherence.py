@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 AdherenceEventType = Literal["meal_logged", "slip"]
 
@@ -23,6 +23,11 @@ class AdherenceEventRequest(BaseModel):
         subject_id is derived from authenticated API key (not from request payload)
         to prevent horizontal privilege escalation.
     """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # TODO(SEC-001): Mitigation plan - add per-API-key rate limiting, stricter input
+    # validation/whitelisting, and logging/alerting for suspicious cross-user requests.
 
     event_type: AdherenceEventType
     weight: float = Field(1.0, gt=0.0, le=10.0)

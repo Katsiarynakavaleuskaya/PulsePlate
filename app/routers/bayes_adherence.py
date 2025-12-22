@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.middleware.api_tiers import get_pro_subject_id, require_pro_tier
+from app.middleware.api_tiers import CurrentUser, get_current_user, require_pro_tier
 from app.schemas.bayes_adherence import AdherenceEventRequest, AdherenceResponse
 from core.analyzer.store_cache import TTLCacheAnalyzerStore
 from core.analyzer.store_sqlalchemy import SQLAlchemyAnalyzerStore
@@ -31,9 +31,13 @@ def get_adherence_service(session: Session = Depends(get_session)) -> AdherenceS
 
     Returns:
         AdherenceService instance
+
+    Note:
+        TTL cache is request-scoped because SQLAlchemy session is request-scoped.
+        A process-wide cache requires refactoring store to accept session factory.
     """
     base_store = SQLAlchemyAnalyzerStore(session=session)
-    store = TTLCacheAnalyzerStore(inner=base_store, ttl_seconds=30.0)
+    store = TTLCacheAnalyzerStore(inner=base_store, ttl_seconds=30)
     return AdherenceService(store=store)
 
 
@@ -44,7 +48,7 @@ def get_adherence_service(session: Session = Depends(get_session)) -> AdherenceS
 )
 def record_event(
     payload: AdherenceEventRequest,
-    subject_id: int = Depends(get_pro_subject_id),
+    current_user: CurrentUser = Depends(get_current_user),
     service: AdherenceService = Depends(get_adherence_service),
 ) -> AdherenceResponse:
     """Record an adherence event (meal_logged or slip).
@@ -54,18 +58,18 @@ def record_event(
 
     Args:
         payload: Event data (event_type, weight)
-        subject_id: Subject ID derived from authenticated API key
+        current_user: Authenticated user context derived from API key
         service: AdherenceService dependency
 
     Returns:
         Updated adherence metrics
 
     Security:
-        subject_id is derived from API key to prevent horizontal privilege escalation.
+        user identity is derived from auth context to prevent horizontal privilege escalation.
         Each API key has isolated Bayesian state.
     """
     result = service.record_event(
-        user_id=subject_id,
+        user_id=current_user.user_id,
         event_type=payload.event_type,
         weight=payload.weight,
         analyzer_key=payload.analyzer_key,
@@ -79,7 +83,7 @@ def record_event(
     summary="Get adherence slip risk (PRO/VIP)",
 )
 def get_risk(
-    subject_id: int = Depends(get_pro_subject_id),
+    current_user: CurrentUser = Depends(get_current_user),
     analyzer_key: str = Query("v1:adherence", min_length=3, max_length=64),
     service: AdherenceService = Depends(get_adherence_service),
 ) -> AdherenceResponse:
@@ -89,7 +93,7 @@ def get_risk(
     EN: Get current slip risk and model confidence.
 
     Args:
-        subject_id: Subject ID derived from authenticated API key
+        current_user: Authenticated user context derived from API key
         analyzer_key: Analyzer key (default: v1:adherence)
         service: AdherenceService dependency
 
@@ -97,7 +101,7 @@ def get_risk(
         Current adherence metrics
 
     Security:
-        subject_id is derived from API key to prevent horizontal privilege escalation.
+        user identity is derived from auth context to prevent horizontal privilege escalation.
     """
-    result = service.get(user_id=subject_id, analyzer_key=analyzer_key)
+    result = service.get(user_id=current_user.user_id, analyzer_key=analyzer_key)
     return AdherenceResponse(**result.__dict__)
