@@ -106,6 +106,15 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     models_module = importlib.import_module("core.models")
     importlib.reload(models_module)
 
+    # Import app models BEFORE init_db to register with Base.metadata
+    try:
+        events_module = importlib.import_module("app.models.events")
+        plans_module = importlib.import_module("app.models.plans")
+        importlib.reload(events_module)
+        importlib.reload(plans_module)
+    except ImportError:
+        pass  # Models may not exist in all branches
+
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
         try:

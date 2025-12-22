@@ -102,6 +102,14 @@ def pytest_configure(config: pytest.Config) -> None:
     # Import User model to ensure it's registered with SQLAlchemy
     from core.models import User  # noqa: F401
 
+    # Import app models BEFORE init_db to ensure they're registered with Base.metadata
+    # This must happen in pytest_configure which runs before fixtures
+    try:
+        from app.models.events import NutritionEvent  # noqa: F401
+        from app.models.plans import DayPlan, WeeklyPlan  # noqa: F401
+    except ImportError:
+        pass  # Models may not exist in all branches
+
     # Initialize database schema
     try:
         core_db.init_db()
@@ -180,6 +188,19 @@ def init_test_database() -> None:
             importlib.reload(sys.modules["core.models"])  # noqa: F401
         else:
             import core.models  # noqa: F401
+
+        # Import app models BEFORE init_db to ensure they're registered with Base.metadata
+        try:
+            if "app.models.events" in sys.modules:
+                importlib.reload(sys.modules["app.models.events"])
+            else:
+                import app.models.events  # noqa: F401
+            if "app.models.plans" in sys.modules:
+                importlib.reload(sys.modules["app.models.plans"])
+            else:
+                import app.models.plans  # noqa: F401
+        except ImportError:
+            pass  # Models may not exist in all branches
 
         # Initialize database - this creates all tables
         core_db.init_db()

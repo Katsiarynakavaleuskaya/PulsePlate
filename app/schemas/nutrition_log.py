@@ -32,6 +32,10 @@ class MealLogRequest(BaseModel):
     meal_type: Optional[MealType] = None
     log_type: MealLogType = "meal_logged"
     adherence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    client_event_id: Optional[str] = Field(
+        default=None,
+        description="Client-provided idempotency key (recommended for mobile retries)",
+    )
 
     @model_validator(mode="after")
     def _validate_partial_requires_score(self) -> "MealLogRequest":

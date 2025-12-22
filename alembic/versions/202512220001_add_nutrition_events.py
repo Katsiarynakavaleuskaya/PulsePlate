@@ -11,7 +11,6 @@ Create Date: 2025-12-22 15:50:00.000000
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -39,9 +38,8 @@ def upgrade() -> None:
         sa.Column("client_event_id", sa.String(length=64), nullable=True),
         sa.Column(
             "payload",
-            postgresql.JSONB(astext_type=sa.String()).with_variant(sa.String(), "sqlite"),
-            nullable=False,
-            server_default=sa.text("'{}'"),
+            sa.Text(),  # JSON as text for SQLite compatibility
+            nullable=True,
         ),
         sa.Column(
             "created_at",
@@ -52,6 +50,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "subject_id",
+            "day",
             "source",
             "client_event_id",
             name="uq_nutrition_events_idempotency",
