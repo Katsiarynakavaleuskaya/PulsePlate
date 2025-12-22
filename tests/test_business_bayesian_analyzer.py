@@ -17,6 +17,13 @@ from core.business_bayesian_analyzer import (
 )
 
 
+def test_analyzer_smoke() -> None:
+    """Ensure analyzer init and analyze run (coverage insurance)."""
+    analyzer = BusinessBayesianAnalyzer()
+    result = analyzer.analyze("price = 10", "smoke")
+    assert isinstance(result, list)
+
+
 class TestBusinessBayesianAnalyzerInit:
     """Tests for BusinessBayesianAnalyzer initialization."""
 
