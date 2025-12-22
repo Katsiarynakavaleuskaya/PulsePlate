@@ -23,12 +23,14 @@ Usage:
         ...
 """
 
+import hashlib
 import logging
 import os
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
@@ -287,3 +289,84 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
     # return subscription.tier if subscription else SubscriptionTier.FREE
 
     return SubscriptionTier.FREE
+
+
+def derive_subject_id_from_api_key(api_key: str) -> int:
+    """Derive stable subject_id from API key for state isolation.
+
+    RU: Получить стабильный subject_id из API ключа для изоляции состояния.
+    EN: Derive stable subject_id from API key for state isolation.
+
+    Args:
+        api_key: Validated API key
+
+    Returns:
+        int: Deterministic positive integer subject_id (fits in int64)
+
+    Note:
+        This is a temporary solution until proper user authentication is implemented.
+        Each API key gets isolated Bayesian state. When user→key mapping is added,
+        state can be migrated to actual user_id.
+
+        Security: Uses SHA-256 for identity derivation, NOT password hashing.
+        This is intentional - we're creating a deterministic ID, not securing a secret.
+    """
+    # CodeQL [py/weak-sensitive-data-hashing]: False positive - this is identity derivation,
+    # not password hashing. SHA-256 is appropriate for deterministic ID generation.
+    digest = hashlib.sha256(
+        api_key.encode("utf-8")
+    ).digest()  # lgtm[py/weak-sensitive-data-hashing]
+    # Take first 8 bytes, convert to int, mask to positive int64
+    return int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF
+
+
+@dataclass(frozen=True)
+class CurrentUser:
+    """Authenticated user context derived from the API key.
+
+    Attributes:
+        user_id: Stable subject identifier derived from API key
+        api_key: Raw API key used for authentication
+    """
+
+    user_id: int
+    api_key: str
+
+
+async def get_current_user(api_key: str = Depends(require_pro_tier)) -> CurrentUser:
+    """Get authenticated user context for PRO-protected endpoints.
+
+    RU: Получить контекст пользователя для PRO-защищённых endpoint.
+    EN: Get authenticated user context for PRO-protected endpoints.
+
+    Args:
+        api_key: Validated API key from require_pro_tier dependency
+
+    Returns:
+        CurrentUser: User context with derived subject_id
+    """
+    return CurrentUser(user_id=derive_subject_id_from_api_key(api_key), api_key=api_key)
+
+
+async def get_pro_subject_id(current_user: CurrentUser = Depends(get_current_user)) -> int:
+    """Get subject_id for PRO-protected endpoints.
+
+    RU: Получить subject_id для PRO-защищённых endpoint.
+    EN: Get subject_id for PRO-protected endpoints.
+
+    Args:
+        current_user: Authenticated user context
+
+    Returns:
+        int: Subject ID derived from API key
+
+    Usage:
+        @router.post("/event")
+        def record_event(
+            payload: EventRequest,
+            subject_id: int = Depends(get_pro_subject_id),
+        ):
+            # Use subject_id instead of user_id from payload
+            ...
+    """
+    return current_user.user_id

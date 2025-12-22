@@ -99,6 +99,13 @@ This implementation addresses CodeQL alert **py/clear-text-storage-sensitive-dat
 - ❌ Compromised Python environment
 - ❌ Physical access to machine
 
+### Adherence Endpoint Posture (SEC-001)
+
+- Current posture: adherence endpoints derive user identity from authenticated API keys and reject
+  payload-supplied `user_id` fields to prevent horizontal privilege escalation.
+- Planned remediation: add per-API-key rate limiting, suspicious-request logging/alerting, and full
+  user authentication mapping by 2026-Q1 (deferred pending subscription DB).
+
 For these threats, use hardware security modules (HSM) or cloud-based secret management.
 
 ## License

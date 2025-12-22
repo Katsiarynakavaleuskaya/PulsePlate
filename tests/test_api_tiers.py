@@ -11,10 +11,13 @@ import pytest
 from fastapi import HTTPException
 
 from app.middleware.api_tiers import (
+    CurrentUser,
     SubscriptionTier,
     TEST_KEY_PRO,
     TEST_KEY_VIP,
     _validate_api_key_tier,
+    derive_subject_id_from_api_key,
+    get_pro_subject_id,
     get_subscription_tier,
     require_pro_tier,
     require_vip_tier,
@@ -188,6 +191,36 @@ class TestGetSubscriptionTier:
             get_subscription_tier(TEST_KEY_VIP)
         with pytest.raises(NotImplementedError):
             get_subscription_tier(TEST_KEY_PRO)
+
+
+class TestGetProSubjectId:
+    """Test get_pro_subject_id helper."""
+
+    @pytest.mark.asyncio
+    async def test_get_pro_subject_id_returns_current_user_id(self) -> None:
+        """Test helper returns subject ID from current user."""
+        current_user = CurrentUser(user_id=123, api_key="test_key")
+        assert await get_pro_subject_id(current_user=current_user) == 123
+
+
+class TestDeriveSubjectIdFromApiKey:
+    """Tests for derive_subject_id_from_api_key."""
+
+    def test_same_key_is_deterministic(self) -> None:
+        """Test same key produces stable subject IDs."""
+        key = "deterministic-key"
+        assert derive_subject_id_from_api_key(key) == derive_subject_id_from_api_key(key)
+
+    def test_different_keys_are_unique(self) -> None:
+        """Test different keys produce different subject IDs."""
+        first = derive_subject_id_from_api_key("key-one")
+        second = derive_subject_id_from_api_key("key-two")
+        assert first != second
+
+    def test_subject_id_within_positive_int64(self) -> None:
+        """Test subject ID is positive int64 within allowed range."""
+        subject_id = derive_subject_id_from_api_key("range-check")
+        assert 1 <= subject_id <= 0x7FFF_FFFF_FFFF_FFFF
 
 
 class TestEnvironmentConfiguration:
