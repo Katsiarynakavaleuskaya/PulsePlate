@@ -286,9 +286,9 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
 
     # Override API key validation for all tests
-    try:
-        from app import app as fastapi_app
-
+    # Use sys.modules.get to avoid triggering fresh import if app is already loaded
+    fastapi_app = sys.modules.get("app")
+    if fastapi_app is not None and hasattr(fastapi_app, "app"):
         # Simple pass-through that accepts any non-empty API key
         def mock_get_api_key(api_key: str = ""):
             if not api_key or len(api_key.strip()) < 3:
@@ -298,13 +298,10 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
             return api_key
 
         # Override the dependency
-        if hasattr(fastapi_app, "dependency_overrides"):
-            from app import get_api_key
-
-            fastapi_app.dependency_overrides[get_api_key] = mock_get_api_key  # type: ignore[union-attr]
-    except (ImportError, AttributeError):
-        # App not yet loaded, that's fine
-        pass
+        if hasattr(fastapi_app.app, "dependency_overrides"):
+            get_api_key = getattr(fastapi_app, "get_api_key", None)
+            if get_api_key is not None:
+                fastapi_app.app.dependency_overrides[get_api_key] = mock_get_api_key
 
     yield
 
@@ -312,14 +309,11 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.clear()
     os.environ.update(old_env)
 
-    # Clear dependency overrides
-    try:
-        from app import app as fastapi_app
-
-        if hasattr(fastapi_app, "dependency_overrides"):
-            fastapi_app.dependency_overrides.clear()  # type: ignore[union-attr]
-    except (ImportError, AttributeError):
-        pass
+    # Clear dependency overrides (use sys.modules.get to avoid re-import)
+    fastapi_app = sys.modules.get("app")
+    if fastapi_app is not None and hasattr(fastapi_app, "app"):
+        if hasattr(fastapi_app.app, "dependency_overrides"):
+            fastapi_app.app.dependency_overrides.clear()
 
     # Restore sys.modules (be careful not to break everything)
     # Only restore modules that were added during the test

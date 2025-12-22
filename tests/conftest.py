@@ -107,14 +107,11 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     importlib.reload(models_module)
 
     # Import app models BEFORE init_db to register with Base.metadata
-    # NOTE: Import app models before init_db to ensure they are registered with Base.metadata
+    # NOTE: Always import to ensure models are registered with current Base.metadata,
+    # but don't reload to avoid "Table already defined" errors in SQLAlchemy.
     try:
-        events_module = importlib.import_module("app.models.events")
-        plans_module = importlib.import_module("app.models.plans")
-        # Reload already imported modules in case they were imported before DATABASE_URL was
-        # set, ensuring they pick up the updated database configuration.
-        importlib.reload(events_module)
-        importlib.reload(plans_module)
+        import app.models.events  # noqa: F401
+        import app.models.plans  # noqa: F401
     except ImportError:
         pass  # Models may not exist in all branches
 
@@ -127,6 +124,20 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
             )
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
+
+    # Clear Base.metadata to allow fresh table registration
+    # This prevents "Table already defined" errors when models are imported multiple times
+    from sqlalchemy.schema import MetaData
+
+    if hasattr(db_module_reloaded, "Base"):
+        db_module_reloaded.Base.metadata = MetaData()
+        # Re-import models to register with fresh metadata
+        try:
+            importlib.reload(importlib.import_module("app.models.events"))
+            importlib.reload(importlib.import_module("app.models.plans"))
+            importlib.reload(importlib.import_module("core.models"))
+        except ImportError:
+            pass
 
     db_module_reloaded.init_db()
 
