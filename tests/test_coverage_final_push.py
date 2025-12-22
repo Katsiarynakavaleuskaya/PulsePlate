@@ -152,13 +152,12 @@ class TestFinalCoveragePush:
         """Test plan endpoint error paths."""
         import app
 
-        client = TestClient(cast(ASGIApp, app.app))
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Test with missing required fields
+            payload = {}
 
-        # Test with missing required fields
-        payload = {}
-
-        response = client.post("/plan", json=payload)
-        assert response.status_code in [422, 503]  # Validation error or service unavailable
+            response = client.post("/plan", json=payload)
+            assert response.status_code in [422, 503]  # Validation error or service unavailable
 
     def test_health_endpoint_comprehensive(self) -> None:
         """Test health endpoint with different scenarios."""
