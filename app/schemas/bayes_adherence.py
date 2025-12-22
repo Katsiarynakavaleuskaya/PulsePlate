@@ -20,15 +20,12 @@ class AdherenceEventRequest(BaseModel):
     EN: Request schema for recording an adherence event.
 
     Security Note:
-        TODO: Remove user_id from request body once proper user authentication
-        is implemented. Currently accepts user_id in payload which allows
-        horizontal privilege escalation. Should use Depends(get_current_user)
-        to extract user_id from auth context.
+        subject_id is derived from authenticated API key (not from request payload)
+        to prevent horizontal privilege escalation.
     """
 
-    user_id: int = Field(..., ge=1)
     event_type: AdherenceEventType
-    weight: float = Field(1.0, gt=0.0, le=10.0)  # Changed from ge=0.0 to gt=0.0
+    weight: float = Field(1.0, gt=0.0, le=10.0)
     analyzer_key: str = Field("v1:adherence", min_length=3, max_length=64)
 
 
