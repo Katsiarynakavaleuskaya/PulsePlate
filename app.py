@@ -996,12 +996,19 @@ if pro_router is not None:
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:
-    from app.routers import bayes_adherence, nutrition_log
+    from app.routers import bayes_adherence
 
     app.include_router(bayes_adherence.router)
+except ImportError as e:
+    logger.warning("Bayesian adherence router not loaded: %s", e)
+
+# Include nutrition logging router (PRO tier)
+try:
+    from app.routers import nutrition_log
+
     app.include_router(nutrition_log.router)
 except ImportError as e:
-    logger.warning("Bayesian adherence or nutrition_log router not loaded: %s", e)
+    logger.warning("Nutrition log router not loaded: %s", e)
 
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)
