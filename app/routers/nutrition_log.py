@@ -11,13 +11,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.middleware.api_tiers import CurrentUser, get_current_user, require_pro_tier
 from app.models.events import NutritionEvent
 from app.routers.bayes_adherence import get_adherence_service
 from app.schemas.bayes_adherence import AdherenceResponse
 from app.schemas.nutrition_log import DayCloseRequest, MealLogRequest
-from app.services.nutrition_events_collector import collect_day_events
 from core.bayes.adherence_adapter import DomainEvent
 from core.bayes.adherence_service import AdherenceService
 from core.db import get_session
@@ -88,7 +88,7 @@ def _event_from_day_close(payload: DayCloseRequest) -> DomainEvent:
 
 
 @router.post("/meal-log", response_model=AdherenceResponse, summary="Log meal event (PRO)")
-def log_meal(
+async def log_meal(
     payload: MealLogRequest,
     current_user: CurrentUser = Depends(get_current_user),
     service: AdherenceService = Depends(get_adherence_service),
@@ -127,20 +127,20 @@ def log_meal(
         # Narrowed idempotency check: only treat as replay if it's the idempotency constraint
         if payload.client_event_id and _is_idempotency_violation(e):
             # Event already exists; return current adherence state without re-processing
-            result = service.get(subject_id)
+            result = await run_in_threadpool(service.get, subject_id)
             return AdherenceResponse.model_validate(result, from_attributes=True)
         else:
             # Other IntegrityError (FK, check, etc.) or no client_event_id - propagate
             raise
 
-    # Update adherence micro-model (sync call, FastAPI handles threadpool)
+    # Update adherence micro-model (async offload to threadpool)
     event = _event_from_meal_log(payload)
-    result = service.record_domain_event(subject_id, event)
+    result = await run_in_threadpool(service.record_domain_event, subject_id, event)
     return AdherenceResponse.model_validate(result, from_attributes=True)
 
 
 @router.post("/day-close", response_model=AdherenceResponse, summary="Close day (PRO)")
-def close_day(
+async def close_day(
     payload: DayCloseRequest,
     current_user: CurrentUser = Depends(get_current_user),
     service: AdherenceService = Depends(get_adherence_service),
@@ -187,15 +187,12 @@ def close_day(
             # Other IntegrityError (FK, check, etc.) - propagate
             raise
 
-    # Collect day events for finalization context
-    collected = collect_day_events(session, subject_id, day)
-
-    # Finalize adherence only if this is the first closure (sync call, FastAPI handles threadpool)
+    # Finalize adherence only if this is the first closure (async offload to threadpool)
     if not already_closed:
         event = _event_from_day_close(payload)
-        result = service.record_domain_event(subject_id, event)
+        result = await run_in_threadpool(service.record_domain_event, subject_id, event)
     else:
         # Already closed - retrieve current adherence state without re-processing
-        result = service.get(subject_id)
+        result = await run_in_threadpool(service.get, subject_id)
 
     return AdherenceResponse.model_validate(result, from_attributes=True)

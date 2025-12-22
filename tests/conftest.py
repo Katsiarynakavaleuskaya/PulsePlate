@@ -111,7 +111,8 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     try:
         events_module = importlib.import_module("app.models.events")
         plans_module = importlib.import_module("app.models.plans")
-        # Reload already imported modules (they were imported by configure_sqlite_database)
+        # Reload already imported modules in case they were imported before DATABASE_URL was
+        # set, ensuring they pick up the updated database configuration.
         importlib.reload(events_module)
         importlib.reload(plans_module)
     except ImportError:
