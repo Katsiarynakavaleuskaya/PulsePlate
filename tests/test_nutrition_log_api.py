@@ -125,3 +125,14 @@ class TestNutritionLogAPI:
             json={"log_type": "meal_logged"},
         )
         assert response.status_code == 403
+
+    def test_partial_meal_boundary_values(self) -> None:
+        """Verify partial logs accept boundary adherence_score values (0.0, 1.0)."""
+        for score in (0.0, 1.0):
+            response = self.client.post(
+                "/api/v1/pro/nutrition/meal-log",
+                json={"log_type": "partial", "adherence_score": score},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["n"] >= 1
