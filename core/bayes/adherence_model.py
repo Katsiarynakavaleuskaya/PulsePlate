@@ -46,6 +46,12 @@ class AdherenceState:
         beta = float(payload.get("beta", 1.0))
         n = int(payload.get("n", 0))
         last_event_at = payload.get("last_event_at")
+
+        if alpha <= 0 or beta <= 0:
+            raise ValueError(f"alpha and beta must be positive, got alpha={alpha}, beta={beta}")
+        if n < 0:
+            raise ValueError(f"n must be non-negative, got n={n}")
+
         return AdherenceState(alpha=alpha, beta=beta, n=n, last_event_at=last_event_at)
 
     def to_payload(self) -> Dict[str, Any]:

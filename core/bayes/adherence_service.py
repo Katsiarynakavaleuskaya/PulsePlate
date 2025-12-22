@@ -159,7 +159,8 @@ class AdherenceService:
                     )
 
             # Success - compute metrics and return
-            assert saved is not None  # nosec B101 # Type narrowing after optimistic lock retry
+            if saved is None:
+                raise RuntimeError("Failed to save adherence after optimistic lock retry")
             saved_state = AdherenceState.from_payload(dict(saved.payload))
             risk, confidence, needs_more_data = compute_metrics(saved_state)
             return AdherenceResult(
