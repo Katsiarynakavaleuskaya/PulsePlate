@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.middleware.api_tiers import derive_subject_id_from_api_key
 from app.models.events import JSONEncodedDict, NutritionEvent
 from app.routers import nutrition_log
+from app.schemas.nutrition_log import MealLogRequest
 from core.bayes.adherence_service import AdherenceResult
 from core.db import get_session, session_scope
 
@@ -350,6 +351,12 @@ def test_meal_log_partial_type(test_client: TestClient) -> None:
     )
     assert resp.status_code == 200
     assert resp.json()["n"] >= 1
+
+
+def test_meal_log_partial_missing_score_raises_runtime_error() -> None:
+    payload = MealLogRequest.model_construct(log_type="partial", adherence_score=None)
+    with pytest.raises(RuntimeError):
+        nutrition_log._event_from_meal_log(payload)
 
 
 def test_day_close_slip_weight(test_client: TestClient) -> None:

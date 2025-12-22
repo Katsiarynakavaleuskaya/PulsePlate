@@ -13,13 +13,15 @@ Targets uncovered lines from CI coverage report:
 - Lines 981-1320: Revenue growth and retention analysis
 """
 
-from pathlib import Path
+import builtins
 import sys
+from pathlib import Path
 import pytest
 from core.business_bayesian_analyzer import (
     BusinessBayesianAnalyzer,
     BusinessCategory,
     BusinessErrorType,
+    BusinessTestResult,
 )
 
 
@@ -295,3 +297,231 @@ class TestRecommendations:
         analyzer = BusinessBayesianAnalyzer()
         recs = analyzer.generate_cost_savings_recommendations()
         assert recs == []
+
+
+class TestMissingCoveragePaths:
+    """Target remaining uncovered branches for coverage."""
+
+    def test_init_with_injected_config_and_thresholds(self) -> None:
+        analyzer = BusinessBayesianAnalyzer(
+            low_price_threshold=2.0,
+            high_price_threshold=200.0,
+            monetization_strategies={"pricing_models": {"custom": True}},
+            cost_optimization_rules={"infrastructure": {"custom": True}},
+            domain="generic",
+        )
+        assert analyzer.low_price_threshold == 2.0
+        assert analyzer.high_price_threshold == 200.0
+        assert analyzer.monetization_strategies["pricing_models"]["custom"] is True
+        assert analyzer.cost_optimization_rules["infrastructure"]["custom"] is True
+
+    def test_import_yaml_module_returns_none_on_importerror(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real_import = builtins.__import__
+
+        def _fake_import(name: str, *args: object, **kwargs: object):
+            if name == "yaml":
+                raise ModuleNotFoundError("yaml missing")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _fake_import)
+        assert BusinessBayesianAnalyzer._import_yaml_module() is None
+
+    def test_config_dir_prefers_existing_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import core.business_bayesian_analyzer as bba_module
+
+        config_dir = tmp_path / "core" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        fake_module_path = tmp_path / "core" / "business_bayesian_analyzer.py"
+        fake_module_path.parent.mkdir(parents=True, exist_ok=True)
+        fake_module_path.write_text("# fake module", encoding="utf-8")
+
+        monkeypatch.setattr(bba_module, "__file__", str(fake_module_path))
+        analyzer = bba_module.BusinessBayesianAnalyzer()
+        assert analyzer._config_dir() == config_dir
+
+    def test_loaders_fallback_when_yaml_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class _BoomYaml:
+            @staticmethod
+            def safe_load(_fh: object) -> dict[str, object]:
+                raise ValueError("boom")
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "business_knowledge.yaml").write_text("x", encoding="utf-8")
+        (config_dir / "monetization_strategies.en.yaml").write_text("x", encoding="utf-8")
+        (config_dir / "cost_optimization_rules.yaml").write_text("x", encoding="utf-8")
+
+        analyzer = BusinessBayesianAnalyzer()
+        monkeypatch.setattr(analyzer, "_config_dir", lambda: config_dir)
+        monkeypatch.setattr(analyzer, "_import_yaml_module", lambda: _BoomYaml)
+
+        assert "revenue_streams" in analyzer._load_business_knowledge()
+        assert "pricing_models" in analyzer._load_monetization_strategies("en")
+        assert "infrastructure" in analyzer._load_cost_optimization_rules()
+
+    def test_loaders_read_yaml_when_available(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class _YamlStub:
+            @staticmethod
+            def safe_load(fh: object) -> dict[str, object]:
+                name = Path(getattr(fh, "name", ""))
+                if name.name == "business_knowledge.yaml":
+                    return {"revenue_streams": {"subscription": {"price_range": [1, 2]}}}
+                if name.name.startswith("monetization_strategies"):
+                    return {"pricing_models": {"tiered": ["basic"]}}
+                if name.name == "cost_optimization_rules.yaml":
+                    return {"infrastructure": {"auto_scaling": True}}
+                return {}
+
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "business_knowledge.yaml").write_text("x", encoding="utf-8")
+        (config_dir / "monetization_strategies.en.yaml").write_text("x", encoding="utf-8")
+        (config_dir / "cost_optimization_rules.yaml").write_text("x", encoding="utf-8")
+
+        analyzer = BusinessBayesianAnalyzer()
+        monkeypatch.setattr(analyzer, "_config_dir", lambda: config_dir)
+        monkeypatch.setattr(analyzer, "_import_yaml_module", lambda: _YamlStub)
+
+        assert "revenue_streams" in analyzer._load_business_knowledge()
+        assert "pricing_models" in analyzer._load_monetization_strategies("en")
+        assert "infrastructure" in analyzer._load_cost_optimization_rules()
+
+    def test_normalize_code_input_handles_sequences(self) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        assert analyzer._normalize_code_input(["a", "b"]) == "a\nb"
+        assert analyzer._normalize_code_input(("c", "d")) == "c\nd"
+
+    def test_remove_comments_fallback_handles_quotes(self) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        code = (
+            "'''start'''\n"
+            '"""block"""\n'
+            'line = "value # not comment"\n'
+            "single = 'text # not comment'\n"
+            'escape = "quote \\\\""\n'
+            "# comment\n"
+            "for (\n"
+        )
+        cleaned = analyzer._remove_comments_fallback(code)
+        assert "# not comment" in cleaned
+
+    def test_remove_comments_uses_fallback_on_token_error(self) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        code = "line = 1\n# comment\nfor (\n"
+        cleaned = analyzer._remove_comments(code)
+        assert "# comment" not in cleaned
+
+    def test_analyze_monetization_skips_value_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        real_float = builtins.float
+
+        def _boom(value: str) -> float:
+            if value == "99":
+                raise ValueError("boom")
+            return real_float(value)
+
+        monkeypatch.setattr(builtins, "float", _boom)
+        results = analyzer._analyze_monetization("price = 99", "test_value_error")
+        assert results == []
+
+    def test_cost_optimization_fallback_on_syntax_error(self) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        code = "\n".join(
+            [
+                "for i in range(2):",
+                "    for j in range(2):",
+                "        data.append(j)",
+                "for",
+            ]
+        )
+        results = analyzer._analyze_cost_optimization(code, "syntax_error_case")
+        assert any(r.error_type == BusinessErrorType.OPERATIONAL_WASTE for r in results)
+
+    def test_analyze_business_logic_multi_branch_and_recommendations(self) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        code = "\n".join(
+            [
+                "price = 2000",
+                "payment = charge()",
+                "register_user()",
+                "for i in range(2):",
+                "    for j in range(2):",
+                "        database.append(j)",
+                'query = "SELECT * FROM users"',
+                "while True:",
+                "    do_work()",
+                "time.sleep(5)",
+                "data = database.fetch()",
+                "process_payment(amount=-5)",
+                "analytics.track('revenue')",
+                "user = current_user",
+                "personal = True",
+                "notification.send()",
+                "feedback = collect()",
+            ]
+        )
+        results = analyzer.analyze(code, "business_flow")
+        assert results
+
+        analyzer.test_results.extend(
+            [
+                BusinessTestResult(
+                    test_name="critical",
+                    success=False,
+                    business_category=BusinessCategory.COST_OPTIMIZATION,
+                    error_message="critical issue",
+                ),
+                BusinessTestResult(
+                    test_name="high",
+                    success=False,
+                    business_category=BusinessCategory.MONETIZATION,
+                    error_message="high impact",
+                ),
+                BusinessTestResult(
+                    test_name="medium",
+                    success=False,
+                    business_category=BusinessCategory.CUSTOMER_ACQUISITION,
+                    error_message="medium risk",
+                ),
+                BusinessTestResult(
+                    test_name="low",
+                    success=False,
+                    business_category=BusinessCategory.USER_RETENTION,
+                    error_message="low priority",
+                ),
+                BusinessTestResult(
+                    test_name="ops",
+                    success=False,
+                    business_category=BusinessCategory.OPERATIONAL_EFFICIENCY,
+                ),
+                BusinessTestResult(
+                    test_name="data",
+                    success=False,
+                    business_category=BusinessCategory.DATA_MONETIZATION,
+                ),
+            ]
+        )
+
+        assert analyzer.generate_cost_savings_recommendations()
+        assert analyzer.generate_revenue_optimization_recommendations()
+        assert analyzer.calculate_roi_potential()
+
+    def test_calculate_bayesian_roi_with_single_sample(self) -> None:
+        analyzer = BusinessBayesianAnalyzer()
+        estimate = analyzer._calculate_bayesian_roi(
+            category="single",
+            prior_mean=0.1,
+            prior_std=0.01,
+            data=[0.05],
+            time_horizon_months=3,
+            assumptions="single sample",
+        )
+        assert estimate.expected_roi > -1
