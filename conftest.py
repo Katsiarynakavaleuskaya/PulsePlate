@@ -286,11 +286,14 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.setdefault("PYTHONPATH", ".:core:app:tests")
 
     # Override API key validation for all tests
-    # Use sys.modules.get to avoid triggering fresh import if app is already loaded
+    # CRITICAL: Use sys.modules.get() instead of fresh import to prevent model re-registration.
+    # Importing app in teardown triggers SQLAlchemy declarative mapping re-registration,
+    # which causes "Table already defined" cascade failures in subsequent tests.
+    # See: tests/conftest.py for metadata.clear() strategy for xdist workers.
     fastapi_app = sys.modules.get("app")
     if fastapi_app is not None and hasattr(fastapi_app, "app"):
         # Simple pass-through that accepts any non-empty API key
-        def mock_get_api_key(api_key: str = ""):
+        def mock_get_api_key(api_key: str = "") -> str:
             if not api_key or len(api_key.strip()) < 3:
                 from fastapi import HTTPException
 

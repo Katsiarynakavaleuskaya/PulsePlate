@@ -55,8 +55,10 @@ class NutritionEvent(Base):
             "client_event_id",
             name="uq_nutrition_events_idempotency",
             # NOTE: SQLite doesn't support partial unique indexes, so this constraint
-            # applies even when client_event_id is NULL. For proper idempotency,
-            # clients MUST provide client_event_id.
+            # applies even when client_event_id is NULL. In SQLite and PostgreSQL,
+            # NULL values are considered distinct, so multiple rows with
+            # client_event_id=NULL are allowed (intentional for backward compatibility
+            # with clients that don't provide idempotency keys).
         ),
         Index("ix_nutrition_events_subject_day", "subject_id", "day"),
         Index("ix_nutrition_events_created_at", "created_at"),

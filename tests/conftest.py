@@ -106,15 +106,6 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     models_module = importlib.import_module("core.models")
     importlib.reload(models_module)
 
-    # Import app models BEFORE init_db to register with Base.metadata
-    # NOTE: Always import to ensure models are registered with current Base.metadata,
-    # but don't reload to avoid "Table already defined" errors in SQLAlchemy.
-    try:
-        import app.models.events  # noqa: F401
-        import app.models.plans  # noqa: F401
-    except ImportError:
-        pass  # Models may not exist in all branches
-
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
         try:
@@ -125,17 +116,24 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    # Clear Base.metadata to allow fresh table registration
-    # This prevents "Table already defined" errors when models are imported multiple times
+    # Clear Base.metadata to allow fresh table registration for this xdist worker
+    # CRITICAL: Prevents "Table already defined" errors when models are imported multiple times.
+    # This is necessary because:
+    # 1. xdist workers may inherit model metadata from session-level imports
+    # 2. SQLAlchemy declarative mappings are cached globally per Python process
+    # 3. Without clearing, reload() attempts to re-register tables → crashes
+    #
+    # DO NOT add additional reload() calls elsewhere in conftest - consolidate here.
+    # DO NOT skip reload of core.models - it contains User/Recipe/Meal/etc tables.
     from sqlalchemy.schema import MetaData
 
     if hasattr(db_module_reloaded, "Base"):
         db_module_reloaded.Base.metadata = MetaData()
-        # Re-import models to register with fresh metadata
+        # Re-import ALL models to register with fresh metadata (order matters: core first, then app)
         try:
-            importlib.reload(importlib.import_module("app.models.events"))
-            importlib.reload(importlib.import_module("app.models.plans"))
-            importlib.reload(importlib.import_module("core.models"))
+            importlib.reload(importlib.import_module("core.models"))  # User, Recipe, Meal, etc
+            importlib.reload(importlib.import_module("app.models.events"))  # NutritionEvent
+            importlib.reload(importlib.import_module("app.models.plans"))  # WeeklyPlan, etc
         except ImportError:
             pass
 
