@@ -169,6 +169,20 @@ class TestAdherenceAPI:
 
         assert response.status_code == 422  # Validation error
 
+    def test_validation_weight_zero(self) -> None:
+        """Test validation rejects weight = 0.0."""
+        response = self.client.post(
+            "/api/v1/bayes/adherence/event",
+            json={
+                "user_id": 1,
+                "event_type": "meal_logged",
+                "weight": 0.0,
+                "analyzer_key": "v1:adherence",
+            },
+        )
+
+        assert response.status_code == 422  # Validation error
+
     def test_custom_analyzer_key(self) -> None:
         """Test using custom analyzer key for isolation."""
         user_id = 200

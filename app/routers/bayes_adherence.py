@@ -16,7 +16,11 @@ from core.analyzer.store_sqlalchemy import SQLAlchemyAnalyzerStore
 from core.bayes.adherence_service import AdherenceService
 from core.db import get_session
 
-router = APIRouter(prefix="/api/v1/bayes/adherence", tags=["bayes"])
+router = APIRouter(
+    prefix="/api/v1/bayes/adherence",
+    tags=["bayes"],
+    dependencies=[Depends(require_pro_tier)],  # Router-level PRO protection
+)
 
 
 def get_adherence_service(session: Session = Depends(get_session)) -> AdherenceService:
@@ -36,7 +40,6 @@ def get_adherence_service(session: Session = Depends(get_session)) -> AdherenceS
 @router.post(
     "/event",
     response_model=AdherenceResponse,
-    dependencies=[Depends(require_pro_tier)],
     summary="Record adherence event (PRO/VIP)",
 )
 def record_event(
@@ -67,7 +70,6 @@ def record_event(
 @router.get(
     "/risk",
     response_model=AdherenceResponse,
-    dependencies=[Depends(require_pro_tier)],
     summary="Get adherence slip risk (PRO/VIP)",
 )
 def get_risk(
