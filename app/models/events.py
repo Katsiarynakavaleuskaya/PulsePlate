@@ -62,6 +62,9 @@ class NutritionEvent(Base):
         ),
         Index("ix_nutrition_events_subject_day", "subject_id", "day"),
         Index("ix_nutrition_events_created_at", "created_at"),
+        # extend_existing prevents "Table already defined" when module is imported
+        # multiple times due to app/__init__.py exec_module creating separate namespace
+        {"extend_existing": True},
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

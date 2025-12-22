@@ -194,7 +194,8 @@ if [ -n "$PYTHON_CHANGES" ]; then
             declare -a FOUND_FOR_FILE=()
 
             # If the file is in tests/ directory (any depth), add it directly
-            if [[ $file == tests/* ]] && [[ $file == *.py ]]; then
+            # BUT exclude conftest.py (fixture file, not a test)
+            if [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then
                 [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
             # Otherwise, check if corresponding test file exists
             # Extract basename to properly detect test files regardless of path

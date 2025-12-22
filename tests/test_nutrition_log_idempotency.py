@@ -16,6 +16,16 @@ from app.routers import nutrition_log
 from core.db import get_session, session_scope
 
 
+@pytest.fixture(autouse=True)
+def _allow_anonymous_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Enable anonymous API keys for all tests in this module.
+
+    This fixture runs before test_client is created, ensuring ALLOW_ANONYMOUS_API_KEYS
+    is set during app initialization and middleware configuration.
+    """
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+
+
 def _headers(api_key: str) -> dict[str, str]:
     return {"X-API-Key": api_key}
 
@@ -42,10 +52,7 @@ def _broken_session_dependency() -> Generator[_BrokenSession, None, None]:
         session.close()
 
 
-def test_meal_log_idempotent_retry(
-    test_client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+def test_meal_log_idempotent_retry(test_client: TestClient) -> None:
     api_key = "test_key_meal_idem_retry"
     client_event_id = "meal-idem-retry-1"
     payload = {"log_type": "meal_logged", "client_event_id": client_event_id}
@@ -78,10 +85,7 @@ def test_meal_log_idempotent_retry(
     assert payload_data.get("log_type") == "meal_logged"
 
 
-def test_meal_log_replay_applies_pending_event(
-    test_client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+def test_meal_log_replay_applies_pending_event(test_client: TestClient) -> None:
     api_key = "test_key_meal_pending"
     subject_id = derive_subject_id_from_api_key(api_key)
     day = datetime.now(timezone.utc).date()
@@ -102,6 +106,7 @@ def test_meal_log_replay_applies_pending_event(
                 },
             )
         )
+        session.commit()  # Ensure pending event is committed before API call
 
     payload = {"log_type": "meal_logged", "client_event_id": client_event_id}
     resp = test_client.post(
@@ -126,10 +131,7 @@ def test_meal_log_replay_applies_pending_event(
     assert payload_data.get("log_type") == "meal_logged"
 
 
-def test_meal_log_non_idempotency_integrity_error_propagates(
-    test_client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+def test_meal_log_non_idempotency_integrity_error_propagates(test_client: TestClient) -> None:
     api_key = "test_key_meal_integrity"
 
     import app
@@ -149,8 +151,7 @@ def test_meal_log_non_idempotency_integrity_error_propagates(
         app.app.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
 
 
-def test_day_close_idempotent(test_client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
+def test_day_close_idempotent(test_client: TestClient) -> None:
     api_key = "test_key_day_close"
     day = date(2025, 12, 20)
     payload = {"day": day.isoformat(), "adherence_score": 1.0}
