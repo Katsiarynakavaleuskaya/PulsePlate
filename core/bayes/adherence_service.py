@@ -102,7 +102,7 @@ class AdherenceService:
         weight: float,
         analyzer_key: str = DEFAULT_ANALYZER_KEY,
     ) -> AdherenceResult:
-        """Record an adherence event with optimistic locking.
+        """Record an adherence event with optimistic locking retry.
 
         Args:
             user_id: User ID
@@ -112,55 +112,61 @@ class AdherenceService:
 
         Returns:
             Updated AdherenceResult
+
+        Raises:
+            RuntimeError: If optimistic lock fails after 3 retries
         """
-        existing = self._store.get_state(user_id=user_id, analyzer_key=analyzer_key)
-        current = AdherenceState.from_payload(existing.payload if existing else None)
+        # Retry up to 3 times on optimistic lock conflict
+        max_retries = 3
+        for attempt in range(max_retries):
+            existing = self._store.get_state(user_id=user_id, analyzer_key=analyzer_key)
+            current = AdherenceState.from_payload(existing.payload if existing else None)
 
-        updated = update_state(current, event_type=event_type, weight=weight)
+            updated = update_state(current, event_type=event_type, weight=weight)
 
-        if existing is None:
-            saved = self._store.upsert_state(
-                user_id=user_id,
-                analyzer_key=analyzer_key,
-                payload=updated.to_payload(),
-                state_schema_version=DEFAULT_SCHEMA_VERSION,
-            )
-        else:
-            saved = self._store.update_if_version_matches(
-                user_id=user_id,
-                analyzer_key=analyzer_key,
-                expected_version=existing.state_version,
-                state_schema_version=DEFAULT_SCHEMA_VERSION,
-                payload=updated.to_payload(),
-            )
-            if saved is None:
-                # Optimistic lock mismatch -> return fresh state
-                fresh = self._store.get_state(user_id=user_id, analyzer_key=analyzer_key)
-                fresh_state = AdherenceState.from_payload(fresh.payload if fresh else None)
-                risk, confidence, needs_more_data = compute_metrics(fresh_state)
-                return AdherenceResult(
+            if existing is None:
+                # First event for this user/key - simple upsert
+                saved = self._store.upsert_state(
                     user_id=user_id,
                     analyzer_key=analyzer_key,
-                    alpha=fresh_state.alpha,
-                    beta=fresh_state.beta,
-                    n=fresh_state.n,
-                    risk_slip=risk,
-                    confidence=confidence,
-                    needs_more_data=needs_more_data,
+                    payload=updated.to_payload(),
+                    state_schema_version=DEFAULT_SCHEMA_VERSION,
                 )
+            else:
+                # Update with optimistic locking
+                saved = self._store.update_if_version_matches(
+                    user_id=user_id,
+                    analyzer_key=analyzer_key,
+                    expected_version=existing.state_version,
+                    state_schema_version=DEFAULT_SCHEMA_VERSION,
+                    payload=updated.to_payload(),
+                )
+                if saved is None:
+                    # Version mismatch - retry with fresh state
+                    if attempt < max_retries - 1:
+                        continue
+                    # All retries exhausted - raise error
+                    raise RuntimeError(
+                        f"Failed to update adherence state after {max_retries} retries "
+                        f"due to concurrent modifications (user_id={user_id}, key={analyzer_key})"
+                    )
 
-        saved_state = AdherenceState.from_payload(saved.payload)
-        risk, confidence, needs_more_data = compute_metrics(saved_state)
-        return AdherenceResult(
-            user_id=user_id,
-            analyzer_key=analyzer_key,
-            alpha=saved_state.alpha,
-            beta=saved_state.beta,
-            n=saved_state.n,
-            risk_slip=risk,
-            confidence=confidence,
-            needs_more_data=needs_more_data,
-        )
+            # Success - compute metrics and return
+            saved_state = AdherenceState.from_payload(saved.payload)
+            risk, confidence, needs_more_data = compute_metrics(saved_state)
+            return AdherenceResult(
+                user_id=user_id,
+                analyzer_key=analyzer_key,
+                alpha=saved_state.alpha,
+                beta=saved_state.beta,
+                n=saved_state.n,
+                risk_slip=risk,
+                confidence=confidence,
+                needs_more_data=needs_more_data,
+            )
+
+        # Should never reach here due to raise in loop, but satisfy type checker
+        raise RuntimeError("Unexpected: retry loop exhausted without return")
 
     def _load_state(self, user_id: int, analyzer_key: str) -> AdherenceState:
         """Load state from store or return default if not found."""

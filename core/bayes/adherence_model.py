@@ -74,13 +74,16 @@ def update_state(
     Args:
         state: current state
         event_type: "meal_logged" or "slip"
-        weight: event weight (>=0). Use 1.0 for default.
+        weight: event weight (>0). Use 1.0 for default.
 
     Returns:
         New updated state (immutable).
+
+    Raises:
+        ValueError: If weight <= 0 or event_type is invalid
     """
-    if weight < 0:
-        raise ValueError("weight must be >= 0")
+    if weight <= 0:
+        raise ValueError("weight must be > 0")
 
     alpha = state.alpha
     beta = state.beta
