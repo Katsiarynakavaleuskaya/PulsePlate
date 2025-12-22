@@ -37,7 +37,10 @@ def _event_from_meal_log(payload: MealLogRequest) -> DomainEvent:
         return DomainEvent(name="slip", weight=1.0)
 
     # partial
-    score = payload.adherence_score if payload.adherence_score is not None else 0.0
+    score = payload.adherence_score
+    if score is None:
+        # This should be prevented by MealLogRequest validator; treat as server error if it happens.
+        raise RuntimeError("adherence_score must be provided when log_type='partial'")
     weight = max(0.01, 1.0 - score)
     return DomainEvent(name="slip", weight=weight)
 
@@ -50,9 +53,10 @@ def _event_from_day_close(payload: DayCloseRequest) -> DomainEvent:
     """
 
     score = payload.adherence_score
-    weight = max(0.01, 1.0 - score)
-    if weight <= 0.01:
+    if score >= 1.0:
         return DomainEvent(name="meal_logged", weight=1.0)
+
+    weight = max(0.01, 1.0 - score)
     return DomainEvent(name="slip", weight=weight)
 
 
@@ -74,7 +78,7 @@ async def log_meal(
         current_user.user_id,
         event,
     )
-    return AdherenceResponse(**result.__dict__)
+    return AdherenceResponse.model_validate(result, from_attributes=True)
 
 
 @router.post("/day-close", response_model=AdherenceResponse, summary="Close day (PRO)")
@@ -95,4 +99,4 @@ async def close_day(
         current_user.user_id,
         event,
     )
-    return AdherenceResponse(**result.__dict__)
+    return AdherenceResponse.model_validate(result, from_attributes=True)

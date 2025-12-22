@@ -76,9 +76,36 @@ class TestNutritionLogAPI:
         assert data["n"] >= 1
         assert data["beta"] > 1.0
 
+    def test_slip_meal_log_increases_beta(self) -> None:
+        response = self.client.post(
+            "/api/v1/pro/nutrition/meal-log",
+            json={"log_type": "slip"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["n"] >= 1
+        assert data["beta"] > data["alpha"]
+
+    def test_day_close_high_score_maps_to_meal_logged(self) -> None:
+        response = self.client.post(
+            "/api/v1/pro/nutrition/day-close",
+            json={"day": "2025-01-02", "adherence_score": 1.0},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["n"] >= 1
+        assert data["alpha"] > data["beta"]
+
     def test_validation_of_adherence_score(self) -> None:
         response = self.client.post(
             "/api/v1/pro/nutrition/meal-log",
             json={"log_type": "partial", "adherence_score": 1.1},
+        )
+        assert response.status_code == 422
+
+    def test_partial_without_adherence_score_is_rejected(self) -> None:
+        response = self.client.post(
+            "/api/v1/pro/nutrition/meal-log",
+            json={"log_type": "partial"},
         )
         assert response.status_code == 422
