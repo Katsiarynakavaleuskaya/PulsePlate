@@ -118,22 +118,26 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
 
     # Clear Base.metadata to allow fresh table registration for this xdist worker
     # CRITICAL: Prevents "Table already defined" errors when models are imported multiple times.
-    # This is necessary because:
-    # 1. xdist workers may inherit model metadata from session-level imports
-    # 2. SQLAlchemy declarative mappings are cached globally per Python process
-    # 3. Without clearing, reload() attempts to re-register tables → crashes
-    #
-    # DO NOT add additional reload() calls elsewhere in conftest - consolidate here.
-    # DO NOT skip reload of core.models - it contains User/Recipe/Meal/etc tables.
+    # After clearing metadata, conditionally reload models to register with fresh metadata.
+    # Use reload for modules already in sys.modules, import for new ones.
     from sqlalchemy.schema import MetaData
 
     if hasattr(db_module_reloaded, "Base"):
         db_module_reloaded.Base.metadata = MetaData()
-        # Re-import ALL models to register with fresh metadata (order matters: core first, then app)
+        # Import/reload models to register with fresh metadata (order: core first, then app)
         try:
-            importlib.reload(importlib.import_module("core.models"))  # User, Recipe, Meal, etc
-            importlib.reload(importlib.import_module("app.models.events"))  # NutritionEvent
-            importlib.reload(importlib.import_module("app.models.plans"))  # WeeklyPlan, etc
+            # Reload core.models to register with fresh metadata
+            importlib.reload(importlib.import_module("core.models"))
+            # app.models.events and app.models.plans: conditionally reload if in sys.modules
+            if "app.models.events" in sys.modules:
+                importlib.reload(sys.modules["app.models.events"])
+            else:
+                import app.models.events  # noqa: F401
+
+            if "app.models.plans" in sys.modules:
+                importlib.reload(sys.modules["app.models.plans"])
+            else:
+                import app.models.plans  # noqa: F401
         except ImportError:
             pass
 
