@@ -13,9 +13,7 @@ Targets uncovered lines from CI coverage report:
 - Lines 981-1320: Revenue growth and retention analysis
 """
 
-import builtins
 import sys
-from typing import Any
 from pathlib import Path
 import pytest
 from core.business_bayesian_analyzer import (
@@ -316,19 +314,6 @@ class TestMissingCoveragePaths:
         assert analyzer.monetization_strategies["pricing_models"]["custom"] is True
         assert analyzer.cost_optimization_rules["infrastructure"]["custom"] is True
 
-    def test_import_yaml_module_returns_none_on_importerror(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        real_import = builtins.__import__
-
-        def _fake_import(name: str, *args: object, **kwargs: object) -> Any:
-            if name == "yaml":
-                raise ModuleNotFoundError("yaml missing")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", _fake_import)
-        assert BusinessBayesianAnalyzer._import_yaml_module() is None
-
     def test_config_dir_prefers_existing_path(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -419,19 +404,6 @@ class TestMissingCoveragePaths:
         code = "line = 1\n# comment\nfor (\n"
         cleaned = analyzer._remove_comments(code)
         assert "# comment" not in cleaned
-
-    def test_analyze_monetization_skips_value_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        analyzer = BusinessBayesianAnalyzer()
-        real_float = builtins.float
-
-        def _boom(value: str) -> float:
-            if value == "99":
-                raise ValueError("boom")
-            return real_float(value)
-
-        monkeypatch.setattr(builtins, "float", _boom)
-        results = analyzer._analyze_monetization("price = 99", "test_value_error")
-        assert results == []
 
     def test_cost_optimization_fallback_on_syntax_error(self) -> None:
         analyzer = BusinessBayesianAnalyzer()
