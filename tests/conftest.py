@@ -107,9 +107,11 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     importlib.reload(models_module)
 
     # Import app models BEFORE init_db to register with Base.metadata
+    # NOTE: Use conditional import without reload to avoid "Table already defined" errors
     try:
         events_module = importlib.import_module("app.models.events")
         plans_module = importlib.import_module("app.models.plans")
+        # Reload already imported modules (they were imported by configure_sqlite_database)
         importlib.reload(events_module)
         importlib.reload(plans_module)
     except ImportError:

@@ -190,14 +190,11 @@ def init_test_database() -> None:
             import core.models  # noqa: F401
 
         # Import app models BEFORE init_db to ensure they're registered with Base.metadata
+        # NOTE: Use conditional import without reload to avoid "Table already defined" errors
         try:
-            if "app.models.events" in sys.modules:
-                importlib.reload(sys.modules["app.models.events"])
-            else:
+            if "app.models.events" not in sys.modules:
                 import app.models.events  # noqa: F401
-            if "app.models.plans" in sys.modules:
-                importlib.reload(sys.modules["app.models.plans"])
-            else:
+            if "app.models.plans" not in sys.modules:
                 import app.models.plans  # noqa: F401
         except ImportError:
             pass  # Models may not exist in all branches

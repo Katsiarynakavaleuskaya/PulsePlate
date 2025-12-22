@@ -66,8 +66,8 @@ def collect_day_events(session: Session, subject_id: int, day: date) -> Collecte
                 NutritionEvent.event_type == "day_closed",
             )
         )
-        > 0
-    )
+        or 0
+    ) > 0
 
     return CollectedDayEvents(
         meals_logged_count=int(meals_logged_count),
