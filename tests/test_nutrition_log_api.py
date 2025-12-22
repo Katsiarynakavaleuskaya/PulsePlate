@@ -109,3 +109,19 @@ class TestNutritionLogAPI:
             json={"log_type": "partial"},
         )
         assert response.status_code == 422
+
+    def test_nutrition_log_rejects_missing_api_key(self) -> None:
+        client = TestClient(fastapi_app)
+        response = client.post(
+            "/api/v1/pro/nutrition/meal-log",
+            json={"log_type": "meal_logged"},
+        )
+        assert response.status_code == 401
+
+    def test_nutrition_log_rejects_invalid_api_key(self) -> None:
+        client = TestClient(fastapi_app, headers={"X-API-Key": "invalid_key"})
+        response = client.post(
+            "/api/v1/pro/nutrition/meal-log",
+            json={"log_type": "meal_logged"},
+        )
+        assert response.status_code == 403
