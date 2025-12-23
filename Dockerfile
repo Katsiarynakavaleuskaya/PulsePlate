@@ -52,7 +52,7 @@ WORKDIR /app
 # Copy only necessary application files (exclude frontend, tests, docs)
 COPY --chown=pulseplate:pulseplate app/ ./app/
 COPY --chown=pulseplate:pulseplate core/ ./core/
-COPY --chown=pulseplate:pulseplate app.py main.py settings.py ./
+COPY --chown=pulseplate:pulseplate legacy_app.py main.py settings.py ./
 # Copy root-level modules that app.py imports
 COPY --chown=pulseplate:pulseplate bmi_core.py bmi_visualization.py nutrition_core.py signed_links.py ./
 COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
