@@ -28,6 +28,8 @@ def test_app_public_surface_smoke() -> None:
     # Core utilities (added in import hygiene PR)
     assert hasattr(app, "resolve_attr"), "app.resolve_attr must be exported"
     assert hasattr(app, "make_weekly_menu"), "app.make_weekly_menu must be exported"
+    assert hasattr(app, "build_nutrition_targets"), "app.build_nutrition_targets must be exported"
+    assert hasattr(app, "get_update_scheduler"), "app.get_update_scheduler must be exported"
 
     # Visualization flags (optional but must be present)
     assert hasattr(app, "MATPLOTLIB_AVAILABLE"), "app.MATPLOTLIB_AVAILABLE must be exported"

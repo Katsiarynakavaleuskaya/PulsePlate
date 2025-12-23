@@ -25,11 +25,13 @@ from legacy_app import (
     lifespan,
     _macros_to_kcal,  # legacy public (used by tests)
     _alias_micros,  # legacy public (used by tests)
+    get_update_scheduler,  # async scheduler getter
 )
 
 # Utility functions from core
 from core.utils import resolve_attr
 from core.menu_engine import make_weekly_menu
+from core.recommendations import build_nutrition_targets
 
 # Visualization flags (optional - from bmi_visualization)
 MATPLOTLIB_AVAILABLE: Optional[bool] = False
@@ -102,8 +104,10 @@ _PUBLIC_EXPORTS = [
     "lifespan",
     "_macros_to_kcal",
     "_alias_micros",
+    "get_update_scheduler",
     "resolve_attr",
     "make_weekly_menu",
+    "build_nutrition_targets",
     "MATPLOTLIB_AVAILABLE",
     "generate_bmi_visualization",
     "Counter",
