@@ -15,6 +15,7 @@ from starlette.types import ASGIApp
 
 # Import the FastAPI app from app.py file
 import importlib.util
+from app import app
 
 
 @pytest.mark.slow
@@ -33,7 +34,7 @@ class TestLifespanEvents:
 
         mock_app = MagicMock()
 
-        with patch("app.start_background_updates") as mock_start:
+        with patch("legacy_app.start_background_updates") as mock_start:
             mock_start.return_value = AsyncMock()
 
             async with lifespan(mock_app):
@@ -47,7 +48,7 @@ class TestLifespanEvents:
 
         mock_app = MagicMock()
 
-        with patch("app.start_background_updates") as mock_start:
+        with patch("legacy_app.start_background_updates") as mock_start:
             mock_start.side_effect = Exception("Startup failed")
 
             # Should not raise exception, just log error
@@ -62,8 +63,8 @@ class TestLifespanEvents:
         mock_app = MagicMock()
 
         with (
-            patch("app.start_background_updates") as mock_start,
-            patch("app.stop_background_updates") as mock_stop,
+            patch("legacy_app.start_background_updates") as mock_start,
+            patch("legacy_app.stop_background_updates") as mock_stop,
         ):
             mock_start.return_value = AsyncMock()
             mock_stop.return_value = AsyncMock()
@@ -82,8 +83,8 @@ class TestLifespanEvents:
         mock_app = MagicMock()
 
         with (
-            patch("app.start_background_updates") as mock_start,
-            patch("app.stop_background_updates") as mock_stop,
+            patch("legacy_app.start_background_updates") as mock_start,
+            patch("legacy_app.stop_background_updates") as mock_stop,
         ):
             mock_start.return_value = AsyncMock()
             mock_stop.side_effect = Exception("Shutdown failed")
@@ -393,8 +394,8 @@ class TestPremiumEndpoints:
         """Test premium BMR endpoint when nutrition module unavailable."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.calculate_all_bmr", None),
-            patch("app.calculate_all_tdee", None),
+            patch("legacy_app.calculate_all_bmr", None),
+            patch("legacy_app.calculate_all_tdee", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -413,7 +414,7 @@ class TestPremiumEndpoints:
         """Test premium plate endpoint when make_plate unavailable."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.make_plate", None),
+            patch("legacy_app.make_plate", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -433,7 +434,7 @@ class TestPremiumEndpoints:
         """Test WHO targets endpoint when build_nutrition_targets unavailable."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.build_nutrition_targets", None),
+            patch("legacy_app.build_nutrition_targets", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -452,7 +453,7 @@ class TestPremiumEndpoints:
         """Test weekly menu endpoint when make_weekly_menu unavailable."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.make_weekly_menu", None),
+            patch("legacy_app.make_weekly_menu", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -471,7 +472,7 @@ class TestPremiumEndpoints:
         """Test nutrient gaps endpoint when analyze_nutrient_gaps unavailable."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.analyze_nutrient_gaps", None),
+            patch("legacy_app.analyze_nutrient_gaps", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -502,7 +503,7 @@ class TestDatabaseAdminEndpoints:
         """Test database status endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch("legacy_app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Scheduler error")
 
@@ -515,7 +516,7 @@ class TestDatabaseAdminEndpoints:
         """Test force update endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch("legacy_app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Update error")
 
@@ -533,7 +534,7 @@ class TestDatabaseAdminEndpoints:
         """Test rollback endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch("legacy_app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Rollback error")
 
@@ -584,7 +585,7 @@ class TestVisualizationEndpoint:
         """Test BMI visualization when module not available."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.generate_bmi_visualization", None),
+            patch("legacy_app.generate_bmi_visualization", None),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {
@@ -603,8 +604,8 @@ class TestVisualizationEndpoint:
         """Test BMI visualization when matplotlib not available."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("app.generate_bmi_visualization", lambda: None),
-            patch("app.MATPLOTLIB_AVAILABLE", False),
+            patch("legacy_app.generate_bmi_visualization", lambda: None),
+            patch("legacy_app.MATPLOTLIB_AVAILABLE", False),
         ):
             headers = {"X-API-Key": "test_key"}
             data = {

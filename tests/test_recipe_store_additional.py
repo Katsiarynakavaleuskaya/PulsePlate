@@ -7,6 +7,7 @@ import os
 from importlib.machinery import ModuleSpec
 
 import pytest
+import importlib
 
 # Load recipe_store module: check sys.modules first, then fall back to file loading
 rs_module: Optional[ModuleType] = sys.modules.get("recipe_store")
@@ -24,11 +25,12 @@ if rs_module is None:
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load recipe_store module")
     rs_module = importlib.util.module_from_spec(spec)
-    
+
 
 # Short alias for backward compatibility
 assert rs_module is not None
 rs: ModuleType = rs_module
+
 
 class _FakeCursor:
     def __init__(self, rows: List[Dict[str, Any]]) -> None:
@@ -39,6 +41,7 @@ class _FakeCursor:
 
     def fetchone(self) -> Dict[str, Any] | None:
         return self._rows[0] if self._rows else None
+
 
 class _FakeConnection:
     def __init__(self, rows: List[Dict[str, Any]]) -> None:
@@ -54,6 +57,7 @@ class _FakeConnection:
 
     def __exit__(self, *exc_info: Any) -> None:
         return None
+
 
 def test_search_recipes_with_query(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = [{"recipe_id": "r1", "title": "Soup", "kcal_per_serv": 150, "tags_json": "[]"}]
@@ -71,15 +75,18 @@ def test_search_recipes_with_query(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "MATCH" in sql
     assert params == ["soup", 5, 2]
 
+
 def test_search_recipes_empty_query(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = [{"recipe_id": "r1", "title": "Soup", "kcal_per_serv": 150, "tags_json": "[]"}]
     monkeypatch.setattr(rs, "_con", lambda: _FakeConnection(rows))
     result = rs.search_recipes("", limit=3, offset=0)
     assert result == rows
 
+
 def test_get_recipe_none(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rs, "_con", lambda: _FakeConnection([]))
     assert rs.get_recipe("nope") is None
+
 
 def test_search_limit_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = [
@@ -114,6 +121,7 @@ def test_search_limit_zero(monkeypatch: pytest.MonkeyPatch) -> None:
     sql, params = conn_container["c"].executions[0]
     assert ("MATCH" in sql) and params[1] == 0
 
+
 def test_search_large_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = [
         {"recipe_id": f"r{i}", "title": f"T{i}", "kcal_per_serv": 100 + i, "tags_json": "[]"}
@@ -145,6 +153,7 @@ def test_search_large_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     sql, params = conn_container2["c"].executions[0]
     assert ("MATCH" in sql) and params[1] == big_limit
 
+
 def test_search_negative_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     rows: List[Dict[str, Any]] = []
 
@@ -162,6 +171,7 @@ def test_search_negative_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(rs, "_con", lambda: _Conn(rows))
     with pytest.raises(Exception):
         rs.search_recipes("q", limit=-5, offset=-1)
+
 
 def test_get_recipe_found(monkeypatch: pytest.MonkeyPatch) -> None:
     row = {"recipe_id": "r1", "title": "Soup", "kcal_per_serv": 150, "tags_json": "[]"}
@@ -187,6 +197,7 @@ def test_get_recipe_found(monkeypatch: pytest.MonkeyPatch) -> None:
     sql, params = conn.executions[0]
     assert "SELECT * FROM recipes WHERE recipe_id = ?" in sql
     assert params == ["r1"]
+
 
 def test_search_multiple_results(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = [
