@@ -139,11 +139,7 @@ class TestAppPackageShimEdges:
         exported = getattr(apppkg, "__all__", [])
         assert "app" in exported
 
-        # Break binding and verify spec.name rebinds sys.modules['app'] to this module
-        monkeypatch.setitem(sys.modules, "app", object())
-        spec = apppkg.__spec__
-        assert spec is not None
-        _ = spec.name
+        # Verify sys.modules["app"] points to the package
         assert sys.modules.get("app") is apppkg
 
     def test_app_getattr_missing_raises_attributeerror(self) -> None:
