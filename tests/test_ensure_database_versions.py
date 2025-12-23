@@ -17,6 +17,8 @@ import pytest
 
 from tests.test_utils import create_selective_error
 
+# NOTE: This test intentionally loads a non-package script module (scripts/ensure_database_versions.py).
+# Keeping importlib.spec_from_file_location here is expected.
 # Import the module under test using importlib
 spec = importlib.util.spec_from_file_location(
     "ensure_database_versions",
