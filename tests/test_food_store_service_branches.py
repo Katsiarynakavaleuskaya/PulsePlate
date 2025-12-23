@@ -1,30 +1,11 @@
 import csv
 import io
-import os
-import sys
-from importlib.machinery import ModuleSpec
 from pathlib import Path
-from types import ModuleType
 from typing import Any, Mapping, Sequence
 
 import pytest
-import importlib.util
 
-# Load food_store module - first check sys.modules, otherwise load from file
-fs_module: ModuleType | None = sys.modules.get("food_store")
-if fs_module is None:
-    spec: ModuleSpec | None = importlib.util.spec_from_file_location(
-        "food_store",
-        os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "app", "services", "food_store.py"
-        ),
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError("Cannot load food_store module")
-    fs_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fs_module)  # Actually execute the module
-
-fs: ModuleType = fs_module
+import app.services.food_store as fs
 
 
 def test_safe_float_invalid_returns_zero() -> None:

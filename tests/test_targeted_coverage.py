@@ -15,14 +15,14 @@ from app import app
 class TestTargetedCoverage:
     """Targeted tests to improve coverage for specific missing lines in main.py."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         # Set test environment variables
         os.environ["API_KEY"] = "test-key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         # Remove the test API key
         if "API_KEY" in os.environ:
@@ -30,7 +30,7 @@ class TestTargetedCoverage:
         # Remove feature flag to prevent env leakage
         os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
 
-    def test_bmi_endpoint_visualization_error_path(self):
+    def test_bmi_endpoint_visualization_error_path(self) -> None:
         """Test BMI endpoint visualization error path - covers lines 346-351."""
         data = {
             "weight_kg": 70.0,
@@ -50,7 +50,7 @@ class TestTargetedCoverage:
             response = self.client.post("/bmi", json=data)
             assert response.status_code == 200
 
-    def test_bmi_endpoint_waist_risk_path(self):
+    def test_bmi_endpoint_waist_risk_path(self) -> None:
         """Test BMI endpoint waist risk path - covers lines 384, 396, 402."""
         data = {
             "weight_kg": 70.0,
@@ -70,7 +70,7 @@ class TestTargetedCoverage:
         assert "note" in result
         assert len(result["note"]) > 0
 
-    def test_api_v1_bmi_endpoint(self):
+    def test_api_v1_bmi_endpoint(self) -> None:
         """Test API v1 BMI endpoint - covers lines 541."""
         data = {"weight_kg": 70.0, "height_cm": 175.0, "group": "general"}
 
@@ -81,7 +81,7 @@ class TestTargetedCoverage:
         assert "bmi" in result
         assert "category" in result
 
-    def test_premium_bmr_notes_path(self):
+    def test_premium_bmr_notes_path(self) -> None:
         """Test premium BMR endpoint notes path - covers lines 684, 747-756."""
         data = {
             "weight_kg": 70.0,
@@ -104,7 +104,7 @@ class TestTargetedCoverage:
         notes = result["notes"]
         assert "katch" in str(notes).lower() or "body fat" in str(notes).lower()
 
-    def test_database_admin_endpoints(self):
+    def test_database_admin_endpoints(self) -> None:
         """Test database admin endpoints - covers lines 894, 900, 932-941, 971."""
         # Test metrics endpoint
         response = self.client.get("/metrics")
@@ -118,7 +118,7 @@ class TestTargetedCoverage:
         response = self.client.get("/api/v1/health")
         assert response.status_code == 200
 
-    def test_nutrient_gaps_endpoint(self):
+    def test_nutrient_gaps_endpoint(self) -> None:
         """Test nutrient gaps endpoint - covers lines 1018-1027, 1055, 1100-1109."""
         data = {
             "consumed_nutrients": {"protein_g": 50, "fat_g": 70, "carbs_g": 250},
@@ -143,7 +143,7 @@ class TestTargetedCoverage:
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 424, 500, 503]
 
-    def test_weekly_menu_endpoint(self):
+    def test_weekly_menu_endpoint(self) -> None:
         """Test weekly menu endpoint - covers lines 1136, 1158, 1187-1196."""
         data = {
             "sex": "male",
@@ -165,7 +165,7 @@ class TestTargetedCoverage:
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 424, 500, 503]
 
-    def test_who_targets_endpoint(self):
+    def test_who_targets_endpoint(self) -> None:
         """Test WHO targets endpoint - covers lines 1235-1236, 1279-1280."""
         data = {
             "sex": "male",
@@ -187,7 +187,7 @@ class TestTargetedCoverage:
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 424, 500, 503]
 
-    def test_premium_plate_endpoint(self):
+    def test_premium_plate_endpoint(self) -> None:
         """Test premium plate endpoint - covers lines 1307-1308, 1332."""
         data = {
             "sex": "male",

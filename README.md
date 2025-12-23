@@ -118,7 +118,7 @@ source scripts/dev_shell.sh
 - Миграции управляются Alembic (`alembic.ini`, каталог `alembic/`). Первичная ревизия создаёт таблицу `users`.
 - Быстрый старт data layer:
   1. `alembic upgrade head` — применить миграции к текущему `DATABASE_URL`.
-  2. `uvicorn app:app --reload` — запустить API локально.
+  2. `uvicorn app.main:app --reload` — запустить API локально.
   3. `curl -s http://127.0.0.1:8000/health/db` — убедиться, что подключение к БД работает.
 - Примеры запросов к пользовательскому API:
 
@@ -128,6 +128,42 @@ source scripts/dev_shell.sh
        -d '{"email": "demo@example.com", "name": "Demo"}'
   curl -s http://127.0.0.1:8000/api/v1/users
   ```
+
+### Database fallback behavior (ops)
+
+When primary DB initialization fails, the app can fall back to SQLite based on
+explicit opt-in flags. Use these controls to keep production safe and observable:
+
+- `DB_FALLBACK_URL` (default: `sqlite:///:memory:`) — fallback SQLite URL used only
+  when fallback is triggered. Example: `sqlite:///./fallback.db`.
+- `ALLOW_DB_PERSISTENT_FALLBACK` (default: unset/false) — required in production to
+  allow any fallback. Production never accepts in-memory fallbacks.
+- `ALLOW_DB_INMEMORY_FALLBACK` (default: unset/false) — allows in-memory fallbacks in
+  non-production; otherwise non-prod only falls back on IO errors.
+
+**Production constraints**
+
+- In-memory fallback is never allowed in production.
+- Set `ALLOW_DB_PERSISTENT_FALLBACK=1` and a persistent `DB_FALLBACK_URL` to enable
+  fallback (for example `sqlite:///./fallback.db`).
+
+**Non-production behavior**
+
+- Fallback is allowed when `ALLOW_DB_INMEMORY_FALLBACK=1` or when the initial DB
+  error is an IO error (e.g., filesystem/network issue). Default fallback target is
+  in-memory unless `DB_FALLBACK_URL` is set.
+
+**Signals and monitoring**
+
+- `DB_HEALTH_DEGRADED=1` environment flag is set when fallback is active.
+- Module flag `_db_fallback_active` is toggled to `True`.
+- Metrics: `db_fallback_active` counter (tags `env:<env>` and `backend:<memory|sqlite>`).
+
+**Recommended actions when fallback is active**
+
+- Verify `DATABASE_URL` connectivity, credentials, and upstream DB health.
+- Confirm `DB_FALLBACK_URL` points to persistent storage before enabling production fallback.
+- Restore primary DB connectivity, then redeploy with fallback disabled to return to normal.
 
 ## Overview
 
@@ -400,8 +436,11 @@ The merged food database follows a standardized schema:
 Start the application:
 
 ```bash
-uvicorn app:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+Note: the ASGI entrypoint is now `app.main:app` (the legacy `legacy_app.py` entrypoint
+is deprecated), so update any local scripts or CI that still invoke `legacy_app.py`.
 
 Access the API at `http://localhost:8000`
 

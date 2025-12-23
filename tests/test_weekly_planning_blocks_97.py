@@ -119,31 +119,8 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    @patch("sys.modules")
-    def test_weekly_planning_successful_path(self, mock_sys_modules, client) -> None:
-        """Тест успешного пути weekly planning с мокнутым make_weekly_menu (блок 1435-1501)"""
-        # Мокнуть модуль и функцию make_weekly_menu
-        mock_module = MagicMock()
-        mock_make_weekly_menu = MagicMock()
-
-        # Настройка мока для week_menu
-        mock_week_menu = MagicMock()
-        mock_week_menu.week_start = "2025-01-01"
-        mock_week_menu.daily_menus = [
-            MagicMock(date="2025-01-01", meals={"breakfast": "oatmeal"}, cost=15.0),
-            MagicMock(date="2025-01-02", meals={"breakfast": "eggs"}, cost=18.0),
-        ]
-        mock_week_menu.total_cost = 119.0
-        mock_week_menu.shopping_list = {"milk": "1L", "eggs": "12 pieces"}
-        mock_week_menu.weekly_coverage = {"protein": 95, "vitamins": 90}
-        mock_make_weekly_menu.return_value = mock_week_menu
-
-        # Настройка sys.modules mock
-        mock_sys_modules.__getitem__.return_value = mock_module
-        mock_module.__getattribute__ = lambda self, name: (
-            mock_make_weekly_menu if name == "make_weekly_menu" else None
-        )
-
+    def test_weekly_planning_successful_path(self, client) -> None:
+        """Test weekly planning endpoint (no invasive sys.modules patching)"""
         os.environ["API_KEY"] = "test_key"
         try:
             response = client.post(
@@ -158,8 +135,7 @@ class TestWeeklyPlanningCriticalBlocks:
                     "goal": "maintain",
                 },
             )
-
-            # Без правильного мокинга может быть 503 или 422 или 400
+            # Without real mocking, may be 503 or 422 or 400
             assert response.status_code in [200, 400, 503, 422]
 
         finally:

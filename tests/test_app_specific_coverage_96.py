@@ -24,6 +24,7 @@ class TestAppSpecificCoverage96:
         """Set up test client from conftest fixture."""
         self.client = client
 
+    @pytest.mark.asyncio
     @patch.object(legacy_app, "_scheduler_getter", None)
     async def test_get_update_scheduler_late_import(self):
         """Test get_update_scheduler when _scheduler_getter is None (lines 115-119)."""

@@ -14,7 +14,7 @@ from app import app
 
 
 @pytest.fixture(scope="session")
-def client():
+def client() -> TestClient:
     """Load main.py once per test session and provide TestClient"""
     return TestClient(app)
 

@@ -1360,6 +1360,20 @@ class BMIRequest(BaseModel):
                     values[k] = True
                 elif vs in {"no", "n", "нет", "false"}:
                     values[k] = False
+        if "with_visualization" in values:
+            raw_visualization = values.get("with_visualization")
+            include_chart = False
+            if isinstance(raw_visualization, str):
+                vs = raw_visualization.strip().lower()
+                if vs in {"yes", "y", "да", "si", "sí", "true", "1", "on"}:
+                    include_chart = True
+                elif vs in {"no", "n", "нет", "false", "0", "off"}:
+                    include_chart = False
+                else:
+                    include_chart = bool(vs)
+            else:
+                include_chart = bool(raw_visualization)
+            values["include_chart"] = include_chart
         return values
 
     @model_validator(mode="after")

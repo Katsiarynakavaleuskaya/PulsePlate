@@ -77,7 +77,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
 
-# Default command
+# Default command (serve ASGI via app.main:app; legacy_app.py is no longer the entrypoint;
+# ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Stage 3: Staging stage
@@ -149,5 +150,6 @@ RUN apt-get update && apt-get install -y \
 # Switch back to non-root user
 USER pulseplate
 
-# Override command for development
+# Override command for development (serve ASGI via app.main:app; legacy_app.py is no longer
+# the entrypoint; ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
