@@ -32,13 +32,13 @@ from core.utils import resolve_attr
 from core.menu_engine import make_weekly_menu
 
 # Visualization flags (optional - from bmi_visualization)
-MATPLOTLIB_AVAILABLE: Optional[bool] = None
+MATPLOTLIB_AVAILABLE: Optional[bool] = False
 generate_bmi_visualization: Optional[Any] = None
 try:
     from bmi_visualization import MATPLOTLIB_AVAILABLE  # type: ignore[no-redef]
     from bmi_visualization import generate_bmi_visualization  # type: ignore[no-redef]
 except ImportError:
-    pass
+    pass  # Use fallback values above
 
 # Prometheus metrics (optional)
 Counter: Optional[type] = None
@@ -90,7 +90,8 @@ try:
 except ImportError:
     pass
 
-__all__ = [
+# Public API exports - deduplicated to survive merges
+_PUBLIC_EXPORTS = [
     "app",
     "get_api_key",
     "calc_bmi",
@@ -116,3 +117,6 @@ __all__ = [
     "waist_risk",
     "dotenv",
 ]
+
+# Deduplicate while preserving order (survives merge conflicts)
+__all__ = list(dict.fromkeys(_PUBLIC_EXPORTS))

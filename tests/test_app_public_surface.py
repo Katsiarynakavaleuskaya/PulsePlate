@@ -25,6 +25,16 @@ def test_app_public_surface_smoke() -> None:
     assert hasattr(app, "_is_truthy"), "app._is_truthy must be exported"
     assert hasattr(app, "_macros_to_kcal"), "app._macros_to_kcal must be exported"
 
+    # Core utilities (added in import hygiene PR)
+    assert hasattr(app, "resolve_attr"), "app.resolve_attr must be exported"
+    assert hasattr(app, "make_weekly_menu"), "app.make_weekly_menu must be exported"
+
+    # Visualization flags (optional but must be present)
+    assert hasattr(app, "MATPLOTLIB_AVAILABLE"), "app.MATPLOTLIB_AVAILABLE must be exported"
+    assert hasattr(
+        app, "generate_bmi_visualization"
+    ), "app.generate_bmi_visualization must be exported"
+
 
 def test_no_dynamic_exec_module_in_app_package() -> None:
     """Prevent regression to dynamic import patterns (spec.loader.exec_module).
