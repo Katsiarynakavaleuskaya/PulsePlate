@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app from legacy_app.py file
+# Import the FastAPI app from the app package
 from app import app
 
 

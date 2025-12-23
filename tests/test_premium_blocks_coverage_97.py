@@ -20,11 +20,9 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 from app import app
-import legacy_app
+from app import app
 
-# Resolve app.py relative to this test file
-test_dir = os.path.dirname(os.path.abspath(__file__))
-app_path = os.path.join(os.path.dirname(test_dir), "app.py")
+from app import app
 
 
 @pytest.fixture

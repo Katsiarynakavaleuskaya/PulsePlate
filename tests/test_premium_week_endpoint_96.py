@@ -11,9 +11,6 @@ from fastapi.testclient import TestClient
 # Import the FastAPI app from app.py file
 from app import app
 
-# Import the FastAPI app from app.py file
-from app import app
-
 
 class TestPremiumWeekEndpoint96:
     """Tests for premium week endpoint coverage."""

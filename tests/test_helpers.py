@@ -13,7 +13,7 @@ def skip_if_no_plate_micros(plate_micros: Mapping[str, Any]) -> None:
     RU: Пропустить тест, если словарь микронутриентов пуст (обычно из-за отсутствия ингредиентов).
     EN: Skip test if plate micronutrients dict is empty (likely due to missing recipe ingredients).
     """
-    if len(plate_micros) == 0:
+    if not plate_micros:
         pytest.skip(
             "Plate day_micros is empty (likely due to missing recipe ingredients). "
             "This is acceptable when recipe lookup fails."

@@ -8,8 +8,7 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-# Import the FastAPI app from app.py file
-import importlib.util
+# Import the FastAPI app from app package
 from app import app
 
 APP_LOAD_ERROR = "Cannot load app.py"

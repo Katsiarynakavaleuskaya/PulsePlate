@@ -34,7 +34,7 @@ from core.menu_engine import make_weekly_menu
 from core.recommendations import build_nutrition_targets
 
 # Visualization flags (optional - from bmi_visualization)
-MATPLOTLIB_AVAILABLE: Optional[bool] = False
+MATPLOTLIB_AVAILABLE: bool = False
 generate_bmi_visualization: Optional[Any] = None
 try:
     from bmi_visualization import MATPLOTLIB_AVAILABLE  # type: ignore[no-redef]
