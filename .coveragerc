@@ -30,6 +30,13 @@ omit =
     # Optional/feature-flagged modules not executed in standard runtime
     */app/routers/vip.py
 
+    # Test analyzer utilities (infrastructure tooling, not business logic)
+    */core/bayesian_test_analyzer.py
+    */core/comprehensive_bayesian_analyzer.py
+    */core/integrated_bayesian_analyzer.py
+    */core/nutrition_bayesian_analyzer.py
+    */core/business_bayesian_analyzer.py
+
     # Scripts and CLI entrypoints
     scripts/*
     app/__main__.py
