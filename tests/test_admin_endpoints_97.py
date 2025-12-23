@@ -83,8 +83,8 @@ class TestAdminEndpoints:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_admin_endpoints_with_mock(self, client):
-        """Test admin endpoints with proper mocking"""
+    def test_admin_endpoints_integration(self, client):
+        """Test admin endpoints with real behavior"""
         os.environ["API_KEY"] = "test_key"
         try:
             # Test force-update (real request, no invasive sys.modules patching)

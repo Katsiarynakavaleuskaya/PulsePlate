@@ -6,18 +6,20 @@ EN: Access to RecipeDB (SQLite) — search and details.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Dict, List, Optional
 
-DB = Path("data/recipes.sqlite")
+_env_db_path = os.getenv("RECIPE_DB_PATH")
+DB_PATH: Path = Path(_env_db_path) if _env_db_path else Path("data/recipes.sqlite")
 
 
 def _con() -> sqlite3.Connection:
     """RU: Создаёт соединение SQLite (контекст-менеджер).
     EN: Creates SQLite connection (context manager).
     """
-    con = sqlite3.connect(DB)
+    con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     return con
 

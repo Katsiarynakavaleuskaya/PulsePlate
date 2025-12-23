@@ -27,7 +27,7 @@ def client() -> TestClient:
 class TestWHOTargetsEndpoint:
     """Тесты для endpoint /api/v1/premium/targets (блок 1265-1339)"""
 
-    def test_who_targets_unavailable_path(self, client) -> None:
+    def test_who_targets_unavailable_path(self, client: TestClient) -> None:
         """Тест пути когда build_nutrition_targets недоступна (line 1271)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -63,7 +63,7 @@ class TestWHOTargetsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_who_targets_with_various_profiles(self, client) -> None:
+    def test_who_targets_with_various_profiles(self, client: TestClient) -> None:
         """Тест WHO targets с различными профилями (lines 1275-1315)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -116,7 +116,7 @@ class TestWHOTargetsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_who_targets_error_handling(self, client) -> None:
+    def test_who_targets_error_handling(self, client: TestClient) -> None:
         """Тест error handling в WHO targets (lines 1325-1339)"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
@@ -171,7 +171,7 @@ class TestWHOTargetsEndpoint:
 class TestNutrientGapsEndpoint:
     """Тесты для endpoint /api/v1/premium/gaps (блок 1437-1503)"""
 
-    def test_nutrient_gaps_unavailable_path(self, client) -> None:
+    def test_nutrient_gaps_unavailable_path(self, client: TestClient) -> None:
         """Тест пути когда analyze_nutrient_gaps недоступна (line 1445)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -210,7 +210,7 @@ class TestNutrientGapsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_nutrient_gaps_build_targets_unavailable(self, client) -> None:
+    def test_nutrient_gaps_build_targets_unavailable(self, client: TestClient) -> None:
         """Тест пути когда build_nutrition_targets недоступна (line 1467)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -243,7 +243,7 @@ class TestNutrientGapsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_nutrient_gaps_various_profiles(self, client) -> None:
+    def test_nutrient_gaps_various_profiles(self, client: TestClient) -> None:
         """Тест gaps с различными профилями (lines 1450-1495)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -301,7 +301,7 @@ class TestNutrientGapsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_nutrient_gaps_error_handling(self, client) -> None:
+    def test_nutrient_gaps_error_handling(self, client: TestClient) -> None:
         """Тест error handling в gaps (lines 1495-1503)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -332,7 +332,7 @@ class TestNutrientGapsEndpoint:
 class TestAdditionalCriticalCoverage:
     """Дополнительные тесты для покрытия critical paths"""
 
-    def test_api_key_validation_scenarios(self, client) -> None:
+    def test_api_key_validation_scenarios(self, client: TestClient) -> None:
         """Тест различных сценариев API key validation"""
         # Тест без API ключа
         response = client.post(
@@ -368,7 +368,7 @@ class TestAdditionalCriticalCoverage:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_import_error_simulation(self, client) -> None:
+    def test_import_error_simulation(self, client: TestClient) -> None:
         """Test targets/gaps endpoints with various inputs (no invasive sys.modules patching)"""
         os.environ["API_KEY"] = "test_key"
         try:

@@ -9,6 +9,8 @@ NOTE: Underscore-prefixed symbols (_is_truthy, _macros_to_kcal, _alias_micros)
 are legacy public API relied upon by tests and are intentionally exported.
 """
 
+# flake8: noqa: F401
+
 from typing import Any, Optional
 
 # Core FastAPI app instance
@@ -37,8 +39,8 @@ from core.recommendations import build_nutrition_targets
 MATPLOTLIB_AVAILABLE: bool = False
 generate_bmi_visualization: Optional[Any] = None
 try:
-    from bmi_visualization import MATPLOTLIB_AVAILABLE  # type: ignore[no-redef]
-    from bmi_visualization import generate_bmi_visualization  # type: ignore[no-redef]
+    from bmi_visualization import MATPLOTLIB_AVAILABLE
+    from bmi_visualization import generate_bmi_visualization
 except ImportError:
     pass  # Use fallback values above
 
@@ -48,7 +50,7 @@ Histogram: Optional[type] = None
 generate_latest: Optional[Any] = None
 
 try:
-    from prometheus_client import Counter, Histogram, generate_latest  # type: ignore[no-redef]
+    from prometheus_client import Counter, Histogram, generate_latest
 except ImportError:
     pass
 
@@ -57,12 +59,12 @@ BMIRequest: Optional[type] = None
 BMIRequestV1: Optional[type] = None
 
 try:
-    from app.schemas.bmi import BMIRequest  # type: ignore[no-redef]
+    from app.schemas.bmi import BMIRequest
 except ImportError:
     pass
 
 try:
-    from app.schemas.bmi_v1 import BMIRequestV1  # type: ignore[no-redef]
+    from app.schemas.bmi_v1 import BMIRequestV1
 except ImportError:
     pass
 
@@ -71,7 +73,7 @@ from app import routers
 
 vip_router: Optional[Any] = None
 try:
-    from app.routers.vip import router as vip_router  # type: ignore[no-redef]
+    from app.routers.vip import router as vip_router
 except ImportError:
     pass
 
@@ -81,14 +83,14 @@ from app import scheduler_helpers
 # Waist risk function (optional - if exists in legacy_app)
 waist_risk: Optional[Any] = None
 try:
-    from legacy_app import waist_risk  # type: ignore[no-redef]
+    from legacy_app import waist_risk
 except (ImportError, AttributeError):
     pass
 
 # dotenv (if tests import it from app)
 dotenv: Optional[Any] = None
 try:
-    import dotenv  # type: ignore[no-redef]
+    import dotenv
 except ImportError:
     pass
 
