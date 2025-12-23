@@ -20,8 +20,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
-from core import db as db_module
 import core.recipe_synth as recipe_synth
+
+# NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
+# before pytest_configure sets DATABASE_URL. Direct module-level import here
+# would create a Base instance before conftest's reload, causing dual-Base issues.
 
 # Ensure key feature flags are enabled during test collection
 os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
@@ -101,9 +104,14 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
     # Reload db module to pick up new DATABASE_URL
-    # CRITICAL: Only reload core.db, NOT model modules. Reloading models breaks
-    # SQLAlchemy mapper registry and causes DayPlan→WeeklyPlan resolution failures.
+    # CRITICAL: Reload core.db first, then reload model modules to ensure they
+    # use the new Base class. Reloading models after core.db is safe and required.
     db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
+
+    # Reload model modules to use the new Base from reloaded core.db
+    for model_module in ["core.models", "app.models.events", "app.models.plans"]:
+        if model_module in sys.modules:
+            importlib.reload(sys.modules[model_module])
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
@@ -115,27 +123,11 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    # Import all models ONCE to register with Base.metadata (no reloads!)
+    # Import all models ONCE to register with Base.metadata
     # The order matters: core.models first, then app.models
     import core.models  # noqa: F401
     import app.models.events  # noqa: F401
     import app.models.plans  # noqa: F401
-
-    # Handle dual Base issue from app/__init__.py using spec.loader.exec_module:
-    # app.models.* may have registered tables in a different Base instance.
-    # Copy any missing tables from app.models Base to core.db Base.
-    try:
-        import app.models.events as ev_module
-        import app.models.plans as plans_module
-
-        for mod in (ev_module, plans_module):
-            if hasattr(mod, "Base") and mod.Base is not db_module_reloaded.Base:
-                # Different Base instances - copy tables
-                for table_name, table in mod.Base.metadata.tables.items():
-                    if table_name not in db_module_reloaded.Base.metadata.tables:
-                        table.to_metadata(db_module_reloaded.Base.metadata)
-    except Exception as e:
-        logger.debug(f"Could not sync app.models tables: {e}")
 
     db_module_reloaded.init_db()
 

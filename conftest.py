@@ -102,6 +102,12 @@ def pytest_configure(config: pytest.Config) -> None:
     # Import User model to ensure it's registered with SQLAlchemy
     from core.models import User  # noqa: F401
 
+    # Reload app.models.* to ensure they use the reloaded core.db.Base
+    # This prevents dual-Base issues after core.db reload
+    for model_module in ["app.models.events", "app.models.plans"]:
+        if model_module in sys.modules:
+            importlib.reload(sys.modules[model_module])
+
     # Import app models BEFORE init_db to ensure they're registered with Base.metadata
     # This must happen in pytest_configure which runs before fixtures
     try:
@@ -131,92 +137,29 @@ class AppLoadError(ImportError):
 
 @pytest.fixture(scope="session", autouse=True)
 def init_test_database() -> None:
-    """Initialize test database tables before running tests.
+    """Verify test database is properly initialized.
 
-    This fixture ensures the database schema is created before any tests run.
-    It imports models to ensure they're registered with SQLAlchemy Base metadata,
-    then calls init_db() to create all tables.
+    pytest_configure already set up the database. This fixture just
+    verifies everything is working and logs the result.
     """
-    import os
     import logging
 
-    # Ensure test environment variables are set
-    os.environ.setdefault("APP_ENV", "test")
-    os.environ.setdefault("ENVIRONMENT", "test")
+    # Import core.db without reloading - pytest_configure already did that
+    import core.db
 
     try:
-        # Configure SQLite database path for tests
-        db_path_env = os.environ.get("TEST_DB_PATH", "cache/test_app.sqlite")
-        db_path = Path(db_path_env)
-        worker_id = os.environ.get("PYTEST_XDIST_WORKER", "")
-        if worker_id:
-            # Sanitize worker id to avoid path traversal / special characters
-            # Allow only [A-Za-z0-9_-]; if empty after sanitization, fall back to "worker"
-            import re
-
-            safe_worker = re.sub(r"[^A-Za-z0-9_-]", "", worker_id)
-            if not safe_worker:
-                safe_worker = "worker"
-            db_path = db_path.with_name(f"{db_path.stem}_{safe_worker}{db_path.suffix}")
-        if not db_path.is_absolute():
-            db_path = Path.cwd() / db_path
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        # Remove stale test DB file before init; missing_ok handles FileNotFoundError.
-        # Narrow exception handling: surface real FS issues instead of masking them.
-        try:
-            db_path.unlink(missing_ok=True)  # ignores FileNotFoundError by design
-        except PermissionError as e:
-            logging.error("Permission error unlinking test DB '%s': %s", db_path, e, exc_info=True)
-            # Optionally, init_db can implement schema cleanup (DROP TABLE IF EXISTS ...) as a fallback.
-            raise
-        except OSError as e:
-            logging.error("Failed to unlink test DB '%s': %s", db_path, e, exc_info=True)
-            # Explicitly surface unexpected FS problems to fail fast in CI/setup.
-            raise
-        os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"  # SQLAlchemy expects URI
-
-        # Reload core.db after wiring env to ensure engine/sessionmaker pick up test DB
-        import importlib
-
-        if "core.db" in sys.modules:
-            core_db = importlib.reload(sys.modules["core.db"])
-        else:
-            import core.db as core_db
-
-        # Reload or import models to ensure they're registered
-        if "core.models" in sys.modules:
-            importlib.reload(sys.modules["core.models"])  # noqa: F401
-        else:
-            import core.models  # noqa: F401
-
-        # Import app models BEFORE init_db to ensure they're registered with Base.metadata
-        # NOTE: Use conditional import without reload to avoid "Table already defined" errors
-        try:
-            if "app.models.events" not in sys.modules:
-                import app.models.events  # noqa: F401
-            if "app.models.plans" not in sys.modules:
-                import app.models.plans  # noqa: F401
-        except ImportError:
-            pass  # Models may not exist in all branches
-
-        # Initialize database - this creates all tables
-        core_db.init_db()
-
         # Verify initialization succeeded by checking if tables exist
-        session_scope = core_db.session_scope
-        from sqlalchemy import inspect
+        with core.db.session_scope() as session:
+            from sqlalchemy import inspect
 
-        with session_scope() as session:
             inspector = inspect(session.get_bind())
             tables = inspector.get_table_names()
             if not tables:
                 raise RuntimeError("Database initialized but no tables found")
             tables_str = ", ".join(tables)
-            logging.info(f"Database initialized with {len(tables)} tables: {tables_str}")
+            logging.info(f"Database verified with {len(tables)} tables: {tables_str}")
     except Exception as e:
-        # Log error and re-raise to fail fast in CI; tests requiring DB will not run
-        logging.error(f"Failed to initialize test database: {e}", exc_info=True)
-        print(f"ERROR: Could not initialize test database: {e}")
+        logging.error(f"Database verification failed: {e}", exc_info=True)
         raise
 
 
@@ -233,10 +176,10 @@ def cleanup_async_resources() -> Iterator[None]:
 
 @pytest.fixture(scope="session")
 def dynamic_app():
-    """Load FastAPI app dynamically from app.py"""
+    """Load FastAPI app dynamically from legacy_app.py"""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
     if spec is None or spec.loader is None:
         raise AppLoadError()
 

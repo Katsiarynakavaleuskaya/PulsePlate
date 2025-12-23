@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
+spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
 if spec is None or spec.loader is None:
     raise ImportError("Cannot load app.py")
 

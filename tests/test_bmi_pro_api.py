@@ -15,7 +15,7 @@ import importlib.util
 
 APP_LOAD_ERROR = "Cannot load app.py"
 
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
+spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
 if spec is None or spec.loader is None:
     raise ImportError(APP_LOAD_ERROR)
 

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load app.py")
 

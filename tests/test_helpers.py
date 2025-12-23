@@ -50,7 +50,7 @@ def load_app() -> Any:
         sys.path.insert(0, project_root)
 
     # Load app.py dynamically
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
+    spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
     if spec is None or spec.loader is None:
         raise AppLoadError()
 
