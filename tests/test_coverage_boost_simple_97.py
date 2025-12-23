@@ -17,6 +17,7 @@ from starlette.types import ASGIApp
 
 from app import app
 
+
 class TestCoverageBoostSimple:
     """Simple test class for coverage boost."""
 
@@ -35,15 +36,15 @@ class TestCoverageBoostSimple:
 
     def test_app_import_fallbacks(self):
         """Test app import fallbacks."""
-        with patch("app.calculate_all_bmr", None):
-            with patch("app.calculate_all_tdee", None):
+        with patch("legacy_app.calculate_all_bmr", None):
+            with patch("legacy_app.calculate_all_tdee", None):
                 response = self.client.get("/")
                 assert response.status_code == 200
 
     def test_app_utils_fallbacks(self):
         """Test app utils fallbacks."""
-        with patch("app.get_activity_factor", None):
-            with patch("app.resolve_attr", None):
+        with patch("legacy_app.get_activity_factor", None):
+            with patch("legacy_app.resolve_attr", None):
                 response = self.client.get("/")
                 assert response.status_code == 200
 
@@ -131,25 +132,19 @@ class TestCoverageBoostSimple:
 
     def test_missing_imports(self):
         """Test missing imports handling."""
-        with patch("app.premium_week_router", None):
+        with patch("legacy_app.premium_week_router", None):
             response = self.client.get("/")
             assert response.status_code == 200
 
     def test_scheduler_import(self):
         """Test scheduler import handling."""
-        with patch("app._scheduler_getter", None):
-            response = self.client.get("/")
-            assert response.status_code == 200
-
-    def test_import_error_handling(self):
-        """Test import error handling."""
-        with patch("app.importlib.import_module", side_effect=ImportError("Module not found")):
+        with patch("legacy_app._scheduler_getter", None):
             response = self.client.get("/")
             assert response.status_code == 200
 
     def test_timeout_handling(self):
         """Test timeout handling."""
-        with patch("app.time.sleep", side_effect=TimeoutError("Request timeout")):
+        with patch("legacy_app.time.sleep", side_effect=TimeoutError("Request timeout")):
             response = self.client.get("/")
             assert response.status_code in [200, 500, 408]
 

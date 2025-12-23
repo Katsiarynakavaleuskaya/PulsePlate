@@ -27,6 +27,19 @@ from legacy_app import (
     _alias_micros,  # legacy public (used by tests)
 )
 
+# Utility functions from core
+from core.utils import resolve_attr
+from core.menu_engine import make_weekly_menu
+
+# Visualization flags (optional - from bmi_visualization)
+MATPLOTLIB_AVAILABLE: Optional[bool] = None
+generate_bmi_visualization: Optional[Any] = None
+try:
+    from bmi_visualization import MATPLOTLIB_AVAILABLE  # type: ignore[no-redef]
+    from bmi_visualization import generate_bmi_visualization  # type: ignore[no-redef]
+except ImportError:
+    pass
+
 # Prometheus metrics (optional)
 Counter: Optional[type] = None
 Histogram: Optional[type] = None
@@ -88,6 +101,10 @@ __all__ = [
     "lifespan",
     "_macros_to_kcal",
     "_alias_micros",
+    "resolve_attr",
+    "make_weekly_menu",
+    "MATPLOTLIB_AVAILABLE",
+    "generate_bmi_visualization",
     "Counter",
     "Histogram",
     "generate_latest",

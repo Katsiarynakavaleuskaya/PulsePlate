@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 class TestSimpleCoverageBoost:
     """Simple tests to boost coverage."""
 

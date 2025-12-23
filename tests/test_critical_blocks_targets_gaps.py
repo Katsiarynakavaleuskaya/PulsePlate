@@ -17,10 +17,12 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 @pytest.fixture
 def client():
     """Test client fixture"""
     return TestClient(app)
+
 
 class TestWHOTargetsEndpoint:
     """Тесты для endpoint /api/v1/premium/targets (блок 1265-1339)"""
@@ -164,6 +166,7 @@ class TestWHOTargetsEndpoint:
                 del os.environ["API_KEY"]
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
+
 
 class TestNutrientGapsEndpoint:
     """Тесты для endpoint /api/v1/premium/gaps (блок 1437-1503)"""
@@ -324,6 +327,7 @@ class TestNutrientGapsEndpoint:
         finally:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
+
 
 class TestAdditionalCriticalCoverage:
     """Дополнительные тесты для покрытия critical paths"""

@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 class TestPremiumWeekAppCoverage:
     """Test suite for premium week endpoint coverage in main.py."""
 
