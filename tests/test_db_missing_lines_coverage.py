@@ -625,3 +625,53 @@ class TestDbMissingLinesCoverage:
         finally:
             core.db._ASYNC_ENGINE = original_async_engine
             core.db._RAW_ENGINE = original_raw_engine
+
+    def test_init_db_auto_clean_sqlite_on_url_change(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test init_db deletes old SQLite file when DATABASE_AUTO_CLEAN_ON_URL_CHANGE=1.
+
+        Covers lines 653-659 in core/db.py.
+        """
+        import sqlite3
+
+        import core.db
+
+        # Create a real SQLite file
+        old_db_path = tmp_path / "old_test.db"
+        conn = sqlite3.connect(str(old_db_path))
+        conn.execute("CREATE TABLE dummy (id INTEGER)")
+        conn.close()
+
+        new_db_path = tmp_path / "new_test.db"
+        old_db_url = f"sqlite:///{old_db_path}"
+        new_db_url = f"sqlite:///{new_db_path}"
+
+        # Save originals
+        original_engine = core.db._RAW_ENGINE
+        original_session = core.db.SessionLocal
+
+        try:
+            # Enable auto-clean env flag
+            monkeypatch.setenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE", "1")
+            monkeypatch.setenv("DATABASE_URL", old_db_url)
+
+            # Reset and init with old URL
+            core.db._RAW_ENGINE = None
+            core.db.SessionLocal = None
+            core.db.init_db()
+            assert core.db._RAW_ENGINE is not None
+
+            # Verify old file exists
+            assert old_db_path.exists()
+
+            # Now change URL and reinit
+            monkeypatch.setenv("DATABASE_URL", new_db_url)
+            core.db.init_db()
+
+            # Old file should be deleted by the auto-clean logic
+            assert not old_db_path.exists()
+
+        finally:
+            core.db._RAW_ENGINE = original_engine
+            core.db.SessionLocal = original_session
