@@ -215,7 +215,17 @@ def setup_test_environment() -> Generator[None, None, None]:
     os.environ["APP_ENV"] = "test"
     os.environ["DEBUG"] = "true"
     yield
-    # Clean up after all tests
+    # Clean up after all tests: dispose all database connections
+    try:
+        import core.db
+
+        if hasattr(core.db, "_RAW_ENGINE") and core.db._RAW_ENGINE:
+            core.db._RAW_ENGINE.dispose()
+        if hasattr(core.db, "engine") and core.db.engine:
+            core.db.engine.dispose()
+    except Exception:
+        pass  # Best-effort cleanup
+    # Clean up environment variables
     for key in ["API_KEY", "APP_ENV", "DEBUG"]:
         if key in os.environ:
             del os.environ[key]

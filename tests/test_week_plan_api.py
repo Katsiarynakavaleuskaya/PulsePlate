@@ -11,22 +11,10 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 # Set up test client
 client = TestClient(app)
-
 
 def test_week_plan_with_targets():
     """Test generating a week plan with pre-calculated targets."""
@@ -69,7 +57,6 @@ def test_week_plan_with_targets():
 
         assert "detail" in data
 
-
 def test_week_plan_with_profile():
     """Test generating a week plan with user profile."""
     # Test data with user profile
@@ -100,7 +87,6 @@ def test_week_plan_with_profile():
         assert "API Key" in data["detail"]
     elif response.status_code == 422:
         assert "detail" in data
-
 
 def test_week_plan_multilingual():
     """Test that the API works with different languages."""
@@ -140,7 +126,6 @@ def test_week_plan_multilingual():
         if response.status_code == 403:
             assert "API Key" in data["detail"]
 
-
 def test_week_plan_missing_data():
     """Test that the API handles missing data correctly."""
     # Test data with missing required fields
@@ -151,7 +136,6 @@ def test_week_plan_missing_data():
 
     # Should fail with 403 Forbidden or 422 validation error
     assert response.status_code in (403, 422)
-
 
 if __name__ == "__main__":
     pytest.main([__file__])

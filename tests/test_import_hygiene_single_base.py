@@ -1,11 +1,14 @@
-"""
-Import hygiene guard: ensure a single Base instance across all models.
+"""Import hygiene guard: ensure a single Base instance across all models.
 
 This test catches dual-Base/dual-namespace issues that cause mapper registry
 conflicts under pytest-xdist.
 """
 
 import pytest
+import warnings
+
+# Suppress ResourceWarning for SQLite connections (cleaned up at session end)
+warnings.filterwarnings("ignore", category=ResourceWarning, message=".*unclosed database.*")
 
 
 def test_single_base_instance() -> None:
@@ -13,9 +16,13 @@ def test_single_base_instance() -> None:
     import core.db
     import app.models.events as ev
 
-    assert (
-        ev.Base is core.db.Base
-    ), f"app.models.events.Base ({id(ev.Base)}) is not core.db.Base ({id(core.db.Base)})"
+    try:
+        assert (
+            ev.Base is core.db.Base
+        ), f"app.models.events.Base ({id(ev.Base)}) is not core.db.Base ({id(core.db.Base)})"
+    finally:
+        # Close any connections opened during import
+        core.db.engine.dispose()
 
 
 def test_app_import_is_clean() -> None:

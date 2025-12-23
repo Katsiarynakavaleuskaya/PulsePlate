@@ -15,25 +15,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
+from app import app
 
 @pytest.fixture
 def client():
     """Test client fixture"""
     return TestClient(app)
-
 
 class TestWHOTargetsEndpoint:
     """Тесты для endpoint /api/v1/premium/targets (блок 1265-1339)"""
@@ -177,7 +164,6 @@ class TestWHOTargetsEndpoint:
                 del os.environ["API_KEY"]
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
-
 
 class TestNutrientGapsEndpoint:
     """Тесты для endpoint /api/v1/premium/gaps (блок 1437-1503)"""
@@ -338,7 +324,6 @@ class TestNutrientGapsEndpoint:
         finally:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
-
 
 class TestAdditionalCriticalCoverage:
     """Дополнительные тесты для покрытия critical paths"""

@@ -9,19 +9,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
+from app import app
 
 class TestTargetedCoverage:
     """Targeted tests to improve coverage for specific missing lines in main.py."""
@@ -218,7 +206,6 @@ class TestTargetedCoverage:
         )
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 424, 500, 503]
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

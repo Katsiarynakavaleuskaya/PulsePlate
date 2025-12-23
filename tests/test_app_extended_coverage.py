@@ -16,14 +16,6 @@ from starlette.types import ASGIApp
 # Import the FastAPI app from app.py file
 import importlib.util
 
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
 
 @pytest.mark.slow
 class TestLifespanEvents:

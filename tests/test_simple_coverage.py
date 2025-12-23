@@ -8,22 +8,10 @@ import sys
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 # Type assertion to satisfy type checker
 assert isinstance(app, FastAPI), "app should be FastAPI instance"
-
 
 class TestAPIKeyCoverageFinal:
     """Тесты для покрытия API key логики"""
@@ -39,7 +27,6 @@ class TestAPIKeyCoverageFinal:
         # С ключом
         response = client.get("/api/v1/health", headers={"X-API-Key": "test-key"})
         assert response.status_code in [200, 403, 404]
-
 
 class TestBasicEndpoints:
     """Тесты базовых эндпоинтов"""
@@ -62,7 +49,6 @@ class TestBasicEndpoints:
         response = client.get("/metrics")
         assert response.status_code == 200
 
-
 class TestBMIEndpoints:
     """Тесты BMI эндпоинтов"""
 
@@ -82,7 +68,6 @@ class TestBMIEndpoints:
             "/api/v1/bmi", json={"sex": "female", "age": 25, "height_cm": 165, "weight_kg": 60}
         )
         assert response.status_code in [200, 422, 403]
-
 
 class TestPremiumEndpoints:
     """Тесты премиум эндпоинтов"""
@@ -120,7 +105,6 @@ class TestPremiumEndpoints:
             # Может быть 200 (success), 422 (validation), 503 (service unavailable)
             assert response.status_code in [200, 422, 503, 403]
 
-
 class TestFeatureFlags:
     """Тесты feature flag веток"""
 
@@ -133,7 +117,6 @@ class TestFeatureFlags:
         )
         # Может быть отключен или недоступен
         assert response.status_code in [200, 403, 503, 404]
-
 
 class TestErrorHandling:
     """Тесты обработки ошибок"""
@@ -152,7 +135,6 @@ class TestErrorHandling:
         response = client.delete("/health")  # GET only endpoint
         assert response.status_code in [404, 405]  # Method not allowed
 
-
 class TestLanguageSupport:
     """Тесты поддержки языков"""
 
@@ -163,7 +145,6 @@ class TestLanguageSupport:
         for lang in ["en", "ru", "es"]:
             response = client.post("/bmi", data={"weight": "70", "height": "170", "lang": lang})
             assert response.status_code in [200, 422, 403]
-
 
 class TestImportFallbacks:
     """Тесты import fallback веток"""
@@ -181,7 +162,6 @@ class TestImportFallbacks:
         response = client.get("/health")
         assert response.status_code == 200
 
-
 class TestVisualizationPaths:
     """Тесты путей визуализации"""
 
@@ -192,7 +172,6 @@ class TestVisualizationPaths:
         response = client.post("/bmi", data={"weight": "70", "height": "170", "visualize": "true"})
         # Визуализация может быть недоступна
         assert response.status_code in [200, 422, 403]
-
 
 class TestDietFlags:
     """Тесты диетических флагов"""

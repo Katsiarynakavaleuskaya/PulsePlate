@@ -11,25 +11,13 @@ import pytest
 from fastapi.testclient import TestClient
 from reportlab.platypus import Flowable, Paragraph, Table
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 # Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 from app.routers import plan_export as plan
 
 client = TestClient(app)
 
-
 # export_client fixture moved to tests/conftest.py
-
 
 from fastapi.testclient import TestClient
 

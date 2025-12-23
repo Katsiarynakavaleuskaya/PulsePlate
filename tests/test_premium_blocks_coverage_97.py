@@ -14,7 +14,6 @@
 Нужно покрыть: 262+ дополнительных линии
 """
 
-import importlib.util
 import os
 import sys
 
@@ -25,20 +24,15 @@ from fastapi.testclient import TestClient
 test_dir = os.path.dirname(os.path.abspath(__file__))
 app_path = os.path.join(os.path.dirname(test_dir), "app.py")
 
-spec = importlib.util.spec_from_file_location("app_module", app_path)
 if spec is None or spec.loader is None:
     raise ImportError(f"Cannot load app.py from {app_path}")
 
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
 app = app_module.app
-
 
 @pytest.fixture
 def client():
     """Test client fixture"""
     return TestClient(app)
-
 
 class TestPremiumEndpointBlocks:
     """Тесты для блоков 820-836, 854-870, 885-897 premium endpoints"""
@@ -139,7 +133,6 @@ class TestPremiumEndpointBlocks:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-
 class TestWeeklyPlanningBlocks:
     """Тесты для больших блоков weekly planning (1265-1339, 1435-1501)"""
 
@@ -230,7 +223,6 @@ class TestWeeklyPlanningBlocks:
         finally:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
-
 
 class TestPremiumEndpointErrorHandling:
     """Тесты error handling в premium endpoints"""

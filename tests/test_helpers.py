@@ -4,7 +4,6 @@ from typing import Any, Mapping
 
 import pytest
 
-
 def skip_if_no_plate_micros(plate_micros: Mapping[str, Any]) -> None:
     """Skip tests when plate micros data is empty.
 
@@ -17,22 +16,18 @@ def skip_if_no_plate_micros(plate_micros: Mapping[str, Any]) -> None:
             "This is acceptable when recipe lookup fails."
         )
 
-
 """
 Shared test helpers for the PulsePlate project.
 """
 
-import importlib.util
 import os
 import sys
 from typing import Any
-
 
 class AppLoadError(ImportError):
     """Raised when app.py cannot be loaded."""
 
     pass
-
 
 def load_app() -> Any:
     """
@@ -50,10 +45,7 @@ def load_app() -> Any:
         sys.path.insert(0, project_root)
 
     # Load app.py dynamically
-    spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-    if spec is None or spec.loader is None:
+        if spec is None or spec.loader is None:
         raise AppLoadError()
 
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
-    return app_module.app
+            return app_module.app

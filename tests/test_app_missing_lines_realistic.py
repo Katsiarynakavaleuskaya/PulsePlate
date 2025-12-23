@@ -10,25 +10,9 @@ from unittest.mock import patch
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-import pathlib
-
-repo_root = pathlib.Path(__file__).parent.parent
-app_path = repo_root / "app.py"
-
-spec = importlib.util.spec_from_file_location("app_module", str(app_path))
-if spec is None or spec.loader is None:
-    raise ImportError(f"Cannot load app.py from {app_path}")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 fake = Faker()
-
 
 class TestAppMissingLinesTargeted:
     """Target specific missing lines in main.py"""
@@ -170,7 +154,6 @@ class TestAppMissingLinesTargeted:
         success_count = sum(r.status_code == 200 for r in results)
         assert success_count > 0
 
-
 class TestAppLargePayloadsAndLimits:
     """Test large payloads and various limits"""
 
@@ -226,7 +209,6 @@ class TestAppLargePayloadsAndLimits:
         response = self.client.post("/plan", json=complex_data)
         assert response.status_code in [200, 400, 422]
 
-
 class TestAppErrorHandlingPaths:
     """Test specific error handling paths"""
 
@@ -276,7 +258,6 @@ class TestAppErrorHandlingPaths:
             )
             # Should handle appropriately
             assert response.status_code in [200, 400, 415, 422]  # 415 = Unsupported Media Type
-
 
 class TestAppSpecificMissingBlocks:
     """Test specific missing code blocks identified in coverage"""

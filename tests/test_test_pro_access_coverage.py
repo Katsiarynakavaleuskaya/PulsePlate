@@ -2,7 +2,6 @@
 Test coverage for test_pro_access.py
 """
 
-import importlib.util
 import os
 
 # Import the module under test
@@ -16,7 +15,6 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the module being tested
-spec = importlib.util.spec_from_file_location(
     "test_pro_access",
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "test_pro_access.py"),
 )
@@ -24,8 +22,6 @@ if spec is None or spec.loader is None:
     raise ImportError("Cannot load spec for test_pro_access")
 
 test_pro_access = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(test_pro_access)
-
 
 class TestTestProAccessCoverage:
     """Test class to cover test_pro_access.py"""

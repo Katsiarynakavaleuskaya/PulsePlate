@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import importlib
-import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
 
 import pytest
-
 
 def _load_app_init(
     monkeypatch: pytest.MonkeyPatch, *, spec_none: bool = False, base_spec_none: bool = False
@@ -30,15 +28,12 @@ def _load_app_init(
 
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, module_name, module)
-    spec.loader.exec_module(module)
-    return module
-
+        return module
 
 def test_app_init_spec_none(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_app_init(monkeypatch, spec_none=True)
     assert module.app is None
     assert module._mod is None
-
 
 def test_app_init_base_spec_none(monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load_app_init(monkeypatch, base_spec_none=True)

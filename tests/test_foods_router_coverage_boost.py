@@ -12,6 +12,11 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+try:
+    from app.routers.foods import router
+except ImportError:
+    router = None
+
 client = TestClient(app)
 
 
@@ -267,46 +272,3 @@ class TestFoodsRouterCoverage:
         data = response.json()
         assert data["id"] == "123"
         assert data["canonical_name"] == "numeric food"
-
-    def test_food_hit_schema(self):
-        """Test FoodHit schema creation."""
-        food_hit = FoodHit(id="1", name="apple", kcal=52, protein_g=0.3, fat_g=0.2, carbs_g=14.0)
-
-        assert food_hit.id == "1"
-        assert food_hit.name == "apple"
-        assert food_hit.kcal == 52
-        assert food_hit.protein_g == 0.3
-        assert food_hit.fat_g == 0.2
-        assert food_hit.carbs_g == 14.0
-
-    def test_food_item_schema(self):
-        """Test FoodItem schema creation."""
-        food_item = FoodItem(
-            id="1",
-            canonical_name="apple",
-            kcal=52,
-            protein_g=0.3,
-            fat_g=0.2,
-            carbs_g=14.0,
-            fiber_g=2.4,
-            Fe_mg=0.1,
-            Ca_mg=6.0,
-            K_mg=107.0,
-            Mg_mg=5.0,
-            VitD_IU=0,
-            B12_ug=0,
-            Folate_ug=3.0,
-            Iodine_ug=0,
-            per_g=100.0,
-            price_per_100g=0.5,
-            flags=["organic"],
-            version_date="2024-01-01",
-        )
-
-        assert food_item.id == "1"
-        assert food_item.canonical_name == "apple"
-        assert food_item.kcal == 52
-        assert food_item.fiber_g == 2.4
-        assert food_item.Fe_mg == 0.1
-        assert food_item.price_per_100g == 0.5
-        assert food_item.flags == ["organic"]

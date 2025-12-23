@@ -11,22 +11,11 @@ Tests cover:
 
 import os
 import sys
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import the FastAPI app from app.py file
-import importlib.util
-from unittest.mock import patch
-
-import pytest
-from fastapi.testclient import TestClient
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 client = TestClient(app)
 
@@ -34,12 +23,12 @@ client = TestClient(app)
 class TestPremiumBMRAPI:
     """Test Premium BMR API endpoint."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_premium_bmr_without_bodyfat(self):
+    def test_premium_bmr_without_bodyfat(self) -> None:
         """Test premium BMR endpoint without bodyfat parameter"""
         # Test without API key - expect 503 or valid response
         response = client.post(
@@ -56,7 +45,7 @@ class TestPremiumBMRAPI:
         # API auth now returns 403 when no API key, 503 if feature disabled
         assert response.status_code in [200, 403, 503]
 
-    def test_premium_bmr_with_bodyfat(self):
+    def test_premium_bmr_with_bodyfat(self) -> None:
         """Test Premium BMR API with body fat percentage."""
         payload = {
             "weight_kg": 70,
@@ -83,7 +72,7 @@ class TestPremiumBMRAPI:
         # Verify Katch note is present
         assert len(data["notes"]) > 0
 
-    def test_premium_bmr_russian_language(self):
+    def test_premium_bmr_russian_language(self) -> None:
         """Test Premium BMR API with Russian language."""
         payload = {
             "weight_kg": 65,
@@ -104,7 +93,7 @@ class TestPremiumBMRAPI:
         # Check Russian language in response
         assert "recommended_intake" in data
 
-    def test_premium_bmr_all_activity_levels(self):
+    def test_premium_bmr_all_activity_levels(self) -> None:
         """Test Premium BMR API with all activity levels."""
         base_payload = {
             "weight_kg": 70,
@@ -131,7 +120,7 @@ class TestPremiumBMRAPI:
         # TDEE should increase with activity level
         assert tdee_values == sorted(tdee_values)
 
-    def test_premium_bmr_validation_errors(self):
+    def test_premium_bmr_validation_errors(self) -> None:
         """Test Premium BMR API validation errors."""
         # Test invalid weight
         payload = {
@@ -193,7 +182,7 @@ class TestPremiumBMRAPI:
         # bodyfat=60 triggers ValueError in calculation - expect 400
         assert response.status_code == 400
 
-    def test_premium_bmr_missing_api_key(self):
+    def test_premium_bmr_missing_api_key(self) -> None:
         """Test Premium BMR API without API key."""
         payload = {
             "weight_kg": 70,
@@ -211,7 +200,7 @@ class TestPremiumBMRAPI:
         else:
             assert response.status_code == 200
 
-    def test_premium_bmr_invalid_api_key(self):
+    def test_premium_bmr_invalid_api_key(self) -> None:
         """Test Premium BMR API with invalid API key."""
         payload = {
             "weight_kg": 70,
@@ -229,7 +218,7 @@ class TestPremiumBMRAPI:
             )
             assert response.status_code == 403
 
-    def test_premium_bmr_module_not_available(self):
+    def test_premium_bmr_module_not_available(self) -> None:
         """Test Premium BMR API when nutrition module is not available."""
         # This test is simplified since module mocking in this context is complex
         # The actual module import handling is tested in other integration tests
@@ -248,7 +237,7 @@ class TestPremiumBMRAPI:
         # Should work normally since nutrition_core is available
         assert response.status_code == 200
 
-    def test_premium_bmr_calculation_error(self):
+    def test_premium_bmr_calculation_error(self) -> None:
         """Test Premium BMR API calculation error handling."""
         # Test with invalid data that should cause validation errors
         payload = {
@@ -267,7 +256,7 @@ class TestPremiumBMRAPI:
         assert response.status_code == 200
         assert "bmr" in response.json()
 
-    def test_premium_bmr_female_calculations(self):
+    def test_premium_bmr_female_calculations(self) -> None:
         """Test Premium BMR API with female-specific calculations."""
         payload = {
             "weight_kg": 60,
@@ -300,7 +289,7 @@ class TestPremiumBMRAPI:
 
         assert female_bmr < male_bmr
 
-    def test_premium_bmr_activity_descriptions(self):
+    def test_premium_bmr_activity_descriptions(self) -> None:
         """Test activity descriptions in Premium BMR API."""
         payload = {
             "weight_kg": 70,
@@ -321,7 +310,7 @@ class TestPremiumBMRAPI:
         # Should have activity level
         assert "activity_level" in data
 
-    def test_premium_bmr_edge_cases(self):
+    def test_premium_bmr_edge_cases(self) -> None:
         """Test Premium BMR API edge cases."""
         # Test minimal values
         payload = {

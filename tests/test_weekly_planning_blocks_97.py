@@ -16,30 +16,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-
+from app import app
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
-
 
 class TestWeeklyPlanningCriticalBlocks:
     """Тесты для критически важных блоков weekly planning"""
 
-    def test_weekly_planning_unavailable_path(self, client):
+    def test_weekly_planning_unavailable_path(self, client) -> None:
         """Тест пути когда make_weekly_menu недоступна (блок 1265-1339)"""
         # Устанавливаем API ключ
         os.environ["API_KEY"] = "test_key"
@@ -78,7 +65,7 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_planning_parameter_variations(self, client):
+    def test_weekly_planning_parameter_variations(self, client) -> None:
         """Тест различных комбинаций параметров для weekly planning"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -131,7 +118,7 @@ class TestWeeklyPlanningCriticalBlocks:
                 del os.environ["API_KEY"]
 
     @patch("sys.modules")
-    def test_weekly_planning_successful_path(self, mock_sys_modules, client):
+    def test_weekly_planning_successful_path(self, mock_sys_modules, client) -> None:
         """Тест успешного пути weekly planning с мокнутым make_weekly_menu (блок 1435-1501)"""
         # Мокнуть модуль и функцию make_weekly_menu
         mock_module = MagicMock()
@@ -177,7 +164,7 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_planning_edge_cases(self, client):
+    def test_weekly_planning_edge_cases(self, client) -> None:
         """Тест edge cases для weekly planning"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -218,11 +205,10 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-
 class TestAdditionalPremiumBlocks:
     """Дополнительные тесты для других premium блоков"""
 
-    def test_premium_import_error_scenarios(self, client):
+    def test_premium_import_error_scenarios(self, client) -> None:
         """Тест import error scenarios в premium endpoints"""
         # Тест различных premium endpoints для покрытия import путей
         endpoints_to_test = [
@@ -260,7 +246,7 @@ class TestAdditionalPremiumBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_api_key_dependency_logic(self, client):
+    def test_api_key_dependency_logic(self, client) -> None:
         """Тест логики API key dependency"""
         # Тест без API ключа (должен работать если ключи не настроены)
         response = client.post(
@@ -294,11 +280,10 @@ class TestAdditionalPremiumBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-
 class TestWeeklyPlanningAdditionalCoverage:
     """Additional tests for weekly planning coverage"""
 
-    def test_weekly_planning_validation_errors(self, client):
+    def test_weekly_planning_validation_errors(self, client) -> None:
         """Test validation errors for weekly planning input"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -331,7 +316,7 @@ class TestWeeklyPlanningAdditionalCoverage:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_planning_dietary_restrictions(self, client):
+    def test_weekly_planning_dietary_restrictions(self, client) -> None:
         """Test various dietary restriction combinations"""
         os.environ["API_KEY"] = "test_key"
         try:

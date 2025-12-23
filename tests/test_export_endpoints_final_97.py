@@ -20,27 +20,21 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import importlib.util
 import pathlib
 
 # Get the repository root directory
 repo_root = pathlib.Path(__file__).parent.parent
 app_path = repo_root / "app.py"
 
-spec = importlib.util.spec_from_file_location("app_module", str(app_path))
 if spec is None or spec.loader is None:
     raise ImportError("Cannot load app.py")
 
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
 app = app_module.app
-
 
 @pytest.fixture
 def client():
     """Test client fixture"""
     return TestClient(app)
-
 
 class TestExportEndpoints:
     """Тесты для export endpoints - ключ к 97%"""
@@ -191,7 +185,6 @@ class TestExportEndpoints:
         finally:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
-
 
 class TestAdditionalCoverageBoosts:
     """Дополнительные тесты для повышения покрытия"""

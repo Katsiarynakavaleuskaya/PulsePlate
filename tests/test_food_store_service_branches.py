@@ -2,7 +2,6 @@ import csv
 import io
 import os
 import sys
-import importlib.util
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
@@ -22,15 +21,12 @@ if fs_module is None:
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load food_store module")
     fs_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fs_module)
-
+    
 fs: ModuleType = fs_module
-
 
 def test_safe_float_invalid_returns_zero() -> None:
     assert fs._safe_float(None) == 0.0
     assert fs._safe_float("not-a-number") == 0.0
-
 
 def test_validate_csv_quotes_strict_typeerror_fallback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -51,7 +47,6 @@ def test_validate_csv_quotes_strict_typeerror_fallback(
 
     assert fs._validate_csv_quotes(csv_path, is_production=False) is True
 
-
 def test_validate_csv_quotes_csv_error_in_production_returns_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -70,7 +65,6 @@ def test_validate_csv_quotes_csv_error_in_production_returns_false(
 
     assert fs._validate_csv_quotes(csv_path, is_production=True) is False
 
-
 @pytest.mark.parametrize(
     "ing, expected",
     [
@@ -86,11 +80,9 @@ def test_validate_csv_quotes_csv_error_in_production_returns_false(
 def test_validate_ingredient_mapping_various(ing: Mapping[str, Any] | str, expected: Any) -> None:
     assert fs._validate_ingredient_mapping(ing) == expected  # type: ignore[arg-type]
 
-
 def test_safe_per_g_invalid_and_zero() -> None:
     assert fs._safe_per_g("oops", "f1") == fs.DEFAULT_PER_G
     assert fs._safe_per_g(0, "f1") == fs.DEFAULT_PER_G
-
 
 def test_nutrients_for_empty_and_valid_sequence() -> None:
     # Empty sequence returns zeros for known keys
@@ -101,7 +93,6 @@ def test_nutrients_for_empty_and_valid_sequence() -> None:
     # Minimal valid ingredient; get_food is used by aggregator in app layer, here we just validate stability
     aggregated = fs.nutrients_for([{"food_id": "x", "grams": 0}])
     assert isinstance(aggregated, dict)
-
 
 @pytest.mark.parametrize(
     "limit, offset, ok",

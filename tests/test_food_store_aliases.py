@@ -1,6 +1,5 @@
 import os
 import sys
-import importlib.util
 import tempfile
 from pathlib import Path
 from importlib.machinery import ModuleSpec
@@ -25,12 +24,10 @@ if fs_module is None:
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load food_store module")
     fs_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fs_module)
-
+    
 
 # Short alias for backward compatibility
 fs: ModuleType = fs_module
-
 
 def test_get_aliases_merges_defaults_and_csv(monkeypatch: pytest.MonkeyPatch) -> None:
     # Reset lazy cache
@@ -47,14 +44,12 @@ def test_get_aliases_merges_defaults_and_csv(monkeypatch: pytest.MonkeyPatch) ->
     # new key from CSV present
     assert aliases.get("avocado") == ["avo"]
 
-
 def test_expand_query_uses_alias_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(fs, "_ALIASES_CACHE", None, raising=False)
     monkeypatch.setattr(fs, "_load_aliases_csv", lambda p: {"масло оливковое": ["olive oil"]})
     terms = set(fs.expand_query("olive oil"))
     # Should include both the alias and the canonical key
     assert {"olive oil", "масло оливковое"}.issubset(terms)
-
 
 def test_load_aliases_csv_primary_aliases_schema() -> None:
     """Test _load_aliases_csv with primary,aliases schema (original format)."""
@@ -72,7 +67,6 @@ def test_load_aliases_csv_primary_aliases_schema() -> None:
         assert result["cherry"] == ["cherries"]
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_alias_canonical_schema() -> None:
     """Test _load_aliases_csv with alias,canonical schema (core.aliases format)."""
@@ -98,13 +92,11 @@ def test_load_aliases_csv_alias_canonical_schema() -> None:
     finally:
         temp_path.unlink()
 
-
 def test_load_aliases_csv_missing_file() -> None:
     """Test _load_aliases_csv when file doesn't exist."""
     non_existent = Path("/non/existent/path.csv")
     result = fs._load_aliases_csv(non_existent)
     assert result == {}
-
 
 def test_load_aliases_csv_empty_file() -> None:
     """Test _load_aliases_csv with empty CSV file."""
@@ -117,7 +109,6 @@ def test_load_aliases_csv_empty_file() -> None:
         assert result == {}
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_primary_aliases_with_duplicates() -> None:
     """Test _load_aliases_csv with primary,aliases schema handling duplicate aliases."""
@@ -136,7 +127,6 @@ def test_load_aliases_csv_primary_aliases_with_duplicates() -> None:
     finally:
         temp_path.unlink()
 
-
 def test_load_aliases_csv_alias_canonical_with_whitespace() -> None:
     """Test _load_aliases_csv with alias,canonical schema handling whitespace."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
@@ -152,7 +142,6 @@ def test_load_aliases_csv_alias_canonical_with_whitespace() -> None:
         assert "red apple" in result["apple"]
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_primary_aliases_case_insensitive() -> None:
     """Test _load_aliases_csv normalizes to lowercase for primary,aliases schema."""
@@ -172,7 +161,6 @@ def test_load_aliases_csv_primary_aliases_case_insensitive() -> None:
     finally:
         temp_path.unlink()
 
-
 def test_load_aliases_csv_alias_canonical_case_insensitive() -> None:
     """Test _load_aliases_csv normalizes to lowercase for alias,canonical schema."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
@@ -188,7 +176,6 @@ def test_load_aliases_csv_alias_canonical_case_insensitive() -> None:
         assert "red apple" in result["apple"]
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_primary_aliases_empty_primary_skipped() -> None:
     """Test _load_aliases_csv skips rows with empty primary in primary,aliases schema."""
@@ -206,7 +193,6 @@ def test_load_aliases_csv_primary_aliases_empty_primary_skipped() -> None:
         assert "" not in result
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_alias_canonical_empty_values_skipped() -> None:
     """Test _load_aliases_csv skips rows with empty alias or canonical."""
@@ -226,7 +212,6 @@ def test_load_aliases_csv_alias_canonical_empty_values_skipped() -> None:
     finally:
         temp_path.unlink()
 
-
 def test_load_aliases_csv_unknown_schema_returns_empty() -> None:
     """Test _load_aliases_csv returns empty dict when schema doesn't match."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8") as f:
@@ -239,7 +224,6 @@ def test_load_aliases_csv_unknown_schema_returns_empty() -> None:
         assert result == {}
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_error_handling_production_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test _load_aliases_csv error handling in production mode returns empty dict."""
@@ -256,7 +240,6 @@ def test_load_aliases_csv_error_handling_production_mode(monkeypatch: pytest.Mon
         assert result == {}
     finally:
         temp_path.unlink()
-
 
 def test_load_aliases_csv_error_handling_non_production_mode(
     monkeypatch: pytest.MonkeyPatch,
