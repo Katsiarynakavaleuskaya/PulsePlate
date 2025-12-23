@@ -12,26 +12,14 @@ from typing import Dict, List, Optional
 
 DB = Path("data/recipes.sqlite")
 
-# Legacy: tests expect module-level connection cache
-_con: Optional[sqlite3.Connection] = None
 
-
-def _get_con() -> sqlite3.Connection:
-    """RU: Ленивая инициализация соединения (кэш).
-    EN: Lazy cached connection initializer.
+def _con() -> sqlite3.Connection:
+    """RU: Создаёт соединение SQLite (контекст-менеджер).
+    EN: Creates SQLite connection (context manager).
     """
-    global _con
-
-    # Support both legacy test mocking (function) and new caching (variable)
-    if callable(_con):
-        return _con()  # type: ignore[no-any-return]
-
-    if _con is None:
-        con = sqlite3.connect(DB)
-        con.row_factory = sqlite3.Row
-        _con = con
-
-    return _con
+    con = sqlite3.connect(DB)
+    con.row_factory = sqlite3.Row
+    return con
 
 
 def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
@@ -53,12 +41,12 @@ def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
         """
         params = [query, limit, offset]  # type: ignore
 
-    con = _get_con()
-    rows = con.execute(sql, params).fetchall()
+    with _con() as con:
+        rows = con.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
 
 
 def get_recipe(recipe_id: str) -> Optional[Dict]:
-    con = _get_con()
-    r = con.execute("SELECT * FROM recipes WHERE recipe_id = ?", (recipe_id,)).fetchone()
+    with _con() as con:
+        r = con.execute("SELECT * FROM recipes WHERE recipe_id = ?", (recipe_id,)).fetchone()
     return dict(r) if r else None
