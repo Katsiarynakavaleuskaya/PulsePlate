@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
-from typing import Dict, Generator
+from typing import Dict
 from unittest.mock import patch
 
 import pytest
@@ -22,10 +21,6 @@ def _get_test_client() -> TestClient:
     # Reload app module to pick up environment changes
     if "app" in sys.modules:
         del sys.modules["app"]
-
-    repo_root = Path(__file__).parent.parent
-    if str(repo_root) not in sys.path:
-        sys.path.insert(0, str(repo_root))
 
     import app as app_mod
 

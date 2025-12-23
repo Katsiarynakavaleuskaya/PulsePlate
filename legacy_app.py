@@ -151,7 +151,7 @@ def _resolve_scheduler_starter(
 
 def _resolve_stop_callable(pkg: Any, alias_pkg: Any) -> Callable[[], Any]:
     """Backward-compatible wrapper for scheduler stop callable resolution."""
-    return resolve_stop_callable(pkg, alias_pkg, _scheduler_stop_background_updates)
+    return resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
 
 
 def start_background_updates(update_interval_hours: int = 24) -> None:
@@ -383,7 +383,7 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
         from core.food_apis.scheduler import get_update_scheduler as _late_getter
 
         result = await _late_getter()
-        return cast(DatabaseUpdateScheduler, result)
+        return result
     result = await _scheduler_getter()
     return cast(DatabaseUpdateScheduler, result)
 
@@ -580,7 +580,12 @@ def _configure_session_bindings(
     global _db_fallback_active
 
     try:
-        core_db.SessionLocal.configure(bind=engine)
+        if core_db.SessionLocal is not None:
+            core_db.SessionLocal.configure(bind=engine)
+        else:
+            core_db.SessionLocal = core_db.sessionmaker(
+                bind=engine, autoflush=False, autocommit=False, future=True
+            )
     except Exception:
         core_db.SessionLocal = core_db.sessionmaker(
             bind=engine, autoflush=False, autocommit=False, future=True
@@ -594,7 +599,7 @@ def _configure_session_bindings(
     # can surface degraded states. This uses a lazy import and silently
     # no-ops if the metrics client is not available.
     try:  # pragma: no cover - metrics instrumentation is optional
-        from core import metrics as _metrics  # type: ignore[import]
+        from core import metrics as _metrics  # type: ignore[attr-defined]
 
         client = getattr(_metrics, "metrics_client", None)
         if client is not None:
@@ -1471,7 +1476,7 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
         generate_bmi_visualization,
         _candidates,
     ):
-        viz_result = _viz_func(  # type: ignore[operator]
+        viz_result = _viz_func(
             bmi=result["bmi"],
             age=req.age,
             gender=req.gender,
@@ -2331,15 +2336,9 @@ def targets_disabled() -> bool:
         return True
     primary_has_attr = primary_app is not None and "build_nutrition_targets" in primary_app.__dict__
     alias_has_attr = alias_app is not None and "build_nutrition_targets" in alias_app.__dict__
-    if (
-        primary_has_attr
-        and getattr(primary_app, "build_nutrition_targets", None) is None  # type: ignore[arg-type]
-    ):
+    if primary_has_attr and getattr(primary_app, "build_nutrition_targets", None) is None:
         return True
-    if (
-        alias_has_attr
-        and getattr(alias_app, "build_nutrition_targets", None) is None  # type: ignore[arg-type]
-    ):
+    if alias_has_attr and getattr(alias_app, "build_nutrition_targets", None) is None:
         return True
 
     # Thread-safe cache check: always acquire lock before reading cache
@@ -3261,7 +3260,7 @@ def build_fallback_plate(req: PlateRequest, candidates: list[Any]) -> PlateRespo
                             fiber_g_raw,
                             FIBER_MIN_G,
                         )
-                        fiber_g = FIBER_MIN_G
+                        fiber_g = int(round(FIBER_MIN_G))
         except Exception as exc:
             # Do not crash fallback generation if building targets fails; log for debugging
             logger.debug("Failed to build nutrition targets during fallback alignment: %s", exc)
@@ -3562,8 +3561,8 @@ async def aggregate_day_micros(
         candidates,
     )
     if callable(_aggregate_func):
-        # _aggregate_func is resolved dynamically and may be async
-        day_micros = await _aggregate_func(meals)  # type: ignore[misc]
+        # Dynamic resolution may return sync or async callable
+        day_micros = await _aggregate_func(meals)  # noqa: PGH003 - dynamic await
         return day_micros or {}
     else:
         logger.warning(
@@ -3682,13 +3681,13 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
             return build_fallback_plate(req, _candidates)
 
         # Calculate BMR/TDEE and generate plate
-        bmr_results = _calc_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)  # type: ignore[operator]
-        tdee_results = _calc_tdee(bmr_results, req.activity)  # type: ignore[operator]
+        bmr_results = _calc_bmr(req.weight_kg, req.height_cm, req.age, req.sex, req.bodyfat)
+        tdee_results = _calc_tdee(bmr_results, req.activity)
         tdee_val = tdee_results["mifflin"]
 
         diet_flags_str = {str(flag) for flag in req.diet_flags} if req.diet_flags else None
         try:
-            plate_data_raw = _make_plate(  # type: ignore[operator]
+            plate_data_raw = _make_plate(
                 weight_kg=req.weight_kg,
                 tdee_val=tdee_val,
                 goal=req.goal,
@@ -3830,14 +3829,14 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
 
             patched = getattr(sys.modules.get("app"), attr_name, None)
             if patched is not None and patched is not fallback:
-                return patched
+                return cast(Callable[..., Any], patched)
 
             for mod in _pkg_candidates:
                 if mod is None:
                     continue
                 candidate = getattr(mod, attr_name, None)
                 if candidate is not None and candidate is not fallback:
-                    return candidate
+                    return cast(Callable[..., Any], candidate)
             return fallback
 
         _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper", _calculate_all_bmr_wrapper)
@@ -4003,9 +4002,9 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
                     continue
                 candidate = getattr(mod, name, None)
                 if callable(candidate):
-                    return candidate
+                    return cast(Callable[..., Any], candidate)
             candidate = globals().get(name)
-            return candidate if callable(candidate) else None
+            return cast(Callable[..., Any], candidate) if callable(candidate) else None
 
         _bmr_wrapper = _resolve_wrapper("_calculate_all_bmr_wrapper")
         _tdee_wrapper = _resolve_wrapper("_calculate_all_tdee_wrapper")
@@ -4404,8 +4403,20 @@ async def api_weekly_menu(req: WeekPlanRequest) -> WeeklyMenuResponse:
                 status_code=503, detail="Weekly menu generation feature not available"
             )
 
-        # Convert to UserProfile
+        # Convert to UserProfile - validate required fields first
         from core.targets import UserProfile
+
+        if (
+            req.sex is None
+            or req.age is None
+            or req.height_cm is None
+            or req.weight_kg is None
+            or req.activity is None
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Required fields missing: sex, age, height_cm, weight_kg, and activity are all required.",
+            )
 
         profile = UserProfile(
             sex=req.sex,
@@ -4768,7 +4779,7 @@ async def rollback_database(source: str, target_version: str) -> Dict[str, Any]:
         import inspect as _inspect
 
         if _inspect.iscoroutinefunction(rollback_callable):
-            success = await rollback_callable(source, target_version)  # type: ignore[misc]
+            success = await rollback_callable(source, target_version)
         else:
             success = await run_in_threadpool(rollback_callable, source, target_version)
 

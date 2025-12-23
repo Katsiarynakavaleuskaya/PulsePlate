@@ -12,10 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-# Add paths for import resolution
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
-
 
 @pytest.fixture
 def vip_environment(monkeypatch: pytest.MonkeyPatch) -> None:

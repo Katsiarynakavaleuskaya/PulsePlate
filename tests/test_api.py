@@ -8,10 +8,6 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from tests.test_helpers import load_app  # noqa: E402 (import after sys.path modification)
-
 # client fixture is provided by conftest.py
 
 

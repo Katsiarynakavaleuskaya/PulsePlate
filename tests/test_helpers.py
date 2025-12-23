@@ -5,6 +5,14 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 import pytest
+from fastapi import FastAPI
+
+
+def load_app() -> FastAPI:
+    """Load and return the FastAPI app instance."""
+    import app as app_module
+
+    return app_module.app
 
 
 def skip_if_no_plate_micros(plate_micros: Mapping[str, Any]) -> None:

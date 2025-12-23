@@ -14,10 +14,11 @@ EXCEPTIONS = {
     "test_test_pro_access_coverage.py",  # tests standalone script test_pro_access.py
     "test_ensure_database_versions.py",  # tests scripts/ensure_database_versions.py
     "conftest.py",  # pytest sharding logic
+    "test_import_hygiene_guard.py",  # this guard test itself contains the pattern in strings
 }
 
 
-@pytest.mark.skip(reason="Enable after cleanup PR removes sys.path.insert from tests")
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_no_sys_path_insert_in_tests() -> None:
     """Ensure no test files use sys.path.insert except allowed exceptions."""
     offenders: list[str] = []
