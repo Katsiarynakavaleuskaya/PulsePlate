@@ -268,6 +268,11 @@ class TestStageObesity:
         result = stage_obesity(bmi=28.0, wht=0.53, whr=0.82, sex="female", lang="en")
         assert "stage" in result
 
+    def test_stage_obesity_underweight(self):
+        """Test obesity staging for underweight BMI category."""
+        result = stage_obesity(bmi=17.0, wht=0.4, whr=0.7, sex="male", lang="en")
+        assert result["bmi_category"] == "underweight"
+
     def test_stage_obesity_multilingual(self):
         """Test obesity staging in different languages."""
         result_ru = stage_obesity(bmi=27.0, wht=0.52, whr=0.90, sex="male", lang="ru")

@@ -4,7 +4,7 @@ import time
 from typing import Any, Dict
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 
@@ -246,3 +246,22 @@ class TestShoppingListProRouterIsolated:
         # Detail format is Pydantic error list; we just check it mentions weekly_plan_id/plan_data.
         detail_str = str(resp.json()["detail"]).lower()
         assert "weekly_plan_id" in detail_str or "plan_data" in detail_str
+
+
+@pytest.mark.asyncio
+async def test_generate_shopping_list_plan_data_none_guard() -> None:
+    """Guard against missing plan_data when validation is bypassed."""
+    from app.routers.shopping_list_pro import generate_shopping_list
+    from app.schemas.shopping_list import ShoppingListPreferences, ShoppingListRequest
+
+    request = ShoppingListRequest.model_construct(
+        weekly_plan_id=None,
+        plan_data=None,
+        preferences=ShoppingListPreferences(),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await generate_shopping_list(request)
+
+    assert exc_info.value.status_code == 500
+    assert "plan_data is None" in exc_info.value.detail
