@@ -10,14 +10,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app import app
+
+
 @pytest.fixture(scope="session")
 def client():
     """Load main.py once per test session and provide TestClient"""
-    
-    app_path = Path(__file__).parent.parent / "main.py"
-            sys.modules["app_module"] = app_module
-    
-    return TestClient(app_module.app)
+    return TestClient(app)
+
 
 @pytest.fixture(autouse=True)
 def setup_environment():
@@ -26,6 +26,7 @@ def setup_environment():
     os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
     yield
     # Cleanup is automatic with pytest fixtures
+
 
 class TestImportErrorPaths:
     """Test import error handling paths"""
@@ -64,6 +65,7 @@ class TestImportErrorPaths:
                 os.environ["VIP_MODULE_ENABLED"] = original_vip
             elif "VIP_MODULE_ENABLED" in os.environ:
                 del os.environ["VIP_MODULE_ENABLED"]
+
 
 class TestPremiumEndpointErrorPaths:
     """Test premium endpoint error handling"""
@@ -119,6 +121,7 @@ class TestPremiumEndpointErrorPaths:
         )
         assert response.status_code == 404
 
+
 class TestErrorHandlingAndEdgeCases:
     """Test error handling and edge cases"""
 
@@ -164,6 +167,7 @@ class TestErrorHandlingAndEdgeCases:
             # Should be validation error
             assert response.status_code in [422, 400]
 
+
 class TestVIPAndPremiumFeaturePaths:
     """Test VIP and premium feature code paths"""
 
@@ -206,6 +210,7 @@ class TestVIPAndPremiumFeaturePaths:
             # Should be 404 (not found) for unimplemented premium endpoints
             assert response.status_code == 404
 
+
 class TestAsyncAndBackgroundTasks:
     """Test async operations and background tasks"""
 
@@ -232,6 +237,7 @@ class TestAsyncAndBackgroundTasks:
         for endpoint in ["/health", "/healthz", "/ready", "/live"]:
             response = client.get(endpoint)
             assert response.status_code in [200, 404, 405]
+
 
 class TestComplexDataCombinations:
     """Test complex data combinations to cover more code paths"""
@@ -284,6 +290,7 @@ class TestComplexDataCombinations:
             },
         )
         assert response.status_code in [200, 422]
+
 
 class TestLanguageAndLocalization:
     """Test language and localization paths"""

@@ -13,10 +13,11 @@ from app import app
 # Type assertion to satisfy type checker
 assert isinstance(app, FastAPI), "app should be FastAPI instance"
 
+
 class TestAPIKeyCoverageFinal:
     """Тесты для покрытия API key логики"""
 
-    def test_api_key_validation_endpoint_access(self):
+    def test_api_key_validation_endpoint_access(self) -> None:
         """Тест доступа к защищенным эндпоинтам"""
         client = TestClient(app)
 
@@ -28,31 +29,33 @@ class TestAPIKeyCoverageFinal:
         response = client.get("/api/v1/health", headers={"X-API-Key": "test-key"})
         assert response.status_code in [200, 403, 404]
 
+
 class TestBasicEndpoints:
     """Тесты базовых эндпоинтов"""
 
-    def test_root_endpoint(self):
+    def test_root_endpoint(self) -> None:
         """Тест корневого эндпоинта"""
         client = TestClient(app)
         response = client.get("/")
         assert response.status_code == 200
 
-    def test_health_endpoint(self):
+    def test_health_endpoint(self) -> None:
         """Тест эндпоинта health"""
         client = TestClient(app)
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_metrics_endpoint(self):
+    def test_metrics_endpoint(self) -> None:
         """Тест эндпоинта metrics"""
         client = TestClient(app)
         response = client.get("/metrics")
         assert response.status_code == 200
 
+
 class TestBMIEndpoints:
     """Тесты BMI эндпоинтов"""
 
-    def test_bmi_basic(self):
+    def test_bmi_basic(self) -> None:
         """Тест базового BMI расчета"""
         client = TestClient(app)
 
@@ -60,7 +63,7 @@ class TestBMIEndpoints:
         # Может быть 200, 422 (validation) или 403 (auth)
         assert response.status_code in [200, 422, 403]
 
-    def test_bmi_api_v1(self):
+    def test_bmi_api_v1(self) -> None:
         """Тест API v1 BMI"""
         client = TestClient(app)
 
@@ -69,10 +72,11 @@ class TestBMIEndpoints:
         )
         assert response.status_code in [200, 422, 403]
 
+
 class TestPremiumEndpoints:
     """Тесты премиум эндпоинтов"""
 
-    def test_premium_endpoints_without_auth(self):
+    def test_premium_endpoints_without_auth(self) -> None:
         """Тест премиум эндпоинтов без авторизации"""
         client = TestClient(app)
 
@@ -90,7 +94,7 @@ class TestPremiumEndpoints:
             # Должен требовать авторизацию или вернуть ошибку
             assert response.status_code in [403, 404, 422]
 
-    def test_premium_endpoints_with_auth(self):
+    def test_premium_endpoints_with_auth(self) -> None:
         """Тест премиум эндпоинтов с авторизацией"""
         client = TestClient(app)
 
@@ -105,10 +109,11 @@ class TestPremiumEndpoints:
             # Может быть 200 (success), 422 (validation), 503 (service unavailable)
             assert response.status_code in [200, 422, 503, 403]
 
+
 class TestFeatureFlags:
     """Тесты feature flag веток"""
 
-    def test_insight_endpoint(self):
+    def test_insight_endpoint(self) -> None:
         """Тест insight эндпоинта"""
         client = TestClient(app)
 
@@ -118,27 +123,29 @@ class TestFeatureFlags:
         # Может быть отключен или недоступен
         assert response.status_code in [200, 403, 503, 404]
 
+
 class TestErrorHandling:
     """Тесты обработки ошибок"""
 
-    def test_invalid_endpoints(self):
+    def test_invalid_endpoints(self) -> None:
         """Тест несуществующих эндпоинтов"""
         client = TestClient(app)
 
         response = client.get("/nonexistent")
         assert response.status_code == 404
 
-    def test_invalid_methods(self):
+    def test_invalid_methods(self) -> None:
         """Тест неправильных HTTP методов"""
         client = TestClient(app)
 
         response = client.delete("/health")  # GET only endpoint
         assert response.status_code in [404, 405]  # Method not allowed
 
+
 class TestLanguageSupport:
     """Тесты поддержки языков"""
 
-    def test_different_languages(self):
+    def test_different_languages(self) -> None:
         """Тест различных языков"""
         client = TestClient(app)
 
@@ -146,15 +153,16 @@ class TestLanguageSupport:
             response = client.post("/bmi", data={"weight": "70", "height": "170", "lang": lang})
             assert response.status_code in [200, 422, 403]
 
+
 class TestImportFallbacks:
     """Тесты import fallback веток"""
 
-    def test_vip_module_availability(self):
+    def test_vip_module_availability(self) -> None:
         """Тест доступности VIP модуля"""
         # Просто проверим, что app загружается без ошибок
         assert app is not None
 
-    def test_optional_dependencies(self):
+    def test_optional_dependencies(self) -> None:
         """Тест опциональных зависимостей"""
         # Проверим, что эндпоинты работают даже если некоторые модули недоступны
         client = TestClient(app)
@@ -162,10 +170,11 @@ class TestImportFallbacks:
         response = client.get("/health")
         assert response.status_code == 200
 
+
 class TestVisualizationPaths:
     """Тесты путей визуализации"""
 
-    def test_bmi_with_visualization_request(self):
+    def test_bmi_with_visualization_request(self) -> None:
         """Тест BMI с запросом визуализации"""
         client = TestClient(app)
 
@@ -173,10 +182,11 @@ class TestVisualizationPaths:
         # Визуализация может быть недоступна
         assert response.status_code in [200, 422, 403]
 
+
 class TestDietFlags:
     """Тесты диетических флагов"""
 
-    def test_various_diet_flags(self):
+    def test_various_diet_flags(self) -> None:
         """Тест различных диетических флагов"""
         client = TestClient(app)
 

@@ -11,20 +11,21 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 class TestWebInterfaceSpanish:
     """Test web interface Spanish language support."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_web_interface_contains_spanish_option(self):
+    def test_web_interface_contains_spanish_option(self) -> None:
         """Test that the web interface contains Spanish language option."""
         # Test that the root endpoint returns HTML with Spanish option
         response = self.client.get("/")
@@ -37,7 +38,7 @@ class TestWebInterfaceSpanish:
         assert 'value="es"' in html_content
         assert "language-selector" in html_content
 
-    def test_web_interface_form_labels_spanish(self):
+    def test_web_interface_form_labels_spanish(self) -> None:
         """Test that form labels are correctly translated to Spanish."""
         # Get the web interface with Spanish language
         response = self.client.get("/?lang=es")
@@ -55,7 +56,7 @@ class TestWebInterfaceSpanish:
         assert "Cintura (cm, opcional)" in html_content
         assert "Calcular IMC" in html_content
 
-    def test_web_interface_translations_loaded(self):
+    def test_web_interface_translations_loaded(self) -> None:
         """Test that translation script is loaded in the web interface."""
         # Get the web interface
         response = self.client.get("/")

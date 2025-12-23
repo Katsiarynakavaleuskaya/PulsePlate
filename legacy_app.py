@@ -1285,9 +1285,11 @@ if _is_rate_limiting_available():
 
 # ---------- Models ----------
 
+INSIGHT_TEXT_MAX_LENGTH = 2000
+
 
 class InsightRequest(BaseModel):
-    text: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1, max_length=INSIGHT_TEXT_MAX_LENGTH)
 
 
 class BMIRequest(BaseModel):
@@ -2083,12 +2085,38 @@ async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
     return await bmi_endpoint_v1(req)
 
 
+def _ensure_insight_text_length(text: str) -> str:
+    if len(text) > INSIGHT_TEXT_MAX_LENGTH:
+        raise HTTPException(status_code=413, detail="Insight text too long")
+    return text
+
+
+def _build_insight_prompt(text: str, context: Optional[str]) -> str:
+    if not context:
+        return text
+    prefix = "Context:\n"
+    suffix = f"\n\nQuestion: {text}\nAnswer:"
+    max_context_len = INSIGHT_TEXT_MAX_LENGTH - len(prefix) - len(suffix)
+    if max_context_len <= 0:
+        return text[:INSIGHT_TEXT_MAX_LENGTH]
+    trimmed_context = context[:max_context_len]
+    prompt_text = f"{prefix}{trimmed_context}{suffix}"
+    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
+        return prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
+    return prompt_text
+
+
 @app.post("/api/v1/insight", dependencies=[Depends(_get_api_key_dynamic)])
 async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
-    """Generate insight using LLM provider (v1 with API key)."""
+    """Generate insight using LLM provider (v1 with API key).
+
+    Privacy: user text may be sent to external providers; see /privacy.
+    """
     flag_value = os.getenv("FEATURE_INSIGHT", "false")
     if not _is_truthy(flag_value):
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+
+    prompt_input = _ensure_insight_text_length(req.text)
 
     # отложенный импорт, чтобы не падать, если файла нет
     try:
@@ -2101,13 +2129,15 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="No LLM provider configured")
 
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    prompt_text = req.text
+    prompt_text = prompt_input
     if use_rag:
         with suppress(Exception):
             from core.rag.simple_rag import retrieve_context as _rag_retrieve
 
-            if ctx := _rag_retrieve(req.text, max_chunks=3):
-                prompt_text = f"Context:\n{ctx}\n\nQuestion: {req.text}\nAnswer:"
+            if ctx := _rag_retrieve(prompt_input, max_chunks=3):
+                prompt_text = _build_insight_prompt(prompt_input, ctx)
+    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
+        prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
         return {"provider": provider.name, "insight": insight_text}
@@ -2121,11 +2151,16 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
 # Backward-compatible simple insight endpoint (no API key)
 @app.post("/insight")
 async def insight(req: InsightRequest) -> Dict[str, Any]:
-    """Generate insight using LLM provider (legacy path without API key)."""
+    """Generate insight using LLM provider (legacy path without API key).
+
+    Privacy: user text may be sent to external providers; see /privacy.
+    """
     flag_value = os.getenv("FEATURE_INSIGHT", "false")
     if not _is_truthy(flag_value):
         # For legacy path, return 503 if feature disabled
         raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
+
+    prompt_input = _ensure_insight_text_length(req.text)
 
     try:
         from llm import get_provider
@@ -2137,13 +2172,15 @@ async def insight(req: InsightRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=503, detail="No LLM provider configured")
 
     use_rag = str(os.getenv("FEATURE_RAG", "")).strip().lower() in {"1", "true", "on", "yes"}
-    prompt_text = req.text
+    prompt_text = prompt_input
     if use_rag:
         with suppress(Exception):
             from core.rag.simple_rag import retrieve_context as _rag_retrieve
 
-            if ctx := _rag_retrieve(req.text, max_chunks=3):
-                prompt_text = f"Context:\n{ctx}\n\nQuestion: {req.text}\nAnswer:"
+            if ctx := _rag_retrieve(prompt_input, max_chunks=3):
+                prompt_text = _build_insight_prompt(prompt_input, ctx)
+    if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
+        prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
         return {"provider": provider.name, "insight": insight_text}
@@ -4765,412 +4802,456 @@ def _iter_app_modules() -> list[ModuleType]:
 
 
 # Export Endpoints
+_export_feature_flag = os.getenv("FEATURE_EXPORTS")
+_export_testing_flag = (
+    _is_truthy(os.getenv("TESTING")) if os.getenv("TESTING") is not None else False
+)
+_export_debug_flag = _is_truthy(os.getenv("DEBUG")) if os.getenv("DEBUG") is not None else False
+EXPORTS_ENABLED = _is_truthy(_export_feature_flag) if _export_feature_flag is not None else False
+if not EXPORTS_ENABLED:
+    EXPORTS_ENABLED = _export_testing_flag or _export_debug_flag
+if EXPORTS_ENABLED and not _export_testing_flag:
+    logging.warning("Export endpoints enabled outside tests; intended for test/demo only.")
 
+if EXPORTS_ENABLED:
 
-@app.get("/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_daily_plan_csv(plan_id: str) -> Response:
-    """
-    RU: Экспортировать дневной план в CSV.
-    EN: Export daily meal plan to CSV.
+    @app.get(
+        "/api/v1/premium/exports/day/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)]
+    )
+    async def export_daily_plan_csv(plan_id: str) -> Response:
+        """Test/demo only — do not expose in production.
 
-    Args:
-        plan_id: ID of the daily plan to export
+        RU: Экспортировать дневной план в CSV.
+        EN: Export daily meal plan to CSV.
 
-    Returns:
-        CSV file download
-    """
-    try:
-        # In a real implementation, this would fetch the plan from a database
-        # For now, we'll return a placeholder response
-        from fastapi.responses import Response
+        Args:
+            plan_id: ID of the daily plan to export
 
-        # Mock data - in real implementation, fetch from database
-        mock_plan = {
-            "meals": [
-                {
-                    "name": "Breakfast",
-                    "food_item": "Oatmeal",
-                    "kcal": 300,
-                    "protein_g": 10,
-                    "carbs_g": 50,
-                    "fat_g": 5,
-                },
-                {
-                    "name": "Lunch",
-                    "food_item": "Chicken Salad",
-                    "kcal": 450,
-                    "protein_g": 35,
-                    "carbs_g": 20,
-                    "fat_g": 25,
-                },
-                {
-                    "name": "Dinner",
-                    "food_item": "Grilled Fish",
-                    "kcal": 400,
-                    "protein_g": 40,
-                    "carbs_g": 15,
-                    "fat_g": 20,
-                },
-            ],
-            "total_kcal": 1150,
-            "total_protein": 85,
-            "total_carbs": 85,
-            "total_fat": 50,
-        }
+        Returns:
+            CSV file download
 
-        import sys as _sys
+        Fallback behavior: uses mock data and returns 503 if the CSV helper is unavailable.
+        """
+        # Test/demo only — do not expose in production. Uses mock data; 503 if helper missing.
+        try:
+            # In a real implementation, this would fetch the plan from a database
+            # For now, we'll return a placeholder response
+            from fastapi.responses import Response
 
-        _pkg = _sys.modules.get("app")
-        _to_csv_day = (
-            getattr(_pkg, "to_csv_day", None)
-            if _pkg and hasattr(_pkg, "to_csv_day")
-            else to_csv_day
-        )
-        if not callable(_to_csv_day):
-            raise HTTPException(status_code=503, detail="CSV export helper is not available")
+            # Mock data - in real implementation, fetch from database
+            mock_plan = {
+                "meals": [
+                    {
+                        "name": "Breakfast",
+                        "food_item": "Oatmeal",
+                        "kcal": 300,
+                        "protein_g": 10,
+                        "carbs_g": 50,
+                        "fat_g": 5,
+                    },
+                    {
+                        "name": "Lunch",
+                        "food_item": "Chicken Salad",
+                        "kcal": 450,
+                        "protein_g": 35,
+                        "carbs_g": 20,
+                        "fat_g": 25,
+                    },
+                    {
+                        "name": "Dinner",
+                        "food_item": "Grilled Fish",
+                        "kcal": 400,
+                        "protein_g": 40,
+                        "carbs_g": 15,
+                        "fat_g": 20,
+                    },
+                ],
+                "total_kcal": 1150,
+                "total_protein": 85,
+                "total_carbs": 85,
+                "total_fat": 50,
+            }
 
-        csv_data = _to_csv_day(mock_plan)
+            import sys as _sys
 
-        return Response(
-            content=csv_data,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
-        )
+            _pkg = _sys.modules.get("app")
+            _to_csv_day = (
+                getattr(_pkg, "to_csv_day", None)
+                if _pkg and hasattr(_pkg, "to_csv_day")
+                else to_csv_day
+            )
+            if not callable(_to_csv_day):
+                raise HTTPException(status_code=503, detail="CSV export helper is not available")
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
+            csv_data = _to_csv_day(mock_plan)
 
-
-@app.post("/api/v1/export/pdf")
-async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
-    """Generic PDF export endpoint for tests' error-handling coverage.
-
-    Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day
-    if present; otherwise returns an appropriate error. For empty payloads,
-    FastAPI/Pydantic will trigger 422 automatically due to missing body shape.
-    """
-    # Validate minimal structure
-    if not isinstance(payload, dict) or not payload:
-        # Either 422 already from validation or we enforce a 400 for empty dict
-        raise HTTPException(status_code=400, detail="Empty export payload")
-
-    # Attempt to use existing PDF export helper if available
-    try:
-        import sys as _sys
-
-        _pkg = _sys.modules.get("app")
-        _to_pdf_day = (
-            getattr(_pkg, "to_pdf_day", None)
-            if _pkg and hasattr(_pkg, "to_pdf_day")
-            else to_pdf_day
-        )
-        if _to_pdf_day is None or not callable(_to_pdf_day):
-            raise HTTPException(
-                status_code=503,
-                detail="PDF export helper is not available",
+            return Response(
+                content=csv_data,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
             )
 
-        from fastapi.responses import Response
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
-        # Use a tiny mock plan compatible with to_pdf_day expectations
-        mock_plan = payload or {"meals": [], "totals": {}}
-        pdf_data = _to_pdf_day(mock_plan)
+    @app.post("/api/v1/export/pdf")
+    async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
+        """Test/demo only — do not expose in production.
 
-        return Response(content=pdf_data, media_type="application/pdf")
-    except HTTPException:
-        raise
-    except Exception as e:
-        # Return 500 to satisfy error handling expectations
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
+        Generic PDF export endpoint for tests' error-handling coverage.
 
+        Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day
+        if present; otherwise returns an appropriate error. For empty payloads,
+        FastAPI/Pydantic will trigger 422 automatically due to missing body shape.
 
-@app.get("/api/v1/premium/exports/week/{plan_id}.csv", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_weekly_plan_csv(plan_id: str) -> Response:
-    """
-    RU: Экспортировать недельный план в CSV.
-    EN: Export weekly meal plan to CSV.
+        Fallback behavior: returns 400 for empty payloads and 503 if the PDF helper is
+        unavailable.
+        """
+        # Test/demo only — do not expose in production. Returns 400 for empty payloads and 503
+        # if the helper is missing.
+        # Validate minimal structure
+        if not isinstance(payload, dict) or not payload:
+            # Either 422 already from validation or we enforce a 400 for empty dict
+            raise HTTPException(status_code=400, detail="Empty export payload")
 
-    Args:
-        plan_id: ID of the weekly plan to export
+        # Attempt to use existing PDF export helper if available
+        try:
+            import sys as _sys
 
-    Returns:
-        CSV file download
-    """
-    try:
-        from fastapi.responses import Response
+            _pkg = _sys.modules.get("app")
+            _to_pdf_day = (
+                getattr(_pkg, "to_pdf_day", None)
+                if _pkg and hasattr(_pkg, "to_pdf_day")
+                else to_pdf_day
+            )
+            if _to_pdf_day is None or not callable(_to_pdf_day):
+                raise HTTPException(
+                    status_code=503,
+                    detail="PDF export helper is not available",
+                )
 
-        # Mock data - in real implementation, fetch from database
-        mock_weekly_plan = {
-            "daily_menus": [
-                {
-                    "date": "2023-01-01",
-                    "meals": [
-                        {
-                            "name": "Breakfast",
-                            "food_item": "Oatmeal",
-                            "kcal": 300,
-                            "protein_g": 10,
-                            "carbs_g": 50,
-                            "fat_g": 5,
-                            "cost": 1.5,
-                        },
-                        {
-                            "name": "Lunch",
-                            "food_item": "Chicken Salad",
-                            "kcal": 450,
-                            "protein_g": 35,
-                            "carbs_g": 20,
-                            "fat_g": 25,
-                            "cost": 3.2,
-                        },
-                    ],
+            from fastapi.responses import Response
+
+            # Use a tiny mock plan compatible with to_pdf_day expectations
+            mock_plan = payload or {"meals": [], "totals": {}}
+            pdf_data = _to_pdf_day(mock_plan)
+
+            return Response(content=pdf_data, media_type="application/pdf")
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Return 500 to satisfy error handling expectations
+            raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
+
+    @app.get(
+        "/api/v1/premium/exports/week/{plan_id}.csv",
+        dependencies=[Depends(_get_api_key_dynamic)],
+    )
+    async def export_weekly_plan_csv(plan_id: str) -> Response:
+        """Test/demo only — do not expose in production.
+
+        RU: Экспортировать недельный план в CSV.
+        EN: Export weekly meal plan to CSV.
+
+        Args:
+            plan_id: ID of the weekly plan to export
+
+        Returns:
+            CSV file download
+
+        Fallback behavior: returns a minimal CSV response when the CSV helper is unavailable.
+        """
+        # Test/demo only — do not expose in production. Returns minimal CSV when helper missing.
+        try:
+            from fastapi.responses import Response
+
+            # Mock data - in real implementation, fetch from database
+            mock_weekly_plan = {
+                "daily_menus": [
+                    {
+                        "date": "2023-01-01",
+                        "meals": [
+                            {
+                                "name": "Breakfast",
+                                "food_item": "Oatmeal",
+                                "kcal": 300,
+                                "protein_g": 10,
+                                "carbs_g": 50,
+                                "fat_g": 5,
+                                "cost": 1.5,
+                            },
+                            {
+                                "name": "Lunch",
+                                "food_item": "Chicken Salad",
+                                "kcal": 450,
+                                "protein_g": 35,
+                                "carbs_g": 20,
+                                "fat_g": 25,
+                                "cost": 3.2,
+                            },
+                        ],
+                    },
+                    {
+                        "date": "2023-01-02",
+                        "meals": [
+                            {
+                                "name": "Breakfast",
+                                "food_item": "Scrambled Eggs",
+                                "kcal": 250,
+                                "protein_g": 18,
+                                "carbs_g": 1,
+                                "fat_g": 20,
+                                "cost": 1.2,
+                            },
+                            {
+                                "name": "Lunch",
+                                "food_item": "Beef Stir Fry",
+                                "kcal": 500,
+                                "protein_g": 30,
+                                "carbs_g": 40,
+                                "fat_g": 20,
+                                "cost": 4.5,
+                            },
+                        ],
+                    },
+                ],
+                "shopping_list": {
+                    "oats": 500,
+                    "chicken_breast": 300,
+                    "eggs": 12,
+                    "beef": 400,
                 },
-                {
-                    "date": "2023-01-02",
-                    "meals": [
-                        {
-                            "name": "Breakfast",
-                            "food_item": "Scrambled Eggs",
-                            "kcal": 250,
-                            "protein_g": 18,
-                            "carbs_g": 1,
-                            "fat_g": 20,
-                            "cost": 1.2,
-                        },
-                        {
-                            "name": "Lunch",
-                            "food_item": "Beef Stir Fry",
-                            "kcal": 500,
-                            "protein_g": 30,
-                            "carbs_g": 40,
-                            "fat_g": 20,
-                            "cost": 4.5,
-                        },
-                    ],
-                },
-            ],
-            "shopping_list": {
-                "oats": 500,
-                "chicken_breast": 300,
-                "eggs": 12,
-                "beef": 400,
-            },
-            "total_cost": 150.0,
-            "adherence_score": 92.5,
-        }
+                "total_cost": 150.0,
+                "adherence_score": 92.5,
+            }
 
-        import sys as _sys
+            import sys as _sys
 
-        _pkg = _sys.modules.get("app")
-        _to_csv_week = (
-            getattr(_pkg, "to_csv_week", None)
-            if _pkg and hasattr(_pkg, "to_csv_week")
-            else to_csv_week
-        )
-        if not callable(_to_csv_week):
-            # Fallback CSV response when helper is unavailable (keeps tests permissive)
+            _pkg = _sys.modules.get("app")
+            _to_csv_week = (
+                getattr(_pkg, "to_csv_week", None)
+                if _pkg and hasattr(_pkg, "to_csv_week")
+                else to_csv_week
+            )
+            if not callable(_to_csv_week):
+                # Fallback CSV response when helper is unavailable (keeps tests permissive)
+                return Response(
+                    content=b"plan_id,meals\n",
+                    media_type="text/csv",
+                    headers={
+                        "Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"
+                    },
+                )
+
+            csv_data = _to_csv_week(mock_weekly_plan)
+
             return Response(
-                content=b"plan_id,meals\n",
+                content=csv_data,
                 media_type="text/csv",
                 headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"},
             )
 
-        csv_data = _to_csv_week(mock_weekly_plan)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
-        return Response(
-            content=csv_data,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.csv"},
-        )
+    @app.get(
+        "/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)]
+    )
+    async def export_daily_plan_pdf(plan_id: str) -> Response:
+        # sourcery skip: raise-from-previous-error
+        """Test/demo only — do not expose in production.
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
+        RU: Экспортировать дневной план в PDF.
+        EN: Export daily meal plan to PDF.
 
+        Args:
+            plan_id: ID of the daily plan to export
 
-@app.get("/api/v1/premium/exports/day/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_daily_plan_pdf(plan_id: str) -> Response:
-    # sourcery skip: raise-from-previous-error
-    """
-    RU: Экспортировать дневной план в PDF.
-    EN: Export daily meal plan to PDF.
+        Returns:
+            PDF file download
 
-    Args:
-        plan_id: ID of the daily plan to export
+        Fallback behavior: returns 503 when the PDF helper is unavailable and 500 if
+        ReportLab is not installed.
+        """
+        # Test/demo only — do not expose in production. Returns 503 if helper missing and 500
+        # if ReportLab is missing.
+        try:
+            from fastapi.responses import Response
 
-    Returns:
-        PDF file download
-    """
-    try:
-        from fastapi.responses import Response
+            # Mock data - in real implementation, fetch from database
+            mock_plan = {
+                "meals": [
+                    {
+                        "name": "Breakfast",
+                        "food_item": "Oatmeal",
+                        "kcal": 300,
+                        "protein_g": 10,
+                        "carbs_g": 50,
+                        "fat_g": 5,
+                    },
+                    {
+                        "name": "Lunch",
+                        "food_item": "Chicken Salad",
+                        "kcal": 450,
+                        "protein_g": 35,
+                        "carbs_g": 20,
+                        "fat_g": 25,
+                    },
+                    {
+                        "name": "Dinner",
+                        "food_item": "Grilled Fish",
+                        "kcal": 400,
+                        "protein_g": 40,
+                        "carbs_g": 15,
+                        "fat_g": 20,
+                    },
+                ],
+                "total_kcal": 1150,
+                "total_protein": 85,
+                "total_carbs": 85,
+                "total_fat": 50,
+            }
 
-        # Mock data - in real implementation, fetch from database
-        mock_plan = {
-            "meals": [
-                {
-                    "name": "Breakfast",
-                    "food_item": "Oatmeal",
-                    "kcal": 300,
-                    "protein_g": 10,
-                    "carbs_g": 50,
-                    "fat_g": 5,
-                },
-                {
-                    "name": "Lunch",
-                    "food_item": "Chicken Salad",
-                    "kcal": 450,
-                    "protein_g": 35,
-                    "carbs_g": 20,
-                    "fat_g": 25,
-                },
-                {
-                    "name": "Dinner",
-                    "food_item": "Grilled Fish",
-                    "kcal": 400,
-                    "protein_g": 40,
-                    "carbs_g": 15,
-                    "fat_g": 20,
-                },
-            ],
-            "total_kcal": 1150,
-            "total_protein": 85,
-            "total_carbs": 85,
-            "total_fat": 50,
-        }
+            import sys as _sys
 
-        import sys as _sys
+            _pkg = _sys.modules.get("app")
+            _to_pdf_day = getattr(_pkg, "to_pdf_day", None) if _pkg else to_pdf_day
+            if _to_pdf_day is None or not callable(_to_pdf_day):
+                raise HTTPException(
+                    status_code=503,
+                    detail="PDF export not available - PDF function missing or not callable",
+                )
 
-        _pkg = _sys.modules.get("app")
-        _to_pdf_day = getattr(_pkg, "to_pdf_day", None) if _pkg else to_pdf_day
-        if _to_pdf_day is None or not callable(_to_pdf_day):
-            raise HTTPException(
-                status_code=503,
-                detail="PDF export not available - PDF function missing or not callable",
+            pdf_data = _to_pdf_day(mock_plan)
+
+            return Response(
+                content=pdf_data,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"},
             )
 
-        pdf_data = _to_pdf_day(mock_plan)
-
-        return Response(
-            content=pdf_data,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.pdf"},
-        )
-
-    except HTTPException:
-        raise
-    except ImportError:
-        raise HTTPException(
-            status_code=500, detail="PDF export not available - ReportLab not installed"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
-
-
-@app.get("/api/v1/premium/exports/week/{plan_id}.pdf", dependencies=[Depends(_get_api_key_dynamic)])
-async def export_weekly_plan_pdf(plan_id: str) -> Response:
-    # sourcery skip: raise-from-previous-error
-    """
-    RU: Экспортировать недельный план в PDF.
-    EN: Export weekly meal plan to PDF.
-
-    Args:
-        plan_id: ID of the weekly plan to export
-
-    Returns:
-        PDF file download
-    """
-    try:
-        from fastapi.responses import Response
-
-        # Mock data - in real implementation, fetch from database
-        mock_weekly_plan = {
-            "daily_menus": [
-                {
-                    "date": "2023-01-01",
-                    "meals": [
-                        {
-                            "name": "Breakfast",
-                            "food_item": "Oatmeal",
-                            "kcal": 300,
-                            "protein_g": 10,
-                            "carbs_g": 50,
-                            "fat_g": 5,
-                            "cost": 1.5,
-                        },
-                        {
-                            "name": "Lunch",
-                            "food_item": "Chicken Salad",
-                            "kcal": 450,
-                            "protein_g": 35,
-                            "carbs_g": 20,
-                            "fat_g": 25,
-                            "cost": 3.2,
-                        },
-                    ],
-                },
-                {
-                    "date": "2023-01-02",
-                    "meals": [
-                        {
-                            "name": "Breakfast",
-                            "food_item": "Scrambled Eggs",
-                            "kcal": 250,
-                            "protein_g": 18,
-                            "carbs_g": 1,
-                            "fat_g": 20,
-                            "cost": 1.2,
-                        },
-                        {
-                            "name": "Lunch",
-                            "food_item": "Beef Stir Fry",
-                            "kcal": 500,
-                            "protein_g": 30,
-                            "carbs_g": 40,
-                            "fat_g": 20,
-                            "cost": 4.5,
-                        },
-                    ],
-                },
-            ],
-            "shopping_list": {
-                "oats": 500,
-                "chicken_breast": 300,
-                "eggs": 12,
-                "beef": 400,
-            },
-            "total_cost": 150.0,
-            "adherence_score": 92.5,
-        }
-
-        import sys as _sys
-
-        _pkg = _sys.modules.get("app")
-
-        _to_pdf_week = (
-            getattr(_pkg, "to_pdf_week", None)
-            if _pkg and hasattr(_pkg, "to_pdf_week")
-            else to_pdf_week
-        )
-        if _to_pdf_week is None or not callable(_to_pdf_week):
+        except HTTPException:
+            raise
+        except ImportError:
             raise HTTPException(
-                status_code=503,
-                detail="PDF export unavailable",
+                status_code=500, detail="PDF export not available - ReportLab not installed"
             )
-        pdf_data = _to_pdf_week(mock_weekly_plan)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
-        return Response(
-            content=pdf_data,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"},
-        )
+    @app.get(
+        "/api/v1/premium/exports/week/{plan_id}.pdf",
+        dependencies=[Depends(_get_api_key_dynamic)],
+    )
+    async def export_weekly_plan_pdf(plan_id: str) -> Response:
+        # sourcery skip: raise-from-previous-error
+        """Test/demo only — do not expose in production.
 
-    except HTTPException:
-        raise
-    except ImportError:
-        raise HTTPException(
-            status_code=500, detail="PDF export not available - ReportLab not installed"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
+        RU: Экспортировать недельный план в PDF.
+        EN: Export weekly meal plan to PDF.
+
+        Args:
+            plan_id: ID of the weekly plan to export
+
+        Returns:
+            PDF file download
+
+        Fallback behavior: returns 503 when the PDF helper is unavailable.
+        """
+        # Test/demo only — do not expose in production. Returns 503 if helper missing.
+        try:
+            from fastapi.responses import Response
+
+            # Mock data - in real implementation, fetch from database
+            mock_weekly_plan = {
+                "daily_menus": [
+                    {
+                        "date": "2023-01-01",
+                        "meals": [
+                            {
+                                "name": "Breakfast",
+                                "food_item": "Oatmeal",
+                                "kcal": 300,
+                                "protein_g": 10,
+                                "carbs_g": 50,
+                                "fat_g": 5,
+                                "cost": 1.5,
+                            },
+                            {
+                                "name": "Lunch",
+                                "food_item": "Chicken Salad",
+                                "kcal": 450,
+                                "protein_g": 35,
+                                "carbs_g": 20,
+                                "fat_g": 25,
+                                "cost": 3.2,
+                            },
+                        ],
+                    },
+                    {
+                        "date": "2023-01-02",
+                        "meals": [
+                            {
+                                "name": "Breakfast",
+                                "food_item": "Scrambled Eggs",
+                                "kcal": 250,
+                                "protein_g": 18,
+                                "carbs_g": 1,
+                                "fat_g": 20,
+                                "cost": 1.2,
+                            },
+                            {
+                                "name": "Lunch",
+                                "food_item": "Beef Stir Fry",
+                                "kcal": 500,
+                                "protein_g": 30,
+                                "carbs_g": 40,
+                                "fat_g": 20,
+                                "cost": 4.5,
+                            },
+                        ],
+                    },
+                ],
+                "shopping_list": {
+                    "oats": 500,
+                    "chicken_breast": 300,
+                    "eggs": 12,
+                    "beef": 400,
+                },
+                "total_cost": 150.0,
+                "adherence_score": 92.5,
+            }
+
+            import sys as _sys
+
+            _pkg = _sys.modules.get("app")
+
+            _to_pdf_week = (
+                getattr(_pkg, "to_pdf_week", None)
+                if _pkg and hasattr(_pkg, "to_pdf_week")
+                else to_pdf_week
+            )
+            if _to_pdf_week is None or not callable(_to_pdf_week):
+                raise HTTPException(
+                    status_code=503,
+                    detail="PDF export unavailable",
+                )
+            pdf_data = _to_pdf_week(mock_weekly_plan)
+
+            return Response(
+                content=pdf_data,
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=weekly_plan_{plan_id}.pdf"},
+            )
+
+        except HTTPException:
+            raise
+        except ImportError:
+            raise HTTPException(
+                status_code=500, detail="PDF export not available - ReportLab not installed"
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF export failed: {str(e)}") from e
 
 
 # Include bodyfat router if available

@@ -5,17 +5,21 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app import app
+try:
+    from app import app
 except (ImportError, FileNotFoundError, AttributeError) as exc:  # pragma: no cover
     pytest.skip(f"Skipping smoke tests: cannot import app.py ({exc})", allow_module_level=True)
+
 
 @pytest.fixture
 def client():
     return TestClient(app)
 
+
 def test_health_ok(client):
     r = client.get("/health")
     assert r.status_code == 200
+
 
 def test_bmi_smoke_ok(client):
     r = client.post(
@@ -31,6 +35,7 @@ def test_bmi_smoke_ok(client):
     )
     assert r.status_code == 200
 
+
 def test_v1_bmi_smoke(client):
     r = client.post(
         "/api/v1/bmi",
@@ -41,6 +46,7 @@ def test_v1_bmi_smoke(client):
         headers={"X-API-Key": "test_key"},
     )
     assert r.status_code in (200, 403)
+
 
 def test_v1_insight_smoke(client):
     # Mock the LLM provider to avoid external dependencies
@@ -73,6 +79,7 @@ def test_v1_insight_smoke(client):
             os.environ["FEATURE_INSIGHT"] = original_feature
         else:
             del os.environ["FEATURE_INSIGHT"]
+
 
 def test_metrics_smoke(client):
     r = client.get("/metrics")
