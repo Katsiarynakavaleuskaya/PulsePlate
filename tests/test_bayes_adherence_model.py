@@ -43,3 +43,15 @@ class TestAdherenceModel:
         assert updated.alpha == 1.0  # unchanged
         assert updated.beta == 2.5  # 1.0 + 1.5
         assert updated.n == 1
+
+    def test_from_payload_rejects_non_positive_alpha_beta(self) -> None:
+        """Reject non-positive alpha/beta values from payload."""
+        payload = {"alpha": 0.0, "beta": 1.0, "n": 0}
+        with pytest.raises(ValueError, match="alpha and beta must be positive"):
+            AdherenceState.from_payload(payload)
+
+    def test_from_payload_rejects_negative_n(self) -> None:
+        """Reject negative n values from payload."""
+        payload = {"alpha": 1.0, "beta": 1.0, "n": -1}
+        with pytest.raises(ValueError, match="n must be non-negative"):
+            AdherenceState.from_payload(payload)

@@ -136,6 +136,34 @@ class TestUsersRetryMechanism:
         assert session_factory.call_count == 2
         assert mock_session.close.call_count == 2
 
+    def test_retry_http_exception_propagates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """HTTPException in a retry attempt should rollback and propagate immediately."""
+        from app.routers import users
+
+        mock_db = MagicMock()
+        mock_session = MagicMock()
+        session_factory = _wire_session_factory(mock_db, mock_session)
+        monkeypatch.setattr("app.routers.users.db_module", mock_db)
+
+        call_count = 0
+
+        def action_with_http_after_retry(session):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise OperationalError("database locked", None, None)
+            raise HTTPException(status_code=418, detail="Retry failed")
+
+        monkeypatch.setattr("app.routers.users.time.sleep", lambda _seconds: None)
+        with pytest.raises(HTTPException) as exc_info:
+            users._execute_with_retry(action_with_http_after_retry)
+
+        assert exc_info.value.status_code == 418
+        assert call_count == 2
+        assert session_factory.call_count == 2
+        assert mock_session.rollback.call_count == 1
+        assert mock_session.close.call_count == 2
+
     def test_retry_exhaustion_with_fallback_returns_fallback_value(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

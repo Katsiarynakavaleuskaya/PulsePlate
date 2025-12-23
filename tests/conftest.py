@@ -101,10 +101,9 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
     # Reload db module to pick up new DATABASE_URL
+    # CRITICAL: Only reload core.db, NOT model modules. Reloading models breaks
+    # SQLAlchemy mapper registry and causes DayPlan→WeeklyPlan resolution failures.
     db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
-
-    models_module = importlib.import_module("core.models")
-    importlib.reload(models_module)
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
@@ -115,6 +114,28 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
             )
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
+
+    # Import all models ONCE to register with Base.metadata (no reloads!)
+    # The order matters: core.models first, then app.models
+    import core.models  # noqa: F401
+    import app.models.events  # noqa: F401
+    import app.models.plans  # noqa: F401
+
+    # Handle dual Base issue from app/__init__.py using spec.loader.exec_module:
+    # app.models.* may have registered tables in a different Base instance.
+    # Copy any missing tables from app.models Base to core.db Base.
+    try:
+        import app.models.events as ev_module
+        import app.models.plans as plans_module
+
+        for mod in (ev_module, plans_module):
+            if hasattr(mod, "Base") and mod.Base is not db_module_reloaded.Base:
+                # Different Base instances - copy tables
+                for table_name, table in mod.Base.metadata.tables.items():
+                    if table_name not in db_module_reloaded.Base.metadata.tables:
+                        table.to_metadata(db_module_reloaded.Base.metadata)
+    except Exception as e:
+        logger.debug(f"Could not sync app.models tables: {e}")
 
     db_module_reloaded.init_db()
 
@@ -191,7 +212,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_environment():
+def setup_test_environment() -> Generator[None, None, None]:
     """Set up test environment variables before any tests run.
 
     This fixture runs automatically for the entire session to ensure
@@ -248,7 +269,7 @@ def app(app_module: ModuleType) -> FastAPI:
     """Return the FastAPI app instance with API key mock."""
 
     # Apply lenient API key mode
-    def mock_get_api_key(api_key: str = ""):
+    def mock_get_api_key(api_key: str = "") -> str:
         if not api_key or len(api_key.strip()) < 3:
             from fastapi import HTTPException
 
@@ -268,7 +289,7 @@ def client(app: FastAPI) -> TestClient:
 
 
 @pytest.fixture
-def api_key():
+def api_key() -> str:
     """Return the test API key value.
 
     The actual environment setup is done by setup_test_environment fixture.

@@ -6,6 +6,11 @@
 
 [![Data sources: USDA, OFF](https://img.shields.io/badge/Data%20sources-USDA%2C%20OFF-brightgreen)](DATA_SOURCES.md)
 
+## 🤖 AI Agent Instructions
+
+Before any changes, read `AGENTS.md` in the repo root and in the relevant module
+(for example `app/AGENTS.md`, `core/AGENTS.md`) and follow those rules.
+
 ## 🚀 Quick Start
 
 ### 🐳 Docker Best Practices

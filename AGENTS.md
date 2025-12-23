@@ -1,35 +1,62 @@
-# Project Agents and Skills
+# Agent instructions (scope: repo root and subdirectories)
 
-This document defines AI agents and their capabilities for the BMI-App/PulsePlate project.
+## Scope and layout
+- This AGENTS.md applies to: repo root and below.
+- Project shape: single project with subfolders; backend is primary product, frontend/ios are clients.
+- Key directories: `app/`, `core/`, `frontend/`, `ios/`, `deploy/`, `providers/`, `tests/`, `alembic/`,
+  `scripts/`, `docs/`.
 
-## Skills Inventory
+## Modules / subprojects
 
-### Testing & Quality Assurance
-- Unit testing (pytest)
-- Coverage analysis (97% target)
-- End-to-end testing
+Backend spans `app/` + `core/` (unified API + domain logic).
 
-### API Development
-- FastAPI framework expertise
-- Pydantic v2 data validation
-- RESTful design best practices
+| Module | Type | Path | What it owns | How to run | Tests | Docs | AGENTS |
+|--------|------|------|--------------|------------|-------|------|--------|
+| backend-app | fastapi | `app/` | FastAPI routers, middleware, schemas | `make dev` | `make test` | `docs/` | `app/AGENTS.md` |
+| backend-core | python | `core/` | Domain logic, analyzers, DB helpers | Used by backend | `make test` | `docs/` | `core/AGENTS.md` |
+| frontend | react/vite | `frontend/` | Web client | `npm run dev` | `npm run test` | `frontend/README.md` | `frontend/AGENTS.md` |
+| ios | swift | `ios/` | iOS client | Xcode | Xcode tests | `ios/README.md` | `ios/AGENTS.md` |
+| deploy | infra | `deploy/` | Docker/Caddy configs | `make docker-run` | - | `DEPLOYMENT_*.md` | `deploy/AGENTS.md` |
+| migrations | alembic | `alembic/` | DB migration scripts | Alembic CLI (see `alembic.ini`) | - | `DEPLOYMENT_*.md` | `alembic/AGENTS.md` |
+| scripts | utilities | `scripts/` | Repo automation scripts | Run from repo root | - | - | `scripts/AGENTS.md` |
+| providers | python | `providers/` | External provider adapters | Used by backend | `make test` | - | `providers/AGENTS.md` |
+| tests | pytest | `tests/` | Test suite | `make test` | `make test` | - | `tests/AGENTS.md` |
 
-### Code Standards
-- PEP 8 compliance
-- Black formatting (line-length=100)
-- Documentation standards
+## Cross-domain workflows
+- Frontend -> backend: REST `/api/v1/*` endpoints with API key + session auth; contracts derive from
+  Pydantic models in `app/schemas/` and FastAPI OpenAPI output.
+- iOS -> backend: same REST endpoints and auth; mobile flows mirror web API behavior.
+- DB migrations: Alembic in `alembic/` targets SQLite/Postgres; keep migrations in sync with
+  SQLAlchemy models.
+- Shared schemas: `app/schemas/` are the source of truth; coordinate breaking changes with clients.
+- Auth and tiers: API key + user sessions; VIP/Pro tier routing enforced in middleware.
 
-## Primary Agent: Backend Developer
+## Verification (preferred approach)
+- Run quiet first; re-run narrowed failures with verbose logs only when debugging.
+- Use module AGENTS.md for exact commands and setup.
 
-**Responsibilities:**
-- Maintain 97% test coverage
-- Follow PEP 8 and Black formatting (line-length=100)
-- Use Pydantic v2 APIs
-- Implement health/nutrition domain best practices
-- Use FastAPI best practices
+## Docs usage
+- Do not open/read `docs/` unless the user asks or the task requires it.
 
-**Context:**
-- Python FastAPI backend
-- SQLite database with SQLAlchemy
-- pytest for testing
-- Coverage requirements: 97% minimum
+## Global conventions and hard rules
+- Never mock `builtins.__import__` or `builtins.float` (xdist timeouts).
+- CI requires >=97% coverage; keep tests updated.
+- Never push to `main`; use feature branches.
+- Test DB isolation: each xdist worker uses a unique SQLite path.
+- Require Marshmallow >=4.1.2 (CVE fix).
+- Formatting: Black line-length=100; keep PEP 8; ruff linting enforced.
+- Pre-commit hooks run tests on changed files; keep changes minimal and focused.
+- Use Pydantic v2 APIs and FastAPI best practices for backend changes.
+
+## Known pitfalls
+- Dual Base issue: `app/__init__.py` loads via `spec.loader.exec_module`, creating a separate
+  namespace. Avoid relying on module identity across import paths until cleanup PR lands.
+
+## Links to module instructions
+- `app/AGENTS.md`
+- `core/AGENTS.md`
+- `frontend/AGENTS.md`
+- `ios/AGENTS.md`
+- `deploy/AGENTS.md`
+- `providers/AGENTS.md`
+- `tests/AGENTS.md`
