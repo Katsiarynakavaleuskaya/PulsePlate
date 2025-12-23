@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 class TestPremiumTargetsComprehensive:
     """Comprehensive test for Premium Targets API endpoint with all required specifications."""
 
@@ -255,6 +256,7 @@ class TestPremiumTargetsComprehensive:
         assert (
             result["kcal_daily"] > 1500
         ), f"TDEE {result['kcal_daily']} seems too low for a 70kg male"
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 class TestTargetedCoverage:
     """Targeted tests to improve coverage for specific missing lines in main.py."""
 
@@ -206,6 +207,7 @@ class TestTargetedCoverage:
         )
         # This might fail due to missing dependencies, but that's OK for coverage
         assert response.status_code in [200, 424, 500, 503]
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

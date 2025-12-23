@@ -14,6 +14,7 @@ from app import app
 
 fake = Faker()
 
+
 class TestAppMissingLinesTargeted:
     """Target specific missing lines in main.py"""
 
@@ -154,6 +155,7 @@ class TestAppMissingLinesTargeted:
         success_count = sum(r.status_code == 200 for r in results)
         assert success_count > 0
 
+
 class TestAppLargePayloadsAndLimits:
     """Test large payloads and various limits"""
 
@@ -209,6 +211,7 @@ class TestAppLargePayloadsAndLimits:
         response = self.client.post("/plan", json=complex_data)
         assert response.status_code in [200, 400, 422]
 
+
 class TestAppErrorHandlingPaths:
     """Test specific error handling paths"""
 
@@ -258,6 +261,7 @@ class TestAppErrorHandlingPaths:
             )
             # Should handle appropriately
             assert response.status_code in [200, 400, 415, 422]  # 415 = Unsupported Media Type
+
 
 class TestAppSpecificMissingBlocks:
     """Test specific missing code blocks identified in coverage"""

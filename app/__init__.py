@@ -27,6 +27,9 @@ from legacy_app import (
     _alias_micros,  # legacy public (used by tests)
 )
 
+# Utility functions from core
+from core.utils import resolve_attr
+
 # Prometheus metrics (optional)
 Counter: Optional[type] = None
 Histogram: Optional[type] = None
@@ -88,6 +91,7 @@ __all__ = [
     "lifespan",
     "_macros_to_kcal",
     "_alias_micros",
+    "resolve_attr",
     "Counter",
     "Histogram",
     "generate_latest",

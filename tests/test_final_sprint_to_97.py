@@ -20,10 +20,12 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 @pytest.fixture
 def client():
     """Test client fixture"""
     return TestClient(app)
+
 
 class TestVisualizationPaths:
     """Тесты для visualization blocks 668-677, 698-709"""
@@ -95,6 +97,7 @@ class TestVisualizationPaths:
 
             assert response.status_code == 200
 
+
 class TestPlanEndpointPaths:
     """Тесты для plan endpoint block 750-760"""
 
@@ -140,6 +143,7 @@ class TestPlanEndpointPaths:
         data = response.json()
         assert data["category"] is None  # Should be None for pregnant
 
+
 class TestUtilityFunctionsCoverage:
     """Тесты для utility functions 1566-1595, 1607-1624, 1640-1662"""
 
@@ -174,6 +178,7 @@ class TestUtilityFunctionsCoverage:
         for endpoint in endpoints:
             response = client.get(endpoint)
             assert response.status_code in [200, 404]
+
 
 class TestAdditionalEndpointsCoverage:
     """Тесты для дополнительных endpoints"""

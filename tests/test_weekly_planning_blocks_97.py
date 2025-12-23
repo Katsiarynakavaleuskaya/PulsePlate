@@ -18,10 +18,12 @@ from fastapi.testclient import TestClient
 
 from app import app
 
+
 @pytest.fixture
 def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
+
 
 class TestWeeklyPlanningCriticalBlocks:
     """Тесты для критически важных блоков weekly planning"""
@@ -205,6 +207,7 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
+
 class TestAdditionalPremiumBlocks:
     """Дополнительные тесты для других premium блоков"""
 
@@ -279,6 +282,7 @@ class TestAdditionalPremiumBlocks:
         finally:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
+
 
 class TestWeeklyPlanningAdditionalCoverage:
     """Additional tests for weekly planning coverage"""
