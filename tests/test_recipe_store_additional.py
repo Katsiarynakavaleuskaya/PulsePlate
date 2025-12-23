@@ -4,10 +4,10 @@ from typing import Any, Dict, List, Optional
 from types import ModuleType
 import sys
 import os
+import importlib.util
 from importlib.machinery import ModuleSpec
 
 import pytest
-import importlib
 
 # Load recipe_store module: check sys.modules first, then fall back to file loading
 rs_module: Optional[ModuleType] = sys.modules.get("recipe_store")
@@ -25,6 +25,7 @@ if rs_module is None:
     if spec is None or spec.loader is None:
         raise ImportError("Cannot load recipe_store module")
     rs_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rs_module)  # Actually execute the module
 
 
 # Short alias for backward compatibility
