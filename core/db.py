@@ -648,16 +648,19 @@ def init_db() -> None:
                 old_url = str(_RAW_ENGINE.url)
                 # Dispose old engine to release file locks
                 _RAW_ENGINE.dispose()
-                # Delete old SQLite file to ensure clean schema recreation
-                old_sqlite_path = _extract_sqlite_path(old_url)
-                if old_sqlite_path and os.path.exists(old_sqlite_path):
-                    try:
-                        os.remove(old_sqlite_path)
-                        logger.debug("Removed old SQLite file: %s", old_sqlite_path)
-                    except OSError as remove_err:
-                        logger.warning(
-                            "Could not remove old SQLite file %s: %s", old_sqlite_path, remove_err
-                        )
+                # Delete old SQLite file only if explicitly enabled (for test isolation)
+                if os.getenv("DATABASE_AUTO_CLEAN_ON_URL_CHANGE") == "1":
+                    old_sqlite_path = _extract_sqlite_path(old_url)
+                    if old_sqlite_path and os.path.exists(old_sqlite_path):
+                        try:
+                            os.remove(old_sqlite_path)
+                            logger.debug("Removed old SQLite file: %s", old_sqlite_path)
+                        except OSError as remove_err:
+                            logger.warning(
+                                "Could not remove old SQLite file %s: %s",
+                                old_sqlite_path,
+                                remove_err,
+                            )
 
         # Create engine and sessionmaker OUTSIDE lock to avoid holding lock during I/O
         new_engine = create_engine(
