@@ -49,6 +49,7 @@ def pytest_configure(config: pytest.Config) -> None:
     # Set test environment variables BEFORE any imports
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
+    os.environ.setdefault("TESTING", "true")  # Enable export endpoints
     os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
     os.environ.setdefault("VIP_MODULE_ENABLED", "true")
     os.environ.setdefault("ALLOW_DEV_API_KEY", "true")
@@ -187,15 +188,8 @@ def cleanup_async_resources() -> Iterator[None]:
 
 @pytest.fixture(scope="session")
 def dynamic_app():
-    """Load FastAPI app dynamically from legacy_app.py"""
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-    spec = importlib.util.spec_from_file_location("app_module", "legacy_app.py")
-    if spec is None or spec.loader is None:
-        raise AppLoadError()
-
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
+    """Load FastAPI app from legacy_app.py via standard import."""
+    import legacy_app as app_module
 
     # Apply API key override for this app instance
     def mock_get_api_key(api_key: str = ""):

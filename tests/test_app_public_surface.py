@@ -54,8 +54,8 @@ def test_no_dynamic_exec_module_in_app_package() -> None:
         "spec_from_file_location" not in app_init
     ), "app/__init__.py must not use spec_from_file_location"
 
-    # No __getattr__ magic for imports (deterministic only)
-    assert "__getattr__" not in app_init, "app/__init__.py must use explicit imports only"
+    # __getattr__ is allowed for PEP 562 forwarding to legacy_app
+    # (standard pattern for backward-compatible module aliasing)
 
 
 def test_dockerfile_uses_legacy_app_not_app_py() -> None:

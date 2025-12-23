@@ -11,13 +11,15 @@ are legacy public API relied upon by tests and are intentionally exported.
 
 # flake8: noqa: F401
 
-from typing import Any, Optional
-import sys as _sys
+from __future__ import annotations
 
-# Core FastAPI app instance
-from app.main import app
+import sys
+from typing import Any, Optional
 
 import legacy_app as _legacy_app
+
+# Critical: app instance MUST be from legacy_app to ensure all routes are registered
+app = _legacy_app.app
 
 # Legacy public API - functions and utilities from legacy_app.py
 get_api_key = _legacy_app.get_api_key
@@ -67,7 +69,24 @@ api_key_header = _legacy_app.api_key_header
 get_session = _legacy_app.get_session
 HTTPException = _legacy_app.HTTPException
 
-_sys.modules.setdefault("app_module", _legacy_app)
+# Line 70 should be removed entirely
+# Ensure all subsequent code imports directly from the intended module path
+
+
+# PEP 562: __getattr__ for dynamic attribute forwarding to legacy_app
+def __getattr__(name: str) -> Any:
+    """Forward attribute lookups to legacy_app for full backward compatibility."""
+    return getattr(_legacy_app, name)
+
+
+def __dir__() -> list[str]:
+    """Include both local and legacy_app symbols for hasattr/dir stability."""
+    return sorted(set(globals().keys()) | set(dir(_legacy_app)))
+
+
+# Ensure sys.modules["app"] points to this package
+if sys.modules.get("app") is not sys.modules.get(__name__):
+    sys.modules["app"] = sys.modules[__name__]
 
 # Utility functions from core
 from core.utils import resolve_attr
