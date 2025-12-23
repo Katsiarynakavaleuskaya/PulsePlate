@@ -157,7 +157,7 @@ def init_test_database() -> None:
             if not tables:
                 raise RuntimeError("Database initialized but no tables found")
             tables_str = ", ".join(tables)
-            logging.info(f"Database verified with {len(tables)} tables: {tables_str}")
+            logging.debug(f"Database verified with {len(tables)} tables: {tables_str}")
     except Exception as e:
         logging.error(f"Database verification failed: {e}", exc_info=True)
         raise
@@ -168,7 +168,17 @@ def cleanup_async_resources() -> Iterator[None]:
     """Clean up async resources after test session to prevent ResourceWarnings."""
     yield
 
-    # Force garbage collection to close any unclosed connections
+    # Clean up database connections FIRST before garbage collection
+    try:
+        import core.db
+        if hasattr(core.db, "_RAW_ENGINE") and core.db._RAW_ENGINE:
+            core.db._RAW_ENGINE.dispose()
+        if hasattr(core.db, "engine") and core.db.engine:
+            core.db.engine.dispose()
+    except Exception:
+        pass  # Best-effort cleanup
+
+    # Force garbage collection to close any remaining unclosed connections
     import gc
 
     gc.collect()
