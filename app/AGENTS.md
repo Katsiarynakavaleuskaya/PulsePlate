@@ -29,15 +29,15 @@
 
 | Feature | Owner | Key paths | Entrypoints | Tests | Docs |
 |--------|-------|-----------|-------------|-------|------|
-| BMI/body composition | backend | `core/bmi_*.py`, `bmi_core.py`, `bodyfat.py` | `app/routers/bmi_pro.py` | `tests/test_bmi_*.py` | - |
-| Nutrition logging | backend | `app/routers/nutrition_log.py`, `app/models/events.py` | `app/routers/nutrition_log.py` | `tests/test_nutrition_log_*.py` | - |
-| Meal planning | backend | `core/meal_planner.py`, `core/weekly_plan.py` | `app/routers/premium_week.py` | `tests/test_premium_week_*.py` | - |
-| Food database | backend | `core/food_db.py`, `data/food_db.csv` | `app/services/food_store.py` | `tests/test_food_*.py` | - |
-| Recipe synthesis | backend | `core/recipe_synth.py`, `core/recipe_db.py` | `app/routers/recipes.py` | `tests/test_recipe_*.py` | - |
-| Shopping lists | backend | `app/routers/shopping_list_pro.py`, `core/shoplist.py` | `app/routers/shopping_list_pro.py` | `tests/test_shopping_list_*.py` | - |
-| Premium/Pro features | backend | `app/routers/*_pro.py`, `core/bmi_extras_pro.py` | `app/middleware/api_tiers.py` | `tests/test_*_pro*.py` | - |
-| User management | backend | `app/routers/users.py`, `core/models.py` | `app/routers/users.py` | `tests/test_users_*.py` | - |
+| BMI/body composition | backend | `core/bmi_*.py`, `core/bmi_extras.py`, `bmi_core.py`, `bodyfat.py` | `app/routers/bmi_pro.py` | `tests/test_bmi_*.py`, `tests/test_bodyfat.py` | - |
+| Nutrition logging | backend | `app/routers/nutrition_log.py`, `app/models/events.py`, `app/schemas/nutrition_log.py` | `app/routers/nutrition_log.py` | `tests/test_nutrition_log_*.py` | - |
+| Meal planning | backend | `core/meal_planner.py`, `core/weekly_plan*.py`, `core/menu_engine*.py` | `app/routers/premium_week.py` | `tests/test_premium_week_*.py`, `tests/test_menu_engine_*.py` | - |
+| Food database | backend | `core/food_db*.py`, `core/food_apis/`, `data/food_db.csv`, `app/services/food_store.py` | `app/routers/foods.py` | `tests/test_food_db*.py`, `tests/test_food_apis*.py` | - |
+| Recipe synthesis | backend | `core/recipe_synth.py`, `core/recipe_db*.py` | `app/routers/recipes.py` | `tests/test_recipe_*.py` | - |
+| Shopping lists | backend | `core/shoplist.py`, `app/routers/shopping_list_pro.py`, `app/routers/shoplist_day.py`, `app/routers/shoplist_export.py` | `app/routers/shopping_list_pro.py` | `tests/test_shopping_list_*.py`, `tests/test_shoplist_*.py` | - |
+| Premium/Pro features | backend | `app/routers/*_pro.py`, `core/bmi_extras_pro.py`, `app/middleware/api_tiers.py` | `app/routers/pro.py`, `app/routers/premium_week.py`, `app/routers/vip.py` | `tests/test_*_pro*.py`, `tests/test_premium_week_*.py` | - |
+| User management | backend | `app/routers/users.py`, `app/schemas/users.py`, `core/models.py` | `app/routers/users.py` | `tests/test_users_*.py` | - |
 | i18n/localization | backend | `core/i18n.py`, `core/meal_i18n.py` | `core/i18n.py` | `tests/test_i18n*.py` | - |
-| Bayesian analyzers | backend | `core/*_bayesian_analyzer.py`, `core/bayes/` | `app/routers/bayes_adherence.py` | `tests/test_bayes_*.py` | - |
-| Export/reports | backend | `core/exports.py`, `app/routers/plan_export.py` | `app/routers/plan_export.py` | `tests/test_exports*.py` | - |
-| LLM integration | backend | `llm.py`, `core/rag/`, `providers/` | `llm.py` | `tests/test_*rag*.py` | - |
+| Bayesian analyzers | backend | `core/*_bayesian_analyzer.py`, `core/bayes/` | `app/routers/bayes_adherence.py` | `tests/test_bayes_*.py`, `tests/test_bayesian_*.py` | - |
+| Export/reports | backend | `core/exports*.py`, `app/routers/plan_export.py`, `app/routers/shoplist_export.py` | `app/routers/plan_export.py` | `tests/test_exports*.py` | - |
+| LLM integration | backend | `llm.py`, `core/rag/`, `providers/` | `llm.py`, `mcp_pulseplate_server.py` | `tests/test_*rag*.py` | - |

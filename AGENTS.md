@@ -8,15 +8,19 @@
 
 ## Modules / subprojects
 
+Backend spans `app/` + `core/` (unified API + domain logic).
+
 | Module | Type | Path | What it owns | How to run | Tests | Docs | AGENTS |
 |--------|------|------|--------------|------------|-------|------|--------|
-| backend-api | fastapi | `app/` | FastAPI routers, middleware, schemas | See `app/AGENTS.md` | `make test` | `docs/` | `app/AGENTS.md` |
-| backend-core | python | `core/` | Domain logic, analyzers, DB helpers | See `core/AGENTS.md` | `make test` | `docs/` | `core/AGENTS.md` |
-| frontend | react/vite | `frontend/` | Web client | See `frontend/AGENTS.md` | `npm run test` | `frontend/README.md` | `frontend/AGENTS.md` |
-| ios | swift | `ios/` | iOS client | See `ios/AGENTS.md` | Xcode tests | `ios/README.md` | `ios/AGENTS.md` |
-| deploy | infra | `deploy/` | Docker/Caddy configs | See `deploy/AGENTS.md` | - | `DEPLOYMENT_*.md` | `deploy/AGENTS.md` |
-| providers | python | `providers/` | External provider adapters | See `providers/AGENTS.md` | `make test` | - | `providers/AGENTS.md` |
-| tests | pytest | `tests/` | Test suite | See `tests/AGENTS.md` | `make test` | - | `tests/AGENTS.md` |
+| backend-app | fastapi | `app/` | FastAPI routers, middleware, schemas | `make dev` | `make test` | `docs/` | `app/AGENTS.md` |
+| backend-core | python | `core/` | Domain logic, analyzers, DB helpers | Used by backend | `make test` | `docs/` | `core/AGENTS.md` |
+| frontend | react/vite | `frontend/` | Web client | `npm run dev` | `npm run test` | `frontend/README.md` | `frontend/AGENTS.md` |
+| ios | swift | `ios/` | iOS client | Xcode | Xcode tests | `ios/README.md` | `ios/AGENTS.md` |
+| deploy | infra | `deploy/` | Docker/Caddy configs | `make docker-run` | - | `DEPLOYMENT_*.md` | `deploy/AGENTS.md` |
+| migrations | alembic | `alembic/` | DB migration scripts | Alembic CLI (see `alembic.ini`) | - | `DEPLOYMENT_*.md` | `alembic/AGENTS.md` |
+| scripts | utilities | `scripts/` | Repo automation scripts | Run from repo root | - | - | `scripts/AGENTS.md` |
+| providers | python | `providers/` | External provider adapters | Used by backend | `make test` | - | `providers/AGENTS.md` |
+| tests | pytest | `tests/` | Test suite | `make test` | `make test` | - | `tests/AGENTS.md` |
 
 ## Cross-domain workflows
 - Frontend -> backend: REST `/api/v1/*` endpoints with API key + session auth; contracts derive from
