@@ -97,7 +97,7 @@ class TestPremiumTargetsComprehensive:
             "iodine_ug": 150.0,  # Female 19-50
             "folate_ug": 400.0,  # Female 19-50
             "potassium_mg": 3500.0,  # Female 19-50
-            "magnesium_mg": 400.0,  # Female 19-50 (actual backend value)
+            "magnesium_mg": 310.0,  # Female 19-50
         }
 
         for nutrient, expected_value in expected_values.items():

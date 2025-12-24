@@ -4831,6 +4831,12 @@ _export_feature_flag = os.getenv("FEATURE_EXPORTS")
 _export_testing_flag = (
     _is_truthy(os.getenv("TESTING")) if os.getenv("TESTING") is not None else False
 )
+if not _export_testing_flag:
+    _export_app_env = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "").strip().lower()
+    if _export_app_env in {"test", "testing", "ci"}:
+        _export_testing_flag = True
+    elif "pytest" in sys.modules:
+        _export_testing_flag = True
 _export_debug_flag = _is_truthy(os.getenv("DEBUG")) if os.getenv("DEBUG") is not None else False
 EXPORTS_ENABLED = _is_truthy(_export_feature_flag) if _export_feature_flag is not None else False
 if not EXPORTS_ENABLED:
