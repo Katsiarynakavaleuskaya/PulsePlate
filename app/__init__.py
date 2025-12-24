@@ -1,23 +1,22 @@
-# flake8: noqa: F401
 """App package - shim facade for legacy_app backward compatibility.
 
-This module uses PEP 562 __getattr__ to forward ALL attribute lookups
-to legacy_app, ensuring `import app` works exactly as before the refactor.
+This module is intentionally a thin PEP 562 forwarder:
+- RU: Не импортируем `legacy_app` eagerly (избегаем циклических импортов).
+- EN: Do not eagerly import `legacy_app` (avoid circular imports).
+
+All unknown attributes are resolved from `legacy_app` lazily at access time.
 """
+
 from __future__ import annotations
 
+import importlib
 import sys
+from functools import lru_cache
 from typing import Any, Optional
 
-import legacy_app as _legacy
-
-# CRITICAL: app instance MUST be from legacy_app (routes are registered there)
-app = _legacy.app
-
-# Explicit re-exports for IDE/static analysis (optional but helpful)
-from core.utils import resolve_attr
 from core.menu_engine import make_weekly_menu
 from core.recommendations import build_nutrition_targets
+from core.utils import resolve_attr
 
 # Optional visualization (safe import)
 MATPLOTLIB_AVAILABLE: bool = False
@@ -27,35 +26,38 @@ try:
 except ImportError:
     pass
 
-# Subpackages
-from . import routers, scheduler_helpers
+
+@lru_cache(maxsize=1)
+def _legacy() -> Any:
+    """Import legacy_app lazily and cache it.
+
+    RU: Ленивая загрузка, чтобы не ломать порядок импортов (особенно в тестах).
+    EN: Lazy import to keep import order stable and prevent cycles.
+    """
+    legacy = importlib.import_module("legacy_app")
+    # Backward-compat for tests/utilities that patch the "real" module by name.
+    # RU: Не создаём атрибуты в `app` пакете; используем sys.modules mapping.
+    # EN: Do not add extra attributes on the `app` package; use sys.modules mapping.
+    sys.modules.setdefault("app_module", legacy)
+    return legacy
 
 
 def __getattr__(name: str) -> Any:
-    """PEP 562: Forward ALL attribute lookups to legacy_app.
-
-    This restores full legacy API surface without manually listing 200+ symbols.
-    """
-    return getattr(_legacy, name)
+    return getattr(_legacy(), name)
 
 
 def __dir__() -> list[str]:
-    """Include both local and legacy_app symbols for hasattr/dir stability."""
-    return sorted(set(globals().keys()) | set(dir(_legacy)))
+    return sorted(set(globals().keys()) | set(dir(_legacy())))
 
 
-# Ensure sys.modules["app"] binding is correct
-sys.modules["app"] = sys.modules[__name__]
-sys.modules.setdefault("app_module", _legacy)
-
-# Public exports for static analysis
 __all__ = [
+    # Forwarded from legacy_app via __getattr__
     "app",
+    "get_update_scheduler",
+    # Local explicit re-exports
     "resolve_attr",
     "make_weekly_menu",
     "build_nutrition_targets",
     "MATPLOTLIB_AVAILABLE",
     "generate_bmi_visualization",
-    "routers",
-    "scheduler_helpers",
 ]

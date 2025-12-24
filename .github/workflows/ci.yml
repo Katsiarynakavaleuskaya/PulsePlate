@@ -130,16 +130,28 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: "malloc"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Project standard: maintain 97% coverage for PR branches before merge
           # See .github/copilot-instructions.md and .cursorrules for coverage requirements
           #
-          # CI stability: fix xdist workers to `-n 4` (avoid `-n auto`) to prevent intermittent
-          # worker crashes and missing coverage data seen with Hypothesis/property-based suites.
+          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
+          # Run sequentially on 3.13; keep parallelism for older versions.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -n 4
+          PYVER="${{ matrix.python-version }}"
+          if [[ "$PYVER" == 3.13* ]]; then
+            PYTEST_XDIST_ARGS="-n 0"
+          else
+            PYTEST_XDIST_ARGS="-n 4"
+          fi
+          python -X faulthandler -m pytest -m "not slow" tests \
+            --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
+            --junitxml=tests/results.xml -o junit_family=legacy \
+            $PYTEST_XDIST_ARGS
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -218,16 +230,28 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: "malloc"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # Project standard: maintain 97% coverage for feature branches before merge
           # See .github/copilot-instructions.md and .cursorrules for coverage requirements
           #
-          # CI stability: fix xdist workers to `-n 4` (avoid `-n auto`) to prevent intermittent
-          # worker crashes and missing coverage data seen with Hypothesis/property-based suites.
+          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
+          # Run sequentially on 3.13; keep parallelism for older versions.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -n 4
+          PYVER="${{ matrix.python-version }}"
+          if [[ "$PYVER" == 3.13* ]]; then
+            PYTEST_XDIST_ARGS="-n 0"
+          else
+            PYTEST_XDIST_ARGS="-n 4"
+          fi
+          python -X faulthandler -m pytest -m "not slow" tests \
+            --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
+            --junitxml=tests/results.xml -o junit_family=legacy \
+            $PYTEST_XDIST_ARGS
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -312,16 +336,28 @@ jobs:
           ENVIRONMENT: test
           FEATURE_PREMIUM_NUTRITION: "true"
           API_KEY: "test_key"
+          PYTHONUNBUFFERED: "1"
+          PYTHONFAULTHANDLER: "1"
+          PYTHONMALLOC: "malloc"
         run: |
           # Use pytest-xdist for parallel execution with proper coverage collection
           # IMPORTANT: main branch must maintain 97% coverage per project standards
           # See .github/copilot-instructions.md and .cursorrules
           #
-          # CI stability: fix xdist workers to `-n 4` (avoid `-n auto`) to prevent intermittent
-          # worker crashes and missing coverage data seen with Hypothesis/property-based suites.
+          # CI stability: Python 3.13 has seen intermittent segfaults under xdist+coverage.
+          # Run sequentially on 3.13; keep parallelism for older versions.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          python -m pytest -m "not slow" tests --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 --junitxml=tests/results.xml -o junit_family=legacy -n 4
+          PYVER="${{ matrix.python-version }}"
+          if [[ "$PYVER" == 3.13* ]]; then
+            PYTEST_XDIST_ARGS="-n 0"
+          else
+            PYTEST_XDIST_ARGS="-n 4"
+          fi
+          python -X faulthandler -m pytest -m "not slow" tests \
+            --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
+            --junitxml=tests/results.xml -o junit_family=legacy \
+            $PYTEST_XDIST_ARGS
 
       - name: Clean Python cache (post-test)
         if: always()

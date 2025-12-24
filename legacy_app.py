@@ -1731,7 +1731,11 @@ async def root(request: Request) -> HTMLResponse:
             function changeLanguage() {
                 const lang = document.getElementById('language').value;
                 // Set cookie
-                document.cookie = `lang=${lang}; path=/`;
+                // Security: add SameSite and conditionally Secure under HTTPS.
+                // RU: HttpOnly нельзя выставить из JS — это должен делать сервер.
+                // EN: HttpOnly cannot be set from client-side JS; server must set it.
+                const cookieAttrs = `; path=/; SameSite=Lax${window.location.protocol === 'https:' ? '; Secure' : ''}`;
+                document.cookie = `lang=${lang}${cookieAttrs}`;
                 // Update UI
                 updateUILanguage(lang);
             }
