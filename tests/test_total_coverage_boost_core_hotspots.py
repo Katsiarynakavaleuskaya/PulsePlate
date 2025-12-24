@@ -12,9 +12,12 @@ import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import TYPE_CHECKING, Any, Callable, Mapping
 
 import pytest
+
+if TYPE_CHECKING:
+    from core.targets import MicronutrientTargets
 
 
 def test_adherence_service_raises_if_store_returns_none() -> None:
@@ -306,7 +309,7 @@ async def test_update_manager_load_backup_schema_validation(tmp_path: Path) -> N
     assert res2 == {}
 
 
-def _make_targets():
+def _make_targets() -> "MicronutrientTargets":
     """Build a minimal MicronutrientTargets instance for control-flow tests."""
     from core.targets import MicronutrientTargets
 
