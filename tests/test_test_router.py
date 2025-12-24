@@ -42,6 +42,18 @@ def mock_env_production():
         yield
 
 
+@pytest.fixture
+def mock_env_staging_disabled():
+    """Mock environment to staging without explicit enable flag.
+
+    RU: В staging тестовые ручки должны быть выключены по умолчанию.
+    EN: In staging, test endpoints must be disabled by default.
+    """
+    with patch.dict(os.environ, {"APP_ENV": "staging"}, clear=False):
+        os.environ.pop("ENABLE_TEST_ROUTES", None)
+        yield
+
+
 def test_rate_limit_endpoint(mock_env_staging):
     """Test the rate limit endpoint returns expected response."""
     app = _import_fresh_app()
@@ -153,4 +165,13 @@ def test_test_router_not_available_in_production(mock_env_production):
     assert response.status_code == 404
 
     response = client.post("/api/v1/test/echo", json={"test": "data"})
+    assert response.status_code == 404
+
+
+def test_test_router_not_available_in_staging_by_default(mock_env_staging_disabled):
+    """Test that test endpoints are not available in staging unless explicitly enabled."""
+    app = _import_fresh_app()
+    client = TestClient(app)
+
+    response = client.get("/api/v1/test/health")
     assert response.status_code == 404
