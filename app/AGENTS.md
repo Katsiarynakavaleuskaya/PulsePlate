@@ -29,6 +29,14 @@
 - Feature flags (e.g. exports) may be evaluated at import time; tests must set
   `TESTING=true` before importing `app`/`legacy_app` (handled in `tests/conftest.py`).
 
+## app package public surface contract
+`app/__init__.py` must remain an import shim/forwarder.
+It MUST NOT use dynamic module execution (spec/module_from_spec/exec_module).
+
+If tests import symbols from `app`, update:
+- `tests/test_app_public_surface.py`
+- `tests/test_repo_policy_guards.py` (required exports set)
+
 ## Feature map
 
 | Feature | Owner | Key paths | Entrypoints | Tests | Docs |

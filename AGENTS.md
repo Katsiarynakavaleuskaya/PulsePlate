@@ -1,5 +1,42 @@
 # Agent instructions (scope: repo root and subdirectories)
 
+## If you feel lost
+Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".
+
+## One-command smoke checks (run from repo root)
+
+### 0) Quick status
+```bash
+git status
+git log -1 --oneline
+```
+
+### 1) Guard policies (import hygiene)
+```bash
+pytest -q tests/test_repo_policy_guards.py
+```
+
+### 2) Fast tests (cheap signal)
+```bash
+make test-fast
+```
+
+### 3) Coverage gate (only when preparing merge)
+```bash
+make cov-check
+```
+
+### 4) Lint/format
+```bash
+make lint
+make fmt-check
+```
+
+## Canonical navigation
+Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
+- RUNBOOK_AGENT.md: greps + CI failure triage
+- tests/test_repo_policy_guards.py: enforced architecture rules
+
 ## Scope and layout
 - This AGENTS.md applies to: repo root and below.
 - Project shape: single project with subfolders; backend is primary product, frontend/ios are clients.

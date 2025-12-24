@@ -29,6 +29,16 @@
 - If a test imports symbols from `app`,
   a guard-test must assert their presence.
 
+### Import hygiene exceptions (intentional)
+Dynamic imports allowed only for script-style tests:
+- `tests/test_test_pro_access_coverage.py`
+- `tests/test_ensure_database_versions.py`
+- `tests/conftest.py` (xdist/db + env bootstrap)
+
+sys.path.insert allowed only in:
+- `tests/conftest.py`
+- `tests/test_test_pro_access_coverage.py`
+
 ### Pre-commit verification
 ```bash
 # 1. No dynamic imports (except whitelisted)

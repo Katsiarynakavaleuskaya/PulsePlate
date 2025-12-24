@@ -29,7 +29,7 @@ except ImportError:
     generate_bmi_visualization = None
 
 # Subpackages
-from app import routers, scheduler_helpers
+from . import routers, scheduler_helpers
 
 
 def __getattr__(name: str) -> Any:
