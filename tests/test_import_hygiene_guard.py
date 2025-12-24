@@ -13,7 +13,6 @@ import pytest
 EXCEPTIONS = {
     "test_test_pro_access_coverage.py",  # tests standalone script test_pro_access.py
     "test_ensure_database_versions.py",  # tests scripts/ensure_database_versions.py
-    "conftest.py",  # pytest sharding logic
     "test_import_hygiene_guard.py",  # this guard test itself contains the pattern in strings
 }
 
