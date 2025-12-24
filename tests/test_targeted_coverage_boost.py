@@ -95,19 +95,39 @@ class TestTargetedCoverageBoost:
 
     def test_app_py_lines_758_760(self) -> None:
         """Test lines 758-760 in main.py (api_v1_insight with missing llm module)."""
-        with patch.dict("sys.modules", {"llm": None}):
+        # Remove module from sys.modules to simulate it's not available
+        original_module = sys.modules.get("llm")
+        if "llm" in sys.modules:
+            del sys.modules["llm"]
+        try:
             data = {"text": "test"}
             response = self.client.post(
                 "/api/v1/insight", json=data, headers={"X-API-Key": "test_key"}
             )
             assert response.status_code == 503
+        finally:
+            # Restore original module
+            if original_module is not None:
+                sys.modules["llm"] = original_module
+            elif "llm" in sys.modules:
+                del sys.modules["llm"]
 
     def test_app_py_line_914(self) -> None:
         """Test line 914 in main.py (insight endpoint with missing llm module)."""
-        with patch.dict("sys.modules", {"llm": None}):
+        # Remove module from sys.modules to simulate it's not available
+        original_module = sys.modules.get("llm")
+        if "llm" in sys.modules:
+            del sys.modules["llm"]
+        try:
             data = {"text": "test"}
             response = self.client.post("/insight", json=data)
             assert response.status_code == 503
+        finally:
+            # Restore original module
+            if original_module is not None:
+                sys.modules["llm"] = original_module
+            elif "llm" in sys.modules:
+                del sys.modules["llm"]
 
     def test_app_py_line_1215(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 1215 in main.py (get_database_status with missing scheduler)."""

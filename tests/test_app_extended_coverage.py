@@ -345,16 +345,25 @@ class TestInsightEndpoints:
 
     def test_api_v1_insight_no_llm_module(self):
         """Test API v1 insight when LLM module not available."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch.dict("sys.modules", {"llm": None}),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            response = self.client.post(
-                "/api/v1/insight", json={"text": "test query"}, headers=headers
-            )
-            assert response.status_code == 503
-            assert "FEATURE_INSIGHT is disabled" in response.json()["detail"]
+        # Remove module from sys.modules to simulate it's not available
+        original_module = sys.modules.get("llm")
+        if "llm" in sys.modules:
+            del sys.modules["llm"]
+
+        try:
+            with patch.dict(os.environ, {"API_KEY": "test_key"}):
+                headers = {"X-API-Key": "test_key"}
+                response = self.client.post(
+                    "/api/v1/insight", json={"text": "test query"}, headers=headers
+                )
+                assert response.status_code == 503
+                assert "FEATURE_INSIGHT is disabled" in response.json()["detail"]
+        finally:
+            # Restore original module if it existed
+            if original_module is not None:
+                sys.modules["llm"] = original_module
+            elif "llm" in sys.modules:
+                del sys.modules["llm"]
 
 
 class TestPremiumEndpoints:

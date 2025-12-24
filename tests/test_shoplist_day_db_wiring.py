@@ -14,7 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from app.middleware.api_tiers import require_pro_tier
-from app.models import DayPlan
+from app.models import DayPlan, WeeklyPlan
 from core.db import AsyncSessionLocal
 from core.models import User
 
@@ -59,6 +59,7 @@ async def test_user() -> AsyncGenerator[User, None]:
     async with AsyncSessionLocal() as session:
         try:
             await session.execute(delete(DayPlan).where(DayPlan.user_id == TEST_USER_ID))
+            await session.execute(delete(WeeklyPlan).where(WeeklyPlan.user_id == TEST_USER_ID))
             await session.execute(delete(User).where(User.id == TEST_USER_ID))
             await session.commit()
         except Exception:
@@ -110,8 +111,19 @@ async def test_fetch_day_plan_when_exists_in_db(
         pytest.skip("Async SQLAlchemy not configured")
 
     async with AsyncSessionLocal() as session:
+        # Create weekly plan first (required for day_plan.weekly_plan_id)
+        weekly_plan = WeeklyPlan(
+            user_id=test_user.id,
+            start_date=test_date,
+            end_date=test_date,
+            plan_data={},
+        )
+        session.add(weekly_plan)
+        await session.flush()  # Get weekly_plan.id
+
         day_plan = DayPlan(
             user_id=test_user.id,
+            weekly_plan_id=weekly_plan.id,
             date=test_date,
             plan_data=plan_data,
         )
@@ -169,8 +181,19 @@ async def test_day_plan_model_creation(test_user: User) -> None:
     test_date = date(2025, 12, 19)
 
     async with AsyncSessionLocal() as session:
+        # Create weekly plan first (required for day_plan.weekly_plan_id)
+        weekly_plan = WeeklyPlan(
+            user_id=test_user.id,
+            start_date=test_date,
+            end_date=test_date,
+            plan_data={},
+        )
+        session.add(weekly_plan)
+        await session.flush()  # Get weekly_plan.id
+
         day_plan = DayPlan(
             user_id=test_user.id,
+            weekly_plan_id=weekly_plan.id,
             date=test_date,
             plan_data={"daily_menus": []},
         )
@@ -201,8 +224,19 @@ async def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
 
     # Create first day plan
     async with AsyncSessionLocal() as session:
+        # Create weekly plan first (required for day_plan.weekly_plan_id)
+        weekly_plan = WeeklyPlan(
+            user_id=test_user.id,
+            start_date=test_date,
+            end_date=test_date,
+            plan_data={},
+        )
+        session.add(weekly_plan)
+        await session.flush()  # Get weekly_plan.id
+
         day_plan_1 = DayPlan(
             user_id=test_user.id,
+            weekly_plan_id=weekly_plan.id,
             date=test_date,
             plan_data={"daily_menus": []},
         )
@@ -211,8 +245,15 @@ async def test_day_plan_unique_user_date_constraint(test_user: User) -> None:
 
     # Try to create duplicate — should fail
     async with AsyncSessionLocal() as session:
+        # Use same weekly_plan for the duplicate attempt
+        stmt = select(WeeklyPlan).where(WeeklyPlan.user_id == test_user.id)
+        result = await session.execute(stmt)
+        existing_weekly_plan = result.scalars().first()
+        assert existing_weekly_plan is not None
+
         day_plan_2 = DayPlan(
             user_id=test_user.id,
+            weekly_plan_id=existing_weekly_plan.id,
             date=test_date,
             plan_data={"daily_menus": [{"meals": []}]},
         )

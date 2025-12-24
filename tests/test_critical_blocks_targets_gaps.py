@@ -9,8 +9,6 @@
 """
 
 import os
-import sys
-from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -368,8 +366,8 @@ class TestAdditionalCriticalCoverage:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_import_error_simulation(self, client: TestClient) -> None:
-        """Test targets/gaps endpoints with various inputs (no invasive sys.modules patching)"""
+    def test_targets_and_gaps_endpoints_basic_access(self, client: TestClient) -> None:
+        """Verify targets/gaps endpoints respond for valid inputs."""
         os.environ["API_KEY"] = "test_key"
         try:
             # Test targets endpoint

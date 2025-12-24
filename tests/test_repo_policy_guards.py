@@ -7,6 +7,7 @@ and xdist failures.
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Iterable
 
 import pytest
@@ -94,8 +95,6 @@ def test_no_sys_modules_mutation_in_repo() -> None:
     assignment_pattern = r"sys\.modules\[[^]]+\]\s*="
     # Check for deletion: del sys.modules[...]
     deletion_pattern = r"del\s+sys\.modules\["
-
-    import re
 
     for path in (
         list(_iter_py_files("app/**/*.py"))
@@ -215,6 +214,54 @@ def test_no_sys_modules_get_recipe_store_in_tests() -> None:
     assert not offenders, (
         "Tests must not use sys.modules.get('recipe_store'). "
         f"Use 'import app.services.recipe_store as rs' instead. Offenders: {offenders}"
+    )
+
+
+def test_no_sys_modules_none_poisoning() -> None:
+    """Prohibit setting sys.modules[...] = None which creates 'halted import' state.
+
+    ❌ sys.modules["core.menu_engine"] = None  # Creates ModuleNotFoundError: import halted
+    ❌ patch.dict("sys.modules", {"core.menu_engine": None})  # Same effect
+    ✅ del sys.modules["core.menu_engine"]  # Safe removal
+    ✅ monkeypatch.delitem(sys.modules, "core.menu_engine", raising=False)  # Safe mocking
+
+    Note: This test allows legitimate import error testing in specific test files.
+    """
+    import re
+
+    offenders: list[str] = []
+    # Pattern: sys.modules[...]=None or patch.dict(..., {...: None})
+    # Exclude this guard file itself from the check
+    patterns = [
+        r"sys\.modules\[[^]]+\]\s*=\s*None",
+        r"patch\.dict\([^)]*\{[^}]*:[^}]*None[^}]*\}",  # patch.dict with None values
+    ]
+
+    for path in (
+        list(_iter_py_files("app/**/*.py"))
+        + list(_iter_py_files("core/**/*.py"))
+        + list(_iter_py_files("tests/**/*.py"))
+    ):
+        rel = _rel(path)
+        # Skip this guard file itself to avoid false positive on the pattern strings
+        if rel == "tests/test_repo_policy_guards.py":
+            continue
+        # Skip specific test files that legitimately test import error handling
+        if rel in [
+            "tests/test_bmi_visualization.py",  # Tests matplotlib import error handling
+        ]:
+            continue
+
+        content = _read(path)
+
+        for pattern in patterns:
+            if re.search(pattern, content):
+                offenders.append(f"{rel} (pattern: {pattern})")
+                break  # Don't report same file multiple times
+
+    assert not offenders, (
+        "sys.modules None poisoning found. Use 'del sys.modules[key]' instead of 'sys.modules[key] = None'. "
+        f"Offenders: {offenders}"
     )
 
 

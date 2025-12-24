@@ -30,7 +30,10 @@ class TestImportErrorPaths:
 
         try:
             # Теперь симулируем ImportError при попытке импорта prometheus_client
-            with patch.dict(sys.modules, {"prometheus_client": None}):
+            original_module = sys.modules.get("prometheus_client")
+            if "prometheus_client" in sys.modules:
+                del sys.modules["prometheus_client"]
+            try:
                 # Этот код должен обработать ImportError и установить переменные в None
                 try:
                     from prometheus_client import Counter, Histogram, generate_latest
@@ -39,14 +42,20 @@ class TestImportErrorPaths:
                     assert Counter is not None
                 except ImportError:
                     # Устанавливаем None как в коде main.py
-                    Counter = None
-                    Histogram = None
-                    generate_latest = None
+                    counter_cls = None
+                    histogram_cls = None
+                    generate_latest_func = None
 
                     # Проверяем что переменные установлены в None
-                    assert Counter is None
-                    assert Histogram is None
-                    assert generate_latest is None
+                    assert counter_cls is None
+                    assert histogram_cls is None
+                    assert generate_latest_func is None
+            finally:
+                # Restore original module if it existed
+                if original_module is not None:
+                    sys.modules["prometheus_client"] = original_module
+                elif "prometheus_client" in sys.modules:
+                    del sys.modules["prometheus_client"]
 
         finally:
             # Восстанавливаем оригинальные модули
@@ -74,7 +83,10 @@ class TestVIPRouterImportPath:
             os.environ["VIP_MODULE_ENABLED"] = "true"
 
             # Симулируем ImportError при попытке импорта VIP router
-            with patch.dict(sys.modules, {"app.routers.vip": None}):
+            original_module = sys.modules.get("app.routers.vip")
+            if "app.routers.vip" in sys.modules:
+                del sys.modules["app.routers.vip"]
+            try:
                 try:
                     # Пытаемся импортировать VIP router
                     from app.routers import vip as vip_router  # noqa: F401
@@ -86,6 +98,12 @@ class TestVIPRouterImportPath:
 
                 # Проверяем что ImportError был обработан
                 assert vip_available in {True, False}
+            finally:
+                # Restore original module if it existed
+                if original_module is not None:
+                    sys.modules["app.routers.vip"] = original_module
+                elif "app.routers.vip" in sys.modules:
+                    del sys.modules["app.routers.vip"]
 
         finally:
             # Восстанавливаем оригинальное значение

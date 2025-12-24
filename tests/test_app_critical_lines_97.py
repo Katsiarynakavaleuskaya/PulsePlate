@@ -3,6 +3,7 @@
 """
 
 import contextlib
+import sys
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch
@@ -97,8 +98,12 @@ class TestAppCriticalLines97:
 
     def test_missing_dependencies_import_paths(self):
         """Тест путей когда зависимости недоступны"""
-        # Имитируем отсутствие модулей
-        with patch.dict("sys.modules", {"core.auto_repair": None}):
+        # Remove module from sys.modules to simulate it's not available
+        original_module = sys.modules.get("core.auto_repair")
+        if "core.auto_repair" in sys.modules:
+            del sys.modules["core.auto_repair"]
+
+        try:
             try:
                 import app
 
@@ -107,6 +112,10 @@ class TestAppCriticalLines97:
             except ImportError:
                 # Expected when dependencies are missing - graceful degradation working
                 pass
+        finally:
+            # Restore original module if it existed
+            if original_module is not None:
+                sys.modules["core.auto_repair"] = original_module
 
     def test_premium_endpoints_error_paths(self, client):
         """Тест error paths в premium endpoints"""

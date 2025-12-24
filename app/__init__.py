@@ -20,13 +20,12 @@ from core.menu_engine import make_weekly_menu
 from core.recommendations import build_nutrition_targets
 
 # Optional visualization (safe import)
-MATPLOTLIB_AVAILABLE: bool
-generate_bmi_visualization: Optional[Any]
+MATPLOTLIB_AVAILABLE: bool = False
+generate_bmi_visualization: Optional[Any] = None
 try:
     from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 except ImportError:
-    MATPLOTLIB_AVAILABLE = False
-    generate_bmi_visualization = None
+    pass
 
 # Subpackages
 from . import routers, scheduler_helpers

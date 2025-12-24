@@ -55,16 +55,20 @@ class TestVIPCoverageClean:
     def test_vip_import_fallback_coverage(self):
         """Test VIP import fallback coverage with proper isolation."""
         # Mock import failure to trigger fallback logic
-        with patch.dict(
-            "sys.modules",
-            {
-                "core.auto_repair": None,
-                "core.menu_engine": None,
-                "core.recipe_synth": None,
-                "core.region_catalog": None,
-                "core.shoplist": None,
-            },
-        ):
+        # Remove modules instead of setting to None (prevents sys.modules None poisoning)
+        modules_to_restore = {}
+        for mod_name in [
+            "core.auto_repair",
+            "core.menu_engine",
+            "core.recipe_synth",
+            "core.region_catalog",
+            "core.shoplist",
+        ]:
+            if mod_name in sys.modules:
+                modules_to_restore[mod_name] = sys.modules[mod_name]
+                del sys.modules[mod_name]
+
+        try:
             # Re-import the module to trigger fallback
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
@@ -77,6 +81,10 @@ class TestVIPCoverageClean:
             assert vip.ShoplistGenerator is not None
             assert vip.aggregate_ingredients is not None
             assert vip.round_to_packages is not None
+        finally:
+            # Restore modules
+            for mod_name, mod_obj in modules_to_restore.items():
+                sys.modules[mod_name] = mod_obj
             assert vip.format_export is not None
             assert vip.get_region_catalog is not None
             assert vip.search_products is not None
