@@ -49,50 +49,35 @@ def test_bmi_visualization_imports():
         pass
 
 
-def test_matplotlib_import_error_handling():
+def test_matplotlib_import_error_handling(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling when matplotlib import fails."""
     # Test the import error path in bmi_visualization module
     # Remove bmi_visualization from cache to force reimport
-    if "bmi_visualization" in sys.modules:
-        del sys.modules["bmi_visualization"]
+    monkeypatch.delitem(sys.modules, "bmi_visualization", raising=False)
 
-    # Save matplotlib modules state
-    matplotlib_modules = {k: v for k, v in sys.modules.items() if k.startswith("matplotlib")}
+    # Remove already-imported matplotlib modules to ensure we hit the import path again.
+    for mod_name in [k for k in list(sys.modules.keys()) if k.startswith("matplotlib")]:
+        monkeypatch.delitem(sys.modules, mod_name, raising=False)
 
-    # Remove matplotlib modules to simulate they're not available
-    for mod_name in list(matplotlib_modules.keys()):
-        del sys.modules[mod_name]
+    # Block matplotlib imports without mocking builtins.__import__ (repo policy).
+    import importlib.abc
+    from types import ModuleType
+    from typing import Optional
 
-    # Create a mock that raises ImportError when matplotlib is imported
-    import builtins
+    class _BlockMatplotlib(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname: str, path: object, target: Optional[ModuleType] = None):  # type: ignore[override]
+            if fullname == "matplotlib" or fullname.startswith("matplotlib."):
+                raise ModuleNotFoundError(fullname)
+            return None
 
-    original_import = builtins.__import__
+    blocker = _BlockMatplotlib()
+    monkeypatch.setattr(sys, "meta_path", [blocker, *sys.meta_path])
 
-    def mock_import(name, globals=None, locals=None, fromlist=(), level=0):
-        """Mock __import__ to raise ImportError for matplotlib."""
-        if name == "matplotlib" or (isinstance(name, str) and name.startswith("matplotlib")):
-            raise ImportError(f"Mocked ImportError for {name}")
-        return original_import(name, globals, locals, fromlist, level)
+    import bmi_visualization
 
-    try:
-        # Patch builtins.__import__ to raise ImportError for matplotlib
-        builtins.__import__ = mock_import
-
-        # Force reimport to test the ImportError handling
-        import bmi_visualization
-
-        importlib.reload(bmi_visualization)
-        # This should set MATPLOTLIB_AVAILABLE to False
-        assert not bmi_visualization.MATPLOTLIB_AVAILABLE
-    finally:
-        # Restore original import
-        builtins.__import__ = original_import
-        # Restore module cache
-        if "bmi_visualization" in sys.modules:
-            del sys.modules["bmi_visualization"]
-        # Restore matplotlib modules
-        for mod_name, mod_obj in matplotlib_modules.items():
-            sys.modules[mod_name] = mod_obj
+    importlib.reload(bmi_visualization)
+    # This should set MATPLOTLIB_AVAILABLE to False
+    assert not bmi_visualization.MATPLOTLIB_AVAILABLE
 
 
 def test_bmi_visualization_without_matplotlib():
