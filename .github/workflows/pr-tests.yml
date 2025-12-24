@@ -193,6 +193,8 @@ jobs:
               - '**/*.md'
 
       - name: Run fast test suite with coverage (no slow/MC/demo)
+        id: tests_parallel
+        continue-on-error: true
         if: (steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true') || github.event_name != 'pull_request'
         env:
           PYTHONUNBUFFERED: '1'
@@ -208,6 +210,26 @@ jobs:
           # Use pytest-xdist for parallel execution (2-3x faster)
           pytest -m "not slow and not monte_carlo and not demo" \
             --cov=. --cov-report=xml --junitxml=junit.xml -ra -n auto tests
+
+      - name: Rerun tests sequentially (for actionable traceback on failure)
+        if: steps.tests_parallel.outcome != 'success'
+        env:
+          PYTHONUNBUFFERED: '1'
+          PYTHONFAULTHANDLER: '1'
+          BAYESIAN_PERSIST: '0'
+          MC_SEED: '2025'
+          MC_SAMPLES: '5'
+          MC_SAMPLES_FEW: '3'
+          FEATURE_PREMIUM_NUTRITION: 'true'
+          APP_ENV: test
+          ENVIRONMENT: test
+          TEST_DB_PATH: cache/test_pr_sequential.sqlite
+        run: |
+          # Sequential run with faulthandler for debugging segfaults
+          python -X faulthandler -m pytest -m "not slow and not monte_carlo and not demo" \
+            --cov=. --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=97 --junitxml=junit.xml \
+            -n 0 -x -vv --tb=short tests
 
       - name: Diff coverage on changed lines (PR)
         if: github.event_name == 'pull_request' && steps.filter.conclusion == 'success' && steps.filter.outputs.code == 'true' && hashFiles('coverage.xml') != ''
