@@ -13,39 +13,152 @@ make test-fast
 pytest -q tests/test_repo_policy_guards.py
 ```
 
-## 2) If LINT Fails
+## 2) PR #403 Specific Checks (Import Hygiene)
 
-### 2.1 Ruff / formatting
+### 2.1 Import hygiene regressions (dynamic import / exec_module)
+
+**Problem:** `spec_from_file_location / exec_module` returns → Dual Base + Pydantic TypeAdapter issues.
+
+```bash
+git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- app core tests
+```
+
+**Offender list (excluding whitelisted script tests):**
+
+```bash
+git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- tests \
+  | grep -vE "test_test_pro_access_coverage\.py|test_ensure_database_versions\.py|conftest\.py"
+```
+
+### 2.2 sys.path.insert in tests (masks import path bugs)
+
+**Problem:** Breaks xdist isolation, hides real import errors.
+
+```bash
+git grep -n "sys\.path\.insert" -- tests
+```
+
+### 2.3 sys.modules mutation (main source of Dual Base)
+
+**Problem:** `sys.modules["x"]=...` and `del sys.modules["x"]` create separate namespaces.
+
+```bash
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- app core tests providers
+```
+
+### 2.4 Public surface app package (missing attributes)
+
+**Problem:** Tests fail with:
+- `module 'app' has no attribute build_nutrition_targets`
+- `... get_update_scheduler`
+- `... resolve_attr`
+
+**Check what tests expect from app:**
+
+```bash
+git grep -nE "from app import |app\.(resolve_attr|build_nutrition_targets|get_update_scheduler|make_weekly_menu)" -- tests
+```
+
+**Verify what's actually exported:**
+
+```bash
+sed -n '1,200p' app/__init__.py
+```
+
+**Run surface guard tests:**
+
+```bash
+pytest -q tests/test_app_public_surface.py
+pytest -q -k "public_surface or env_guards or import_hygiene"
+```
+
+### 2.5 ENV gating / порядок установки TESTING
+
+**Problem:** `EXPORTS_ENABLED`/`VIP` computed at import time, env set later → tests get 404/422.
+
+```bash
+git grep -nE "EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG" -- app legacy_app.py core tests
+```
+
+**Check pytest_configure:**
+
+```bash
+git grep -n "os\.environ\[" -- tests/conftest.py
+git grep -n "pytest_configure" -- tests/conftest.py
+```
+
+### 2.6 Recipe store tests (_con missing)
+
+**Problem:** `module 'recipe_store' has no attribute '_con'` - symptom of wrong module import path.
+
+**Anti-pattern check:**
+
+```bash
+git grep -n "sys\.modules\.get\(\"recipe_store\"\)" tests
+git grep -nE "spec_from_file_location\(\"recipe_store\"" tests
+```
+
+**Correct pattern:**
+- ❌ Don't: `sys.modules.get("recipe_store")`
+- ✅ Do: `import app.services.recipe_store as rs`
+
+**Verify import works:**
+
+```bash
+python -c "import app.services.recipe_store as rs; print(hasattr(rs,'_con'), rs._con)"
+```
+
+### 2.7 VIP router 422 vs 404
+
+**Problem:** Router registered but disabled by logic → 422/401 instead of 404.
+
+```bash
+git grep -nE "include_router\(.*vip|VIP|vip_router" app
+git grep -nE "VIP_ENABLED|VIP_MODULE_ENABLED|FEATURE_VIP" app core legacy_app.py
+```
+
+### 2.8 Docker build (COPY app.py not found / entrypoint drift)
+
+**Problem:** Dockerfile copies `app.py` but file was renamed/moved.
+
+```bash
+grep -n "COPY .*app\.py" Dockerfile
+grep -n "uvicorn" Dockerfile Makefile docker-compose.yaml
+```
+
+**Expected:** `app.main:app` (or current canonical entrypoint).
+
+---
+
+## 3) If LINT Fails
+
+### 3.1 Ruff / formatting
 
 ```bash
 ruff check . --fix
 black .
 ```
 
-### 2.2 Explain-only (to see the real errors)
+### 3.2 Explain-only (to see the real errors)
 
 ```bash
 ruff check . -v
 ```
 
-## 3) If TESTS Fail
+## 4) If TESTS Fail
 
-### 3.1 Narrow first
+### 4.1 Narrow first
 
 ```bash
 pytest -q -k "<failing_test_name_or_keyword>"
 pytest -q tests/<path_to_file>.py
 ```
 
-### 3.2 Import hygiene suspects
+### 4.2 Import hygiene suspects
 
-```bash
-git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" tests app core
-git grep -n "sys\.path\.insert" tests
-git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" tests app core
-```
+See section 2 (PR #403 Specific Checks) above for detailed grep commands.
 
-### 3.3 ENV gating suspects (exports/vip)
+### 4.3 ENV gating suspects (exports/vip)
 
 ```bash
 git grep -n "EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG"
@@ -53,28 +166,13 @@ git grep -n "EXPORTS_ENABLED|VIP_ENABLED|TESTING|DEBUG"
 
 Ensure `TESTING=true` is set before importing `legacy_app`.
 
-## 4) If DOCKER Build Fails
+## 5) If DOCKER Build Fails
 
-### 4.1 Common: missing renamed files
+See section 2.8 above for Docker-specific checks.
 
-Search Dockerfile COPY lines vs repo tree.
+## 6) If COVERAGE Guard Fails
 
-```bash
-ls -la
-grep -n "COPY" Dockerfile
-```
-
-### 4.2 Validate entrypoint string
-
-```bash
-git grep -n "uvicorn" Makefile Dockerfile docker-compose.yaml
-```
-
-Expected: `app.main:app` (or whatever is current canonical entrypoint).
-
-## 5) If COVERAGE Guard Fails
-
-### 5.1 Identify uncovered lines
+### 6.1 Identify uncovered lines
 
 ```bash
 pytest --cov --cov-report=term-missing
@@ -82,28 +180,28 @@ pytest --cov --cov-report=term-missing
 
 Then add micro-tests for uncovered branches (avoid flaky tests).
 
-## 6) If xdist Hangs / Mapper / Dual Base Symptoms
+## 7) If xdist Hangs / Mapper / Dual Base Symptoms
 
-### 6.1 Confirm no dynamic loader
+### 7.1 Confirm no dynamic loader
 
 ```bash
 pytest -q tests/test_repo_policy_guards.py
 ```
 
-### 6.2 Confirm single Base identity (if guard exists)
+### 7.2 Confirm single Base identity (if guard exists)
 
 ```bash
 pytest -q -k "single_base or import_hygiene"
 ```
 
-## 7) What NOT to Do (Hard Rules)
+## 8) What NOT to Do (Hard Rules)
 
 - Never mock `builtins.__import__` or `builtins.float`
 - Never mutate `sys.modules` in tests
 - Never reintroduce `exec_module` / dynamic import patterns
 - No network calls in unit tests (use `providers/stub.py`)
 
-## 8) Import Hygiene Checklist (Before Any PR)
+## 9) Import Hygiene Checklist (Before Any PR)
 
 See `AGENTS.md` for the full checklist. Quick version:
 
@@ -115,7 +213,7 @@ See `AGENTS.md` for the full checklist. Quick version:
 6. Guard tests pass
 7. Export routes registered when feature-flagged
 
-## 9) Common CI Failure Patterns
+## 10) Common CI Failure Patterns
 
 ### Pattern: "ModuleNotFoundError: No module named 'app'"
 
@@ -153,7 +251,7 @@ git grep -n "from core.db import Base" app/models core
 # Mark tests: @pytest.mark.no_xdist
 ```
 
-## 10) Emergency: Revert to Known Good State
+## 11) Emergency: Revert to Known Good State
 
 ```bash
 # Check last green CI commit

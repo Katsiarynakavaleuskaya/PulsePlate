@@ -189,3 +189,30 @@ def test_providers_no_dynamic_imports(path_glob: str, forbidden_tokens: tuple[st
             offenders.append(_rel(path))
 
     assert not offenders, f"Providers contain dynamic import tokens: {offenders}"
+
+
+def test_no_sys_modules_get_recipe_store_in_tests() -> None:
+    """Tests must not use sys.modules.get('recipe_store') - use standard imports instead.
+
+    Anti-pattern: sys.modules.get("recipe_store") returns wrong module instance.
+    Correct pattern: import app.services.recipe_store as rs
+    """
+    offenders: list[str] = []
+
+    for path in _iter_py_files("tests/**/*.py"):
+        rel = _rel(path)
+        # Skip this guard file itself
+        if rel == "tests/test_repo_policy_guards.py":
+            continue
+
+        content = _read(path)
+        if (
+            'sys.modules.get("recipe_store")' in content
+            or "sys.modules.get('recipe_store')" in content
+        ):
+            offenders.append(rel)
+
+    assert not offenders, (
+        "Tests must not use sys.modules.get('recipe_store'). "
+        f"Use 'import app.services.recipe_store as rs' instead. Offenders: {offenders}"
+    )
