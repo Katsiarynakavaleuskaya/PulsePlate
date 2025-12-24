@@ -49,8 +49,71 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
 ## Known pitfalls
-- Dual Base issue: `app/__init__.py` loads via `spec.loader.exec_module`, creating a separate
-  namespace. Avoid relying on module identity across import paths until cleanup PR lands.
+- Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
+  Import hygiene guards prevent regression.
+
+## Import Hygiene Checklist (must-run before PR / after rebase)
+
+### Goal
+Prevent regressions to dynamic imports / sys.path hacks / sys.modules patching that cause xdist hangs,
+dual-namespace imports, and missing legacy exports.
+
+### Allowed exceptions
+Dynamic import / sys.path.insert is allowed ONLY for standalone script tests:
+- `tests/test_test_pro_access_coverage.py`
+- `tests/test_ensure_database_versions.py`
+
+### 1) No dynamic import patterns in tests (except allowed)
+```bash
+git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- tests \
+  | grep -vE "test_test_pro_access_coverage\.py|test_ensure_database_versions\.py|conftest\.py" || true
+```
+
+### 2) No sys.path.insert in tests (except allowed)
+```bash
+git grep -n "sys\.path\.insert" -- tests \
+  | grep -vE "test_test_pro_access_coverage\.py" || true
+```
+
+### 3) No sys.modules mutation in tests
+```bash
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests || true
+```
+
+### 4) Verify app shim contract (PEP 562 shim)
+`import app` must be a stable facade for legacy surface.
+```bash
+git grep -nE "import legacy_app|app\s*=\s*_legacy\.app|def __getattr__|def __dir__" -- app/__init__.py
+```
+
+### 5) Verify TESTING env set before imports in conftest
+```bash
+git grep -nE "TESTING" -- tests/conftest.py
+git grep -nE "import app|import legacy_app|from app import|from legacy_app import" -- tests/conftest.py
+```
+Ensure `TESTING=true` is set BEFORE importing app/legacy_app.
+
+### 6) Guard tests must pass
+```bash
+pytest -q tests/test_import_hygiene_guard.py tests/test_env_guards.py -q
+```
+
+### 7) Export route smoke (only if exports are feature-flagged)
+```bash
+python - <<'PY'
+import os
+os.environ["TESTING"] = "true"
+import app
+paths = {r.path for r in app.app.routes}
+assert "/api/v1/export/pdf" in paths
+print("OK: export route registered")
+PY
+```
+
+### Notes
+- Never reintroduce `spec.loader.exec_module` in `app/__init__.py`.
+- Prefer package imports: `import app.services.X as X`, not file loading.
+- Do not move sys.path hacks into conftest; localize any script-only needs to the specific test file.
 
 ## Links to module instructions
 - `app/AGENTS.md`
