@@ -17,6 +17,19 @@
 - Use timezone-aware UTC (`datetime.now(timezone.utc)`) for new timestamps.
 - Keep typing explicit and update tests for new branches.
 
+## Type hints policy (core)
+
+- Type hints in `core/` describe the domain, not test behavior
+- Never weaken types to satisfy tests or mocks
+- Prefer:
+  - precise return types
+  - total functions (explicit error handling)
+- `Optional[T]` only if `None` is a valid business outcome
+- Never introduce `Any` into core logic
+
+If a test fails due to typing:
+→ the test setup or import order is wrong, not the core type hints.
+
 - **Single SQLAlchemy Base rule**:
   All ORM models MUST import `Base` from `core.db`.
   Never create a local `declarative_base()` in models or analyzers.

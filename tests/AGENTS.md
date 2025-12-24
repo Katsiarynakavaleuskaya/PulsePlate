@@ -16,6 +16,34 @@
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
 
+## Type hints policy (tests)
+
+### Hard rules
+- ❌ Never "fix" a failing test by loosening type hints (e.g., `Optional[T]` → `Any`)
+- ❌ Never change production type hints to satisfy mocks
+- ❌ Never add `# type: ignore` unless:
+  - exact error code is specified (`# type: ignore[arg-type]`)
+  - and comment explains why
+
+### Allowed in tests
+- `Any` **only** in fake/stub objects
+- `Protocol` or `Callable[..., T]` preferred over `Any`
+- `cast(T, value)` allowed **only at test boundary**
+- `Optional[T]` only if production code can actually return `None`
+
+### SQLAlchemy / Pydantic specifics
+- Never change `Mapped[T]` / `nullable` in models to satisfy tests
+- If relationship breaks typing → fix import order/model registration, not hints
+- Pydantic v2: prefer real validators over `# type: ignore`
+
+### Smell checklist
+If tempted to:
+- add `Optional` "just to make mypy shut up"
+- replace concrete type with `Any`
+- add multiple `# type: ignore` in a row
+
+⛔ STOP — the test or mock is wrong, not the type hint.
+
 ## Import hygiene (hard rules)
 
 - Do NOT use `importlib.util.spec_from_file_location`,
