@@ -17,5 +17,31 @@
 - Use timezone-aware UTC (`datetime.now(timezone.utc)`) for new timestamps.
 - Keep typing explicit and update tests for new branches.
 
+- **Single SQLAlchemy Base rule**:
+  All ORM models MUST import `Base` from `core.db`.
+  Never create a local `declarative_base()` in models or analyzers.
+- **No import-time side effects**:
+  Do not evaluate feature flags, DB URLs, or environment-dependent logic
+  at import time in `core/`.
+- **No reload / reconfigure patterns**:
+  Do NOT use `importlib.reload`, `Base.metadata.clear()`,
+  or `SessionLocal.configure()` in `core/`.
+  DB lifecycle is controlled by test fixtures and application startup.
+
 ## Feature map
 - See `app/AGENTS.md` for the full backend feature map covering `core/` + `app/`.
+
+## Dual Base & DB lifecycle (critical)
+
+- `core.db.Base` is the single source of truth for ORM metadata.
+- All models and analyzers must reference the SAME `Base` object.
+- Import order matters: environment variables (DATABASE_URL, TESTING)
+  must be set before importing `core.db`.
+- Test failures mentioning "multiple Base", "mapper already defined",
+  or inconsistent metadata usually indicate import-order violations.
+
+### Quick check
+```bash
+git grep -n "declarative_base" core/
+git grep -n "importlib.reload|metadata.clear|SessionLocal.configure" core/
+```
