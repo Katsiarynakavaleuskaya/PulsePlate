@@ -36,8 +36,13 @@ class TestAppExactCoverage96:
         }
 
         response = self.client.post("/bmi", json=payload)
-        # The validation might not trigger 422, let's check what we get
-        assert response.status_code in [200, 422]
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        assert any(
+            "unrealistically" in (item.get("msg", "") if isinstance(item, dict) else "")
+            for item in data["detail"]
+        )
 
     def test_bmi_validation_unrealistically_low_bmi_exact(self) -> None:
         """Test BMI validation for unrealistically low BMI (< 10) - line 278."""
@@ -53,8 +58,13 @@ class TestAppExactCoverage96:
         }
 
         response = self.client.post("/bmi", json=payload)
-        # The validation might not trigger 422, let's check what we get
-        assert response.status_code in [200, 422]
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        assert any(
+            "unrealistically" in (item.get("msg", "") if isinstance(item, dict) else "")
+            for item in data["detail"]
+        )
 
     @patch("app.MATPLOTLIB_AVAILABLE", False)
     def test_visualization_not_available_matplotlib(self) -> None:

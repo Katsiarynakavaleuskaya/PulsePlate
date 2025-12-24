@@ -10,7 +10,7 @@ from datetime import date
 from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
-    from app.models.plans import DayPlan
+    from app.models import DayPlan
 
 
 async def fetch_day_plan(day: date, pro_ctx: Any) -> Optional[dict]:
@@ -39,7 +39,7 @@ async def fetch_day_plan(day: date, pro_ctx: Any) -> Optional[dict]:
     # Lazy imports to avoid ORM side-effects at module import time
     from sqlalchemy import select
 
-    from app.models.plans import DayPlan
+    from app.models import DayPlan
     from core.db import session_scope_async
 
     # Query DB for day plan

@@ -17,12 +17,12 @@ from app import app
 class TestMissingCoverage:
     """Тесты для покрытия недостающих строк"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_app_imports(self):
+    def test_app_imports(self) -> None:
         """Тест импортов main.py"""
         # Проверяем, что все импорты работают
         import app
@@ -34,7 +34,7 @@ class TestMissingCoverage:
         # Проверяем типы доступных переменных
         assert isinstance(app.VIP_MODULE_ENABLED, bool)
 
-    def test_middleware_paths(self):
+    def test_middleware_paths(self) -> None:
         """Тест путей middleware"""
         client = TestClient(app)
 
@@ -48,7 +48,7 @@ class TestMissingCoverage:
         response = client.get("/favicon.ico")
         assert response.status_code in (200, 204)
 
-    def test_error_handling(self):
+    def test_error_handling(self) -> None:
         """Тест обработки ошибок"""
         client = TestClient(app)
 
@@ -56,7 +56,7 @@ class TestMissingCoverage:
         response = client.post("/api/v1/bmi", json={})
         assert response.status_code in (422, 403)
 
-    def test_conditional_imports(self):
+    def test_conditional_imports(self) -> None:
         """Тест условных импортов"""
         # Проверяем, что условные импорты работают
         try:
@@ -69,7 +69,7 @@ class TestMissingCoverage:
         except ImportError:
             pass
 
-    def test_slowapi_imports(self):
+    def test_slowapi_imports(self) -> None:
         """Тест импортов SlowAPI"""
         try:
             from app import (
@@ -89,7 +89,7 @@ class TestMissingCoverage:
         except ImportError:
             pass
 
-    def test_dotenv_import(self):
+    def test_dotenv_import(self) -> None:
         """Тест импорта dotenv"""
         try:
             from app import dotenv
@@ -99,7 +99,7 @@ class TestMissingCoverage:
         except ImportError:
             pass
 
-    def test_vip_router_import(self):
+    def test_vip_router_import(self) -> None:
         """Тест импорта VIP роутера"""
         try:
             from app import vip_router
@@ -109,7 +109,7 @@ class TestMissingCoverage:
             # VIP модуль может быть отключен
             pass
 
-    def test_optional_functions(self):
+    def test_optional_functions(self) -> None:
         """Тест опциональных функций"""
         try:
             from app import (

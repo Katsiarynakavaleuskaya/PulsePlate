@@ -116,9 +116,9 @@ class TestAppMissingLinesTargeted:
             try:
                 response = self.client.post("/bmi", json=case)
                 assert response.status_code in [200, 400, 422, 500]
-            except Exception:
+            except (TypeError, ValueError):
                 # Some cases might cause JSON serialization errors, which is expected
-                pass
+                continue
 
     def test_concurrent_mixed_requests(self) -> None:
         """Test concurrent requests to different endpoints"""
@@ -159,7 +159,7 @@ class TestAppMissingLinesTargeted:
 class TestAppLargePayloadsAndLimits:
     """Test large payloads and various limits"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
 
     def test_large_text_fields(self) -> None:
@@ -215,7 +215,7 @@ class TestAppLargePayloadsAndLimits:
 class TestAppErrorHandlingPaths:
     """Test specific error handling paths"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
 
     def test_database_connection_errors(self) -> None:
@@ -266,7 +266,7 @@ class TestAppErrorHandlingPaths:
 class TestAppSpecificMissingBlocks:
     """Test specific missing code blocks identified in coverage"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         self.client = TestClient(app)
 
     def test_export_endpoints_if_available(self) -> None:
@@ -357,6 +357,7 @@ class TestAppSpecificMissingBlocks:
             try:
                 response = self.client.post("/bmi", json=test_data)
                 assert response.status_code in [200, 400, 422]
-            except Exception:
+            except (TypeError, ValueError) as exc:
                 # Some language values might cause JSON errors
-                pass
+                print(f"lang={lang} error={exc}")
+                continue

@@ -349,8 +349,7 @@ class TestAppComprehensive97:
                 },
                 headers={"X-API-Key": "test_key"},
             )
-            # 503 if feature disabled, or 200/4xx if available
-            assert response.status_code in [200, 400, 422, 500, 503]
+            assert response.status_code == 503
 
     @patch("app.build_nutrition_targets")
     def test_premium_targets_with_safety_warnings(self, mock_targets):

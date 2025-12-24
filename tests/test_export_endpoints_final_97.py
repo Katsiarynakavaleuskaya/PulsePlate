@@ -29,7 +29,7 @@ def client():
 class TestExportEndpoints:
     """Тесты для export endpoints - ключ к 97%"""
 
-    def test_daily_csv_export(self, client: TestClient):
+    def test_daily_csv_export(self, client: TestClient) -> None:
         """Тест экспорта дневного плана в CSV (блок 1680-1736)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -50,7 +50,7 @@ class TestExportEndpoints:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_csv_export(self, client: TestClient):
+    def test_weekly_csv_export(self, client: TestClient) -> None:
         """Тест экспорта недельного плана в CSV (блок 1751-1831)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -71,7 +71,7 @@ class TestExportEndpoints:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_daily_pdf_export(self, client: TestClient):
+    def test_daily_pdf_export(self, client: TestClient) -> None:
         """Тест экспорта дневного плана в PDF (блок 1847-1905)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -90,7 +90,7 @@ class TestExportEndpoints:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_pdf_export(self, client: TestClient):
+    def test_weekly_pdf_export(self, client: TestClient) -> None:
         """Тест экспорта недельного плана в PDF (блок 1921-2005)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -109,7 +109,7 @@ class TestExportEndpoints:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_export_error_paths(self, client: TestClient):
+    def test_export_error_paths(self, client: TestClient) -> None:
         """Тест error paths в export endpoints"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -130,7 +130,7 @@ class TestExportEndpoints:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_export_without_api_key(self, client: TestClient):
+    def test_export_without_api_key(self, client: TestClient) -> None:
         """Тест export endpoints без API key"""
         endpoints = [
             "/api/v1/premium/exports/day/nokey.csv",
@@ -146,7 +146,7 @@ class TestExportEndpoints:
 
     # Note: Removed complex mocking test that was causing issues
 
-    def test_export_various_plan_ids(self, client: TestClient):
+    def test_export_various_plan_ids(self, client: TestClient) -> None:
         """Тест export с различными plan_id для покрытия всех путей"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -180,7 +180,7 @@ class TestExportEndpoints:
 class TestAdditionalCoverageBoosts:
     """Дополнительные тесты для повышения покрытия"""
 
-    def test_edge_case_combinations(self, client: TestClient):
+    def test_edge_case_combinations(self, client: TestClient) -> None:
         """Тест edge cases для всех export endpoints"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -205,7 +205,7 @@ class TestAdditionalCoverageBoosts:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_api_key_edge_cases(self, client: TestClient):
+    def test_api_key_edge_cases(self, client: TestClient) -> None:
         """Тест edge cases для API key в export endpoints"""
         # Различные варианты API ключей
         api_keys = [

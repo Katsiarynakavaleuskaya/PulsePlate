@@ -20,9 +20,6 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 from app import app
-from app import app
-
-from app import app
 
 
 @pytest.fixture

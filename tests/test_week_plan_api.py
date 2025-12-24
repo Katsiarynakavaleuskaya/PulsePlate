@@ -17,7 +17,7 @@ from app import app
 client = TestClient(app)
 
 
-def test_week_plan_with_targets():
+def test_week_plan_with_targets() -> None:
     """Test generating a week plan with pre-calculated targets."""
     # Test data with pre-calculated targets
     test_data = {
@@ -59,7 +59,7 @@ def test_week_plan_with_targets():
         assert "detail" in data
 
 
-def test_week_plan_with_profile():
+def test_week_plan_with_profile() -> None:
     """Test generating a week plan with user profile."""
     # Test data with user profile
     test_data = {
@@ -91,7 +91,7 @@ def test_week_plan_with_profile():
         assert "detail" in data
 
 
-def test_week_plan_multilingual():
+def test_week_plan_multilingual() -> None:
     """Test that the API works with different languages."""
     # Test data with pre-calculated targets
     targets_data = {
@@ -130,7 +130,7 @@ def test_week_plan_multilingual():
             assert "API Key" in data["detail"]
 
 
-def test_week_plan_missing_data():
+def test_week_plan_missing_data() -> None:
     """Test that the API handles missing data correctly."""
     # Test data with missing required fields
     test_data = {"diet_flags": [], "lang": "en"}

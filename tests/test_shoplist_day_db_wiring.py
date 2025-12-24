@@ -14,7 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from app.middleware.api_tiers import require_pro_tier
-from app.models.plans import DayPlan
+from app.models import DayPlan
 from core.db import AsyncSessionLocal
 from core.models import User
 

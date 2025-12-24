@@ -14,6 +14,7 @@ EXCEPTIONS = {
     "test_test_pro_access_coverage.py",  # tests standalone script test_pro_access.py
     "test_ensure_database_versions.py",  # tests scripts/ensure_database_versions.py
     "test_import_hygiene_guard.py",  # this guard test itself contains the pattern in strings
+    "test_repo_policy_guards.py",  # guard test checks for patterns as strings
 }
 
 

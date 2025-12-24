@@ -216,3 +216,42 @@ def test_no_sys_modules_get_recipe_store_in_tests() -> None:
         "Tests must not use sys.modules.get('recipe_store'). "
         f"Use 'import app.services.recipe_store as rs' instead. Offenders: {offenders}"
     )
+
+
+def test_no_direct_model_submodule_imports() -> None:
+    """Prohibit importing models from submodules - causes duplicate registration.
+
+    ❌ from app.models.plans import WeeklyPlan
+    ❌ from app.models.events import NutritionEvent
+    ✅ from app.models import WeeklyPlan, NutritionEvent
+
+    Reason: Direct submodule imports cause 'Table already defined' errors
+    when modules are imported through different paths.
+    See PR #403 commit 447e39c8 for context.
+    """
+    import re
+
+    offenders: list[str] = []
+    # Pattern: from app.models.(plans|events) import (exclude nutrition which is a data class module)
+    pattern = re.compile(r"from\s+app\.models\.(plans|events)\s+import")
+
+    # Check all Python files except app/models/__init__.py (which does the exports)
+    for path in (
+        list(_iter_py_files("app/**/*.py"))
+        + list(_iter_py_files("core/**/*.py"))
+        + list(_iter_py_files("tests/**/*.py"))
+    ):
+        rel = _rel(path)
+        # Allow the export module itself and this guard file
+        if rel in ("app/models/__init__.py", "tests/test_repo_policy_guards.py"):
+            continue
+
+        content = _read(path)
+        if pattern.search(content):
+            offenders.append(rel)
+
+    assert not offenders, (
+        "Direct model submodule imports forbidden. "
+        "Use 'from app.models import X' instead. "
+        f"Offenders: {offenders}"
+    )

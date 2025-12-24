@@ -22,7 +22,7 @@ from app import app
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
 
@@ -30,7 +30,7 @@ def client():
 class TestVisualizationPaths:
     """Тесты для visualization blocks 668-677, 698-709"""
 
-    def test_bmi_with_matplotlib_available(self, client):
+    def test_bmi_with_matplotlib_available(self, client) -> None:
         """Тест BMI с доступной matplotlib"""
         with patch("app.MATPLOTLIB_AVAILABLE", True):
             with patch("app.generate_bmi_visualization") as mock_viz:
@@ -54,7 +54,7 @@ class TestVisualizationPaths:
                 data = response.json()
                 assert "visualization" in data
 
-    def test_bmi_with_matplotlib_unavailable(self, client):
+    def test_bmi_with_matplotlib_unavailable(self, client) -> None:
         """Тест BMI без matplotlib"""
         with patch("app.MATPLOTLIB_AVAILABLE", False):
             response = client.post(
@@ -76,7 +76,7 @@ class TestVisualizationPaths:
             if "visualization" in data:
                 assert data["visualization"]["available"] is False
 
-    def test_bmi_visualization_error_path(self, client):
+    def test_bmi_visualization_error_path(self, client) -> None:
         """Тест error path в visualization"""
         with patch("app.generate_bmi_visualization") as mock_viz:
             mock_viz.return_value = {"available": False, "error": "Test error"}
@@ -101,7 +101,7 @@ class TestVisualizationPaths:
 class TestPlanEndpointPaths:
     """Тесты для plan endpoint block 750-760"""
 
-    def test_plan_with_all_parameters(self, client):
+    def test_plan_with_all_parameters(self, client) -> None:
         """Тест plan с максимальным набором параметров"""
         response = client.post(
             "/plan",
@@ -123,7 +123,7 @@ class TestPlanEndpointPaths:
         assert data["premium"] is True
         assert "premium_reco" in data
 
-    def test_plan_pregnant_athlete_combination(self, client):
+    def test_plan_pregnant_athlete_combination(self, client) -> None:
         """Тест комбинации беременная + спортсменка"""
         response = client.post(
             "/plan",
@@ -147,7 +147,7 @@ class TestPlanEndpointPaths:
 class TestUtilityFunctionsCoverage:
     """Тесты для utility functions 1566-1595, 1607-1624, 1640-1662"""
 
-    def test_rollback_functionality(self, client):
+    def test_rollback_functionality(self, client) -> None:
         """Тест rollback endpoints"""
         # Тест GET /rollback
         response = client.get("/rollback")
@@ -157,22 +157,22 @@ class TestUtilityFunctionsCoverage:
         response = client.post("/rollback", json={"action": "test"})
         assert response.status_code in [200, 400, 404, 500, 422]
 
-    def test_debug_env_endpoint(self, client):
+    def test_debug_env_endpoint(self, client) -> None:
         """Тест debug_env endpoint"""
         response = client.get("/debug_env")
         assert response.status_code in [200, 500]
 
-    def test_root_endpoint(self, client):
+    def test_root_endpoint(self, client) -> None:
         """Тест root endpoint"""
         response = client.get("/")
         assert response.status_code in [200, 404]
 
-    def test_health_check(self, client):
+    def test_health_check(self, client) -> None:
         """Тест health check если есть"""
         response = client.get("/health")
         assert response.status_code in [200, 404]
 
-    def test_docs_endpoints(self, client):
+    def test_docs_endpoints(self, client) -> None:
         """Тест документации endpoints"""
         endpoints = ["/docs", "/redoc", "/openapi.json"]
         for endpoint in endpoints:
@@ -183,7 +183,7 @@ class TestUtilityFunctionsCoverage:
 class TestAdditionalEndpointsCoverage:
     """Тесты для дополнительных endpoints"""
 
-    def test_v1_bmi_endpoint(self, client):
+    def test_v1_bmi_endpoint(self, client) -> None:
         """Тест v1 BMI endpoint с height_cm"""
         response = client.post(
             "/v1/bmi",
@@ -200,7 +200,7 @@ class TestAdditionalEndpointsCoverage:
 
         assert response.status_code in [200, 404, 422]
 
-    def test_error_simulation_endpoints(self, client):
+    def test_error_simulation_endpoints(self, client) -> None:
         """Тест endpoints с симуляцией ошибок"""
         error_cases = [
             {"weight_kg": -10, "height_m": 1.75},  # Negative weight
@@ -224,7 +224,7 @@ class TestAdditionalEndpointsCoverage:
                 # Should be validation error or handled gracefully
                 assert response.status_code in [200, 400, 422]
 
-    def test_language_edge_cases(self, client):
+    def test_language_edge_cases(self, client) -> None:
         """Тест edge cases для languages"""
         languages = ["en", "ru", "es", "fr", "de", "invalid"]
 
@@ -244,7 +244,7 @@ class TestAdditionalEndpointsCoverage:
                 response = client.post(endpoint, json=request_data)
                 assert response.status_code in [200, 400, 422]
 
-    def test_waist_risk_coverage(self, client):
+    def test_waist_risk_coverage(self, client) -> None:
         """Тест waist risk calculations"""
         waist_cases = [
             {"gender": "male", "waist_cm": 102},  # High risk male
@@ -270,7 +270,7 @@ class TestAdditionalEndpointsCoverage:
 
             assert response.status_code == 200
 
-    def test_age_categories(self, client):
+    def test_age_categories(self, client) -> None:
         """Тест различных возрастных категорий"""
         age_cases = [18, 25, 40, 55, 70, 85]
 
@@ -290,7 +290,7 @@ class TestAdditionalEndpointsCoverage:
 
             assert response.status_code == 200
 
-    def test_premium_combinations(self, client):
+    def test_premium_combinations(self, client) -> None:
         """Тест различных premium combinations"""
         combinations = [
             {"premium": True, "athlete": "yes", "pregnant": "no"},

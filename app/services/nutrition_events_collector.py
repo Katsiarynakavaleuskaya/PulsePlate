@@ -12,7 +12,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.events import NutritionEvent
+from app.models import NutritionEvent
 
 
 @dataclass

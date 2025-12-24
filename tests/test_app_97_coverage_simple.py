@@ -15,7 +15,7 @@ from app import app
 
 @pytest.fixture(scope="session")
 def client() -> TestClient:
-    """Load main.py once per test session and provide TestClient"""
+    """Provide a TestClient configured from the app package."""
     return TestClient(app)
 
 
@@ -31,7 +31,7 @@ def setup_environment():
 class TestImportErrorPaths:
     """Test import error handling paths"""
 
-    def test_import_error_coverage_paths(self):
+    def test_import_error_coverage_paths(self) -> None:
         """Test various import error scenarios to cover lines 12-15, 86-89, etc"""
         # Test import error handling directly
         import sys
@@ -70,7 +70,7 @@ class TestImportErrorPaths:
 class TestPremiumEndpointErrorPaths:
     """Test premium endpoint error handling"""
 
-    def test_enhanced_plate_missing_functions(self, client):
+    def test_enhanced_plate_missing_functions(self, client) -> None:
         """Test enhanced plate endpoint with invalid authentication - expects 404 Not Found"""
         # This should trigger HTTPException for missing functions
         # The endpoint requires authentication, so we test the logic
@@ -90,7 +90,7 @@ class TestPremiumEndpointErrorPaths:
         # Should be 404 (not found) when endpoint is not implemented
         assert response.status_code == 404
 
-    def test_nutrition_insight_missing_functions(self, client):
+    def test_nutrition_insight_missing_functions(self, client) -> None:
         """Test nutrition insight endpoint with invalid authentication - expects 404 Not Found"""
         response = client.post(
             "/nutrition_insight",
@@ -105,7 +105,7 @@ class TestPremiumEndpointErrorPaths:
         )
         assert response.status_code == 404
 
-    def test_macro_recommendation_missing_functions(self, client):
+    def test_macro_recommendation_missing_functions(self, client) -> None:
         """Test macro recommendation endpoint with invalid authentication - expects 404 Not Found"""
         response = client.post(
             "/macro_recommendation",
@@ -125,7 +125,7 @@ class TestPremiumEndpointErrorPaths:
 class TestErrorHandlingAndEdgeCases:
     """Test error handling and edge cases"""
 
-    def test_rate_limiting_paths(self, client):
+    def test_rate_limiting_paths(self, client) -> None:
         """Test rate limiting code paths"""
         # Make multiple requests to potentially trigger rate limiting
         responses = []
@@ -136,7 +136,7 @@ class TestErrorHandlingAndEdgeCases:
         # Should mostly be 200, possibly some 429 (rate limited)
         assert all(code in [200, 404, 429] for code in responses)
 
-    def test_api_key_validation_paths(self, client):
+    def test_api_key_validation_paths(self, client) -> None:
         """Test API key validation error paths"""
         # Test with various invalid API keys
         invalid_keys = ["", "invalid", "x" * 100, None]
@@ -151,7 +151,7 @@ class TestErrorHandlingAndEdgeCases:
             # Should be either 200 (no auth required) or 401/422 (auth error)
             assert response.status_code in [200, 401, 422]
 
-    def test_validation_error_paths(self, client):
+    def test_validation_error_paths(self, client) -> None:
         """Test validation error paths"""
         # Test with invalid data to trigger validation errors
         invalid_data_sets = [
@@ -171,7 +171,7 @@ class TestErrorHandlingAndEdgeCases:
 class TestVIPAndPremiumFeaturePaths:
     """Test VIP and premium feature code paths"""
 
-    def test_vip_module_environment_handling(self):
+    def test_vip_module_environment_handling(self) -> None:
         """Test VIP module environment variable handling"""
         original_env = os.environ.get("VIP_MODULE_ENABLED")
 
@@ -191,7 +191,7 @@ class TestVIPAndPremiumFeaturePaths:
             elif "VIP_MODULE_ENABLED" in os.environ:
                 del os.environ["VIP_MODULE_ENABLED"]
 
-    def test_premium_endpoint_authentication_paths(self, client):
+    def test_premium_endpoint_authentication_paths(self, client) -> None:
         """Test premium endpoint authentication error paths - expects 404 Not Found for unimplemented endpoints"""
         premium_endpoints = [
             "/enhanced_plate",
@@ -214,7 +214,7 @@ class TestVIPAndPremiumFeaturePaths:
 class TestAsyncAndBackgroundTasks:
     """Test async operations and background tasks"""
 
-    def test_scheduler_and_background_tasks(self, client):
+    def test_scheduler_and_background_tasks(self, client) -> None:
         """Test scheduler and background task paths"""
         # Test endpoints that might trigger background tasks
         response = client.get("/health")
@@ -226,7 +226,7 @@ class TestAsyncAndBackgroundTasks:
         response = client.get("/metrics")
         assert response.status_code in [200, 404, 405]
 
-    def test_prometheus_metrics_paths(self, client):
+    def test_prometheus_metrics_paths(self, client) -> None:
         """Test prometheus metrics code paths"""
         # Test metrics collection paths
         response = client.get("/metrics")
@@ -242,7 +242,7 @@ class TestAsyncAndBackgroundTasks:
 class TestComplexDataCombinations:
     """Test complex data combinations to cover more code paths"""
 
-    def test_bmi_endpoint_complex_combinations(self, client):
+    def test_bmi_endpoint_complex_combinations(self, client) -> None:
         """Test BMI endpoint with complex parameter combinations"""
         # Test pregnant + athlete combinations (should trigger validation)
         response = client.post(
@@ -272,7 +272,7 @@ class TestComplexDataCombinations:
         )
         assert response.status_code in [200, 422]
 
-    def test_plan_endpoint_complex_combinations(self, client):
+    def test_plan_endpoint_complex_combinations(self, client) -> None:
         """Test plan endpoint with complex parameter combinations"""
         # Test with multiple diet flags
         response = client.post(
@@ -295,7 +295,7 @@ class TestComplexDataCombinations:
 class TestLanguageAndLocalization:
     """Test language and localization paths"""
 
-    def test_language_handling_paths(self, client):
+    def test_language_handling_paths(self, client) -> None:
         """Test different language handling paths"""
         languages = ["en", "es", "fr", "de", "ru", "invalid_lang"]
 
@@ -313,7 +313,7 @@ class TestLanguageAndLocalization:
             # Should handle language gracefully
             assert response.status_code in [200, 422]
 
-    def test_spanish_localization_paths(self, client):
+    def test_spanish_localization_paths(self, client) -> None:
         """Test Spanish localization specific paths"""
         # Test Spanish language with various combinations
         test_cases = [

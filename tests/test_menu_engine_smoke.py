@@ -25,7 +25,7 @@ def _profile():
     )
 
 
-def test_make_daily_menu_smoke():
+def test_make_daily_menu_smoke() -> None:
     prof = _profile()
     day = make_daily_menu(prof)
     assert day is not None
@@ -33,7 +33,7 @@ def test_make_daily_menu_smoke():
     assert isinstance(day.coverage, dict)
 
 
-def test_make_weekly_menu_smoke():
+def test_make_weekly_menu_smoke() -> None:
     prof = _profile()
     week = make_weekly_menu(prof)
     assert week is not None
@@ -41,7 +41,7 @@ def test_make_weekly_menu_smoke():
     assert hasattr(week, "daily_menus") and len(week.daily_menus) == 7
 
 
-def test_weekly_menu_endpoint_smoke():
+def test_weekly_menu_endpoint_smoke() -> None:
     # Ensure API key is passed (lenient mode accepts any non-trivial key)
     client = TestClient(app)
     payload = {

@@ -27,6 +27,11 @@ class TestPremiumBMRAPI:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
+    def teardown_method(self) -> None:
+        """Cleanup test environment"""
+        os.environ.pop("API_KEY", None)
+        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
+
     def test_premium_bmr_without_bodyfat(self) -> None:
         """Test premium BMR endpoint without bodyfat parameter"""
         # Test without API key - expect 503 or valid response

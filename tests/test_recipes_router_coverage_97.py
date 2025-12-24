@@ -16,11 +16,11 @@ from app import app
 class TestRecipesRouterCoverage97:
     """Тесты для покрытия missing lines в recipes router."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test client."""
         self.client = TestClient(app)
 
-    def test_list_recipes_limit_validation_line_17(self):
+    def test_list_recipes_limit_validation_line_17(self) -> None:
         """Test line 17: limit validation error path."""
         # Test limit > 50
         response = self.client.get("/api/v1/recipes?limit=51")
@@ -32,14 +32,14 @@ class TestRecipesRouterCoverage97:
         assert response.status_code == 422
         assert "limit must be in [1,50]" in response.json()["detail"]
 
-    def test_get_recipe_not_found_line_44(self):
+    def test_get_recipe_not_found_line_44(self) -> None:
         """Test line 44: recipe not found error path."""
         with patch("app.services.recipe_store.get_recipe", return_value=None):
             response = self.client.get("/api/v1/recipes/nonexistent_recipe")
             assert response.status_code == 404
             assert "Recipe not found" in response.json()["detail"]
 
-    def test_get_recipe_success_line_44(self):
+    def test_get_recipe_success_line_44(self) -> None:
         """Test line 44: successful recipe retrieval."""
         mock_recipe = {
             "recipe_id": "test_recipe",
@@ -64,7 +64,7 @@ class TestRecipesRouterCoverage97:
             assert data["recipe_id"] == "test_recipe"
             assert data["title"] == "Test Recipe"
 
-    def test_recipe_preview_servings_validation_line_65(self):
+    def test_recipe_preview_servings_validation_line_65(self) -> None:
         """Test line 65: servings validation error path."""
         payload = {
             "title": "Test Recipe",

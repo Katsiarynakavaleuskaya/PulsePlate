@@ -97,7 +97,7 @@ class TestVIPRouterWorking:
 
             client = TestClient(cast(ASGIApp, app.app))
 
-            # TODO(#TBD): VIP router should return 404 when disabled, not 422
+            # TODO(Sprint-5): VIP router should return 404 when disabled, not 422
             # Currently returns 422 because router is registered but validation runs first
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",

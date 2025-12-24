@@ -15,12 +15,12 @@ from app import app
 class TestExportEndpoints:
     """Test export API endpoints."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
@@ -80,29 +80,25 @@ class TestExportEndpoints:
         # PDF export might fail if ReportLab is not installed, which is expected in test environment
         assert response.status_code in [200, 404, 500, 503]
 
-    def test_export_daily_csv_missing_api_key(self):
+    def test_export_daily_csv_missing_api_key(self) -> None:
         """Test daily CSV export without API key."""
         response = self.client.get("/api/v1/premium/exports/day/test_plan.csv")
-        # Premium export endpoints may require valid API key or might not be registered
-        assert response.status_code in [403, 404]
+        assert response.status_code == 403
 
-    def test_export_weekly_csv_missing_api_key(self):
+    def test_export_weekly_csv_missing_api_key(self) -> None:
         """Test weekly CSV export without API key."""
         response = self.client.get("/api/v1/premium/exports/week/test_plan.csv")
-        # Premium export endpoints may require valid API key or might not be registered
-        assert response.status_code in [403, 404]
+        assert response.status_code == 403
 
-    def test_export_daily_pdf_missing_api_key(self):
+    def test_export_daily_pdf_missing_api_key(self) -> None:
         """Test daily PDF export without API key."""
         response = self.client.get("/api/v1/premium/exports/day/test_plan.pdf")
-        # Premium export endpoints may require valid API key or might not be registered
-        assert response.status_code in [403, 404]
+        assert response.status_code == 403
 
-    def test_export_weekly_pdf_missing_api_key(self):
+    def test_export_weekly_pdf_missing_api_key(self) -> None:
         """Test weekly PDF export without API key."""
         response = self.client.get("/api/v1/premium/exports/week/test_plan.pdf")
-        # Premium export endpoints may require valid API key or might not be registered
-        assert response.status_code in [403, 404]
+        assert response.status_code == 403
 
     def test_export_daily_csv_internal_error(self):
         """Test daily CSV export with internal error."""

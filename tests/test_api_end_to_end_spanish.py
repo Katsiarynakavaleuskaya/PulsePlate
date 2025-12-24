@@ -15,17 +15,17 @@ from app import app
 class TestAPIEndToEndSpanish:
     """Test end-to-end Spanish language support."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_bmi_endpoint_spanish(self):
+    def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""
         # Test BMI calculation with Spanish language
         response = self.client.post(
@@ -52,7 +52,7 @@ class TestAPIEndToEndSpanish:
             or "normal" in result.get("category", "").lower()
         )
 
-    def test_bodyfat_endpoint_spanish(self):
+    def test_bodyfat_endpoint_spanish(self) -> None:
         """Test BodyFat endpoint with Spanish language."""
         # Test BodyFat calculation with Spanish language
         response = self.client.post(
@@ -77,7 +77,7 @@ class TestAPIEndToEndSpanish:
         assert "mediana" in result["labels"].values()
         assert "%" in result["labels"].values()
 
-    def test_plan_endpoint_spanish(self):
+    def test_plan_endpoint_spanish(self) -> None:
         """Test Plan endpoint with Spanish language."""
         # Test Plan calculation with Spanish language
         response = self.client.post(
@@ -102,7 +102,7 @@ class TestAPIEndToEndSpanish:
         # The plan endpoint only supports English and Russian, not Spanish
         assert "Personal plan" in str(result) or "Персональный план" in str(result)
 
-    def test_bmi_pro_endpoint_spanish(self):
+    def test_bmi_pro_endpoint_spanish(self) -> None:
         """Test BMI Pro endpoint with Spanish language."""
         # Test BMI Pro calculation with Spanish language
         response = self.client.post(
@@ -126,7 +126,7 @@ class TestAPIEndToEndSpanish:
         # Check that the response contains Spanish text in the analysis
         # This would depend on the specific implementation of BMI Pro
 
-    def test_all_endpoints_consistency_spanish(self):
+    def test_all_endpoints_consistency_spanish(self) -> None:
         """Test consistency of Spanish language support across all endpoints."""
         # Test data
         test_data = {

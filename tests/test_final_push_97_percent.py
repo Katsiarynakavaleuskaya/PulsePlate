@@ -34,7 +34,7 @@ def client():
 class TestWeeklyPlanningCompleteCoverage:
     """Полное покрытие weekly planning блоков 1265-1339 и 1435-1501"""
 
-    def test_weekly_planning_full_logic_path(self, client):
+    def test_weekly_planning_full_logic_path(self, client, monkeypatch):
         """Покрытие ПОЛНОЙ логики weekly planning (1265-1339)"""
         # Mock make_weekly_menu at the proper module path
         mock_weekly_menu = MagicMock()
@@ -47,34 +47,29 @@ class TestWeeklyPlanningCompleteCoverage:
         mock_weekly_menu.shopping_list = {"milk": "2L", "eggs": "1 dozen"}
         mock_weekly_menu.weekly_coverage = {"protein": 95, "carbs": 88, "fats": 92}
 
-        os.environ["API_KEY"] = "test_key"
-        try:
-            # Patch at the location where it's used, not sys.modules
-            with patch("legacy_app.make_weekly_menu", return_value=mock_weekly_menu):
-                response = client.post(
-                    "/api/v1/premium/plan/week",
-                    headers={"X-API-Key": "test_key"},
-                    json={
-                        "sex": "male",
-                        "age": 30,
-                        "height_cm": 175,
-                        "weight_kg": 75,
-                        "activity": "moderate",
-                        "goal": "maintain",
-                        "deficit_pct": 15,
-                        "surplus_pct": 10,
-                        "bodyfat": 18.0,
-                        "diet_flags": ["vegetarian"],
-                        "life_stage": "adult",
-                    },
-                )
+        monkeypatch.setenv("API_KEY", "test_key")
+        # Patch at the location where it's used, not sys.modules
+        with patch("legacy_app.make_weekly_menu", return_value=mock_weekly_menu):
+            response = client.post(
+                "/api/v1/premium/plan/week",
+                headers={"X-API-Key": "test_key"},
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 175,
+                    "weight_kg": 75,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                    "deficit_pct": 15,
+                    "surplus_pct": 10,
+                    "bodyfat": 18.0,
+                    "diet_flags": ["vegetarian"],
+                    "life_stage": "adult",
+                },
+            )
 
-                # Any of these statuses covers code paths
-                assert response.status_code in [200, 503, 422, 400]
-
-        finally:
-            if "API_KEY" in os.environ:
-                del os.environ["API_KEY"]
+            # Any of these statuses covers code paths
+            assert response.status_code in [200, 503, 422, 400]
 
     def test_weekly_planning_error_paths(self, client):
         """Покрытие error paths в weekly planning (части блоков 1265-1339, 1435-1501)"""

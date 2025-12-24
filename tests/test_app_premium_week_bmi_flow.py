@@ -1,30 +1,26 @@
 from __future__ import annotations
 
-import os
-import sys
 from typing import Dict
-from unittest.mock import patch
 
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
+_app_env_patch = pytest.MonkeyPatch()
+_app_env_patch.setenv("APP_ENV", "test")
+_app_env_patch.setenv("DEBUG", "true")
+
+from app import app
 from app.routers import premium_week
 
+_app_env_patch.undo()
 
-def _get_test_client() -> TestClient:
-    """Get test client with fresh app import."""
-    # Ensure we're in test mode
-    os.environ["APP_ENV"] = "test"
-    os.environ["DEBUG"] = "true"
 
-    # Reload app module to pick up environment changes
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    import app as app_mod
-
-    return TestClient(app_mod.app)
+@pytest.fixture
+def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("DEBUG", "true")
+    return TestClient(app)
 
 
 def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, object]:
@@ -46,10 +42,8 @@ def _make_profile_payload(extra: Dict[str, object] | None = None) -> Dict[str, o
 class TestPremiumWeekPlanEndToEnd:
     """Интеграционные тесты премиального недельного плана."""
 
-    @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-    def test_requires_valid_api_key(self):
+    def test_requires_valid_api_key(self, client) -> None:
         """Без ключа / неверный ключ получаем 401/403."""
-        client = _get_test_client()
         payload = _make_profile_payload()
         response = client.post("/api/v1/premium/plan/week-flexible", json=payload)
         # Without API key, we get 401 (Unauthorized) - but in dev mode with lenient keys
@@ -63,9 +57,7 @@ class TestPremiumWeekPlanEndToEnd:
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-    def test_missing_profile_fields(self):
-        client = _get_test_client()
+    def test_missing_profile_fields(self, client) -> None:
         response = client.post(
             "/api/v1/premium/plan/week-flexible",
             headers={"X-API-Key": "test_pro_key"},
@@ -74,9 +66,7 @@ class TestPremiumWeekPlanEndToEnd:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Missing user profile" in response.text
 
-    @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-    def test_success_profile_flow(self, monkeypatch):
-        client = _get_test_client()
+    def test_success_profile_flow(self, client, monkeypatch) -> None:
         captured = {}
 
         def fake_build_week(targets, diet_flags, lang, fooddb, recipedb):
@@ -105,9 +95,7 @@ class TestPremiumWeekPlanEndToEnd:
         assert captured["targets"]["kcal"] > 0
         assert captured["lang"] == "en"
 
-    @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-    def test_success_explicit_targets(self, monkeypatch):
-        client = _get_test_client()
+    def test_success_explicit_targets(self, client, monkeypatch) -> None:
         recorded = {}
 
         def fake_build_week(targets, diet_flags, lang, fooddb, recipedb):
@@ -158,9 +146,7 @@ class TestPremiumWeekPlanEndToEnd:
         assert recorded["lang"] == "en"
         assert response.json()["daily_menus"][0]["kcal"] == 2500
 
-    @patch.dict(os.environ, {"APP_ENV": "test", "DEBUG": "true"})
-    def test_invalid_macro_values(self):
-        client = _get_test_client()
+    def test_invalid_macro_values(self, client) -> None:
         payload = {
             "targets": {
                 "kcal": 2200,

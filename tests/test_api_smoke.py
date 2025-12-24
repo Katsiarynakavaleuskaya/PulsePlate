@@ -12,16 +12,16 @@ except (ImportError, FileNotFoundError, AttributeError) as exc:  # pragma: no co
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     return TestClient(app)
 
 
-def test_health_ok(client):
+def test_health_ok(client) -> None:
     r = client.get("/health")
     assert r.status_code == 200
 
 
-def test_bmi_smoke_ok(client):
+def test_bmi_smoke_ok(client) -> None:
     r = client.post(
         "/bmi",
         json={
@@ -36,7 +36,7 @@ def test_bmi_smoke_ok(client):
     assert r.status_code == 200
 
 
-def test_v1_bmi_smoke(client):
+def test_v1_bmi_smoke(client) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={
@@ -48,7 +48,7 @@ def test_v1_bmi_smoke(client):
     assert r.status_code in (200, 403)
 
 
-def test_v1_insight_smoke(client):
+def test_v1_insight_smoke(client) -> None:
     # Mock the LLM provider to avoid external dependencies
     with patch("llm.get_provider") as mock_get_provider:
         mock_provider = Mock()
@@ -81,6 +81,6 @@ def test_v1_insight_smoke(client):
             del os.environ["FEATURE_INSIGHT"]
 
 
-def test_metrics_smoke(client):
+def test_metrics_smoke(client) -> None:
     r = client.get("/metrics")
     assert r.status_code == 200
