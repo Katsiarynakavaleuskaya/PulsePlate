@@ -22,8 +22,12 @@
 - Apply tier guards (`require_pro_tier`, VIP) consistently on gated endpoints.
 
 ## Common pitfalls
-- Dual Base issue: avoid relying on module identity across import paths
-  (`app/__init__.py` uses `spec.loader.exec_module`).
+- Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
+  (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
+- `import app` is a PEP 562 shim: `app.app` MUST point to `legacy_app.app`, and
+  missing symbols are forwarded via `__getattr__`.
+- Feature flags (e.g. exports) may be evaluated at import time; tests must set
+  `TESTING=true` before importing `app`/`legacy_app` (handled in `tests/conftest.py`).
 
 ## Feature map
 
@@ -41,3 +45,22 @@
 | Bayesian analyzers | backend | `core/*_bayesian_analyzer.py`, `core/bayes/` | `app/routers/bayes_adherence.py` | `tests/test_bayes_*.py`, `tests/test_bayesian_*.py` | - |
 | Export/reports | backend | `core/exports*.py`, `app/routers/plan_export.py`, `app/routers/shoplist_export.py` | `app/routers/plan_export.py` | `tests/test_exports*.py` | - |
 | LLM integration | backend | `llm.py`, `core/rag/`, `providers/` | `llm.py`, `mcp_pulseplate_server.py` | `tests/test_*rag*.py` | - |
+
+## App Import Hygiene (quick checks)
+Run from repo root.
+
+### No dynamic module loading in app package
+```bash
+git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- app || true
+```
+
+### app shim contract must hold
+```bash
+python - <<'PY'
+import os
+os.environ["TESTING"] = "true"
+import app, legacy_app
+assert app.app is legacy_app.app
+print("OK: app.app is legacy_app.app")
+PY
+```
