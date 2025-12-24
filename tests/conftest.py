@@ -236,24 +236,16 @@ _CACHED_APP_MODULE: ModuleType | None = None
 
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return a stable module instance.
-
-    This fixture depends on setup_test_environment to ensure
-    API_KEY is set before loading the app.
-    """
+    """Import app package and return stable module instance."""
     global _CACHED_APP_MODULE
 
-    repo_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(repo_root))
-
-    # Reuse cached module if we already loaded it (protects against
-    # sys.modules["app"] being removed by other tests).
+    # Reuse cached module if we already loaded it
     if _CACHED_APP_MODULE is not None:
         if "app" not in sys.modules:
             sys.modules["app"] = _CACHED_APP_MODULE
         return _CACHED_APP_MODULE
 
-    # Import app directly (app.py can import from app/ package)
+    # Import app directly (standard import, no sys.path manipulation)
     import app as app_mod
 
     _CACHED_APP_MODULE = app_mod
