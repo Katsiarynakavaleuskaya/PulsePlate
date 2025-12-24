@@ -30,6 +30,38 @@ def test_language_cookie_has_samesite_and_secure_guard() -> None:
     assert "; Secure" in resp.text
 
 
+def test_export_pdf_generic_requires_api_key() -> None:
+    """Security: /api/v1/export/pdf must not be unauthenticated."""
+    client = TestClient(legacy_app.app)
+    resp = client.post("/api/v1/export/pdf", json={"meals": []})
+    assert resp.status_code in {401, 403}
+
+
+def test_export_daily_csv_preserves_503_when_helper_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure 503 helper-missing isn't wrapped into a 500."""
+    client = TestClient(legacy_app.app)
+
+    # Ensure helper resolves to a non-callable, triggering the explicit 503.
+    import app as app_pkg
+
+    monkeypatch.setattr(app_pkg, "to_csv_day", None, raising=False)
+    monkeypatch.setattr(legacy_app, "to_csv_day", None, raising=False)
+
+    resp = client.get("/api/v1/premium/exports/day/test.csv", headers={"x-api-key": "test_key"})
+    assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_aggregate_day_micros_accepts_sync_callable() -> None:
+    """Support sync callable result per contract comment in aggregate_day_micros."""
+    sync_mod = ModuleType("sync_candidate")
+    setattr(sync_mod, "_aggregate_day_micronutrients", lambda _meals: {"iron_mg": 1.0})
+    res = await legacy_app.aggregate_day_micros(meals=[], candidates=[sync_mod])
+    assert res == {"iron_mg": 1.0}
+
+
 def test_legacy_scheduler_stop_wrapper_executes() -> None:
     """Covers the wrapper that delegates to app.scheduler_helpers.resolve_stop_callable."""
     stopper = legacy_app._resolve_stop_callable(pkg=None, alias_pkg=None)
@@ -457,6 +489,10 @@ async def test_export_day_csv_error_paths(monkeypatch: pytest.MonkeyPatch) -> No
     def boom(_: Any) -> bytes:
         raise RuntimeError("boom")
 
+    # Ensure dynamic helper resolution uses our boom() function.
+    import app as app_pkg
+
+    monkeypatch.setattr(app_pkg, "to_csv_day", boom, raising=False)
     monkeypatch.setattr(legacy_app, "to_csv_day", boom, raising=False)
     with pytest.raises(HTTPException) as exc:
         await _call()
@@ -535,8 +571,8 @@ async def test_export_day_csv_helper_missing_503(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(legacy_app, "to_csv_day", None, raising=False)
     with pytest.raises(HTTPException) as exc:
         await legacy_app.export_daily_plan_csv("p1")
-    # NOTE: export_daily_plan_csv wraps errors into 500 for coverage of error handling.
-    assert exc.value.status_code == 500
+    # Preserve the explicit "helper missing" semantics as 503.
+    assert exc.value.status_code == 503
     assert "CSV export helper is not available" in str(exc.value.detail)
 
 

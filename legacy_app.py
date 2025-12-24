@@ -3565,9 +3565,17 @@ async def aggregate_day_micros(
         candidates,
     )
     if callable(_aggregate_func):
-        # Dynamic resolution may return sync or async callable
-        day_micros = await _aggregate_func(meals)  # noqa: PGH003 - dynamic await
-        return day_micros or {}
+        # Dynamic resolution may return sync or async callable.
+        # RU: Поддерживаем оба варианта, чтобы тесты могли подменять sync-функцию.
+        # EN: Support both sync and async callables.
+        result = _aggregate_func(meals)
+        from collections.abc import Awaitable as _Awaitable
+        from typing import cast
+
+        if asyncio.iscoroutine(result) or isinstance(result, _Awaitable):
+            awaited = await cast(_Awaitable[Dict[str, float] | None], result)  # noqa: PGH003
+            return awaited or {}
+        return cast(Dict[str, float] | None, result) or {}
     else:
         logger.warning(
             "premium_plate: _aggregate_day_micronutrients not callable (%s), " "using empty micros",
@@ -4926,10 +4934,17 @@ if EXPORTS_ENABLED:
                 headers={"Content-Disposition": f"attachment; filename=daily_plan_{plan_id}.csv"},
             )
 
+        except HTTPException:
+            # Preserve explicit HTTP errors such as 503 when helper is unavailable
+            raise
         except Exception as e:
+            # Unexpected errors are treated as 500
             raise HTTPException(status_code=500, detail=f"CSV export failed: {str(e)}") from e
 
-    @app.post("/api/v1/export/pdf")
+    @app.post(
+        "/api/v1/export/pdf",
+        dependencies=[Depends(_get_api_key_dynamic)],
+    )
     async def export_pdf_generic(payload: Dict[str, Any]) -> Response:
         """Test/demo only — do not expose in production.
 
