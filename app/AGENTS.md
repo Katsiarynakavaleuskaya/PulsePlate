@@ -37,6 +37,28 @@ If tests import symbols from `app`, update:
 - `tests/test_app_public_surface.py`
 - `tests/test_repo_policy_guards.py` (required exports set)
 
+### Required symbols (forwarded via PEP 562 __getattr__)
+Tests expect these symbols to exist in `app` namespace:
+- `app.app` (FastAPI instance)
+- `resolve_attr`
+- `make_weekly_menu`
+- `build_nutrition_targets`
+- `get_update_scheduler`
+
+### Quick verification
+```bash
+# Check what tests require from app
+rg -n "from app import \(|from app import " tests -S
+rg -n "app\.(build_nutrition_targets|get_update_scheduler|resolve_attr|make_weekly_menu)" tests -S
+
+# Smoke test
+python - <<'PY'
+import app
+need = ["resolve_attr","make_weekly_menu","build_nutrition_targets","get_update_scheduler"]
+print("missing:", [n for n in need if not hasattr(app, n)])
+PY
+```
+
 ## Feature map
 
 | Feature | Owner | Key paths | Entrypoints | Tests | Docs |

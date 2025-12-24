@@ -54,3 +54,13 @@ git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" tests
 
 # All should return empty or only whitelisted files
 ```
+
+### Find violators (excluding guard tests)
+```bash
+# Dynamic imports
+git grep -n "sys\.path\.insert" tests \
+  | grep -vE "conftest\.py|test_test_pro_access_coverage\.py|test_import_hygiene_guard\.py|test_repo_policy_guards\.py"
+
+# Recipe store anti-pattern
+rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_location" tests
+```

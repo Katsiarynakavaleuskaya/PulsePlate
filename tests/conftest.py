@@ -124,10 +124,9 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
             logger.debug(f"Could not remove existing database file: {e}")
 
     # Import all models ONCE to register with Base.metadata
-    # The order matters: core.models first, then app.models
+    # The order matters: core.models first, then app.models package
     import core.models  # noqa: F401
-    import app.models.events  # noqa: F401
-    import app.models.plans  # noqa: F401
+    import app.models  # noqa: F401 - imports all models via __init__.py
 
     db_module_reloaded.init_db()
 

@@ -22,6 +22,12 @@ Do not COPY missing legacy files (e.g., app.py) after refactors.
 
 Verify with:
 ```bash
-grep -n "COPY .*app\.py" Dockerfile
-grep -n "uvicorn" Dockerfile Makefile docker-compose.yaml
+# Check for obsolete app.py copies
+rg -n "COPY .*app\.py|COPY .*legacy_app\.py" Dockerfile
+
+# Verify uvicorn entrypoint
+rg -n "uvicorn\s+app(:|.main:app)|legacy_app" Dockerfile Makefile docker-compose.yaml -S
+
+# Should use app.main:app
+rg -n "app\.main:app" Dockerfile Makefile docker-compose.yaml -S
 ```

@@ -37,6 +37,52 @@ Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
 - RUNBOOK_AGENT.md: greps + CI failure triage
 - tests/test_repo_policy_guards.py: enforced architecture rules
 
+## Fast triage (run these first when things break)
+
+```bash
+# 1. Guard policies (catch import hygiene violations)
+pytest -q tests/test_repo_policy_guards.py
+
+# 2. Fast test smoke (cheap signal, ~10-30s)
+make test-fast
+
+# 3. Lint/format check
+make lint
+
+# 4. First-fail triage (stop after 20 failures to see patterns)
+pytest -q --maxfail=20
+
+# 5. Docker entrypoint sanity
+rg -n "COPY .*app\.py" Dockerfile
+```
+
+## PR #403 specific invariants (Import Hygiene)
+
+### Entrypoint
+- Docker/uvicorn MUST use: `app.main:app`
+- Verify: `rg -n "uvicorn\s+app(:|.main:app)" Dockerfile Makefile docker-compose.yaml`
+
+### Forbidden patterns
+- No dynamic imports in tests/app/core/providers (except whitelisted test files)
+- No sys.path.insert in tests (except conftest.py, test_test_pro_access_coverage.py)
+- No sys.modules mutation anywhere
+
+### ENV-gating order
+- `TESTING=true` MUST be set BEFORE importing app/legacy_app
+- Handled in tests/conftest.py pytest_configure
+
+### Model registration
+- `app/models/__init__.py` MUST export all model classes
+- Verify: `rg -n "from .*\.plans import|__all__" app/models/__init__.py`
+- Both `WeeklyPlan` and `DayPlan` must be in `__all__`
+
+### Public surface contract
+- `app/__init__.py` uses PEP 562 forwarding to `legacy_app`
+- Required symbols: `resolve_attr`, `make_weekly_menu`, `build_nutrition_targets`, `get_update_scheduler`
+- Verify: `python -c "import app; needed=['resolve_attr','make_weekly_menu','build_nutrition_targets','get_update_scheduler']; print('missing:', [n for n in needed if not hasattr(app, n)])"`
+
+### See RUNBOOK_AGENT.md for detailed grep commands
+
 ## Scope and layout
 - This AGENTS.md applies to: repo root and below.
 - Project shape: single project with subfolders; backend is primary product, frontend/ios are clients.

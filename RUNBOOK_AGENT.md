@@ -1,5 +1,11 @@
 # PulsePlate — Agent Runbook (CI Failures)
 
+**Last updated:** 2025-12-24 (PR #403 Import Hygiene)
+
+**What this is:** Quick reference for diagnosing CI failures and import hygiene regressions.
+**When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues.
+**Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
+
 ## 0) Golden Rule
 
 Before editing imports / `__init__` / sys.path / sys.modules:
@@ -14,6 +20,45 @@ pytest -q tests/test_repo_policy_guards.py
 ```
 
 ## 2) PR #403 Specific Checks (Import Hygiene)
+
+### 2.0 SQLAlchemy Model Registration (WeeklyPlan/DayPlan not found)
+
+**Problem:** `expression 'WeeklyPlan' failed to locate a name` → model not registered in ORM.
+
+**A. Where classes are declared:**
+
+```bash
+rg -n "class WeeklyPlan\b|class DayPlan\b" app/models -S
+```
+
+**B. Where DayPlan references WeeklyPlan:**
+
+```bash
+rg -n "relationship\(\s*[\"']WeeklyPlan[\"']" app/models -S
+rg -n "Mapped\[[\"']WeeklyPlan" app/models -S
+```
+
+**C. Model exports (CRITICAL - must export both classes):**
+
+```bash
+rg -n "from app\.models\.plans import|from \.plans import" app/models -S
+sed -n '1,200p' app/models/__init__.py 2>/dev/null || true
+```
+
+**D. Who imports models at startup:**
+
+```bash
+rg -n "import app\.models|from app\.models import|import models" app legacy_app.py app/main.py core -S
+```
+
+**Fix pattern:**
+- Keep `WeeklyPlan` and `DayPlan` in same module with `WeeklyPlan` declared **before** `DayPlan`
+- Export both from `app/models/__init__.py`:
+  ```python
+  from .plans import WeeklyPlan, DayPlan  # noqa: F401
+  __all__ = [..., "WeeklyPlan", "DayPlan"]
+  ```
+- Ensure startup imports `app.models` package (not individual modules)
 
 ### 2.1 Import hygiene regressions (dynamic import / exec_module)
 
@@ -38,12 +83,25 @@ git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- tests \
 git grep -n "sys\.path\.insert" -- tests
 ```
 
+**Exclude allowlist (conftest + guards):**
+
+```bash
+git grep -n "sys\.path\.insert" -- tests \
+  | grep -vE "tests/conftest\.py|tests/test_test_pro_access_coverage\.py|tests/test_import_hygiene_guard\.py|tests/test_repo_policy_guards\.py"
+```
+
 ### 2.3 sys.modules mutation (main source of Dual Base)
 
 **Problem:** `sys.modules["x"]=...` and `del sys.modules["x"]` create separate namespaces.
 
 ```bash
-git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- app core tests providers
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- .
+```
+
+**Only in tests:**
+
+```bash
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests
 ```
 
 ### 2.4 Public surface app package (missing attributes)
@@ -122,11 +180,36 @@ git grep -nE "VIP_ENABLED|VIP_MODULE_ENABLED|FEATURE_VIP" app core legacy_app.py
 **Problem:** Dockerfile copies `app.py` but file was renamed/moved.
 
 ```bash
-grep -n "COPY .*app\.py" Dockerfile
-grep -n "uvicorn" Dockerfile Makefile docker-compose.yaml
+rg -n "COPY .*app\.py|COPY .*legacy_app\.py" Dockerfile
+rg -n "uvicorn\s+app(:|\.main:app)|legacy_app" Dockerfile Makefile docker-compose.yaml -S
 ```
 
-**Expected:** `app.main:app` (or current canonical entrypoint).
+**Check entrypoint matches canonical:**
+
+```bash
+rg -n "app\.main:app" Dockerfile Makefile docker-compose.yaml -S
+```
+
+**Expected:** `app.main:app` (current canonical entrypoint, not `legacy_app:app`).
+
+### 2.9 Fast triage - top failure patterns
+
+**When CI shows many failures, extract first 50:**
+
+```bash
+pytest -q --maxfail=50
+```
+
+**Build error frequency histogram:**
+
+```bash
+pytest -q --maxfail=200 2>&1 | rg -o "E\s+[A-Za-z_]+Error|sqlalchemy\.[A-Za-z_]+" | sort | uniq -c | sort -nr | head -30
+```
+
+This reveals patterns like:
+- `NoForeignKeysError` → model relationship issue
+- `InvalidRequestError: Table already defined` → duplicate model registration
+- `AttributeError: module 'app' has no attribute` → missing public surface export
 
 ---
 

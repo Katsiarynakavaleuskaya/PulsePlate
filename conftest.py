@@ -7,7 +7,6 @@ import os
 import signal
 import sys
 import pytest
-import importlib.util
 from pathlib import Path
 from fastapi.testclient import TestClient
 from typing import cast, Iterator
@@ -103,25 +102,8 @@ def pytest_configure(config: pytest.Config) -> None:
     # Import User model to ensure it's registered with SQLAlchemy
     from core.models import User  # noqa: F401
 
-    # CRITICAL: Reload app.models.* BEFORE importing to ensure they use the reloaded core.db.Base
-    # This prevents dual-Base issues after core.db reload
-    for model_module in ["app.models.events", "app.models.plans"]:
-        if model_module in sys.modules:
-            importlib.reload(sys.modules[model_module])
-        else:
-            # Import for the first time to trigger registration
-            try:
-                importlib.import_module(model_module)
-            except ImportError:
-                pass  # Module may not exist in all branches
-
-    # Import app models AFTER reload to ensure they're registered with Base.metadata
-    # This must happen in pytest_configure which runs before fixtures
-    try:
-        from app.models.events import NutritionEvent  # noqa: F401
-        from app.models.plans import DayPlan, WeeklyPlan  # noqa: F401
-    except ImportError:
-        pass  # Models may not exist in all branches
+    # NOTE: Model imports and reloads are now handled by tests/conftest.py configure_sqlite_database
+    # to avoid duplicate table registration. Root conftest only imports core.models for basic setup.
 
     # Initialize database schema
     try:
