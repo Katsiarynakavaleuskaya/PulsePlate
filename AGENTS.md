@@ -135,6 +135,30 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
   Import hygiene guards prevent regression.
 
+## Duplicate modules / imports policy (critical)
+
+### Hard rules
+- There must be exactly ONE FastAPI app instance used by runtime and tests.
+  - Entrypoint: `app.main:app`
+  - `app/__init__.py` is a shim only (no dynamic loading).
+
+- Forbidden patterns (cause namespace duplication / Dual Base):
+  - `importlib.util.spec_from_file_location`
+  - `importlib.util.module_from_spec`
+  - `spec.loader.exec_module`
+  - `sys.path.insert(...)`
+  - mutating `sys.modules[...] = ...` (except explicitly whitelisted guard cases)
+
+### Source of truth
+- Domain logic → `core/`
+- FastAPI layer → `app/routers/` (thin)
+- Storage adapters → `app/services/` (thin wrappers calling `core/`)
+- Legacy entrypoint → `legacy_app.py` (compat only; no new features here)
+
+### If you see duplicate behavior
+- Do NOT copy logic into a second place.
+- Move shared logic into `core/` and call it from both sides.
+
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 
 ### Goal

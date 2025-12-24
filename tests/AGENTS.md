@@ -57,6 +57,27 @@ If tempted to:
 - If a test imports symbols from `app`,
   a guard-test must assert their presence.
 
+## No namespace duplication in tests (xdist stability)
+
+### Forbidden in tests
+- Dynamic module loading:
+  - `spec_from_file_location`, `module_from_spec`, `exec_module`
+- Path hacks:
+  - `sys.path.insert`
+- Module injection:
+  - `sys.modules[...] = ...`, `del sys.modules[...]`
+
+### Allowed exceptions (must be whitelisted)
+- `tests/conftest.py`
+- `tests/test_test_pro_access_coverage.py`
+- `tests/test_ensure_database_versions.py`
+
+### Required import pattern
+- Import production modules by package path:
+  - ✅ `import app.services.recipe_store as recipe_store`
+  - ✅ `from app import app`
+  - ❌ never load `app/services/X.py` by file path
+
 ### Import hygiene exceptions (intentional)
 Dynamic imports allowed only for script-style tests:
 - `tests/test_test_pro_access_coverage.py`

@@ -30,6 +30,13 @@
 If a test fails due to typing:
 → the test setup or import order is wrong, not the core type hints.
 
+## Single source of truth (core)
+
+- Business rules live in `core/`.
+- If a function exists in `legacy_app.py` and is used by multiple places:
+  - extract it into `core/` and keep a thin wrapper in legacy/app.
+- Never duplicate rules in both `core/` and `app/` (tests must enforce this).
+
 - **Single SQLAlchemy Base rule**:
   All ORM models MUST import `Base` from `core.db`.
   Never create a local `declarative_base()` in models or analyzers.

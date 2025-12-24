@@ -21,6 +21,12 @@
 - Keep API schema changes in sync with `app/schemas/` and tests.
 - Apply tier guards (`require_pro_tier`, VIP) consistently on gated endpoints.
 
+## No duplicated business logic (app vs core)
+
+- Routers and services must not re-implement domain logic.
+- If logic is needed in multiple endpoints, put it into `core/` and call it.
+- `legacy_app.py` is compatibility-only: do not add new behavior there unless it is purely shim/bridge.
+
 ## Common pitfalls
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
