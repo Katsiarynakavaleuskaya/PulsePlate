@@ -115,6 +115,14 @@ PY
 - Prefer package imports: `import app.services.X as X`, not file loading.
 - Do not move sys.path hacks into conftest; localize any script-only needs to the specific test file.
 
+### 8) Scripts must not use dynamic imports for app internals
+```bash
+git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || true
+```
+- `scripts/` may use `sys.path.insert` for standalone CLI only
+- Scripts must NOT create `Base` or manipulate SQLAlchemy metadata
+- Direct imports from `core`/`app` are allowed if using standard package imports
+
 ## Links to module instructions
 - `app/AGENTS.md`
 - `core/AGENTS.md`
