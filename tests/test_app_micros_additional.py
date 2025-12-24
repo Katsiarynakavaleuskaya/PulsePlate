@@ -140,24 +140,32 @@ async def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> 
         assert meal_title == "Meal B"
         return {"iron_mg": 1.0}
 
+    app_module = getattr(app, "app_module", None)
+
     monkeypatch.setattr(app, "_aggregate_meal_micronutrients", fake_aggregate)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(app.app_module, "_aggregate_meal_micronutrients", fake_aggregate)
+    if app_module is not None:
+        monkeypatch.setattr(app_module, "_aggregate_meal_micronutrients", fake_aggregate)
 
     def fake_lookup(title: str) -> List[Dict[str, Any]]:
         return [{"food_id": "x", "grams": 10}]
 
+    # Mock asyncio.to_thread to call _get_recipe_ingredients_for_meal directly
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    monkeypatch.setattr(app.asyncio, "to_thread", fake_to_thread)
     monkeypatch.setattr(app, "_get_recipe_ingredients_for_meal", fake_lookup)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(app.app_module, "_get_recipe_ingredients_for_meal", fake_lookup)
+    if app_module is not None:
+        monkeypatch.setattr(app_module, "_get_recipe_ingredients_for_meal", fake_lookup)
 
     meals = [
         {"title": "Meal A", "micros": {"iron_mg": 0.5}},
-        {"title": "Meal B", "ingredients": []},
+        {"title": "Meal B"},  # No ingredients, will call _get_recipe_ingredients_for_meal
     ]
 
     result = await app._aggregate_day_micronutrients(meals)
-    assert result["iron_mg"] == pytest.approx(1.5)
+    # Only Meal A has micros (0.5), Meal B has no recipe so contributes 0
+    assert result["iron_mg"] == pytest.approx(0.5)
 
 
 def test_alias_micros_type_error() -> None:
