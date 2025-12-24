@@ -103,13 +103,19 @@ def pytest_configure(config: pytest.Config) -> None:
     # Import User model to ensure it's registered with SQLAlchemy
     from core.models import User  # noqa: F401
 
-    # Reload app.models.* to ensure they use the reloaded core.db.Base
+    # CRITICAL: Reload app.models.* BEFORE importing to ensure they use the reloaded core.db.Base
     # This prevents dual-Base issues after core.db reload
     for model_module in ["app.models.events", "app.models.plans"]:
         if model_module in sys.modules:
             importlib.reload(sys.modules[model_module])
+        else:
+            # Import for the first time to trigger registration
+            try:
+                importlib.import_module(model_module)
+            except ImportError:
+                pass  # Module may not exist in all branches
 
-    # Import app models BEFORE init_db to ensure they're registered with Base.metadata
+    # Import app models AFTER reload to ensure they're registered with Base.metadata
     # This must happen in pytest_configure which runs before fixtures
     try:
         from app.models.events import NutritionEvent  # noqa: F401

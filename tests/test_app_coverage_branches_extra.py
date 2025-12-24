@@ -38,7 +38,7 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
     # Null out all visible locations so wrappers raise ImportError deterministically
     for module in (
         app,
-        app.app_module,
+        getattr(app, "app_module", None),
         sys.modules.get("app_module"),
     ):
         if module is not None:
@@ -49,7 +49,7 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
     for module in (
         app,
-        app.app_module,
+        getattr(app, "app_module", None),
         sys.modules.get("app_module"),
     ):
         if module is not None:

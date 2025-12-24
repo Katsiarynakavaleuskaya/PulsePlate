@@ -7,16 +7,12 @@ to legacy_app, ensuring `import app` works exactly as before the refactor.
 from __future__ import annotations
 
 import sys
-from typing import Any
+from typing import Any, Optional
 
 import legacy_app as _legacy
 
 # CRITICAL: app instance MUST be from legacy_app (routes are registered there)
 app = _legacy.app
-
-# Legacy compatibility aliases
-app_module = _legacy  # Tests expect this alias
-_mod = _legacy  # Fallback tests expect this
 
 # Explicit re-exports for IDE/static analysis (optional but helpful)
 from core.utils import resolve_attr
@@ -24,6 +20,8 @@ from core.menu_engine import make_weekly_menu
 from core.recommendations import build_nutrition_targets
 
 # Optional visualization (safe import)
+MATPLOTLIB_AVAILABLE: bool
+generate_bmi_visualization: Optional[Any]
 try:
     from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 except ImportError:

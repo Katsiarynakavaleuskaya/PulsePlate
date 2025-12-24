@@ -37,7 +37,7 @@ class WeeklyPlan(Base):
 
     # Relationships
     day_plans: Mapped[list["DayPlan"]] = relationship(
-        "DayPlan", back_populates="weekly_plan", cascade="all"
+        lambda: DayPlan, back_populates="weekly_plan", cascade="all"
     )
 
     __table_args__ = (CheckConstraint("start_date <= end_date", name="ck_weekly_plan_date_order"),)
@@ -70,7 +70,7 @@ class DayPlan(Base):
 
     # Relationships
     weekly_plan: Mapped["WeeklyPlan | None"] = relationship(
-        "WeeklyPlan", back_populates="day_plans"
+        lambda: WeeklyPlan, back_populates="day_plans"
     )
 
     __table_args__ = (UniqueConstraint("user_id", "date", name="uq_day_plans_user_date"),)
