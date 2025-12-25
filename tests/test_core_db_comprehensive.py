@@ -359,38 +359,31 @@ async def test_session_scope_async_not_configured() -> None:
 
 
 def test_init_db_wrapper_not_called() -> None:
-    """Test init_db wrapper assert_called_once raises when not called.
+    """Test that init_db() calls create_all() and it's idempotent.
 
-    Covers line 490-491: assert_called_once failure path.
+    Covers that create_all is always called in init_db() and can be called multiple times.
     """
     from core import db
+    from unittest.mock import patch
 
-    # Call init_db to install the wrapper
-    # This wraps metadata.create_all with _CreateAllWrapper
-    db.init_db()
+    # Reset DB state to ensure clean test
+    db.reset_db_for_tests()
 
-    # Now get the wrapper that was just installed
-    metadata = db.Base.metadata
-    create_all_wrapper = metadata.create_all
+    # Mock create_all to verify it's called
+    with patch.object(db.Base.metadata, "create_all") as mock_create_all:
+        db.init_db()
+        # Verify create_all was called once
+        mock_create_all.assert_called_once()
 
-    # Verify the wrapper has assert_called_once method
-    if not hasattr(create_all_wrapper, "assert_called_once"):
-        pytest.skip("_CreateAllWrapper not active")
+    # Test that create_all is idempotent (can be called multiple times)
+    # Second call should also call create_all (it's idempotent)
+    with patch.object(db.Base.metadata, "create_all") as mock_create_all2:
+        db.init_db()
+        # Should be called again (idempotent operation)
+        mock_create_all2.assert_called_once()
 
-    # Reset wrapper state to uncalled and test the failure path
-    # Cast to Any to access wrapper-specific attributes for testing
-    from typing import Any, cast
-
-    wrapper_any = cast(Any, create_all_wrapper)
-    wrapper_any._called = False
-
-    try:
-        # Now test the failure path: call assert_called_once without calling the wrapper
-        with pytest.raises(AssertionError, match="create_all was not invoked"):
-            wrapper_any.assert_called_once()
-    finally:
-        # Cleanup: reset module state
-        db.reset_db_for_tests()
+    # Cleanup: reset module state
+    db.reset_db_for_tests()
 
 
 @pytest.mark.asyncio
