@@ -721,9 +721,6 @@ def init_db(database_url: str | None = None) -> "Engine":
     # Import models lazily so Base metadata is populated before create_all is called.
     import core.models  # noqa: F401  # pylint: disable=unused-import
 
-    metadata = Base.metadata
-    create_all = metadata.create_all
-
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
     # Get current URL from environment or use provided URL
@@ -777,25 +774,6 @@ def init_db(database_url: str | None = None) -> "Engine":
                 _RAW_ENGINE = new_engine
                 SessionLocal = new_session_local
 
-    # Wrap create_all in a callable object with an assert_called_once helper,
-    # avoiding dynamic attribute assignment on a plain function (type checkers-friendly).
-    class _CreateAllWrapper:
-        def __init__(self, fn):
-            self._fn = fn
-            self._called = False
-
-        def __call__(self, *args, **kwargs):
-            self._called = True
-            return self._fn(*args, **kwargs)
-
-        def assert_called_once(self) -> None:
-            if not self._called:
-                raise AssertionError("create_all was not invoked")
-
-    # Respect existing create_all that already exposes assert_called_once (e.g., tests)
-    if not hasattr(create_all, "assert_called_once"):
-        setattr(metadata, "create_all", _CreateAllWrapper(create_all))
-
     # Use the raw SQLAlchemy engine to avoid any potential wrapper interference
     # At this point _RAW_ENGINE is guaranteed to be initialized by the logic above
     if _RAW_ENGINE is None:
@@ -804,7 +782,7 @@ def init_db(database_url: str | None = None) -> "Engine":
     # RU: create_all() вызываем всегда при init_db(); операция идемпотентна.
     # EN: Always call create_all() on init_db(); this is idempotent.
     # This ensures tables are created even if engine was reused from previous init_db() call.
-    metadata.create_all(bind=_RAW_ENGINE)
+    Base.metadata.create_all(bind=_RAW_ENGINE)
 
     return _RAW_ENGINE
 
