@@ -8,6 +8,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from module_purge import purge_modules
+
 # client fixture is provided by conftest.py
 
 
@@ -217,11 +219,9 @@ def test_insight_import_failure(client):
     failing_llm_module = MagicMock()
     failing_llm_module.__name__ = "llm"
 
-    # Remove module from sys.modules to make llm import fail
-    # This simulates the import failure without using conditionals
-    original_module = sys.modules.get("llm")
-    if "llm" in sys.modules:
-        del sys.modules["llm"]
+    # Remove module from sys.modules to make llm import fail (use controlled purge).
+    original_modules = dict(sys.modules)
+    purge_modules(prefixes=("llm",))
 
     try:
 
@@ -239,9 +239,8 @@ def test_insight_import_failure(client):
 
         _test_app_import_with_assertions(original_app, test_assertions)
     finally:
-        # Restore original module if it existed
-        if original_module is not None:
-            sys.modules["llm"] = original_module
+        sys.modules.clear()
+        sys.modules.update(original_modules)
 
 
 @patch("llm.get_provider")

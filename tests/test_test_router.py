@@ -2,6 +2,7 @@
 
 import pytest
 from datetime import datetime
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import os
@@ -9,7 +10,7 @@ import os
 from module_purge import purge_modules
 
 
-def _import_fresh_app():
+def _import_fresh_app() -> FastAPI:
     """Import FastAPI app after clearing cached modules.
 
     RU: Импортируем app после очистки кэша модулей, чтобы учесть переменные окружения.
@@ -20,12 +21,17 @@ def _import_fresh_app():
     # all of its submodules. That can leave a half-loaded state where `app.models.*`
     # is still loaded while `app` is re-imported, which then causes SQLAlchemy model
     # redefinition ("Table already defined") later in the suite.
-    purge_modules(
-        # Important: do NOT purge legacy_app. `app/__init__.py` caches legacy_app via lru_cache,
-        # and purging legacy_app would create a split-brain state where `import legacy_app`
-        # re-imports a new module while `app` still points to the cached old one.
-        prefixes=("app.main", "app.routers.test"),
-    )
+    purge_modules(prefixes=("app.main", "app.routers.test"))
+
+    # IMPORTANT:
+    # `legacy_app` decides whether to include the test router at import time, based on env.
+    # In CI, it may already be imported under a different APP_ENV/ENABLE_TEST_ROUTES state.
+    # Reloading re-reads env and re-wires routers without mutating sys.modules.
+    import importlib
+
+    import legacy_app
+
+    importlib.reload(legacy_app)
 
     from app import app
 

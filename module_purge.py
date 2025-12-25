@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""
+Test-only helper: controlled sys.modules purging.
+
+We intentionally mutate sys.modules here to avoid half-loaded import states in tests.
+This is an approved exception for CI stability; protected prefixes are excluded by default.
+"""
+
 import sys
 from collections.abc import Iterable
 
