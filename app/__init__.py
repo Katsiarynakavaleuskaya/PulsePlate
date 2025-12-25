@@ -14,17 +14,29 @@ import sys
 from functools import lru_cache
 from typing import Any, Optional
 
-from core.menu_engine import make_weekly_menu
-from core.recommendations import build_nutrition_targets
-from core.utils import resolve_attr
-
-# Optional visualization (safe import)
+# Optional visualization (safe import with aliases)
 MATPLOTLIB_AVAILABLE: bool = False
 generate_bmi_visualization: Optional[Any] = None
 try:
-    from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
+    from bmi_visualization import (
+        MATPLOTLIB_AVAILABLE as _MPL_OK,
+        generate_bmi_visualization as _gen_viz,
+    )
+
+    MATPLOTLIB_AVAILABLE = _MPL_OK
+    generate_bmi_visualization = _gen_viz
 except ImportError:
     pass
+
+# Local explicit re-exports (lazy-loaded to avoid import-time side effects)
+# RU: Ленивые ре-экспорты из core.*, чтобы не тянуть БД/модели на import-time.
+# EN: Lazy re-exports from core.* to avoid pulling DB/models at import-time.
+_LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
+    # name: (module, attr)
+    "resolve_attr": ("core.utils", "resolve_attr"),
+    "make_weekly_menu": ("core.menu_engine", "make_weekly_menu"),
+    "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
+}
 
 
 @lru_cache(maxsize=1)
@@ -43,6 +55,15 @@ def _legacy() -> Any:
 
 
 def __getattr__(name: str) -> Any:
+    """Resolve attribute lazily from local exports or legacy_app.
+
+    RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
+    EN: First check local re-exports (core.*), then fall back to legacy_app.
+    """
+    if name in _LOCAL_EXPORTS:
+        mod_name, attr = _LOCAL_EXPORTS[name]
+        mod = importlib.import_module(mod_name)
+        return getattr(mod, attr)
     return getattr(_legacy(), name)
 
 
