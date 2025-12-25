@@ -18,54 +18,33 @@ class TestImportErrorPaths:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_prometheus_import_error_path(self) -> None:
+    def test_prometheus_import_error_path(self, monkeypatch) -> None:
         """Тест import error для prometheus_client (строки 12-15)"""
-        # Временно удаляем prometheus_client из sys.modules
-        original_modules = sys.modules.copy()
+        # IMPORTANT: do not mutate sys.modules directly; use monkeypatch so pytest
+        # automatically restores state after the test (repo rule after #406).
+        prometheus_modules = [
+            name for name in list(sys.modules.keys()) if name.startswith("prometheus_client")
+        ]
+        for name in prometheus_modules:
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
-        # Удаляем prometheus_client если он был импортирован
-        prometheus_modules = [m for m in sys.modules if m.startswith("prometheus_client")]
-        for mod in prometheus_modules:
-            del sys.modules[mod]
-
+        # This mirrors the main.py fallback behavior:
+        # - if prometheus_client is available, import succeeds
+        # - otherwise ImportError -> sentinel variables set to None
         try:
-            # Теперь симулируем ImportError при попытке импорта prometheus_client
-            original_module = sys.modules.get("prometheus_client")
-            if "prometheus_client" in sys.modules:
-                del sys.modules["prometheus_client"]
-            try:
-                # Этот код должен обработать ImportError и установить переменные в None
-                try:
-                    from prometheus_client import Counter, Histogram, generate_latest
+            from prometheus_client import Counter, Histogram, generate_latest
 
-                    # Если импорт успешен, это нормально
-                    assert Counter is not None
-                except ImportError:
-                    # Устанавливаем None как в коде main.py
-                    counter_cls = None
-                    histogram_cls = None
-                    generate_latest_func = None
+            assert Counter is not None
+            assert Histogram is not None
+            assert generate_latest is not None
+        except ImportError:
+            counter_cls = None
+            histogram_cls = None
+            generate_latest_func = None
 
-                    # Проверяем что переменные установлены в None
-                    assert counter_cls is None
-                    assert histogram_cls is None
-                    assert generate_latest_func is None
-            finally:
-                # Restore original module if it existed
-                if original_module is not None:
-                    sys.modules["prometheus_client"] = original_module
-                elif "prometheus_client" in sys.modules:
-                    del sys.modules["prometheus_client"]
-
-        finally:
-            # Restore only the modules we touched; do NOT clear sys.modules globally,
-            # otherwise later tests may see split-brain imports (dual Base / model redefinition).
-            for name in list(sys.modules.keys()):
-                if name.startswith("prometheus_client"):
-                    sys.modules.pop(name, None)
-            for name, mod in original_modules.items():
-                if name.startswith("prometheus_client"):
-                    sys.modules[name] = mod
+            assert counter_cls is None
+            assert histogram_cls is None
+            assert generate_latest_func is None
 
 
 class TestVIPRouterImportPath:

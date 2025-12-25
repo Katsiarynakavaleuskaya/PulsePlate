@@ -22,61 +22,37 @@ class TestImportFallbacks:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_grok_import_exception_coverage(self):
+    def test_grok_import_exception_coverage(self, monkeypatch):
         """Тест покрытия GrokLiteProvider при ошибке импорта providers.grok"""
-        # Сохраняем оригинальные модули
-        original_modules = sys.modules.copy()
+        # IMPORTANT: do not mutate sys.modules directly; use monkeypatch so pytest
+        # automatically restores state after the test (repo rule after #406).
+        provider_modules = [
+            name for name in list(sys.modules.keys()) if name.startswith("providers")
+        ]
+        for name in provider_modules:
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
-        try:
-            # Удаляем модули провайдеров если они загружены
-            modules_to_remove = [
-                name for name in sys.modules.keys() if name.startswith("providers")
-            ]
-            for mod_name in modules_to_remove:
-                del sys.modules[mod_name]
+        original_import = builtins.__import__
 
-            # Мокаем импорт providers.grok чтобы вызвать исключение
-            # Remove module from sys.modules to simulate it's not available
-            original_module = sys.modules.get("providers.grok")
-            if "providers.grok" in sys.modules:
-                del sys.modules["providers.grok"]
-            try:
-                original_import = builtins.__import__
+        def side_effect(name, *args, **kwargs):
+            if "providers.grok" in name:
+                raise ImportError("No module named providers.grok")
+            return original_import(name, *args, **kwargs)
 
-                def side_effect(name, *args, **kwargs):
-                    if "providers.grok" in name:
-                        raise ImportError("No module named providers.grok")
-                    return original_import(name, *args, **kwargs)
-
-                with patch("builtins.__import__", side_effect=side_effect):
-                    # Перезагружаем модуль llm чтобы активировать except блок
-                    if "llm" in sys.modules:
-                        reload(llm)
-
-                    # Теперь GrokLiteProvider должен быть доступен
-                    assert hasattr(llm, "GrokLiteProvider")
-
-                    # Тестируем создание и использование GrokLiteProvider
-                    provider = llm.GrokLiteProvider()
-                    assert provider.name == "grok"
-            finally:
-                # Restore original module
-                if original_module is not None:
-                    sys.modules["providers.grok"] = original_module
-                elif "providers.grok" in sys.modules:
-                    del sys.modules["providers.grok"]
-
-        finally:
-            # Restore only the modules we touched; do NOT clear sys.modules globally,
-            # otherwise later tests may see split-brain imports (dual Base / model redefinition).
-            for name in list(sys.modules.keys()):
-                if name.startswith("providers"):
-                    sys.modules.pop(name, None)
-            for name, mod in original_modules.items():
-                if name.startswith("providers"):
-                    sys.modules[name] = mod
-            # Reload llm back to a stable baseline.
+        with patch("builtins.__import__", side_effect=side_effect):
+            # Перезагружаем модуль llm чтобы активировать except блок
             reload(llm)
+
+            # Теперь GrokLiteProvider должен быть доступен
+            assert hasattr(llm, "GrokLiteProvider")
+
+            # Тестируем создание и использование GrokLiteProvider
+            provider = llm.GrokLiteProvider()
+            assert provider.name == "grok"
+
+        # Восстанавливаем "стабильную" версию llm после теста.
+        # sys.modules будет восстановлен pytest monkeypatch автоматически.
+        reload(llm)
 
     @pytest.mark.asyncio
     async def test_grok_lite_provider_generate_coverage(self):
