@@ -34,10 +34,23 @@ def reload_db_with_cleanup(
     # Provide the db module to tests
     yield db
 
-    # Cleanup: restore original state
+    # Cleanup: dispose engines but do NOT reset SessionLocal
+    # reset_db_for_tests() sets SessionLocal = None, which breaks other tests
+    # that expect SessionLocal to be available after this fixture completes.
     try:
-        # Reset module state
-        db.reset_db_for_tests()
+        # Dispose engines to clean up connections
+        if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
+            try:
+                db._RAW_ENGINE.dispose()
+            except Exception:
+                pass  # Best-effort cleanup
+        if hasattr(db, "engine") and db.engine is not None:
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass  # Best-effort cleanup
+        # Do NOT call reset_db_for_tests() - it sets SessionLocal = None
+        # and breaks subsequent tests that expect DB to be initialized
     finally:
         # Restore original DATABASE_URL
         if original_db_url is None:
