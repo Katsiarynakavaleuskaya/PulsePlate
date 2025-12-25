@@ -544,6 +544,8 @@ def _get_async_engine() -> Optional["AsyncEngine"]:
 
     RU: Возвращает singleton async engine, создавая его лениво при первом использовании.
     EN: Returns singleton async engine, creating it lazily on first use.
+
+    Recreates the engine if DATABASE_ASYNC_URL changes (critical for pytest-xdist workers).
     """
     global _ASYNC_ENGINE, AsyncSessionLocal, async_engine
 
@@ -551,11 +553,31 @@ def _get_async_engine() -> Optional["AsyncEngine"]:
     if async_url is None:
         return None
 
-    if _ASYNC_ENGINE is None:
+    # Check if engine needs to be recreated (None or URL changed)
+    # Mirror sync engine behavior for xdist safety
+    current_engine = _ASYNC_ENGINE
+    current_url = None if current_engine is None else str(current_engine.url)
+    needs_new = current_engine is None or current_url != async_url
+
+    if needs_new:
         with _ASYNC_INIT_LOCK:
-            if _ASYNC_ENGINE is None:  # pragma: no branch
+            # Re-check under lock to prevent race conditions
+            current_engine = _ASYNC_ENGINE
+            current_url = None if current_engine is None else str(current_engine.url)
+            if current_engine is None or current_url != async_url:
                 if create_async_engine is None or async_sessionmaker is None:
                     return None
+
+                # Dispose old engine if URL changed (release file locks, connections)
+                if _ASYNC_ENGINE is not None:
+                    try:
+                        # AsyncEngine.dispose() is async, but we're in sync context
+                        # Use sync_engine for disposal in sync context
+                        _ASYNC_ENGINE.sync_engine.dispose()
+                        logger.debug("Disposed old async engine (URL changed)")
+                    except Exception as exc:
+                        logger.debug("Async engine dispose failed: %s", exc)
+
                 try:
                     async_kwargs: dict[str, Any] = {
                         "echo": False,
