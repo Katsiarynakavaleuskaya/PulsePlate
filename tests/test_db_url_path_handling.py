@@ -83,11 +83,4 @@ def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> Non
             )
         finally:
             # Cleanup - restore original state
-            if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
-                try:
-                    db._RAW_ENGINE.dispose()
-                    db._RAW_ENGINE = None
-                    db.SessionLocal = None
-                except Exception:
-                    # Ignore cleanup errors to preserve original assertion context
-                    pass
+            db.reset_db_for_tests()
