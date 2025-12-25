@@ -5,7 +5,7 @@ import legacy_app
 def test_is_missing_nh3_error_detects_module_not_found() -> None:
     exc = ModuleNotFoundError("No module named 'nh3'")
     # Ensure the `name` attribute is set (covers legacy_app getattr(exc, "name") path).
-    exc.name = "nh3"  # type: ignore[attr-defined]
+    exc.name = "nh3"
     assert legacy_app._is_missing_nh3_error(exc) is True
 
 
@@ -29,6 +29,17 @@ def test_is_missing_nh3_error_detects_same_named_error_class() -> None:
             super().__init__(message)
 
     exc = MissingOptionalDependencyError("Optional dependency 'nh3' is required.")
+    assert legacy_app._is_missing_nh3_error(exc) is True
+
+
+def test_is_missing_nh3_error_detects_same_named_error_class_by_dependency_attr() -> None:
+    # Simulate split-class scenario where the exception carries the dependency attribute.
+    class MissingOptionalDependencyError(RuntimeError):
+        def __init__(self, dependency: str) -> None:
+            super().__init__(f"Optional dependency '{dependency}' is required")
+            self.dependency = dependency
+
+    exc = MissingOptionalDependencyError("nh3")
     assert legacy_app._is_missing_nh3_error(exc) is True
 
 

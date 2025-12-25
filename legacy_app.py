@@ -3539,22 +3539,27 @@ def _is_missing_nh3_error(err: BaseException) -> bool:
         # RU: В CI иногда отсутствующая опциональная зависимость проявляется как обычный
         # ImportError/ModuleNotFoundError (а не как наш MissingOptionalDependencyError).
         # EN: In CI, a missing optional dependency can surface as ImportError/ModuleNotFoundError.
-        if isinstance(exc, ModuleNotFoundError):
-            if getattr(exc, "name", None) == "nh3":
-                return True
-        if isinstance(exc, ImportError):
-            msg = str(exc)
-            # Conservative match: only treat as nh3-missing if message explicitly mentions nh3.
-            if "nh3" in msg:
-                return True
-        # NOTE:
-        # In some CI/test flows, the same class may be imported twice (e.g. via reload),
-        # producing distinct class objects. Use class-name duck typing to avoid false negatives.
+        # 1) MissingOptionalDependencyError can be a "different class" under reload/re-import in CI.
+        #    Use class-name duck typing, but keep matching strict.
         if exc.__class__.__name__ == "MissingOptionalDependencyError" or isinstance(
             exc, MissingOptionalDependencyError
         ):
             dep = getattr(exc, "dependency", None)
-            if dep == "nh3" or "nh3" in str(exc).lower():
+            if dep == "nh3":
+                return True
+            msg = str(exc).lower()
+            if "optional dependency" in msg and "nh3" in msg:
+                return True
+
+        # 2) Direct module missing
+        if isinstance(exc, ModuleNotFoundError):
+            msg = str(exc).lower()
+            return getattr(exc, "name", None) == "nh3" or "no module named 'nh3'" in msg
+
+        # 3) ImportError with explicit nh3 mention
+        if isinstance(exc, ImportError):
+            msg = str(exc).lower()
+            if "no module named 'nh3'" in msg or "no module named nh3" in msg:
                 return True
     return False
 
