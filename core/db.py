@@ -535,7 +535,7 @@ def _get_async_engine() -> Optional["AsyncEngine"]:
     RU: Возвращает singleton async engine, создавая его лениво при первом использовании.
     EN: Returns singleton async engine, creating it lazily on first use.
     """
-    global _ASYNC_ENGINE, AsyncSessionLocal
+    global _ASYNC_ENGINE, AsyncSessionLocal, async_engine
 
     async_url = _get_async_database_url()
     if async_url is None:
@@ -563,19 +563,20 @@ def _get_async_engine() -> Optional["AsyncEngine"]:
                         autoflush=False,
                         expire_on_commit=False,
                     )
+                    # Update public async_engine variable
+                    async_engine = _ASYNC_ENGINE
                 except ImportError:
                     # Fallback if async drivers are not available
                     _ASYNC_ENGINE = None
                     AsyncSessionLocal = None
+                    async_engine = None
 
     return _ASYNC_ENGINE
 
 
-# Public async engine accessor (lazy property-like access)
-# RU: Ленивый доступ к async engine через _get_async_engine().
-# EN: Lazy access to async engine via _get_async_engine().
-# Note: This is a module-level variable that will be None until _get_async_engine() is called.
-# For type checking, we expose it as Optional, but in practice it's initialized lazily.
+# Public async engine accessor (lazy, updated by _get_async_engine())
+# RU: Публичный доступ к async engine. Инициализируется лениво через _get_async_engine().
+# EN: Public access to async engine. Initialized lazily via _get_async_engine().
 async_engine: Optional["AsyncEngine"] = None
 
 
