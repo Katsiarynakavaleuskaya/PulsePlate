@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+from collections.abc import Callable
+from types import ModuleType
 from typing import cast
 from unittest.mock import patch
 
@@ -8,29 +10,33 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from module_purge import purge_modules
+
 # client fixture is provided by conftest.py
 
 
-def _cleanup_app_module(original_app):
-    """Helper function to clean up app module after import failure tests."""
-    sys.modules.pop("app", None)
-    sys.modules["app"] = original_app
-
-
-def _test_app_import_with_assertions(original_app, test_assertions):
+def _test_app_import_with_assertions(
+    original_app: ModuleType | None,
+    test_assertions: Callable[[ModuleType], None],
+) -> None:
     """Helper function to test app import and run assertions."""
-    # Re-import app to trigger the exception
-    if "app" in sys.modules:
-        del sys.modules["app"]
     try:
+        # Reload legacy_app to re-run import-time optional dependency wiring
+        # without purging the top-level `app` package (which can leave half-loaded state).
+        import importlib
+
+        import legacy_app
+
+        importlib.reload(legacy_app)
         import app
 
         test_assertions(app)
     except Exception:
         pytest.skip("App import failed unexpectedly")
     finally:
-        # Restore original app module - deterministic cleanup
-        _cleanup_app_module(original_app)
+        # Restore original app module - deterministic cleanup without deleting the package.
+        if original_app is not None:
+            sys.modules["app"] = original_app
 
 
 def test_v1_health(client):
@@ -218,11 +224,9 @@ def test_insight_import_failure(client):
     failing_llm_module = MagicMock()
     failing_llm_module.__name__ = "llm"
 
-    # Remove module from sys.modules to make llm import fail
-    # This simulates the import failure without using conditionals
-    original_module = sys.modules.get("llm")
-    if "llm" in sys.modules:
-        del sys.modules["llm"]
+    # Remove module from sys.modules to make llm import fail (use controlled purge).
+    original_modules = dict(sys.modules)
+    purge_modules(prefixes=("llm",))
 
     try:
 
@@ -240,9 +244,8 @@ def test_insight_import_failure(client):
 
         _test_app_import_with_assertions(original_app, test_assertions)
     finally:
-        # Restore original module if it existed
-        if original_module is not None:
-            sys.modules["llm"] = original_module
+        sys.modules.clear()
+        sys.modules.update(original_modules)
 
 
 @patch("llm.get_provider")

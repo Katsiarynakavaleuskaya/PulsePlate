@@ -12,6 +12,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from module_purge import purge_modules
+
 
 @pytest.fixture
 def vip_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -26,10 +28,11 @@ class TestFinalCoveragePush:
 
     def setup_method(self) -> None:
         """Setup before each test."""
-        if "app" in sys.modules:
-            del sys.modules["app"]
-        if "app.routers.vip" in sys.modules:
-            del sys.modules["app.routers.vip"]
+        # Avoid purging top-level `app` to prevent half-loaded package state.
+        purge_modules(
+            # Important: do NOT purge legacy_app (see note in tests/test_test_router.py).
+            prefixes=("app.routers.vip",),
+        )
 
     def test_app_import_fallbacks(self) -> None:
         """Test main.py import fallback paths."""
@@ -43,20 +46,19 @@ class TestFinalCoveragePush:
 
     def test_vip_import_fallbacks(self) -> None:
         """Test VIP router import fallback paths."""
-        # Remove modules from sys.modules to simulate they're not available
-        original_modules = {}
-        modules_to_remove = ["core.menu_engine", "core.shoplist", "core.region_catalog"]
-
-        for module_name in modules_to_remove:
-            if module_name in sys.modules:
-                original_modules[module_name] = sys.modules[module_name]
-                del sys.modules[module_name]
-
+        # Remove modules from sys.modules to simulate they're not available.
+        # Use snapshot/restore for deterministic cleanup.
+        original_modules = dict(sys.modules)
         try:
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-            if "app" in sys.modules:
-                del sys.modules["app"]
+            purge_modules(
+                prefixes=(
+                    "core.menu_engine",
+                    "core.shoplist",
+                    "core.region_catalog",
+                    "app.routers.vip",
+                    "app.main",
+                )
+            )
 
             os.environ["VIP_MODULE_ENABLED"] = "true"
             import app
@@ -67,9 +69,8 @@ class TestFinalCoveragePush:
                 # VIP endpoints may return 403 if not properly configured, which is acceptable for coverage
                 assert response.status_code in [200, 403]
         finally:
-            # Restore original modules
-            for module_name, module_obj in original_modules.items():
-                sys.modules[module_name] = module_obj
+            sys.modules.clear()
+            sys.modules.update(original_modules)
 
     def test_premium_bmr_calculator_endpoint(self) -> None:
         """Test premium BMR calculator endpoint."""

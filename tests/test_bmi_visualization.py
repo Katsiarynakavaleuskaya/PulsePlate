@@ -8,6 +8,7 @@ import base64
 import importlib
 import io
 import sys
+from types import ModuleType
 from typing import Optional
 from unittest.mock import Mock, patch
 
@@ -18,15 +19,17 @@ app_module = importlib.import_module("app")
 client = TestClient(app_module.app)
 
 # Test imports to ensure module can be imported
+matplotlib: ModuleType | None
+plt: ModuleType | None
 try:
-    import matplotlib  # type: ignore
-    import matplotlib.pyplot as plt  # type: ignore
+    import matplotlib
+    import matplotlib.pyplot as plt
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    matplotlib = None  # type: ignore
-    plt = None  # type: ignore
+    matplotlib = None
+    plt = None
 
 
 def test_bmi_visualization_imports():
@@ -61,11 +64,18 @@ def test_matplotlib_import_error_handling(monkeypatch: pytest.MonkeyPatch) -> No
 
     # Block matplotlib imports without mocking builtins.__import__ (repo policy).
     import importlib.abc
+    import importlib.machinery
+    from collections.abc import Sequence
     from types import ModuleType
     from typing import Optional
 
     class _BlockMatplotlib(importlib.abc.MetaPathFinder):
-        def find_spec(self, fullname: str, path: object, target: Optional[ModuleType] = None):  # type: ignore[override]
+        def find_spec(
+            self,
+            fullname: str,
+            path: Sequence[str] | None,
+            target: ModuleType | None = None,
+        ) -> importlib.machinery.ModuleSpec | None:
             if fullname == "matplotlib" or fullname.startswith("matplotlib."):
                 raise ModuleNotFoundError(fullname)
             return None

@@ -950,16 +950,18 @@ async def admin_status() -> Dict[str, str]:
         import sys as _sys
 
         _pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
+
         patched_global = globals().get("get_update_scheduler", _DEFAULT_GET_UPDATE_SCHEDULER)
         pkg_getter = getattr(_pkg, "get_update_scheduler", None)
-        if (
-            pkg_getter is not None
-            and pkg_getter is not patched_global
-            and pkg_getter is not _DEFAULT_GET_UPDATE_SCHEDULER
-        ):
+
+        # RU: Если тесты пропатчили legacy_app.get_update_scheduler — он должен иметь приоритет.
+        # EN: If tests patched legacy_app.get_update_scheduler, it must take precedence.
+        if patched_global is not _DEFAULT_GET_UPDATE_SCHEDULER:
+            _getter = patched_global
+        elif pkg_getter is not None and pkg_getter is not _DEFAULT_GET_UPDATE_SCHEDULER:
             _getter = pkg_getter
         else:
-            _getter = patched_global
+            _getter = _DEFAULT_GET_UPDATE_SCHEDULER
         scheduler = None
         if callable(_getter):
             _res = _getter()
@@ -3534,11 +3536,31 @@ def _iter_exception_chain(err: BaseException) -> Iterator[BaseException]:
 def _is_missing_nh3_error(err: BaseException) -> bool:
     """Detect whether an error (or its causes) is due to missing nh3."""
     for exc in _iter_exception_chain(err):
-        if (
-            isinstance(exc, MissingOptionalDependencyError)
-            and getattr(exc, "dependency", None) == "nh3"
+        # RU: В CI иногда отсутствующая опциональная зависимость проявляется как обычный
+        # ImportError/ModuleNotFoundError (а не как наш MissingOptionalDependencyError).
+        # EN: In CI, a missing optional dependency can surface as ImportError/ModuleNotFoundError.
+        # 1) MissingOptionalDependencyError can be a "different class" under reload/re-import in CI.
+        #    Use class-name duck typing, but keep matching strict.
+        if exc.__class__.__name__ == "MissingOptionalDependencyError" or isinstance(
+            exc, MissingOptionalDependencyError
         ):
-            return True
+            dep = getattr(exc, "dependency", None)
+            if dep == "nh3":
+                return True
+            msg = str(exc).lower()
+            if "optional dependency" in msg and "nh3" in msg:
+                return True
+
+        # 2) Direct module missing
+        if isinstance(exc, ModuleNotFoundError):
+            msg = str(exc).lower()
+            return getattr(exc, "name", None) == "nh3" or "no module named 'nh3'" in msg
+
+        # 3) ImportError with explicit nh3 mention
+        if isinstance(exc, ImportError):
+            msg = str(exc).lower()
+            if "no module named 'nh3'" in msg or "no module named nh3" in msg:
+                return True
     return False
 
 
