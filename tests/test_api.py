@@ -212,7 +212,7 @@ def test_bodyfat_import_failure(client):
         _test_app_import_with_assertions(original_app, test_assertions)
 
 
-def test_insight_import_failure(client):
+def test_insight_import_failure(client, monkeypatch):
     """Test coverage for llm import exception in main.py."""
     import sys
     from unittest.mock import MagicMock, patch
@@ -220,32 +220,30 @@ def test_insight_import_failure(client):
     # Save original app module if it exists
     original_app = sys.modules.get("app")
 
-    # Create a failing mock module
+    # Create a failing mock module (used by patched __import__ below).
     failing_llm_module = MagicMock()
     failing_llm_module.__name__ = "llm"
 
-    # Remove module from sys.modules to make llm import fail (use controlled purge).
-    original_modules = dict(sys.modules)
-    purge_modules(prefixes=("llm",))
+    # Remove module from sys.modules to make llm import fail.
+    # IMPORTANT: do not mutate sys.modules directly; use monkeypatch so pytest
+    # automatically restores state after the test.
+    for name in list(sys.modules.keys()):
+        if name == "llm" or name.startswith("llm."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
-    try:
+    def test_assertions(app):
+        client = TestClient(cast(ASGIApp, app.app))
 
-        def test_assertions(app):
-            client = TestClient(cast(ASGIApp, app.app))
+        response = client.post(
+            "/api/v1/insight",
+            json={"text": "test"},
+            headers={"X-API-Key": "test_key"},
+        )
+        assert response.status_code == 503
+        data = response.json()
+        assert "insight provider not configured" in data["detail"]
 
-            response = client.post(
-                "/api/v1/insight",
-                json={"text": "test"},
-                headers={"X-API-Key": "test_key"},
-            )
-            assert response.status_code == 503
-            data = response.json()
-            assert "insight provider not configured" in data["detail"]
-
-        _test_app_import_with_assertions(original_app, test_assertions)
-    finally:
-        sys.modules.clear()
-        sys.modules.update(original_modules)
+    _test_app_import_with_assertions(original_app, test_assertions)
 
 
 @patch("llm.get_provider")

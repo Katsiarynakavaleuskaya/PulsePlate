@@ -44,33 +44,30 @@ class TestFinalCoveragePush:
             response = client.get("/")
             assert response.status_code == 200
 
-    def test_vip_import_fallbacks(self) -> None:
+    def test_vip_import_fallbacks(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP router import fallback paths."""
         # Remove modules from sys.modules to simulate they're not available.
-        # Use snapshot/restore for deterministic cleanup.
-        original_modules = dict(sys.modules)
-        try:
-            purge_modules(
-                prefixes=(
-                    "core.menu_engine",
-                    "core.shoplist",
-                    "core.region_catalog",
-                    "app.routers.vip",
-                    "app.main",
-                )
-            )
+        # IMPORTANT: do not mutate sys.modules directly; use monkeypatch so pytest
+        # automatically restores state after the test.
+        prefixes = (
+            "core.menu_engine",
+            "core.shoplist",
+            "core.region_catalog",
+            "app.routers.vip",
+            "app.main",
+        )
+        for name in list(sys.modules.keys()):
+            if name.startswith(prefixes):
+                monkeypatch.delitem(sys.modules, name, raising=False)
 
-            os.environ["VIP_MODULE_ENABLED"] = "true"
-            import app
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        import app
 
-            with TestClient(cast(ASGIApp, app.app)) as client:
-                # Test VIP endpoints still work with fallbacks
-                response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test-key"})
-                # VIP endpoints may return 403 if not properly configured, which is acceptable for coverage
-                assert response.status_code in [200, 403]
-        finally:
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+        with TestClient(cast(ASGIApp, app.app)) as client:
+            # Test VIP endpoints still work with fallbacks
+            response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test-key"})
+            # VIP endpoints may return 403 if not properly configured, which is acceptable for coverage
+            assert response.status_code in [200, 403]
 
     def test_premium_bmr_calculator_endpoint(self) -> None:
         """Test premium BMR calculator endpoint."""
