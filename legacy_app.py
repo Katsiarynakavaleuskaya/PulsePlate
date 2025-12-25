@@ -3534,6 +3534,17 @@ def _iter_exception_chain(err: BaseException) -> Iterator[BaseException]:
 def _is_missing_nh3_error(err: BaseException) -> bool:
     """Detect whether an error (or its causes) is due to missing nh3."""
     for exc in _iter_exception_chain(err):
+        # RU: В CI иногда отсутствующая опциональная зависимость проявляется как обычный
+        # ImportError/ModuleNotFoundError (а не как наш MissingOptionalDependencyError).
+        # EN: In CI, a missing optional dependency can surface as ImportError/ModuleNotFoundError.
+        if isinstance(exc, ModuleNotFoundError):
+            if getattr(exc, "name", None) == "nh3":
+                return True
+        if isinstance(exc, ImportError):
+            msg = str(exc)
+            # Conservative match: only treat as nh3-missing if message explicitly mentions nh3.
+            if "nh3" in msg:
+                return True
         if (
             isinstance(exc, MissingOptionalDependencyError)
             and getattr(exc, "dependency", None) == "nh3"
