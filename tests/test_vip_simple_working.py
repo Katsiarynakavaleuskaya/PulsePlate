@@ -3,7 +3,6 @@
 """
 
 import os
-import sys
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -16,16 +15,14 @@ class TestVIPRouterWorking:
     """Простые рабочие тесты для VIP роутера"""
 
     @pytest.fixture(autouse=True)
-    def setup_vip_environment(self):
-        """Устанавливаем VIP модуль как включенный"""
-        with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "true"}):
-            # Перезагружаем модули с правильной переменной окружения
-            modules_to_remove = [k for k in sys.modules.keys() if k.startswith("app")]
-            for module in modules_to_remove:
-                if module in sys.modules:
-                    del sys.modules[module]
+    def setup_vip_environment(self, monkeypatch: pytest.MonkeyPatch):
+        """Устанавливаем VIP модуль как включенный.
 
-            yield
+        ВАЖНО: не мутируем sys.modules (это вызывает повторную регистрацию моделей
+        SQLAlchemy и флейки вида "Table already defined").
+        """
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        yield
 
     def test_vip_endpoints_with_environment_enabled(self):
         """Тест VIP endpoints когда VIP_MODULE_ENABLED=true"""
@@ -87,12 +84,6 @@ class TestVIPRouterWorking:
     def test_vip_module_disabled_fallback(self):
         """Тест fallback когда VIP модуль отключен"""
         with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "false"}):
-            # Перезагружаем app с отключенным VIP
-            modules_to_remove = [k for k in sys.modules.keys() if k.startswith("app")]
-            for module in modules_to_remove:
-                if module in sys.modules:
-                    del sys.modules[module]
-
             import app
 
             client = TestClient(cast(ASGIApp, app.app))

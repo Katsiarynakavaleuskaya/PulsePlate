@@ -4,25 +4,15 @@ import pytest
 from datetime import datetime
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 import os
-
-from module_purge import purge_modules
 
 
 def _import_fresh_app() -> FastAPI:
-    """Import FastAPI app after clearing cached modules.
+    """Import FastAPI app after ensuring env-based wiring is re-evaluated.
 
-    RU: Импортируем app после очистки кэша модулей, чтобы учесть переменные окружения.
-    EN: Import app after clearing module cache so env var patches take effect.
+    RU: Перезагружаем legacy_app, чтобы он перечитал env и заново настроил wiring.
+    EN: Reload legacy_app so it re-reads env and rebuilds router wiring.
     """
-    # NOTE:
-    # Do NOT delete the top-level "app" package from sys.modules without also deleting
-    # all of its submodules. That can leave a half-loaded state where `app.models.*`
-    # is still loaded while `app` is re-imported, which then causes SQLAlchemy model
-    # redefinition ("Table already defined") later in the suite.
-    purge_modules(prefixes=("app.main", "app.routers.test"))
-
     # IMPORTANT:
     # `legacy_app` decides whether to include the test router at import time, based on env.
     # In CI, it may already be imported under a different APP_ENV/ENABLE_TEST_ROUTES state.
@@ -33,39 +23,51 @@ def _import_fresh_app() -> FastAPI:
 
     importlib.reload(legacy_app)
 
-    from app import app
+    app = legacy_app.app  # canonical app instance after env-driven wiring
+
+    # Fail fast with a clear message if staging claims test routes should exist but doesn't.
+    if os.getenv("APP_ENV") == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
+        has_test_routes = any(
+            getattr(route, "path", "").startswith("/api/v1/test/")
+            for route in getattr(app, "routes", [])
+        )
+        assert has_test_routes, (
+            "Test router routes are missing after legacy_app reload. "
+            f"APP_ENV={os.getenv('APP_ENV')}, ENABLE_TEST_ROUTES={os.getenv('ENABLE_TEST_ROUTES')}"
+        )
 
     return app
 
 
 @pytest.fixture
-def mock_env_staging():
+def mock_env_staging(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to staging for test router inclusion.
 
     Note: Staging requires ENABLE_TEST_ROUTES=1 to include test endpoints
     for security (staging may be externally accessible).
     """
-    with patch.dict(os.environ, {"APP_ENV": "staging", "ENABLE_TEST_ROUTES": "1"}):
-        yield
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
+    yield
 
 
 @pytest.fixture
-def mock_env_production():
+def mock_env_production(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to production to exclude test router."""
-    with patch.dict(os.environ, {"APP_ENV": "production"}):
-        yield
+    monkeypatch.setenv("APP_ENV", "production")
+    yield
 
 
 @pytest.fixture
-def mock_env_staging_disabled():
+def mock_env_staging_disabled(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to staging without explicit enable flag.
 
     RU: В staging тестовые ручки должны быть выключены по умолчанию.
     EN: In staging, test endpoints must be disabled by default.
     """
-    with patch.dict(os.environ, {"APP_ENV": "staging"}, clear=False):
-        os.environ.pop("ENABLE_TEST_ROUTES", None)
-        yield
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.delenv("ENABLE_TEST_ROUTES", raising=False)
+    yield
 
 
 def test_rate_limit_endpoint(mock_env_staging):
