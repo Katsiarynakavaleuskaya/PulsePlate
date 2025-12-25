@@ -527,10 +527,15 @@ async_engine: Optional["AsyncEngine"] = _ASYNC_ENGINE
 
 
 # Preserve Base identity across importlib.reload(core.db) used in tests.
-# RU: В тестах есть reload(core.db) для проверки env-логики. Повторное создание Base
-# приводит к dual-Base конфликтам (модели остаются привязаны к старому Base).
-# EN: Tests reload(core.db) to exercise env-driven branches; recreating Base would
-# break single-Base invariants because already-imported models keep old Base.
+# RU: В репозитории есть тесты, которые делают reload(core.db) ради покрытия веток,
+# зависящих от env. Это НЕ поддерживаемый способ “реинициализации БД” — для этого
+# используйте init_db() и явные reset-хелперы, а не reload().
+# Повторное создание Base при reload приводит к dual-Base конфликтам (модели остаются
+# привязаны к старому Base).
+# EN: The repo contains tests that call reload(core.db) to cover env-driven branches.
+# This is NOT a supported way to reinitialize DB state—use init_db() (and explicit
+# reset helpers) instead of reload(). Recreating Base on reload would violate the
+# single-Base invariant because already-imported models keep the old Base.
 if "Base" not in globals():
 
     class Base(DeclarativeBase):
