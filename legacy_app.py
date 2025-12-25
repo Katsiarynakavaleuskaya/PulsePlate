@@ -3547,7 +3547,12 @@ def _is_missing_nh3_error(err: BaseException) -> bool:
             # Conservative match: only treat as nh3-missing if message explicitly mentions nh3.
             if "nh3" in msg:
                 return True
-        if isinstance(exc, MissingOptionalDependencyError):
+        # NOTE:
+        # In some CI/test flows, the same class may be imported twice (e.g. via reload),
+        # producing distinct class objects. Use class-name duck typing to avoid false negatives.
+        if exc.__class__.__name__ == "MissingOptionalDependencyError" or isinstance(
+            exc, MissingOptionalDependencyError
+        ):
             dep = getattr(exc, "dependency", None)
             if dep == "nh3" or "nh3" in str(exc).lower():
                 return True

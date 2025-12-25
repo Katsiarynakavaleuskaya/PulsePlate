@@ -22,6 +22,16 @@ def test_is_missing_nh3_error_detects_missing_optional_dependency_error() -> Non
     assert legacy_app._is_missing_nh3_error(exc) is True
 
 
+def test_is_missing_nh3_error_detects_same_named_error_class() -> None:
+    # Simulate split-brain imports where the error class exists twice as different objects.
+    class MissingOptionalDependencyError(RuntimeError):
+        def __init__(self, message: str) -> None:
+            super().__init__(message)
+
+    exc = MissingOptionalDependencyError("Optional dependency 'nh3' is required.")
+    assert legacy_app._is_missing_nh3_error(exc) is True
+
+
 def test_is_missing_nh3_error_returns_false_for_other_module() -> None:
     exc = ModuleNotFoundError("No module named 'requests'", name="requests")
     assert legacy_app._is_missing_nh3_error(exc) is False
