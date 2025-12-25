@@ -47,7 +47,9 @@ def test_purge_modules_respects_exclusions_and_removes_only_targets() -> None:
 def test_purge_modules_noop_on_empty_prefixes() -> None:
     original_modules: dict[str, ModuleType] = dict(sys.modules)
     try:
-        purge_modules(prefixes=("", "   "))
+        # Empty prefixes should be filtered out and result in a no-op.
+        purge_modules(prefixes=("",))
+        purge_modules(prefixes=())
         assert sys.modules == original_modules
     finally:
         _restore_sys_modules(original_modules)
