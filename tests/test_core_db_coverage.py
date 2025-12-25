@@ -121,12 +121,13 @@ class TestCoreDB:
             pass
 
     def test_database_url_sqlite_format(self):
-        """Test DATABASE_URL is properly formatted for SQLite."""
-        from core.db import DATABASE_URL
+        """Test get_database_url() returns properly formatted URL for SQLite."""
+        from core.db import get_database_url
 
         # Should be valid URL format
-        assert isinstance(DATABASE_URL, str)
-        assert len(DATABASE_URL) > 0
+        database_url = get_database_url()
+        assert isinstance(database_url, str)
+        assert len(database_url) > 0
 
     def test_engine_creation(self):
         """Test engine is created properly."""
