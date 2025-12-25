@@ -4,7 +4,6 @@ import pytest
 from datetime import datetime
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 import os
 
 
@@ -41,33 +40,34 @@ def _import_fresh_app() -> FastAPI:
 
 
 @pytest.fixture
-def mock_env_staging():
+def mock_env_staging(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to staging for test router inclusion.
 
     Note: Staging requires ENABLE_TEST_ROUTES=1 to include test endpoints
     for security (staging may be externally accessible).
     """
-    with patch.dict(os.environ, {"APP_ENV": "staging", "ENABLE_TEST_ROUTES": "1"}):
-        yield
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
+    yield
 
 
 @pytest.fixture
-def mock_env_production():
+def mock_env_production(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to production to exclude test router."""
-    with patch.dict(os.environ, {"APP_ENV": "production"}):
-        yield
+    monkeypatch.setenv("APP_ENV", "production")
+    yield
 
 
 @pytest.fixture
-def mock_env_staging_disabled():
+def mock_env_staging_disabled(monkeypatch: pytest.MonkeyPatch):
     """Mock environment to staging without explicit enable flag.
 
     RU: В staging тестовые ручки должны быть выключены по умолчанию.
     EN: In staging, test endpoints must be disabled by default.
     """
-    with patch.dict(os.environ, {"APP_ENV": "staging"}, clear=False):
-        os.environ.pop("ENABLE_TEST_ROUTES", None)
-        yield
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.delenv("ENABLE_TEST_ROUTES", raising=False)
+    yield
 
 
 def test_rate_limit_endpoint(mock_env_staging):
