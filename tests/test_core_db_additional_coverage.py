@@ -228,8 +228,16 @@ def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> N
         else:
             monkeypatch.setenv("DATABASE_USE_ASYNC", original_use_async)
 
-        restored = importlib.reload(db)
-        restored.init_db()
+        # Cleanup: reset async engine state if needed
+        if hasattr(db, "_ASYNC_ENGINE") and db._ASYNC_ENGINE is not None:
+            import asyncio
+
+            try:
+                asyncio.run(db._ASYNC_ENGINE.dispose())
+            except Exception:
+                pass
+            db._ASYNC_ENGINE = None
+            db.AsyncSessionLocal = None
 
 
 def test_finalize_transaction_debug_logging_production(monkeypatch: pytest.MonkeyPatch) -> None:
