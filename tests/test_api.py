@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+from collections.abc import Callable
+from types import ModuleType
 from typing import cast
 from unittest.mock import patch
 
@@ -13,7 +15,10 @@ from module_purge import purge_modules
 # client fixture is provided by conftest.py
 
 
-def _test_app_import_with_assertions(original_app, test_assertions):
+def _test_app_import_with_assertions(
+    original_app: ModuleType | None,
+    test_assertions: Callable[[ModuleType], None],
+) -> None:
     """Helper function to test app import and run assertions."""
     try:
         # Reload legacy_app to re-run import-time optional dependency wiring

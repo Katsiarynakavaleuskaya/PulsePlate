@@ -950,16 +950,18 @@ async def admin_status() -> Dict[str, str]:
         import sys as _sys
 
         _pkg = _sys.modules.get("app") or _sys.modules.get(__name__)
+
         patched_global = globals().get("get_update_scheduler", _DEFAULT_GET_UPDATE_SCHEDULER)
         pkg_getter = getattr(_pkg, "get_update_scheduler", None)
-        if (
-            pkg_getter is not None
-            and pkg_getter is not patched_global
-            and pkg_getter is not _DEFAULT_GET_UPDATE_SCHEDULER
-        ):
+
+        # RU: Если тесты пропатчили legacy_app.get_update_scheduler — он должен иметь приоритет.
+        # EN: If tests patched legacy_app.get_update_scheduler, it must take precedence.
+        if patched_global is not _DEFAULT_GET_UPDATE_SCHEDULER:
+            _getter = patched_global
+        elif pkg_getter is not None and pkg_getter is not _DEFAULT_GET_UPDATE_SCHEDULER:
             _getter = pkg_getter
         else:
-            _getter = patched_global
+            _getter = _DEFAULT_GET_UPDATE_SCHEDULER
         scheduler = None
         if callable(_getter):
             _res = _getter()
@@ -3545,11 +3547,10 @@ def _is_missing_nh3_error(err: BaseException) -> bool:
             # Conservative match: only treat as nh3-missing if message explicitly mentions nh3.
             if "nh3" in msg:
                 return True
-        if (
-            isinstance(exc, MissingOptionalDependencyError)
-            and getattr(exc, "dependency", None) == "nh3"
-        ):
-            return True
+        if isinstance(exc, MissingOptionalDependencyError):
+            dep = getattr(exc, "dependency", None)
+            if dep == "nh3" or "nh3" in str(exc).lower():
+                return True
     return False
 
 
