@@ -160,8 +160,8 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     # Save current environment
     old_env = dict(os.environ)
 
-    # Save current sys.modules state
-    old_modules = dict(sys.modules)
+    # NOTE: We no longer track sys.modules state or delete modules.
+    # Module cleanup should be done explicitly via module_purge.purge_modules() with protect lists.
 
     # Set default environment for tests
     os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
@@ -201,31 +201,26 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
 
     # Clear dependency overrides (use sys.modules.get to avoid re-import)
     fastapi_app = sys.modules.get("app")
-    if fastapi_app is not None and hasattr(fastapi_app, "app"):
-        if hasattr(fastapi_app.app, "dependency_overrides"):
-            fastapi_app.app.dependency_overrides.clear()
+    if (
+        fastapi_app is not None
+        and hasattr(fastapi_app, "app")
+        and hasattr(fastapi_app.app, "dependency_overrides")
+    ):
+        fastapi_app.app.dependency_overrides.clear()
 
-    # Restore sys.modules (be careful not to break everything)
-    # Only restore modules that were added during the test
-    current_modules = set(sys.modules.keys())
-    original_modules = set(old_modules.keys())
-    new_modules = current_modules - original_modules
-
-    # CRITICAL: Do not delete core.db or core.models from sys.modules
-    # This causes dual-Base issues and breaks Base identity across tests
-    # Only clean up app.* and tests.* modules (not core.*)
-    # CRITICAL: Do not delete core.* modules from sys.modules
-    # This causes dual-Base issues and breaks Base identity across tests
-    # Only clean up app.* and tests.* modules (not core.* at all)
-    for module_name in new_modules:
-        # Protect ALL core.* modules from deletion (prevents dual-Base)
-        if module_name.startswith("core."):
-            continue
-        if module_name.startswith(("app.", "tests.")):
-            try:
-                del sys.modules[module_name]
-            except KeyError:
-                pass
+    # CRITICAL: Do NOT delete modules from sys.modules
+    # This causes dual-Base issues, module identity chaos, and unpredictable test failures.
+    # Module cleanup should be done explicitly via module_purge.purge_modules() with protect lists,
+    # NOT via autouse fixtures that affect all tests.
+    #
+    # Why this is dangerous:
+    # - Deleting app.* modules can cause re-imports that create new Base instances
+    # - Deleting tests.* modules can break test isolation in unexpected ways
+    # - Even with core.* protection, deleting app.* can trigger model re-registration
+    # - This makes tests flaky and unpredictable, especially under pytest-xdist
+    #
+    # If module isolation is needed, use module_purge.purge_modules() explicitly in specific tests
+    # with appropriate protect lists (e.g., protect core.db, core.models).
 
 
 @pytest.fixture(autouse=True)

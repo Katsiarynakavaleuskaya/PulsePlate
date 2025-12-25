@@ -66,8 +66,16 @@ class TestCoreDB:
 
     def test_session_local_creation(self):
         """Test SessionLocal sessionmaker creation."""
-        assert SessionLocal is not None
-        assert hasattr(SessionLocal, "__call__")
+        # Ensure DB is initialized (SessionLocal may be None if reset_db_for_tests was called)
+        from core import db
+
+        if db.SessionLocal is None:
+            db.init_db()
+        # Use dynamic import to get current value
+        from core.db import SessionLocal as current_session_local
+
+        assert current_session_local is not None
+        assert hasattr(current_session_local, "__call__")
 
     def test_get_session_generator(self):
         """Test get_session dependency yields session."""
@@ -144,8 +152,16 @@ class TestCoreDB:
 
     def test_session_configuration(self):
         """Test SessionLocal is configured correctly."""
+        # Ensure DB is initialized
+        from core import db
+
+        if db.SessionLocal is None:
+            db.init_db()
+        # Use dynamic import to get current value
+        from core.db import SessionLocal as current_session_local
+
         # Test that SessionLocal has expected configuration
-        session = SessionLocal()
+        session = current_session_local()
         assert session is not None
         session.close()
 
@@ -259,27 +275,44 @@ class TestAsyncDB:
 
     def test_execute_sql_method(self):
         """Test execute method on connection."""
+        # Ensure DB is initialized
+        from core import db
+
+        if db._RAW_ENGINE is None:
+            db.init_db()
+        # Use dynamic import to get current value
+        from core.db import _RAW_ENGINE as current_engine
+
         # Test with a simple SELECT statement using connection
-        with _RAW_ENGINE.connect() as conn:
+        with current_engine.connect() as conn:
             result = conn.execute(text("SELECT 1 as test_value"))
             # Should return a result object
             assert result is not None
 
     @pytest.mark.asyncio
     async def test_get_async_session_import_error(self, monkeypatch: pytest.MonkeyPatch):
-        """Test get_async_session raises ImportError when async extras not available."""
+        """Test get_async_session raises ImportError when async extras not available.
+
+        This test forces the "extras missing" scenario by patching create_async_engine
+        and async_sessionmaker to None, simulating an environment where sqlalchemy[asyncio]
+        is not installed.
+        """
         from core import db
 
         db.reset_db_for_tests()
         # Force "extras missing" scenario - patch all async-related symbols in core.db
+        # This simulates the case where sqlalchemy[asyncio] is not installed
         monkeypatch.setattr(db, "create_async_engine", None, raising=False)
         monkeypatch.setattr(db, "async_sessionmaker", None, raising=False)
         monkeypatch.setattr(db, "AsyncSessionLocal", None, raising=False)
+        # Also patch sa_asyncio to None to ensure the check in get_async_session() works
+        monkeypatch.setattr(db, "sa_asyncio", None, raising=False)
 
         # Verify patches are in place
         assert db.create_async_engine is None
         assert db.async_sessionmaker is None
 
+        # Should raise ImportError with message about async extras not being available
         with pytest.raises(ImportError, match=r"SQLAlchemy async extras are not available"):
             async for _session in db.get_async_session():
                 pass
