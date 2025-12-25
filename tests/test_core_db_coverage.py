@@ -103,12 +103,14 @@ class TestCoreDB:
         """Test init_db creates tables."""
         from core import db
         from unittest.mock import patch
+        from sqlalchemy.schema import MetaData
 
         # Ensure init_db goes through the "first init" path
         db.reset_db_for_tests()
 
-        # Patch create_all method on the real metadata object
-        with patch.object(db.Base.metadata, "create_all") as mock_create_all:
+        # Patch create_all on MetaData class (Base.metadata is a MetaData instance)
+        # This is the canonical way to mock SQLAlchemy 2.x metadata methods
+        with patch.object(MetaData, "create_all") as mock_create_all:
             db.init_db("sqlite:///:memory:")
             # Verify create_all was called once
             mock_create_all.assert_called_once()
