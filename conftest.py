@@ -91,11 +91,8 @@ def pytest_configure(config: pytest.Config) -> None:
         db_path.unlink(missing_ok=True)
 
     # Initialize database early to prevent module-level import issues
-    # Import/reload core.db to ensure it uses our DATABASE_URL
-    if "core.db" in sys.modules:
-        core_db = importlib.reload(sys.modules["core.db"])
-    else:
-        core_db = importlib.import_module("core.db")
+    # Import core.db (no reload needed - init_db() handles URL changes)
+    import core.db as core_db
 
     # Import models that exist in main branch
     if "core.models" in sys.modules:
