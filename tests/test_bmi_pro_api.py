@@ -8,36 +8,24 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-APP_LOAD_ERROR = "Cannot load app.py"
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError(APP_LOAD_ERROR)
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+# Import the FastAPI app from app package
+from app import app
 
 
 class TestBMIProAPI:
     """Test BMI Pro API endpoint."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_bmi_pro_endpoint_success(self):
+    def test_bmi_pro_endpoint_success(self) -> None:
         """Test successful BMI Pro analysis."""
         data = {
             "weight_kg": 70.0,
@@ -63,7 +51,7 @@ class TestBMIProAPI:
         assert result["bmi"] == pytest.approx(22.9, 0.1)
         assert result["whtr"] == pytest.approx(0.49, 0.01)
 
-    def test_bmi_pro_endpoint_minimal_data(self):
+    def test_bmi_pro_endpoint_minimal_data(self) -> None:
         """Test BMI Pro analysis with minimal data (no hip or bodyfat)."""
         data = {
             "weight_kg": 70.0,
@@ -84,7 +72,7 @@ class TestBMIProAPI:
         assert result["whr"] is None
         assert result["ffmi"] is None
 
-    def test_bmi_pro_endpoint_invalid_data(self):
+    def test_bmi_pro_endpoint_invalid_data(self) -> None:
         """Test BMI Pro analysis with invalid data."""
         data = {
             "weight_kg": -70.0,  # Invalid weight
@@ -100,7 +88,7 @@ class TestBMIProAPI:
         response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
         assert response.status_code == 422  # Validation error
 
-    def test_bmi_pro_endpoint_missing_api_key(self):
+    def test_bmi_pro_endpoint_missing_api_key(self) -> None:
         """Test BMI Pro endpoint without API key."""
         data = {
             "weight_kg": 70.0,

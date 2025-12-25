@@ -3,6 +3,7 @@
 """
 
 from typing import cast
+import sys
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -14,8 +15,12 @@ class TestVIPCoverage97Integration:
 
     def test_vip_import_fallback_integration(self, test_environment):
         """Тест покрытия VIP import fallback интеграционный"""
-        # Мокаем импорты на уровне модуля
-        with patch.dict("sys.modules", {"core.menu_engine": None}):
+        # Remove module from sys.modules to simulate it's not available
+        original_module = sys.modules.get("core.menu_engine")
+        if "core.menu_engine" in sys.modules:
+            del sys.modules["core.menu_engine"]
+
+        try:
             import app
 
             client = TestClient(cast(ASGIApp, app.app))
@@ -33,6 +38,10 @@ class TestVIPCoverage97Integration:
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code in [200, 404]
+        finally:
+            # Restore original module if it existed
+            if original_module is not None:
+                sys.modules["core.menu_engine"] = original_module
 
     def test_vip_coverage_simple_mocks_api_key_validation(self, test_environment):
         """Тест покрытия VIP API key validation с простыми моками"""

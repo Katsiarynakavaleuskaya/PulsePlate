@@ -4,13 +4,10 @@ Test coverage for mcp_pulseplate_server.py
 
 import json
 import os
-import sys
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import mcp_pulseplate_server
 
 

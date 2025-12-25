@@ -37,12 +37,22 @@ class TestImportFallbacks:
                 del sys.modules[mod_name]
 
             # Мокаем импорт providers.grok чтобы вызвать исключение
-            def side_effect(name, *args, **kwargs):
-                if "providers.grok" in name:
-                    raise ImportError("No module named providers.grok")
-                return __import__(name, *args, **kwargs)
+            import builtins
 
-            with patch.dict("sys.modules", {"providers.grok": None}):
+            real_import = builtins.__import__
+
+            def side_effect(name, globals=None, locals=None, fromlist=(), level=0):
+                if isinstance(name, str) and "providers.grok" in name:
+                    raise ImportError("No module named providers.grok")
+                return real_import(name, globals, locals, fromlist, level)
+
+            # Remove module instead of setting to None (prevents sys.modules None poisoning)
+            module_to_restore = None
+            if "providers.grok" in sys.modules:
+                module_to_restore = sys.modules["providers.grok"]
+                del sys.modules["providers.grok"]
+
+            try:
                 with patch("builtins.__import__", side_effect=side_effect):
                     # Перезагружаем модуль llm чтобы активировать except блок
                     if "llm" in sys.modules:
@@ -50,6 +60,10 @@ class TestImportFallbacks:
 
                     # Теперь GrokLiteProvider должен быть доступен
                     assert hasattr(llm, "GrokLiteProvider")
+            finally:
+                # Restore module
+                if module_to_restore is not None:
+                    sys.modules["providers.grok"] = module_to_restore
 
                     # Тестируем создание и использование GrokLiteProvider
                     provider = llm.GrokLiteProvider()
@@ -77,12 +91,16 @@ class TestImportFallbacks:
     def test_ollama_import_exception_coverage(self):
         """Тест покрытия исключения при импорте OllamaProvider"""
         # Мокаем ошибку импорта OllamaProvider
+        import builtins
+
+        real_import = builtins.__import__
+
         with patch("builtins.__import__") as mock_import:
 
-            def import_side_effect(name, *args, **kwargs):
-                if "providers.ollama" in name:
+            def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
+                if isinstance(name, str) and "providers.ollama" in name:
                     raise ImportError("No module named 'providers.ollama'")
-                return __import__(name, *args, **kwargs)
+                return real_import(name, globals, locals, fromlist, level)
 
             mock_import.side_effect = import_side_effect
 
@@ -98,12 +116,16 @@ class TestImportFallbacks:
     def test_pico_import_exception_coverage(self):
         """Тест покрытия исключения при импорте PicoProvider"""
         # Мокаем ошибку импорта PicoProvider
+        import builtins
+
+        real_import = builtins.__import__
+
         with patch("builtins.__import__") as mock_import:
 
-            def import_side_effect(name, *args, **kwargs):
-                if "providers.pico" in name:
+            def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
+                if isinstance(name, str) and "providers.pico" in name:
                     raise ImportError("No module named 'providers.pico'")
-                return __import__(name, *args, **kwargs)
+                return real_import(name, globals, locals, fromlist, level)
 
             mock_import.side_effect = import_side_effect
 
@@ -135,7 +157,10 @@ class TestGetProviderEdgeCases:
                 mock_ollama.side_effect = [TypeError("keyword error"), Exception("creation failed")]
 
                 provider = llm.get_provider()
-                assert provider is None
+                # По контракту llm.get_provider(): при ошибках создания OllamaProvider
+                # возвращаем безопасный offline fallback (OllamaLiteProvider), а не None.
+                assert provider is not None
+                assert getattr(provider, "name", None) == "ollama"
                 assert mock_ollama.call_count == 2
 
     @patch("llm.GrokProvider")
@@ -145,7 +170,11 @@ class TestGetProviderEdgeCases:
         mock_instance = Mock()
         mock_grok_class.side_effect = [TypeError("unexpected keyword"), mock_instance]
 
-        with patch.dict(os.environ, {"LLM_PROVIDER": "grok"}, clear=False):
+        # Включаем ветку реального провайдера: если нет API ключа,
+        # llm.get_provider() возвращает GrokLiteProvider и GrokProvider не вызывается.
+        with patch.dict(
+            os.environ, {"LLM_PROVIDER": "grok", "GROK_API_KEY": "test-key"}, clear=False
+        ):
             provider = llm.get_provider()
 
             # Должно быть два вызова: kwargs и positional

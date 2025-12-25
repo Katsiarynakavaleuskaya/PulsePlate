@@ -16,22 +16,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
 
@@ -39,7 +28,7 @@ def client():
 class TestWeeklyPlanningCriticalBlocks:
     """Тесты для критически важных блоков weekly planning"""
 
-    def test_weekly_planning_unavailable_path(self, client):
+    def test_weekly_planning_unavailable_path(self, client) -> None:
         """Тест пути когда make_weekly_menu недоступна (блок 1265-1339)"""
         # Устанавливаем API ключ
         os.environ["API_KEY"] = "test_key"
@@ -78,7 +67,7 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_planning_parameter_variations(self, client):
+    def test_weekly_planning_parameter_variations(self, client) -> None:
         """Тест различных комбинаций параметров для weekly planning"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -130,31 +119,8 @@ class TestWeeklyPlanningCriticalBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    @patch("sys.modules")
-    def test_weekly_planning_successful_path(self, mock_sys_modules, client):
-        """Тест успешного пути weekly planning с мокнутым make_weekly_menu (блок 1435-1501)"""
-        # Мокнуть модуль и функцию make_weekly_menu
-        mock_module = MagicMock()
-        mock_make_weekly_menu = MagicMock()
-
-        # Настройка мока для week_menu
-        mock_week_menu = MagicMock()
-        mock_week_menu.week_start = "2025-01-01"
-        mock_week_menu.daily_menus = [
-            MagicMock(date="2025-01-01", meals={"breakfast": "oatmeal"}, cost=15.0),
-            MagicMock(date="2025-01-02", meals={"breakfast": "eggs"}, cost=18.0),
-        ]
-        mock_week_menu.total_cost = 119.0
-        mock_week_menu.shopping_list = {"milk": "1L", "eggs": "12 pieces"}
-        mock_week_menu.weekly_coverage = {"protein": 95, "vitamins": 90}
-        mock_make_weekly_menu.return_value = mock_week_menu
-
-        # Настройка sys.modules mock
-        mock_sys_modules.__getitem__.return_value = mock_module
-        mock_module.__getattribute__ = lambda self, name: (
-            mock_make_weekly_menu if name == "make_weekly_menu" else None
-        )
-
+    def test_weekly_planning_successful_path(self, client) -> None:
+        """Test weekly planning endpoint (no invasive sys.modules patching)"""
         os.environ["API_KEY"] = "test_key"
         try:
             response = client.post(
@@ -169,15 +135,14 @@ class TestWeeklyPlanningCriticalBlocks:
                     "goal": "maintain",
                 },
             )
-
-            # Без правильного мокинга может быть 503 или 422 или 400
+            # Without real mocking, may be 503 or 422 or 400
             assert response.status_code in [200, 400, 503, 422]
 
         finally:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_planning_edge_cases(self, client):
+    def test_weekly_planning_edge_cases(self, client) -> None:
         """Тест edge cases для weekly planning"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -222,7 +187,7 @@ class TestWeeklyPlanningCriticalBlocks:
 class TestAdditionalPremiumBlocks:
     """Дополнительные тесты для других premium блоков"""
 
-    def test_premium_import_error_scenarios(self, client):
+    def test_premium_import_error_scenarios(self, client) -> None:
         """Тест import error scenarios в premium endpoints"""
         # Тест различных premium endpoints для покрытия import путей
         endpoints_to_test = [
@@ -260,7 +225,7 @@ class TestAdditionalPremiumBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_api_key_dependency_logic(self, client):
+    def test_api_key_dependency_logic(self, client) -> None:
         """Тест логики API key dependency"""
         # Тест без API ключа (должен работать если ключи не настроены)
         response = client.post(
@@ -298,7 +263,7 @@ class TestAdditionalPremiumBlocks:
 class TestWeeklyPlanningAdditionalCoverage:
     """Additional tests for weekly planning coverage"""
 
-    def test_weekly_planning_validation_errors(self, client):
+    def test_weekly_planning_validation_errors(self, client) -> None:
         """Test validation errors for weekly planning input"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -331,7 +296,7 @@ class TestWeeklyPlanningAdditionalCoverage:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_planning_dietary_restrictions(self, client):
+    def test_weekly_planning_dietary_restrictions(self, client) -> None:
         """Test various dietary restriction combinations"""
         os.environ["API_KEY"] = "test_key"
         try:

@@ -3,18 +3,8 @@ import sys
 
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 # Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 from core.menu_engine import make_daily_menu, make_weekly_menu
 from core.targets import UserProfile
 
@@ -35,7 +25,7 @@ def _profile():
     )
 
 
-def test_make_daily_menu_smoke():
+def test_make_daily_menu_smoke() -> None:
     prof = _profile()
     day = make_daily_menu(prof)
     assert day is not None
@@ -43,7 +33,7 @@ def test_make_daily_menu_smoke():
     assert isinstance(day.coverage, dict)
 
 
-def test_make_weekly_menu_smoke():
+def test_make_weekly_menu_smoke() -> None:
     prof = _profile()
     week = make_weekly_menu(prof)
     assert week is not None
@@ -51,7 +41,7 @@ def test_make_weekly_menu_smoke():
     assert hasattr(week, "daily_menus") and len(week.daily_menus) == 7
 
 
-def test_weekly_menu_endpoint_smoke():
+def test_weekly_menu_endpoint_smoke() -> None:
     # Ensure API key is passed (lenient mode accepts any non-trivial key)
     client = TestClient(app)
     payload = {

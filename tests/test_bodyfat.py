@@ -1,12 +1,7 @@
 import math
-import sys
-from pathlib import Path
 from typing import Any, Dict, cast
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
 

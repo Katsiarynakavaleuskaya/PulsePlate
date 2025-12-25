@@ -5,34 +5,23 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
 try:
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("app_module", "app.py")
-    if spec is None or spec.loader is None:
-        raise ImportError("Cannot load app.py")
-
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
-    app = app_module.app
+    from app import app
 except (ImportError, FileNotFoundError, AttributeError) as exc:  # pragma: no cover
     pytest.skip(f"Skipping smoke tests: cannot import app.py ({exc})", allow_module_level=True)
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     return TestClient(app)
 
 
-def test_health_ok(client):
+def test_health_ok(client) -> None:
     r = client.get("/health")
     assert r.status_code == 200
 
 
-def test_bmi_smoke_ok(client):
+def test_bmi_smoke_ok(client) -> None:
     r = client.post(
         "/bmi",
         json={
@@ -47,7 +36,7 @@ def test_bmi_smoke_ok(client):
     assert r.status_code == 200
 
 
-def test_v1_bmi_smoke(client):
+def test_v1_bmi_smoke(client) -> None:
     r = client.post(
         "/api/v1/bmi",
         json={
@@ -59,7 +48,7 @@ def test_v1_bmi_smoke(client):
     assert r.status_code in (200, 403)
 
 
-def test_v1_insight_smoke(client):
+def test_v1_insight_smoke(client) -> None:
     # Mock the LLM provider to avoid external dependencies
     with patch("llm.get_provider") as mock_get_provider:
         mock_provider = Mock()
@@ -92,6 +81,6 @@ def test_v1_insight_smoke(client):
             del os.environ["FEATURE_INSIGHT"]
 
 
-def test_metrics_smoke(client):
+def test_metrics_smoke(client) -> None:
     r = client.get("/metrics")
     assert r.status_code == 200

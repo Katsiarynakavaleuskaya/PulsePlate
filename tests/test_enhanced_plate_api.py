@@ -18,18 +18,8 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+# Import the FastAPI app from the app package
+from app import app
 
 client = TestClient(app)
 
@@ -37,12 +27,12 @@ client = TestClient(app)
 class TestEnhancedPlateAPI:
     """Test Enhanced My Plate API endpoint."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_plate_contract_basic(self):
+    def test_plate_contract_basic(self) -> None:
         """Test basic plate API contract with all required fields."""
         payload = {
             "sex": "female",
@@ -77,7 +67,7 @@ class TestEnhancedPlateAPI:
         assert isinstance(data["layout"], list) and len(data["layout"]) >= 4
         assert data["layout"][0]["kind"] in ("plate_sector", "bowl", "marker")
 
-    def test_plate_visual_layout_structure(self):
+    def test_plate_visual_layout_structure(self) -> None:
         """Test visual layout contains proper plate sectors and bowls."""
         payload = {
             "sex": "male",
@@ -115,7 +105,7 @@ class TestEnhancedPlateAPI:
             assert isinstance(item["fraction"], (int, float))
             assert 0 <= item["fraction"] <= 1.5  # Allow cups > 1
 
-    def test_plate_portions_hand_cup_method(self):
+    def test_plate_portions_hand_cup_method(self) -> None:
         """Test portions are converted to hand/cup measurements."""
         payload = {
             "sex": "female",
@@ -152,7 +142,7 @@ class TestEnhancedPlateAPI:
         # meals_per_day is now a top-level field in the response
         assert data["meals_per_day"] == 3
 
-    def test_plate_deficit_surplus_control(self):
+    def test_plate_deficit_surplus_control(self) -> None:
         """Test precise deficit and surplus percentage control."""
         base_payload = {
             "sex": "male",
@@ -183,7 +173,7 @@ class TestEnhancedPlateAPI:
             data = response.json()
             assert data["kcal"] > 2000  # Should be above maintenance
 
-    def test_plate_diet_flags_functionality(self):
+    def test_plate_diet_flags_functionality(self) -> None:
         """Test diet flags affect meal suggestions."""
         base_payload = {
             "sex": "female",
@@ -228,7 +218,7 @@ class TestEnhancedPlateAPI:
         meals_text = " ".join([meal["title"] for meal in data["meals"]])
         assert "(бюджет)" in meals_text  # Should mark budget options
 
-    def test_plate_macro_consistency(self):
+    def test_plate_macro_consistency(self) -> None:
         """Test macro distribution consistency and calculations."""
         payload = {
             "sex": "male",
@@ -265,7 +255,7 @@ class TestEnhancedPlateAPI:
         # Allow 5% variance for rounding
         assert abs(calculated_kcal - kcal) / kcal <= 0.05
 
-    def test_plate_goal_specific_differences(self):
+    def test_plate_goal_specific_differences(self) -> None:
         """Test different goals produce appropriate macro distributions."""
         base_payload = {
             "sex": "female",
@@ -304,7 +294,7 @@ class TestEnhancedPlateAPI:
         )
         assert loss_protein_ratio >= maintain_protein_ratio
 
-    def test_plate_validation_errors(self):
+    def test_plate_validation_errors(self) -> None:
         """Test input validation errors."""
         base_payload = {
             "sex": "male",
@@ -343,7 +333,7 @@ class TestEnhancedPlateAPI:
         )
         assert response.status_code == 422
 
-    def test_plate_missing_api_key(self):
+    def test_plate_missing_api_key(self) -> None:
         """Test plate API requires authentication."""
         payload = {
             "sex": "male",
@@ -359,7 +349,7 @@ class TestEnhancedPlateAPI:
         # Behavior depends on whether API_KEY is set in environment
         assert response.status_code in [200, 403]
 
-    def test_plate_meal_suggestions_structure(self):
+    def test_plate_meal_suggestions_structure(self) -> None:
         """Test meal suggestions have proper structure."""
         payload = {
             "sex": "female",
@@ -393,7 +383,7 @@ class TestEnhancedPlateAPI:
             assert meal["fat_g"] >= 0
             assert meal["carbs_g"] >= 0
 
-    def test_plate_edge_cases(self):
+    def test_plate_edge_cases(self) -> None:
         """Test edge cases and boundary values."""
         # Test minimum valid values - but realistic ones
         payload = {

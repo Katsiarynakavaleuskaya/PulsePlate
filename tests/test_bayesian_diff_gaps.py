@@ -140,9 +140,14 @@ def test_load_monetization_strategies_import_fallback(
 
     # Mock core.i18n import to raise ImportError using sys.modules
     import sys
-    from unittest.mock import patch
 
-    with patch.dict(sys.modules, {"core.i18n": None}):
+    # Remove module instead of setting to None (prevents sys.modules None poisoning)
+    module_to_restore = None
+    if "core.i18n" in sys.modules:
+        module_to_restore = sys.modules["core.i18n"]
+        del sys.modules["core.i18n"]
+
+    try:
         monkeypatch.setattr(
             BusinessBayesianAnalyzer, "_import_yaml_module", staticmethod(lambda: yaml)
         )
@@ -150,6 +155,10 @@ def test_load_monetization_strategies_import_fallback(
         analyzer = BusinessBayesianAnalyzer()
         data = analyzer._load_monetization_strategies(locale=None)
         assert "pricing_models" in data
+    finally:
+        # Restore module
+        if module_to_restore is not None:
+            sys.modules["core.i18n"] = module_to_restore
 
 
 def test_load_cost_rules_os_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

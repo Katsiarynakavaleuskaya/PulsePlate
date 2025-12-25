@@ -73,9 +73,20 @@ class TestResolveAttr:
 
     def test_resolve_attr_fallback_to_default(self):
         """Test fallback to default when attribute not found."""
-        with patch.dict(sys.modules, {"app": None, "_app_top_module": None}):
+        # Remove modules instead of setting to None (prevents sys.modules None poisoning)
+        modules_to_restore = {}
+        for mod_name in ["app", "_app_top_module"]:
+            if mod_name in sys.modules:
+                modules_to_restore[mod_name] = sys.modules[mod_name]
+                del sys.modules[mod_name]
+
+        try:
             result = resolve_attr("nonexistent_attr", "default_value")
             assert result == "default_value"
+        finally:
+            # Restore modules
+            for mod_name, mod_obj in modules_to_restore.items():
+                sys.modules[mod_name] = mod_obj
 
     def test_resolve_attr_with_custom_candidates(self):
         """Test resolution with custom candidate modules."""

@@ -14,28 +14,16 @@
 Нужно покрыть: 262+ дополнительных линии
 """
 
-import importlib.util
 import os
 import sys
 
 import pytest
 from fastapi.testclient import TestClient
-
-# Resolve app.py relative to this test file
-test_dir = os.path.dirname(os.path.abspath(__file__))
-app_path = os.path.join(os.path.dirname(test_dir), "app.py")
-
-spec = importlib.util.spec_from_file_location("app_module", app_path)
-if spec is None or spec.loader is None:
-    raise ImportError(f"Cannot load app.py from {app_path}")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
 
@@ -43,12 +31,12 @@ def client():
 class TestPremiumEndpointBlocks:
     """Тесты для блоков 820-836, 854-870, 885-897 premium endpoints"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_premium_bmr_error_conditions(self, client):
+    def test_premium_bmr_error_conditions(self, client) -> None:
         """Тест error conditions в premium BMR (820-836)"""
         # Установить API key для доступа
         os.environ["API_KEY"] = "test_key"
@@ -84,7 +72,7 @@ class TestPremiumEndpointBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_premium_bmr_business_logic(self, client):
+    def test_premium_bmr_business_logic(self, client) -> None:
         """Тест business logic в BMR (854-870)"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
@@ -113,7 +101,7 @@ class TestPremiumEndpointBlocks:
             if "FEATURE_PREMIUM_NUTRITION" in os.environ:
                 del os.environ["FEATURE_PREMIUM_NUTRITION"]
 
-    def test_premium_plate_business_logic(self, client):
+    def test_premium_plate_business_logic(self, client) -> None:
         """Тест business logic в Plate (884-895)"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
@@ -143,12 +131,12 @@ class TestPremiumEndpointBlocks:
 class TestWeeklyPlanningBlocks:
     """Тесты для больших блоков weekly planning (1265-1339, 1435-1501)"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_weekly_plan_creation_logic(self, client):
+    def test_weekly_plan_creation_logic(self, client) -> None:
         """Тест logic создания weekly plans (1265-1339)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -171,7 +159,7 @@ class TestWeeklyPlanningBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_plan_advanced_logic(self, client):
+    def test_weekly_plan_advanced_logic(self, client) -> None:
         """Тест advanced logic weekly planning (1435-1501)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -208,7 +196,7 @@ class TestWeeklyPlanningBlocks:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_weekly_plan_mock_llm_response(self, client):
+    def test_weekly_plan_mock_llm_response(self, client) -> None:
         """Тест weekly planning с имитацией LLM ответа"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -235,12 +223,12 @@ class TestWeeklyPlanningBlocks:
 class TestPremiumEndpointErrorHandling:
     """Тесты error handling в premium endpoints"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_premium_endpoints_without_implementation(self, client):
+    def test_premium_endpoints_without_implementation(self, client) -> None:
         """Тест endpoints которые могут быть не реализованы"""
         # Тест различных premium endpoints
         endpoints = [
@@ -257,7 +245,7 @@ class TestPremiumEndpointErrorHandling:
             # Должно вернуть 404 если не реализовано или другой статус
             assert response.status_code in [200, 404, 422, 501]
 
-    def test_api_key_validation_edge_cases(self, client):
+    def test_api_key_validation_edge_cases(self, client) -> None:
         """Тест edge cases для API key validation"""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         try:

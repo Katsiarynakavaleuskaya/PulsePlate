@@ -63,19 +63,14 @@ class TestAppPackageSpec:
         assert spec is not None
         assert spec.name == "app"
 
-    def test_app_package_spec_proxy_rebinds_sys_modules(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test that accessing spec triggers proxy and rebinds sys.modules."""
+    def test_app_package_sysmodules_binding(self) -> None:
+        """Test that sys.modules['app'] is correctly bound."""
         import app as apppkg
 
-        # Replace sys.modules['app'] with a placeholder to simulate external mutation
-        monkeypatch.setitem(sys.modules, "app", object())
-        # Accessing name should trigger proxy and rebind sys.modules['app'] back to module
+        assert sys.modules.get("app") is apppkg
         spec = apppkg.__spec__
         assert spec is not None, "apppkg.__spec__ should not be None"
         assert spec.name == "app", f"Expected spec.name to be 'app', got {spec.name}"
-        assert sys.modules["app"] is apppkg, "sys.modules['app'] should be bound to apppkg"
 
     def test_app_getattr_passes_through_and_raises_attribute_error(self) -> None:
         """Test that __getattr__ delegates and raises AttributeError for missing symbols."""

@@ -73,18 +73,19 @@ def premium_plate_fallback_setup(monkeypatch: pytest.MonkeyPatch) -> dict[str, A
 
     monkeypatch.setattr(utils, "resolve_attr", fake_resolve)
     monkeypatch.setattr(app, "resolve_attr", fake_resolve)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(app.app_module, "resolve_attr", fake_resolve, raising=False)
+    app_module = getattr(app, "app_module", None)
+    if app_module is not None:
+        monkeypatch.setattr(app_module, "resolve_attr", fake_resolve, raising=False)
 
     # Patch build_nutrition_targets on primary app module (restored automatically)
     monkeypatch.setattr(app, "build_nutrition_targets", fake_build_targets)
-    if getattr(app, "app_module", None) is not None:
+    if app_module is not None:
         monkeypatch.setattr(
-            app.app_module, "build_nutrition_targets", fake_build_targets, raising=False
+            app_module, "build_nutrition_targets", fake_build_targets, raising=False
         )
 
     # Force fallback path by nullifying premium helpers across known aliases
-    for target in (app, getattr(app, "app_module", None)):
+    for target in (app, app_module):
         if target is None:
             continue
         monkeypatch.setattr(target, "make_plate", None, raising=False)
@@ -357,10 +358,9 @@ async def test_api_premium_plate_fallback_handles_target_error(
         raise ValueError("boom")
 
     monkeypatch.setattr(app, "build_nutrition_targets", failing_targets, raising=False)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(
-            app.app_module, "build_nutrition_targets", failing_targets, raising=False
-        )
+    app_module = getattr(app, "app_module", None)
+    if app_module is not None:
+        monkeypatch.setattr(app_module, "build_nutrition_targets", failing_targets, raising=False)
 
     response = await app.api_premium_plate(request)
 
@@ -417,8 +417,9 @@ async def test_api_premium_plate_fallback_invalid_fiber_converts_to_min(
         return TargetWithInvalidFiber()
 
     monkeypatch.setattr(app, "build_nutrition_targets", bad_targets, raising=False)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(app.app_module, "build_nutrition_targets", bad_targets, raising=False)
+    app_module = getattr(app, "app_module", None)
+    if app_module is not None:
+        monkeypatch.setattr(app_module, "build_nutrition_targets", bad_targets, raising=False)
 
     response = await app.api_premium_plate(request)
 

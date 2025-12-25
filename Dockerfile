@@ -52,7 +52,7 @@ WORKDIR /app
 # Copy only necessary application files (exclude frontend, tests, docs)
 COPY --chown=pulseplate:pulseplate app/ ./app/
 COPY --chown=pulseplate:pulseplate core/ ./core/
-COPY --chown=pulseplate:pulseplate app.py main.py settings.py ./
+COPY --chown=pulseplate:pulseplate legacy_app.py main.py settings.py ./
 # Copy root-level modules that app.py imports
 COPY --chown=pulseplate:pulseplate bmi_core.py bmi_visualization.py nutrition_core.py signed_links.py ./
 COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
@@ -77,8 +77,9 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
 
-# Default command
-CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command (serve ASGI via app.main:app; legacy_app.py is no longer the entrypoint;
+# ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Stage 3: Staging stage
 # Extends production with staging-specific configurations
@@ -149,5 +150,6 @@ RUN apt-get update && apt-get install -y \
 # Switch back to non-root user
 USER pulseplate
 
-# Override command for development
-CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Override command for development (serve ASGI via app.main:app; legacy_app.py is no longer
+# the entrypoint; ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

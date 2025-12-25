@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, mock_open, patch
 import pytest
 
 # Add project root to path
+# NOTE: This test intentionally loads a non-package script module (test_pro_access.py).
+# Keeping importlib.spec_from_file_location here is expected.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the module being tested

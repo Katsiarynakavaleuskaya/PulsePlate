@@ -15,3 +15,101 @@
 - Never mock `builtins.__import__` or `builtins.float`.
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
+
+## Type hints policy (tests)
+
+### Hard rules
+- ❌ Never "fix" a failing test by loosening type hints (e.g., `Optional[T]` → `Any`)
+- ❌ Never change production type hints to satisfy mocks
+- ❌ Never add `# type: ignore` unless:
+  - exact error code is specified (`# type: ignore[arg-type]`)
+  - and comment explains why
+
+### Allowed in tests
+- `Any` **only** in fake/stub objects
+- `Protocol` or `Callable[..., T]` preferred over `Any`
+- `cast(T, value)` allowed **only at test boundary**
+- `Optional[T]` only if production code can actually return `None`
+
+### SQLAlchemy / Pydantic specifics
+- Never change `Mapped[T]` / `nullable` in models to satisfy tests
+- If relationship breaks typing → fix import order/model registration, not hints
+- Pydantic v2: prefer real validators over `# type: ignore`
+
+### Smell checklist
+If tempted to:
+- add `Optional` "just to make mypy shut up"
+- replace concrete type with `Any`
+- add multiple `# type: ignore` in a row
+
+⛔ STOP — the test or mock is wrong, not the type hint.
+
+## Import hygiene (hard rules)
+
+- Do NOT use `importlib.util.spec_from_file_location`,
+  `module_from_spec`, or `exec_module` in tests
+  (exceptions are explicitly whitelisted in guard tests).
+- Do NOT mutate `sys.modules` in tests.
+- `sys.path.insert` is only allowed in `conftest.py`
+  and `test_test_pro_access_coverage.py`.
+- `TESTING=true` must be set before importing `app`
+  (handled centrally in `pytest_configure`).
+- If a test imports symbols from `app`,
+  a guard-test must assert their presence.
+
+## No namespace duplication in tests (xdist stability)
+
+### Forbidden in tests
+- Dynamic module loading:
+  - `spec_from_file_location`, `module_from_spec`, `exec_module`
+- Path hacks:
+  - `sys.path.insert`
+- Module injection:
+  - `sys.modules[...] = ...`, `del sys.modules[...]`
+
+### Allowed exceptions (must be whitelisted)
+- `tests/conftest.py`
+- `tests/test_test_pro_access_coverage.py`
+- `tests/test_ensure_database_versions.py`
+
+### Required import pattern
+- Import production modules by package path:
+  - ✅ `import app.services.recipe_store as recipe_store`
+  - ✅ `from app import app`
+  - ❌ never load `app/services/X.py` by file path
+
+### Import hygiene exceptions (intentional)
+Dynamic imports allowed only for script-style tests:
+- `tests/test_test_pro_access_coverage.py`
+- `tests/test_ensure_database_versions.py`
+- `tests/conftest.py` (xdist/db + env bootstrap)
+
+sys.path.insert allowed only in:
+- `tests/conftest.py`
+- `tests/test_test_pro_access_coverage.py`
+
+### Pre-commit verification
+```bash
+# 1. No dynamic imports (except whitelisted)
+git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" tests \
+  | grep -vE "test_test_pro_access_coverage\.py|test_ensure_database_versions\.py|conftest\.py"
+
+# 2. No sys.path.insert (except allowed)
+git grep -n "sys\.path\.insert" tests \
+  | grep -vE "test_test_pro_access_coverage\.py|conftest\.py"
+
+# 3. No sys.modules mutations
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" tests
+
+# All should return empty or only whitelisted files
+```
+
+### Find violators (excluding guard tests)
+```bash
+# Dynamic imports
+git grep -n "sys\.path\.insert" tests \
+  | grep -vE "conftest\.py|test_test_pro_access_coverage\.py|test_import_hygiene_guard\.py|test_repo_policy_guards\.py"
+
+# Recipe store anti-pattern
+rg -n "sys\.modules\.get\(\"recipe_store\"\)|recipe_store.*spec_from_file_location" tests
+```

@@ -11,24 +11,13 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 # Set up test client
 client = TestClient(app)
 
 
-def test_week_plan_with_targets():
+def test_week_plan_with_targets() -> None:
     """Test generating a week plan with pre-calculated targets."""
     # Test data with pre-calculated targets
     test_data = {
@@ -70,7 +59,7 @@ def test_week_plan_with_targets():
         assert "detail" in data
 
 
-def test_week_plan_with_profile():
+def test_week_plan_with_profile() -> None:
     """Test generating a week plan with user profile."""
     # Test data with user profile
     test_data = {
@@ -102,7 +91,7 @@ def test_week_plan_with_profile():
         assert "detail" in data
 
 
-def test_week_plan_multilingual():
+def test_week_plan_multilingual() -> None:
     """Test that the API works with different languages."""
     # Test data with pre-calculated targets
     targets_data = {
@@ -141,7 +130,7 @@ def test_week_plan_multilingual():
             assert "API Key" in data["detail"]
 
 
-def test_week_plan_missing_data():
+def test_week_plan_missing_data() -> None:
     """Test that the API handles missing data correctly."""
     # Test data with missing required fields
     test_data = {"diet_flags": [], "lang": "en"}

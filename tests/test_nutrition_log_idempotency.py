@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.middleware.api_tiers import derive_subject_id_from_api_key
-from app.models.events import JSONEncodedDict, NutritionEvent
+from app.models import JSONEncodedDict, NutritionEvent
 from app.routers import nutrition_log
 from app.schemas.nutrition_log import MealLogRequest
 from core.bayes.adherence_service import AdherenceResult

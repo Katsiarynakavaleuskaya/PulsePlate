@@ -63,17 +63,22 @@ class TestVIPCoverageComprehensive:
 
     def test_vip_import_fallback_coverage_lines_55_74(self):
         """Test VIP import fallback coverage for lines 55-74."""
-        # Mock import failure to trigger fallback logic
-        with patch.dict(
-            "sys.modules",
-            {
-                "core.auto_repair": None,
-                "core.menu_engine": None,
-                "core.recipe_synth": None,
-                "core.region_catalog": None,
-                "core.shoplist": None,
-            },
-        ):
+        # Remove modules from sys.modules to simulate they're not available
+        original_modules = {}
+        modules_to_remove = [
+            "core.auto_repair",
+            "core.menu_engine",
+            "core.recipe_synth",
+            "core.region_catalog",
+            "core.shoplist",
+        ]
+
+        for module_name in modules_to_remove:
+            if module_name in sys.modules:
+                original_modules[module_name] = sys.modules[module_name]
+                del sys.modules[module_name]
+
+        try:
             # Re-import the module to trigger fallback
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
@@ -99,6 +104,10 @@ class TestVIPCoverageComprehensive:
             assert vip.suggest_manual_fixes is not None
             assert vip.RepairStrategy is not None
             assert vip.RepairStatus is not None
+        finally:
+            # Restore original modules
+            for module_name, module_obj in original_modules.items():
+                sys.modules[module_name] = module_obj
 
     def test_vip_api_key_validation_coverage_lines_98_105_110(self):
         """Test VIP API key validation coverage for lines 98, 105-110."""

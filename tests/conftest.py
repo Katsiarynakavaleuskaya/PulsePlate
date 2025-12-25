@@ -20,8 +20,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 
-from core import db as db_module
 import core.recipe_synth as recipe_synth
+
+# NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
+# before pytest_configure sets DATABASE_URL. Direct module-level import here
+# would create a Base instance before conftest's reload, causing dual-Base issues.
 
 # Ensure key feature flags are enabled during test collection
 os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
@@ -100,10 +103,13 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     os.environ["TEST_DB_PATH"] = str(resolved_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
-    # Reload db module to pick up new DATABASE_URL
-    # CRITICAL: Only reload core.db, NOT model modules. Reloading models breaks
-    # SQLAlchemy mapper registry and causes DayPlan→WeeklyPlan resolution failures.
-    db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
+    # Import DB module (do NOT reload it here).
+    #
+    # Rationale:
+    # - Several tests/modules may import ORM models during collection; reloading
+    #   core.db/core.models would rebind model classes and break existing references.
+    # - core.db.init_db() already recreates the engine/session when DATABASE_URL changes.
+    db_module_reloaded = importlib.import_module("core.db")
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
@@ -115,27 +121,10 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
         except Exception as e:
             logger.debug(f"Could not remove existing database file: {e}")
 
-    # Import all models ONCE to register with Base.metadata (no reloads!)
-    # The order matters: core.models first, then app.models
+    # Import all models ONCE to register with Base.metadata
+    # The order matters: core.models first, then app.models package
     import core.models  # noqa: F401
-    import app.models.events  # noqa: F401
-    import app.models.plans  # noqa: F401
-
-    # Handle dual Base issue from app/__init__.py using spec.loader.exec_module:
-    # app.models.* may have registered tables in a different Base instance.
-    # Copy any missing tables from app.models Base to core.db Base.
-    try:
-        import app.models.events as ev_module
-        import app.models.plans as plans_module
-
-        for mod in (ev_module, plans_module):
-            if hasattr(mod, "Base") and mod.Base is not db_module_reloaded.Base:
-                # Different Base instances - copy tables
-                for table_name, table in mod.Base.metadata.tables.items():
-                    if table_name not in db_module_reloaded.Base.metadata.tables:
-                        table.to_metadata(db_module_reloaded.Base.metadata)
-    except Exception as e:
-        logger.debug(f"Could not sync app.models tables: {e}")
+    import app.models  # noqa: F401 - imports all models via __init__.py
 
     db_module_reloaded.init_db()
 
@@ -223,7 +212,17 @@ def setup_test_environment() -> Generator[None, None, None]:
     os.environ["APP_ENV"] = "test"
     os.environ["DEBUG"] = "true"
     yield
-    # Clean up after all tests
+    # Clean up after all tests: dispose all database connections
+    try:
+        import core.db
+
+        if hasattr(core.db, "_RAW_ENGINE") and core.db._RAW_ENGINE:
+            core.db._RAW_ENGINE.dispose()
+        if hasattr(core.db, "engine") and core.db.engine:
+            core.db.engine.dispose()
+    except Exception:
+        pass  # Best-effort cleanup
+    # Clean up environment variables
     for key in ["API_KEY", "APP_ENV", "DEBUG"]:
         if key in os.environ:
             del os.environ[key]
@@ -234,24 +233,16 @@ _CACHED_APP_MODULE: ModuleType | None = None
 
 @pytest.fixture(scope="session")
 def app_module() -> ModuleType:
-    """Dynamically load app.py and return a stable module instance.
-
-    This fixture depends on setup_test_environment to ensure
-    API_KEY is set before loading the app.
-    """
+    """Import app package and return stable module instance."""
     global _CACHED_APP_MODULE
 
-    repo_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(repo_root))
-
-    # Reuse cached module if we already loaded it (protects against
-    # sys.modules["app"] being removed by other tests).
+    # Reuse cached module if we already loaded it
     if _CACHED_APP_MODULE is not None:
         if "app" not in sys.modules:
             sys.modules["app"] = _CACHED_APP_MODULE
         return _CACHED_APP_MODULE
 
-    # Import app directly (app.py can import from app/ package)
+    # Import app directly (standard import, no sys.path manipulation)
     import app as app_mod
 
     _CACHED_APP_MODULE = app_mod

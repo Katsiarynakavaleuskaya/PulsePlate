@@ -10,20 +10,10 @@ from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+from app import app
+import legacy_app
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    pytest.skip("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
-get_update_scheduler = app_module.get_update_scheduler
+get_update_scheduler = legacy_app.get_update_scheduler
 
 
 class TestAppSpecificCoverage96:
@@ -34,7 +24,8 @@ class TestAppSpecificCoverage96:
         """Set up test client from conftest fixture."""
         self.client = client
 
-    @patch.object(app_module, "_scheduler_getter", None)
+    @pytest.mark.asyncio
+    @patch.object(legacy_app, "_scheduler_getter", None)
     async def test_get_update_scheduler_late_import(self):
         """Test get_update_scheduler when _scheduler_getter is None (lines 115-119)."""
         # This should trigger the late import path

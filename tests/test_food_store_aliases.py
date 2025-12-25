@@ -1,35 +1,10 @@
-import os
-import sys
-import importlib.util
 import tempfile
 from pathlib import Path
-from importlib.machinery import ModuleSpec
-from typing import Any, Optional
-from types import ModuleType
+from typing import Any
 
 import pytest
 
-# Load food_store module: check sys.modules first, then fall back to file loading
-fs_module: Optional[ModuleType] = sys.modules.get("food_store")
-if fs_module is None:
-    # Build file path for the food_store module
-    food_store_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)),
-        "app",
-        "services",
-        "food_store.py",
-    )
-    spec: Optional[ModuleSpec] = importlib.util.spec_from_file_location(
-        "food_store", food_store_path
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError("Cannot load food_store module")
-    fs_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(fs_module)
-
-
-# Short alias for backward compatibility
-fs: ModuleType = fs_module
+import app.services.food_store as fs
 
 
 def test_get_aliases_merges_defaults_and_csv(monkeypatch: pytest.MonkeyPatch) -> None:

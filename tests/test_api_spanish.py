@@ -1,40 +1,25 @@
-"""
-Tests for API endpoints with Spanish language support.
-"""
+"""Tests for API endpoints with Spanish language support."""
 
 import os
-import sys
 
 from fastapi.testclient import TestClient
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 class TestAPISpanish:
     """Test API endpoints with Spanish language support."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test environment."""
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_bmi_endpoint_spanish(self):
+    def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""
         data = {
             "weight_kg": 70.0,
@@ -63,7 +48,7 @@ class TestAPISpanish:
             "Obesidad Clase III",
         ]
 
-    def test_bmi_pro_endpoint_spanish(self):
+    def test_bmi_pro_endpoint_spanish(self) -> None:
         """Test BMI Pro endpoint with Spanish language."""
         data = {
             "weight_kg": 70.0,
@@ -87,7 +72,7 @@ class TestAPISpanish:
         # Check that we have validation errors
         assert len(result["detail"]) > 0
 
-    def test_plan_endpoint_spanish(self):
+    def test_plan_endpoint_spanish(self) -> None:
         """Test plan endpoint with Spanish language."""
         data = {
             "weight_kg": 70.0,

@@ -8,10 +8,6 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from tests.test_helpers import load_app  # noqa: E402 (import after sys.path modification)
-
 # client fixture is provided by conftest.py
 
 
@@ -222,9 +218,13 @@ def test_insight_import_failure(client):
     failing_llm_module = MagicMock()
     failing_llm_module.__name__ = "llm"
 
-    # Patch sys.modules to make llm import fail by setting it to None
+    # Remove module from sys.modules to make llm import fail
     # This simulates the import failure without using conditionals
-    with patch.dict("sys.modules", {"llm": None}, clear=False):
+    original_module = sys.modules.get("llm")
+    if "llm" in sys.modules:
+        del sys.modules["llm"]
+
+    try:
 
         def test_assertions(app):
             client = TestClient(cast(ASGIApp, app.app))
@@ -239,6 +239,10 @@ def test_insight_import_failure(client):
             assert "insight provider not configured" in data["detail"]
 
         _test_app_import_with_assertions(original_app, test_assertions)
+    finally:
+        # Restore original module if it existed
+        if original_module is not None:
+            sys.modules["llm"] = original_module
 
 
 @patch("llm.get_provider")

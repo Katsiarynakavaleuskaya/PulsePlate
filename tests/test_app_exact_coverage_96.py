@@ -10,31 +10,19 @@ import sys
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 class TestAppExactCoverage96:
     """Tests to cover exact missing lines in main.py."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment and client"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
-    def test_bmi_validation_unrealistically_high_bmi_exact(self):
+    def test_bmi_validation_unrealistically_high_bmi_exact(self) -> None:
         """Test BMI validation for unrealistically high BMI (> 100) - line 280."""
         # This should trigger the ValueError on line 280
         payload = {
@@ -48,10 +36,15 @@ class TestAppExactCoverage96:
         }
 
         response = self.client.post("/bmi", json=payload)
-        # The validation might not trigger 422, let's check what we get
-        assert response.status_code in [200, 422]
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        assert any(
+            "unrealistically" in (item.get("msg", "") if isinstance(item, dict) else "")
+            for item in data["detail"]
+        )
 
-    def test_bmi_validation_unrealistically_low_bmi_exact(self):
+    def test_bmi_validation_unrealistically_low_bmi_exact(self) -> None:
         """Test BMI validation for unrealistically low BMI (< 10) - line 278."""
         # This should trigger the ValueError on line 278
         payload = {
@@ -65,11 +58,16 @@ class TestAppExactCoverage96:
         }
 
         response = self.client.post("/bmi", json=payload)
-        # The validation might not trigger 422, let's check what we get
-        assert response.status_code in [200, 422]
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        assert any(
+            "unrealistically" in (item.get("msg", "") if isinstance(item, dict) else "")
+            for item in data["detail"]
+        )
 
     @patch("app.MATPLOTLIB_AVAILABLE", False)
-    def test_visualization_not_available_matplotlib(self):
+    def test_visualization_not_available_matplotlib(self) -> None:
         """Test visualization when matplotlib is not available - line 685."""
         payload = {
             "weight_kg": 70.0,
@@ -90,7 +88,7 @@ class TestAppExactCoverage96:
             assert data["visualization"]["available"] is False
             assert "matplotlib not installed" in data["visualization"]["error"]
 
-    def test_pregnant_female_bmi_note(self):
+    def test_pregnant_female_bmi_note(self) -> None:
         """Test BMI calculation for pregnant female - lines 756-757."""
         payload = {
             "weight_kg": 70.0,
@@ -111,7 +109,7 @@ class TestAppExactCoverage96:
         assert data["category"] is None  # No category for pregnant women
         assert "pregnancy" in data["note"].lower() or "not valid" in data["note"].lower()
 
-    def test_pregnant_female_bmi_note_russian(self):
+    def test_pregnant_female_bmi_note_russian(self) -> None:
         """Test BMI calculation for pregnant female in Russian - lines 756-757."""
         payload = {
             "weight_kg": 70.0,
@@ -131,7 +129,7 @@ class TestAppExactCoverage96:
         assert "note" in data
         assert data["category"] is None  # No category for pregnant women
 
-    def test_pregnant_female_bmi_note_spanish(self):
+    def test_pregnant_female_bmi_note_spanish(self) -> None:
         """Test BMI calculation for pregnant female in Spanish - lines 756-757."""
         payload = {
             "weight_kg": 70.0,
@@ -151,7 +149,7 @@ class TestAppExactCoverage96:
         assert "note" in data
         assert data["category"] is None  # No category for pregnant women
 
-    def test_waist_risk_high_male_english(self):
+    def test_waist_risk_high_male_english(self) -> None:
         """Test waist risk for high risk male in English - lines 770, 772."""
         payload = {
             "weight_kg": 90.0,
@@ -172,7 +170,7 @@ class TestAppExactCoverage96:
         assert "note" in data
         assert "high" in data["note"].lower() or "risk" in data["note"].lower()
 
-    def test_waist_risk_high_female_english(self):
+    def test_waist_risk_high_female_english(self) -> None:
         """Test waist risk for high risk female in English - lines 770, 772."""
         payload = {
             "weight_kg": 80.0,
@@ -193,7 +191,7 @@ class TestAppExactCoverage96:
         assert "note" in data
         assert "high" in data["note"].lower() or "risk" in data["note"].lower()
 
-    def test_waist_risk_high_male_russian(self):
+    def test_waist_risk_high_male_russian(self) -> None:
         """Test waist risk for high risk male in Russian - lines 770, 772."""
         payload = {
             "weight_kg": 90.0,
@@ -213,7 +211,7 @@ class TestAppExactCoverage96:
         # Should have waist risk warning in Russian
         assert "note" in data
 
-    def test_waist_risk_high_female_russian(self):
+    def test_waist_risk_high_female_russian(self) -> None:
         """Test waist risk for high risk female in Russian - lines 770, 772."""
         payload = {
             "weight_kg": 80.0,
@@ -233,7 +231,7 @@ class TestAppExactCoverage96:
         # Should have waist risk warning in Russian
         assert "note" in data
 
-    def test_waist_risk_increased_male_english(self):
+    def test_waist_risk_increased_male_english(self) -> None:
         """Test waist risk for increased risk male in English - lines 879-882."""
         payload = {
             "weight_kg": 85.0,
@@ -254,7 +252,7 @@ class TestAppExactCoverage96:
         assert "note" in data
         assert "increased" in data["note"].lower() or "risk" in data["note"].lower()
 
-    def test_waist_risk_increased_female_english(self):
+    def test_waist_risk_increased_female_english(self) -> None:
         """Test waist risk for increased risk female in English - lines 879-882."""
         payload = {
             "weight_kg": 75.0,
@@ -275,7 +273,7 @@ class TestAppExactCoverage96:
         assert "note" in data
         assert "increased" in data["note"].lower() or "risk" in data["note"].lower()
 
-    def test_waist_risk_increased_male_russian(self):
+    def test_waist_risk_increased_male_russian(self) -> None:
         """Test waist risk for increased risk male in Russian - lines 879-882."""
         payload = {
             "weight_kg": 85.0,
@@ -295,7 +293,7 @@ class TestAppExactCoverage96:
         # Should have waist risk warning in Russian
         assert "note" in data
 
-    def test_waist_risk_increased_female_russian(self):
+    def test_waist_risk_increased_female_russian(self) -> None:
         """Test waist risk for increased risk female in Russian - lines 879-882."""
         payload = {
             "weight_kg": 75.0,
@@ -315,7 +313,7 @@ class TestAppExactCoverage96:
         # Should have waist risk warning in Russian
         assert "note" in data
 
-    def test_waist_risk_low_male_english(self):
+    def test_waist_risk_low_male_english(self) -> None:
         """Test waist risk for low risk male in English - lines 888-891."""
         payload = {
             "weight_kg": 70.0,
@@ -336,7 +334,7 @@ class TestAppExactCoverage96:
         assert "bmi" in data
         assert "category" in data
 
-    def test_waist_risk_low_female_english(self):
+    def test_waist_risk_low_female_english(self) -> None:
         """Test waist risk for low risk female in English - lines 888-891."""
         payload = {
             "weight_kg": 60.0,
@@ -357,7 +355,7 @@ class TestAppExactCoverage96:
         assert "bmi" in data
         assert "category" in data
 
-    def test_waist_risk_none_waist(self):
+    def test_waist_risk_none_waist(self) -> None:
         """Test waist risk when waist is None - lines 888-891."""
         payload = {
             "weight_kg": 70.0,
@@ -378,7 +376,7 @@ class TestAppExactCoverage96:
         assert "bmi" in data
         assert "category" in data
 
-    def test_athlete_group_assignment(self):
+    def test_athlete_group_assignment(self) -> None:
         """Test athlete group assignment - lines 1056, 1063."""
         payload = {
             "weight_kg": 85.0,
@@ -398,7 +396,7 @@ class TestAppExactCoverage96:
         assert "group" in data
         assert data["group"] == "athlete"
 
-    def test_general_group_assignment(self):
+    def test_general_group_assignment(self) -> None:
         """Test general group assignment - lines 1056, 1063."""
         payload = {
             "weight_kg": 70.0,
@@ -418,7 +416,7 @@ class TestAppExactCoverage96:
         assert "group" in data
         assert data["group"] == "general"
 
-    def test_athlete_flag_assignment(self):
+    def test_athlete_flag_assignment(self) -> None:
         """Test athlete flag assignment - lines 1124-1131."""
         payload = {
             "weight_kg": 85.0,
@@ -438,7 +436,7 @@ class TestAppExactCoverage96:
         assert "athlete" in data
         assert data["athlete"] is True
 
-    def test_non_athlete_flag_assignment(self):
+    def test_non_athlete_flag_assignment(self) -> None:
         """Test non-athlete flag assignment - lines 1124-1131."""
         payload = {
             "weight_kg": 70.0,
@@ -458,7 +456,7 @@ class TestAppExactCoverage96:
         assert "athlete" in data
         assert data["athlete"] is False
 
-    def test_bmi_calculation_assignment(self):
+    def test_bmi_calculation_assignment(self) -> None:
         """Test BMI calculation assignment - lines 1622-1623."""
         payload = {
             "weight_kg": 70.0,
@@ -479,7 +477,7 @@ class TestAppExactCoverage96:
         expected_bmi = 70.0 / (1.7**2)
         assert abs(data["bmi"] - expected_bmi) < 0.1
 
-    def test_category_assignment(self):
+    def test_category_assignment(self) -> None:
         """Test category assignment - lines 1652."""
         payload = {
             "weight_kg": 70.0,
@@ -499,7 +497,7 @@ class TestAppExactCoverage96:
         assert "category" in data
         assert data["category"] is not None
 
-    def test_note_assignment(self):
+    def test_note_assignment(self) -> None:
         """Test note assignment - lines 1652."""
         payload = {
             "weight_kg": 70.0,

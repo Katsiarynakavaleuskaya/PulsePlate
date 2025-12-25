@@ -24,6 +24,10 @@ def _ensure_non_production() -> None:
     if env == "production":
         raise HTTPException(status_code=404, detail="Test endpoints disabled in production")
 
+    # Staging may be externally accessible; require explicit enablement.
+    if env == "staging" and (os.getenv("ENABLE_TEST_ROUTES", "").strip() != "1"):
+        raise HTTPException(status_code=404, detail="Test endpoints disabled in staging")
+
 
 router = APIRouter(
     prefix="/api/v1/test",

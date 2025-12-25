@@ -526,8 +526,20 @@ else:
 async_engine: Optional["AsyncEngine"] = _ASYNC_ENGINE
 
 
-class Base(DeclarativeBase):
-    """Base class for declarative SQLAlchemy models."""
+# Preserve Base identity across importlib.reload(core.db) used in tests.
+# RU: В репозитории есть тесты, которые делают reload(core.db) ради покрытия веток,
+# зависящих от env. Это НЕ поддерживаемый способ “реинициализации БД” — для этого
+# используйте init_db() и явные reset-хелперы, а не reload().
+# Повторное создание Base при reload приводит к dual-Base конфликтам (модели остаются
+# привязаны к старому Base).
+# EN: The repo contains tests that call reload(core.db) to cover env-driven branches.
+# This is NOT a supported way to reinitialize DB state—use init_db() (and explicit
+# reset helpers) instead of reload(). Recreating Base on reload would violate the
+# single-Base invariant because already-imported models keep the old Base.
+if "Base" not in globals():
+
+    class Base(DeclarativeBase):
+        """Base class for declarative SQLAlchemy models."""
 
 
 def get_session() -> Generator[Session, None, None]:

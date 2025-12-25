@@ -37,7 +37,10 @@ class WeeklyPlan(Base):
 
     # Relationships
     day_plans: Mapped[list["DayPlan"]] = relationship(
-        "DayPlan", back_populates="weekly_plan", cascade="all"
+        "DayPlan",
+        back_populates="weekly_plan",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     __table_args__ = (CheckConstraint("start_date <= end_date", name="ck_weekly_plan_date_order"),)
@@ -56,8 +59,11 @@ class DayPlan(Base):
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    weekly_plan_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("weekly_plans.id", ondelete="CASCADE"), nullable=True, index=True
+    weekly_plan_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("weekly_plans.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     plan_data: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, server_default="{}")
@@ -69,8 +75,6 @@ class DayPlan(Base):
     )
 
     # Relationships
-    weekly_plan: Mapped["WeeklyPlan | None"] = relationship(
-        "WeeklyPlan", back_populates="day_plans"
-    )
+    weekly_plan: Mapped["WeeklyPlan"] = relationship("WeeklyPlan", back_populates="day_plans")
 
     __table_args__ = (UniqueConstraint("user_id", "date", name="uq_day_plans_user_date"),)

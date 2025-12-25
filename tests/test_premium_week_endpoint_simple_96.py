@@ -8,24 +8,14 @@ from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+# Import the FastAPI app from the app package
+from app import app
 
 
 class TestPremiumWeekEndpointSimple96:
     """Simple tests for premium week endpoint coverage."""
 
-    def test_generate_week_plan_with_targets(self):
+    def test_generate_week_plan_with_targets(self) -> None:
         """Test generate_week_plan with provided targets - lines 93-117."""
         client = TestClient(app)
 
@@ -73,7 +63,7 @@ class TestPremiumWeekEndpointSimple96:
             assert "total_cost" in data
             assert "adherence_score" in data
 
-    def test_generate_week_plan_with_profile(self):
+    def test_generate_week_plan_with_profile(self) -> None:
         """Test generate_week_plan with user profile - lines 93-117."""
         client = TestClient(app)
 
@@ -131,7 +121,7 @@ class TestPremiumWeekEndpointSimple96:
             assert "total_cost" in data
             assert "adherence_score" in data
 
-    def test_generate_week_plan_missing_profile_data(self):
+    def test_generate_week_plan_missing_profile_data(self) -> None:
         """Test generate_week_plan with missing profile data - lines 101-102."""
         client = TestClient(app)
 
@@ -166,7 +156,7 @@ class TestPremiumWeekEndpointSimple96:
             assert any("height_cm" in str(error) for error in detail)
             assert any("weight_kg" in str(error) for error in detail)
 
-    def test_generate_week_plan_unable_to_derive_targets(self):
+    def test_generate_week_plan_unable_to_derive_targets(self) -> None:
         """Test generate_week_plan when unable to derive targets - lines 112-113."""
         client = TestClient(app)
 

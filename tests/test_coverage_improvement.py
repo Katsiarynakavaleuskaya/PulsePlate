@@ -9,18 +9,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 # Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
+import legacy_app
 
 
 class TestCoverageImprovement:
@@ -58,7 +49,7 @@ class TestCoverageImprovement:
     def test_bmi_visualize_endpoint_uncovered_paths(self) -> None:
         """Test uncovered paths in bmi_visualize_endpoint."""
         # Test when matplotlib is not available
-        with patch.object(app_module, "generate_bmi_visualization", None):
+        with patch.object(legacy_app, "generate_bmi_visualization", None):
             data = {
                 "weight_kg": 70.0,
                 "height_m": 1.75,
@@ -77,9 +68,9 @@ class TestCoverageImprovement:
         # Test when MATPLOTLIB_AVAILABLE is False
         with (
             patch.object(
-                app_module, "generate_bmi_visualization", lambda **kwargs: {"available": False}
+                legacy_app, "generate_bmi_visualization", lambda **kwargs: {"available": False}
             ),
-            patch.object(app_module, "MATPLOTLIB_AVAILABLE", False),
+            patch.object(legacy_app, "MATPLOTLIB_AVAILABLE", False),
         ):
             data = {
                 "weight_kg": 70.0,
@@ -124,8 +115,8 @@ class TestCoverageImprovement:
             # Should not crash, just log warning
 
         # Test scheduler start when already running
-        # Patch app_module.get_update_scheduler to match endpoint resolution
-        with patch.object(app_module, "get_update_scheduler") as mock_get_scheduler:
+        # Patch legacy_app.get_update_scheduler to match endpoint resolution
+        with patch.object(legacy_app, "get_update_scheduler") as mock_get_scheduler:
             mock_scheduler = MagicMock()
             mock_scheduler.is_running = True
             mock_get_scheduler.return_value = mock_scheduler
@@ -173,7 +164,7 @@ class TestCoverageImprovement:
                 "core.food_apis.update_manager.DatabaseUpdateManager._load_backup",
                 side_effect=Exception("Test error"),
             ):
-                with patch.object(app_module, "get_update_scheduler") as mock_get_scheduler:
+                with patch.object(legacy_app, "get_update_scheduler") as mock_get_scheduler:
                     mock_scheduler = AsyncMock()
                     mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
                     mock_get_scheduler.return_value = mock_scheduler

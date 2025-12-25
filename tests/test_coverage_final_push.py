@@ -12,10 +12,6 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-# Add paths for import resolution
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
-
 
 @pytest.fixture
 def vip_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -47,14 +43,16 @@ class TestFinalCoveragePush:
 
     def test_vip_import_fallbacks(self) -> None:
         """Test VIP router import fallback paths."""
-        with patch.dict(
-            "sys.modules",
-            {
-                "core.menu_engine": None,
-                "core.shoplist": None,
-                "core.region_catalog": None,
-            },
-        ):
+        # Remove modules from sys.modules to simulate they're not available
+        original_modules = {}
+        modules_to_remove = ["core.menu_engine", "core.shoplist", "core.region_catalog"]
+
+        for module_name in modules_to_remove:
+            if module_name in sys.modules:
+                original_modules[module_name] = sys.modules[module_name]
+                del sys.modules[module_name]
+
+        try:
             if "app.routers.vip" in sys.modules:
                 del sys.modules["app.routers.vip"]
             if "app" in sys.modules:
@@ -68,6 +66,10 @@ class TestFinalCoveragePush:
                 response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test-key"})
                 # VIP endpoints may return 403 if not properly configured, which is acceptable for coverage
                 assert response.status_code in [200, 403]
+        finally:
+            # Restore original modules
+            for module_name, module_obj in original_modules.items():
+                sys.modules[module_name] = module_obj
 
     def test_premium_bmr_calculator_endpoint(self) -> None:
         """Test premium BMR calculator endpoint."""

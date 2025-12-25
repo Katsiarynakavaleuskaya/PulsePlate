@@ -90,7 +90,7 @@ setup-automation: ## Setup pre-commit hooks and git aliases
 ## Run local dev server on :8001
 dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
 	@echo "$(YELLOW)🔥 Запуск сервера разработки...$(NC)"
-	uvicorn app:app --reload --host 0.0.0.0 --port 8001
+	uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
 ## Run tests (quiet)
 test: ## Run pytest

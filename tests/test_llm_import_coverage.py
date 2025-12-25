@@ -36,7 +36,11 @@ class TestImportFallbacks:
                 del sys.modules[mod_name]
 
             # Мокаем импорт providers.grok чтобы вызвать исключение
-            with patch.dict("sys.modules", {"providers.grok": None}):
+            # Remove module from sys.modules to simulate it's not available
+            original_module = sys.modules.get("providers.grok")
+            if "providers.grok" in sys.modules:
+                del sys.modules["providers.grok"]
+            try:
                 original_import = builtins.__import__
 
                 def side_effect(name, *args, **kwargs):
@@ -55,6 +59,12 @@ class TestImportFallbacks:
                     # Тестируем создание и использование GrokLiteProvider
                     provider = llm.GrokLiteProvider()
                     assert provider.name == "grok"
+            finally:
+                # Restore original module
+                if original_module is not None:
+                    sys.modules["providers.grok"] = original_module
+                elif "providers.grok" in sys.modules:
+                    del sys.modules["providers.grok"]
 
         finally:
             # Восстанавливаем оригинальные модули

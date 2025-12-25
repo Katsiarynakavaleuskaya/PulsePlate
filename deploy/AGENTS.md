@@ -13,3 +13,21 @@
 ## Conventions
 - Keep staging and production configs in sync with documented env vars.
 - Avoid changes that alter runtime ports without updating clients and docs.
+
+## Docker entrypoint invariants
+Docker must run FastAPI as:
+- `app.main:app`
+
+Do not COPY missing legacy files (e.g., app.py) after refactors.
+
+Verify with:
+```bash
+# Check for obsolete app.py copies
+rg -n "COPY .*app\.py|COPY .*legacy_app\.py" Dockerfile
+
+# Verify uvicorn entrypoint
+rg -n "uvicorn\s+app(:|.main:app)|legacy_app" Dockerfile Makefile docker-compose.yaml -S
+
+# Should use app.main:app
+rg -n "app\.main:app" Dockerfile Makefile docker-compose.yaml -S
+```

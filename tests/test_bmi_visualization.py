@@ -7,6 +7,8 @@ Tests both the enhanced BMI endpoint and dedicated visualization endpoint.
 import base64
 import importlib
 import io
+import sys
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -17,14 +19,14 @@ client = TestClient(app_module.app)
 
 # Test imports to ensure module can be imported
 try:
-    import matplotlib
-    import matplotlib.pyplot as plt
+    import matplotlib  # type: ignore
+    import matplotlib.pyplot as plt  # type: ignore
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
-    matplotlib = None
-    plt = None
+    matplotlib = None  # type: ignore
+    plt = None  # type: ignore
 
 
 def test_bmi_visualization_imports():
@@ -47,16 +49,35 @@ def test_bmi_visualization_imports():
         pass
 
 
-def test_matplotlib_import_error_handling():
+def test_matplotlib_import_error_handling(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling when matplotlib import fails."""
     # Test the import error path in bmi_visualization module
-    with patch.dict("sys.modules", {"matplotlib": None, "matplotlib.pyplot": None}):
-        # Force reimport to test the ImportError handling
-        import bmi_visualization
+    # Remove bmi_visualization from cache to force reimport
+    monkeypatch.delitem(sys.modules, "bmi_visualization", raising=False)
 
-        importlib.reload(bmi_visualization)
-        # This should set MATPLOTLIB_AVAILABLE to False
-        assert not bmi_visualization.MATPLOTLIB_AVAILABLE
+    # Remove already-imported matplotlib modules to ensure we hit the import path again.
+    for mod_name in [k for k in list(sys.modules.keys()) if k.startswith("matplotlib")]:
+        monkeypatch.delitem(sys.modules, mod_name, raising=False)
+
+    # Block matplotlib imports without mocking builtins.__import__ (repo policy).
+    import importlib.abc
+    from types import ModuleType
+    from typing import Optional
+
+    class _BlockMatplotlib(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname: str, path: object, target: Optional[ModuleType] = None):  # type: ignore[override]
+            if fullname == "matplotlib" or fullname.startswith("matplotlib."):
+                raise ModuleNotFoundError(fullname)
+            return None
+
+    blocker = _BlockMatplotlib()
+    monkeypatch.setattr(sys, "meta_path", [blocker, *sys.meta_path])
+
+    import bmi_visualization
+
+    importlib.reload(bmi_visualization)
+    # This should set MATPLOTLIB_AVAILABLE to False
+    assert not bmi_visualization.MATPLOTLIB_AVAILABLE
 
 
 def test_bmi_visualization_without_matplotlib():

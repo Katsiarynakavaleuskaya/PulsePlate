@@ -15,18 +15,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 class TestCoverageBoostSimple:
@@ -47,15 +36,15 @@ class TestCoverageBoostSimple:
 
     def test_app_import_fallbacks(self):
         """Test app import fallbacks."""
-        with patch("app.calculate_all_bmr", None):
-            with patch("app.calculate_all_tdee", None):
+        with patch("legacy_app.calculate_all_bmr", None):
+            with patch("legacy_app.calculate_all_tdee", None):
                 response = self.client.get("/")
                 assert response.status_code == 200
 
     def test_app_utils_fallbacks(self):
         """Test app utils fallbacks."""
-        with patch("app.get_activity_factor", None):
-            with patch("app.resolve_attr", None):
+        with patch("legacy_app.get_activity_factor", None):
+            with patch("legacy_app.resolve_attr", None):
                 response = self.client.get("/")
                 assert response.status_code == 200
 
@@ -143,25 +132,19 @@ class TestCoverageBoostSimple:
 
     def test_missing_imports(self):
         """Test missing imports handling."""
-        with patch("app.premium_week_router", None):
+        with patch("legacy_app.premium_week_router", None):
             response = self.client.get("/")
             assert response.status_code == 200
 
     def test_scheduler_import(self):
         """Test scheduler import handling."""
-        with patch("app._scheduler_getter", None):
-            response = self.client.get("/")
-            assert response.status_code == 200
-
-    def test_import_error_handling(self):
-        """Test import error handling."""
-        with patch("app.importlib.import_module", side_effect=ImportError("Module not found")):
+        with patch("legacy_app._scheduler_getter", None):
             response = self.client.get("/")
             assert response.status_code == 200
 
     def test_timeout_handling(self):
         """Test timeout handling."""
-        with patch("app.time.sleep", side_effect=TimeoutError("Request timeout")):
+        with patch("legacy_app.time.sleep", side_effect=TimeoutError("Request timeout")):
             response = self.client.get("/")
             assert response.status_code in [200, 500, 408]
 

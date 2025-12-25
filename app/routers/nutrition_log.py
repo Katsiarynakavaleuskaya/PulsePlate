@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.middleware.api_tiers import CurrentUser, get_current_user, require_pro_tier
-from app.models.events import NutritionEvent
+from app.models import NutritionEvent
 from app.routers.bayes_adherence import get_adherence_service
 from app.schemas.bayes_adherence import AdherenceResponse
 from app.schemas.nutrition_log import DayCloseRequest, MealLogRequest

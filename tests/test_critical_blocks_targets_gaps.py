@@ -9,28 +9,15 @@
 """
 
 import os
-import sys
-from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the FastAPI app from app.py file
-import importlib.util
-
-spec = importlib.util.spec_from_file_location("app_module", "app.py")
-if spec is None or spec.loader is None:
-    raise ImportError("Cannot load app.py")
-
-app_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(app_module)
-app = app_module.app
+from app import app
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
 
@@ -38,7 +25,7 @@ def client():
 class TestWHOTargetsEndpoint:
     """Тесты для endpoint /api/v1/premium/targets (блок 1265-1339)"""
 
-    def test_who_targets_unavailable_path(self, client):
+    def test_who_targets_unavailable_path(self, client: TestClient) -> None:
         """Тест пути когда build_nutrition_targets недоступна (line 1271)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -74,7 +61,7 @@ class TestWHOTargetsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_who_targets_with_various_profiles(self, client):
+    def test_who_targets_with_various_profiles(self, client: TestClient) -> None:
         """Тест WHO targets с различными профилями (lines 1275-1315)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -127,7 +114,7 @@ class TestWHOTargetsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_who_targets_error_handling(self, client):
+    def test_who_targets_error_handling(self, client: TestClient) -> None:
         """Тест error handling в WHO targets (lines 1325-1339)"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
@@ -182,7 +169,7 @@ class TestWHOTargetsEndpoint:
 class TestNutrientGapsEndpoint:
     """Тесты для endpoint /api/v1/premium/gaps (блок 1437-1503)"""
 
-    def test_nutrient_gaps_unavailable_path(self, client):
+    def test_nutrient_gaps_unavailable_path(self, client: TestClient) -> None:
         """Тест пути когда analyze_nutrient_gaps недоступна (line 1445)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -221,7 +208,7 @@ class TestNutrientGapsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_nutrient_gaps_build_targets_unavailable(self, client):
+    def test_nutrient_gaps_build_targets_unavailable(self, client: TestClient) -> None:
         """Тест пути когда build_nutrition_targets недоступна (line 1467)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -254,7 +241,7 @@ class TestNutrientGapsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_nutrient_gaps_various_profiles(self, client):
+    def test_nutrient_gaps_various_profiles(self, client: TestClient) -> None:
         """Тест gaps с различными профилями (lines 1450-1495)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -312,7 +299,7 @@ class TestNutrientGapsEndpoint:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_nutrient_gaps_error_handling(self, client):
+    def test_nutrient_gaps_error_handling(self, client: TestClient) -> None:
         """Тест error handling в gaps (lines 1495-1503)"""
         os.environ["API_KEY"] = "test_key"
         try:
@@ -343,7 +330,7 @@ class TestNutrientGapsEndpoint:
 class TestAdditionalCriticalCoverage:
     """Дополнительные тесты для покрытия critical paths"""
 
-    def test_api_key_validation_scenarios(self, client):
+    def test_api_key_validation_scenarios(self, client: TestClient) -> None:
         """Тест различных сценариев API key validation"""
         # Тест без API ключа
         response = client.post(
@@ -379,21 +366,31 @@ class TestAdditionalCriticalCoverage:
             if "API_KEY" in os.environ:
                 del os.environ["API_KEY"]
 
-    def test_import_error_simulation(self, client):
-        """Тест simulation of import errors в critical blocks"""
-        with patch("sys.modules") as mock_modules:
-            # Мокнуть чтобы getattr вернул None для функций
-            mock_module = MagicMock()
-            mock_module.__getattribute__ = lambda self, name: None
-            mock_modules.__getitem__.return_value = mock_module
+    def test_targets_and_gaps_endpoints_basic_access(self, client: TestClient) -> None:
+        """Verify targets/gaps endpoints respond for valid inputs."""
+        os.environ["API_KEY"] = "test_key"
+        try:
+            # Test targets endpoint
+            response = client.post(
+                "/api/v1/premium/targets",
+                headers={"X-API-Key": "test_key"},
+                json={
+                    "sex": "male",
+                    "age": 30,
+                    "height_cm": 170,
+                    "weight_kg": 70,
+                    "activity": "moderate",
+                    "goal": "maintain",
+                },
+            )
+            assert response.status_code in [200, 400, 503, 422]
 
-            os.environ["API_KEY"] = "test_key"
-            try:
-                # Тест targets endpoint
-                response = client.post(
-                    "/api/v1/premium/targets",
-                    headers={"X-API-Key": "test_key"},
-                    json={
+            # Test gaps endpoint
+            response = client.post(
+                "/api/v1/premium/gaps",
+                headers={"X-API-Key": "test_key"},
+                json={
+                    "user_profile": {
                         "sex": "male",
                         "age": 30,
                         "height_cm": 170,
@@ -401,27 +398,11 @@ class TestAdditionalCriticalCoverage:
                         "activity": "moderate",
                         "goal": "maintain",
                     },
-                )
-                assert response.status_code in [200, 400, 503, 422]
+                    "consumed_nutrients": {"protein_g": 50},
+                },
+            )
+            assert response.status_code in [200, 500, 503, 422]
 
-                # Тест gaps endpoint
-                response = client.post(
-                    "/api/v1/premium/gaps",
-                    headers={"X-API-Key": "test_key"},
-                    json={
-                        "user_profile": {
-                            "sex": "male",
-                            "age": 30,
-                            "height_cm": 170,
-                            "weight_kg": 70,
-                            "activity": "moderate",
-                            "goal": "maintain",
-                        },
-                        "consumed_nutrients": {"protein_g": 50},
-                    },
-                )
-                assert response.status_code in [200, 500, 503, 422]
-
-            finally:
-                if "API_KEY" in os.environ:
-                    del os.environ["API_KEY"]
+        finally:
+            if "API_KEY" in os.environ:
+                del os.environ["API_KEY"]

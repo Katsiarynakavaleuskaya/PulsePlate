@@ -134,29 +134,39 @@ def test_get_recipe_ingredients_invalid_json(monkeypatch: pytest.MonkeyPatch) ->
 
 @pytest.mark.asyncio
 async def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test _aggregate_day_micronutrients aggregates micros from meals.
+
+    Meal A has explicit micros, Meal B needs ingredient lookup + aggregation.
+    """
+
     async def fake_aggregate(
         ingredients: List[Dict[str, Any]], meal_title: str = ""
     ) -> Dict[str, float]:
-        assert meal_title == "Meal B"
+        # This should be called for Meal B (no explicit micros)
+        assert meal_title == "Meal B", f"Expected 'Meal B', got '{meal_title}'"
         return {"iron_mg": 1.0}
-
-    monkeypatch.setattr(app, "_aggregate_meal_micronutrients", fake_aggregate)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(app.app_module, "_aggregate_meal_micronutrients", fake_aggregate)
 
     def fake_lookup(title: str) -> List[Dict[str, Any]]:
         return [{"food_id": "x", "grams": 10}]
 
-    monkeypatch.setattr(app, "_get_recipe_ingredients_for_meal", fake_lookup)
-    if getattr(app, "app_module", None) is not None:
-        monkeypatch.setattr(app.app_module, "_get_recipe_ingredients_for_meal", fake_lookup)
+    # Mock asyncio.to_thread to bypass thread execution
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    # Import legacy_app directly to patch at the source
+    import legacy_app
+
+    monkeypatch.setattr(legacy_app.asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(legacy_app, "_get_recipe_ingredients_for_meal", fake_lookup)
+    monkeypatch.setattr(legacy_app, "_aggregate_meal_micronutrients", fake_aggregate)
 
     meals = [
         {"title": "Meal A", "micros": {"iron_mg": 0.5}},
-        {"title": "Meal B", "ingredients": []},
+        {"title": "Meal B"},  # No micros/ingredients, will trigger lookup + aggregation
     ]
 
     result = await app._aggregate_day_micronutrients(meals)
+    # Meal A: 0.5, Meal B: 1.0 (from fake_aggregate) = 1.5 total
     assert result["iron_mg"] == pytest.approx(1.5)
 
 

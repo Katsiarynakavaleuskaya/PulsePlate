@@ -7,6 +7,23 @@ from unittest.mock import patch, MagicMock
 import os
 
 
+def _import_fresh_app():
+    """Import FastAPI app after clearing cached modules.
+
+    RU: Импортируем app после очистки кэша модулей, чтобы учесть переменные окружения.
+    EN: Import app after clearing module cache so env var patches take effect.
+    """
+    import sys
+
+    for module_name in ("app", "legacy_app"):
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+    from app import app
+
+    return app
+
+
 @pytest.fixture
 def mock_env_staging():
     """Mock environment to staging for test router inclusion.
@@ -25,16 +42,21 @@ def mock_env_production():
         yield
 
 
+@pytest.fixture
+def mock_env_staging_disabled():
+    """Mock environment to staging without explicit enable flag.
+
+    RU: В staging тестовые ручки должны быть выключены по умолчанию.
+    EN: In staging, test endpoints must be disabled by default.
+    """
+    with patch.dict(os.environ, {"APP_ENV": "staging"}, clear=False):
+        os.environ.pop("ENABLE_TEST_ROUTES", None)
+        yield
+
+
 def test_rate_limit_endpoint(mock_env_staging):
     """Test the rate limit endpoint returns expected response."""
-    # Import app after setting environment and force reload
-    import sys
-
-    # Remove cached modules to force fresh import with new environment
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
+    app = _import_fresh_app()
 
     client = TestClient(app)
 
@@ -59,12 +81,7 @@ def test_rate_limit_endpoint(mock_env_staging):
 
 def test_health_endpoint(mock_env_staging):
     """Test the health check endpoint."""
-    import sys
-
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
+    app = _import_fresh_app()
 
     client = TestClient(app)
 
@@ -83,12 +100,7 @@ def test_health_endpoint(mock_env_staging):
 
 def test_echo_endpoint(mock_env_staging):
     """Test the echo endpoint returns sent data."""
-    import sys
-
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
+    app = _import_fresh_app()
 
     client = TestClient(app)
 
@@ -113,12 +125,7 @@ def test_echo_endpoint(mock_env_staging):
 @pytest.mark.xdist_group(name="rate_limit")
 def test_rate_limit_with_cf_ray_header(mock_env_staging):
     """Test rate limit endpoint captures Cloudflare ray ID."""
-    import sys
-
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
+    app = _import_fresh_app()
 
     client = TestClient(app)
 
@@ -132,12 +139,7 @@ def test_rate_limit_with_cf_ray_header(mock_env_staging):
 
 def test_rate_limit_with_request_id_header(mock_env_staging):
     """Test rate limit endpoint captures generic request ID."""
-    import sys
-
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
+    app = _import_fresh_app()
 
     client = TestClient(app)
 
@@ -151,14 +153,7 @@ def test_rate_limit_with_request_id_header(mock_env_staging):
 
 def test_test_router_not_available_in_production(mock_env_production):
     """Test that test endpoints are not available in production."""
-    # Need to reimport app after environment change
-    import sys
-
-    # Remove app from cache to force reimport with new env
-    if "app" in sys.modules:
-        del sys.modules["app"]
-
-    from app import app
+    app = _import_fresh_app()
 
     client = TestClient(app)
 
@@ -170,4 +165,13 @@ def test_test_router_not_available_in_production(mock_env_production):
     assert response.status_code == 404
 
     response = client.post("/api/v1/test/echo", json={"test": "data"})
+    assert response.status_code == 404
+
+
+def test_test_router_not_available_in_staging_by_default(mock_env_staging_disabled):
+    """Test that test endpoints are not available in staging unless explicitly enabled."""
+    app = _import_fresh_app()
+    client = TestClient(app)
+
+    response = client.get("/api/v1/test/health")
     assert response.status_code == 404

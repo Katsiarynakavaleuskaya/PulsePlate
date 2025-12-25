@@ -51,7 +51,12 @@ class TestVIPImportErrorCoverage:
             assert isinstance(vip_router_available, bool)
 
             # Дополнительная проверка: симулируем отсутствие модуля
-            with patch.dict(sys.modules, {"app.routers.vip": None}):
+            # Remove module from sys.modules to simulate it's not available
+            original_module = sys.modules.get("app.routers.vip")
+            if "app.routers.vip" in sys.modules:
+                del sys.modules["app.routers.vip"]
+
+            try:
                 vip_available = False
                 try:
                     import app.routers.vip  # noqa: F401 - testing import
@@ -62,6 +67,10 @@ class TestVIPImportErrorCoverage:
 
                 # Строки 86-89 должны обрабатывать этот случай
                 assert isinstance(vip_available, bool)
+            finally:
+                # Restore original module if it existed
+                if original_module is not None:
+                    sys.modules["app.routers.vip"] = original_module
 
         finally:
             # Восстанавливаем environment
@@ -107,7 +116,12 @@ class TestRateLimitingCoverage:
     def test_rate_limiting_slowapi_import_error(self):
         """Тест ImportError для slowapi (строки 46-52)"""
         # Симулируем ImportError для slowapi
-        with patch.dict(sys.modules, {"slowapi": None}):
+        # Remove module from sys.modules to simulate it's not available
+        original_module = sys.modules.get("slowapi")
+        if "slowapi" in sys.modules:
+            del sys.modules["slowapi"]
+
+        try:
             slowapi_available = False
             try:
                 import slowapi  # noqa: F401 - testing import
@@ -119,6 +133,12 @@ class TestRateLimitingCoverage:
 
             # Проверяем что ImportError обработан
             assert isinstance(slowapi_available, bool)
+        finally:
+            # Restore original module if it existed
+            if original_module is not None:
+                sys.modules["slowapi"] = original_module
+            elif "slowapi" in sys.modules:
+                del sys.modules["slowapi"]
 
 
 class TestSchedulerCoverage:
