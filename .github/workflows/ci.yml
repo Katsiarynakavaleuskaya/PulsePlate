@@ -144,10 +144,13 @@ jobs:
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
           PYVER="${{ matrix.python-version }}"
           if [[ "$PYVER" == 3.13* ]]; then
-            PYTEST_XDIST_ARGS="-n 0"
+            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
+            PYTEST_XDIST_ARGS="-p no:xdist"
           else
-            PYTEST_XDIST_ARGS="-n 4"
+            PYTEST_XDIST_ARGS="-n 4 --dist=loadscope"
           fi
+          python -c "import sys; print('PY', sys.version)"
+          echo "PYTEST_XDIST_ARGS=$PYTEST_XDIST_ARGS"
           python -X faulthandler -m pytest -m "not slow" tests \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
@@ -244,10 +247,13 @@ jobs:
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
           PYVER="${{ matrix.python-version }}"
           if [[ "$PYVER" == 3.13* ]]; then
-            PYTEST_XDIST_ARGS="-n 0"
+            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
+            PYTEST_XDIST_ARGS="-p no:xdist"
           else
-            PYTEST_XDIST_ARGS="-n 4"
+            PYTEST_XDIST_ARGS="-n 4 --dist=loadscope"
           fi
+          python -c "import sys; print('PY', sys.version)"
+          echo "PYTEST_XDIST_ARGS=$PYTEST_XDIST_ARGS"
           python -X faulthandler -m pytest -m "not slow" tests \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
@@ -350,10 +356,13 @@ jobs:
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
           PYVER="${{ matrix.python-version }}"
           if [[ "$PYVER" == 3.13* ]]; then
-            PYTEST_XDIST_ARGS="-n 0"
+            # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
+            PYTEST_XDIST_ARGS="-p no:xdist"
           else
-            PYTEST_XDIST_ARGS="-n 4"
+            PYTEST_XDIST_ARGS="-n 4 --dist=loadscope"
           fi
+          python -c "import sys; print('PY', sys.version)"
+          echo "PYTEST_XDIST_ARGS=$PYTEST_XDIST_ARGS"
           python -X faulthandler -m pytest -m "not slow" tests \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \

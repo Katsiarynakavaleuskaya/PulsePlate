@@ -13,9 +13,13 @@ from typing import cast, Iterator
 from starlette.types import ASGIApp
 
 # Enable faulthandler for debugging hangs/deadlocks (CI only to avoid noise)
-# In CI: dumps thread stacks after 180s hang, repeating every 180s
-# Manual trigger (UNIX): kill -USR1 <pytest_pid> to dump stacks on demand
-if os.getenv("CI") or os.getenv("PYTEST_CURRENT_TEST"):
+# In CI: dumps thread stacks after N seconds, repeating every N seconds.
+# Manual trigger (UNIX): kill -USR1 <pytest_pid> to dump stacks on demand.
+#
+# NOTE:
+# Do NOT enable this for all local pytest runs (PYTEST_CURRENT_TEST is set for every test),
+# otherwise longer suites will emit misleading "Timeout" dumps even when nothing is hung.
+if os.getenv("CI"):
     faulthandler.enable()
 
     # SIGUSR1 is UNIX-only; skip on Windows safely
@@ -23,8 +27,8 @@ if os.getenv("CI") or os.getenv("PYTEST_CURRENT_TEST"):
     if sigusr1 is not None:
         faulthandler.register(sigusr1)  # Manual trigger
 
-    # Auto-dump after 180s hang; repeats every 180s (not 60s - repeat uses same timeout)
-    faulthandler.dump_traceback_later(timeout=180, repeat=True)
+    timeout_s = int(os.getenv("PYTEST_FAULTHANDLER_TIMEOUT_S", "600"))
+    faulthandler.dump_traceback_later(timeout=timeout_s, repeat=True)
 
 
 def pytest_configure(config: pytest.Config) -> None:

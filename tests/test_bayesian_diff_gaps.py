@@ -140,7 +140,6 @@ def test_load_monetization_strategies_import_fallback(
 
     # Mock core.i18n import to raise ImportError using sys.modules
     import sys
-    from unittest.mock import patch
 
     # Remove module instead of setting to None (prevents sys.modules None poisoning)
     module_to_restore = None
