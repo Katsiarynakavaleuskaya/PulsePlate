@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import app as fastapi_app
 from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+from core.models import AnalyzerStateModel
 
 
 class TestNutritionLogAPI:
@@ -22,20 +23,16 @@ class TestNutritionLogAPI:
         fastapi_app.dependency_overrides.clear()
 
         # Clean up analyzer state for this test subject to avoid cross-test interference
+        # Import SessionLocal dynamically to get current value (not cached at module import time)
         from core.db import SessionLocal
-        from core.models import AnalyzerStateModel
 
         # Guard: SessionLocal should be initialized by _init_db_for_api_suite fixture
         # If None, it means reset_db_for_tests() was called unexpectedly in an API test
         if SessionLocal is None:
-            # Log warning but don't fail - allows tests to continue
-            import warnings
-
-            warnings.warn(
-                "SessionLocal is None in teardown; test may have called reset_db_for_tests() unexpectedly",
-                RuntimeWarning,
+            raise AssertionError(
+                "SessionLocal is None in API test teardown. "
+                "API tests expect DB initialized; reset_db_for_tests() leaked into API scope."
             )
-            return
 
         session = SessionLocal()
         try:

@@ -45,12 +45,16 @@ def _init_db_for_api_suite() -> None:
 
     This fixture ensures SessionLocal is available for API tests that expect implicit DB initialization.
     Unit tests for core.db should use reset_db_for_tests() explicitly and should not depend on this.
+
+    CRITICAL: Import core.models here to ensure models are registered with the canonical Base
+    before any tests run. This prevents dual-Base issues.
     """
-    from core.db import init_db
+    import core.db as core_db
+    import core.models  # noqa: F401  # Ensure models are registered with Base
 
     # Initialize DB if not already initialized
     # init_db() is idempotent, so safe to call multiple times
-    init_db()
+    core_db.init_db()
 
 
 # ============================================================================
@@ -175,15 +179,8 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
             except Exception as e:
                 logger.warning(f"Error disposing database engine: {e}")
 
-        # Close any active sessions - SessionLocal is a sessionmaker, not a session
-        # The sessionmaker doesn't have sessions to close, but we can clear the engine binding
-        if hasattr(db_module_reloaded, "SessionLocal"):
-            try:
-                # Clear the bind to prevent any new sessions from being created
-                db_module_reloaded.SessionLocal.configure(bind=None)
-                logger.debug(f"Cleared SessionLocal binding for worker {worker_id}")
-            except Exception as e:
-                logger.debug(f"Error clearing SessionLocal binding: {e}")
+        # NOTE: Do not clear SessionLocal binding - it breaks API tests that expect
+        # SessionLocal to be available in teardown. Engine disposal is sufficient cleanup.
 
         # Remove the SQLite database file
         db_path = Path(os.environ.get("TEST_DB_PATH", ""))
