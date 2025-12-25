@@ -92,14 +92,15 @@ def test_export_pdf_generic_error_branches(monkeypatch):
     import app
 
     client = TestClient(cast(ASGIApp, app.app))
+    headers = {"X-API-Key": "test_key"}
 
     # RU: Пустой пейлоад → 400
     # EN: Empty payload → 400
-    r = client.post("/api/v1/export/pdf", json={})
+    r = client.post("/api/v1/export/pdf", json={}, headers=headers)
     assert r.status_code == 400
 
     # RU: Отсутствует to_pdf_day → 503
     # EN: Missing to_pdf_day → 503
     monkeypatch.setattr(app, "to_pdf_day", None, raising=False)
-    r2 = client.post("/api/v1/export/pdf", json={"meals": []})
+    r2 = client.post("/api/v1/export/pdf", json={"meals": []}, headers=headers)
     assert r2.status_code == 503

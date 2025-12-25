@@ -103,15 +103,13 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     os.environ["TEST_DB_PATH"] = str(resolved_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
-    # Reload db module to pick up new DATABASE_URL
-    # CRITICAL: Reload core.db first, then reload model modules to ensure they
-    # use the new Base class. Reloading models after core.db is safe and required.
-    db_module_reloaded = importlib.reload(importlib.import_module("core.db"))
-
-    # Reload model modules to use the new Base from reloaded core.db
-    for model_module in ["core.models", "app.models.events", "app.models.plans"]:
-        if model_module in sys.modules:
-            importlib.reload(sys.modules[model_module])
+    # Import DB module (do NOT reload it here).
+    #
+    # Rationale:
+    # - Several tests/modules may import ORM models during collection; reloading
+    #   core.db/core.models would rebind model classes and break existing references.
+    # - core.db.init_db() already recreates the engine/session when DATABASE_URL changes.
+    db_module_reloaded = importlib.import_module("core.db")
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():

@@ -526,8 +526,15 @@ else:
 async_engine: Optional["AsyncEngine"] = _ASYNC_ENGINE
 
 
-class Base(DeclarativeBase):
-    """Base class for declarative SQLAlchemy models."""
+# Preserve Base identity across importlib.reload(core.db) used in tests.
+# RU: В тестах есть reload(core.db) для проверки env-логики. Повторное создание Base
+# приводит к dual-Base конфликтам (модели остаются привязаны к старому Base).
+# EN: Tests reload(core.db) to exercise env-driven branches; recreating Base would
+# break single-Base invariants because already-imported models keep old Base.
+if "Base" not in globals():
+
+    class Base(DeclarativeBase):
+        """Base class for declarative SQLAlchemy models."""
 
 
 def get_session() -> Generator[Session, None, None]:

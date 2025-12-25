@@ -505,6 +505,10 @@ async def test_export_pdf_generic_success_and_error(monkeypatch: pytest.MonkeyPa
     if not getattr(legacy_app, "EXPORTS_ENABLED", False):
         pytest.skip("Exports are not enabled in this environment.")
 
+    import app as app_pkg
+
+    # Ensure helper resolution sees a callable (it prefers app.to_pdf_day if present).
+    monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"%PDF", raising=False)
     monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"%PDF", raising=False)
     resp = await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
     assert resp.media_type == "application/pdf"
@@ -512,6 +516,7 @@ async def test_export_pdf_generic_success_and_error(monkeypatch: pytest.MonkeyPa
     def boom(_: Any) -> bytes:
         raise RuntimeError("boom")
 
+    monkeypatch.setattr(app_pkg, "to_pdf_day", boom, raising=False)
     monkeypatch.setattr(legacy_app, "to_pdf_day", boom, raising=False)
     with pytest.raises(HTTPException) as exc:
         await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
@@ -539,6 +544,10 @@ async def test_export_day_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     if not getattr(legacy_app, "EXPORTS_ENABLED", False):
         pytest.skip("Exports are not enabled in this environment.")
 
+    import app as app_pkg
+
+    # export_daily_plan_pdf may resolve PDF helper via app.to_pdf_day if present.
+    monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"pdf", raising=False)
     monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"pdf", raising=False)
     resp = await legacy_app.export_daily_plan_pdf("p1")
     assert resp.media_type == "application/pdf"
@@ -546,6 +555,7 @@ async def test_export_day_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     def raise_import(_: Any) -> bytes:
         raise ImportError("no reportlab")
 
+    monkeypatch.setattr(app_pkg, "to_pdf_day", raise_import, raising=False)
     monkeypatch.setattr(legacy_app, "to_pdf_day", raise_import, raising=False)
     with pytest.raises(HTTPException) as exc:
         await legacy_app.export_daily_plan_pdf("p1")
@@ -554,6 +564,7 @@ async def test_export_day_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     def raise_generic(_: Any) -> bytes:
         raise RuntimeError("boom")
 
+    monkeypatch.setattr(app_pkg, "to_pdf_day", raise_generic, raising=False)
     monkeypatch.setattr(legacy_app, "to_pdf_day", raise_generic, raising=False)
     with pytest.raises(HTTPException) as exc2:
         await legacy_app.export_daily_plan_pdf("p1")

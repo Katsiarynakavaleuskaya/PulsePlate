@@ -144,5 +144,9 @@ class TestAppCriticalLines97:
     def test_export_endpoints_error_handling(self, client):
         """Тест error handling в export endpoints"""
         # Тест экспорта без данных - 404 if exports disabled, otherwise error handling
-        response = client.post("/api/v1/export/pdf", json={})
+        response = client.post(
+            "/api/v1/export/pdf",
+            json={},
+            headers={"X-API-Key": "test_key"},
+        )
         assert response.status_code in [404, 422, 400, 500]
