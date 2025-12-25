@@ -780,6 +780,45 @@ def init_db(database_url: str | None = None) -> "Engine":
     return _RAW_ENGINE
 
 
+def reset_db_for_tests() -> None:
+    """Reset DB module state for tests.
+
+    RU: Сбросить состояние DB-модуля для тестов.
+    EN: Reset module DB state for tests.
+
+    IMPORTANT: Tests-only helper. Do not call from runtime/production code.
+    This function disposes engines and clears all module-level state to allow
+    clean test isolation.
+
+    Usage in tests:
+        from core import db
+        db.reset_db_for_tests()  # Clean state before test
+        # ... test code ...
+        db.reset_db_for_tests()  # Clean state after test
+    """
+    global _RAW_ENGINE, _ASYNC_ENGINE, async_engine, SessionLocal, AsyncSessionLocal
+
+    # Dispose sync engine if exists
+    if _RAW_ENGINE is not None:
+        try:
+            _RAW_ENGINE.dispose()
+        except Exception:  # noqa: BLE001, S110 - defensive cleanup for tests
+            # Engine may already be disposed or in invalid state
+            logger.debug("Failed to dispose sync engine during test reset", exc_info=True)
+    _RAW_ENGINE = None
+
+    # Dispose async engine if exists
+    # Note: AsyncEngine.dispose() is async, but we can't await here.
+    # Tests that need async cleanup should handle it separately.
+    # For sync cleanup, we just reset the reference.
+    _ASYNC_ENGINE = None
+    async_engine = None  # Backward-compat alias
+
+    # Clear session factories
+    SessionLocal = None
+    AsyncSessionLocal = None
+
+
 def get_session_factory() -> sessionmaker[Session]:
     """Get the current SessionLocal factory.
 

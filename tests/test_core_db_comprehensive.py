@@ -36,12 +36,8 @@ def reload_db_with_cleanup(
 
     # Cleanup: restore original state
     try:
-        # Dispose engine if it exists
-        if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
-            db._RAW_ENGINE.dispose()
         # Reset module state
-        db._RAW_ENGINE = None
-        db.SessionLocal = None
+        db.reset_db_for_tests()
     finally:
         # Restore original DATABASE_URL
         if original_db_url is None:
@@ -393,11 +389,8 @@ def test_init_db_wrapper_not_called() -> None:
         with pytest.raises(AssertionError, match="create_all was not invoked"):
             wrapper_any.assert_called_once()
     finally:
-        # Cleanup: reset module state if needed
-        if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
-            db._RAW_ENGINE.dispose()
-            db._RAW_ENGINE = None
-            db.SessionLocal = None
+        # Cleanup: reset module state
+        db.reset_db_for_tests()
 
 
 @pytest.mark.asyncio
@@ -425,11 +418,8 @@ async def test_init_db_async_with_async_engine(monkeypatch: pytest.MonkeyPatch) 
             db._ASYNC_ENGINE = None
             db.AsyncSessionLocal = None
     finally:
-        # Restore original state
-        if hasattr(db, "_ASYNC_ENGINE") and db._ASYNC_ENGINE is not None:
-            await db._ASYNC_ENGINE.dispose()
-            db._ASYNC_ENGINE = None
-            db.AsyncSessionLocal = None
+        # Restore original state (async engine cleanup handled above if needed)
+        db.reset_db_for_tests()
 
 
 @pytest.mark.asyncio

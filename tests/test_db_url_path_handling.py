@@ -31,10 +31,7 @@ def test_build_engine_url_with_query_in_path(monkeypatch: pytest.MonkeyPatch) ->
             assert os.path.isdir(os.path.dirname(db_path)), "Database directory is not valid"
         finally:
             # Restore module state regardless of test outcome
-            if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
-                db._RAW_ENGINE.dispose()
-                db._RAW_ENGINE = None
-                db.SessionLocal = None
+            db.reset_db_for_tests()
 
 
 def test_build_engine_url_absolute_path_construction(
@@ -58,10 +55,7 @@ def test_build_engine_url_absolute_path_construction(
             assert abs_path in url, f"Expected absolute path {abs_path} in {url}"
         finally:
             # Restore module state regardless of test outcome
-            if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
-                db._RAW_ENGINE.dispose()
-                db._RAW_ENGINE = None
-                db.SessionLocal = None
+            db.reset_db_for_tests()
 
 
 def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> None:
