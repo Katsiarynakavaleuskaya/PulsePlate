@@ -271,13 +271,18 @@ class TestAsyncDB:
         from core import db
 
         db.reset_db_for_tests()
-        # Force "extras missing" scenario
-        monkeypatch.setattr(db, "create_async_engine", None)
-        monkeypatch.setattr(db, "async_sessionmaker", None)
+        # Force "extras missing" scenario - patch all async-related symbols in core.db
+        monkeypatch.setattr(db, "create_async_engine", None, raising=False)
+        monkeypatch.setattr(db, "async_sessionmaker", None, raising=False)
+        monkeypatch.setattr(db, "AsyncSessionLocal", None, raising=False)
+
+        # Verify patches are in place
+        assert db.create_async_engine is None
+        assert db.async_sessionmaker is None
 
         with pytest.raises(ImportError, match=r"SQLAlchemy async extras are not available"):
-            async for _session in get_async_session():
-                break
+            async for _session in db.get_async_session():
+                pass
 
     @pytest.mark.asyncio
     async def test_session_scope_async_success(self):

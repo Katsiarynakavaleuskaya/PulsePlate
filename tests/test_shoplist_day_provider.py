@@ -84,6 +84,7 @@ async def test_fetch_day_plan_returns_none_when_missing(
 ) -> None:
     """Test fetch_day_plan returns None when no plan exists."""
     holder: list[_FakeSession] = []
+    # Mock session_scope_async to return fake session (doesn't raise RuntimeError/ImportError)
     monkeypatch.setattr(db, "session_scope_async", _session_scope_factory(None, holder))
 
     result = await provider_module.fetch_day_plan(
@@ -107,6 +108,7 @@ async def test_fetch_day_plan_returns_plan_data(monkeypatch: pytest.MonkeyPatch)
     plan_data = {"daily_menus": [{"meals": []}]}
     day_plan = SimpleNamespace(plan_data=plan_data)
     holder: list[_FakeSession] = []
+    # Mock session_scope_async to return fake session (doesn't raise RuntimeError/ImportError)
     monkeypatch.setattr(db, "session_scope_async", _session_scope_factory(day_plan, holder))
 
     result = await provider_module.fetch_day_plan(

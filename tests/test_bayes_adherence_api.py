@@ -31,8 +31,16 @@ class TestAdherenceAPI:
         from core.db import SessionLocal
         from core.models import AnalyzerStateModel
 
-        # Guard: SessionLocal may be None if reset_db_for_tests() was called
+        # Guard: SessionLocal should be initialized by _init_db_for_api_suite fixture
+        # If None, it means reset_db_for_tests() was called unexpectedly in an API test
         if SessionLocal is None:
+            # Log warning but don't fail - allows tests to continue
+            import warnings
+
+            warnings.warn(
+                "SessionLocal is None in teardown; test may have called reset_db_for_tests() unexpectedly",
+                RuntimeWarning,
+            )
             return
 
         session = SessionLocal()

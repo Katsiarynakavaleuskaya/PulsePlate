@@ -218,6 +218,34 @@ class TestRecipeSynthesizerUtilities:
         assert "protein-rich" in tags
         assert "vegetarian" in tags  # Also has vegetables
 
+    def test_generate_tags_spicy(self, synthesizer):
+        """Test tag generation for spicy recipe (line 601)."""
+        template = RecipeTemplate(
+            template_id="test",
+            name="Test Recipe",
+            cuisine_type="indian",
+            base_ingredients=["spice"],
+            cooking_methods=["currying"],
+            typical_prep_time=20,
+            typical_cook_time=30,
+            difficulty="medium",
+            instruction_template="Add spices",
+            nutrition_profile={"calories": 350},
+        )
+
+        ingredients = [
+            {"name": "curry spice", "amount": 10},
+            {"name": "fresh herb", "amount": 5},
+            {"name": "vegetables", "amount": 200},
+        ]
+
+        tags = synthesizer._generate_tags(template, ingredients)
+
+        assert "indian" in tags
+        assert "medium" in tags
+        assert "spicy" in tags  # Should detect spice/herb
+        assert "vegetarian" in tags
+
     def test_generate_tags_removes_duplicates(self, synthesizer):
         """Test that tag generation removes duplicates."""
         template = RecipeTemplate(

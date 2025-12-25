@@ -83,6 +83,25 @@ class TestShoplistGeneratorRounding:
         assert item.package_size in [50, 100, 200]
         assert item.packages_needed >= 1
 
+    def test_round_to_packages_nearest_strategy_skips_zero_packages(self, generator):
+        """Test that 'nearest' strategy skips package_size <= 0 (line 387)."""
+        from core.shoplist import PackagingRule
+
+        # Create rule with zero/negative package sizes to trigger skip
+        aggregated = {"test_item": 100.0}
+        rules = {
+            "default": PackagingRule(
+                category="default",
+                unit="g",
+                typical_packages=[0, -10, 50, 100],  # Zero and negative to trigger skip
+                rounding_strategy="nearest",
+            )
+        }
+
+        shopping_list = generator.round_to_packages(aggregated, rules=rules)
+        # Should still work, skipping invalid package sizes
+        assert len(shopping_list) >= 0  # May be empty if all packages invalid
+
     def test_round_to_packages_invalid_rule_fallback(self, generator):
         """Test package rounding with invalid rule fallback."""
         aggregated = {

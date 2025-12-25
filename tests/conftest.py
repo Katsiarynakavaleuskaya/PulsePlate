@@ -35,6 +35,25 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# DATABASE INITIALIZATION FOR API TESTS
+# ============================================================================
+@pytest.fixture(autouse=True, scope="session")
+def _init_db_for_api_suite() -> None:
+    """
+    RU: Глобальная инициализация DB для API тестов (legacy expectation: SessionLocal is ready).
+    EN: Initialize DB once for API tests; keeps legacy tests stable without import-time side effects.
+
+    This fixture ensures SessionLocal is available for API tests that expect implicit DB initialization.
+    Unit tests for core.db should use reset_db_for_tests() explicitly and should not depend on this.
+    """
+    from core.db import init_db
+
+    # Initialize DB if not already initialized
+    # init_db() is idempotent, so safe to call multiple times
+    init_db()
+
+
+# ============================================================================
 # TENANT-BASED SHARDING CONFIGURATION
 # ============================================================================
 # Imported from pytest_sharding.py to enable memory-efficient parallel testing
