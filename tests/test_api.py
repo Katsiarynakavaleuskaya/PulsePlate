@@ -11,26 +11,21 @@ from starlette.types import ASGIApp
 # client fixture is provided by conftest.py
 
 
-def _cleanup_app_module(original_app):
-    """Helper function to clean up app module after import failure tests."""
-    sys.modules.pop("app", None)
-    sys.modules["app"] = original_app
-
-
 def _test_app_import_with_assertions(original_app, test_assertions):
     """Helper function to test app import and run assertions."""
-    # Re-import app to trigger the exception
-    if "app" in sys.modules:
-        del sys.modules["app"]
     try:
+        # Reload legacy_app to re-run import-time optional dependency wiring
+        # without purging the top-level `app` package (which can leave half-loaded state).
+        import importlib
+
+        import legacy_app
+
+        importlib.reload(legacy_app)
         import app
 
         test_assertions(app)
     except Exception:
         pytest.skip("App import failed unexpectedly")
-    finally:
-        # Restore original app module - deterministic cleanup
-        _cleanup_app_module(original_app)
 
 
 def test_v1_health(client):

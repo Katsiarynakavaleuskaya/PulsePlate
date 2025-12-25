@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import os
 
+from module_purge import purge_modules
+
 
 def _import_fresh_app():
     """Import FastAPI app after clearing cached modules.
@@ -13,11 +15,15 @@ def _import_fresh_app():
     RU: Импортируем app после очистки кэша модулей, чтобы учесть переменные окружения.
     EN: Import app after clearing module cache so env var patches take effect.
     """
-    import sys
-
-    for module_name in ("app", "legacy_app"):
-        if module_name in sys.modules:
-            del sys.modules[module_name]
+    # NOTE:
+    # Do NOT delete the top-level "app" package from sys.modules without also deleting
+    # all of its submodules. That can leave a half-loaded state where `app.models.*`
+    # is still loaded while `app` is re-imported, which then causes SQLAlchemy model
+    # redefinition ("Table already defined") later in the suite.
+    purge_modules(
+        prefixes=("legacy_app", "app.main", "app.routers.test"),
+        exclude_prefixes=("app.models", "core.db"),
+    )
 
     from app import app
 
