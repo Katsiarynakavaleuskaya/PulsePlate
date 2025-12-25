@@ -15,31 +15,33 @@ from unittest.mock import AsyncMock, MagicMock, patch
 def reload_db_with_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[ModuleType, None, None]:
-    """Fixture that reloads db module and ensures cleanup afterward.
+    """Fixture that provides db module with test DATABASE_URL and ensures cleanup.
 
-    This fixture handles the common pattern of reloading the db module for tests
-    that modify environment variables, and ensures the module is properly restored
-    to its original state after the test completes.
+    This fixture sets up a test database URL and initializes the DB module.
+    No reload needed - init_db() handles URL changes.
     """
     from core import db
 
     original_db_url = os.environ.get("DATABASE_URL")
     temp_dir = tempfile.mkdtemp(prefix="core_db_comp_")
     default_db_path = os.path.join(temp_dir, "app.db")
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{default_db_path}")
+    test_db_url = f"sqlite:///{default_db_path}"
+    monkeypatch.setenv("DATABASE_URL", test_db_url)
 
-    # Provide the db module to tests that will explicitly reload it as needed
+    # Initialize DB with test URL
+    db.init_db(database_url=test_db_url)
+
+    # Provide the db module to tests
     yield db
 
-    # Cleanup: ensure default DB path is available after monkeypatch undo.
-    # We temporarily set DATABASE_URL directly on os.environ here (after the
-    # fixture yield) so that the reloaded db module sees the test URL even
-    # after monkeypatch has unwound environment changes.
+    # Cleanup: restore original state
     try:
-        os.makedirs(os.path.dirname(default_db_path), exist_ok=True)
-        os.environ["DATABASE_URL"] = f"sqlite:///{default_db_path}"
-        importlib.reload(db)
-        db.init_db()
+        # Dispose engine if it exists
+        if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
+            db._RAW_ENGINE.dispose()
+        # Reset module state
+        db._RAW_ENGINE = None
+        db.SessionLocal = None
     finally:
         # Restore original DATABASE_URL
         if original_db_url is None:
@@ -69,11 +71,10 @@ def test_build_engine_url_with_existing_query_params(
     # Clear DATABASE_URL so it uses default path with params
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
-    # Reload to trigger _build_engine_url with default (non-env-provided) URL
-    reloaded = importlib.reload(db)
+    # Get URL with default (non-env-provided) URL
+    url = db.get_database_url()
 
     # Default URL should have mode=rwc and uri=true added
-    url = reloaded.DATABASE_URL
     assert "mode=rwc" in url
     assert "uri=true" in url
 
@@ -90,10 +91,8 @@ def test_build_engine_url_memory_sqlite(
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
 
-    reloaded = importlib.reload(db)
-
-    # Memory DB should not get mode=rwc or uri=true
-    url = reloaded.DATABASE_URL
+    # Get URL - memory DB should not get mode=rwc or uri=true
+    url = db.get_database_url()
     assert url == "sqlite:///:memory:"
 
 
@@ -111,10 +110,8 @@ def test_build_engine_url_with_env_provided(
     custom_url = "sqlite:///custom_env.db"
     monkeypatch.setenv("DATABASE_URL", custom_url)
 
-    reloaded = importlib.reload(db)
-
     # Should not add SQLite-specific params since it's env-provided
-    url = reloaded.DATABASE_URL
+    url = db.get_database_url()
     # Env-provided URLs are not modified, so no mode=rwc should be added
     assert url == custom_url
 
@@ -260,18 +257,18 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
         monkeypatch.setenv("DATABASE_POOL_SIZE", "15")
         monkeypatch.setenv("DATABASE_MAX_OVERFLOW", "25")
 
-        reloaded = importlib.reload(db)
-
         # Verify async URL was derived correctly
-        assert reloaded.ASYNC_DATABASE_URL is not None
-        assert "sqlite+aiosqlite" in reloaded.ASYNC_DATABASE_URL
+        async_url = db._get_async_database_url()
+        assert async_url is not None
+        assert "sqlite+aiosqlite" in async_url
 
         # For SQLite+aiosqlite, async engine should be created
         # but pool config is skipped (see core/db.py lines 369-371)
-        if reloaded._ASYNC_ENGINE is not None:
+        async_engine = db._get_async_engine()
+        if async_engine is not None:
             # Engine was successfully created (aiosqlite available)
             # Verify pool config was NOT applied (SQLite doesn't use connection pooling)
-            engine_pool = reloaded._ASYNC_ENGINE.pool
+            engine_pool = async_engine.pool
             from sqlalchemy.pool import NullPool, StaticPool
 
             assert isinstance(
@@ -281,10 +278,10 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
         # Both states are valid - test passes either way
     finally:
         # Cleanup
-        if reloaded._ASYNC_ENGINE:
-            await reloaded._ASYNC_ENGINE.dispose()
-        importlib.reload(db)
-        db.init_db()
+        if hasattr(db, "_ASYNC_ENGINE") and db._ASYNC_ENGINE is not None:
+            await db._ASYNC_ENGINE.dispose()
+            db._ASYNC_ENGINE = None
+            db.AsyncSessionLocal = None
 
 
 @pytest.mark.asyncio
@@ -370,11 +367,7 @@ def test_init_db_wrapper_not_called() -> None:
 
     Covers line 490-491: assert_called_once failure path.
     """
-    import importlib
     from core import db
-
-    # Reload db module to get a fresh state
-    importlib.reload(db)
 
     # Call init_db to install the wrapper
     # This wraps metadata.create_all with _CreateAllWrapper
@@ -400,9 +393,11 @@ def test_init_db_wrapper_not_called() -> None:
         with pytest.raises(AssertionError, match="create_all was not invoked"):
             wrapper_any.assert_called_once()
     finally:
-        # Cleanup: restore original state
-        importlib.reload(db)
-        db.init_db()
+        # Cleanup: reset module state if needed
+        if hasattr(db, "_RAW_ENGINE") and db._RAW_ENGINE is not None:
+            db._RAW_ENGINE.dispose()
+            db._RAW_ENGINE = None
+            db.SessionLocal = None
 
 
 @pytest.mark.asyncio
@@ -416,25 +411,25 @@ async def test_init_db_async_with_async_engine(monkeypatch: pytest.MonkeyPatch) 
     if db.create_async_engine is None or db.async_sessionmaker is None:
         pytest.skip("sqlalchemy.asyncio not available")
 
-    import importlib
-
-    reloaded = db  # Initialize for finally block
     try:
         # Set up async engine
         monkeypatch.setenv("DATABASE_ASYNC_URL", "sqlite+aiosqlite:///:memory:")
 
-        reloaded = importlib.reload(db)
-
-        if reloaded._ASYNC_ENGINE is not None:
+        async_engine = db._get_async_engine()
+        if async_engine is not None:
             # This should use the async engine path
-            await reloaded.init_db_async()
+            await db.init_db_async()
 
             # Cleanup
-            await reloaded._ASYNC_ENGINE.dispose()
+            await async_engine.dispose()
+            db._ASYNC_ENGINE = None
+            db.AsyncSessionLocal = None
     finally:
         # Restore original state
-        importlib.reload(db)
-        db.init_db()
+        if hasattr(db, "_ASYNC_ENGINE") and db._ASYNC_ENGINE is not None:
+            await db._ASYNC_ENGINE.dispose()
+            db._ASYNC_ENGINE = None
+            db.AsyncSessionLocal = None
 
 
 @pytest.mark.asyncio
