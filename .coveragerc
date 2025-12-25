@@ -9,11 +9,6 @@
 branch = True
 source = .
 omit =
-    # Test files themselves
-    */tests/*
-    */test_*.py
-    */*_test.py
-
     # Local helper/coverage scripts and demos (not part of runtime app surface)
     */check_coverage.py
     */fix_coverage_tests.py
