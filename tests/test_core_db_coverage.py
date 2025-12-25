@@ -102,6 +102,11 @@ class TestCoreDB:
     @patch("core.db.Base.metadata")
     def test_init_db(self, mock_metadata):
         """Test init_db creates tables."""
+        from core import db
+
+        # Ensure init_db goes through the "first init" path
+        db.reset_db_for_tests()
+
         mock_metadata.create_all = MagicMock(return_value=None)
 
         # Should not raise exception

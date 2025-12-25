@@ -655,12 +655,6 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     # Fast-fail if async SQLAlchemy extras are not available
     if create_async_engine is None or async_sessionmaker is None:
         raise ImportError(
-            "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
-        )
-
-    # Fast-fail if async SQLAlchemy extras are not available
-    if create_async_engine is None or async_sessionmaker is None:
-        raise ImportError(
             "SQLAlchemy async extras are not available. "
             "Install with 'pip install sqlalchemy[asyncio]'"
         )
@@ -806,6 +800,10 @@ def init_db(database_url: str | None = None) -> "Engine":
     # At this point _RAW_ENGINE is guaranteed to be initialized by the logic above
     if _RAW_ENGINE is None:
         raise RuntimeError("Engine must be initialized before creating tables")
+
+    # RU: create_all() вызываем всегда при init_db(); операция идемпотентна.
+    # EN: Always call create_all() on init_db(); this is idempotent.
+    # This ensures tables are created even if engine was reused from previous init_db() call.
     metadata.create_all(bind=_RAW_ENGINE)
 
     return _RAW_ENGINE
