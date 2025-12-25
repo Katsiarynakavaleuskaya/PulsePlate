@@ -21,8 +21,10 @@ def _import_fresh_app():
     # is still loaded while `app` is re-imported, which then causes SQLAlchemy model
     # redefinition ("Table already defined") later in the suite.
     purge_modules(
-        prefixes=("legacy_app", "app.main", "app.routers.test"),
-        exclude_prefixes=("app.models", "core.db"),
+        # Important: do NOT purge legacy_app. `app/__init__.py` caches legacy_app via lru_cache,
+        # and purging legacy_app would create a split-brain state where `import legacy_app`
+        # re-imports a new module while `app` still points to the cached old one.
+        prefixes=("app.main", "app.routers.test"),
     )
 
     from app import app

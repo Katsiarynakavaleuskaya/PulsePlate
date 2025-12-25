@@ -26,6 +26,10 @@ def _test_app_import_with_assertions(original_app, test_assertions):
         test_assertions(app)
     except Exception:
         pytest.skip("App import failed unexpectedly")
+    finally:
+        # Restore original app module - deterministic cleanup without deleting the package.
+        if original_app is not None:
+            sys.modules["app"] = original_app
 
 
 def test_v1_health(client):

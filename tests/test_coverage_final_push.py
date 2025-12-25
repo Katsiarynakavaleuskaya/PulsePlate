@@ -30,8 +30,8 @@ class TestFinalCoveragePush:
         """Setup before each test."""
         # Avoid purging top-level `app` to prevent half-loaded package state.
         purge_modules(
-            prefixes=("legacy_app", "app.routers.vip"),
-            exclude_prefixes=("app.models", "core.db"),
+            # Important: do NOT purge legacy_app (see note in tests/test_test_router.py).
+            prefixes=("app.routers.vip",),
         )
 
     def test_app_import_fallbacks(self) -> None:
