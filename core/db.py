@@ -54,8 +54,14 @@ else:
 
 logger = logging.getLogger(__name__)
 
-# Environment detection: check ENVIRONMENT, APP_ENV, or default to "production"
-ENVIRONMENT = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").lower()
+
+def _get_environment() -> str:
+    """Get environment name from env vars or default to 'production'.
+
+    RU: Возвращает имя окружения из переменных окружения или 'production' по умолчанию.
+    EN: Returns environment name from environment variables or defaults to 'production'.
+    """
+    return (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "production").lower()
 
 
 def _extract_sqlite_path(database_url: str) -> str | None:
@@ -213,7 +219,18 @@ def _derive_async_url(sync_url: str) -> Optional[str]:
     return None
 
 
-DATABASE_URL = _build_engine_url()
+def get_database_url() -> str:
+    """Get database URL from environment or return default.
+
+    RU: Возвращает URL базы данных из переменных окружения или значение по умолчанию.
+    Никаких env reads на import-time — только здесь.
+    EN: Returns database URL from environment variables or default value.
+    No env reads at import time — only here.
+
+    Returns:
+        Database URL string (e.g., sqlite:///cache/app.db)
+    """
+    return _build_engine_url()
 
 
 # Lazily initialized synchronous engine and session factory.
@@ -232,7 +249,7 @@ def _get_raw_engine() -> "Engine":
     """
     global _RAW_ENGINE, SessionLocal
 
-    db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+    db_url = get_database_url()
 
     if _RAW_ENGINE is None or str(_RAW_ENGINE.url) != db_url:
         with _init_lock:
@@ -435,7 +452,7 @@ class EngineCompat:
             msg = str(db_err) or ""
             lines = msg.splitlines()
             safe_message = lines[0] if lines else msg or "<no error message>"
-            if logger.isEnabledFor(logging.DEBUG) or ENVIRONMENT != "production":
+            if logger.isEnabledFor(logging.DEBUG) or _get_environment() != "production":
                 logger.error("Commit failed (database error): %s", safe_message, exc_info=True)
             else:
                 logger.error("Commit failed (database error): %s", safe_message)
@@ -473,23 +490,15 @@ class EngineCompat:
 
 
 # Public engine exposes a legacy-compatible .execute attribute expected by tests
+# RU: Ленивая инициализация через _get_raw_engine().
+# EN: Lazy initialization via _get_raw_engine().
 engine = EngineCompat(_get_raw_engine)
 
 
-# Async engine configuration (optional)
-ASYNC_DATABASE_URL: Optional[str] = None
-if create_async_engine is not None and async_sessionmaker is not None:
-    # Check for explicit async URL first
-    async_url = os.getenv("DATABASE_ASYNC_URL")
-
-    # If no explicit URL but async is enabled, derive from sync URL
-    if not async_url and os.getenv("DATABASE_USE_ASYNC") == "1":
-        async_url = _derive_async_url(DATABASE_URL)
-
-    ASYNC_DATABASE_URL = async_url
-
+# Async engine configuration (optional, lazy initialization)
 _ASYNC_ENGINE: Optional["AsyncEngine"] = None
 AsyncSessionLocal: Optional["AsyncSessionmaker[AsyncSession]"] = None
+_ASYNC_INIT_LOCK = threading.RLock()
 
 _POOL_CONFIG = {
     "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
@@ -497,49 +506,84 @@ _POOL_CONFIG = {
     "pool_pre_ping": True,
 }
 
-if ASYNC_DATABASE_URL and create_async_engine is not None and async_sessionmaker is not None:
-    try:
-        async_kwargs: dict[str, Any] = {
-            "echo": False,
-            "future": True,
-        }
 
-        # Skip standard pool config for sqlite+aiosqlite due to SQLite's locking/threading model—see module docstring for details
-        if not ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite"):
-            async_kwargs.update(_POOL_CONFIG)
+def _get_async_database_url() -> Optional[str]:
+    """Get async database URL from environment or derive from sync URL.
 
-        _ASYNC_ENGINE = create_async_engine(ASYNC_DATABASE_URL, **async_kwargs)
+    RU: Возвращает async URL из env или выводит из sync URL.
+    EN: Returns async URL from env or derives from sync URL.
 
-        AsyncSessionLocal = async_sessionmaker(
-            bind=_ASYNC_ENGINE,
-            autoflush=False,
-            expire_on_commit=False,
-        )
-    except ImportError:
-        # Fallback if async drivers are not available
-        _ASYNC_ENGINE = None
-        AsyncSessionLocal = None
-else:
-    _ASYNC_ENGINE = None
-    AsyncSessionLocal = None
+    Returns:
+        Async database URL or None if async is not enabled.
+    """
+    if create_async_engine is None or async_sessionmaker is None:
+        return None
 
-async_engine: Optional["AsyncEngine"] = _ASYNC_ENGINE
+    # Check for explicit async URL first
+    async_url = os.getenv("DATABASE_ASYNC_URL")
+
+    # If no explicit URL but async is enabled, derive from sync URL
+    if not async_url and os.getenv("DATABASE_USE_ASYNC") == "1":
+        async_url = _derive_async_url(get_database_url())
+
+    return async_url
 
 
-# Preserve Base identity across importlib.reload(core.db) used in tests.
-# RU: В репозитории есть тесты, которые делают reload(core.db) ради покрытия веток,
-# зависящих от env. Это НЕ поддерживаемый способ “реинициализации БД” — для этого
-# используйте init_db() и явные reset-хелперы, а не reload().
-# Повторное создание Base при reload приводит к dual-Base конфликтам (модели остаются
-# привязаны к старому Base).
-# EN: The repo contains tests that call reload(core.db) to cover env-driven branches.
-# This is NOT a supported way to reinitialize DB state—use init_db() (and explicit
-# reset helpers) instead of reload(). Recreating Base on reload would violate the
-# single-Base invariant because already-imported models keep the old Base.
-if "Base" not in globals():
+def _get_async_engine() -> Optional["AsyncEngine"]:
+    """Return the singleton async SQLAlchemy Engine, creating it lazily on first use.
 
-    class Base(DeclarativeBase):
-        """Base class for declarative SQLAlchemy models."""
+    RU: Возвращает singleton async engine, создавая его лениво при первом использовании.
+    EN: Returns singleton async engine, creating it lazily on first use.
+    """
+    global _ASYNC_ENGINE, AsyncSessionLocal
+
+    async_url = _get_async_database_url()
+    if async_url is None:
+        return None
+
+    if _ASYNC_ENGINE is None:
+        with _ASYNC_INIT_LOCK:
+            if _ASYNC_ENGINE is None:  # pragma: no branch
+                if create_async_engine is None or async_sessionmaker is None:
+                    return None
+                try:
+                    async_kwargs: dict[str, Any] = {
+                        "echo": False,
+                        "future": True,
+                    }
+
+                    # Skip standard pool config for sqlite+aiosqlite due to SQLite's locking/threading model
+                    if not async_url.startswith("sqlite+aiosqlite"):
+                        async_kwargs.update(_POOL_CONFIG)
+
+                    _ASYNC_ENGINE = create_async_engine(async_url, **async_kwargs)
+
+                    AsyncSessionLocal = async_sessionmaker(
+                        bind=_ASYNC_ENGINE,
+                        autoflush=False,
+                        expire_on_commit=False,
+                    )
+                except ImportError:
+                    # Fallback if async drivers are not available
+                    _ASYNC_ENGINE = None
+                    AsyncSessionLocal = None
+
+    return _ASYNC_ENGINE
+
+
+# Public async engine accessor (lazy property-like access)
+# RU: Ленивый доступ к async engine через _get_async_engine().
+# EN: Lazy access to async engine via _get_async_engine().
+# Note: This is a module-level variable that will be None until _get_async_engine() is called.
+# For type checking, we expose it as Optional, but in practice it's initialized lazily.
+async_engine: Optional["AsyncEngine"] = None
+
+
+# Single Base instance for all models.
+# RU: Единый экземпляр Base для всех моделей. Модели должны импортировать Base отсюда.
+# EN: Single Base instance for all models. Models must import Base from here.
+class Base(DeclarativeBase):
+    """Base class for declarative SQLAlchemy models."""
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -581,8 +625,9 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
             "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
         )
 
-    # Check if async SQLAlchemy is configured
-    if AsyncSessionLocal is None:
+    # Lazy initialize async engine if needed
+    async_eng = _get_async_engine()
+    if async_eng is None or AsyncSessionLocal is None:
         raise RuntimeError(
             "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
         )
@@ -597,7 +642,8 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
 @asynccontextmanager
 async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
     """Async context manager for atomic DB operations."""
-    if AsyncSessionLocal is None:
+    async_eng = _get_async_engine()
+    if async_eng is None or AsyncSessionLocal is None:
         raise RuntimeError(
             "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
         )
@@ -613,10 +659,16 @@ async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
         await session.close()
 
 
-def init_db() -> None:
-    """RU: Создаёт схему таблиц для зарегистрированных моделей (например, при старте).
+def init_db(database_url: str | None = None) -> "Engine":
+    """RU: Инициализирует БД и создаёт схему таблиц для зарегистрированных моделей.
 
-    EN: Creates database schema for all registered models (used during startup).
+    EN: Initializes DB and creates database schema for all registered models.
+
+    Args:
+        database_url: Optional database URL. If None, uses get_database_url().
+
+    Returns:
+        Initialized SQLAlchemy Engine instance.
 
     IMPORTANT: This function modifies module-level globals (_RAW_ENGINE, SessionLocal).
     Code that imports these must use the module.attribute pattern:
@@ -638,8 +690,8 @@ def init_db() -> None:
 
     # Ensure database directory exists before creating tables
     # Critical for CI/CD where directory may not exist yet
-    # Get current URL from environment (not from module-level DATABASE_URL which may be stale)
-    db_url = os.getenv("DATABASE_URL", DATABASE_URL)
+    # Get current URL from environment or use provided URL
+    db_url = database_url or get_database_url()
     env_provided = "DATABASE_URL" in os.environ
     _ensure_sqlite_directory(db_url, env_provided)
 
@@ -714,6 +766,8 @@ def init_db() -> None:
         raise RuntimeError("Engine must be initialized before creating tables")
     metadata.create_all(bind=_RAW_ENGINE)
 
+    return _RAW_ENGINE
+
 
 def get_session_factory() -> sessionmaker[Session]:
     """Get the current SessionLocal factory.
@@ -733,11 +787,12 @@ async def init_db_async() -> None:
 
     metadata = Base.metadata
 
-    if _ASYNC_ENGINE is None:
+    async_eng = _get_async_engine()
+    if async_eng is None:
         metadata.create_all(bind=_get_raw_engine())
         return
 
-    async with _ASYNC_ENGINE.begin() as conn:
+    async with async_eng.begin() as conn:
         await conn.run_sync(metadata.create_all)
 
 
