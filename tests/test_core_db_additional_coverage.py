@@ -214,9 +214,8 @@ def test_get_async_engine_sqlite_pool_skip(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("DATABASE_URL", "sqlite:///tmp_async_reload.db")
     monkeypatch.setenv("DATABASE_USE_ASYNC", "1")
 
-    reloaded = importlib.reload(db)
     try:
-        async_url = reloaded.ASYNC_DATABASE_URL
+        async_url = db._get_async_database_url()
         if async_url:
             assert async_url.startswith("sqlite+aiosqlite")
     finally:
