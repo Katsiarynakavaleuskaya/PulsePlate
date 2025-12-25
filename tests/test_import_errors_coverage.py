@@ -58,9 +58,14 @@ class TestImportErrorPaths:
                     del sys.modules["prometheus_client"]
 
         finally:
-            # Восстанавливаем оригинальные модули
-            sys.modules.clear()
-            sys.modules.update(original_modules)
+            # Restore only the modules we touched; do NOT clear sys.modules globally,
+            # otherwise later tests may see split-brain imports (dual Base / model redefinition).
+            for name in list(sys.modules.keys()):
+                if name.startswith("prometheus_client"):
+                    sys.modules.pop(name, None)
+            for name, mod in original_modules.items():
+                if name.startswith("prometheus_client"):
+                    sys.modules[name] = mod
 
 
 class TestVIPRouterImportPath:

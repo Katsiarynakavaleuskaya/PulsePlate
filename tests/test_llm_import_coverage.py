@@ -67,10 +67,15 @@ class TestImportFallbacks:
                     del sys.modules["providers.grok"]
 
         finally:
-            # Восстанавливаем оригинальные модули
-            sys.modules.clear()
-            sys.modules.update(original_modules)
-            # Перезагружаем llm в оригинальном состоянии
+            # Restore only the modules we touched; do NOT clear sys.modules globally,
+            # otherwise later tests may see split-brain imports (dual Base / model redefinition).
+            for name in list(sys.modules.keys()):
+                if name.startswith("providers"):
+                    sys.modules.pop(name, None)
+            for name, mod in original_modules.items():
+                if name.startswith("providers"):
+                    sys.modules[name] = mod
+            # Reload llm back to a stable baseline.
             reload(llm)
 
     @pytest.mark.asyncio
