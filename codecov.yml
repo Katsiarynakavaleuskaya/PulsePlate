@@ -21,5 +21,6 @@ ignore:
   - "test_quick_check.py"
   - "test_patch_verification.py"
   - "run_coverage_tests.py"
+  - "tests/**"
   - "tests_strict/**"
   - "**/__init__.py"
