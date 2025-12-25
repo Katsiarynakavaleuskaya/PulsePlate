@@ -21,7 +21,7 @@ def _import_fresh_app() -> FastAPI:
     # all of its submodules. That can leave a half-loaded state where `app.models.*`
     # is still loaded while `app` is re-imported, which then causes SQLAlchemy model
     # redefinition ("Table already defined") later in the suite.
-    purge_modules(prefixes=("app.main", "app.routers.test"))
+    purge_modules(prefixes=("legacy_app", "app.main", "app.routers.test"))
 
     # IMPORTANT:
     # `legacy_app` decides whether to include the test router at import time, based on env.
@@ -33,7 +33,18 @@ def _import_fresh_app() -> FastAPI:
 
     importlib.reload(legacy_app)
 
-    from app import app
+    app = legacy_app.app  # canonical app instance after env-driven wiring
+
+    # Fail fast with a clear message if staging claims test routes should exist but doesn't.
+    if os.getenv("APP_ENV") == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
+        has_test_routes = any(
+            getattr(route, "path", "").startswith("/api/v1/test/")
+            for route in getattr(app, "routes", [])
+        )
+        assert has_test_routes, (
+            "Test router routes are missing after legacy_app reload. "
+            f"APP_ENV={os.getenv('APP_ENV')}, ENABLE_TEST_ROUTES={os.getenv('ENABLE_TEST_ROUTES')}"
+        )
 
     return app
 
