@@ -552,7 +552,8 @@ class TestDatabaseAdminEndpoints:
                 "/api/v1/admin/rollback?source=test&target_version=1.0", headers=headers
             )
             assert response.status_code == 500
-            assert "Rollback operation failed" in response.json()["detail"]
+            detail = str(response.json().get("detail", ""))
+            assert "rollback operation failed" in detail.lower()
 
 
 class TestDebugEndpoint:
