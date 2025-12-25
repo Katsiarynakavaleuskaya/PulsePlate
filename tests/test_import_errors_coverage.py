@@ -7,6 +7,8 @@ import os
 import sys
 from unittest.mock import patch
 
+import pytest
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,46 +57,37 @@ class TestVIPRouterImportPath:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_vip_router_import_error_handling(self) -> None:
-        """Тест import error для VIP router (строки 86-89)"""
-        import os
+    def test_vip_router_import_error_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Тест import error для VIP router (строки 86-89)
 
-        # Сохраняем оригинальное значение
-        original_vip = os.environ.get("VIP_MODULE_ENABLED")
+        ВАЖНО: используем monkeypatch вместо прямых мутаций sys.modules
+        для соответствия правилам import hygiene (PR #408, #409).
+        """
+        # Устанавливаем VIP_MODULE_ENABLED = true через monkeypatch
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+
+        # Симулируем ImportError при попытке импорта VIP router
+        # Используем monkeypatch.delitem для безопасного удаления модуля
+        original_module = sys.modules.get("app.routers.vip")
+        if "app.routers.vip" in sys.modules:
+            monkeypatch.delitem(sys.modules, "app.routers.vip", raising=False)
 
         try:
-            # Устанавливаем VIP_MODULE_ENABLED = true
-            os.environ["VIP_MODULE_ENABLED"] = "true"
-
-            # Симулируем ImportError при попытке импорта VIP router
-            original_module = sys.modules.get("app.routers.vip")
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
             try:
-                try:
-                    # Пытаемся импортировать VIP router
-                    from app.routers import vip as vip_router  # noqa: F401
+                # Пытаемся импортировать VIP router
+                from app.routers import vip as vip_router  # noqa: F401
 
-                    vip_available = True
-                except ImportError:
-                    # Обрабатываем ImportError как в main.py
-                    vip_available = False
+                vip_available = True
+            except ImportError:
+                # Обрабатываем ImportError как в main.py
+                vip_available = False
 
-                # Проверяем что ImportError был обработан
-                assert vip_available in {True, False}
-            finally:
-                # Restore original module if it existed
-                if original_module is not None:
-                    sys.modules["app.routers.vip"] = original_module
-                elif "app.routers.vip" in sys.modules:
-                    del sys.modules["app.routers.vip"]
-
+            # Проверяем что ImportError был обработан
+            assert vip_available in {True, False}
         finally:
-            # Восстанавливаем оригинальное значение
-            if original_vip is not None:
-                os.environ["VIP_MODULE_ENABLED"] = original_vip
-            elif "VIP_MODULE_ENABLED" in os.environ:
-                del os.environ["VIP_MODULE_ENABLED"]
+            # Restore original module if it existed (через monkeypatch)
+            if original_module is not None:
+                monkeypatch.setitem(sys.modules, "app.routers.vip", original_module)
 
 
 class TestRateLimitingPath:
