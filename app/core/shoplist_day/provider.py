@@ -7,10 +7,7 @@ Uses lazy imports to avoid ORM registration side-effects at module import time.
 from __future__ import annotations
 
 from datetime import date
-from typing import TYPE_CHECKING, Any, Optional
-
-if TYPE_CHECKING:
-    from app.models import DayPlan
+from typing import Any, Optional
 
 
 async def fetch_day_plan(day: date, pro_ctx: Any) -> Optional[dict]:
@@ -43,13 +40,18 @@ async def fetch_day_plan(day: date, pro_ctx: Any) -> Optional[dict]:
     from core.db import session_scope_async
 
     # Query DB for day plan
-    async with session_scope_async() as session:
-        stmt = select(DayPlan).where(DayPlan.user_id == user_id).where(DayPlan.date == day)
-        result = await session.execute(stmt)
-        day_plan = result.scalars().first()
+    try:
+        async with session_scope_async() as session:
+            stmt = select(DayPlan).where(DayPlan.user_id == user_id).where(DayPlan.date == day)
+            result = await session.execute(stmt)
+            day_plan = result.scalars().first()
 
-    if day_plan is None:
+        if day_plan is None:
+            return None
+
+        # Return plan_data from DB (already in daily_menus format)
+        return day_plan.plan_data
+    except (RuntimeError, ImportError):
+        # RU: Async DB не настроен/недоступен — для MVP считаем, что плана нет.
+        # EN: Async DB not configured/available — treat as "no plan" for MVP.
         return None
-
-    # Return plan_data from DB (already in daily_menus format)
-    return day_plan.plan_data

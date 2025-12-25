@@ -99,21 +99,19 @@ class TestCoreDB:
                 # Simulate an error
                 raise ValueError("Test error")
 
-    @patch("core.db.Base.metadata")
-    def test_init_db(self, mock_metadata):
+    def test_init_db(self):
         """Test init_db creates tables."""
         from core import db
+        from unittest.mock import patch
 
         # Ensure init_db goes through the "first init" path
         db.reset_db_for_tests()
 
-        mock_metadata.create_all = MagicMock(return_value=None)
-
-        # Should not raise exception
-        init_db()
-
-        # Verify create_all was called
-        mock_metadata.create_all.assert_called_once()
+        # Patch create_all method on the real metadata object
+        with patch.object(db.Base.metadata, "create_all") as mock_create_all:
+            db.init_db("sqlite:///:memory:")
+            # Verify create_all was called once
+            mock_create_all.assert_called_once()
 
     def test_init_db_with_models_import(self):
         """Test init_db imports models correctly."""
@@ -224,9 +222,9 @@ class TestAsyncDB:
 
     @pytest.mark.asyncio
     async def test_get_async_session_not_configured(self):
-        """Test get_async_session raises ImportError when not configured."""
+        """Test get_async_session raises RuntimeError when not configured."""
         with patch("core.db.AsyncSessionLocal", None):
-            with pytest.raises(ImportError, match="Async SQLAlchemy is not configured"):
+            with pytest.raises(RuntimeError, match="Async SQLAlchemy is not configured"):
                 async for _session in get_async_session():
                     break
 
@@ -245,18 +243,17 @@ class TestAsyncDB:
         await init_db_async()
 
     def test_derive_async_url_no_async_support(self):
-        """Test _derive_async_url returns None when async support not available."""
-        from core.db import create_async_engine
+        """Test _derive_async_url handles both async available and not available cases."""
+        from core import db
 
-        if create_async_engine is None:
+        result = db._derive_async_url("sqlite:///test.db")
+
+        if db.create_async_engine is None:
             # Async support truly not available - should return None
-            result = _derive_async_url("sqlite:///test.db")
             assert result is None
         else:
             # Async support is available - should convert URL
-            result = _derive_async_url("sqlite:///test.db")
-            assert result is not None
-            assert result.startswith("sqlite+aiosqlite://")
+            assert result == "sqlite+aiosqlite:///test.db"
 
     def test_execute_sql_method(self):
         """Test execute method on connection."""
@@ -267,12 +264,18 @@ class TestAsyncDB:
             assert result is not None
 
     @pytest.mark.asyncio
-    async def test_get_async_session_import_error(self):
+    async def test_get_async_session_import_error(self, monkeypatch: pytest.MonkeyPatch):
         """Test get_async_session raises ImportError when async extras not available."""
-        with patch("core.db.AsyncSessionLocal", None), patch("core.db.create_async_engine", None):
-            with pytest.raises(ImportError, match="SQLAlchemy async extras are not available"):
-                async for _session in get_async_session():
-                    break
+        from core import db
+
+        db.reset_db_for_tests()
+        # Force "extras missing" scenario
+        monkeypatch.setattr(db, "create_async_engine", None)
+        monkeypatch.setattr(db, "async_sessionmaker", None)
+
+        with pytest.raises(ImportError, match=r"SQLAlchemy async extras are not available"):
+            async for _session in get_async_session():
+                break
 
     @pytest.mark.asyncio
     async def test_session_scope_async_success(self):
