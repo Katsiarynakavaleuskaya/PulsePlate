@@ -500,11 +500,21 @@ _ASYNC_ENGINE: Optional["AsyncEngine"] = None
 AsyncSessionLocal: Optional["AsyncSessionmaker[AsyncSession]"] = None
 _ASYNC_INIT_LOCK = threading.RLock()
 
-_POOL_CONFIG = {
-    "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
-    "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
-    "pool_pre_ping": True,
-}
+
+def _get_pool_config() -> dict[str, Any]:
+    """Get pool configuration from environment variables.
+
+    RU: Возвращает конфигурацию пула соединений из переменных окружения.
+    EN: Returns pool configuration from environment variables.
+
+    Returns:
+        Dictionary with pool configuration parameters.
+    """
+    return {
+        "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "10")),
+        "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "20")),
+        "pool_pre_ping": True,
+    }
 
 
 def _get_async_database_url() -> Optional[str]:
@@ -554,7 +564,7 @@ def _get_async_engine() -> Optional["AsyncEngine"]:
 
                     # Skip standard pool config for sqlite+aiosqlite due to SQLite's locking/threading model
                     if not async_url.startswith("sqlite+aiosqlite"):
-                        async_kwargs.update(_POOL_CONFIG)
+                        async_kwargs.update(_get_pool_config())
 
                     _ASYNC_ENGINE = create_async_engine(async_url, **async_kwargs)
 
