@@ -21,7 +21,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from core.db import DATABASE_URL, Base  # noqa: E402
+from core.db import Base, get_database_url  # noqa: E402
 
 # Interpret the config file for Python logging.
 config = context.config
@@ -31,7 +31,7 @@ if config.config_file_name is not None:
 logger = logging.getLogger("alembic.env")
 
 # Set SQLAlchemy URL dynamically so env vars win over alembic.ini defaults.
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", get_database_url())
 
 target_metadata = Base.metadata
 

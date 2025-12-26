@@ -236,7 +236,8 @@ class TestSecureConfig:
 
     def test_get_or_create_encryption_key_replace_failure_cleans_temp(self, tmp_path, fake_crypto):
         """Atomic replace failure removes temp file (RU/EN)."""
-        temp_file = tmp_path / ".cursor" / ".key.tmp"
+        key_file = tmp_path / ".cursor" / ".key"
+        temp_file = key_file.with_suffix(".key.tmp")
 
         with (
             patch("secure_config.Path.home", return_value=tmp_path),
@@ -378,7 +379,8 @@ class TestSecureConfig:
 
     def test_get_or_create_encryption_key_replace_failure(self, tmp_path, fake_crypto):
         """Test atomic replace failure cleans up temp file and raises."""
-        temp_file = tmp_path / ".cursor" / ".key.tmp"
+        key_file = tmp_path / ".cursor" / ".key"
+        temp_file = key_file.with_suffix(".key.tmp")
 
         from secure_config import ENCRYPTION_AVAILABLE
 
@@ -408,11 +410,12 @@ class TestSecureConfig:
         # Ensure we're operating in the temp directory used by secure_config
         temp_dir = tmp_path / ".cursor"
         temp_dir.mkdir(parents=True, exist_ok=True)
-        temp_file = temp_dir / ".key.tmp"
+        key_file = temp_dir / ".key"
+        temp_file = key_file.with_suffix(".key.tmp")
 
-        unlink_called = False
+        unlink_called: bool = False
 
-        def _tracking_unlink(self):
+        def _tracking_unlink(self: Path) -> None:
             nonlocal unlink_called
             unlink_called = True
             # Raise OSError to match what secure_config.py catches (line 102)
@@ -483,7 +486,7 @@ class TestSecureConfig:
         original_exists = secure_config.Path.exists
 
         def fake_exists(path_obj):
-            return False if path_obj.name == ".key.tmp" else original_exists(path_obj)
+            return False if path_obj.name.endswith(".key.tmp") else original_exists(path_obj)
 
         with (
             patch("secure_config.Path.home", return_value=tmp_path),

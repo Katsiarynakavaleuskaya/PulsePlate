@@ -35,6 +35,29 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# DATABASE INITIALIZATION FOR API TESTS
+# ============================================================================
+@pytest.fixture(autouse=True, scope="session")
+def _init_db_for_api_suite() -> None:
+    """
+    RU: Глобальная инициализация DB для API тестов (legacy expectation: SessionLocal is ready).
+    EN: Initialize DB once for API tests; keeps legacy tests stable without import-time side effects.
+
+    This fixture ensures SessionLocal is available for API tests that expect implicit DB initialization.
+    Unit tests for core.db should use reset_db_for_tests() explicitly and should not depend on this.
+
+    CRITICAL: Import core.models here to ensure models are registered with the canonical Base
+    before any tests run. This prevents dual-Base issues.
+    """
+    import core.db as core_db
+    import core.models  # noqa: F401  # Ensure models are registered with Base
+
+    # Initialize DB if not already initialized
+    # init_db() is idempotent, so safe to call multiple times
+    core_db.init_db()
+
+
+# ============================================================================
 # TENANT-BASED SHARDING CONFIGURATION
 # ============================================================================
 # Imported from pytest_sharding.py to enable memory-efficient parallel testing
@@ -84,7 +107,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     """Configure and initialize a per-worker SQLite database for the test session.
 
     Yields:
-        The reloaded db module for use by dependent fixtures (e.g., _cleanup_users).
+        The DB module for use by dependent fixtures (e.g., _cleanup_users).
     """
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
@@ -103,13 +126,13 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     os.environ["TEST_DB_PATH"] = str(resolved_path)
     os.environ["DATABASE_URL"] = f"sqlite:///{resolved_path}"
 
-    # Import DB module (do NOT reload it here).
+    # Import DB module (no reload needed - init_db() handles URL changes).
     #
     # Rationale:
     # - Several tests/modules may import ORM models during collection; reloading
     #   core.db/core.models would rebind model classes and break existing references.
     # - core.db.init_db() already recreates the engine/session when DATABASE_URL changes.
-    db_module_reloaded = importlib.import_module("core.db")
+    import core.db as db_module
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
@@ -126,7 +149,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     import core.models  # noqa: F401
     import app.models  # noqa: F401 - imports all models via __init__.py
 
-    db_module_reloaded.init_db()
+    db_module.init_db()
 
     # Ensure SQLite file is writable for tests
     try:
@@ -134,37 +157,30 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     except Exception as e:
         logger.debug(f"Could not set permissions on test database: {e}")
 
-    # Expose the reloaded db module to dependent fixtures (e.g., _cleanup_users)
+    # Expose the DB module to dependent fixtures (e.g., _cleanup_users)
     # so they can use a consistent session_scope and engine configuration.
-    yield db_module_reloaded
+    yield db_module
 
     # Teardown: Clean up database connections and files
     try:
         # Close database connections if available
         # First, close the raw engine if it exists
-        if hasattr(db_module_reloaded, "_RAW_ENGINE") and db_module_reloaded._RAW_ENGINE:
+        if hasattr(db_module, "_RAW_ENGINE") and db_module._RAW_ENGINE:
             try:
-                db_module_reloaded._RAW_ENGINE.dispose()
+                db_module._RAW_ENGINE.dispose()
                 logger.debug(f"Disposed raw database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing raw database engine: {e}")
 
-        if hasattr(db_module_reloaded, "engine") and db_module_reloaded.engine:
+        if hasattr(db_module, "engine") and db_module.engine:
             try:
-                db_module_reloaded.engine.dispose()
+                db_module.engine.dispose()
                 logger.debug(f"Disposed database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing database engine: {e}")
 
-        # Close any active sessions - SessionLocal is a sessionmaker, not a session
-        # The sessionmaker doesn't have sessions to close, but we can clear the engine binding
-        if hasattr(db_module_reloaded, "SessionLocal"):
-            try:
-                # Clear the bind to prevent any new sessions from being created
-                db_module_reloaded.SessionLocal.configure(bind=None)
-                logger.debug(f"Cleared SessionLocal binding for worker {worker_id}")
-            except Exception as e:
-                logger.debug(f"Error clearing SessionLocal binding: {e}")
+        # NOTE: Do not clear SessionLocal binding - it breaks API tests that expect
+        # SessionLocal to be available in teardown. Engine disposal is sufficient cleanup.
 
         # Remove the SQLite database file
         db_path = Path(os.environ.get("TEST_DB_PATH", ""))

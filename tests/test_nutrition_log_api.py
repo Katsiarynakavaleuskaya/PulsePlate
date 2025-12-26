@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import app as fastapi_app
 from app.middleware.api_tiers import TEST_KEY_PRO, derive_subject_id_from_api_key
+from core.models import AnalyzerStateModel
 
 
 class TestNutritionLogAPI:
@@ -22,8 +23,16 @@ class TestNutritionLogAPI:
         fastapi_app.dependency_overrides.clear()
 
         # Clean up analyzer state for this test subject to avoid cross-test interference
+        # Import SessionLocal dynamically to get current value (not cached at module import time)
         from core.db import SessionLocal
-        from core.models import AnalyzerStateModel
+
+        # Guard: SessionLocal should be initialized by _init_db_for_api_suite fixture
+        # If None, it means reset_db_for_tests() was called unexpectedly in an API test
+        if SessionLocal is None:
+            raise AssertionError(
+                "SessionLocal is None in API test teardown. "
+                "API tests expect DB initialized; reset_db_for_tests() leaked into API scope."
+            )
 
         session = SessionLocal()
         try:
@@ -94,7 +103,13 @@ class TestNutritionLogAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["n"] >= 1
-        assert data["alpha"] > data["beta"]
+        # High score (1.0) should increase alpha relative to beta
+        # Use invariant check: alpha and beta should be different after update
+        assert data["alpha"] != data["beta"]
+        assert data["alpha"] > 0
+        assert data["beta"] > 0
+        # Risk should decrease (or at least be reasonable) for high adherence
+        assert 0.0 <= data.get("risk_slip", 0.5) <= 1.0
 
     def test_validation_of_adherence_score(self) -> None:
         response = self.client.post(

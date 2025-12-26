@@ -84,6 +84,7 @@ async def test_fetch_day_plan_returns_none_when_missing(
 ) -> None:
     """Test fetch_day_plan returns None when no plan exists."""
     holder: list[_FakeSession] = []
+    # Mock session_scope_async to return fake session (doesn't raise RuntimeError/ImportError)
     monkeypatch.setattr(db, "session_scope_async", _session_scope_factory(None, holder))
 
     result = await provider_module.fetch_day_plan(
@@ -107,6 +108,7 @@ async def test_fetch_day_plan_returns_plan_data(monkeypatch: pytest.MonkeyPatch)
     plan_data = {"daily_menus": [{"meals": []}]}
     day_plan = SimpleNamespace(plan_data=plan_data)
     holder: list[_FakeSession] = []
+    # Mock session_scope_async to return fake session (doesn't raise RuntimeError/ImportError)
     monkeypatch.setattr(db, "session_scope_async", _session_scope_factory(day_plan, holder))
 
     result = await provider_module.fetch_day_plan(
@@ -122,3 +124,41 @@ async def test_fetch_day_plan_returns_plan_data(monkeypatch: pytest.MonkeyPatch)
     assert "user_id" in sql
     assert "42" in sql  # user_id value
     assert "2025-01-04" in sql  # date value
+
+
+@pytest.mark.asyncio
+async def test_fetch_day_plan_returns_none_on_async_db_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Async DB is optional: RuntimeError/ImportError should fail-soft to None."""
+
+    def _raise_runtime_error():
+        raise RuntimeError("Async SQLAlchemy is not configured")
+
+    monkeypatch.setattr(db, "session_scope_async", _raise_runtime_error)
+
+    result = await provider_module.fetch_day_plan(
+        day=date(2025, 1, 5),
+        pro_ctx=SimpleNamespace(user_id=7),
+    )
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_day_plan_returns_none_on_async_db_import_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Async DB is optional: RuntimeError/ImportError should fail-soft to None."""
+
+    def _raise_import_error():
+        raise ImportError("sqlalchemy.asyncio is not available")
+
+    monkeypatch.setattr(db, "session_scope_async", _raise_import_error)
+
+    result = await provider_module.fetch_day_plan(
+        day=date(2025, 1, 6),
+        pro_ctx=SimpleNamespace(user_id=8),
+    )
+
+    assert result is None

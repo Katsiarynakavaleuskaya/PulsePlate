@@ -192,6 +192,25 @@ class TestCorePlateLogic:
         assert len(meals) == 3
         assert all("title" in meal and "kcal" in meal for meal in meals)
 
+    def test_diet_flags_keto_vegan_conflict(self):
+        """Test that KETO flag is discarded when VEGAN is present (line 313)."""
+        # Test KETO + VEGAN conflict resolution through make_plate
+        plate = make_plate(
+            weight_kg=70,
+            tdee_val=2000,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            diet_flags={"KETO", "VEGAN"},
+        )
+        # KETO should be discarded when VEGAN is present (handled internally)
+        # Verify plate was created successfully (conflict resolved)
+        assert "kcal" in plate
+        assert "macros" in plate
+        # Verify VEGAN behavior is applied (VEGAN should win the conflict)
+        vegan_meals = " ".join(meal["title"] for meal in plate["meals"])
+        assert "тофу" in vegan_meals or "соевый" in vegan_meals or "нут" in vegan_meals
+
     def test_diet_flags_modifications(self):
         """Test diet flags modify meal suggestions."""
         base_plate = make_plate(

@@ -10,26 +10,24 @@ from fastapi.testclient import TestClient
 
 from app import app as fastapi_app
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP, derive_subject_id_from_api_key
+from core.models import AnalyzerStateModel
 
 
 class TestAdherenceAPI:
     """Test adherence event recording and risk retrieval."""
 
-    def setup_method(self) -> None:
-        """Setup test client with PRO tier headers."""
-        self.headers_pro = {"X-API-Key": TEST_KEY_PRO}
-        self.headers_vip = {"X-API-Key": TEST_KEY_VIP}
-        self.client = TestClient(fastapi_app, headers=self.headers_pro)
-        self.user_id = derive_subject_id_from_api_key(TEST_KEY_PRO)
-        self.vip_user_id = derive_subject_id_from_api_key(TEST_KEY_VIP)
-
-    def teardown_method(self) -> None:
-        """Clean up dependency overrides and database state after each test."""
-        fastapi_app.dependency_overrides.clear()
-
-        # Clean up analyzer state for test subject IDs to prevent interference
+    def _cleanup_analyzer_state(self) -> None:
+        """Remove adherence analyzer state for test subject IDs to avoid cross-test interference."""
+        # Import SessionLocal dynamically to get current value (not cached at module import time)
         from core.db import SessionLocal
-        from core.models import AnalyzerStateModel
+
+        # Guard: SessionLocal should be initialized by _init_db_for_api_suite fixture
+        # If None, it means reset_db_for_tests() was called unexpectedly in an API test
+        if SessionLocal is None:
+            raise AssertionError(
+                "SessionLocal is None in API test teardown. "
+                "API tests expect DB initialized; reset_db_for_tests() leaked into API scope."
+            )
 
         session = SessionLocal()
         try:
@@ -39,6 +37,20 @@ class TestAdherenceAPI:
             session.commit()
         finally:
             session.close()
+
+    def setup_method(self) -> None:
+        """Setup test client with PRO tier headers."""
+        self.headers_pro = {"X-API-Key": TEST_KEY_PRO}
+        self.headers_vip = {"X-API-Key": TEST_KEY_VIP}
+        self.client = TestClient(fastapi_app, headers=self.headers_pro)
+        self.user_id = derive_subject_id_from_api_key(TEST_KEY_PRO)
+        self.vip_user_id = derive_subject_id_from_api_key(TEST_KEY_VIP)
+        self._cleanup_analyzer_state()
+
+    def teardown_method(self) -> None:
+        """Clean up dependency overrides and database state after each test."""
+        fastapi_app.dependency_overrides.clear()
+        self._cleanup_analyzer_state()
 
     def test_record_meal_logged_event(self) -> None:
         """Test recording a successful meal_logged event."""
@@ -60,6 +72,9 @@ class TestAdherenceAPI:
         assert data["n"] == 1
         # Success event -> alpha should increase relative to beta
         assert data["alpha"] > data["beta"]
+        assert data["alpha"] > 0
+        assert data["beta"] > 0
+        # Risk should be reasonable (lower for success events)
         assert 0.0 <= data["risk_slip"] <= 1.0
         assert 0.0 <= data["confidence"] <= 1.0
         assert data["needs_more_data"] is True  # n=1 < 7

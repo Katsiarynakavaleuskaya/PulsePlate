@@ -46,7 +46,6 @@ def pytest_configure(config: pytest.Config) -> None:
     if not hasattr(config, "option"):
         return
 
-    import importlib
     import contextlib
 
     # Set test environment variables BEFORE any imports
@@ -90,36 +89,8 @@ def pytest_configure(config: pytest.Config) -> None:
     with contextlib.suppress(OSError):
         db_path.unlink(missing_ok=True)
 
-    # Initialize database early to prevent module-level import issues
-    # Import/reload core.db to ensure it uses our DATABASE_URL
-    if "core.db" in sys.modules:
-        core_db = importlib.reload(sys.modules["core.db"])
-    else:
-        core_db = importlib.import_module("core.db")
-
-    # Import models that exist in main branch
-    if "core.models" in sys.modules:
-        importlib.reload(sys.modules["core.models"])
-    else:
-        import core.models  # noqa: F401
-
-    # Import User model to ensure it's registered with SQLAlchemy
-    from core.models import User  # noqa: F401
-
-    # NOTE: Model imports and reloads are now handled by tests/conftest.py configure_sqlite_database
-    # to avoid duplicate table registration. Root conftest only imports core.models for basic setup.
-
-    # Initialize database schema
-    try:
-        core_db.init_db()
-        print(f"✅ Test database initialized in pytest_configure: {db_path}")
-    except Exception as e:
-        print(f"⚠️  Database initialization in pytest_configure failed: {e}")
-        # Continue - init_test_database fixture will retry
-
-    # If app was accidentally loaded, reload it to ensure it uses the initialized DB
-    if "app" in sys.modules:
-        importlib.reload(sys.modules["app"])
+    # NOTE: DB initialization moved to session autouse fixture (_init_db_for_api_suite)
+    # This prevents dual-Base issues from module reloads and ensures stable Base identity
 
 
 class AppLoadError(ImportError):
@@ -128,32 +99,8 @@ class AppLoadError(ImportError):
     pass
 
 
-@pytest.fixture(scope="session", autouse=True)
-def init_test_database() -> None:
-    """Verify test database is properly initialized.
-
-    pytest_configure already set up the database. This fixture just
-    verifies everything is working and logs the result.
-    """
-    import logging
-
-    # Import core.db without reloading - pytest_configure already did that
-    import core.db
-
-    try:
-        # Verify initialization succeeded by checking if tables exist
-        with core.db.session_scope() as session:
-            from sqlalchemy import inspect
-
-            inspector = inspect(session.get_bind())
-            tables = inspector.get_table_names()
-            if not tables:
-                raise RuntimeError("Database initialized but no tables found")
-            tables_str = ", ".join(tables)
-            logging.debug(f"Database verified with {len(tables)} tables: {tables_str}")
-    except Exception as e:
-        logging.error(f"Database verification failed: {e}", exc_info=True)
-        raise
+# NOTE: Database initialization is handled by _init_db_for_api_suite fixture in tests/conftest.py
+# No separate verification fixture needed - _init_db_for_api_suite ensures DB is initialized
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -213,8 +160,8 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     # Save current environment
     old_env = dict(os.environ)
 
-    # Save current sys.modules state
-    old_modules = dict(sys.modules)
+    # NOTE: We no longer track sys.modules state or delete modules.
+    # Module cleanup should be done explicitly via module_purge.purge_modules() with protect lists.
 
     # Set default environment for tests
     os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
@@ -254,22 +201,26 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
 
     # Clear dependency overrides (use sys.modules.get to avoid re-import)
     fastapi_app = sys.modules.get("app")
-    if fastapi_app is not None and hasattr(fastapi_app, "app"):
-        if hasattr(fastapi_app.app, "dependency_overrides"):
-            fastapi_app.app.dependency_overrides.clear()
+    if (
+        fastapi_app is not None
+        and hasattr(fastapi_app, "app")
+        and hasattr(fastapi_app.app, "dependency_overrides")
+    ):
+        fastapi_app.app.dependency_overrides.clear()
 
-    # Restore sys.modules (be careful not to break everything)
-    # Only restore modules that were added during the test
-    current_modules = set(sys.modules.keys())
-    original_modules = set(old_modules.keys())
-    new_modules = current_modules - original_modules
-
-    for module_name in new_modules:
-        if module_name.startswith(("app.", "core.", "tests.")):
-            try:
-                del sys.modules[module_name]
-            except KeyError:
-                pass
+    # CRITICAL: Do NOT delete modules from sys.modules
+    # This causes dual-Base issues, module identity chaos, and unpredictable test failures.
+    # Module cleanup should be done explicitly via module_purge.purge_modules() with protect lists,
+    # NOT via autouse fixtures that affect all tests.
+    #
+    # Why this is dangerous:
+    # - Deleting app.* modules can cause re-imports that create new Base instances
+    # - Deleting tests.* modules can break test isolation in unexpected ways
+    # - Even with core.* protection, deleting app.* can trigger model re-registration
+    # - This makes tests flaky and unpredictable, especially under pytest-xdist
+    #
+    # If module isolation is needed, use module_purge.purge_modules() explicitly in specific tests
+    # with appropriate protect lists (e.g., protect core.db, core.models).
 
 
 @pytest.fixture(autouse=True)
@@ -373,14 +324,14 @@ def test_client():
 
 @pytest.fixture
 def isolated_test_client():
-    """Fixture for creating isolated TestClient instances with clean app state."""
-    import importlib
+    """Fixture for creating isolated TestClient instances with clean app state.
+
+    NOTE: Removed importlib.reload() to prevent dual-Base issues.
+    Instead, create a fresh TestClient and clear dependency_overrides in teardown.
+    """
     import app
 
-    # Reload app module to get fresh state
-    importlib.reload(app)
-
-    # Create TestClient with fresh app
+    # Create TestClient with current app state (no reload to avoid dual-Base)
     client = TestClient(cast(ASGIApp, app.app))
 
     try:
@@ -388,9 +339,9 @@ def isolated_test_client():
     finally:
         # Properly close the client to clean up resources
         client.close()
-
-        # Reload app module again to reset state
-        importlib.reload(app)
+        # Clear dependency overrides to reset state
+        if hasattr(app.app, "dependency_overrides"):
+            app.app.dependency_overrides.clear()
 
 
 @pytest.fixture

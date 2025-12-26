@@ -171,63 +171,18 @@ class TestDbMissingLinesCoverage:
             pass
 
     def test_init_db_assert_called_once_line_136(self):
-        """Test line 136: assert_called_once error condition in init_db()"""
-        try:
-            import core.db
+        """Test that init_db() calls create_all() - using proper mocking."""
+        from unittest.mock import patch
+        import core.db
 
-            # Save original metadata
-            original_metadata = core.db.Base.metadata
-            original_raw_engine = core.db._RAW_ENGINE
+        # Reset DB state to ensure clean test
+        core.db.reset_db_for_tests()
 
-            try:
-                # Create a real function that doesn't have assert_called_once
-                def mock_create_all(*args, **kwargs):
-                    pass
-
-                # Create metadata with this function
-                mock_metadata = Mock()
-                mock_metadata.create_all = mock_create_all
-
-                # Ensure it doesn't have assert_called_once initially
-                assert not hasattr(mock_create_all, "assert_called_once")
-
-                # Replace metadata temporarily
-                core.db.Base.metadata = mock_metadata
-
-                # Mock the engine to prevent actual database operations
-                mock_engine = Mock()
-                core.db._RAW_ENGINE = mock_engine
-
-                # Call init_db - this should wrap create_all
-                core.db.init_db()
-
-                # Now the wrapped function should have assert_called_once
-                wrapped_create_all = mock_metadata.create_all
-                assert hasattr(wrapped_create_all, "assert_called_once")
-
-                # Reset the "called" status by creating a fresh wrapper
-                # We need to manually test the _assert_called_once function
-                called = {"value": False}
-
-                def _assert_called_once():
-                    if not called["value"]:
-                        raise AssertionError("create_all was not invoked")
-
-                # Test line 136: AssertionError when not called
-                with pytest.raises(AssertionError, match="create_all was not invoked"):
-                    _assert_called_once()  # Should raise (line 136)
-
-                # Now set called to True
-                called["value"] = True
-                _assert_called_once()  # Should not raise
-
-            finally:
-                # Restore original metadata and engine
-                core.db.Base.metadata = original_metadata
-                core.db._RAW_ENGINE = original_raw_engine
-
-        except ImportError:
-            pass
+        # Mock create_all to verify it's called
+        with patch.object(core.db.Base.metadata, "create_all") as mock_create_all:
+            core.db.init_db()
+            # Verify create_all was called once
+            mock_create_all.assert_called_once()
 
     def test_get_session_lines_90_94(self):
         """Test lines 90-94: get_session dependency function"""
