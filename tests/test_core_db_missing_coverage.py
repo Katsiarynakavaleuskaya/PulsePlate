@@ -152,6 +152,19 @@ async def test_get_async_session_raises_not_available_when_engine_missing(
 
 
 @pytest.mark.asyncio
+async def test_get_async_session_raises_not_configured_when_url_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(db, "create_async_engine", object(), raising=False)
+    monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
+    monkeypatch.setattr(db, "_get_async_database_url", lambda: None)
+
+    agen = db.get_async_session()
+    with pytest.raises(db.AsyncDBNotConfigured, match="Async SQLAlchemy is not configured"):
+        await agen.__anext__()
+
+
+@pytest.mark.asyncio
 async def test_session_scope_async_raises_not_available_when_async_support_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -198,6 +211,7 @@ def test_reset_db_for_tests_handles_dispose_errors(caplog) -> None:
             db.reset_db_for_tests()
         assert "Failed to dispose sync engine during test reset" in caplog.text
     finally:
+        db.reset_db_for_tests()
         db.init_db()
 
 
@@ -259,3 +273,83 @@ def test_finalize_transaction_logs_without_exc_info_in_production(
     finally:
         logger.setLevel(prev_level)
     assert conn.rollback_called is True
+
+
+def test_finalize_transaction_logs_with_exc_info_outside_production(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    engine = db.EngineCompat(object())
+
+    class _Conn:
+        rollback_called = False
+
+        def get_transaction(self):  # noqa: ANN201 - test stub
+            return object()
+
+        def commit(self) -> None:
+            raise sa_exc.SQLAlchemyError("db fail")
+
+        def rollback(self) -> None:
+            self.rollback_called = True
+
+    conn = _Conn()
+
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    with caplog.at_level(logging.ERROR, logger="core.db"):
+        with pytest.raises(sa_exc.SQLAlchemyError):
+            engine._finalize_transaction(conn)
+
+    assert conn.rollback_called is True
+    assert any(record.exc_info for record in caplog.records if record.name == "core.db")
+
+
+def test_get_async_engine_returns_cached_engine_when_url_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyAsyncEngine:
+        def __init__(self, url: str) -> None:
+            self.url = url
+
+    cached = _DummyAsyncEngine("postgresql+asyncpg://user:pass@localhost/db")
+
+    def _unexpected_create(*_a: Any, **_k: Any) -> None:  # noqa: ANN401 - test stub
+        raise AssertionError("create_async_engine should not be called when cache is valid")
+
+    monkeypatch.setenv("DATABASE_ASYNC_URL", cached.url)
+    monkeypatch.setattr(db, "create_async_engine", _unexpected_create, raising=False)
+    monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", cached, raising=False)
+
+    assert db._get_async_engine() is cached
+
+
+def test_get_async_engine_skips_recreate_if_engine_updated_before_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _DummyAsyncEngine:
+        def __init__(self, url: str) -> None:
+            self.url = url
+
+    async_url = "postgresql+asyncpg://user:pass@localhost/db"
+    old_engine = _DummyAsyncEngine("postgresql+asyncpg://user:pass@localhost/old")
+    new_engine = _DummyAsyncEngine(async_url)
+
+    def _unexpected_create(*_a: Any, **_k: Any) -> None:  # noqa: ANN401 - test stub
+        raise AssertionError("create_async_engine should not be called for cache hit paths")
+
+    class _RaceLock:
+        def __enter__(self) -> "_RaceLock":
+            db._ASYNC_ENGINE = new_engine
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001 - test stub
+            return None
+
+    monkeypatch.setenv("DATABASE_ASYNC_URL", async_url)
+    monkeypatch.setattr(db, "create_async_engine", _unexpected_create, raising=False)
+    monkeypatch.setattr(db, "async_sessionmaker", object(), raising=False)
+    monkeypatch.setattr(db, "_ASYNC_ENGINE", old_engine, raising=False)
+    monkeypatch.setattr(db, "_ASYNC_INIT_LOCK", _RaceLock(), raising=False)
+
+    assert db._get_async_engine() is new_engine

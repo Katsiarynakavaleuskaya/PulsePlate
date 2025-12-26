@@ -207,6 +207,9 @@ class TestCorePlateLogic:
         # Verify plate was created successfully (conflict resolved)
         assert "kcal" in plate
         assert "macros" in plate
+        # Verify VEGAN behavior is applied (VEGAN should win the conflict)
+        vegan_meals = " ".join(meal["title"] for meal in plate["meals"])
+        assert "тофу" in vegan_meals or "соевый" in vegan_meals or "нут" in vegan_meals
 
     def test_diet_flags_modifications(self):
         """Test diet flags modify meal suggestions."""

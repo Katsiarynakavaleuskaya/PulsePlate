@@ -18,7 +18,6 @@ def test_single_base_instance() -> None:
     This prevents dual-Base issues when modules are purged and re-imported.
     """
     from module_purge import purge_modules
-    import sys
 
     # 1) Purge modules to ensure clean state
     # Note: module_purge protects core.db by default, but we want to ensure order

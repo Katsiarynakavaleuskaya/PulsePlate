@@ -219,7 +219,7 @@ class TestRecipeSynthesizerUtilities:
         assert "vegetarian" in tags  # Also has vegetables
 
     def test_generate_tags_spicy(self, synthesizer):
-        """Test tag generation for spicy recipe (line 601)."""
+        """Test tag generation for spicy recipe."""
         template = RecipeTemplate(
             template_id="test",
             name="Test Recipe",

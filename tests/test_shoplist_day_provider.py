@@ -143,3 +143,22 @@ async def test_fetch_day_plan_returns_none_on_async_db_error(
     )
 
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_day_plan_returns_none_on_async_db_import_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Async DB is optional: RuntimeError/ImportError should fail-soft to None."""
+
+    def _raise_import_error():
+        raise ImportError("sqlalchemy.asyncio is not available")
+
+    monkeypatch.setattr(db, "session_scope_async", _raise_import_error)
+
+    result = await provider_module.fetch_day_plan(
+        day=date(2025, 1, 6),
+        pro_ctx=SimpleNamespace(user_id=8),
+    )
+
+    assert result is None

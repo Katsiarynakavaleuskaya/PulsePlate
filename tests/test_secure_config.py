@@ -413,9 +413,9 @@ class TestSecureConfig:
         key_file = temp_dir / ".key"
         temp_file = key_file.with_suffix(".key.tmp")
 
-        unlink_called = False
+        unlink_called: bool = False
 
-        def _tracking_unlink(self):
+        def _tracking_unlink(self: Path) -> None:
             nonlocal unlink_called
             unlink_called = True
             # Raise OSError to match what secure_config.py catches (line 102)

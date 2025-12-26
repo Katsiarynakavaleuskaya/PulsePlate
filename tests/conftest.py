@@ -107,7 +107,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     """Configure and initialize a per-worker SQLite database for the test session.
 
     Yields:
-        The reloaded db module for use by dependent fixtures (e.g., _cleanup_users).
+        The DB module for use by dependent fixtures (e.g., _cleanup_users).
     """
     os.environ.setdefault("APP_ENV", "test")
     os.environ.setdefault("ENVIRONMENT", "test")
@@ -132,7 +132,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     # - Several tests/modules may import ORM models during collection; reloading
     #   core.db/core.models would rebind model classes and break existing references.
     # - core.db.init_db() already recreates the engine/session when DATABASE_URL changes.
-    import core.db as db_module_reloaded
+    import core.db as db_module
 
     # Remove existing database file if it exists to ensure clean state
     if resolved_path.exists():
@@ -149,7 +149,7 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     import core.models  # noqa: F401
     import app.models  # noqa: F401 - imports all models via __init__.py
 
-    db_module_reloaded.init_db()
+    db_module.init_db()
 
     # Ensure SQLite file is writable for tests
     try:
@@ -157,24 +157,24 @@ def configure_sqlite_database(request: pytest.FixtureRequest) -> Generator[Any, 
     except Exception as e:
         logger.debug(f"Could not set permissions on test database: {e}")
 
-    # Expose the reloaded db module to dependent fixtures (e.g., _cleanup_users)
+    # Expose the DB module to dependent fixtures (e.g., _cleanup_users)
     # so they can use a consistent session_scope and engine configuration.
-    yield db_module_reloaded
+    yield db_module
 
     # Teardown: Clean up database connections and files
     try:
         # Close database connections if available
         # First, close the raw engine if it exists
-        if hasattr(db_module_reloaded, "_RAW_ENGINE") and db_module_reloaded._RAW_ENGINE:
+        if hasattr(db_module, "_RAW_ENGINE") and db_module._RAW_ENGINE:
             try:
-                db_module_reloaded._RAW_ENGINE.dispose()
+                db_module._RAW_ENGINE.dispose()
                 logger.debug(f"Disposed raw database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing raw database engine: {e}")
 
-        if hasattr(db_module_reloaded, "engine") and db_module_reloaded.engine:
+        if hasattr(db_module, "engine") and db_module.engine:
             try:
-                db_module_reloaded.engine.dispose()
+                db_module.engine.dispose()
                 logger.debug(f"Disposed database engine for worker {worker_id}")
             except Exception as e:
                 logger.warning(f"Error disposing database engine: {e}")

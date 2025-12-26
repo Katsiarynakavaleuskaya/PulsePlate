@@ -63,6 +63,11 @@ class AsyncDBNotConfigured(RuntimeError):
     """Async SQLAlchemy support is available but not enabled/configured."""
 
 
+_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE = (
+    "SQLAlchemy async extras are not available. " "Install with 'pip install sqlalchemy[asyncio]'"
+)
+
+
 def _get_environment() -> str:
     """Get environment name from env vars or default to 'production'.
 
@@ -662,10 +667,7 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     # Fast-fail if async SQLAlchemy extras are not available
     if create_async_engine is None or async_sessionmaker is None:
-        raise AsyncDBNotAvailable(
-            "SQLAlchemy async extras are not available. "
-            "Install with 'pip install sqlalchemy[asyncio]'"
-        )
+        raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
     # Distinguish "not enabled/configured" vs "enabled but driver missing"
     async_url = _get_async_database_url()
@@ -679,10 +681,7 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     # Lazy initialize async engine if needed
     async_eng = _get_async_engine()
     if async_eng is None or AsyncSessionLocal is None:
-        raise AsyncDBNotAvailable(
-            "SQLAlchemy async extras are not available. "
-            "Install with 'pip install sqlalchemy[asyncio]'"
-        )
+        raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
     session = AsyncSessionLocal()
     try:
@@ -695,10 +694,7 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
 async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
     """Async context manager for atomic DB operations."""
     if create_async_engine is None or async_sessionmaker is None:
-        raise AsyncDBNotAvailable(
-            "SQLAlchemy async extras are not available. "
-            "Install with 'pip install sqlalchemy[asyncio]'"
-        )
+        raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
     async_url = _get_async_database_url()
     if async_url is None:
@@ -708,10 +704,7 @@ async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
 
     async_eng = _get_async_engine()
     if async_eng is None or AsyncSessionLocal is None:
-        raise AsyncDBNotAvailable(
-            "SQLAlchemy async extras are not available. "
-            "Install with 'pip install sqlalchemy[asyncio]'"
-        )
+        raise AsyncDBNotAvailable(_ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE)
 
     session = AsyncSessionLocal()
     try:

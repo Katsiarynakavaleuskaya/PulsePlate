@@ -1,6 +1,5 @@
 """Comprehensive tests for core/db.py to achieve 97%+ coverage."""
 
-import importlib
 import os
 import tempfile
 from collections.abc import Generator
@@ -12,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
-def reload_db_with_cleanup(
+def init_db_with_cleanup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[ModuleType, None, None]:
     """Fixture that provides db module with test DATABASE_URL and ensures cleanup.
@@ -69,13 +68,13 @@ def reload_db_with_cleanup(
 
 
 def test_build_engine_url_with_existing_query_params(
-    monkeypatch: pytest.MonkeyPatch, reload_db_with_cleanup
+    monkeypatch: pytest.MonkeyPatch, init_db_with_cleanup
 ) -> None:
     """Test _build_engine_url preserves existing query parameters.
 
     Covers lines 83->85, 85->87: query parameter merging logic.
     """
-    db = reload_db_with_cleanup
+    db = init_db_with_cleanup
 
     # Clear DATABASE_URL so it uses default path with params
     monkeypatch.delenv("DATABASE_URL", raising=False)
@@ -89,13 +88,13 @@ def test_build_engine_url_with_existing_query_params(
 
 
 def test_build_engine_url_memory_sqlite(
-    monkeypatch: pytest.MonkeyPatch, reload_db_with_cleanup
+    monkeypatch: pytest.MonkeyPatch, init_db_with_cleanup
 ) -> None:
     """Test _build_engine_url skips query params for :memory: databases.
 
     Covers line 97: early return for memory databases.
     """
-    db = reload_db_with_cleanup
+    db = init_db_with_cleanup
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
@@ -106,13 +105,13 @@ def test_build_engine_url_memory_sqlite(
 
 
 def test_build_engine_url_with_env_provided(
-    monkeypatch: pytest.MonkeyPatch, reload_db_with_cleanup
+    monkeypatch: pytest.MonkeyPatch, init_db_with_cleanup
 ) -> None:
     """Test _build_engine_url respects env-provided URLs without modification.
 
     Covers line 94->107: urlunparse branch (though env-provided URLs skip modification).
     """
-    db = reload_db_with_cleanup
+    db = init_db_with_cleanup
 
     # Explicitly set DATABASE_URL to a SQLite file (env_provided=True)
     # This tests that env-provided URLs are not modified
@@ -253,12 +252,10 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
     Covers line 382: pool config skipped for sqlite+aiosqlite.
     """
     from core import db
-    import importlib
 
     if db.create_async_engine is None or db.async_sessionmaker is None:
         pytest.skip("sqlalchemy.asyncio not available")
 
-    reloaded = db  # Initialize for finally block
     try:
         # Use SQLite async instead of PostgreSQL to avoid needing asyncpg installed
         monkeypatch.setenv("DATABASE_URL", "sqlite:///test_async.db")
@@ -291,6 +288,7 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
             await db._ASYNC_ENGINE.dispose()
             db._ASYNC_ENGINE = None
             db.AsyncSessionLocal = None
+            db.async_engine = None
 
 
 @pytest.mark.asyncio
@@ -371,7 +369,7 @@ async def test_session_scope_async_not_configured() -> None:
         db.AsyncSessionLocal = original_session_local
 
 
-def test_init_db_wrapper_not_called() -> None:
+def test_init_db_calls_create_all_idempotently() -> None:
     """Test that init_db() calls create_all() and it's idempotent.
 
     Covers that create_all is always called in init_db() and can be called multiple times.

@@ -2,6 +2,7 @@
 Tests for verify_requirements module - requirements consistency checker
 """
 
+import pathlib
 import sys
 from pathlib import Path
 
@@ -85,11 +86,24 @@ class TestVerifyRequirements:
             "baz": "==3.1.4.post5",
         }
 
-    def test_parse_requirements_skips_unrecognized_specifiers(self, tmp_path):
+    def test_parse_requirements_skips_unrecognized_specifiers(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
         """Cover non-matching requirement lines (e.g., ~=)."""
         req_file = tmp_path / "requirements.txt"
         req_file.write_text("foo~=1.2.3\n")
         assert parse_requirements(req_file) == {}
+
+    def test_parse_requirements_skips_unrecognized_but_keeps_valid(
+        self,
+        tmp_path: pathlib.Path,
+    ) -> None:
+        """Skip unrecognized specifiers while still parsing valid ones."""
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("foo==1.2.3\nbar~=2.0.0\nbaz>=3.1.4\n")
+
+        assert parse_requirements(req_file) == {"foo": "==1.2.3", "baz": ">=3.1.4"}
 
     def test_main_consistent_requirements(self, tmp_path, monkeypatch, capsys):
         """Test main() with consistent requirements files"""
