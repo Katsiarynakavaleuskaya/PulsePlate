@@ -85,6 +85,12 @@ class TestVerifyRequirements:
             "baz": "==3.1.4.post5",
         }
 
+    def test_parse_requirements_skips_unrecognized_specifiers(self, tmp_path):
+        """Cover non-matching requirement lines (e.g., ~=)."""
+        req_file = tmp_path / "requirements.txt"
+        req_file.write_text("foo~=1.2.3\n")
+        assert parse_requirements(req_file) == {}
+
     def test_main_consistent_requirements(self, tmp_path, monkeypatch, capsys):
         """Test main() with consistent requirements files"""
         # Create test requirements files

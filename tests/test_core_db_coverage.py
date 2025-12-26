@@ -15,7 +15,6 @@ from sqlalchemy import text
 
 from core.db import (
     Base,
-    SessionLocal,
     _RAW_ENGINE,
     _build_engine_url,
     _sqlite_connect_args,
@@ -28,6 +27,9 @@ from core.db import (
     session_scope,
     session_scope_async,
 )
+
+# NOTE: SessionLocal is NOT imported at module level to avoid caching None value
+# when reset_db_for_tests() is called. Use dynamic import inside tests instead.
 
 
 class TestCoreDB:
@@ -110,7 +112,6 @@ class TestCoreDB:
     def test_init_db(self):
         """Test init_db creates tables."""
         from core import db
-        from unittest.mock import patch
         from sqlalchemy.schema import MetaData
 
         # Ensure init_db goes through the "first init" path

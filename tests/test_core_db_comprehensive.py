@@ -377,7 +377,6 @@ def test_init_db_wrapper_not_called() -> None:
     Covers that create_all is always called in init_db() and can be called multiple times.
     """
     from core import db
-    from unittest.mock import patch
 
     # Reset DB state to ensure clean test
     db.reset_db_for_tests()

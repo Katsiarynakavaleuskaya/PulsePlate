@@ -124,3 +124,22 @@ async def test_fetch_day_plan_returns_plan_data(monkeypatch: pytest.MonkeyPatch)
     assert "user_id" in sql
     assert "42" in sql  # user_id value
     assert "2025-01-04" in sql  # date value
+
+
+@pytest.mark.asyncio
+async def test_fetch_day_plan_returns_none_on_async_db_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Async DB is optional: RuntimeError/ImportError should fail-soft to None."""
+
+    def _raise_runtime_error():
+        raise RuntimeError("Async SQLAlchemy is not configured")
+
+    monkeypatch.setattr(db, "session_scope_async", _raise_runtime_error)
+
+    result = await provider_module.fetch_day_plan(
+        day=date(2025, 1, 5),
+        pro_ctx=SimpleNamespace(user_id=7),
+    )
+
+    assert result is None

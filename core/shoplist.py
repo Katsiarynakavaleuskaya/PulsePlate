@@ -383,8 +383,6 @@ class ShoplistGenerator:
             best_choice: Optional[Tuple[float, int]] = None
             best_error = float("inf")
             for package_size in sorted_packages:
-                if package_size <= 0:
-                    continue
                 # Вариант округления вниз (если даёт >=1 упаковки)
                 n_floor = int(total_amount / package_size)
                 # Вариант округления вверх (хотя бы 1 упаковка)

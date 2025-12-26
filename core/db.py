@@ -55,6 +55,14 @@ else:
 logger = logging.getLogger(__name__)
 
 
+class AsyncDBNotAvailable(ImportError):
+    """Async SQLAlchemy support is unavailable (missing extras/driver)."""
+
+
+class AsyncDBNotConfigured(RuntimeError):
+    """Async SQLAlchemy support is available but not enabled/configured."""
+
+
 def _get_environment() -> str:
     """Get environment name from env vars or default to 'production'.
 
@@ -654,18 +662,26 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
     """Async dependency yielding an async SQLAlchemy session when enabled."""
     # Fast-fail if async SQLAlchemy extras are not available
     if create_async_engine is None or async_sessionmaker is None:
-        raise ImportError(
+        raise AsyncDBNotAvailable(
             "SQLAlchemy async extras are not available. "
             "Install with 'pip install sqlalchemy[asyncio]'"
+        )
+
+    # Distinguish "not enabled/configured" vs "enabled but driver missing"
+    async_url = _get_async_database_url()
+    if async_url is None:
+        raise AsyncDBNotConfigured(
+            "Async SQLAlchemy is not configured. "
+            "Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1, "
+            "or install sqlalchemy[asyncio]."
         )
 
     # Lazy initialize async engine if needed
     async_eng = _get_async_engine()
     if async_eng is None or AsyncSessionLocal is None:
-        raise RuntimeError(
-            "Async SQLAlchemy is not configured. "
-            "Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1, "
-            "or install sqlalchemy[asyncio]."
+        raise AsyncDBNotAvailable(
+            "SQLAlchemy async extras are not available. "
+            "Install with 'pip install sqlalchemy[asyncio]'"
         )
 
     session = AsyncSessionLocal()
@@ -678,10 +694,23 @@ async def get_async_session() -> AsyncGenerator["AsyncSession", None]:
 @asynccontextmanager
 async def session_scope_async() -> AsyncGenerator["AsyncSession", None]:
     """Async context manager for atomic DB operations."""
+    if create_async_engine is None or async_sessionmaker is None:
+        raise AsyncDBNotAvailable(
+            "SQLAlchemy async extras are not available. "
+            "Install with 'pip install sqlalchemy[asyncio]'"
+        )
+
+    async_url = _get_async_database_url()
+    if async_url is None:
+        raise AsyncDBNotConfigured(
+            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        )
+
     async_eng = _get_async_engine()
     if async_eng is None or AsyncSessionLocal is None:
-        raise RuntimeError(
-            "Async SQLAlchemy is not configured. Set DATABASE_ASYNC_URL or DATABASE_USE_ASYNC=1."
+        raise AsyncDBNotAvailable(
+            "SQLAlchemy async extras are not available. "
+            "Install with 'pip install sqlalchemy[asyncio]'"
         )
 
     session = AsyncSessionLocal()
@@ -778,6 +807,13 @@ def init_db(database_url: str | None = None) -> "Engine":
     # At this point _RAW_ENGINE is guaranteed to be initialized by the logic above
     if _RAW_ENGINE is None:
         raise RuntimeError("Engine must be initialized before creating tables")
+
+    # Ensure SessionLocal is always set after init_db(), even if the engine was created lazily.
+    with _init_lock:
+        if SessionLocal is None:  # pragma: no branch
+            SessionLocal = sessionmaker(
+                bind=_RAW_ENGINE, autoflush=False, autocommit=False, future=True
+            )
 
     # RU: create_all() вызываем всегда при init_db(); операция идемпотентна.
     # EN: Always call create_all() on init_db(); this is idempotent.
