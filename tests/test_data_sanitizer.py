@@ -1449,28 +1449,27 @@ def test_require_nh3_raises_when_missing(monkeypatch) -> None:
 
     This test covers the ModuleNotFoundError branch by simulating missing nh3.
     """
-    import builtins
-    import importlib
+    import importlib.abc
+    from importlib.machinery import ModuleSpec
+    import sys
 
     import core.data_sanitizer as ds
 
-    real_import = builtins.__import__
+    class _BlockNh3Finder(importlib.abc.MetaPathFinder):
+        def find_spec(
+            self, fullname: str, path: object | None = None, target: object | None = None
+        ) -> ModuleSpec | None:
+            if fullname == "nh3":
+                raise ModuleNotFoundError("No module named 'nh3'")
+            return None
 
-    def fake_import(name, *args, **kwargs):  # noqa: ANN002, ANN003, ANN202
-        if name == "nh3":
-            raise ModuleNotFoundError("No module named 'nh3'")
-        return real_import(name, *args, **kwargs)
+    monkeypatch.setattr(sys, "meta_path", [_BlockNh3Finder(), *sys.meta_path])
+    for name in list(sys.modules.keys()):
+        if name == "nh3" or name.startswith("nh3."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
-    # Reload module so the top-level try/except runs under patched import
-    ds_reloaded = importlib.reload(ds)
-
-    # Verify that _require_nh3() raises RuntimeError with clear install instructions
+    # Verify that _require_nh3() raises RuntimeError with clear install instructions.
     with pytest.raises(
         RuntimeError, match="Optional dependency 'nh3' is required.*pip install nh3"
     ):
-        ds_reloaded._require_nh3()
-
-    # Restore module to clean state for subsequent tests (test isolation)
-    importlib.reload(ds)
+        ds._require_nh3()

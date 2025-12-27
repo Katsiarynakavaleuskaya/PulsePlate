@@ -7,51 +7,10 @@ Covers:
 - Invalid USDA ID (ValueError path)
 """
 
-import importlib
 import tempfile
-from contextlib import contextmanager
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
-
-@contextmanager
-def reload_module_with_off_import_failure():
-    """Reload unified_db in-place simulating ImportError for OFF module.
-
-    Uses importlib.reload on the existing module object to preserve identity of
-    classes across the process and avoid cross-module isinstance mismatches.
-    """
-    import core.food_apis.unified_db as unified_db
-
-    # Original builtins.__import__ to fallback for other imports
-    orig_import = __import__
-
-    def import_side_effect(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "core.food_apis.openfoodfacts_client" or (
-            name == "core.food_apis" and fromlist and "openfoodfacts_client" in fromlist
-        ):
-            raise ImportError("OFF module unavailable for test")
-        return orig_import(name, globals, locals, fromlist, level)
-
-    orig_import_module = importlib.import_module
-    with (
-        patch("builtins.__import__", side_effect=import_side_effect),
-        patch(
-            "importlib.import_module",
-            side_effect=lambda name, *a, **kw: (
-                iter(()).throw(ImportError("OFF module unavailable"))
-                if name.endswith("openfoodfacts_client")
-                else orig_import_module(name, *a, **kw)
-            ),
-        ),
-    ):
-        reloaded = importlib.reload(unified_db)
-        try:
-            yield reloaded
-        finally:
-            # Reload back without patch to restore original state in-place
-            importlib.reload(unified_db)
 
 
 class TestUnifiedDbTargetedEdges:
