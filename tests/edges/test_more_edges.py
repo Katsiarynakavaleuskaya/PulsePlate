@@ -1,5 +1,3 @@
-import builtins
-import importlib
 from pathlib import Path
 from typing import Any
 
@@ -115,23 +113,9 @@ def test_product_finder_mkdir_exception_and_loop_exception(
 def test_exports_importerror_branch_and_pdf_functions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    # Ensure reportlab import fails on reload
-    real_import = builtins.__import__
-
-    def fake_import(name: str, *args: Any, **kwargs: Any):  # noqa: D401
-        if name.startswith("reportlab"):
-            raise ImportError("no reportlab")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", fake_import)
-
-    # Reload module to execute except ImportError branch
     import core.exports as exports
 
-    importlib.reload(exports)
+    # Deterministic: force the ImportError branch without module reload.
+    monkeypatch.setattr(exports, "REPORTLAB_AVAILABLE", False, raising=False)
     with pytest.raises(ImportError):
         exports._import_reportlab_modules()
-
-    # Restore import function and reload exports back to normal environment state
-    monkeypatch.setattr(builtins, "__import__", real_import)
-    importlib.reload(exports)

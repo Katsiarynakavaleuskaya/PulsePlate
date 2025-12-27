@@ -6,9 +6,11 @@ and xdist failures.
 
 from __future__ import annotations
 
+import ast
+from dataclasses import dataclass
 from pathlib import Path
 import re
-from typing import Iterable
+from typing import Iterable, Optional
 
 import pytest
 
@@ -302,3 +304,330 @@ def test_no_direct_model_submodule_imports() -> None:
         "Use 'from app.models import X' instead. "
         f"Offenders: {offenders}"
     )
+
+
+# --- AST-first guardrails (harder to bypass than grep) ---
+
+FORBIDDEN_EXACT_RELOAD_TARGETS: set[str] = {
+    # Absolute forbid:
+    "core.db",
+}
+
+FORBIDDEN_RELOAD_PREFIXES: set[str] = {
+    # Optional broader forbid:
+    "core.",
+}
+
+# Keep minimal; prefer empty.
+ALLOWLIST_PATH_SUBSTRINGS: set[str] = set()
+
+SKIP_DIRS_FOR_AST_SCAN = {
+    ".git",
+    ".venv",
+    ".venv-ci",
+    "venv",
+    "__pycache__",
+    "site-packages",
+    "build",
+    "dist",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "node_modules",
+    # Client apps (not part of backend policy)
+    "docs",
+    "frontend",
+    "ios",
+    # Test exclusions (aligned with pytest --ignore)
+    "disabled_hypothesis",
+    # Deployment/infra (may contain scripts but not core logic)
+    "deploy",
+    "scripts",
+    # Migrations (Alembic scripts, not core logic)
+    "alembic",
+}
+
+
+@dataclass(frozen=True)
+class _AstViolation:
+    relpath: str
+    lineno: int
+    col: int
+    rule: str
+    detail: str
+
+    def format(self) -> str:
+        return f"{self.relpath}:{self.lineno}:{self.col} [{self.rule}] {self.detail}"
+
+
+def _iter_repo_py_files_for_ast_scan(root: Path) -> Iterable[Path]:
+    paths: list[Path] = []
+    for p in root.rglob("*.py"):
+        if any(part in SKIP_DIRS_FOR_AST_SCAN for part in p.parts):
+            continue
+        paths.append(p)
+    yield from sorted(paths, key=lambda x: x.as_posix())
+
+
+def _is_allowlisted_for_ast_scan(path: Path) -> bool:
+    rel = path.relative_to(REPO_ROOT).as_posix()
+    return any(token in rel for token in ALLOWLIST_PATH_SUBSTRINGS)
+
+
+def _dotted_name(node: ast.AST) -> Optional[str]:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _dotted_name(node.value)
+        if base is None:
+            return None
+        return f"{base}.{node.attr}"
+    return None
+
+
+class _RepoPolicyAstVisitor(ast.NodeVisitor):
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.relpath = path.relative_to(REPO_ROOT).as_posix()
+        self.violations: list[_AstViolation] = []
+        # local alias -> fully-qualified dotted name (e.g., "r" -> "importlib.reload")
+        self.aliases: dict[str, str] = {}
+
+    def _resolve(self, dotted: Optional[str]) -> Optional[str]:
+        if dotted is None:
+            return None
+        if dotted in self.aliases:
+            return self.aliases[dotted]
+        base, sep, rest = dotted.partition(".")
+        if base in self.aliases:
+            return f"{self.aliases[base]}{sep}{rest}" if sep else self.aliases[base]
+        return dotted
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            asname = alias.asname or alias.name
+
+            if alias.name == "importlib":
+                self.aliases[asname] = "importlib"
+            elif alias.name == "sys":
+                self.aliases[asname] = "sys"
+            # Help resolve reload(db) where db came from "import core.db as db"
+            elif alias.name == "core" or alias.name.startswith("core."):
+                self.aliases[asname] = alias.name
+
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        if node.module == "importlib":
+            for alias in node.names:
+                if alias.name == "reload":
+                    self.aliases[alias.asname or "reload"] = "importlib.reload"
+
+        if node.module == "sys":
+            for alias in node.names:
+                if alias.name == "modules":
+                    self.aliases[alias.asname or "modules"] = "sys.modules"
+
+        # from core import db as db_mod  => db_mod == core.db
+        if node.module == "core":
+            for alias in node.names:
+                if alias.name:
+                    self.aliases[alias.asname or alias.name] = f"core.{alias.name}"
+
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        # Track simple alias assignments like: r = importlib.reload; mods = sys.modules
+        value_name = self._resolve(_dotted_name(node.value))
+        if value_name in ("importlib.reload", "sys.modules"):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    self.aliases[target.id] = value_name
+
+        # Forbid sys.modules = ...
+        for target in node.targets:
+            target_name = self._resolve(_dotted_name(target))
+            if target_name == "sys.modules":
+                self.violations.append(
+                    _AstViolation(
+                        relpath=self.relpath,
+                        lineno=node.lineno,
+                        col=node.col_offset,
+                        rule="FORBID_SYS_MODULES_REASSIGN",
+                        detail="Reassigning sys.modules is forbidden (breaks import invariants).",
+                    )
+                )
+
+        self.generic_visit(node)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        # Forbid sys.modules |= ... (or other augmented rebinds)
+        target_name = self._resolve(_dotted_name(node.target))
+        if target_name == "sys.modules":
+            self.violations.append(
+                _AstViolation(
+                    relpath=self.relpath,
+                    lineno=node.lineno,
+                    col=node.col_offset,
+                    rule="FORBID_SYS_MODULES_REASSIGN",
+                    detail="Augmented assignment to sys.modules is forbidden (breaks import invariants).",
+                )
+            )
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        fn_name = self._resolve(_dotted_name(node.func))
+
+        # 1) Forbid importlib.reload(core.*)
+        if fn_name == "importlib.reload":
+            self._check_importlib_reload(node)
+
+        # 2) Forbid sys.modules.clear()
+        if fn_name == "sys.modules.clear":
+            self.violations.append(
+                _AstViolation(
+                    relpath=self.relpath,
+                    lineno=node.lineno,
+                    col=node.col_offset,
+                    rule="FORBID_SYS_MODULES_CLEAR",
+                    detail="sys.modules.clear() is forbidden (causes reload-style flakiness / dual-namespace issues).",
+                )
+            )
+
+        self.generic_visit(node)
+
+    def _reload_target(self, node: ast.AST) -> Optional[str]:
+        # Case 1: dotted name (optionally resolved via aliases)
+        dotted = self._resolve(_dotted_name(node))
+        if dotted:
+            return dotted
+
+        # Case 2: sys.modules["core.db"]
+        if isinstance(node, ast.Subscript):
+            base = self._resolve(_dotted_name(node.value))
+            if base == "sys.modules":
+                sl = node.slice
+                if isinstance(sl, ast.Constant) and isinstance(sl.value, str):
+                    return sl.value
+
+        # Case 3: importlib.import_module("core.db")
+        if isinstance(node, ast.Call):
+            fn_name = self._resolve(_dotted_name(node.func))
+            if fn_name == "importlib.import_module" and node.args:
+                arg0 = node.args[0]
+                if isinstance(arg0, ast.Constant) and isinstance(arg0.value, str):
+                    return arg0.value
+
+        return None
+
+    def _check_importlib_reload(self, node: ast.Call) -> None:
+        if not node.args:
+            # reload() without args is invalid anyway; still forbid.
+            self.violations.append(
+                _AstViolation(
+                    relpath=self.relpath,
+                    lineno=node.lineno,
+                    col=node.col_offset,
+                    rule="FORBID_IMPORTLIB_RELOAD",
+                    detail="importlib.reload() is forbidden in this repo (use explicit init patterns).",
+                )
+            )
+            return
+
+        target = self._reload_target(node.args[0])
+
+        # If target cannot be resolved, we cannot determine if it's core.*, so we forbid it
+        # to be safe (prevents obfuscated reload patterns).
+        if not target:
+            self.violations.append(
+                _AstViolation(
+                    relpath=self.relpath,
+                    lineno=node.lineno,
+                    col=node.col_offset,
+                    rule="FORBID_IMPORTLIB_RELOAD",
+                    detail="importlib.reload(...) with unresolvable target is forbidden (prevents obfuscated reload patterns).",
+                )
+            )
+            return
+
+        # Absolute forbid: core.db
+        if target in FORBIDDEN_EXACT_RELOAD_TARGETS:
+            self.violations.append(
+                _AstViolation(
+                    relpath=self.relpath,
+                    lineno=node.lineno,
+                    col=node.col_offset,
+                    rule="FORBID_RELOAD_CORE_DB",
+                    detail="importlib.reload(core.db) is forbidden. Use explicit init patterns (init_db()).",
+                )
+            )
+            return
+
+        # Forbid: core.* (any core module)
+        if any(target.startswith(prefix) for prefix in FORBIDDEN_RELOAD_PREFIXES):
+            self.violations.append(
+                _AstViolation(
+                    relpath=self.relpath,
+                    lineno=node.lineno,
+                    col=node.col_offset,
+                    rule="FORBID_RELOAD_CORE_PREFIX",
+                    detail=f"importlib.reload({target}) is forbidden (core.* reload breaks single-Base invariants).",
+                )
+            )
+            return
+
+        # Allow reload of non-core modules (legacy_app, app, llm, test_router, etc.)
+        # These are test-only patterns and don't affect core.db Base identity.
+        # Policy: Reload is allowed for non-core modules only; core.* reload breaks
+        # single-Base + DB init invariants (see PR #410).
+
+
+def _scan_file_ast(path: Path) -> list[_AstViolation]:
+    if _is_allowlisted_for_ast_scan(path):
+        return []
+    try:
+        src = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return []
+    try:
+        tree = ast.parse(src, filename=str(path))
+    except SyntaxError:
+        return []
+
+    v = _RepoPolicyAstVisitor(path)
+    v.visit(tree)
+    return v.violations
+
+
+def test_repo_policy_guards_ast_reload_and_sys_modules_clear() -> None:
+    """Repository policy guardrails: forbid reload(core.db) and risky module resets.
+
+    IMPORTANT: This test must remain deterministic and NOT import runtime modules:
+    - do NOT import app/core/providers here (would break isolation)
+    - only scan source via AST (no execution, no env/DB dependencies)
+    - ensures single-Base invariant and prevents dual-namespace issues
+
+    This test protects PR #410 invariants:
+    - deterministic DB init (init_db() only, no reload)
+    - single-Base identity (no module reloads that create new Base)
+    - no reload/purge-induced flakiness in CI
+
+    Note: This test does NOT import core.db or any runtime modules.
+    It only parses source code via AST, making it deterministic and fast (~2-3s).
+    """
+    violations: list[_AstViolation] = []
+    for p in _iter_repo_py_files_for_ast_scan(REPO_ROOT):
+        violations.extend(_scan_file_ast(p))
+
+    if violations:
+        msg = "\n".join(v.format() for v in violations)
+        raise AssertionError(
+            "Repository policy violated.\n"
+            "The following guardrails must hold (CI stability & single-Base invariants):\n"
+            "- FORBID: importlib.reload(core.db) (absolute) → use init_db() + SessionLocal contract\n"
+            "- FORBID: importlib.reload(core.*) → breaks single-Base invariant\n"
+            "- FORBID: importlib.reload(...) with unresolvable target → prevents obfuscation\n"
+            "- FORBID: sys.modules.clear() / sys.modules reassignment → causes dual-namespace issues\n\n"
+            f"Violations:\n{msg}\n\n"
+            "To fix: remove reload/purge patterns and use explicit init flows (init_db, fixtures)."
+        )
