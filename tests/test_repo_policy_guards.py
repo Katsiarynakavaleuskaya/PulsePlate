@@ -308,12 +308,12 @@ def test_no_direct_model_submodule_imports() -> None:
 
 # --- AST-first guardrails (harder to bypass than grep) ---
 
-FORBIDDEN_EXACT_RELOAD_TARGETS = {
+FORBIDDEN_EXACT_RELOAD_TARGETS: set[str] = {
     # Absolute forbid:
     "core.db",
 }
 
-FORBIDDEN_RELOAD_PREFIXES = {
+FORBIDDEN_RELOAD_PREFIXES: set[str] = {
     # Optional broader forbid:
     "core.",
 }
@@ -409,11 +409,10 @@ class _RepoPolicyAstVisitor(ast.NodeVisitor):
 
             if alias.name == "importlib":
                 self.aliases[asname] = "importlib"
-            if alias.name == "sys":
+            elif alias.name == "sys":
                 self.aliases[asname] = "sys"
-
             # Help resolve reload(db) where db came from "import core.db as db"
-            if alias.name == "core" or alias.name.startswith("core."):
+            elif alias.name == "core" or alias.name.startswith("core."):
                 self.aliases[asname] = alias.name
 
         self.generic_visit(node)
