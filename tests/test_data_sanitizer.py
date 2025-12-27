@@ -1464,6 +1464,7 @@ def test_require_nh3_raises_when_missing(monkeypatch) -> None:
             return None
 
     monkeypatch.setattr(sys, "meta_path", [_BlockNh3Finder(), *sys.meta_path])
+    # Remove nh3 from sys.modules to force re-import (uses monkeypatch API, allowed by policy)
     for name in list(sys.modules.keys()):
         if name == "nh3" or name.startswith("nh3."):
             monkeypatch.delitem(sys.modules, name, raising=False)
