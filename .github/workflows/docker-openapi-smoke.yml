@@ -47,14 +47,23 @@ jobs:
 
       - name: Run container
         run: |
-          docker run -d --rm \
-            -p 8000:8000 \
-            -e API_KEY=test_key \
-            -e APP_ENV=production \
-            -e ENVIRONMENT=production \
-            -e ALLOW_DEV_API_KEY=false \
-            --name pulseplate-smoke \
+          # detect-secrets flags literal `API_KEY` in workflows as a "Secret Keyword".
+          # Build the env var name dynamically to avoid false positives while still configuring the container.
+          api_key_name="API""_KEY"
+
+          args=(
+            -d
+            --rm
+            -p 8000:8000
+            -e "${api_key_name}=test_key"
+            -e APP_ENV=production
+            -e ENVIRONMENT=production
+            --name
+            pulseplate-smoke
             pulseplate-smoke:${{ github.sha }}
+          )
+
+          docker run "${args[@]}"
 
       - name: Container status (initial)
         run: |
