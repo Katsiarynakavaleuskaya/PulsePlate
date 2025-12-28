@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from typing import cast
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+if TYPE_CHECKING:
+    import requests
 
 
 def _is_external_url(url: str | object) -> bool:
@@ -21,7 +24,7 @@ def _is_external_url(url: str | object) -> bool:
 
 
 def test_catalog_endpoints_do_not_require_external_network(
-    test_environment: None, monkeypatch: pytest.MonkeyPatch
+    test_environment: None, monkeypatch: pytest.MonkeyPatch, app: ASGIApp
 ) -> None:
     """Verify catalog API endpoints work without external network dependencies."""
     import httpx
@@ -29,14 +32,20 @@ def test_catalog_endpoints_do_not_require_external_network(
     real_client_request = httpx.Client.request
     real_async_request = httpx.AsyncClient.request
 
-    def client_request(self: httpx.Client, method: str, url: str | httpx.URL, *args, **kwargs):
+    def client_request(
+        self: httpx.Client, method: str, url: str | httpx.URL, *args: object, **kwargs: object
+    ) -> httpx.Response:
         if _is_external_url(url):
             raise AssertionError(f"External HTTP blocked in this test: {method} {url}")
         return real_client_request(self, method, url, *args, **kwargs)
 
     async def async_request(
-        self: httpx.AsyncClient, method: str, url: str | httpx.URL, *args, **kwargs
-    ):
+        self: httpx.AsyncClient,
+        method: str,
+        url: str | httpx.URL,
+        *args: object,
+        **kwargs: object,
+    ) -> httpx.Response:
         if _is_external_url(url):
             raise AssertionError(f"External HTTP blocked in this test: {method} {url}")
         return await real_async_request(self, method, url, *args, **kwargs)
@@ -52,16 +61,16 @@ def test_catalog_endpoints_do_not_require_external_network(
     if _requests is not None:
         real_requests_request = _requests.sessions.Session.request
 
-        def session_request(self, method: str, url: str, *args, **kwargs):
+        def session_request(
+            self: _requests.sessions.Session, method: str, url: str, *args: object, **kwargs: object
+        ) -> requests.Response:
             if _is_external_url(url):
                 raise AssertionError(f"External HTTP blocked in this test: {method} {url}")
             return real_requests_request(self, method, url, *args, **kwargs)
 
         monkeypatch.setattr(_requests.sessions.Session, "request", session_request, raising=True)
 
-    import app
-
-    client = TestClient(cast(ASGIApp, app.app))
+    client = TestClient(app)
     try:
         assert client.get("/api/v1/catalog/regions").status_code == 200
         assert client.get("/api/v1/catalog/stores", params={"region_id": "ES"}).status_code == 200
