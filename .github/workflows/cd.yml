@@ -229,11 +229,15 @@ jobs:
           script: |
             set -euo pipefail
 
-            DEPLOY_DIR='${{ secrets.PRODUCTION_SSH_PATH }}'
-            if [ -z "$DEPLOY_DIR" ]; then
-              DEPLOY_DIR='/srv/pulseplate-production'
+            # Resolve deploy directory on server (no extra secrets required).
+            if [ -d "/opt/pulseplate" ]; then
+              cd "/opt/pulseplate"
+            elif [ -d "/srv/pulseplate-production" ]; then
+              cd "/srv/pulseplate-production"
+            else
+              echo "❌ Could not find deploy directory. Expected /opt/pulseplate or /srv/pulseplate-production." >&2
+              exit 1
             fi
-            cd "$DEPLOY_DIR"
 
             GHCR_USER='${{ github.actor }}'
             GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'

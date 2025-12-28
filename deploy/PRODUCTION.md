@@ -45,7 +45,6 @@ Secrets (store in the `production` environment):
 - `SSH_USER`
 - `SSH_KEY` (private key)
 - `GHCR_READ_TOKEN` (PAT with `read:packages`, if the image is private)
-- Optional: `PRODUCTION_SSH_PATH` (defaults to `/srv/pulseplate-production`)
 
 ## Rollback
 
