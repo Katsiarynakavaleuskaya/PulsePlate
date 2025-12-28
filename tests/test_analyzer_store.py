@@ -6,7 +6,7 @@ EN: Tests for SQLAlchemyAnalyzerStore (works on SQLite in CI, validates Postgres
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -197,7 +197,7 @@ class TestSQLAlchemyAnalyzerStore:
             state_schema_version=2,
             payload={"mean": 2100.0},
             state_version=3,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
         exec_result = MagicMock()
         exec_result.scalar_one.return_value = row
@@ -321,7 +321,7 @@ class TestTTLCacheAnalyzerStore:
             state_schema_version=1,
             payload={"mean": 2100.0},
             state_version=2,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
         inner.update_if_version_matches.return_value = state
 
@@ -349,7 +349,7 @@ class TestTTLCacheAnalyzerStore:
             state_schema_version=1,
             payload={"mean": 2000.0},
             state_version=1,
-            updated_at=datetime.utcnow(),
+            updated_at=datetime.now(timezone.utc),
         )
         inner.upsert_state.return_value = seed_state
 
