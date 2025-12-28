@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from core.bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all
+from core.bodyfat import bf_deurenberg, bf_us_navy, bf_ymca, estimate_all as _estimate_all
 
 __all__ = [
     "deurenberg",
@@ -31,3 +31,4 @@ def get_router() -> APIRouter:
 deurenberg = bf_deurenberg
 us_navy = bf_us_navy
 ymca = bf_ymca
+estimate_all = _estimate_all

@@ -6,12 +6,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field, field_validator
 
 from core.bodyfat import estimate_all
-
-LABELS_BY_LANG: dict[str, dict[str, str]] = {
-    "en": {"methods": "methods", "median": "median", "units": "%"},
-    "ru": {"methods": "методы", "median": "медиана", "units": "%"},
-    "es": {"methods": "métodos", "median": "mediana", "units": "%"},
-}
+from core.i18n import normalize_lang, t
 
 
 class BodyFatRequest(BaseModel):
@@ -47,20 +42,28 @@ def get_router() -> APIRouter:
 
     @router.post("/bodyfat")
     async def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
-        lang = (req.language or "en").lower()
+        lang = normalize_lang(req.language)
         data: dict[str, object] = dict(req.model_dump(exclude_none=True))
+
+        # Convert meters to centimeters for core.bodyfat US Navy compatibility.
+        if req.height_m is not None:
+            data.setdefault("height_cm", req.height_m * 100.0)
 
         if req.bmi is None and req.weight_kg is not None and req.height_m is not None:
             data["bmi"] = req.weight_kg / (req.height_m**2)
 
         result = estimate_all(data)
 
-        labels = LABELS_BY_LANG.get(lang, LABELS_BY_LANG["en"])
+        labels = {
+            "methods": t(lang, "bodyfat_methods"),
+            "median": t(lang, "bodyfat_median"),
+            "units": t(lang, "bodyfat_units_percent"),
+        }
 
         return {
             "methods": result["methods"],
             "median": result["median"],
-            "lang": lang,
+            "lang": str(lang),
             "labels": labels,
         }
 
