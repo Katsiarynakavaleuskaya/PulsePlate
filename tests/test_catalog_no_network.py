@@ -9,6 +9,7 @@ from starlette.types import ASGIApp
 
 
 def _is_external_url(url: str | object) -> bool:
+    """Return True if the URL points to an external host (not localhost/testserver)."""
     s = str(url)
     if not s.startswith(("http://", "https://")):
         return False
@@ -22,6 +23,7 @@ def _is_external_url(url: str | object) -> bool:
 def test_catalog_endpoints_do_not_require_external_network(
     test_environment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Verify catalog API endpoints work without external network dependencies."""
     import httpx
 
     real_client_request = httpx.Client.request
