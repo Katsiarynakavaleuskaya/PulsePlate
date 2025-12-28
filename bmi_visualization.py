@@ -6,6 +6,7 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
+from collections.abc import Iterable
 from typing import Any, Dict, Protocol
 
 from bmi_core import auto_group, bmi_category, group_display_name
@@ -25,7 +26,17 @@ except ImportError:
     plt = None
 
 
+class _BarLike(Protocol):
+    def get_height(self) -> float: ...
+
+    def get_width(self) -> float: ...
+
+    def get_x(self) -> float: ...
+
+
 class _AxesLike(Protocol):
+    def bar(self, *args: object, **kwargs: object) -> Iterable[_BarLike]: ...
+
     def barh(self, *args: object, **kwargs: object) -> object: ...
 
     def grid(self, *args: object, **kwargs: object) -> object: ...
@@ -36,6 +47,8 @@ class _AxesLike(Protocol):
 
     def set_xlabel(self, *args: object, **kwargs: object) -> object: ...
 
+    def set_ylabel(self, *args: object, **kwargs: object) -> object: ...
+
     def set_title(self, *args: object, **kwargs: object) -> object: ...
 
     def set_xlim(self, *args: object, **kwargs: object) -> object: ...
@@ -45,6 +58,8 @@ class _AxesLike(Protocol):
     def set_yticks(self, *args: object, **kwargs: object) -> object: ...
 
     def text(self, *args: object, **kwargs: object) -> object: ...
+
+    transAxes: object
 
 
 class BMIVisualizer:
