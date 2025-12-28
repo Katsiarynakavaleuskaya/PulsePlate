@@ -49,6 +49,7 @@ from app.dependencies import validate_template_dir
 from app.routers.api_key import api_key_header
 from app.routers.bmi_pro import router as bmi_pro_router
 from app.routers.business import router as business_router
+from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
 from app.routers.premium_week import router as premium_week_router
@@ -1014,6 +1015,7 @@ protected_dependency = Depends(_get_api_key_dynamic)
 app.include_router(foods_router)
 app.include_router(recipes_router)
 app.include_router(users_router)
+app.include_router(catalog_router)
 app.include_router(export_router, dependencies=[protected_dependency])
 app.include_router(plan_router, dependencies=[protected_dependency])
 app.include_router(shoplist_router, dependencies=[protected_dependency])
