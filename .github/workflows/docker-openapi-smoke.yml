@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Docker OpenAPI Smoke
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements*.txt
+      - constraints.txt
+      - app/**
+      - core/**
+      - legacy_app.py
+      - main.py
+      - bodyfat.py
+      - .github/workflows/docker-openapi-smoke.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements*.txt
+      - constraints.txt
+      - app/**
+      - core/**
+      - legacy_app.py
+      - main.py
+      - bodyfat.py
+      - .github/workflows/docker-openapi-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Build Docker image
+        run: |
+          docker build -t pulseplate-smoke:${{ github.sha }} .
+
+      - name: Run container
+        run: |
+          docker run -d --rm \
+            -p 8000:8000 \
+            -e API_KEY=test_key \
+            -e APP_ENV=production \
+            -e ENVIRONMENT=production \
+            -e ALLOW_DEV_API_KEY=false \
+            --name pulseplate-smoke \
+            pulseplate-smoke:${{ github.sha }}
+
+      - name: Wait for /health
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.request
+          from urllib.error import URLError
+
+          url = "http://127.0.0.1:8000/health"
+          deadline = time.time() + 60
+          last = None
+          while time.time() < deadline:
+            try:
+              with urllib.request.urlopen(url, timeout=2) as r:
+                last = r.read().decode("utf-8", errors="replace")
+                if r.status == 200:
+                  print("OK /health:", last[:200])
+                  raise SystemExit(0)
+            except URLError as e:
+              last = repr(e)
+            time.sleep(1)
+          raise SystemExit(f"Timed out waiting for /health; last={last}")
+          PY
+
+      - name: Assert OpenAPI includes required routes
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          with urllib.request.urlopen("http://127.0.0.1:8000/openapi.json", timeout=10) as r:
+            assert r.status == 200, r.status
+            schema = json.loads(r.read().decode("utf-8"))
+
+          paths = schema.get("paths", {})
+          assert "/api/v1/bodyfat" in paths, f"Missing /api/v1/bodyfat in OpenAPI paths. Found: {sorted(paths)[:30]}..."
+          assert "post" in paths["/api/v1/bodyfat"], f"Missing POST for /api/v1/bodyfat. Methods: {list(paths['/api/v1/bodyfat'])}"
+          print("OK: /api/v1/bodyfat present in OpenAPI")
+          PY
+
+      - name: Assert /api/v1/bodyfat is not 404
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          req = urllib.request.Request(
+            "http://127.0.0.1:8000/api/v1/bodyfat",
+            method="POST",
+            data=json.dumps(
+              {
+                "gender": "male",
+                "age": 30,
+                "waist_cm": 80.0,
+                "neck_cm": 38.0,
+                "height_m": 1.75,
+                "weight_kg": 75.0,
+              }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+          )
+
+          try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+              status = r.status
+              body = r.read().decode("utf-8", errors="replace")
+          except urllib.error.HTTPError as e:  # noqa: PERF203
+            status = e.code
+            body = e.read().decode("utf-8", errors="replace")
+
+          assert status != 404, f"POST /api/v1/bodyfat returned 404. Body: {body[:500]}"
+          assert status in (200, 422), f"Unexpected status for POST /api/v1/bodyfat: {status}. Body: {body[:500]}"
+          print("OK: POST /api/v1/bodyfat status", status)
+          PY
+
+      - name: Docker logs (on failure)
+        if: failure()
+        run: |
+          docker logs pulseplate-smoke || true
+
+      - name: Stop container
+        if: always()
+        run: |
+          docker stop pulseplate-smoke || true

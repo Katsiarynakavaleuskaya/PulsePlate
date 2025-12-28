@@ -22,6 +22,99 @@ from sqlalchemy.exc import OperationalError, ProgrammingError
 
 import core.recipe_synth as recipe_synth
 
+# ============================================================================
+# CI NETWORK GUARD (prevents flaky real external calls)
+# ============================================================================
+# Nightly runs have previously flaked due to unintended external HTTP calls (e.g., USDA 429).
+# In CI we forbid outbound network access from tests; allow localhost + in-process TestClient only.
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _block_external_network_in_ci() -> Generator[None, None, None]:
+    enabled = bool(os.getenv("CI")) or os.getenv("BLOCK_TEST_NETWORK", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if not enabled or os.getenv("ALLOW_TEST_NETWORK", "").lower() in {"1", "true", "yes"}:
+        yield
+        return
+
+    # Allow localhost for things like docker-compose or explicit local services, and
+    # allow the in-process Starlette/FastAPI TestClient host (http://testserver).
+    allowed_hosts = {"127.0.0.1", "localhost", "::1", "testserver"}
+
+    def _is_external_url(url: object) -> bool:
+        s = str(url)
+        if s.startswith(("http://", "https://")):
+            from urllib.parse import urlparse
+
+            parsed = urlparse(s)
+            host = parsed.hostname
+            if not host:
+                return True
+            return host not in allowed_hosts
+        return False
+
+    monkeypatch = pytest.MonkeyPatch()
+    httpx = None
+    try:
+        import httpx as _httpx
+
+        httpx = _httpx
+    except Exception:  # pragma: no cover
+        pass
+
+    if httpx is not None:
+        real_client_request = httpx.Client.request
+        real_async_request = httpx.AsyncClient.request
+
+        def client_request(self, method: str, url: object, *args: object, **kwargs: object):
+            if _is_external_url(url):
+                raise AssertionError(
+                    f"External HTTP blocked in tests: {method} {url} "
+                    "(set ALLOW_TEST_NETWORK=true to bypass in CI)"
+                )
+            return real_client_request(self, method, url, *args, **kwargs)
+
+        async def async_request(self, method: str, url: object, *args: object, **kwargs: object):
+            if _is_external_url(url):
+                raise AssertionError(
+                    f"External HTTP blocked in tests: {method} {url} "
+                    "(set ALLOW_TEST_NETWORK=true to bypass in CI)"
+                )
+            return await real_async_request(self, method, url, *args, **kwargs)
+
+        monkeypatch.setattr(httpx.Client, "request", client_request, raising=True)
+        monkeypatch.setattr(httpx.AsyncClient, "request", async_request, raising=True)
+
+    requests = None
+    try:
+        import requests as _requests
+
+        requests = _requests
+    except Exception:  # pragma: no cover
+        pass
+
+    if requests is not None:
+        real_requests_request = requests.sessions.Session.request
+
+        def session_request(self, method: str, url: object, *args: object, **kwargs: object):
+            if _is_external_url(url):
+                raise AssertionError(
+                    f"External HTTP blocked in tests: {method} {url} "
+                    "(set ALLOW_TEST_NETWORK=true to bypass in CI)"
+                )
+            return real_requests_request(self, method, url, *args, **kwargs)
+
+        monkeypatch.setattr(requests.sessions.Session, "request", session_request, raising=True)
+
+    try:
+        yield
+    finally:
+        monkeypatch.undo()
+
+
 # NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base
 # before pytest_configure sets DATABASE_URL. Direct module-level import here
 # would create a Base instance before conftest's reload, causing dual-Base issues.
