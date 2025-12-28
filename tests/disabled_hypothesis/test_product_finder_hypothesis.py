@@ -11,7 +11,7 @@ import logging
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from core.food_apis.unified_db import UnifiedFoodItem, get_unified_food_db
+from core.food_apis.unified_db import UnifiedFoodItem
 from core.food_db import FoodItem
 from core.product_finder import ProductFinder, ProductSearchResult
 from core.recipe_db import parse_recipe_db
@@ -59,22 +59,9 @@ class TestProductFinderHypothesis:
     def setup_method(self) -> None:
         """Set up test environment."""
         self.finder = ProductFinder()
-
-        async def _build_food_db() -> dict[str, FoodItem]:
-            unified_db = await get_unified_food_db()
-            common_foods = await unified_db.get_common_foods_database()
-            food_db_local: dict[str, FoodItem] = {}
-            for key, unified_item in common_foods.items():
-                food_db_local[key] = unified_to_food_item(unified_item)
-            return food_db_local
-
-        try:
-            food_db = asyncio.run(_build_food_db())
-        except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
-            logging.exception("Failed to build food DB for tests: %s", exc)
-            raise
-
-        self.recipes = parse_recipe_db("data/recipes_extended.csv", food_db=food_db)
+        # Keep this property-based test deterministic: parsing recipes does not require
+        # building a network-backed UnifiedFoodDatabase common foods cache.
+        self.recipes = parse_recipe_db("data/recipes_extended.csv")
 
     def test_find_missing_products_hypothesis(self) -> None:
         """Test finding missing products from recipe ingredients."""

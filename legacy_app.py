@@ -299,7 +299,7 @@ def _resolve_app_callable(
 GetRouterCallable = Callable[[], APIRouter]
 get_bodyfat_router: Optional[GetRouterCallable]
 try:
-    from bodyfat import get_router as get_bodyfat_router
+    from app.routers.bodyfat import get_router as get_bodyfat_router
 except ImportError:
     get_bodyfat_router = None
 
