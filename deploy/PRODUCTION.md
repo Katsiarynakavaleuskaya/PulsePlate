@@ -46,6 +46,17 @@ Secrets (store in the `production` environment):
 - `SSH_USER`
 - `SSH_KEY` (private key)
 - `GHCR_READ_TOKEN` (PAT with `read:packages`, if the image is private)
+- `PRODUCTION_DOMAIN` (public domain used for post-deploy healthcheck)
+
+## Post-merge checklist (first production auto-deploy)
+
+1. Ensure the production server deploy directory exists at either `/opt/pulseplate` or
+   `/srv/pulseplate-production` and contains the compose file + `.env`.
+2. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
+3. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
+4. Approve the `deploy-production` job in the GitHub `production` environment prompt.
+5. Verify `/health` via `https://$PRODUCTION_DOMAIN/health` and confirm the running container uses the
+   expected `ghcr.io/<owner>/<repo>@sha256:...` digest.
 
 ## Rollback
 
