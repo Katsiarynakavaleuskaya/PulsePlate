@@ -26,8 +26,8 @@ Deployments should use a pinned digest (preferred) or `prod-v*` tags (acceptable
 On the production server:
 
 - Docker + Docker Compose v2 installed (`docker compose version`)
-- A deploy directory (default: `/srv/pulseplate-production`) containing:
-  - `docker-compose.yml` (or a compose file you run from that directory)
+- A deploy directory containing:
+  - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
   - `.env` (application runtime env; not committed)
 - Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
 
@@ -57,6 +57,11 @@ Secrets (store in the `production` environment):
 - `GHCR_READ_TOKEN` (PAT with `read:packages`, if the image is private)
 - `PRODUCTION_DOMAIN` (public domain used for post-deploy healthcheck)
 
+Variables (store in the `production` environment):
+
+- `DEPLOY_DIR` (optional): absolute path to the deploy directory on the production machine.
+  If unset, the workflow auto-detects `/opt/pulseplate` then `/srv/pulseplate-production`.
+
 ## Self-hosted runner (recommended)
 
 If your server exposes only 443 publicly (common behind Cloudflare), GitHub-hosted runners cannot SSH
@@ -79,8 +84,7 @@ High-level steps (run on the production server):
 
 ## Post-merge checklist (first production auto-deploy)
 
-1. Ensure the production server deploy directory exists at either `/opt/pulseplate` or
-   `/srv/pulseplate-production` and contains the compose file + `.env`.
+1. Ensure the production server deploy directory contains the compose file + `.env`.
 2. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
 3. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
 4. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
