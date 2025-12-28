@@ -70,7 +70,7 @@ async def test_lifespan_background_updates_skipped_in_testing_or_ci(
         patch("app.start_background_updates", new=start_mock, create=True),
         patch("app.stop_background_updates", new=stop_mock, create=True),
     ):
-        caplog.set_level("INFO", logger="legacy_app")
+        caplog.set_level(logging.INFO, logger="legacy_app")
         async with lifespan(MagicMock()):
             pass
 
@@ -103,7 +103,7 @@ async def test_lifespan_background_updates_skipped_when_disabled_via_env(
         patch("app.start_background_updates", new=start_mock, create=True),
         patch("app.stop_background_updates", new=stop_mock, create=True),
     ):
-        caplog.set_level("INFO", logger="legacy_app")
+        caplog.set_level(logging.INFO, logger="legacy_app")
         async with lifespan(MagicMock()):
             pass
 
