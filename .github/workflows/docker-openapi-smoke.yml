@@ -32,6 +32,10 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
