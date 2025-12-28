@@ -33,11 +33,13 @@ class BodyFatRequest(BaseModel):
     @classmethod
     def _validate_gender(cls, value: str) -> str:
         v = value.strip().lower()
-        if v in {"male", "m"}:
+        if v in {"male", "m", "man", "hombre", "masculino", "varon", "varón"}:
             return "male"
-        if v in {"female", "f"}:
+        if v in {"female", "f", "woman", "mujer", "femenino"}:
             return "female"
-        raise ValueError("gender must be 'male' or 'female'")
+        raise ValueError(
+            "gender must be 'male' or 'female' (also accepts m/f, hombre/mujer, masculino/femenino)"
+        )
 
 
 def get_router() -> APIRouter:
