@@ -84,8 +84,9 @@ jobs:
           else
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
-            # Run mypy on all collected targets
-            mypy "$TARGETS"
+            # Run mypy on all collected targets (split space-separated list)
+            # shellcheck disable=SC2086
+            mypy $TARGETS
           fi
 
   tests:
