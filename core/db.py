@@ -284,6 +284,8 @@ def _get_session_local() -> sessionmaker[Session]:
     during concurrent initialization.
     """
     global SessionLocal
+    if SessionLocal is not None and not _session_local_is_bound(SessionLocal):
+        SessionLocal = None
     if SessionLocal is None:
         with _init_lock:
             if SessionLocal is None:  # pragma: no branch
@@ -292,6 +294,27 @@ def _get_session_local() -> sessionmaker[Session]:
                     bind=engine, autoflush=False, autocommit=False, future=True
                 )
     return SessionLocal
+
+
+def _session_local_is_bound(session_local: sessionmaker[Session]) -> bool:
+    """Return True when a sessionmaker has an effective default bind.
+
+    Avoid relying on ``sessionmaker.kw`` (an internal attribute). The most
+    stable signal is whether a session created from the factory has a default
+    bind (``Session.bind``).
+    """
+    try:
+        session = session_local()
+    except Exception:  # pragma: no cover - defensive
+        return False
+    try:
+        return session.bind is not None
+    finally:
+        # In production this is always a real SQLAlchemy Session, but some
+        # tests patch SessionLocal with plain mocks; avoid calling close() on
+        # non-Session objects to keep those tests deterministic.
+        if isinstance(session, Session):
+            session.close()
 
 
 class _ResultWithConnectionCleanup:

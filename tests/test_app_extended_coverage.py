@@ -28,11 +28,12 @@ class TestLifespanEvents:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
     @pytest.mark.asyncio
-    async def test_lifespan_startup_success(self):
+    async def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch):
         """Test successful lifespan startup."""
         from app import lifespan
 
         mock_app = MagicMock()
+        monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
 
         with patch("legacy_app.start_background_updates") as mock_start:
             mock_start.return_value = AsyncMock()
@@ -42,11 +43,12 @@ class TestLifespanEvents:
                 mock_start.assert_called_once_with(update_interval_hours=24)
 
     @pytest.mark.asyncio
-    async def test_lifespan_startup_failure(self):
+    async def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch):
         """Test lifespan startup with failure."""
         from app import lifespan
 
         mock_app = MagicMock()
+        monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
 
         with patch("legacy_app.start_background_updates") as mock_start:
             mock_start.side_effect = Exception("Startup failed")
@@ -56,11 +58,12 @@ class TestLifespanEvents:
                 mock_start.assert_called_once_with(update_interval_hours=24)
 
     @pytest.mark.asyncio
-    async def test_lifespan_shutdown_success(self):
+    async def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch):
         """Test successful lifespan shutdown."""
         from app import lifespan
 
         mock_app = MagicMock()
+        monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
 
         with (
             patch("legacy_app.start_background_updates") as mock_start,
@@ -76,11 +79,12 @@ class TestLifespanEvents:
             mock_stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_lifespan_shutdown_failure(self):
+    async def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch):
         """Test lifespan shutdown with failure."""
         from app import lifespan
 
         mock_app = MagicMock()
+        monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
 
         with (
             patch("legacy_app.start_background_updates") as mock_start,

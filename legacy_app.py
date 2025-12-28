@@ -714,7 +714,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         _start = _resolve_app_callable("start_background_updates", start_background_updates)
         _task: Optional[asyncio.Task[Any]] = None
-        if callable(_start):
+        started_background_updates = False
+        testing_mode = (os.getenv("TESTING") or "").strip().lower() in truthy or (
+            os.getenv("CI") or ""
+        ).strip().lower() in truthy
+        force_background = (os.getenv("FORCE_BACKGROUND_UPDATES") or "").strip().lower() in truthy
+        disable_background = (
+            os.getenv("DISABLE_BACKGROUND_UPDATES") or ""
+        ).strip().lower() in truthy
+        if callable(_start) and not disable_background and (force_background or not testing_mode):
+            started_background_updates = True
             result = _start(update_interval_hours=24)
             if _inspect.isawaitable(result):
                 # Apply a configurable timeout to avoid hangs on startup
@@ -729,13 +738,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     )
                     if _task is not None:
                         _task.cancel()
-                        with suppress(Exception):
+                        # CancelledError is a BaseException in modern Python (3.8+).
+                        # Swallow it here since we intentionally cancelled the task due to timeout.
+                        with suppress(asyncio.CancelledError, Exception):
                             await _task
                 except Exception as e:
                     logger.error("Failed to start background updates (async): %s", e)
         # Log only when start succeeded to reduce noise
-        if _task is None or not _task.done() or _task.exception() is None:
+        start_ok = started_background_updates
+        if start_ok and _task is not None and _task.done():
+            try:
+                start_ok = _task.exception() is None
+            except asyncio.CancelledError:
+                start_ok = False
+        if start_ok:
             logger.info("Started background database updates")
+        if callable(_start) and not started_background_updates:
+            logger.info(
+                "Skipping background database updates (env=%s, testing=%s, forced=%s, disabled=%s)",
+                env_name or "unknown",
+                testing_mode,
+                force_background,
+                disable_background,
+            )
     except Exception as e:
         logger.error("Failed to start background updates: %s", e)
 

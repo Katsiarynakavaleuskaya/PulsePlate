@@ -18,7 +18,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionError
 
 import core.recipe_synth as recipe_synth
 
@@ -349,7 +349,7 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
 
     try:
         _truncate()
-    except (OperationalError, ProgrammingError) as e:
+    except (OperationalError, ProgrammingError, UnboundExecutionError) as e:
         # Database not accessible or table doesn't exist - proceed without failing the suite
         logger.warning(f"Database not accessible or users table missing during test setup: {e}")
         try:
@@ -370,7 +370,7 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     # Cleanup after test - log errors to reduce flakiness when SQLite is locked
     try:
         _truncate()
-    except (OperationalError, ProgrammingError) as e:
+    except (OperationalError, ProgrammingError, UnboundExecutionError) as e:
         # Avoid hard failures on teardown to reduce flakiness in CI when SQLite is locked
         # or when the table doesn't exist
         logger.warning(

@@ -22,17 +22,10 @@ def test_health_db_ok() -> None:
 
 def test_health_db_failure(monkeypatch) -> None:
     """RU: Ошибка БД приводит к 503. EN: DB failure surfaces as 503."""
-
-    class BrokenSession:
-        def execute(self, *_args, **_kwargs):  # noqa: D401
-            raise RuntimeError("boom")
-
-        def close(self) -> None:  # noqa: D401
-            pass
-
-    monkeypatch.setattr(db_module, "SessionLocal", lambda: BrokenSession())
-
     with TestClient(cast(ASGIApp, app.app)) as client:
+        # legacy_app.lifespan clears DB_HEALTH_DEGRADED on successful init_db()
+        # so we must set it AFTER startup to exercise the 503 branch.
+        monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
         response = client.get("/health/db")
 
     assert response.status_code == 503

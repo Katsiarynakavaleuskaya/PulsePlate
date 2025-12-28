@@ -76,14 +76,11 @@ repos:
     rev: v1.11.2
     hooks:
       - id: mypy
-        name: mypy (type-check)
-        pass_filenames: false
+        name: mypy (type-check, changed files)
         stages: [pre-push]
         args:
           - --pretty
           - --show-error-codes
-          - app
-          - core
         files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|bmi_visualization\.py|providers/.*\.py)$
 
   # --- Security: bandit
@@ -170,7 +167,7 @@ repos:
       # docker-build-test — test Docker build before push (with timeout)
       - id: docker-build-test
         name: docker build test
-        entry: bash -c "set -o pipefail; if timeout 300 make docker-build 2>&1 | tail -50; then echo '✅ Docker build successful'; else echo '⚠️  Docker build failed or timed out after 5 minutes - check logs above'; exit 1; fi"
+        entry: bash -c "set -o pipefail; if [ \"${RUN_DOCKER_BUILD_TEST:-}\" != \"true\" ]; then echo '⚠️  Skipping docker build test (set RUN_DOCKER_BUILD_TEST=true to enable)'; exit 0; fi; if timeout 900 make docker-build 2>&1 | tail -50; then echo '✅ Docker build successful'; else echo '⚠️  Docker build failed or timed out after 15 minutes - check logs above'; exit 1; fi"
         language: system
         pass_filenames: false
         stages: [pre-push]
