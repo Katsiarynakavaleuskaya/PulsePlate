@@ -284,6 +284,8 @@ def _get_session_local() -> sessionmaker[Session]:
     during concurrent initialization.
     """
     global SessionLocal
+    if SessionLocal is not None and not _session_local_is_bound(SessionLocal):
+        SessionLocal = None
     if SessionLocal is None:
         with _init_lock:
             if SessionLocal is None:  # pragma: no branch
@@ -292,6 +294,14 @@ def _get_session_local() -> sessionmaker[Session]:
                     bind=engine, autoflush=False, autocommit=False, future=True
                 )
     return SessionLocal
+
+
+def _session_local_is_bound(session_local: sessionmaker[Session]) -> bool:
+    """Return True when a sessionmaker has an effective default bind."""
+    kw = getattr(session_local, "kw", None)
+    if isinstance(kw, dict):
+        return kw.get("bind") is not None
+    return getattr(session_local, "bind", None) is not None
 
 
 class _ResultWithConnectionCleanup:

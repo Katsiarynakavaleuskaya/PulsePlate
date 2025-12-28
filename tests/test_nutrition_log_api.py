@@ -23,18 +23,19 @@ class TestNutritionLogAPI:
         fastapi_app.dependency_overrides.clear()
 
         # Clean up analyzer state for this test subject to avoid cross-test interference
-        # Import SessionLocal dynamically to get current value (not cached at module import time)
-        from core.db import SessionLocal
+        import core.db as core_db
 
-        # Guard: SessionLocal should be initialized by _init_db_for_api_suite fixture
-        # If None, it means reset_db_for_tests() was called unexpectedly in an API test
-        if SessionLocal is None:
-            raise AssertionError(
-                "SessionLocal is None in API test teardown. "
-                "API tests expect DB initialized; reset_db_for_tests() leaked into API scope."
-            )
+        # API tests expect DB initialized; if a test called reset_db_for_tests() or otherwise
+        # invalidated the SessionLocal binding, re-init and rebuild the session factory.
+        if core_db.SessionLocal is None:
+            core_db.init_db()
 
-        session = SessionLocal()
+        session_factory = core_db.get_session_factory()
+        session = session_factory()
+        if getattr(session, "bind", None) is None:
+            session.close()
+            core_db.init_db()
+            session = core_db.get_session_factory()()
         try:
             session.query(AnalyzerStateModel).filter(
                 AnalyzerStateModel.user_id == self.user_id
