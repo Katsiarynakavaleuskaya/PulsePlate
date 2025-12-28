@@ -40,6 +40,14 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
 
+  # --- GitHub Actions workflow validation
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.36.0
+    hooks:
+      - id: check-github-workflows
+        name: check-github-workflows
+        files: ^\.github/workflows/.*\.(yml|yaml)$
+
   # --- Code style: Black
   - repo: https://github.com/psf/black
     rev: 24.8.0  # Pin to stable version (pre-25.x) to avoid breaking formatting changes

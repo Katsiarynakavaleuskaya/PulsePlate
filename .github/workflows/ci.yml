@@ -20,6 +20,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -125,6 +129,7 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -142,19 +147,21 @@ jobs:
           # Run sequentially on 3.13; keep parallelism for older versions.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          PYVER="${{ matrix.python-version }}"
+          PYVER="${MATRIX_PYTHON_VERSION}"
           if [[ "$PYVER" == 3.13* ]]; then
             # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS="-p no:xdist"
+            PYTEST_XDIST_ARGS=(-p no:xdist)
           else
-            PYTEST_XDIST_ARGS="-n 4 --dist=loadscope"
+            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
           python -c "import sys; print('PY', sys.version)"
-          echo "PYTEST_XDIST_ARGS=$PYTEST_XDIST_ARGS"
-          python -X faulthandler -m pytest -m "not slow" tests \
+          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
+          python -X faulthandler -m pytest \
+            "${PYTEST_XDIST_ARGS[@]}" \
+            -m "not slow" \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
-            $PYTEST_XDIST_ARGS
+            tests
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -228,6 +235,7 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
           VIP_MODULE_ENABLED: "true"
           APP_ENV: test
           ENVIRONMENT: test
@@ -245,19 +253,21 @@ jobs:
           # Run sequentially on 3.13; keep parallelism for older versions.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          PYVER="${{ matrix.python-version }}"
+          PYVER="${MATRIX_PYTHON_VERSION}"
           if [[ "$PYVER" == 3.13* ]]; then
             # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS="-p no:xdist"
+            PYTEST_XDIST_ARGS=(-p no:xdist)
           else
-            PYTEST_XDIST_ARGS="-n 4 --dist=loadscope"
+            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
           python -c "import sys; print('PY', sys.version)"
-          echo "PYTEST_XDIST_ARGS=$PYTEST_XDIST_ARGS"
-          python -X faulthandler -m pytest -m "not slow" tests \
+          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
+          python -X faulthandler -m pytest \
+            "${PYTEST_XDIST_ARGS[@]}" \
+            -m "not slow" \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
-            $PYTEST_XDIST_ARGS
+            tests
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -336,6 +346,7 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/tests"
+          MATRIX_PYTHON_VERSION: "${{ matrix.python-version }}"
           VIP_MODULE_ENABLED: "true"
           # Force test-like environment for deterministic behavior
           APP_ENV: test
@@ -354,19 +365,21 @@ jobs:
           # Run sequentially on 3.13; keep parallelism for older versions.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
-          PYVER="${{ matrix.python-version }}"
+          PYVER="${MATRIX_PYTHON_VERSION}"
           if [[ "$PYVER" == 3.13* ]]; then
             # Fully disable xdist plugin on 3.13 (more stable than `-n 0`)
-            PYTEST_XDIST_ARGS="-p no:xdist"
+            PYTEST_XDIST_ARGS=(-p no:xdist)
           else
-            PYTEST_XDIST_ARGS="-n 4 --dist=loadscope"
+            PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
           python -c "import sys; print('PY', sys.version)"
-          echo "PYTEST_XDIST_ARGS=$PYTEST_XDIST_ARGS"
-          python -X faulthandler -m pytest -m "not slow" tests \
+          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"
+          python -X faulthandler -m pytest \
+            "${PYTEST_XDIST_ARGS[@]}" \
+            -m "not slow" \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
-            $PYTEST_XDIST_ARGS
+            tests
 
       - name: Clean Python cache (post-test)
         if: always()

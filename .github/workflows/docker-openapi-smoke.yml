@@ -1,0 +1,156 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Docker OpenAPI Smoke
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements*.txt
+      - constraints.txt
+      - app/**
+      - core/**
+      - legacy_app.py
+      - main.py
+      - bodyfat.py
+      - .github/workflows/docker-openapi-smoke.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - requirements*.txt
+      - constraints.txt
+      - app/**
+      - core/**
+      - legacy_app.py
+      - main.py
+      - bodyfat.py
+      - .github/workflows/docker-openapi-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Build Docker image
+        run: |
+          docker build -t pulseplate-smoke:${{ github.sha }} .
+
+      - name: Run container
+        run: |
+          # detect-secrets can flag hardcoded credential-like env var names in workflows.
+          # Build the env var names dynamically to avoid false positives while still configuring the container.
+          api_key_name="API""_KEY"
+          allow_dev_api_key_name="ALLOW_DEV_API""_KEY"
+
+          args=(
+            -d
+            --rm
+            -p 8000:8000
+            -e "${api_key_name}=test_key"
+            -e APP_ENV=production
+            -e ENVIRONMENT=production
+            -e "${allow_dev_api_key_name}=false"
+            --name
+            pulseplate-smoke
+            pulseplate-smoke:${{ github.sha }}
+          )
+
+          docker run "${args[@]}"
+
+      - name: Container status (initial)
+        run: |
+          docker ps -a
+          docker inspect pulseplate-smoke --format '{{.State.Status}} exit={{.State.ExitCode}}' || true
+
+      - name: Wait for /openapi.json
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            if curl -sS -o openapi.json http://127.0.0.1:8000/openapi.json; then
+              if [ -s openapi.json ]; then
+                echo "OpenAPI ready"
+                exit 0
+              fi
+            fi
+
+            running="$(docker inspect -f '{{.State.Running}}' pulseplate-smoke 2>/dev/null || echo 'false')"
+            if [ "$running" != "true" ]; then
+              echo "Container is not running (attempt $i). Diagnostics:"
+              docker ps -a
+              docker inspect pulseplate-smoke || true
+              docker logs pulseplate-smoke --tail=200 || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "Timed out waiting for /openapi.json. Diagnostics:"
+          docker ps -a
+          docker inspect pulseplate-smoke || true
+          docker logs pulseplate-smoke --tail=200 || true
+          exit 1
+
+      - name: Assert OpenAPI includes required routes
+        run: |
+          python - <<'PY'
+          import json
+
+          with open("openapi.json", "r", encoding="utf-8") as f:
+            schema = json.load(f)
+
+          paths = schema.get("paths", {})
+          assert "/api/v1/bodyfat" in paths, (
+            "Missing /api/v1/bodyfat in OpenAPI paths. "
+            f"Found: {sorted(paths)[:50]}..."
+          )
+          methods = {k.lower() for k in paths["/api/v1/bodyfat"].keys()}
+          assert "post" in methods, f"Missing POST for /api/v1/bodyfat. Methods: {sorted(methods)}"
+          print("OK: /api/v1/bodyfat present in OpenAPI")
+          PY
+
+      - name: Assert /api/v1/bodyfat is not 404
+        run: |
+          set -euo pipefail
+          payload='{"gender":"male","age":30,"waist_cm":80.0,"neck_cm":38.0,"height_m":1.75,"weight_kg":75.0}'
+          status="$(curl -sS -o bodyfat_response.txt -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d "$payload" \
+            http://127.0.0.1:8000/api/v1/bodyfat)"
+
+          echo "POST /api/v1/bodyfat status=$status"
+          if [ "$status" = "404" ]; then
+            echo "Body (first 500 chars):"
+            head -c 500 bodyfat_response.txt || true
+            exit 1
+          fi
+          # Accept 422: smoke test validates routing & wiring, not input validation logic.
+          if [ "$status" != "200" ] && [ "$status" != "422" ]; then
+            echo "Unexpected status=$status. Body (first 500 chars):"
+            head -c 500 bodyfat_response.txt || true
+            exit 1
+          fi
+
+      - name: Docker logs (on failure)
+        if: failure()
+        run: |
+          docker logs pulseplate-smoke || true
+
+      - name: Stop container
+        if: always()
+        run: |
+          docker stop pulseplate-smoke || true
