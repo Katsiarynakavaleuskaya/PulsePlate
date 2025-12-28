@@ -47,7 +47,7 @@ huggingface_hub==1.1.5
 hypothesis==6.148.7
 identify==2.6.15
 idna==3.11
-importlib_metadata==8.7.0
+importlib_metadata==8.7.1
 iniconfig==2.3.0
 Jinja2==3.1.6
 jiter==0.12.0
