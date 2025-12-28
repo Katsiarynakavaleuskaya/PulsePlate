@@ -23,7 +23,8 @@ T = TypeVar("T")
 
 
 def _to_user_read(model: User) -> UserRead:
-    return UserRead.model_validate(model)
+    # mypy does not infer the concrete return type of Pydantic v2 `model_validate` here.
+    return cast(UserRead, UserRead.model_validate(model))
 
 
 def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = None) -> T:
