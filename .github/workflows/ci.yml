@@ -154,7 +154,8 @@ jobs:
           python -X faulthandler -m pytest -m "not slow" tests \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
-            "$PYTEST_XDIST_ARGS"
+            # shellcheck disable=SC2086  # intentional word splitting for xdist args
+            $PYTEST_XDIST_ARGS
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -257,7 +258,8 @@ jobs:
           python -X faulthandler -m pytest -m "not slow" tests \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
-            "$PYTEST_XDIST_ARGS"
+            # shellcheck disable=SC2086  # intentional word splitting for xdist args
+            $PYTEST_XDIST_ARGS
 
       - name: Clean Python cache (post-test)
         if: always()
@@ -366,7 +368,8 @@ jobs:
           python -X faulthandler -m pytest -m "not slow" tests \
             --cov=. --cov-report=xml --cov-report=term-missing --cov-fail-under=97 \
             --junitxml=tests/results.xml -o junit_family=legacy \
-            "$PYTEST_XDIST_ARGS"
+            # shellcheck disable=SC2086  # intentional word splitting for xdist args
+            $PYTEST_XDIST_ARGS
 
       - name: Clean Python cache (post-test)
         if: always()
