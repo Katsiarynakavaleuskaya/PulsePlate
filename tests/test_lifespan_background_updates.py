@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 @pytest.mark.asyncio
 async def test_lifespan_forced_background_updates_awaitable_start(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Cover legacy_app.lifespan background-start awaitable branch."""
     from app import lifespan
@@ -34,11 +36,112 @@ async def test_lifespan_forced_background_updates_awaitable_start(
         patch("app.start_background_updates", new=start_mock, create=True),
         patch("app.stop_background_updates", new=stop_mock, create=True),
     ):
+        caplog.set_level(logging.INFO, logger="legacy_app")
         async with lifespan(MagicMock()):
             pass
 
     start_mock.assert_called_once_with(update_interval_hours=24)
     stop_mock.assert_called_once_with()
+    assert "Started background database updates" in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("env_var", ("TESTING", "CI"))
+async def test_lifespan_background_updates_skipped_in_testing_or_ci(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    env_var: str,
+) -> None:
+    """Background updates are skipped by default when running in TESTING/CI."""
+    from app import lifespan
+
+    start_mock = Mock(return_value=None)
+    stop_mock = Mock(return_value=None)
+
+    monkeypatch.setenv(env_var, "true")
+    monkeypatch.delenv("FORCE_BACKGROUND_UPDATES", raising=False)
+    monkeypatch.delenv("DISABLE_BACKGROUND_UPDATES", raising=False)
+
+    with (
+        patch("legacy_app.init_db", return_value=None),
+        patch("legacy_app.validate_template_dir", return_value=None),
+        patch("legacy_app.start_background_updates", new=start_mock),
+        patch("legacy_app.stop_background_updates", new=stop_mock),
+        patch("app.start_background_updates", new=start_mock, create=True),
+        patch("app.stop_background_updates", new=stop_mock, create=True),
+    ):
+        caplog.set_level("INFO", logger="legacy_app")
+        async with lifespan(MagicMock()):
+            pass
+
+    start_mock.assert_not_called()
+    stop_mock.assert_called_once_with()
+    assert "Skipping background database updates" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_lifespan_background_updates_skipped_when_disabled_via_env(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Background updates are skipped when DISABLE_BACKGROUND_UPDATES=1."""
+    from app import lifespan
+
+    start_mock = Mock(return_value=None)
+    stop_mock = Mock(return_value=None)
+
+    monkeypatch.setenv("DISABLE_BACKGROUND_UPDATES", "1")
+    monkeypatch.delenv("FORCE_BACKGROUND_UPDATES", raising=False)
+    monkeypatch.delenv("TESTING", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+
+    with (
+        patch("legacy_app.init_db", return_value=None),
+        patch("legacy_app.validate_template_dir", return_value=None),
+        patch("legacy_app.start_background_updates", new=start_mock),
+        patch("legacy_app.stop_background_updates", new=stop_mock),
+        patch("app.start_background_updates", new=start_mock, create=True),
+        patch("app.stop_background_updates", new=stop_mock, create=True),
+    ):
+        caplog.set_level("INFO", logger="legacy_app")
+        async with lifespan(MagicMock()):
+            pass
+
+    start_mock.assert_not_called()
+    stop_mock.assert_called_once_with()
+    assert "Skipping background database updates" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_lifespan_forced_background_updates_non_awaitable_start(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cover legacy_app.lifespan background-start non-awaitable branch."""
+    from app import lifespan
+
+    start_mock = Mock(return_value=None)
+    stop_mock = Mock(return_value=None)
+
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    monkeypatch.delenv("DISABLE_BACKGROUND_UPDATES", raising=False)
+    monkeypatch.delenv("BACKGROUND_START_TIMEOUT_SEC", raising=False)
+
+    with (
+        patch("legacy_app.init_db", return_value=None),
+        patch("legacy_app.validate_template_dir", return_value=None),
+        patch("legacy_app.start_background_updates", new=start_mock),
+        patch("legacy_app.stop_background_updates", new=stop_mock),
+        patch("app.start_background_updates", new=start_mock, create=True),
+        patch("app.stop_background_updates", new=stop_mock, create=True),
+    ):
+        caplog.set_level(logging.INFO, logger="legacy_app")
+        async with lifespan(MagicMock()):
+            pass
+
+    start_mock.assert_called_once_with(update_interval_hours=24)
+    stop_mock.assert_called_once_with()
+    assert "Started background database updates" in caplog.text
 
 
 @pytest.mark.asyncio

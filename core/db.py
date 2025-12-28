@@ -297,11 +297,24 @@ def _get_session_local() -> sessionmaker[Session]:
 
 
 def _session_local_is_bound(session_local: sessionmaker[Session]) -> bool:
-    """Return True when a sessionmaker has an effective default bind."""
-    kw = getattr(session_local, "kw", None)
-    if isinstance(kw, dict):
-        return kw.get("bind") is not None
-    return getattr(session_local, "bind", None) is not None
+    """Return True when a sessionmaker has an effective default bind.
+
+    Avoid relying on ``sessionmaker.kw`` (an internal attribute). The most
+    stable signal is whether a session created from the factory has a default
+    bind (``Session.bind``).
+    """
+    try:
+        session = session_local()
+    except Exception:  # pragma: no cover - defensive
+        return False
+    try:
+        return session.bind is not None
+    finally:
+        # In production this is always a real SQLAlchemy Session, but some
+        # tests patch SessionLocal with plain mocks; avoid calling close() on
+        # non-Session objects to keep those tests deterministic.
+        if isinstance(session, Session):
+            session.close()
 
 
 class _ResultWithConnectionCleanup:
