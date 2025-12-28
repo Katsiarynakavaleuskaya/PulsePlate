@@ -210,7 +210,7 @@ jobs:
           target: production
 
   deploy-production:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh'
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     environment:
@@ -278,3 +278,66 @@ jobs:
             done
 
             docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
+
+  deploy-production-self-hosted:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'self-hosted'
+    needs: [production-gates, build-production]
+    runs-on: [self-hosted, linux, x64, pulseplate-prod]
+    environment:
+      name: production
+      url: https://pulseplate.app
+    concurrency:
+      group: cd-deploy-production-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - name: Deploy on self-hosted runner (pinned digest)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Resolve deploy directory on server.
+          if [ -d "/opt/pulseplate" ]; then
+            cd "/opt/pulseplate"
+          elif [ -d "/srv/pulseplate-production" ]; then
+            cd "/srv/pulseplate-production"
+          else
+            echo "❌ Could not find deploy directory. Expected /opt/pulseplate or /srv/pulseplate-production." >&2
+            exit 1
+          fi
+
+          GHCR_USER='${{ github.actor }}'
+          GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+          if [ -n "$GHCR_TOKEN" ]; then
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          fi
+
+          DIGEST='${{ needs.build-production.outputs.digest }}'
+          IMAGE_NAME='${{ needs.build-production.outputs.image_name }}'
+          export IMAGE_REF="ghcr.io/${IMAGE_NAME}@${DIGEST}"
+          export TAG="prod-${{ github.ref_name }}"
+
+          docker compose pull
+          docker compose up -d --remove-orphans
+
+          PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          if [ -z "$PRODUCTION_DOMAIN" ]; then
+            echo "❌ PRODUCTION_DOMAIN secret is required for production health checks" >&2
+            exit 1
+          fi
+          HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
+
+          attempt=1
+          max_attempts=12
+          sleep_s=2
+          until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
+              docker compose logs --tail=200 || true
+              exit 1
+            fi
+            echo "Healthcheck not ready (attempt ${attempt}/${max_attempts}), retrying in ${sleep_s}s..."
+            attempt=$((attempt + 1))
+            sleep "$sleep_s"
+          done
+
+          docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
