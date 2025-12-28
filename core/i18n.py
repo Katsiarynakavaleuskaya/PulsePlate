@@ -48,6 +48,10 @@ TRANSLATIONS = {
         "form_female": "Женский",
         "form_yes": "Да",
         "form_no": "Нет",
+        # Bodyfat API Response Labels
+        "bodyfat_methods": "методы",
+        "bodyfat_median": "медиана",
+        "bodyfat_units_percent": "%",
         # Advice Texts
         "advice_underweight": "Вам следует набрать вес. Проконсультируйтесь с врачом "
         "для составления плана питания.",
@@ -137,6 +141,10 @@ TRANSLATIONS = {
         "form_female": "Female",
         "form_yes": "Yes",
         "form_no": "No",
+        # Bodyfat API Response Labels
+        "bodyfat_methods": "methods",
+        "bodyfat_median": "median",
+        "bodyfat_units_percent": "%",
         # Advice Texts
         "advice_underweight": "You should gain weight. Consult a doctor to "
         "develop a nutrition plan.",
@@ -219,6 +227,10 @@ TRANSLATIONS = {
         "form_female": "Femenino",
         "form_yes": "Sí",
         "form_no": "No",
+        # Bodyfat API Response Labels
+        "bodyfat_methods": "métodos",
+        "bodyfat_median": "mediana",
+        "bodyfat_units_percent": "%",
         # Advice Texts
         "advice_underweight": "Deberías ganar peso. Consulta con un médico para "
         "desarrollar un plan nutricional.",
