@@ -33,9 +33,13 @@ def get_router() -> APIRouter:
         data: dict[str, object] = dict(req.model_dump(exclude_none=True))
 
         if "bmi" not in data and ("weight_kg" in data and "height_m" in data):
-            weight_kg = float(data["weight_kg"])
-            height_m = float(data["height_m"])
-            data["bmi"] = weight_kg / (height_m**2)
+            weight_kg_val = data["weight_kg"]
+            height_m_val = data["height_m"]
+            # Type narrowing: we know these are floats from Pydantic model
+            if isinstance(weight_kg_val, (int, float)) and isinstance(height_m_val, (int, float)):
+                weight_kg = float(weight_kg_val)
+                height_m = float(height_m_val)
+                data["bmi"] = weight_kg / (height_m**2)
 
         result = estimate_all(data)
 
