@@ -5,13 +5,19 @@ set -euo pipefail
 : "${TAG:?TAG is required (prod-vX.Y.Z)}"
 : "${PRODUCTION_DOMAIN:?PRODUCTION_DOMAIN is required}"
 
+export IMAGE_REF TAG PRODUCTION_DOMAIN
+
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 
 resolve_deploy_dir() {
   if [ -n "$DEPLOY_DIR" ]; then
-    echo "$DEPLOY_DIR"
-    return 0
+    if [ -d "$DEPLOY_DIR" ]; then
+      echo "$DEPLOY_DIR"
+      return 0
+    fi
+    echo "⚠️  DEPLOY_DIR is set but does not exist: $DEPLOY_DIR" >&2
+    echo "    Falling back to auto-detect..." >&2
   fi
 
   if [ -d "/opt/pulseplate" ]; then
