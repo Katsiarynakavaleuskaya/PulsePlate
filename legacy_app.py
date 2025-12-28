@@ -738,14 +738,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     )
                     if _task is not None:
                         _task.cancel()
-                        with suppress(Exception):
+                        # CancelledError is a BaseException in modern Python (3.8+).
+                        # Swallow it here since we intentionally cancelled the task due to timeout.
+                        with suppress(asyncio.CancelledError, Exception):
                             await _task
                 except Exception as e:
                     logger.error("Failed to start background updates (async): %s", e)
         # Log only when start succeeded to reduce noise
-        if started_background_updates and (
-            _task is None or not _task.done() or _task.exception() is None
-        ):
+        start_ok = started_background_updates
+        if start_ok and _task is not None and _task.done():
+            try:
+                start_ok = _task.exception() is None
+            except asyncio.CancelledError:
+                start_ok = False
+        if start_ok:
             logger.info("Started background database updates")
         if callable(_start) and not started_background_updates:
             logger.info(
