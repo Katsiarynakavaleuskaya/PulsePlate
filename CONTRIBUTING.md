@@ -31,6 +31,15 @@ sleep 2  # Allow container to start
 curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify health check
 ```
 
+## Network Access in Tests (CI Guard)
+
+To keep CI deterministic (no flaky 429/timeouts from real external services), CI forbids outbound HTTP(S)
+from tests (allowed: `localhost`, `127.0.0.1`, `::1`, `testserver`).
+
+- Reproduce locally: `BLOCK_TEST_NETWORK=true pytest ...`
+- Temporary CI escape hatch: `ALLOW_TEST_NETWORK=true` (use sparingly; prefer mocks)
+- Allow additional internal hostnames (e.g., docker-compose): `TEST_NETWORK_ALLOWED_HOSTS=service1,service2`
+
 ## Auto‑delete merged branches
 
 - Merged PR branches are deleted automatically.
