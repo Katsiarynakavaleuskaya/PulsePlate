@@ -147,6 +147,7 @@ async def test_lifespan_forced_background_updates_non_awaitable_start(
 @pytest.mark.asyncio
 async def test_lifespan_background_updates_start_timeout_cancels_task(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Cover legacy_app.lifespan timeout handling when background start hangs."""
     from app import lifespan
@@ -170,16 +171,19 @@ async def test_lifespan_background_updates_start_timeout_cancels_task(
         patch("app.start_background_updates", new=start_mock, create=True),
         patch("app.stop_background_updates", new=stop_mock, create=True),
     ):
+        caplog.set_level(logging.ERROR, logger="legacy_app")
         async with lifespan(MagicMock()):
             pass
 
     start_mock.assert_called_once_with(update_interval_hours=24)
     stop_mock.assert_called_once_with()
+    assert "Background updates startup timed out after" in caplog.text
 
 
 @pytest.mark.asyncio
 async def test_lifespan_background_updates_start_exception_logged(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Cover legacy_app.lifespan exception handling when background start fails."""
     from app import lifespan
@@ -201,8 +205,10 @@ async def test_lifespan_background_updates_start_exception_logged(
         patch("app.start_background_updates", new=start_mock, create=True),
         patch("app.stop_background_updates", new=stop_mock, create=True),
     ):
+        caplog.set_level(logging.ERROR, logger="legacy_app")
         async with lifespan(MagicMock()):
             pass
 
     start_mock.assert_called_once_with(update_interval_hours=24)
     stop_mock.assert_called_once_with()
+    assert "Failed to start background updates (async): boom" in caplog.text
