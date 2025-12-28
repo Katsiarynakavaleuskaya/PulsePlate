@@ -1,0 +1,41 @@
+extends: default
+
+ignore: |
+  .git/
+  .venv/
+  .venv-ci/
+  node_modules/
+  dist/
+  build/
+  .mypy_cache/
+  .pytest_cache/
+  .ruff_cache/
+  ios/.build/
+
+rules:
+  # Initial rollout philosophy:
+  # - keep high-signal checks enabled (duplicate keys, trailing spaces, etc.)
+  # - temporarily disable noisy style rules that would require a wide YAML reformat PR
+  # Roadmap: re-enable indentation/brackets/braces/comments/line-length incrementally.
+
+  # Explicitly keep core safety rules enabled (also present in `extends: default`).
+  key-duplicates: enable
+  trailing-spaces: enable
+  octal-values: enable
+
+  # Many repo YAML files (workflows, configs) omit '---' for readability.
+  document-start: disable
+  # CI/workflow YAML often includes long strings; keep signal high.
+  line-length: disable
+  # GitHub Actions uses 'on', 'yes', etc. as keys/values; avoid false positives.
+  truthy: disable
+  # Comment indentation is noisy across existing files.
+  comments-indentation: disable
+  comments: disable
+  # GitHub Actions often uses inline sequences/mappings with spacing that yamllint dislikes.
+  brackets: disable
+  braces: disable
+  # Existing YAML files vary in indentation conventions; keep lint non-blocking.
+  indentation: disable
+  # Some generated YAML uses dense comma-separated values.
+  commas: disable
