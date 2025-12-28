@@ -19,7 +19,9 @@ def _is_external_url(url: str | object) -> bool:
     return host not in {"127.0.0.1", "localhost", "::1", "testserver"}
 
 
-def test_catalog_endpoints_do_not_require_external_network(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_catalog_endpoints_do_not_require_external_network(
+    test_environment: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import httpx
 
     real_client_request = httpx.Client.request
@@ -42,7 +44,7 @@ def test_catalog_endpoints_do_not_require_external_network(monkeypatch: pytest.M
 
     try:
         import requests as _requests
-    except Exception:  # pragma: no cover
+    except ImportError:  # pragma: no cover
         _requests = None
 
     if _requests is not None:
