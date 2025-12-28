@@ -7,7 +7,7 @@ Supports BMI category visualization, progress tracking, and population-specific 
 import base64
 import io
 from collections.abc import Iterable
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 from bmi_core import auto_group, bmi_category, group_display_name
 
@@ -222,10 +222,10 @@ class BMIVisualizer:
 
         # Add value labels on bars
         for bar, weight in zip(bars, weights):
-            height = bar.get_height()
+            bar_height = bar.get_height()
             ax.text(
                 bar.get_x() + bar.get_width() / 2.0,
-                height + 1,
+                bar_height + 1,
                 f"{weight:.1f}kg",
                 ha="center",
                 va="bottom",
@@ -274,7 +274,7 @@ def generate_bmi_visualization(
     pregnant: str = "no",
     athlete: str = "no",
     lang: str = "en",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate BMI visualization and return as base64 encoded image."""
 
     if not MATPLOTLIB_AVAILABLE:
