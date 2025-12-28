@@ -85,7 +85,7 @@ jobs:
             # Discover mypy targets using dedicated script
             TARGETS="$(scripts/discover_mypy_targets.sh)"
             # Run mypy on all collected targets
-            mypy $TARGETS
+            mypy "$TARGETS"
           fi
 
   tests:

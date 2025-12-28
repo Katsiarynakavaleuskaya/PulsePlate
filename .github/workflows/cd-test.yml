@@ -33,7 +33,7 @@ jobs:
       - name: Set lowercase image name
         id: image-name
         run: |
-          echo "image_name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "image_name=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Validate environment
         run: |

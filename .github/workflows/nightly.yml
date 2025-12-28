@@ -314,7 +314,7 @@ jobs:
         run: |
           START_TIME=$(date +%s)
           export START_TIME
-          echo "START_TIME=$START_TIME" >> $GITHUB_ENV
+          echo "START_TIME=$START_TIME" >> "$GITHUB_ENV"
           echo "Running integration tests..."
           set +e
           pytest tests/ \
@@ -335,13 +335,15 @@ jobs:
           echo "Generating test execution report..."
           : "${START_TIME:=0}"
           TEST_DURATION=$(( $(date +%s) - START_TIME ))
-          echo "# Nightly Test Report" > performance-report.md
-          echo "## $(date '+%Y-%m-%d %H:%M:%S UTC')" >> performance-report.md
-          echo "" >> performance-report.md
-          echo "### Test Execution Summary" >> performance-report.md
-          echo "- Total test time: ${TEST_DURATION} seconds" >> performance-report.md
-          echo "- Python version: 3.13" >> performance-report.md
-          echo "- Parallel workers: auto" >> performance-report.md
+          {
+            echo "# Nightly Test Report"
+            echo "## $(date '+%Y-%m-%d %H:%M:%S UTC')"
+            echo ""
+            echo "### Test Execution Summary"
+            echo "- Total test time: ${TEST_DURATION} seconds"
+            echo "- Python version: 3.13"
+            echo "- Parallel workers: auto"
+          } > performance-report.md
 
       - name: Upload performance report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.4.0

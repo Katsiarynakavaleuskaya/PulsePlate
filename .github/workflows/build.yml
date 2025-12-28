@@ -130,7 +130,7 @@ jobs:
       - name: Set lowercase image name
         id: image-name
         run: |
-          echo "image_name=$(echo ${{ env.IMAGE_NAME }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "image_name=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: Log in to Container Registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
