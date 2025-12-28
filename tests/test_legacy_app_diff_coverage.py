@@ -397,8 +397,10 @@ async def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
     # Ensure sys.modules["app"] doesn't short-circuit the resolution
     import app as app_pkg
 
-    monkeypatch.delattr(app_pkg, "_calculate_all_bmr_wrapper", raising=False)
-    monkeypatch.delattr(app_pkg, "_calculate_all_tdee_wrapper", raising=False)
+    # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
+    # the attribute is not actually present on the module. Remove only real module attributes.
+    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
+    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
 
     monkeypatch.setattr(legacy_app, "_iter_app_modules", lambda: [dummy_mod])
 
