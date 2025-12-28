@@ -17,10 +17,9 @@ try:
     import matplotlib
 
     matplotlib.use("Agg")  # Use non-interactive backend
-    import matplotlib.pyplot as matplotlib_pyplot
+    import matplotlib.pyplot
 
-    plt = matplotlib_pyplot
-
+    plt = matplotlib.pyplot
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     plt = None
