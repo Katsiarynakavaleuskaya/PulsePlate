@@ -251,10 +251,30 @@ jobs:
             export IMAGE_REF="ghcr.io/${IMAGE_NAME}@${DIGEST}"
 
             # Also export TAG for backwards-compatible compose setups.
-            export TAG="prod-${GITHUB_REF_NAME}"
+            export TAG="prod-${{ github.ref_name }}"
 
             docker compose pull
             docker compose up -d --remove-orphans
 
-            curl -fsS --max-time 10 http://localhost:8000/health > /dev/null
+            PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+            if [ -n "$PRODUCTION_DOMAIN" ]; then
+              HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
+            else
+              HEALTH_URL="http://localhost:8000/health"
+            fi
+
+            attempt=1
+            max_attempts=12
+            sleep_s=2
+            until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
+                docker compose logs --tail=200 || true
+                exit 1
+              fi
+              echo "Healthcheck not ready (attempt ${attempt}/${max_attempts}), retrying in ${sleep_s}s..."
+              attempt=$((attempt + 1))
+              sleep "$sleep_s"
+            done
+
             docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
