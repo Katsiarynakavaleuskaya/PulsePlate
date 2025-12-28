@@ -850,8 +850,10 @@ async def test_premium_bmr_legacy_hits_globals_fallback_path(
 
     import app as app_pkg
 
-    monkeypatch.delattr(app_pkg, "_calculate_all_bmr_wrapper", raising=False)
-    monkeypatch.delattr(app_pkg, "_calculate_all_tdee_wrapper", raising=False)
+    # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
+    # the attribute is not actually present on the module. Remove only real module attributes.
+    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
+    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
 
     monkeypatch.setattr(
         legacy_app, "_calculate_all_bmr_wrapper", lambda *_a, **_k: {"mifflin": 1000.0}
