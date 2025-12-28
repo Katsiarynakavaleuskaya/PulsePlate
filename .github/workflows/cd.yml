@@ -257,11 +257,11 @@ jobs:
             docker compose up -d --remove-orphans
 
             PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
-            if [ -n "$PRODUCTION_DOMAIN" ]; then
-              HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
-            else
-              HEALTH_URL="http://localhost:8000/health"
+            if [ -z "$PRODUCTION_DOMAIN" ]; then
+              echo "❌ PRODUCTION_DOMAIN secret is required for production health checks" >&2
+              exit 1
             fi
+            HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
 
             attempt=1
             max_attempts=12
