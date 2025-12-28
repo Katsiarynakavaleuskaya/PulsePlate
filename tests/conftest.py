@@ -29,20 +29,22 @@ import core.recipe_synth as recipe_synth
 # In CI we forbid outbound network access from tests; allow localhost + in-process TestClient only.
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _block_external_network_in_ci() -> Generator[None, None, None]:
+@pytest.fixture(autouse=True)
+def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
     enabled = bool(os.getenv("CI")) or os.getenv("BLOCK_TEST_NETWORK", "").lower() in {
         "1",
         "true",
         "yes",
     }
     if not enabled or os.getenv("ALLOW_TEST_NETWORK", "").lower() in {"1", "true", "yes"}:
-        yield
         return
 
     # Allow localhost for things like docker-compose or explicit local services, and
     # allow the in-process Starlette/FastAPI TestClient host (http://testserver).
     allowed_hosts = {"127.0.0.1", "localhost", "::1", "testserver"}
+    extra_hosts = os.getenv("TEST_NETWORK_ALLOWED_HOSTS", "")
+    if extra_hosts.strip():
+        allowed_hosts |= {h.strip() for h in extra_hosts.split(",") if h.strip()}
 
     def _is_external_url(url: object) -> bool:
         s = str(url)
@@ -56,7 +58,6 @@ def _block_external_network_in_ci() -> Generator[None, None, None]:
             return host not in allowed_hosts
         return False
 
-    monkeypatch = pytest.MonkeyPatch()
     httpx = None
     try:
         import httpx as _httpx
@@ -73,7 +74,8 @@ def _block_external_network_in_ci() -> Generator[None, None, None]:
             if _is_external_url(url):
                 raise AssertionError(
                     f"External HTTP blocked in tests: {method} {url} "
-                    "(set ALLOW_TEST_NETWORK=true to bypass in CI)"
+                    "(set ALLOW_TEST_NETWORK=true to bypass in CI; "
+                    "or add host via TEST_NETWORK_ALLOWED_HOSTS=host1,host2)"
                 )
             return real_client_request(self, method, url, *args, **kwargs)
 
@@ -81,7 +83,8 @@ def _block_external_network_in_ci() -> Generator[None, None, None]:
             if _is_external_url(url):
                 raise AssertionError(
                     f"External HTTP blocked in tests: {method} {url} "
-                    "(set ALLOW_TEST_NETWORK=true to bypass in CI)"
+                    "(set ALLOW_TEST_NETWORK=true to bypass in CI; "
+                    "or add host via TEST_NETWORK_ALLOWED_HOSTS=host1,host2)"
                 )
             return await real_async_request(self, method, url, *args, **kwargs)
 
@@ -103,16 +106,12 @@ def _block_external_network_in_ci() -> Generator[None, None, None]:
             if _is_external_url(url):
                 raise AssertionError(
                     f"External HTTP blocked in tests: {method} {url} "
-                    "(set ALLOW_TEST_NETWORK=true to bypass in CI)"
+                    "(set ALLOW_TEST_NETWORK=true to bypass in CI; "
+                    "or add host via TEST_NETWORK_ALLOWED_HOSTS=host1,host2)"
                 )
             return real_requests_request(self, method, url, *args, **kwargs)
 
         monkeypatch.setattr(requests.sessions.Session, "request", session_request, raising=True)
-
-    try:
-        yield
-    finally:
-        monkeypatch.undo()
 
 
 # NOTE: core.db is imported LAZILY (inside fixtures) to avoid creating Base

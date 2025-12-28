@@ -5,9 +5,6 @@
 # Basic settings
 language: en-US
 
-# Model reasoning effort (minimal, low, medium, high)
-model_reasoning_effort: high
-
 # Path-based instructions
 reviews:
   profile: chill
