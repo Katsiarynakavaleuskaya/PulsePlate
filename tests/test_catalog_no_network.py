@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import cast
 from urllib.parse import urlparse
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -18,7 +19,7 @@ def _is_external_url(url: str | object) -> bool:
     return host not in {"127.0.0.1", "localhost", "::1", "testserver"}
 
 
-def test_catalog_endpoints_do_not_require_external_network(monkeypatch) -> None:
+def test_catalog_endpoints_do_not_require_external_network(monkeypatch: pytest.MonkeyPatch) -> None:
     import httpx
 
     real_client_request = httpx.Client.request
