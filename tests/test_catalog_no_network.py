@@ -39,6 +39,21 @@ def test_catalog_endpoints_do_not_require_external_network(monkeypatch) -> None:
     monkeypatch.setattr(httpx.Client, "request", client_request, raising=True)
     monkeypatch.setattr(httpx.AsyncClient, "request", async_request, raising=True)
 
+    try:
+        import requests as _requests
+    except Exception:  # pragma: no cover
+        _requests = None
+
+    if _requests is not None:
+        real_requests_request = _requests.sessions.Session.request
+
+        def session_request(self, method: str, url: str, *args, **kwargs):
+            if _is_external_url(url):
+                raise AssertionError(f"External HTTP blocked in this test: {method} {url}")
+            return real_requests_request(self, method, url, *args, **kwargs)
+
+        monkeypatch.setattr(_requests.sessions.Session, "request", session_request, raising=True)
+
     import app
 
     client = TestClient(cast(ASGIApp, app.app))

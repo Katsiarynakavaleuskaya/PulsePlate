@@ -27,7 +27,7 @@ async def list_stores(
 
 @router.get("/search", response_model=list[CatalogSKU])
 async def search(
-    q: str = Query(..., min_length=1, max_length=100),
+    q: str = Query(..., min_length=1, max_length=64),
     region_id: str = Query(..., min_length=2, max_length=8),
     store_id: str | None = Query(default=None, min_length=1, max_length=64),
     limit: int = Query(20, ge=1, le=50),
