@@ -131,7 +131,7 @@ tokenizers==0.22.1
 toml==0.10.2
 tomlkit==0.13.3
 tqdm==4.67.1
-typer==0.20.0
+typer==0.21.0
 typer-slim==0.20.0
 types-PyYAML==6.0.12.20250915
 typing-inspection==0.4.2
