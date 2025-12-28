@@ -11,6 +11,25 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
 
+  # --- YAML lint: yamllint (style + structure)
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: yamllint (yaml lint)
+        args: [-c, .yamllint]
+        files: \.(yml|yaml)$
+        exclude: ^ios/\.build/
+
+  # --- Secrets scanning: detect-secrets (prevents accidental key leaks)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (secrets scan)
+        args: [--baseline, .secrets.baseline]
+        exclude: ^(ios/\.build/|\.venv/|\.venv-ci/|node_modules/|build/|dist/)  # generated/venv
+
   # --- Python cache cleanup
   - repo: local
     hooks:
@@ -41,7 +60,7 @@ repos:
 
   # --- Lint: Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.2
+    rev: v0.14.10
     hooks:
       - id: ruff
         name: ruff (lint, local)
