@@ -11,6 +11,14 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
 
+  # --- YAML lint: yamllint (style + structure)
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: yamllint (yaml lint)
+        args: [-c, .yamllint]
+
   # --- Python cache cleanup
   - repo: local
     hooks:
