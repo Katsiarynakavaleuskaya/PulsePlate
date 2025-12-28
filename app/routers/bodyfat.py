@@ -3,9 +3,15 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from core.bodyfat import estimate_all
+
+LABELS_BY_LANG: dict[str, dict[str, str]] = {
+    "en": {"methods": "methods", "median": "median", "units": "%"},
+    "ru": {"methods": "методы", "median": "медиана", "units": "%"},
+    "es": {"methods": "métodos", "median": "mediana", "units": "%"},
+}
 
 
 class BodyFatRequest(BaseModel):
@@ -23,36 +29,31 @@ class BodyFatRequest(BaseModel):
     hip_cm: Optional[float] = Field(None, gt=0, description="Hip circumference in cm, must be > 0")
     language: Optional[str] = "en"  # "en" | "ru" | "es"
 
+    @field_validator("gender")
+    @classmethod
+    def _validate_gender(cls, value: str) -> str:
+        v = value.strip().lower()
+        if v in {"male", "m"}:
+            return "male"
+        if v in {"female", "f"}:
+            return "female"
+        raise ValueError("gender must be 'male' or 'female'")
+
 
 def get_router() -> APIRouter:
     router = APIRouter()
 
     @router.post("/bodyfat")
-    def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
+    async def calc_bodyfat(req: BodyFatRequest) -> dict[str, object]:
         lang = (req.language or "en").lower()
         data: dict[str, object] = dict(req.model_dump(exclude_none=True))
 
-        if "bmi" not in data and ("weight_kg" in data and "height_m" in data):
-            weight_kg_val = data["weight_kg"]
-            height_m_val = data["height_m"]
-            # Type narrowing: we know these are floats from Pydantic model
-            if isinstance(weight_kg_val, (int, float)) and isinstance(height_m_val, (int, float)):
-                weight_kg = float(weight_kg_val)
-                height_m = float(height_m_val)
-                data["bmi"] = weight_kg / (height_m**2)
+        if req.bmi is None and req.weight_kg is not None and req.height_m is not None:
+            data["bmi"] = req.weight_kg / (req.height_m**2)
 
         result = estimate_all(data)
 
-        labels_en = {"methods": "methods", "median": "median", "units": "%"}
-        labels_ru = {"methods": "методы", "median": "медиана", "units": "%"}
-        labels_es = {"methods": "métodos", "median": "mediana", "units": "%"}
-
-        if lang == "ru":
-            labels = labels_ru
-        elif lang == "es":
-            labels = labels_es
-        else:
-            labels = labels_en
+        labels = LABELS_BY_LANG.get(lang, LABELS_BY_LANG["en"])
 
         return {
             "methods": result["methods"],
