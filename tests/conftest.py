@@ -46,7 +46,7 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
     if extra_hosts.strip():
         allowed_hosts |= {h.strip() for h in extra_hosts.split(",") if h.strip()}
 
-    def _is_external_url(url: object) -> bool:
+    def _is_external_url(url: str | object) -> bool:
         s = str(url)
         if s.startswith(("http://", "https://")):
             from urllib.parse import urlparse
@@ -70,7 +70,13 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
         real_client_request = httpx.Client.request
         real_async_request = httpx.AsyncClient.request
 
-        def client_request(self, method: str, url: object, *args: object, **kwargs: object):
+        def client_request(
+            self: httpx.Client,
+            method: str,
+            url: str | httpx.URL,
+            *args: object,
+            **kwargs: object,
+        ) -> httpx.Response:
             if _is_external_url(url):
                 raise AssertionError(
                     f"External HTTP blocked in tests: {method} {url} "
@@ -79,7 +85,13 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
                 )
             return real_client_request(self, method, url, *args, **kwargs)
 
-        async def async_request(self, method: str, url: object, *args: object, **kwargs: object):
+        async def async_request(
+            self: httpx.AsyncClient,
+            method: str,
+            url: str | httpx.URL,
+            *args: object,
+            **kwargs: object,
+        ) -> httpx.Response:
             if _is_external_url(url):
                 raise AssertionError(
                     f"External HTTP blocked in tests: {method} {url} "
@@ -102,7 +114,13 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
     if requests is not None:
         real_requests_request = requests.sessions.Session.request
 
-        def session_request(self, method: str, url: object, *args: object, **kwargs: object):
+        def session_request(
+            self: requests.sessions.Session,
+            method: str,
+            url: str,
+            *args: object,
+            **kwargs: object,
+        ) -> requests.Response:
             if _is_external_url(url):
                 raise AssertionError(
                     f"External HTTP blocked in tests: {method} {url} "

@@ -56,80 +56,78 @@ jobs:
             --name pulseplate-smoke \
             pulseplate-smoke:${{ github.sha }}
 
-      - name: Wait for /health
+      - name: Container status (initial)
         run: |
-          python - <<'PY'
-          import json
-          import time
-          import urllib.request
-          from urllib.error import URLError
+          docker ps -a
+          docker inspect pulseplate-smoke --format '{{.State.Status}} exit={{.State.ExitCode}}' || true
 
-          url = "http://127.0.0.1:8000/health"
-          deadline = time.time() + 60
-          last = None
-          while time.time() < deadline:
-            try:
-              with urllib.request.urlopen(url, timeout=2) as r:
-                last = r.read().decode("utf-8", errors="replace")
-                if r.status == 200:
-                  print("OK /health:", last[:200])
-                  raise SystemExit(0)
-            except URLError as e:
-              last = repr(e)
-            time.sleep(1)
-          raise SystemExit(f"Timed out waiting for /health; last={last}")
-          PY
+      - name: Wait for /openapi.json
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            if curl -sS -o openapi.json http://127.0.0.1:8000/openapi.json; then
+              if [ -s openapi.json ]; then
+                echo "OpenAPI ready"
+                exit 0
+              fi
+            fi
+
+            running="$(docker inspect -f '{{.State.Running}}' pulseplate-smoke 2>/dev/null || echo 'false')"
+            if [ "$running" != "true" ]; then
+              echo "Container is not running (attempt $i). Diagnostics:"
+              docker ps -a
+              docker inspect pulseplate-smoke || true
+              docker logs pulseplate-smoke --tail=200 || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "Timed out waiting for /openapi.json. Diagnostics:"
+          docker ps -a
+          docker inspect pulseplate-smoke || true
+          docker logs pulseplate-smoke --tail=200 || true
+          exit 1
 
       - name: Assert OpenAPI includes required routes
         run: |
           python - <<'PY'
           import json
-          import urllib.request
 
-          with urllib.request.urlopen("http://127.0.0.1:8000/openapi.json", timeout=10) as r:
-            assert r.status == 200, r.status
-            schema = json.loads(r.read().decode("utf-8"))
+          with open("openapi.json", "r", encoding="utf-8") as f:
+            schema = json.load(f)
 
           paths = schema.get("paths", {})
-          assert "/api/v1/bodyfat" in paths, f"Missing /api/v1/bodyfat in OpenAPI paths. Found: {sorted(paths)[:30]}..."
-          assert "post" in paths["/api/v1/bodyfat"], f"Missing POST for /api/v1/bodyfat. Methods: {list(paths['/api/v1/bodyfat'])}"
+          assert "/api/v1/bodyfat" in paths, (
+            "Missing /api/v1/bodyfat in OpenAPI paths. "
+            f"Found: {sorted(paths)[:50]}..."
+          )
+          methods = {k.lower() for k in paths["/api/v1/bodyfat"].keys()}
+          assert "post" in methods, f"Missing POST for /api/v1/bodyfat. Methods: {sorted(methods)}"
           print("OK: /api/v1/bodyfat present in OpenAPI")
           PY
 
       - name: Assert /api/v1/bodyfat is not 404
         run: |
-          python - <<'PY'
-          import json
-          import urllib.request
+          set -euo pipefail
+          payload='{"gender":"male","age":30,"waist_cm":80.0,"neck_cm":38.0,"height_m":1.75,"weight_kg":75.0}'
+          status="$(curl -sS -o bodyfat_response.txt -w '%{http_code}' \
+            -H 'Content-Type: application/json' \
+            -d "$payload" \
+            http://127.0.0.1:8000/api/v1/bodyfat)"
 
-          req = urllib.request.Request(
-            "http://127.0.0.1:8000/api/v1/bodyfat",
-            method="POST",
-            data=json.dumps(
-              {
-                "gender": "male",
-                "age": 30,
-                "waist_cm": 80.0,
-                "neck_cm": 38.0,
-                "height_m": 1.75,
-                "weight_kg": 75.0,
-              }
-            ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-          )
-
-          try:
-            with urllib.request.urlopen(req, timeout=10) as r:
-              status = r.status
-              body = r.read().decode("utf-8", errors="replace")
-          except urllib.error.HTTPError as e:  # noqa: PERF203
-            status = e.code
-            body = e.read().decode("utf-8", errors="replace")
-
-          assert status != 404, f"POST /api/v1/bodyfat returned 404. Body: {body[:500]}"
-          assert status in (200, 422), f"Unexpected status for POST /api/v1/bodyfat: {status}. Body: {body[:500]}"
-          print("OK: POST /api/v1/bodyfat status", status)
-          PY
+          echo "POST /api/v1/bodyfat status=$status"
+          if [ "$status" = "404" ]; then
+            echo "Body (first 500 chars):"
+            head -c 500 bodyfat_response.txt || true
+            exit 1
+          fi
+          if [ "$status" != "200" ] && [ "$status" != "422" ]; then
+            echo "Unexpected status=$status. Body (first 500 chars):"
+            head -c 500 bodyfat_response.txt || true
+            exit 1
+          fi
 
       - name: Docker logs (on failure)
         if: failure()
