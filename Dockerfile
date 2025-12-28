@@ -83,14 +83,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Stage 3: Production stage (hardened)
-# Remove OS packages that are not needed at runtime and have active CVEs in upstream scanners.
 FROM runtime-base AS production
 
-USER root
-# NOTE: apt depends on gpgv on Debian; remove both in the hardened runtime image.
-# This keeps the development stage (which needs apt) intact while shrinking the production surface.
-RUN apt-get purge -y --auto-remove gpgv apt && rm -rf /var/lib/apt/lists/*
-USER pulseplate
+# NOTE: On Debian-based images, `apt` depends on `gpgv` and removing either can break the base system.
+# We intentionally keep them in the production image and document the Trivy finding via `.trivyignore`.
 
 # Stage 4: Staging stage
 # Extends production with staging-specific configurations

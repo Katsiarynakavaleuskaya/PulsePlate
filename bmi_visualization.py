@@ -27,37 +27,37 @@ except ImportError:
 
 
 class _BarLike(Protocol):
-    def get_height(self) -> float: ...
+    def get_height(self) -> float: ...  # pragma: no cover
 
-    def get_width(self) -> float: ...
+    def get_width(self) -> float: ...  # pragma: no cover
 
-    def get_x(self) -> float: ...
+    def get_x(self) -> float: ...  # pragma: no cover
 
 
 class _AxesLike(Protocol):
-    def bar(self, *args: object, **kwargs: object) -> Iterable[_BarLike]: ...
+    def bar(self, *args: object, **kwargs: object) -> Iterable[_BarLike]: ...  # pragma: no cover
 
-    def barh(self, *args: object, **kwargs: object) -> object: ...
+    def barh(self, *args: object, **kwargs: object) -> Iterable[_BarLike]: ...  # pragma: no cover
 
-    def grid(self, *args: object, **kwargs: object) -> object: ...
+    def grid(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def legend(self, *args: object, **kwargs: object) -> object: ...
+    def legend(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def plot(self, *args: object, **kwargs: object) -> object: ...
+    def plot(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def set_xlabel(self, *args: object, **kwargs: object) -> object: ...
+    def set_xlabel(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def set_ylabel(self, *args: object, **kwargs: object) -> object: ...
+    def set_ylabel(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def set_title(self, *args: object, **kwargs: object) -> object: ...
+    def set_title(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def set_xlim(self, *args: object, **kwargs: object) -> object: ...
+    def set_xlim(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def set_ylim(self, *args: object, **kwargs: object) -> object: ...
+    def set_ylim(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def set_yticks(self, *args: object, **kwargs: object) -> object: ...
+    def set_yticks(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
-    def text(self, *args: object, **kwargs: object) -> object: ...
+    def text(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
 
     transAxes: object
 
