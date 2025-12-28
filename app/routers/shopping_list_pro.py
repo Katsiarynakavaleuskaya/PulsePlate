@@ -43,19 +43,19 @@ async def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDT
 
     if prefs.group_by not in ("category", None):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="group_by='recipe' is not supported yet",
         )
 
     if prefs.unit_system == "imperial":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="unit_system='imperial' is not supported yet",
         )
 
     if prefs.exclude_items or prefs.dietary_tags:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="exclude_items and dietary_tags are not supported yet",
         )
 
