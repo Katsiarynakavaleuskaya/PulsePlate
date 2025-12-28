@@ -87,7 +87,7 @@ httpx==0.28.1
     # via
     #   -c requirements.txt
     #   safety
-hypothesis==6.148.7
+hypothesis==6.148.8
     # via -r requirements-dev.in
 idna==3.11
     # via
