@@ -76,14 +76,11 @@ repos:
     rev: v1.11.2
     hooks:
       - id: mypy
-        name: mypy (type-check)
-        pass_filenames: false
+        name: mypy (type-check, changed files)
         stages: [pre-push]
         args:
           - --pretty
           - --show-error-codes
-          - app
-          - core
         files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|mcp_.*\.py|setup_.*\.py|update_.*\.py|verify_.*\.py|app\.py|main\.py|settings\.py|secure_config\.py|signed_links\.py|llm\.py|nutrition_core\.py|nutrition_plate\.py|bmi_core\.py|bodyfat\.py|bmi_visualization\.py|providers/.*\.py)$
 
   # --- Security: bandit
