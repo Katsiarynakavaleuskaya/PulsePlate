@@ -286,7 +286,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          GHCR_USER='${{ github.actor }}'
+          GHCR_USER='${{ github.repository_owner }}'
           GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
           if [ -n "$GHCR_TOKEN" ]; then
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin

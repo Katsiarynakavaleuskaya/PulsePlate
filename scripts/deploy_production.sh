@@ -68,8 +68,16 @@ fi
 echo "TAG: $TAG"
 echo "IMAGE_REF: $IMAGE_REF"
 
-docker compose "${compose_args[@]}" pull
-docker compose "${compose_args[@]}" up -d --remove-orphans
+dc() {
+  if [ ${#compose_args[@]} -gt 0 ]; then
+    docker compose "${compose_args[@]}" "$@"
+  else
+    docker compose "$@"
+  fi
+}
+
+dc pull
+dc up -d --remove-orphans
 
 HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
 attempt=1
@@ -78,7 +86,7 @@ sleep_s=2
 until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
   if [ "$attempt" -ge "$max_attempts" ]; then
     echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
-    docker compose "${compose_args[@]}" logs --tail=200 || true
+    dc logs --tail=200 || true
     exit 1
   fi
   echo "Healthcheck not ready (attempt ${attempt}/${max_attempts}), retrying in ${sleep_s}s..."
