@@ -5,7 +5,7 @@
 # SSH deployment steps are commented out until staging/production servers are available.
 #
 # When servers are ready:
-# 1. Uncomment SSH deployment steps
+# 1. Enable deploy job(s)
 # 2. Add secrets to GitHub environments (staging, production)
 # 3. Configure SSH_HOST_STAGING, SSH_HOST_PRODUCTION, SSH_KEY, etc.
 
@@ -172,21 +172,13 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: production-gates
     runs-on: ubuntu-latest
-    environment:
-      name: production
-      # Production domain from secrets (configure in GitHub Environments)
-      # For free tier: use Freenom (.tk, .ml, .ga, .cf) or DuckDNS subdomain
-      # For budget: Namecheap .xyz ($1-2/year) or Cloudflare Registrar ($1.03/year for .xyz)
-      # Set PRODUCTION_DOMAIN secret (e.g., "pulseplate.xyz")
-      # Note: environment.url cannot use secrets context, using static fallback
-      url: https://pulseplate.app
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      image_name: ${{ steps.image-name.outputs.image_name }}
     concurrency:
       group: cd-build-production-${{ github.ref_name }}
       cancel-in-progress: true
     steps:
-      - name: Display production domain info
-        run: echo "Deploying to ${{ secrets.PRODUCTION_DOMAIN || 'default production domain' }}"
-
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
@@ -206,47 +198,83 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push image (production)
+        id: build
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25
         with:
           context: .
           push: true
-          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:latest,${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
+          # Source of truth for production deployments: prod-${tag} (never `latest`).
+          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:prod-${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: production
 
-      # SSH deployment steps (commented out until servers are available)
-      # When ready, uncomment and configure SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY secrets
-      # - name: Prepare known_hosts
-      #   run: |
-      #     mkdir -p ~/.ssh
-      #     ssh-keyscan -H ${{ secrets.SSH_HOST_PRODUCTION }} >> ~/.ssh/known_hosts 2>/dev/null
-      #     chmod 644 ~/.ssh/known_hosts
-      #
-      # - name: Deploy to production over SSH
-      #   uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
-      #   with:
-      #     host: ${{ secrets.SSH_HOST_PRODUCTION }}
-      #     username: ${{ secrets.SSH_USER }}
-      #     key: ${{ secrets.SSH_KEY }}
-      #     script: |
-      #       set -euo pipefail
-      #       export GHCR_USER='${{ github.actor }}'
-      #       export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-      #       export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
-      #       cd /srv/pulseplate-production
-      #       ./deploy.sh '${{ github.sha }}'
-      #
-      # - name: Post-deploy healthcheck
-      #   run: |
-      #     URL="https://${{ secrets.PRODUCTION_DOMAIN }}/health"
-      #     for i in $(seq 1 10); do
-      #       if curl -fsS --max-time 5 "$URL" > /dev/null 2>&1; then
-      #         echo "✅ Health check passed"
-      #         exit 0
-      #       fi
-      #       echo "⏳ Waiting for health check ($i/10)..."
-      #       sleep 6
-      #     done
-      #     echo "❌ Health check failed after deployment"
-      #     exit 1
+  deploy-production:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [production-gates, build-production]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://pulseplate.app
+    concurrency:
+      group: cd-deploy-production-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - name: Deploy to production over SSH (pinned digest)
+        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
+        with:
+          host: ${{ secrets.SSH_HOST_PRODUCTION }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -euo pipefail
+
+            # Resolve deploy directory on server (no extra secrets required).
+            if [ -d "/opt/pulseplate" ]; then
+              cd "/opt/pulseplate"
+            elif [ -d "/srv/pulseplate-production" ]; then
+              cd "/srv/pulseplate-production"
+            else
+              echo "❌ Could not find deploy directory. Expected /opt/pulseplate or /srv/pulseplate-production." >&2
+              exit 1
+            fi
+
+            GHCR_USER='${{ github.actor }}'
+            GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+            if [ -n "$GHCR_TOKEN" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            fi
+
+            # Deploy pinned digest from the prod build job.
+            DIGEST='${{ needs.build-production.outputs.digest }}'
+            IMAGE_NAME='${{ needs.build-production.outputs.image_name }}'
+            export IMAGE_REF="ghcr.io/${IMAGE_NAME}@${DIGEST}"
+
+            # Also export TAG for backwards-compatible compose setups.
+            export TAG="prod-${{ github.ref_name }}"
+
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+            if [ -z "$PRODUCTION_DOMAIN" ]; then
+              echo "❌ PRODUCTION_DOMAIN secret is required for production health checks" >&2
+              exit 1
+            fi
+            HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
+
+            attempt=1
+            max_attempts=12
+            sleep_s=2
+            until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
+                docker compose logs --tail=200 || true
+                exit 1
+              fi
+              echo "Healthcheck not ready (attempt ${attempt}/${max_attempts}), retrying in ${sleep_s}s..."
+              attempt=$((attempt + 1))
+              sleep "$sleep_s"
+            done
+
+            docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
