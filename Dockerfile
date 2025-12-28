@@ -25,8 +25,9 @@ COPY requirements.txt requirements-dev.txt ./
 RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
     python -m pip install --no-cache-dir -r requirements.txt
 
-# Stage 2: Production stage
-FROM python:3.13.5-slim-bookworm AS production
+# Stage 2: Runtime base stage
+# NOTE: Keep system package manager tools here so the development stage can install tools via apt.
+FROM python:3.13.5-slim-bookworm AS runtime-base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -81,7 +82,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # ensure scripts/CI pass DATABASE_URL/API_KEY envs as needed)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
-# Stage 3: Staging stage
+# Stage 3: Production stage (hardened)
+FROM runtime-base AS production
+
+# NOTE: On Debian-based images, `apt` depends on `gpgv` and removing either can break the base system.
+# We intentionally keep them in the production image and document the Trivy finding via `.trivyignore`.
+
+# Stage 4: Staging stage
 # Extends production with staging-specific configurations
 # Can be customized for staging needs (e.g., debug logging, extended health checks)
 #
@@ -130,8 +137,8 @@ FROM production AS staging
 # - DEPLOYMENT_FULL_GUIDE.md - Production and staging deployment workflows
 # - .github/workflows/ - CI/CD pipeline examples with staging targets
 
-# Stage 4: Development stage
-FROM production AS development
+# Stage 5: Development stage
+FROM runtime-base AS development
 
 # Switch back to root for development tools
 USER root

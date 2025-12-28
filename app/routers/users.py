@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
+def _to_user_read(model: User) -> UserRead:
+    """Convert SQLAlchemy User model to Pydantic UserRead schema."""
+    return UserRead.model_validate(model)
+
+
 def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = None) -> T:
     """Execute a DB action with non-destructive retry on transient failures.
 
@@ -147,7 +152,7 @@ async def create_user(payload: UserCreate) -> UserRead:
         session.add(user)
         session.commit()
         session.refresh(user)
-        return UserRead.model_validate(user)
+        return _to_user_read(user)
 
     return cast(UserRead, await run_in_threadpool(_execute_with_retry, _action))
 
@@ -166,7 +171,7 @@ async def list_users(
         # Use database-level pagination for efficiency
         query = select(User).order_by(User.id).offset(offset).limit(limit)
         page_rows = session.execute(query).scalars().all()
-        return [UserRead.model_validate(row) for row in page_rows]
+        return [_to_user_read(row) for row in page_rows]
 
     return cast(
         List[UserRead],
@@ -185,7 +190,7 @@ async def get_user(user_id: int) -> UserRead:
         user = session.get(User, user_id)
         if user is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-        return UserRead.model_validate(user)
+        return _to_user_read(user)
 
     return cast(UserRead, await run_in_threadpool(_execute_with_retry, _action))
 

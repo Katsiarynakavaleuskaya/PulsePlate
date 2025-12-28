@@ -10,6 +10,14 @@
 ## PAM 1.5.2-6+deb12u1. Many CVEs below reference "trixie" due to historical
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
 ##
+## CVE-2025-68972 – gpgv (GnuPG) signed message \\f truncation
+##
+## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
+## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
+## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
+
+CVE-2025-68972
+
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
 ## Our images are based on Debian trixie (python:3.13-slim). Debian's

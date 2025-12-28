@@ -6,23 +6,60 @@ Supports BMI category visualization, progress tracking, and population-specific 
 
 import base64
 import io
-from typing import Any, Dict, TYPE_CHECKING
+from collections.abc import Iterable
+from typing import Any, Dict, Protocol
 
 from bmi_core import auto_group, bmi_category, group_display_name
 
-if TYPE_CHECKING:
-    import matplotlib.pyplot as plt
-
 MATPLOTLIB_AVAILABLE = False
+plt: Any | None
 try:
     import matplotlib
 
     matplotlib.use("Agg")  # Use non-interactive backend
-    import matplotlib.pyplot as plt  # noqa: F811  # type: ignore[assignment]
+    import matplotlib.pyplot as matplotlib_pyplot
+
+    plt = matplotlib_pyplot
 
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
-    plt = None  # type: ignore[assignment]
+    plt = None
+
+
+class _BarLike(Protocol):
+    def get_height(self) -> float: ...  # pragma: no cover
+
+    def get_width(self) -> float: ...  # pragma: no cover
+
+    def get_x(self) -> float: ...  # pragma: no cover
+
+
+class _AxesLike(Protocol):
+    def bar(self, *args: object, **kwargs: object) -> Iterable[_BarLike]: ...  # pragma: no cover
+
+    def barh(self, *args: object, **kwargs: object) -> Iterable[_BarLike]: ...  # pragma: no cover
+
+    def grid(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def legend(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def plot(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def set_xlabel(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def set_ylabel(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def set_title(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def set_xlim(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def set_ylim(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def set_yticks(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    def text(self, *args: object, **kwargs: object) -> object: ...  # pragma: no cover
+
+    transAxes: object
 
 
 class BMIVisualizer:
@@ -44,7 +81,7 @@ class BMIVisualizer:
         "athlete": [(0, 18.5), (18.5, 27), (27, 32), (32, 45)],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not MATPLOTLIB_AVAILABLE:
             raise ImportError("matplotlib not available for visualization")
 
@@ -87,7 +124,7 @@ class BMIVisualizer:
 
         return image_base64
 
-    def _create_bmi_gauge(self, ax, bmi: float, group: str, lang: str):
+    def _create_bmi_gauge(self, ax: _AxesLike, bmi: float, group: str, lang: str) -> None:
         """Create BMI gauge chart showing current BMI position."""
         ranges = self.BMI_RANGES.get(group, self.BMI_RANGES["general"])
         colors = ["#3498db", "#27ae60", "#f39c12", "#e74c3c"]
@@ -149,7 +186,15 @@ class BMIVisualizer:
         ax.legend(loc="upper right")
         ax.set_title(f"Current BMI: {bmi}", fontsize=14, fontweight="bold")
 
-    def _create_guidance_chart(self, ax, bmi: float, age: int, gender: str, group: str, lang: str):
+    def _create_guidance_chart(
+        self,
+        ax: _AxesLike,
+        bmi: float,
+        age: int,
+        gender: str,
+        group: str,
+        lang: str,
+    ) -> None:
         """Create guidance and recommendations chart."""
 
         # Calculate healthy weight range based on height (assume 1.7m for demo)
