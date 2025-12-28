@@ -210,7 +210,7 @@ jobs:
           target: production
 
   deploy-production:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh'
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     environment:
@@ -220,61 +220,83 @@ jobs:
       group: cd-deploy-production-${{ github.ref_name }}
       cancel-in-progress: false
     steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Encode deploy script for SSH
+        id: deploy-script
+        run: |
+          echo "script_b64=$(base64 -w0 scripts/deploy_production.sh)" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to production over SSH (pinned digest)
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
         with:
           host: ${{ secrets.SSH_HOST_PRODUCTION }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          envs: DEPLOY_SCRIPT_B64,IMAGE_REF,TAG,PRODUCTION_DOMAIN,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
           script: |
             set -euo pipefail
 
-            # Resolve deploy directory on server (no extra secrets required).
-            if [ -d "/opt/pulseplate" ]; then
-              cd "/opt/pulseplate"
-            elif [ -d "/srv/pulseplate-production" ]; then
-              cd "/srv/pulseplate-production"
-            else
-              echo "❌ Could not find deploy directory. Expected /opt/pulseplate or /srv/pulseplate-production." >&2
+            if [ -z "${PRODUCTION_DOMAIN:-}" ]; then
+              echo "❌ PRODUCTION_DOMAIN is required for production health checks" >&2
+              exit 1
+            fi
+            if [ -z "${IMAGE_REF:-}" ]; then
+              echo "❌ IMAGE_REF is required" >&2
+              exit 1
+            fi
+            if [ -z "${TAG:-}" ]; then
+              echo "❌ TAG is required" >&2
               exit 1
             fi
 
-            GHCR_USER='${{ github.actor }}'
-            GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-            if [ -n "$GHCR_TOKEN" ]; then
+            if [ -n "${GHCR_TOKEN:-}" ]; then
               echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
 
-            # Deploy pinned digest from the prod build job.
-            DIGEST='${{ needs.build-production.outputs.digest }}'
-            IMAGE_NAME='${{ needs.build-production.outputs.image_name }}'
-            export IMAGE_REF="ghcr.io/${IMAGE_NAME}@${DIGEST}"
+            tmp_script="/tmp/pulseplate_deploy_production.sh"
+            echo "$DEPLOY_SCRIPT_B64" | base64 -d > "$tmp_script"
+            chmod +x "$tmp_script"
+            "$tmp_script"
+        env:
+          DEPLOY_SCRIPT_B64: ${{ steps.deploy-script.outputs.script_b64 }}
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+          PRODUCTION_DOMAIN: ${{ secrets.PRODUCTION_DOMAIN }}
+          IMAGE_REF: ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}
+          TAG: prod-${{ github.ref_name }}
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
 
-            # Also export TAG for backwards-compatible compose setups.
-            export TAG="prod-${{ github.ref_name }}"
+  deploy-production-self-hosted:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'self-hosted'
+    needs: [production-gates, build-production]
+    runs-on: [self-hosted, linux, x64, pulseplate-prod]
+    environment:
+      name: production
+      url: https://pulseplate.app
+    concurrency:
+      group: cd-deploy-production-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-            docker compose pull
-            docker compose up -d --remove-orphans
+      - name: Deploy on self-hosted runner (pinned digest)
+        shell: bash
+        run: |
+          set -euo pipefail
+          GHCR_USER='${{ github.repository_owner }}'
+          GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
+          if [ -n "$GHCR_TOKEN" ]; then
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          fi
 
-            PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
-            if [ -z "$PRODUCTION_DOMAIN" ]; then
-              echo "❌ PRODUCTION_DOMAIN secret is required for production health checks" >&2
-              exit 1
-            fi
-            HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
+          export DEPLOY_DIR='${{ vars.DEPLOY_DIR }}'
+          export PRODUCTION_DOMAIN='${{ secrets.PRODUCTION_DOMAIN }}'
+          export IMAGE_REF="ghcr.io/${{ needs.build-production.outputs.image_name }}@${{ needs.build-production.outputs.digest }}"
+          export TAG="prod-${{ github.ref_name }}"
+          bash scripts/deploy_production.sh
 
-            attempt=1
-            max_attempts=12
-            sleep_s=2
-            until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
-              if [ "$attempt" -ge "$max_attempts" ]; then
-                echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
-                docker compose logs --tail=200 || true
-                exit 1
-              fi
-              echo "Healthcheck not ready (attempt ${attempt}/${max_attempts}), retrying in ${sleep_s}s..."
-              attempt=$((attempt + 1))
-              sleep "$sleep_s"
-            done
-
-            docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20
+          # Clean up dangling Docker images on the self-hosted runner to prevent disk bloat over time.
+          docker image prune -f || true
