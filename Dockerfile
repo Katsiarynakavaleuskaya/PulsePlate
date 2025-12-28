@@ -87,7 +87,9 @@ CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "
 FROM runtime-base AS production
 
 USER root
-RUN apt-get purge -y gpgv && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# NOTE: apt depends on gpgv on Debian; remove both in the hardened runtime image.
+# This keeps the development stage (which needs apt) intact while shrinking the production surface.
+RUN apt-get purge -y --auto-remove gpgv apt && rm -rf /var/lib/apt/lists/*
 USER pulseplate
 
 # Stage 4: Staging stage
