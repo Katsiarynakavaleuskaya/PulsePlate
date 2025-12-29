@@ -103,6 +103,11 @@ except ImportError:
 
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
+# VIP shoplist preview (offline/deterministic)
+from app.routers.vip_shoplist import router as vip_shoplist_router  # noqa: E402
+
+router.include_router(vip_shoplist_router)
+
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
