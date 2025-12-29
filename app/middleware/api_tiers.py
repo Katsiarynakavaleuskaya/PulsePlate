@@ -32,6 +32,8 @@ from typing import Optional
 
 from fastapi import Depends, Header, HTTPException, status
 
+from app.utils.feature_flags import is_vip_module_enabled
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,12 +54,7 @@ TEST_KEY_PRO = "test_pro_key"  # nosec B105
 TEST_KEY_VIP = "test_vip_key"  # nosec B105
 
 # Environment configuration
-VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
+VIP_MODULE_ENABLED = is_vip_module_enabled()
 ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
     "true",
     "1",
