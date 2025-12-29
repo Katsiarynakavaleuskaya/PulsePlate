@@ -9,7 +9,7 @@ Contract:
 from __future__ import annotations
 
 import os
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -33,7 +33,7 @@ def require_vip_module_enabled() -> None:
 @router.get("/preview", response_model=ShoplistPreviewResponse)
 async def vip_shoplist_preview(
     _enabled: Annotated[None, Depends(require_vip_module_enabled)],
-    _vip: Annotated[Any, Depends(require_vip_tier)],
+    _vip: Annotated[str, Depends(require_vip_tier)],
 ) -> ShoplistPreviewResponse:
     preview = ShoplistPreviewService().build_preview()
     return ShoplistPreviewResponse(

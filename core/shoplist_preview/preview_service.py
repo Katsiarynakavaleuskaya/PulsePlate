@@ -27,4 +27,3 @@ class ShoplistPreviewService:
             ShoplistPreviewItem(category="grains", name="Rice", quantity="1 kg"),
         )
         return ShoplistPreview(items=items)
-

@@ -32,4 +32,3 @@ class ShoplistPreviewResponse(BaseModel):
 
     items: list[ShoplistPreviewItem]
     meta: ShoplistPreviewMeta = Field(default_factory=ShoplistPreviewMeta)
-
