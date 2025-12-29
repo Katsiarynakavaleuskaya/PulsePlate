@@ -20,6 +20,7 @@ from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
 from core.recipe_synth import RecipeSynthesizer
 
 from app.utils.feature_flags import is_vip_module_enabled
+from app.routers.vip_shoplist import router as vip_shoplist_router
 
 if TYPE_CHECKING:
     from core.targets import UserProfile
@@ -114,8 +115,6 @@ else:
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
 # VIP shoplist preview (offline/deterministic)
-from app.routers.vip_shoplist import router as vip_shoplist_router  # noqa: E402
-
 router.include_router(vip_shoplist_router)
 
 
