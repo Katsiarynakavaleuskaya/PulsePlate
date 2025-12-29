@@ -1,7 +1,7 @@
 import logging
 import os
 import inspect
-from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -32,26 +32,6 @@ TEST_KEY = "test_key"  # nosec B105  # Development mode only
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
-
-# Type annotations for optional imports
-make_weekly_menu: Optional[Callable[..., Any]] = None
-analyze_nutrient_gaps: Optional[Callable[..., Any]] = None
-ShoplistGenerator: Optional[Type[Any]] = None
-aggregate_ingredients: Optional[Callable[..., Any]] = None
-round_to_packages: Optional[Callable[..., Any]] = None
-format_export: Optional[Callable[..., Any]] = None
-get_region_catalog: Optional[Callable[..., Any]] = None
-search_products: Optional[Callable[..., Any]] = None
-get_available_regions: Optional[Callable[..., Any]] = None
-get_price_comparison: Optional[Callable[..., Any]] = None
-get_recipe_synthesizer: Optional[Callable[..., Any]] = None
-synthesize_recipe_from_ingredients: Optional[Callable[..., Any]] = None
-synthesize_recipes_for_week: Optional[Callable[..., Any]] = None
-get_auto_repair_engine: Optional[Callable[..., Any]] = None
-auto_repair_week_plan: Optional[Callable[..., Any]] = None
-suggest_manual_fixes: Optional[Callable[..., Any]] = None
-RepairStrategy: Optional[Type[Any]] = None
-RepairStatus: Optional[Type[Any]] = None
 
 # Import dependencies from core (will be used in future sprints)
 try:
@@ -94,7 +74,7 @@ except ImportError:
     get_price_comparison = None
     synthesize_recipe_from_ingredients = None
     synthesize_recipes_for_week = None
-    get_recipe_synthesizer = None  # Set to None only if core.recipe_synth import fails
+    get_recipe_synthesizer = None
     get_auto_repair_engine = None
     auto_repair_week_plan = None
     suggest_manual_fixes = None
@@ -360,7 +340,7 @@ def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -
     return _require_api_key(raw_key)
 
 
-def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
+def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> object:
     """Create UserProfile from dictionary data with validation."""
     from core.targets import UserProfile
 
@@ -419,7 +399,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]):
     )
 
 
-def _adapter_make_weekly_menu(*args, **kwargs):
+def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object:
     """Adapter for make_weekly_menu to handle dict input."""
     try:
         from core.menu_engine import make_weekly_menu
@@ -461,7 +441,7 @@ def _adapter_make_weekly_menu(*args, **kwargs):
         return make_weekly_menu(*args, **kwargs)
 
 
-def _adapter_synthesize_recipes_for_week(*args, **kwargs):
+def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> object:
     """Adapter for synthesize_recipes_for_week - already has correct signature."""
     try:
         from core.recipe_synth import synthesize_recipes_for_week
@@ -472,7 +452,7 @@ def _adapter_synthesize_recipes_for_week(*args, **kwargs):
     return synthesize_recipes_for_week(*args, **kwargs)
 
 
-def _safe_call_with_adapter(func_name: str, *args, **kwargs):
+def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:
     """Call function with proper adapter and explicit error handling."""
     import logging
 
@@ -1149,7 +1129,7 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
 
         # Helper function for recipe serialization
 
-        def serialize_recipe(recipe):
+        def serialize_recipe(recipe: object) -> object:
             """Serialize a recipe for JSON response.
 
             Returns:
