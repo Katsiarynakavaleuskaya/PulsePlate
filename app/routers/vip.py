@@ -19,6 +19,8 @@ from core.utils import resolve_attr
 from app.dependencies import get_recipe_synthesizer as get_recipe_synth_dep
 from core.recipe_synth import RecipeSynthesizer
 
+from app.utils.feature_flags import is_vip_module_enabled
+
 # -*- coding: utf-8 -*-
 """
 VIP Module Router
@@ -31,7 +33,7 @@ EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping l
 TEST_KEY = "test_key"  # nosec B105  # Development mode only
 
 # VIP feature flag: enable/disable VIP module via env or default True
-VIP_MODULE_ENABLED = os.getenv("VIP_MODULE_ENABLED", "true").lower() in ("1", "true", "yes", "on")
+VIP_MODULE_ENABLED = is_vip_module_enabled()
 
 # Import dependencies from core (will be used in future sprints)
 try:

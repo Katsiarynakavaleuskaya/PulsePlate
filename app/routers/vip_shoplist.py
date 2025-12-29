@@ -8,25 +8,20 @@ Contract:
 
 from __future__ import annotations
 
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import ShoplistPreviewItem, ShoplistPreviewResponse
-from core.shoplist_preview.preview_service import ShoplistPreviewService
+from app.utils.feature_flags import is_vip_module_enabled
+from core.shoplist_preview.preview_service import build_preview
 
 router = APIRouter(prefix="/shoplist", tags=["vip"])
 
 
-def _vip_module_enabled() -> bool:
-    raw = os.getenv("VIP_MODULE_ENABLED", "true").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
-
-
 def require_vip_module_enabled() -> None:
-    if not _vip_module_enabled():
+    if not is_vip_module_enabled():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
@@ -35,7 +30,7 @@ async def vip_shoplist_preview(
     _enabled: Annotated[None, Depends(require_vip_module_enabled)],
     _vip: Annotated[str, Depends(require_vip_tier)],
 ) -> ShoplistPreviewResponse:
-    preview = ShoplistPreviewService().build_preview()
+    preview = build_preview()
     return ShoplistPreviewResponse(
         items=[
             ShoplistPreviewItem(category=i.category, name=i.name, quantity=i.quantity)
