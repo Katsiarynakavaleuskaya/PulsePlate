@@ -21,6 +21,9 @@ from core.recipe_synth import RecipeSynthesizer
 
 from app.utils.feature_flags import is_vip_module_enabled
 
+if TYPE_CHECKING:
+    from core.targets import UserProfile
+
 # -*- coding: utf-8 -*-
 """
 VIP Module Router
@@ -35,53 +38,78 @@ TEST_KEY = "test_key"  # nosec B105  # Development mode only
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = is_vip_module_enabled()
 
+# Optional core dependencies (lazy-imported).
+make_weekly_menu: Optional[Callable[..., Any]] = None
+analyze_nutrient_gaps: Optional[Callable[..., Any]] = None
+ShoplistGenerator: Optional[Type[Any]] = None
+aggregate_ingredients: Optional[Callable[..., Any]] = None
+round_to_packages: Optional[Callable[..., Any]] = None
+format_export: Optional[Callable[..., Any]] = None
+get_region_catalog: Optional[Callable[..., Any]] = None
+search_products: Optional[Callable[..., Any]] = None
+get_available_regions: Optional[Callable[..., Any]] = None
+get_price_comparison: Optional[Callable[..., Any]] = None
+get_recipe_synthesizer: Optional[Callable[..., Any]] = None
+synthesize_recipe_from_ingredients: Optional[Callable[..., Any]] = None
+synthesize_recipes_for_week: Optional[Callable[..., Any]] = None
+get_auto_repair_engine: Optional[Callable[..., Any]] = None
+auto_repair_week_plan: Optional[Callable[..., Any]] = None
+suggest_manual_fixes: Optional[Callable[..., Any]] = None
+RepairStrategy: Optional[Type[Any]] = None
+RepairStatus: Optional[Type[Any]] = None
+
 # Import dependencies from core (will be used in future sprints)
 try:
     from core.auto_repair import (
-        RepairStatus,
-        RepairStrategy,
-        auto_repair_week_plan,
-        get_auto_repair_engine,
-        suggest_manual_fixes,
+        RepairStatus as _RepairStatus,
+        RepairStrategy as _RepairStrategy,
+        auto_repair_week_plan as _auto_repair_week_plan,
+        get_auto_repair_engine as _get_auto_repair_engine,
+        suggest_manual_fixes as _suggest_manual_fixes,
     )
-    from core.menu_engine import analyze_nutrient_gaps, make_weekly_menu
+    from core.menu_engine import analyze_nutrient_gaps as _analyze_nutrient_gaps
+    from core.menu_engine import make_weekly_menu as _make_weekly_menu
+    from core.recipe_synth import get_recipe_synthesizer as _get_recipe_synthesizer
     from core.recipe_synth import (
-        get_recipe_synthesizer,
-        synthesize_recipe_from_ingredients,
-        synthesize_recipes_for_week,
+        synthesize_recipe_from_ingredients as _synthesize_recipe_from_ingredients,
     )
-    from core.region_catalog import (
-        get_available_regions,
-        get_price_comparison,
-        get_region_catalog,
-        search_products,
-    )
+    from core.recipe_synth import synthesize_recipes_for_week as _synthesize_recipes_for_week
+    from core.region_catalog import get_available_regions as _get_available_regions
+    from core.region_catalog import get_price_comparison as _get_price_comparison
+    from core.region_catalog import get_region_catalog as _get_region_catalog
+    from core.region_catalog import search_products as _search_products
     from core.shoplist import (
-        ShoplistGenerator,
-        aggregate_ingredients,
-        format_export,
-        round_to_packages,
+        ShoplistGenerator as _ShoplistGenerator,
+        aggregate_ingredients as _aggregate_ingredients,
+        format_export as _format_export,
+        round_to_packages as _round_to_packages,
     )
 except ImportError:
-    # Graceful fallback if core modules are not available
-    make_weekly_menu = None
-    analyze_nutrient_gaps = None
-    ShoplistGenerator = None
-    aggregate_ingredients = None
-    round_to_packages = None
-    format_export = None
-    get_region_catalog = None
-    search_products = None
-    get_available_regions = None
-    get_price_comparison = None
-    synthesize_recipe_from_ingredients = None
-    synthesize_recipes_for_week = None
-    get_recipe_synthesizer = None
-    get_auto_repair_engine = None
-    auto_repair_week_plan = None
-    suggest_manual_fixes = None
-    RepairStrategy = None
-    RepairStatus = None
+    # Core modules are optional in some environments; keep graceful fallback to echo-mode.
+    pass
+else:
+    RepairStatus = _RepairStatus
+    RepairStrategy = _RepairStrategy
+    auto_repair_week_plan = _auto_repair_week_plan
+    get_auto_repair_engine = _get_auto_repair_engine
+    suggest_manual_fixes = _suggest_manual_fixes
+
+    analyze_nutrient_gaps = _analyze_nutrient_gaps
+    make_weekly_menu = _make_weekly_menu
+
+    get_recipe_synthesizer = _get_recipe_synthesizer
+    synthesize_recipe_from_ingredients = _synthesize_recipe_from_ingredients
+    synthesize_recipes_for_week = _synthesize_recipes_for_week
+
+    get_region_catalog = _get_region_catalog
+    search_products = _search_products
+    get_available_regions = _get_available_regions
+    get_price_comparison = _get_price_comparison
+
+    ShoplistGenerator = _ShoplistGenerator
+    aggregate_ingredients = _aggregate_ingredients
+    round_to_packages = _round_to_packages
+    format_export = _format_export
 
 router = APIRouter(prefix="/api/v1/vip", tags=["vip"])
 
@@ -342,7 +370,7 @@ def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -
     return _require_api_key(raw_key)
 
 
-def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> object:
+def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
     """Create UserProfile from dictionary data with validation."""
     from core.targets import UserProfile
 
@@ -401,7 +429,7 @@ def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> object:
     )
 
 
-def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object:
+def _adapter_make_weekly_menu(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
     """Adapter for make_weekly_menu to handle dict input."""
     try:
         from core.menu_engine import make_weekly_menu
@@ -443,7 +471,7 @@ def _adapter_make_weekly_menu(*args: object, **kwargs: object) -> object:
         return make_weekly_menu(*args, **kwargs)
 
 
-def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> object:
+def _adapter_synthesize_recipes_for_week(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
     """Adapter for synthesize_recipes_for_week - already has correct signature."""
     try:
         from core.recipe_synth import synthesize_recipes_for_week
@@ -454,7 +482,7 @@ def _adapter_synthesize_recipes_for_week(*args: object, **kwargs: object) -> obj
     return synthesize_recipes_for_week(*args, **kwargs)
 
 
-def _safe_call_with_adapter(func_name: str, *args: object, **kwargs: object) -> object:
+def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
     """Call function with proper adapter and explicit error handling."""
     import logging
 
@@ -1131,13 +1159,14 @@ def synthesize_weekly_recipes(request: Dict[str, Any]) -> Dict[str, Any]:
 
         # Helper function for recipe serialization
 
-        def serialize_recipe(recipe: object) -> object:
+        def serialize_recipe(recipe: object) -> Union[Dict[str, Any], str]:
             """Serialize a recipe for JSON response.
 
             Returns:
-                - recipe unchanged if it's a dict
-                - recipe.__dict__ if it has __dict__
-                - str(recipe) otherwise
+                Union[Dict[str, Any], str]:
+                    - recipe unchanged if it's a dict
+                    - recipe.__dict__ if it has __dict__
+                    - str(recipe) otherwise
             """
             if isinstance(recipe, dict):
                 return recipe
