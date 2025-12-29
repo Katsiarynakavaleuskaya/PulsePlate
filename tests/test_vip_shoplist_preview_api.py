@@ -43,3 +43,25 @@ def test_vip_shoplist_preview_flag_on_returns_200_deterministic(
     assert isinstance(payload["items"], list)
     assert len(payload["items"]) >= 1
     assert {"category", "name", "quantity"} <= set(payload["items"][0].keys())
+
+
+def test_vip_shoplist_preview_missing_api_key_returns_403(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", "test_vip_key")
+
+    client = _make_client()
+    r = client.get("/api/v1/vip/shoplist/preview")
+    assert r.status_code == 403
+
+
+def test_vip_shoplist_preview_non_vip_api_key_returns_403(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", "test_key")
+
+    client = _make_client()
+    r = client.get("/api/v1/vip/shoplist/preview", headers={"X-API-Key": "test_key"})
+    assert r.status_code == 403
