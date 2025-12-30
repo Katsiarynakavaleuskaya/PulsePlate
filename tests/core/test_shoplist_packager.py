@@ -33,6 +33,21 @@ from core.shoplist_engine.packager import (
 class TestComputePacks:
     """Test compute_packs function."""
 
+    def test_validation_negative_requested_raises(self) -> None:
+        """Test that negative requested raises ValueError."""
+        with pytest.raises(ValueError, match=r"requested must be >= 0"):
+            compute_packs(Decimal("-1"), Decimal("500"), RoundingMode.CEIL, 1)
+
+    def test_validation_zero_pack_size_raises(self) -> None:
+        """Test that zero pack_size raises ValueError."""
+        with pytest.raises(ValueError, match=r"pack_size must be > 0"):
+            compute_packs(Decimal("100"), Decimal("0"), RoundingMode.CEIL, 1)
+
+    def test_validation_negative_min_packs_raises(self) -> None:
+        """Test that negative min_packs raises ValueError."""
+        with pytest.raises(ValueError, match=r"min_packs must be >= 0"):
+            compute_packs(Decimal("100"), Decimal("500"), RoundingMode.CEIL, -1)
+
     def test_ceil_rounding(self) -> None:
         """Test CEIL rounding mode."""
         # 1200 / 500 = 2.4 → ceil = 3
@@ -59,9 +74,19 @@ class TestComputePacks:
 
     def test_nearest_rounding_up(self) -> None:
         """Test NEAREST rounding up."""
-        # 1100 / 500 = 2.2 → nearest = 2 (closer to 1000 than 1500)
+        # 1100 / 500 = 2.2 → floor=2 (1000) is closer, but doesn't cover requested
+        # Must use ceil=3 (1500) to avoid under-supply
         packs = compute_packs(Decimal("1100"), Decimal("500"), RoundingMode.NEAREST, 1)
+        assert packs == 3
+        assert packs * Decimal("500") >= Decimal("1100")  # Never under-supply
+
+    def test_nearest_never_under_supply(self) -> None:
+        """Test that NEAREST never under-supplies."""
+        # 600 / 500 = 1.2 → floor=1 (500) is closer, but doesn't cover requested
+        # Must use ceil=2 (1000) to avoid under-supply
+        packs = compute_packs(Decimal("600"), Decimal("500"), RoundingMode.NEAREST, 1)
         assert packs == 2
+        assert packs * Decimal("500") >= Decimal("600")  # Never under-supply
 
     def test_nearest_tie_prefers_ceil(self) -> None:
         """Test NEAREST tie prefers ceil."""
@@ -77,9 +102,18 @@ class TestComputePacks:
 
     def test_none_rounding(self) -> None:
         """Test NONE rounding mode."""
-        # NONE: at least 1 pack (or min_packs)
+        # NONE: natural rounding (floor), but must cover requested
+        # 100 / 500 = 0.2 → floor=0, but must be at least 1
         packs = compute_packs(Decimal("100"), Decimal("500"), RoundingMode.NONE, 1)
         assert packs == 1
+        assert packs * Decimal("500") >= Decimal("100")  # Must cover requested
+
+    def test_none_covers_requested(self) -> None:
+        """Test that NONE mode covers requested quantity."""
+        # 1200 / 500 = 2.4 → floor=2 (1000) doesn't cover, must be 3
+        packs = compute_packs(Decimal("1200"), Decimal("500"), RoundingMode.NONE, 1)
+        assert packs == 3
+        assert packs * Decimal("500") >= Decimal("1200")  # Must cover requested
 
     def test_none_min_packs_enforced(self) -> None:
         """Test that min_packs is enforced in NONE mode."""
@@ -297,6 +331,14 @@ class TestApplyPackaging:
                 food=FoodRef(food_id="apple"),
                 qty=Quantity(Decimal("200"), Unit.G),
             ),
+            ShoplistLine(
+                food=FoodRef(food_id="banana"),
+                qty=Quantity(Decimal("50"), Unit.G),
+            ),
+            ShoplistLine(
+                food=FoodRef(food_id="kiwi"),
+                qty=Quantity(Decimal("30"), Unit.G),
+            ),
         ]
         rules = [
             PackageRule(food_id="zebra", pack_size=Quantity(Decimal("50"), Unit.G)),
@@ -307,6 +349,10 @@ class TestApplyPackaging:
         assert len(result.packed) == 2
         assert result.packed[0].food.food_id == "apple"
         assert result.packed[1].food.food_id == "zebra"
+
+        # Unpacked should also be sorted
+        assert len(result.unpacked) == 2
+        assert [line.food.food_id for line in result.unpacked] == ["banana", "kiwi"]
 
 
 class TestApplyPackagingValidation:

@@ -17,8 +17,7 @@ RU: Все функции чистые (нет зависимостей от I/O
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
-from math import ceil
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from typing import Iterable
 
 from .models import PackPlan, PackageRule, Quantity, RoundingMode, ShoplistLine, Unit
@@ -112,13 +111,16 @@ def compute_packs(
     RU: Вычисляет необходимое количество упаковок.
 
     Args:
-        requested: Requested quantity value
-        pack_size: Size of one pack
+        requested: Requested quantity value (must be >= 0)
+        pack_size: Size of one pack (must be > 0)
         mode: Rounding mode (CEIL, NEAREST, NONE)
-        min_packs: Minimum number of packs required
+        min_packs: Minimum number of packs required (must be >= 0)
 
     Returns:
         int: Number of packs (always >= min_packs, or 0 if requested=0 and min_packs=0)
+
+    Raises:
+        ValueError: If requested < 0, pack_size <= 0, or min_packs < 0
 
     Examples:
         >>> compute_packs(Decimal("1200"), Decimal("500"), RoundingMode.CEIL, 1)
@@ -136,21 +138,27 @@ def compute_packs(
         >>> compute_packs(Decimal("0"), Decimal("500"), RoundingMode.CEIL, 0)
         0
     """
+    # Validate inputs
+    if requested < 0:
+        raise ValueError(f"requested must be >= 0, got {requested}")
+    if pack_size <= 0:
+        raise ValueError(f"pack_size must be > 0, got {pack_size}")
+    if min_packs < 0:
+        raise ValueError(f"min_packs must be >= 0, got {min_packs}")
+
     if requested == 0:
         return max(0, min_packs)
 
-    if mode == RoundingMode.NONE:
-        # NONE: at least 1 pack (or min_packs if higher)
-        packs = max(1, min_packs)
-    elif mode == RoundingMode.CEIL:
-        # CEIL: always round up
-        packs = ceil(requested / pack_size)
+    ratio = requested / pack_size
+
+    if mode == RoundingMode.CEIL:
+        # CEIL: always round up using Decimal rounding
+        packs = int(ratio.to_integral_value(rounding=ROUND_CEILING))
         packs = max(packs, min_packs)
     elif mode == RoundingMode.NEAREST:
-        # NEAREST: round to nearest, but prefer ceil on ties
-        ratio = requested / pack_size
-        floor_packs = int(ratio)
-        ceil_packs = floor_packs + 1
+        # NEAREST: round to nearest, but never under-supply
+        floor_packs = int(ratio.to_integral_value(rounding=ROUND_FLOOR))
+        ceil_packs = int(ratio.to_integral_value(rounding=ROUND_CEILING))
 
         # Calculate distances
         floor_value = floor_packs * pack_size
@@ -160,14 +168,24 @@ def compute_packs(
 
         if floor_dist < ceil_dist:
             packs = floor_packs
-        elif ceil_dist < floor_dist:
-            packs = ceil_packs
         else:
-            # Tie: prefer ceil to avoid under-supply
+            # ceil on tie or if ceil is closer
+            packs = ceil_packs
+
+        # Never under-supply: if chosen packs don't cover requested, use ceil
+        if requested > 0 and packs * pack_size < requested:
             packs = ceil_packs
 
         # Ensure at least min_packs, and at least 1 if requested > 0
         packs = max(packs, min_packs, 1 if requested > 0 else 0)
+    elif mode == RoundingMode.NONE:
+        # NONE: natural rounding (floor), but must cover requested
+        packs = int(ratio.to_integral_value(rounding=ROUND_FLOOR))
+        packs = max(packs, min_packs, 1 if requested > 0 else 0)
+
+        # If floor doesn't cover requested, add one pack
+        if requested > 0 and packs * pack_size < requested:
+            packs += 1
     else:
         raise ValueError(f"Unknown rounding mode: {mode}")
 
