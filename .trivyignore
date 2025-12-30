@@ -683,7 +683,7 @@ CVE-2025-48385
 ##
 ## MAINTENANCE NOTE: When python:3.13.6-slim updates to include fixed PAM version
 ## (or when base image migrates to trixie/sid with PAM 1.7.0-5), this entry can
-## be removed. Next review: 2026-03-12.
+## be removed. Next review: 2026-03-30.
 
 CVE-2025-6020
 
@@ -991,7 +991,7 @@ CVE-2024-10041
 ##   - Monitoring: Check for python:3.13.6-slim updates with pam 1.6.0+
 ##
 ## MAINTENANCE NOTE: When python:3.13.6-slim updates to include PAM 1.6.0+,
-## this entry can be removed. Next review: 2026-03-12.
+## this entry can be removed. Next review: 2026-03-30.
 ##
 ## Attack surface: ZERO - no PAM logins, single-user container model.
 
@@ -1049,7 +1049,7 @@ CVE-2025-30258
 ## Mitigation plan:
 ##   - Monitor for python:3.13.6-slim update with glibc 2.36-9+deb12u13
 ##   - Or explicitly upgrade libc6 in Dockerfile: RUN apt-get update && apt-get install -y libc6
-##   - Review this entry at next quarterly review (2026-03-12)
+##   - Review this entry at next quarterly review (2026-03-30)
 ##
 ## Current risk assessment: LOW - vulnerable version present but exploitation
 ## requires malloc failure and application does not expose attack surface.
