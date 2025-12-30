@@ -23,6 +23,7 @@ from .models import (
     ShoplistLine,
     Unit,
 )
+from .normalizer import normalize_ingredient, normalize_quantity, normalize_specs
 
 __all__ = [
     "FoodForm",
@@ -34,4 +35,7 @@ __all__ = [
     "RoundingMode",
     "ShoplistLine",
     "Unit",
+    "normalize_ingredient",
+    "normalize_quantity",
+    "normalize_specs",
 ]
