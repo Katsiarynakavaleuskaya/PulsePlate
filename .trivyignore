@@ -654,7 +654,7 @@ CVE-2025-48385
 ##
 ## CURRENT STATUS:
 ##   ⚠️  Container uses PAM 1.5.2-6+deb12u1 (bookworm, VULNERABLE)
-##   $ docker run --rm python:3.13.5-slim dpkg -l | grep libpam0g
+##   $ docker run --rm python:3.13.6-slim dpkg -l | grep libpam0g
 ##   ii  libpam0g:arm64  1.5.2-6+deb12u1  arm64
 ##
 ## This container package version IS vulnerable, BUT application does NOT
@@ -681,7 +681,7 @@ CVE-2025-48385
 ##   - bookworm (1.5.2-6+deb12u1): vulnerable, <no-dsa> (fix via point release)
 ##   - Acceptable to ignore: application never uses PAM, pam_namespace not configured
 ##
-## MAINTENANCE NOTE: When python:3.13.5-slim updates to include fixed PAM version
+## MAINTENANCE NOTE: When python:3.13.6-slim updates to include fixed PAM version
 ## (or when base image migrates to trixie/sid with PAM 1.7.0-5), this entry can
 ## be removed. Next review: 2026-03-12.
 
@@ -988,9 +988,9 @@ CVE-2024-10041
 ##   - Container runs as single non-root user (pulseplate:pulseplate)
 ##   - No PAM-based authentication mechanisms active
 ##   - No shell access for untrusted users
-##   - Monitoring: Check for python:3.13.5-slim updates with pam 1.6.0+
+##   - Monitoring: Check for python:3.13.6-slim updates with pam 1.6.0+
 ##
-## MAINTENANCE NOTE: When python:3.13.5-slim updates to include PAM 1.6.0+,
+## MAINTENANCE NOTE: When python:3.13.6-slim updates to include PAM 1.6.0+,
 ## this entry can be removed. Next review: 2026-03-12.
 ##
 ## Attack surface: ZERO - no PAM logins, single-user container model.
@@ -1001,7 +1001,7 @@ CVE-2024-22365
 ##
 ## This CVE affects GnuPG <2.5.5 certificate import. NOT vulnerable:
 ##
-## 1. gpgv/gnupg NOT installed in python:3.13.5-slim (verified)
+## 1. gpgv/gnupg NOT installed in python:3.13.6-slim (verified)
 ## 2. Application does NOT use GPG/PGP signature verification
 ## 3. No GPG dependencies in requirements.txt
 ##
@@ -1047,7 +1047,7 @@ CVE-2025-30258
 ##   - Application runtime does not invoke shell tools with user-controlled patterns
 ##
 ## Mitigation plan:
-##   - Monitor for python:3.13.5-slim update with glibc 2.36-9+deb12u13
+##   - Monitor for python:3.13.6-slim update with glibc 2.36-9+deb12u13
 ##   - Or explicitly upgrade libc6 in Dockerfile: RUN apt-get update && apt-get install -y libc6
 ##   - Review this entry at next quarterly review (2026-03-12)
 ##
