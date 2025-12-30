@@ -15,7 +15,7 @@ from decimal import Decimal
 import pytest
 
 from core.shoplist_engine.aggregator import aggregate_specs
-from core.shoplist_engine.models import FoodRef, IngredientSpec, Quantity, ShoplistLine, Unit
+from core.shoplist_engine.models import FoodRef, IngredientSpec, Quantity, Unit
 
 
 class TestAggregateSpecsBasic:
