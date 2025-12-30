@@ -17,9 +17,11 @@ RU: Все функции чистые (нет зависимостей от I/O
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Iterable, List
+from typing import Iterable
 
 from .models import IngredientSpec, Quantity
+
+__all__ = ["normalize_quantity", "normalize_ingredient", "normalize_specs"]
 
 
 def normalize_quantity(qty: Quantity) -> Quantity:
@@ -49,7 +51,7 @@ def normalize_quantity(qty: Quantity) -> Quantity:
         normalize_quantity(Quantity(Decimal("2"), Unit.L))  # Quantity(2000, ML)
         normalize_quantity(Quantity(Decimal("500"), Unit.G))  # Quantity(500, G) (без изменений)
     """
-    # Quantity already enforces value >= 0; we intentionally keep zero allowed.
+    # Zero values are allowed by Quantity validation and are preserved during normalization.
     return qty.to_base_unit()
 
 
@@ -81,10 +83,12 @@ def normalize_ingredient(spec: IngredientSpec) -> IngredientSpec:
         # normalized.qty == Quantity(Decimal("1000"), Unit.G)
     """
     normalized = normalize_quantity(spec.qty)
-    return spec if normalized == spec.qty else replace(spec, qty=normalized)
+    if normalized == spec.qty:
+        return spec
+    return replace(spec, qty=normalized)
 
 
-def normalize_specs(specs: Iterable[IngredientSpec]) -> List[IngredientSpec]:
+def normalize_specs(specs: Iterable[IngredientSpec]) -> list[IngredientSpec]:
     """Normalize a batch of IngredientSpec items.
 
     RU: Нормализует набор IngredientSpec.

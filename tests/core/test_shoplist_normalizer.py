@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from core.shoplist_engine.models import FoodForm, FoodRef, IngredientSpec, Quantity, Unit
 from core.shoplist_engine.normalizer import (
     normalize_ingredient,
@@ -42,14 +40,16 @@ class TestNormalizeQuantity:
     def test_normalize_quantity_base_unit_noop(self) -> None:
         """Test that base units are returned unchanged."""
         qty = Quantity(value=Decimal("250"), unit=Unit.G)
-        assert normalize_quantity(qty) == qty
-        assert normalize_quantity(qty) is qty  # Same instance for base units
+        out = normalize_quantity(qty)
+        assert out == qty
+        assert out is qty  # Same instance for base units
 
     def test_normalize_quantity_pcs_noop(self) -> None:
         """Test that PCS unit is returned unchanged."""
         qty = Quantity(value=Decimal("10"), unit=Unit.PCS)
-        assert normalize_quantity(qty) == qty
-        assert normalize_quantity(qty) is qty
+        out = normalize_quantity(qty)
+        assert out == qty
+        assert out is qty
 
     def test_normalize_quantity_zero_allowed(self) -> None:
         """Test that zero quantity is allowed and preserved."""
@@ -117,8 +117,14 @@ class TestNormalizeSpecs:
     def test_normalize_specs_batch(self) -> None:
         """Test batch normalization of multiple specs."""
         specs = [
-            IngredientSpec(food=FoodRef(food_id="food:a"), qty=Quantity(Decimal("1"), Unit.KG)),
-            IngredientSpec(food=FoodRef(food_id="food:b"), qty=Quantity(Decimal("500"), Unit.G)),
+            IngredientSpec(
+                food=FoodRef(food_id="food:a"),
+                qty=Quantity(Decimal("1"), Unit.KG),
+            ),
+            IngredientSpec(
+                food=FoodRef(food_id="food:b"),
+                qty=Quantity(Decimal("500"), Unit.G),
+            ),
         ]
         out = normalize_specs(specs)
         assert out[0].qty.unit == Unit.G
@@ -135,10 +141,17 @@ class TestNormalizeSpecs:
         """Test normalization of specs with mixed units."""
         specs = [
             IngredientSpec(
-                food=FoodRef(food_id="food:water"), qty=Quantity(Decimal("1.5"), Unit.L)
+                food=FoodRef(food_id="food:water"),
+                qty=Quantity(Decimal("1.5"), Unit.L),
             ),
-            IngredientSpec(food=FoodRef(food_id="food:flour"), qty=Quantity(Decimal("2"), Unit.KG)),
-            IngredientSpec(food=FoodRef(food_id="food:eggs"), qty=Quantity(Decimal("6"), Unit.PCS)),
+            IngredientSpec(
+                food=FoodRef(food_id="food:flour"),
+                qty=Quantity(Decimal("2"), Unit.KG),
+            ),
+            IngredientSpec(
+                food=FoodRef(food_id="food:eggs"),
+                qty=Quantity(Decimal("6"), Unit.PCS),
+            ),
         ]
         out = normalize_specs(specs)
         assert out[0].qty.unit == Unit.ML
