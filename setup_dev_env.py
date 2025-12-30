@@ -34,8 +34,8 @@ def check_python_version() -> bool:
     """Проверить версию Python."""
     version = sys.version_info
     print(f"🐍 Python версия: {version.major}.{version.minor}.{version.micro}")
-    if (version.major, version.minor, version.micro) < (3, 13, 5):
-        print("⚠️  Рекомендуется Python 3.13.5+")
+    if (version.major, version.minor, version.micro) < (3, 13, 6):
+        print("⚠️  Рекомендуется Python 3.13.6+")
         return False
     return True
 

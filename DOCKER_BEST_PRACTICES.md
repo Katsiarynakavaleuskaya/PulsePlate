@@ -118,7 +118,7 @@ docker stop test && docker rm test
 - Use non-root user (already implemented)
 - Set proper environment variables
 - Configure health checks (Python-based, no curl dependency)
-- Use appropriate base images (python:3.13.5-slim-bookworm - pinned stable version)
+- Use appropriate base images (python:3.13.6-slim-bookworm - pinned stable version)
 
 > **Health Check Details**: The Dockerfile uses Python's `urllib.request.urlopen()` for health checks instead of `curl` to avoid installing unnecessary packages. Example:
 > ```dockerfile
@@ -130,7 +130,7 @@ docker stop test && docker rm test
 ### Image Security
 
 - ✅ Non-root user (pulseplate)
-- ✅ Minimal base image (python:3.13.5-slim-bookworm - pinned to Debian Bookworm stable)
+- ✅ Minimal base image (python:3.13.6-slim-bookworm - pinned to Debian Bookworm stable)
 - ✅ No unnecessary tools installed (curl, wget removed to reduce attack surface)
 - ✅ Python-based health checks (no external dependencies)
 - ✅ No secrets in image layers

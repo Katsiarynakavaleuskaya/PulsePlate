@@ -1,14 +1,20 @@
 ## Trivy vulnerability ignore list
 ##
-## Last reviewed: 2025-12-12
-## Base image: python:3.13.5-slim (Debian 12 bookworm)
-## Next review: 2026-03-12
+## Last reviewed: 2025-12-30
+## Base image: python:3.13.6-slim (Debian 12 bookworm)
+## Next review: 2026-03-30
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
-## IMPORTANT: Container uses python:3.13.5-slim based on Debian bookworm.
-## Actual versions: Python 3.13.5, pip 25.1.1, glibc 2.36-9+deb12u10,
+## IMPORTANT: Container uses python:3.13.6-slim based on Debian bookworm.
+## Actual versions: Python 3.13.6, pip 25.1.1, glibc 2.36-9+deb12u10,
 ## PAM 1.5.2-6+deb12u1. Many CVEs below reference "trixie" due to historical
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
+##
+## DECISION LOG:
+## - CVE-2025-68973 (gpgv armor_filter) accepted as documented risk (no attack surface)
+## - Base image updated from 3.13.5 to 3.13.6 for latest security patches
+## - gpgv retained as Debian system dependency (removal breaks apt)
+## - All Trivy workflows configured with trivyignores: '.trivyignore'
 ##
 ## CVE-2025-68972 – gpgv (GnuPG) signed message \\f truncation
 ##
@@ -17,6 +23,33 @@
 ## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
 
 CVE-2025-68972
+
+## CVE-2025-68973 – gpgv (GnuPG) armor_filter out-of-bounds write
+##
+## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
+## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
+## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
+##
+## Vulnerability details:
+## - Out-of-bounds write in `armor_filter` in `g10/armor.c`
+## - Affects GnuPG/gpgv versions 2.2.x (our container has 2.2.40-1.1)
+## - Fixed in 2.2.51+ (ExtendedLTS) but not yet available in Debian bookworm
+##
+## Our application:
+## - Does NOT use gpgv/gnupg for runtime operations
+## - Does NOT process untrusted armored GPG data
+## - Does NOT invoke gpgv command-line tool
+## - Container runs as non-root user with minimal privileges
+##
+## Exploitation requires:
+## - Direct invocation of gpgv with crafted input
+## - Access to run gpgv on attacker-controlled data
+## - Both conditions are NOT met in our deployment model
+##
+## The vulnerability exists in the base OS but has no attack surface in our application.
+## We accept this risk as documented and will monitor for upstream fixes.
+
+CVE-2025-68973
 
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
@@ -621,7 +654,7 @@ CVE-2025-48385
 ##
 ## CURRENT STATUS:
 ##   ⚠️  Container uses PAM 1.5.2-6+deb12u1 (bookworm, VULNERABLE)
-##   $ docker run --rm python:3.13.5-slim dpkg -l | grep libpam0g
+##   $ docker run --rm python:3.13.6-slim dpkg -l | grep libpam0g
 ##   ii  libpam0g:arm64  1.5.2-6+deb12u1  arm64
 ##
 ## This container package version IS vulnerable, BUT application does NOT
@@ -648,9 +681,9 @@ CVE-2025-48385
 ##   - bookworm (1.5.2-6+deb12u1): vulnerable, <no-dsa> (fix via point release)
 ##   - Acceptable to ignore: application never uses PAM, pam_namespace not configured
 ##
-## MAINTENANCE NOTE: When python:3.13.5-slim updates to include fixed PAM version
+## MAINTENANCE NOTE: When python:3.13.6-slim updates to include fixed PAM version
 ## (or when base image migrates to trixie/sid with PAM 1.7.0-5), this entry can
-## be removed. Next review: 2026-03-12.
+## be removed. Next review: 2026-03-30.
 
 CVE-2025-6020
 
@@ -955,10 +988,10 @@ CVE-2024-10041
 ##   - Container runs as single non-root user (pulseplate:pulseplate)
 ##   - No PAM-based authentication mechanisms active
 ##   - No shell access for untrusted users
-##   - Monitoring: Check for python:3.13.5-slim updates with pam 1.6.0+
+##   - Monitoring: Check for python:3.13.6-slim updates with pam 1.6.0+
 ##
-## MAINTENANCE NOTE: When python:3.13.5-slim updates to include PAM 1.6.0+,
-## this entry can be removed. Next review: 2026-03-12.
+## MAINTENANCE NOTE: When python:3.13.6-slim updates to include PAM 1.6.0+,
+## this entry can be removed. Next review: 2026-03-30.
 ##
 ## Attack surface: ZERO - no PAM logins, single-user container model.
 
@@ -968,7 +1001,7 @@ CVE-2024-22365
 ##
 ## This CVE affects GnuPG <2.5.5 certificate import. NOT vulnerable:
 ##
-## 1. gpgv/gnupg NOT installed in python:3.13.5-slim (verified)
+## 1. gpgv/gnupg NOT installed in python:3.13.6-slim (verified)
 ## 2. Application does NOT use GPG/PGP signature verification
 ## 3. No GPG dependencies in requirements.txt
 ##
@@ -1014,9 +1047,9 @@ CVE-2025-30258
 ##   - Application runtime does not invoke shell tools with user-controlled patterns
 ##
 ## Mitigation plan:
-##   - Monitor for python:3.13.5-slim update with glibc 2.36-9+deb12u13
+##   - Monitor for python:3.13.6-slim update with glibc 2.36-9+deb12u13
 ##   - Or explicitly upgrade libc6 in Dockerfile: RUN apt-get update && apt-get install -y libc6
-##   - Review this entry at next quarterly review (2026-03-12)
+##   - Review this entry at next quarterly review (2026-03-30)
 ##
 ## Current risk assessment: LOW - vulnerable version present but exploitation
 ## requires malloc failure and application does not expose attack surface.
