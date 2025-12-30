@@ -5,7 +5,7 @@ name: CI
 # Periodically update these SHAs to newer versions for security updates and bug fixes.
 
 env:
-  COVERAGE_PY: "3.13.5"
+  COVERAGE_PY: "3.13.6"
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.5"
+          python-version: "3.13.6"
           install-dev-deps: "true"
 
       - name: Pre-commit (lint/format/security quick checks)
@@ -54,7 +54,7 @@ jobs:
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
         with:
-          python-version: "3.13.5"
+          python-version: "3.13.6"
           install-dev-deps: "true"
 
       - name: Security scan with Bandit
@@ -90,7 +90,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.13.5']
+        python-version: ['3.13.6']
 
     steps:
       - name: Checkout
@@ -167,7 +167,7 @@ jobs:
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.13.5 only)
+      - name: Upload coverage artifact (3.13.6 only)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -196,7 +196,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.13.5']
+        python-version: ['3.13.6']
 
     steps:
       - name: Checkout
@@ -273,7 +273,7 @@ jobs:
         if: always()
         uses: ./.github/actions/clean-python-cache
 
-      - name: Upload coverage artifact (3.13.5 only)
+      - name: Upload coverage artifact (3.13.6 only)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -417,7 +417,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Download coverage artifact (Python 3.13.5)
+      - name: Download coverage artifact (Python 3.13.6)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
@@ -447,7 +447,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Download coverage artifact (Python 3.13.5)
+      - name: Download coverage artifact (Python 3.13.6)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
           name: coverage-xml-${{ env.COVERAGE_PY }}
