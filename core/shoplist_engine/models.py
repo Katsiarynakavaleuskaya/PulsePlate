@@ -108,6 +108,10 @@ class Quantity:
     value: Decimal
     unit: Unit
 
+    # Conversion constants for convenience units
+    KG_TO_G = Decimal("1000")
+    L_TO_ML = Decimal("1000")
+
     def __post_init__(self) -> None:
         """Validate quantity value.
 
@@ -116,6 +120,31 @@ class Quantity:
         if self.value < 0:
             raise ValueError(f"Quantity value must be non-negative, got {self.value}")
         # Allow zero for edge cases (empty shoplist lines)
+
+    def to_base_unit(self) -> "Quantity":
+        """Return quantity converted to base units when possible.
+
+        RU: Возвращает Quantity, приведённый к базовым единицам, если это возможно.
+
+        Converts KG → G and L → ML. Base units (G, ML, PCS) are returned unchanged.
+
+        RU: Конвертирует KG → G и L → ML. Базовые единицы (G, ML, PCS) возвращаются без изменений.
+
+        Examples:
+            Quantity(Decimal("1.5"), Unit.KG).to_base_unit()  # Quantity(1500, G)
+            Quantity(Decimal("2"), Unit.L).to_base_unit()  # Quantity(2000, ML)
+            Quantity(Decimal("500"), Unit.G).to_base_unit()  # Quantity(500, G) (unchanged)
+
+        RU: Примеры:
+            Quantity(Decimal("1.5"), Unit.KG).to_base_unit()  # Quantity(1500, G)
+            Quantity(Decimal("2"), Unit.L).to_base_unit()  # Quantity(2000, ML)
+            Quantity(Decimal("500"), Unit.G).to_base_unit()  # Quantity(500, G) (без изменений)
+        """
+        if self.unit == Unit.KG:
+            return Quantity(value=self.value * self.KG_TO_G, unit=Unit.G)
+        if self.unit == Unit.L:
+            return Quantity(value=self.value * self.L_TO_ML, unit=Unit.ML)
+        return self
 
 
 @dataclass(frozen=True)
@@ -255,8 +284,10 @@ class PackageRule:
             raise ValueError("food_id must be non-empty")
         if self.min_packs < 1:
             raise ValueError(f"min_packs must be >= 1, got {self.min_packs}")
-        if self.pack_size is None or self.pack_size.value <= 0:
-            raise ValueError("pack_size.value must be > 0")
+        if self.pack_size.value <= 0:
+            raise ValueError(f"pack_size must be positive, got {self.pack_size.value}")
+        if self.pack_size.unit in (Unit.KG, Unit.L):
+            raise ValueError(f"pack_size must use base units (g/ml/pcs), got {self.pack_size.unit}")
 
 
 @dataclass(frozen=True)
@@ -307,13 +338,13 @@ class PackPlan:
         Validates:
         - Unit consistency across all quantities
         - Non-negative packs
-        - Arithmetic consistency: provided >= requested, overage >= 0
+        - Arithmetic consistency: provided = packs * pack_size, provided >= requested
         - overage = provided - requested (exact match for Decimal)
 
         RU: Валидирует:
         - Согласованность единиц во всех количествах
         - Неотрицательное количество упаковок
-        - Арифметическую согласованность: provided >= requested, overage >= 0
+        - Арифметическую согласованность: provided = packs * pack_size, provided >= requested
         - overage = provided - requested (точное совпадение для Decimal)
         """
         if self.packs < 0:
@@ -334,6 +365,14 @@ class PackPlan:
                 f"requested.unit={self.requested.unit}"
             )
         # Arithmetic consistency validations
+        # Verify provided = packs * pack_size (if pack_size > 0)
+        if self.pack_size.value > 0:
+            expected_provided = self.pack_size.value * Decimal(self.packs)
+            if self.provided.value != expected_provided:
+                raise ValueError(
+                    f"provided.value ({self.provided.value}) must equal "
+                    f"packs * pack_size.value ({expected_provided})"
+                )
         if self.provided.value < self.requested.value:
             raise ValueError(
                 f"provided.value ({self.provided.value}) must be >= "

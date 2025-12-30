@@ -10,6 +10,7 @@ RU: Это якорные тесты для сохранения инвариа�
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from decimal import Decimal
 
 import pytest
@@ -86,10 +87,38 @@ class TestQuantity:
         with pytest.raises(ValueError, match="must be non-negative"):
             Quantity(value=Decimal("-1"), unit=Unit.G)
 
+    def test_quantity_fractional_decimal(self) -> None:
+        """Test that fractional Decimal values are preserved exactly."""
+        qty = Quantity(value=Decimal("1.25"), unit=Unit.G)
+        assert qty.value == Decimal("1.25")
+        assert qty.unit == Unit.G
+
+    def test_quantity_to_base_unit_kg(self) -> None:
+        """Test conversion from KG to G."""
+        qty = Quantity(value=Decimal("1.5"), unit=Unit.KG)
+        out = qty.to_base_unit()
+        assert out.unit == Unit.G
+        assert out.value == Decimal("1500")
+
+    def test_quantity_to_base_unit_l(self) -> None:
+        """Test conversion from L to ML."""
+        qty = Quantity(value=Decimal("2"), unit=Unit.L)
+        out = qty.to_base_unit()
+        assert out.unit == Unit.ML
+        assert out.value == Decimal("2000")
+
+    def test_quantity_to_base_unit_no_conversion(self) -> None:
+        """Test that base units are returned unchanged."""
+        qty = Quantity(value=Decimal("500"), unit=Unit.G)
+        out = qty.to_base_unit()
+        assert out is qty  # Should return self for base units
+        assert out.unit == Unit.G
+        assert out.value == Decimal("500")
+
     def test_quantity_frozen(self) -> None:
         """Test that Quantity is immutable."""
         qty = Quantity(value=Decimal("500"), unit=Unit.G)
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(FrozenInstanceError):
             qty.value = Decimal("1000")  # type: ignore[misc]
 
 
@@ -114,7 +143,7 @@ class TestFoodRef:
     def test_food_ref_frozen(self) -> None:
         """Test that FoodRef is immutable."""
         food = FoodRef(food_id="chicken_breast")
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(FrozenInstanceError):
             food.food_id = "beef"  # type: ignore[misc]
 
 
@@ -150,7 +179,7 @@ class TestIngredientSpec:
         food = FoodRef(food_id="chicken_breast")
         qty = Quantity(value=Decimal("500"), unit=Unit.G)
         spec = IngredientSpec(food=food, qty=qty)
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(FrozenInstanceError):
             spec.form = FoodForm.COOKED  # type: ignore[misc]
 
 
@@ -185,7 +214,7 @@ class TestShoplistLine:
         food = FoodRef(food_id="chicken_breast")
         qty = Quantity(value=Decimal("1200"), unit=Unit.G)
         line = ShoplistLine(food=food, qty=qty)
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(FrozenInstanceError):
             line.qty = Quantity(value=Decimal("500"), unit=Unit.G)  # type: ignore[misc]
 
 
@@ -237,11 +266,23 @@ class TestPackageRule:
         with pytest.raises(ValueError, match=r"pack_size\.value must be > 0"):
             PackageRule(food_id="chicken_breast", pack_size=pack_size)
 
+    def test_package_rule_pack_size_kg_raises(self) -> None:
+        """Test that pack_size with KG unit raises ValueError."""
+        pack_size = Quantity(value=Decimal("1"), unit=Unit.KG)
+        with pytest.raises(ValueError, match="pack_size must use base units"):
+            PackageRule(food_id="chicken_breast", pack_size=pack_size)
+
+    def test_package_rule_pack_size_l_raises(self) -> None:
+        """Test that pack_size with L unit raises ValueError."""
+        pack_size = Quantity(value=Decimal("1"), unit=Unit.L)
+        with pytest.raises(ValueError, match="pack_size must use base units"):
+            PackageRule(food_id="milk", pack_size=pack_size)
+
     def test_package_rule_frozen(self) -> None:
         """Test that PackageRule is immutable."""
         pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
         rule = PackageRule(food_id="chicken_breast", pack_size=pack_size)
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(FrozenInstanceError):
             rule.min_packs = 2  # type: ignore[misc]
 
 
@@ -408,6 +449,23 @@ class TestPackPlan:
                 overage=overage,
             )
 
+    def test_pack_plan_provided_mismatch_raises(self) -> None:
+        """Test that provided.value != packs * pack_size.value raises ValueError."""
+        food = FoodRef(food_id="chicken_breast")
+        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
+        pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
+        provided = Quantity(value=Decimal("1000"), unit=Unit.G)  # Should be 1500 (3 * 500)!
+        overage = Quantity(value=Decimal("-200"), unit=Unit.G)
+        with pytest.raises(ValueError, match="provided.value.*must equal.*packs \\* pack_size"):
+            PackPlan(
+                food=food,
+                requested=requested,
+                pack_size=pack_size,
+                packs=3,
+                provided=provided,
+                overage=overage,
+            )
+
     def test_pack_plan_frozen(self) -> None:
         """Test that PackPlan is immutable."""
         food = FoodRef(food_id="chicken_breast")
@@ -423,5 +481,5 @@ class TestPackPlan:
             provided=provided,
             overage=overage,
         )
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(FrozenInstanceError):
             plan.packs = 4  # type: ignore[misc]
