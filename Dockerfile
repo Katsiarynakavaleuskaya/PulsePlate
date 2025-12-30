@@ -2,7 +2,7 @@
 # Optimized for production with minimal image size and security
 
 # Stage 1: Build stage
-FROM python:3.13.5-slim-bookworm AS builder
+FROM python:3.13.6-slim-bookworm AS builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -27,7 +27,7 @@ RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
 
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
-FROM python:3.13.5-slim-bookworm AS runtime-base
+FROM python:3.13.6-slim-bookworm AS runtime-base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

@@ -1,14 +1,20 @@
 ## Trivy vulnerability ignore list
 ##
-## Last reviewed: 2025-12-12
-## Base image: python:3.13.5-slim (Debian 12 bookworm)
-## Next review: 2026-03-12
+## Last reviewed: 2025-12-30
+## Base image: python:3.13.6-slim (Debian 12 bookworm)
+## Next review: 2026-03-30
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
-## IMPORTANT: Container uses python:3.13.5-slim based on Debian bookworm.
-## Actual versions: Python 3.13.5, pip 25.1.1, glibc 2.36-9+deb12u10,
+## IMPORTANT: Container uses python:3.13.6-slim based on Debian bookworm.
+## Actual versions: Python 3.13.6, pip 25.1.1, glibc 2.36-9+deb12u10,
 ## PAM 1.5.2-6+deb12u1. Many CVEs below reference "trixie" due to historical
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
+##
+## DECISION LOG:
+## - CVE-2025-68973 (gpgv armor_filter) accepted as documented risk (no attack surface)
+## - Base image updated from 3.13.5 to 3.13.6 for latest security patches
+## - gpgv retained as Debian system dependency (removal breaks apt)
+## - All Trivy workflows configured with trivyignores: '.trivyignore'
 ##
 ## CVE-2025-68972 – gpgv (GnuPG) signed message \\f truncation
 ##
@@ -17,6 +23,33 @@
 ## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
 
 CVE-2025-68972
+
+## CVE-2025-68973 – gpgv (GnuPG) armor_filter out-of-bounds write
+##
+## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
+## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
+## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
+##
+## Vulnerability details:
+## - Out-of-bounds write in `armor_filter` in `g10/armor.c`
+## - Affects GnuPG/gpgv versions 2.2.x (our container has 2.2.40-1.1)
+## - Fixed in 2.2.51+ (ExtendedLTS) but not yet available in Debian bookworm
+##
+## Our application:
+## - Does NOT use gpgv/gnupg for runtime operations
+## - Does NOT process untrusted armored GPG data
+## - Does NOT invoke gpgv command-line tool
+## - Container runs as non-root user with minimal privileges
+##
+## Exploitation requires:
+## - Direct invocation of gpgv with crafted input
+## - Access to run gpgv on attacker-controlled data
+## - Both conditions are NOT met in our deployment model
+##
+## The vulnerability exists in the base OS but has no attack surface in our application.
+## We accept this risk as documented and will monitor for upstream fixes.
+
+CVE-2025-68973
 
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
