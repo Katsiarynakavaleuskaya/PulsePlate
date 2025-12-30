@@ -25,6 +25,7 @@ from .models import (
     Unit,
 )
 from .normalizer import normalize_ingredient, normalize_quantity, normalize_specs
+from .packager import PackagingResult, apply_packaging
 
 __all__ = [
     "FoodForm",
@@ -32,11 +33,13 @@ __all__ = [
     "IngredientSpec",
     "PackPlan",
     "PackageRule",
+    "PackagingResult",
     "Quantity",
     "RoundingMode",
     "ShoplistLine",
     "Unit",
     "aggregate_specs",
+    "apply_packaging",
     "normalize_ingredient",
     "normalize_quantity",
     "normalize_specs",
