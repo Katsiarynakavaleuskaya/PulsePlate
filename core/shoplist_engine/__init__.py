@@ -12,6 +12,7 @@ RU: Этот модуль предоставляет стабильную, offli
 как адаптеры позже.
 """
 
+from .aggregator import aggregate_specs
 from .models import (
     FoodForm,
     FoodRef,
@@ -35,6 +36,7 @@ __all__ = [
     "RoundingMode",
     "ShoplistLine",
     "Unit",
+    "aggregate_specs",
     "normalize_ingredient",
     "normalize_quantity",
     "normalize_specs",
