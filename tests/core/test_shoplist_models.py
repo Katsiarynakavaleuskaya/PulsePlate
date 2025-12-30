@@ -165,6 +165,21 @@ class TestShoplistLine:
         assert line.food == food
         assert line.qty == qty
 
+    def test_shoplist_line_zero_quantity_allowed(self) -> None:
+        """Test that zero quantity is allowed in shoplist line (edge case for empty lines).
+
+        RU: Тест, что нулевое количество разрешено в строке списка покупок
+        (крайний случай для пустых строк).
+
+        This ensures aggregator/packager can handle zero quantities gracefully.
+        RU: Это гарантирует, что агрегатор/пакеджер могут обработать нулевые количества.
+        """
+        food = FoodRef(food_id="chicken_breast")
+        qty = Quantity(value=Decimal("0"), unit=Unit.G)
+        line = ShoplistLine(food=food, qty=qty)
+        assert line.qty.value == Decimal("0")
+        assert line.food == food
+
     def test_shoplist_line_frozen(self) -> None:
         """Test that ShoplistLine is immutable."""
         food = FoodRef(food_id="chicken_breast")
@@ -215,6 +230,12 @@ class TestPackageRule:
         pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
         with pytest.raises(ValueError, match="min_packs must be >= 1"):
             PackageRule(food_id="chicken_breast", pack_size=pack_size, min_packs=-1)
+
+    def test_package_rule_pack_size_zero_raises(self) -> None:
+        """Test that pack_size.value == 0 raises ValueError."""
+        pack_size = Quantity(value=Decimal("0"), unit=Unit.G)
+        with pytest.raises(ValueError, match=r"pack_size\.value must be > 0"):
+            PackageRule(food_id="chicken_breast", pack_size=pack_size)
 
     def test_package_rule_frozen(self) -> None:
         """Test that PackageRule is immutable."""
@@ -333,6 +354,59 @@ class TestPackPlan:
             overage=overage,
         )
         assert plan.packs == 0
+
+    def test_pack_plan_provided_less_than_requested_raises(self) -> None:
+        """Test that provided.value < requested.value raises ValueError."""
+        food = FoodRef(food_id="chicken_breast")
+        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
+        pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
+        provided = Quantity(value=Decimal("1000"), unit=Unit.G)  # Less than requested!
+        overage = Quantity(value=Decimal("-200"), unit=Unit.G)
+        with pytest.raises(ValueError, match="provided.value.*must be >=.*requested.value"):
+            PackPlan(
+                food=food,
+                requested=requested,
+                pack_size=pack_size,
+                packs=2,
+                provided=provided,
+                overage=overage,
+            )
+
+    def test_pack_plan_negative_overage_raises(self) -> None:
+        """Test that negative overage.value raises ValueError."""
+        food = FoodRef(food_id="chicken_breast")
+        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
+        pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
+        provided = Quantity(value=Decimal("1500"), unit=Unit.G)
+        overage = Quantity(value=Decimal("-100"), unit=Unit.G)  # Negative!
+        with pytest.raises(ValueError, match="overage.value must be non-negative"):
+            PackPlan(
+                food=food,
+                requested=requested,
+                pack_size=pack_size,
+                packs=3,
+                provided=provided,
+                overage=overage,
+            )
+
+    def test_pack_plan_overage_mismatch_raises(self) -> None:
+        """Test that overage.value != provided.value - requested.value raises ValueError."""
+        food = FoodRef(food_id="chicken_breast")
+        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
+        pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
+        provided = Quantity(value=Decimal("1500"), unit=Unit.G)
+        overage = Quantity(value=Decimal("200"), unit=Unit.G)  # Should be 300!
+        with pytest.raises(
+            ValueError, match="overage.value.*must equal.*provided.value - requested.value"
+        ):
+            PackPlan(
+                food=food,
+                requested=requested,
+                pack_size=pack_size,
+                packs=3,
+                provided=provided,
+                overage=overage,
+            )
 
     def test_pack_plan_frozen(self) -> None:
         """Test that PackPlan is immutable."""

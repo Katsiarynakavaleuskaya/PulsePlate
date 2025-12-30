@@ -12,7 +12,7 @@ RU: Этот модуль предоставляет стабильную, offli
 как адаптеры позже.
 """
 
-from core.shoplist_engine.models import (
+from .models import (
     FoodForm,
     FoodRef,
     IngredientSpec,

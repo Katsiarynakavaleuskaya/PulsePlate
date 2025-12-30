@@ -255,6 +255,8 @@ class PackageRule:
             raise ValueError("food_id must be non-empty")
         if self.min_packs < 1:
             raise ValueError(f"min_packs must be >= 1, got {self.min_packs}")
+        if self.pack_size is None or self.pack_size.value <= 0:
+            raise ValueError("pack_size.value must be > 0")
 
 
 @dataclass(frozen=True)
@@ -301,6 +303,18 @@ class PackPlan:
         """Validate pack plan.
 
         RU: Валидация плана упаковки.
+
+        Validates:
+        - Unit consistency across all quantities
+        - Non-negative packs
+        - Arithmetic consistency: provided >= requested, overage >= 0
+        - overage = provided - requested (exact match for Decimal)
+
+        RU: Валидирует:
+        - Согласованность единиц во всех количествах
+        - Неотрицательное количество упаковок
+        - Арифметическую согласованность: provided >= requested, overage >= 0
+        - overage = provided - requested (точное совпадение для Decimal)
         """
         if self.packs < 0:
             raise ValueError(f"packs must be non-negative, got {self.packs}")
@@ -318,4 +332,19 @@ class PackPlan:
             raise ValueError(
                 f"Unit mismatch: overage.unit={self.overage.unit}, "
                 f"requested.unit={self.requested.unit}"
+            )
+        # Arithmetic consistency validations
+        if self.provided.value < self.requested.value:
+            raise ValueError(
+                f"provided.value ({self.provided.value}) must be >= "
+                f"requested.value ({self.requested.value})"
+            )
+        if self.overage.value < 0:
+            raise ValueError(f"overage.value must be non-negative, got {self.overage.value}")
+        # Verify overage = provided - requested (exact for Decimal)
+        expected_overage = self.provided.value - self.requested.value
+        if self.overage.value != expected_overage:
+            raise ValueError(
+                f"overage.value ({self.overage.value}) must equal "
+                f"provided.value - requested.value ({expected_overage})"
             )
