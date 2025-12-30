@@ -42,14 +42,18 @@ def normalize_quantity(qty: Quantity) -> Quantity:
         Quantity in base units (G, ML, or PCS)
 
     Examples:
-        normalize_quantity(Quantity(Decimal("1.5"), Unit.KG))  # Quantity(1500, G)
-        normalize_quantity(Quantity(Decimal("2"), Unit.L))  # Quantity(2000, ML)
-        normalize_quantity(Quantity(Decimal("500"), Unit.G))  # Quantity(500, G) (unchanged)
+        >>> from decimal import Decimal
+        >>> from core.shoplist_engine.models import Quantity, Unit
+        >>> normalize_quantity(Quantity(Decimal("1.5"), Unit.KG))  # Quantity(1500, G)
+        >>> normalize_quantity(Quantity(Decimal("2"), Unit.L))  # Quantity(2000, ML)
+        >>> normalize_quantity(Quantity(Decimal("500"), Unit.G))  # Quantity(500, G) (unchanged)
 
     RU: Примеры:
-        normalize_quantity(Quantity(Decimal("1.5"), Unit.KG))  # Quantity(1500, G)
-        normalize_quantity(Quantity(Decimal("2"), Unit.L))  # Quantity(2000, ML)
-        normalize_quantity(Quantity(Decimal("500"), Unit.G))  # Quantity(500, G) (без изменений)
+        >>> from decimal import Decimal
+        >>> from core.shoplist_engine.models import Quantity, Unit
+        >>> normalize_quantity(Quantity(Decimal("1.5"), Unit.KG))  # Quantity(1500, G)
+        >>> normalize_quantity(Quantity(Decimal("2"), Unit.L))  # Quantity(2000, ML)
+        >>> normalize_quantity(Quantity(Decimal("500"), Unit.G))  # Quantity(500, G) (без изменений)
     """
     # Zero values are allowed by Quantity validation and are preserved during normalization.
     return qty.to_base_unit()
@@ -73,14 +77,20 @@ def normalize_ingredient(spec: IngredientSpec) -> IngredientSpec:
         IngredientSpec with normalized quantity (same instance if unchanged)
 
     Examples:
-        spec = IngredientSpec(food=FoodRef("chicken"), qty=Quantity(Decimal("1"), Unit.KG))
-        normalized = normalize_ingredient(spec)
-        # normalized.qty == Quantity(Decimal("1000"), Unit.G)
+        >>> from decimal import Decimal
+        >>> from core.shoplist_engine.models import FoodRef, IngredientSpec, Quantity, Unit
+        >>> spec = IngredientSpec(food=FoodRef(food_id="chicken"), qty=Quantity(Decimal("1"), Unit.KG))
+        >>> normalized = normalize_ingredient(spec)
+        >>> normalized.qty.unit == Unit.G  # True
+        >>> normalized.qty.value == Decimal("1000")  # True
 
     RU: Примеры:
-        spec = IngredientSpec(food=FoodRef("chicken"), qty=Quantity(Decimal("1"), Unit.KG))
-        normalized = normalize_ingredient(spec)
-        # normalized.qty == Quantity(Decimal("1000"), Unit.G)
+        >>> from decimal import Decimal
+        >>> from core.shoplist_engine.models import FoodRef, IngredientSpec, Quantity, Unit
+        >>> spec = IngredientSpec(food=FoodRef(food_id="chicken"), qty=Quantity(Decimal("1"), Unit.KG))
+        >>> normalized = normalize_ingredient(spec)
+        >>> normalized.qty.unit == Unit.G  # True
+        >>> normalized.qty.value == Decimal("1000")  # True
     """
     normalized = normalize_quantity(spec.qty)
     if normalized == spec.qty:
@@ -97,24 +107,30 @@ def normalize_specs(specs: Iterable[IngredientSpec]) -> list[IngredientSpec]:
         specs: Iterable of IngredientSpec to normalize
 
     Returns:
-        List of normalized IngredientSpec (same instances if unchanged)
+        list[IngredientSpec]: Normalized IngredientSpec (same instances if unchanged)
 
     Examples:
-        specs = [
-            IngredientSpec(food=FoodRef("a"), qty=Quantity(Decimal("1"), Unit.KG)),
-            IngredientSpec(food=FoodRef("b"), qty=Quantity(Decimal("500"), Unit.G)),
-        ]
-        normalized = normalize_specs(specs)
-        # normalized[0].qty == Quantity(Decimal("1000"), Unit.G)
-        # normalized[1] is specs[1] (unchanged)
+        >>> from decimal import Decimal
+        >>> from core.shoplist_engine.models import FoodRef, IngredientSpec, Quantity, Unit
+        >>> specs = [
+        ...     IngredientSpec(food=FoodRef(food_id="a"), qty=Quantity(Decimal("1"), Unit.KG)),
+        ...     IngredientSpec(food=FoodRef(food_id="b"), qty=Quantity(Decimal("500"), Unit.G)),
+        ... ]
+        >>> normalized = normalize_specs(specs)
+        >>> normalized[0].qty.unit == Unit.G  # True
+        >>> normalized[0].qty.value == Decimal("1000")  # True
+        >>> normalized[1] is specs[1]  # True (unchanged)
 
     RU: Примеры:
-        specs = [
-            IngredientSpec(food=FoodRef("a"), qty=Quantity(Decimal("1"), Unit.KG)),
-            IngredientSpec(food=FoodRef("b"), qty=Quantity(Decimal("500"), Unit.G)),
-        ]
-        normalized = normalize_specs(specs)
-        # normalized[0].qty == Quantity(Decimal("1000"), Unit.G)
-        # normalized[1] is specs[1] (без изменений)
+        >>> from decimal import Decimal
+        >>> from core.shoplist_engine.models import FoodRef, IngredientSpec, Quantity, Unit
+        >>> specs = [
+        ...     IngredientSpec(food=FoodRef(food_id="a"), qty=Quantity(Decimal("1"), Unit.KG)),
+        ...     IngredientSpec(food=FoodRef(food_id="b"), qty=Quantity(Decimal("500"), Unit.G)),
+        ... ]
+        >>> normalized = normalize_specs(specs)
+        >>> normalized[0].qty.unit == Unit.G  # True
+        >>> normalized[0].qty.value == Decimal("1000")  # True
+        >>> normalized[1] is specs[1]  # True (без изменений)
     """
     return [normalize_ingredient(s) for s in specs]
