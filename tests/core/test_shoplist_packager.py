@@ -66,14 +66,14 @@ class TestComputePacks:
         packs = compute_packs(Decimal("100"), Decimal("500"), RoundingMode.CEIL, 2)
         assert packs == 2
 
-    def test_nearest_rounding_down(self) -> None:
-        """Test NEAREST rounding down."""
-        # 900 / 500 = 1.8 → nearest = 2
+    def test_nearest_rounds_up_when_closer_to_ceiling(self) -> None:
+        """Test NEAREST rounds up when ceil is closer."""
+        # 900 / 500 = 1.8 → ceil=2 (1000) is closer than floor=1 (500) → 2
         packs = compute_packs(Decimal("900"), Decimal("500"), RoundingMode.NEAREST, 1)
         assert packs == 2
 
-    def test_nearest_rounding_up(self) -> None:
-        """Test NEAREST rounding up."""
+    def test_nearest_rounds_up_to_avoid_under_supply(self) -> None:
+        """Test NEAREST rounds up when floor doesn't cover requested."""
         # 1100 / 500 = 2.2 → floor=2 (1000) is closer, but doesn't cover requested
         # Must use ceil=3 (1500) to avoid under-supply
         packs = compute_packs(Decimal("1100"), Decimal("500"), RoundingMode.NEAREST, 1)
@@ -126,7 +126,8 @@ class TestComputePacks:
         assert packs == 0
 
     def test_zero_requested_with_min_packs_nonzero(self) -> None:
-        """Test zero requested with min_packs > 0."""
+        """Test compute_packs with zero requested and min_packs > 0."""
+        # compute_packs level: zero requested still enforces min_packs
         packs = compute_packs(Decimal("0"), Decimal("500"), RoundingMode.CEIL, 2)
         assert packs == 2
 
@@ -417,7 +418,7 @@ class TestApplyPackagingValidation:
             apply_packaging(lines, rules)
 
     def test_zero_requested_with_min_packs(self) -> None:
-        """Test zero requested quantity with min_packs."""
+        """Test zero requested quantity with min_packs in apply_packaging."""
         lines = [
             ShoplistLine(
                 food=FoodRef(food_id="eggs"),
