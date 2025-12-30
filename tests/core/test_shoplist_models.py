@@ -263,7 +263,7 @@ class TestPackageRule:
     def test_package_rule_pack_size_zero_raises(self) -> None:
         """Test that pack_size.value == 0 raises ValueError."""
         pack_size = Quantity(value=Decimal("0"), unit=Unit.G)
-        with pytest.raises(ValueError, match=r"pack_size\.value must be > 0"):
+        with pytest.raises(ValueError, match=r"pack_size must be positive"):
             PackageRule(food_id="chicken_breast", pack_size=pack_size)
 
     def test_package_rule_pack_size_kg_raises(self) -> None:
@@ -399,33 +399,45 @@ class TestPackPlan:
     def test_pack_plan_provided_less_than_requested_raises(self) -> None:
         """Test that provided.value < requested.value raises ValueError."""
         food = FoodRef(food_id="chicken_breast")
-        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
-        pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
-        provided = Quantity(value=Decimal("1000"), unit=Unit.G)  # Less than requested!
-        overage = Quantity(value=Decimal("-200"), unit=Unit.G)
+        requested = Quantity(value=Decimal("500"), unit=Unit.G)
+        pack_size = Quantity(value=Decimal("100"), unit=Unit.G)
+        packs = 2
+        provided = Quantity(value=Decimal("200"), unit=Unit.G)  # Less than requested (500)!
+        overage = Quantity(
+            value=Decimal("0"), unit=Unit.G
+        )  # Valid, but PackPlan will reject provided < requested
         with pytest.raises(ValueError, match="provided.value.*must be >=.*requested.value"):
             PackPlan(
                 food=food,
                 requested=requested,
                 pack_size=pack_size,
-                packs=2,
+                packs=packs,
                 provided=provided,
                 overage=overage,
             )
 
-    def test_pack_plan_negative_overage_raises(self) -> None:
-        """Test that negative overage.value raises ValueError."""
+    def test_pack_plan_overage_mismatch_invalid_raises(self) -> None:
+        """Test that overage.value != provided.value - requested.value raises ValueError.
+
+        RU: Тест, что несоответствие overage.value вызывает ValueError.
+
+        This test checks arithmetic consistency: overage must equal provided - requested.
+        RU: Этот тест проверяет арифметическую согласованность: overage должен равняться provided - requested.
+        """
         food = FoodRef(food_id="chicken_breast")
-        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
+        requested = Quantity(value=Decimal("500"), unit=Unit.G)
         pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
-        provided = Quantity(value=Decimal("1500"), unit=Unit.G)
-        overage = Quantity(value=Decimal("-100"), unit=Unit.G)  # Negative!
-        with pytest.raises(ValueError, match="overage.value must be non-negative"):
+        packs = 1
+        provided = Quantity(value=Decimal("500"), unit=Unit.G)
+        overage = Quantity(value=Decimal("100"), unit=Unit.G)  # Mismatch! Should be 0 (500-500)
+        with pytest.raises(
+            ValueError, match="overage.value.*must equal.*provided.value - requested.value"
+        ):
             PackPlan(
                 food=food,
                 requested=requested,
                 pack_size=pack_size,
-                packs=3,
+                packs=packs,
                 provided=provided,
                 overage=overage,
             )
@@ -452,16 +464,19 @@ class TestPackPlan:
     def test_pack_plan_provided_mismatch_raises(self) -> None:
         """Test that provided.value != packs * pack_size.value raises ValueError."""
         food = FoodRef(food_id="chicken_breast")
-        requested = Quantity(value=Decimal("1200"), unit=Unit.G)
+        requested = Quantity(value=Decimal("800"), unit=Unit.G)
         pack_size = Quantity(value=Decimal("500"), unit=Unit.G)
-        provided = Quantity(value=Decimal("1000"), unit=Unit.G)  # Should be 1500 (3 * 500)!
-        overage = Quantity(value=Decimal("-200"), unit=Unit.G)
+        packs = 2
+        provided = Quantity(value=Decimal("900"), unit=Unit.G)  # Mismatch! Should be 1000 (2 * 500)
+        overage = Quantity(
+            value=Decimal("100"), unit=Unit.G
+        )  # 900-800=100 (valid, but provided mismatch will fail first)
         with pytest.raises(ValueError, match="provided.value.*must equal.*packs \\* pack_size"):
             PackPlan(
                 food=food,
                 requested=requested,
                 pack_size=pack_size,
-                packs=3,
+                packs=packs,
                 provided=provided,
                 overage=overage,
             )
