@@ -121,6 +121,7 @@ docker stop test && docker rm test
 - Use appropriate base images (python:3.13.6-slim-bookworm - pinned stable version)
 
 > **Health Check Details**: The Dockerfile uses Python's `urllib.request.urlopen()` for health checks instead of `curl` to avoid installing unnecessary packages. Example:
+>
 > ```dockerfile
 > HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)" || exit 1
 > ```

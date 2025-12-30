@@ -644,6 +644,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 ## PulsePlate Copilot Agent
 
 Интеграция кастомного Copilot‑агента для проекта PulsePlate. Файл спецификации агента находится по пути [.github/agents/my-agent.md](.github/agents/my-agent.md). В нём описаны роли, миссия, режимы отчётов, технические и маркетинговые требования. Добавьте этот файл в репозиторий, чтобы активировать агента Copilot для разработки и аналитики.
+
 ### Production Features
 
 - ✅ **Manual approval gates** for safety
@@ -657,6 +658,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 - ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md#monitoring)
 
 For detailed setup instructions, see:
+
 - **[НАЧНИТЕ_ОТСЮДА.md](НАЧНИТЕ_ОТСЮДА.md)** - Главная точка входа для новичков
 - [DEPLOYMENT_FULL_GUIDE.md](DEPLOYMENT_FULL_GUIDE.md) - Полная пошаговая инструкция
 - [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) - Детальная настройка production
