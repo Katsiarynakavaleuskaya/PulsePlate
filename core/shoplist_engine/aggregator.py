@@ -17,7 +17,6 @@ RU: Все функции чистые (нет зависимостей от I/O
 
 from __future__ import annotations
 
-from collections import defaultdict
 from decimal import Decimal
 from typing import Iterable
 
@@ -26,7 +25,7 @@ from .models import FoodRef, IngredientSpec, Quantity, ShoplistLine, Unit
 __all__ = ["aggregate_specs"]
 
 # Base units allowed for aggregation
-BASE_UNITS = {Unit.G, Unit.ML, Unit.PCS}
+BASE_UNITS: frozenset[Unit] = frozenset({Unit.G, Unit.ML, Unit.PCS})
 
 
 def aggregate_specs(specs: Iterable[IngredientSpec]) -> list[ShoplistLine]:
@@ -108,16 +107,10 @@ def aggregate_specs(specs: Iterable[IngredientSpec]) -> list[ShoplistLine]:
 
             totals[food_id] = (acc_value + qty.value, acc_unit, first_food)
 
-    # Convert to ShoplistLine list
+    # Convert to ShoplistLine list (deterministic order by food_id)
     result = [
-        ShoplistLine(
-            food=food_ref,
-            qty=Quantity(value=value, unit=unit),
-        )
-        for value, unit, food_ref in totals.values()
+        ShoplistLine(food=food_ref, qty=Quantity(value=value, unit=unit))
+        for food_id, (value, unit, food_ref) in sorted(totals.items())
     ]
-
-    # Sort by food_id for deterministic output (order-independent input)
-    result.sort(key=lambda line: line.food.food_id)
 
     return result
