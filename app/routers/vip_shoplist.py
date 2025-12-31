@@ -71,6 +71,23 @@ def require_vip_module_enabled() -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
+def region_store_params(
+    region_id: Annotated[
+        str | None,
+        Query(default=None, min_length=2, max_length=8, description="Optional region id (e.g. 'es', 'us')"),
+    ] = None,
+    store_id: Annotated[
+        str | None,
+        Query(default=None, min_length=1, max_length=64, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+    ] = None,
+) -> tuple[str | None, str | None]:
+    """
+    RU: Dependency для опциональных параметров region_id/store_id (DRY).
+    EN: Dependency for optional region_id/store_id params (DRY).
+    """
+    return region_id, store_id
+
+
 # RU: Pydantic валидирует DTO literals первым, эти функции — defense-in-depth
 #     для случаев, когда валидация обходится (например, прямой вызов из кода).
 # EN: Pydantic validates DTO literals first; these functions are defense-in-depth
