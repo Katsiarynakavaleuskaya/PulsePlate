@@ -51,13 +51,17 @@ def require_vip_module_enabled() -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
+# RU: Pydantic валидирует DTO literals первым, эти функции — defense-in-depth
+#     для случаев, когда валидация обходится (например, прямой вызов из кода).
+# EN: Pydantic validates DTO literals first; these functions are defense-in-depth
+#     for cases where validation is bypassed (e.g., direct code calls).
 def _map_unit(dto_unit: str) -> Unit:
     """Map DTO unit string to core Unit enum."""
     try:
         return Unit[dto_unit]
     except KeyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid unit: {dto_unit}",
         ) from exc
 
@@ -68,7 +72,7 @@ def _map_rounding(dto_rounding: str) -> RoundingMode:
         return RoundingMode[dto_rounding]
     except KeyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid rounding: {dto_rounding}",
         ) from exc
 
@@ -79,7 +83,7 @@ def _map_form(dto_form: str) -> FoodForm:
         return FoodForm[dto_form]
     except KeyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid form: {dto_form}",
         ) from exc
 

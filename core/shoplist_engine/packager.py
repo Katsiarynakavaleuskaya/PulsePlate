@@ -179,7 +179,9 @@ def compute_packs(
         # Ensure at least min_packs, and at least 1 if requested > 0
         packs = max(packs, min_packs, 1 if requested > 0 else 0)
     elif mode == RoundingMode.NONE:
-        # NONE: natural rounding (floor), but must cover requested
+        # NONE: natural/floor rounding with coverage guarantee.
+        # Uses floor as default but will add one pack if floor count does not
+        # cover the requested quantity (ensures we never under-supply).
         packs = int(ratio.to_integral_value(rounding=ROUND_FLOOR))
         packs = max(packs, min_packs, 1 if requested > 0 else 0)
 
@@ -288,6 +290,15 @@ def apply_packaging(
         # Calculate provided and overage
         provided_value = packs * rule.pack_size.value
         overage_value = provided_value - line.qty.value
+
+        # Defensive check: overage should never be negative (packs must cover requested)
+        if overage_value < 0:
+            raise ValueError(
+                f"Negative overage computed for food_id={food_id}: "
+                f"provided={provided_value}, requested={line.qty.value}, "
+                f"pack_size={rule.pack_size.value}, packs={packs}. "
+                f"This indicates a bug in compute_packs logic."
+            )
 
         # Create PackPlan
         plan = PackPlan(
