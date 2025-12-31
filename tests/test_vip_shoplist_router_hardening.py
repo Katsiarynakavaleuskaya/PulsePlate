@@ -478,5 +478,3 @@ def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_calle
         or "greater than or equal to 1" in str(err.get("msg", "")).lower()
         for err in errors
     )
-
-
