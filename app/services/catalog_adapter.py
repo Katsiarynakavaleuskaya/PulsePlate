@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping, Optional, Protocol
+from typing import Mapping, Optional, Protocol, cast
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
