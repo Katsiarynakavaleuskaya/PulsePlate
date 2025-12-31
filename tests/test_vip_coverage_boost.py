@@ -65,8 +65,8 @@ class TestVIPCoverageBoost:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_shoplist_missing_function(self, monkeypatch):
-        """Тест VIP shoplist endpoint with new API format"""
+    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch):
+        """Тест VIP shoplist weekly endpoint with new API format"""
         import app
 
         # Enable VIP module

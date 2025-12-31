@@ -224,14 +224,7 @@ def test_build_shoplist_response_raises_500_when_package_rule_missing() -> None:
     This is an invariant violation: engine returned "packed", but adapter
     cannot find the corresponding packaging rule. This is NOT a user error → 500.
     """
-    from decimal import Decimal
-
-    import pytest
-    from fastapi import HTTPException, status
-
     from app.routers import vip_shoplist
-    from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
-    from core.shoplist_engine.packager import PackagingResult
 
     # Create result with packed item that has NO matching rule
     result = PackagingResult(

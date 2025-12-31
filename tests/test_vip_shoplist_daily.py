@@ -127,7 +127,8 @@ def test_daily_success_200_without_packaging_rules(
         assert key in body
 
     # Without packaging rules, items should be in unpacked
-    assert len(body["unpacked"]) >= 0  # May be empty or have items
+    assert "unpacked" in body
+    assert isinstance(body["unpacked"], list)
     assert body["analytics"] is not None
 
 

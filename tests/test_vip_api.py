@@ -187,6 +187,9 @@ def test_vip_shoplist_daily(monkeypatch):
     app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
 
     try:
+        # Create fresh TestClient after setting dependency_overrides
+        client = TestClient(cast(ASGIApp, app.app))
+
         # Use new API format for vip_shoplist router
         payload = {
             "items": [

@@ -11,6 +11,8 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from app.middleware import api_tiers
+
 
 class TestVIPCoveragePrecise:
     """Test class to achieve 97% coverage for VIP router covering specific missing lines."""
@@ -229,7 +231,6 @@ class TestVIPCoveragePrecise:
     def test_vip_shoplist_weekly_coverage_lines_219_259(self, monkeypatch):
         """Test VIP shoplist weekly coverage for lines 219-259."""
         import app
-        from app.middleware import api_tiers
 
         # Enable VIP module
         monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
@@ -279,10 +280,12 @@ class TestVIPCoveragePrecise:
     def test_vip_shoplist_daily_coverage_lines_315_316(self, monkeypatch):
         """Test VIP shoplist daily coverage for lines 315-316."""
         import app
-        from app.middleware import api_tiers
 
         # Enable VIP module
-        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+        def mock_is_vip_module_enabled() -> bool:
+            return True
+
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", mock_is_vip_module_enabled)
 
         # Override VIP tier dependency
         async def mock_require_vip_tier() -> str:

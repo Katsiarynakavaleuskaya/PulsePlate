@@ -175,7 +175,9 @@ class TestVIPCoverageAdditional:
             assert data["status"] == "success"  # Returns success in echo mode
             assert "menu" in data
 
-    def test_vip_shoplist_weekly_success_coverage_lines_217_254(self, monkeypatch):
+    def test_vip_shoplist_weekly_success_coverage_lines_217_254(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         """Test VIP shoplist weekly success coverage for lines 217-254."""
         import app
 
@@ -230,7 +232,9 @@ class TestVIPCoverageAdditional:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_weekly_error_coverage_lines_254_266(self, monkeypatch):
+    def test_vip_shoplist_weekly_error_coverage_lines_254_266(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         """Test VIP shoplist weekly error coverage for lines 254-266."""
         import app
 
@@ -321,7 +325,9 @@ class TestVIPCoverageAdditional:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_error_coverage_lines_300_312(self, monkeypatch):
+    def test_vip_shoplist_daily_error_coverage_lines_300_312(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         """Test VIP shoplist daily error coverage for lines 300-312."""
         import app
 
