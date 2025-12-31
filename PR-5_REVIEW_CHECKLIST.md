@@ -1,6 +1,6 @@
 # PR-5 Review Checklist
 
-> **PR:** `docs(vip): freeze shoplist contract + OpenAPI alignment + iOS DTOs`  
+> **PR:** `docs(vip): freeze shoplist contract + OpenAPI alignment + iOS DTOs`
 > **Branch:** `docs/pr-5-vip-shoplist-contract`
 
 ---
@@ -115,4 +115,3 @@ After merge, verify:
 ---
 
 **Status:** ✅ Ready for review / ⚠️ Needs fixes / ❌ Blocked
-
