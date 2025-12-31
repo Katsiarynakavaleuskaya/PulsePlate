@@ -220,7 +220,7 @@ async def vip_shoplist_generate(
         total_lines=len(result.packed) + len(result.unpacked),
         packed_lines=len(result.packed),
         unpacked_lines=len(result.unpacked),
-        total_overage_by_unit={cast(UnitDTO, k): str(v) for k, v in overage_totals.items()},
+        total_overage_by_unit={k: str(v) for k, v in overage_totals.items()},
     )
 
     return ShoplistGenerateResponse(

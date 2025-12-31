@@ -27,15 +27,6 @@ def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _payload_minimal(food_id: str) -> dict[str, Any]:
-    """RU: Минимальный валидный payload без packaging_rules (None)."""
-    return {
-        "items": [
-            {"food_id": food_id, "qty": {"value": "1", "unit": "PCS"}, "form": "RAW"},
-        ]
-    }
-
-
 def _payload_with_rule(food_id: str, unit: str = "G") -> dict[str, Any]:
     """RU: Payload с packaging_rule для food_id (нужно для packed items)."""
     return {
@@ -174,6 +165,9 @@ def test_analytics_overage_positive_sums_correctly(
     analytics = _assert_analytics_shape(data)
     totals = analytics["total_overage_by_unit"]
     assert totals.get("G") == "200"
+    assert analytics["total_lines"] == 1
+    assert analytics["packed_lines"] == 1
+    assert analytics["unpacked_lines"] == 0
 
 
 def test_analytics_overage_multi_unit_is_reported_separately(
@@ -251,6 +245,145 @@ def test_analytics_overage_multi_unit_is_reported_separately(
 
     assert totals.get("G") == "200"
     assert totals.get("ML") == "50"
+    assert analytics["packed_lines"] == 2
+    assert analytics["unpacked_lines"] == 0
+    assert analytics["total_lines"] == 2
+
+
+def _mock_result_with_multiple_overages(
+    food_id: str,
+    overages: list[tuple[Decimal, str]],
+) -> PackagingResult:
+    """
+    Build a PackagingResult with multiple packed lines and given overages.
+
+    RU: Используется для тестирования агрегации overage по одной unit.
+    EN: Used for testing overage aggregation for the same unit.
+    """
+    from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
+    from core.shoplist_engine.packager import PackagingResult
+
+    packed = []
+    for i, (amount, unit) in enumerate(overages):
+        unit_enum = Unit[unit]
+        # PackPlan invariants: provided = packs * pack_size, overage = provided - requested
+        # We set requested=1000, pack_size=1000+amount, packs=1, provided=1000+amount, overage=amount
+        requested_value = Decimal("1000")
+        pack_size_value = requested_value + amount
+        packed.append(
+            PackPlan(
+                food=FoodRef(food_id=f"{food_id}_{i}"),
+                requested=Quantity(requested_value, unit_enum),
+                pack_size=Quantity(pack_size_value, unit_enum),
+                packs=1,
+                provided=Quantity(pack_size_value, unit_enum),  # packs=1, so provided = pack_size
+                overage=Quantity(amount, unit_enum),
+            )
+        )
+
+    return PackagingResult(packed=packed, unpacked=[])
+
+
+def test_analytics_only_unpacked_lines_have_empty_overage_totals(
+    client_with_vip_access,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When nothing is packed, analytics should report empty overage totals."""
+    _enable_vip(monkeypatch)
+
+    from core.shoplist_engine.models import FoodRef, Quantity, ShoplistLine, Unit
+    from core.shoplist_engine.packager import PackagingResult
+
+    mock_result = PackagingResult(
+        packed=[],
+        unpacked=[
+            ShoplistLine(
+                food=FoodRef(food_id="salt"),
+                qty=Quantity(Decimal("10"), Unit.G),
+            ),
+            ShoplistLine(
+                food=FoodRef(food_id="water"),
+                qty=Quantity(Decimal("1"), Unit.L),
+            ),
+        ],
+    )
+
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
+        return mock_result
+
+    monkeypatch.setattr("app.routers.vip_shoplist.ShoplistEngine.generate", mock_generate)
+
+    payload = {
+        "items": [
+            {"food_id": "salt", "qty": {"value": "10", "unit": "G"}, "form": "RAW"},
+            {"food_id": "water", "qty": {"value": "1", "unit": "L"}, "form": "RAW"},
+        ]
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 200, r.text
+
+    analytics = _assert_analytics_shape(r.json())
+    assert analytics["packed_lines"] == 0
+    assert analytics["unpacked_lines"] == 2
+    assert analytics["total_lines"] == 2
+    assert analytics["total_overage_by_unit"] == {}
+
+
+def test_analytics_overage_positive_sums_multiple_lines_same_unit(
+    client_with_vip_access,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple packed lines with same unit should aggregate overage correctly."""
+    _enable_vip(monkeypatch)
+
+    mock_result = _mock_result_with_multiple_overages(
+        food_id="flour",
+        overages=[
+            (Decimal("100"), "G"),
+            (Decimal("150"), "G"),
+        ],
+    )
+
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
+        return mock_result
+
+    monkeypatch.setattr("app.routers.vip_shoplist.ShoplistEngine.generate", mock_generate)
+
+    # Need packaging_rules for all food_ids that appear in packed result (flour_0, flour_1)
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1", "unit": "KG"}, "form": "RAW"},
+        ],
+        "packaging_rules": [
+            {
+                "food_id": "flour_0",
+                "pack_size": {"value": "1100", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+            {
+                "food_id": "flour_1",
+                "pack_size": {"value": "1150", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+        ],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 200, r.text
+
+    analytics = _assert_analytics_shape(r.json())
+    totals = analytics["total_overage_by_unit"]
+
+    assert totals["G"] == "250"
     assert analytics["packed_lines"] == 2
     assert analytics["unpacked_lines"] == 0
     assert analytics["total_lines"] == 2
