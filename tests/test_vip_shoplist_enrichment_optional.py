@@ -8,35 +8,11 @@ EN: Integration tests for optional catalog enrichment.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
 from tests.conftest import _enable_vip
-
-
-@pytest.fixture()
-def override_require_vip_tier(app) -> Iterator[None]:
-    """
-    RU: Fixture для временного override require_vip_tier с гарантированной очисткой.
-    EN: Fixture for temporary require_vip_tier override with guaranteed cleanup.
-
-    Prevents test pollution by restoring previous state (or removing override) in teardown.
-    """
-    from app.routers.vip_shoplist import require_vip_tier
-
-    prev = app.dependency_overrides.get(require_vip_tier)
-
-    app.dependency_overrides[require_vip_tier] = lambda: "vip"
-    try:
-        yield
-    finally:
-        if prev is None:
-            app.dependency_overrides.pop(require_vip_tier, None)
-        else:
-            app.dependency_overrides[require_vip_tier] = prev
 
 
 def _generate_payload_minimal() -> dict:
@@ -62,14 +38,13 @@ def _generate_payload_minimal() -> dict:
 
 def test_generate_without_region_store_has_no_catalog(
     monkeypatch: pytest.MonkeyPatch,
-    app,
-    override_require_vip_tier,
+    client_with_vip_access: TestClient,
 ) -> None:
     """Test that without region_id/store_id, catalog field is None."""
     _enable_vip(monkeypatch)
 
-    # Create fresh client after overrides (fixture handles override setup)
-    client = TestClient(app)
+    # client_with_vip_access fixture handles VIP tier and API key overrides
+    client = client_with_vip_access
 
     r = client.post("/api/v1/vip/shoplist/generate", json=_generate_payload_minimal())
     assert r.status_code == status.HTTP_200_OK, r.text
@@ -84,14 +59,13 @@ def test_generate_without_region_store_has_no_catalog(
 
 def test_generate_with_region_store_attaches_catalog(
     monkeypatch: pytest.MonkeyPatch,
-    app,
-    override_require_vip_tier,
+    client_with_vip_access: TestClient,
 ) -> None:
     """Test that with region_id/store_id, catalog is attached when found."""
     _enable_vip(monkeypatch)
 
-    # Create fresh client after overrides (fixture handles override setup)
-    client = TestClient(app)
+    # client_with_vip_access fixture handles VIP tier and API key overrides
+    client = client_with_vip_access
 
     r = client.post(
         "/api/v1/vip/shoplist/generate?region_id=es&store_id=carrefour_es",
@@ -111,14 +85,13 @@ def test_generate_with_region_store_attaches_catalog(
 
 def test_daily_with_enrichment_applies_to_response(
     monkeypatch: pytest.MonkeyPatch,
-    app,
-    override_require_vip_tier,
+    client_with_vip_access: TestClient,
 ) -> None:
     """Test that /daily endpoint applies enrichment when params provided."""
     _enable_vip(monkeypatch)
 
-    # Fixture handles override setup
-    client = TestClient(app)
+    # client_with_vip_access fixture handles VIP tier and API key overrides
+    client = client_with_vip_access
 
     r = client.post(
         "/api/v1/vip/shoplist/daily?region_id=es&store_id=carrefour_es",
