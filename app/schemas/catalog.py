@@ -112,9 +112,7 @@ class MoneyDTO(BaseModel):
         description="Decimal-as-string in JSON (no floats)",
         examples=[Decimal("1.29"), Decimal("2.50")],
     )
-    currency: CurrencyDTO = Field(
-        ..., examples=[CurrencyDTO.EUR, CurrencyDTO.USD, CurrencyDTO.GBP]
-    )
+    currency: CurrencyDTO = Field(..., examples=[CurrencyDTO.EUR, CurrencyDTO.USD, CurrencyDTO.GBP])
 
 
 class CatalogInfoDTO(BaseModel):

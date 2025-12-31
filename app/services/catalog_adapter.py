@@ -141,9 +141,7 @@ def enrich_shoplist_response(
             store_id=store_id,
         )
         # model_copy preserves the type correctly
-        enriched_packed.append(
-            packed_line.model_copy(update={"catalog": catalog}, deep=False)
-        )
+        enriched_packed.append(packed_line.model_copy(update={"catalog": catalog}, deep=False))
 
     enriched_unpacked: list[UnpackedLineDTO] = []
     for unpacked_line in response.unpacked:
@@ -153,9 +151,7 @@ def enrich_shoplist_response(
             store_id=store_id,
         )
         # model_copy preserves the type correctly
-        enriched_unpacked.append(
-            unpacked_line.model_copy(update={"catalog": catalog}, deep=False)
-        )
+        enriched_unpacked.append(unpacked_line.model_copy(update={"catalog": catalog}, deep=False))
 
     return response.model_copy(
         update={
