@@ -86,7 +86,7 @@
 
 ## 📝 Коммит-месседж
 
-```
+```text
 test(vip): add router hardening tests for error paths (PR-3)
 
 - Add comprehensive negative test cases (422/404/403)

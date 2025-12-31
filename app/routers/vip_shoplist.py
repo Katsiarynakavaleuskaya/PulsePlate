@@ -100,7 +100,7 @@ def _build_reasons(p: PackPlan, rule: PackageRule) -> list[str]:
     ]
 
 
-def _sum_overage_by_unit(result: PackagingResult) -> dict[str, Decimal]:
+def _sum_overage_by_unit(result: PackagingResult) -> dict[UnitDTO, Decimal]:
     """
     Sum overage totals by unit.
 
@@ -108,10 +108,11 @@ def _sum_overage_by_unit(result: PackagingResult) -> dict[str, Decimal]:
     EN: Aggregate overage totals by unit (G/ML/PCS/...).
 
     Adapter-only: uses engine output as-is.
+    Cast is safe: core.Unit.name values match UnitDTO Literal subset.
     """
-    totals: dict[str, Decimal] = {}
+    totals: dict[UnitDTO, Decimal] = {}
     for p in result.packed:
-        unit = p.overage.unit.name
+        unit = cast(UnitDTO, p.overage.unit.name)
         totals[unit] = totals.get(unit, Decimal("0")) + p.overage.value
     return totals
 
@@ -220,10 +221,8 @@ async def vip_shoplist_generate(
         total_lines=len(result.packed) + len(result.unpacked),
         packed_lines=len(result.packed),
         unpacked_lines=len(result.unpacked),
-        # RU: k приходит из unit.name (Unit enum), который всегда соответствует UnitDTO Literal.
-        # EN: k comes from unit.name (Unit enum), which always matches UnitDTO Literal.
-        # Pydantic validates keys at runtime, cast is safe for mypy.
-        total_overage_by_unit={cast(UnitDTO, k): str(v) for k, v in overage_totals.items()},
+        # k is already UnitDTO from _sum_overage_by_unit return type
+        total_overage_by_unit={k: str(v) for k, v in overage_totals.items()},
     )
 
     return ShoplistGenerateResponse(

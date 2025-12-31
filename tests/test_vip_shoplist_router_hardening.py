@@ -67,7 +67,8 @@ def test_generate_invalid_rounding_returns_422(
     errors = data.get("detail", [])
     assert isinstance(errors, list)
     assert any(
-        "rounding" in str(err.get("loc", [])).lower() or "rounding" in str(err.get("msg", "")).lower()
+        "rounding" in str(err.get("loc", [])).lower()
+        or "rounding" in str(err.get("msg", "")).lower()
         for err in errors
     )
 
