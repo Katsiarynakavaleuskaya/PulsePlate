@@ -304,3 +304,160 @@ def test_generate_empty_items_list_returns_200(
     assert data["analytics"]["packed_lines"] == 0
     assert data["analytics"]["unpacked_lines"] == 0
     assert data["analytics"]["total_overage_by_unit"] == {}
+
+
+# --- Fail-fast tests: engine must not be called on invalid input ---
+
+
+def test_generate_invalid_unit_returns_422_and_engine_not_called(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid unit -> 422; engine must not be invoked (fail-fast)."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("Engine must not be called on invalid unit")
+
+    monkeypatch.setattr(
+        "app.routers.vip_shoplist.ShoplistEngine.generate",
+        fail_if_called,
+    )
+
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1", "unit": "INVALID_UNIT"}, "form": "RAW"},
+        ]
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 422, r.text
+    # Pydantic validates at DTO level, so error structure may vary
+    data = r.json()
+    errors = data.get("detail", [])
+    assert isinstance(errors, list) or isinstance(data.get("detail"), str)
+
+
+def test_generate_invalid_form_returns_422_and_engine_not_called(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid form -> 422; engine must not be invoked (fail-fast)."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("Engine must not be called on invalid form")
+
+    monkeypatch.setattr(
+        "app.routers.vip_shoplist.ShoplistEngine.generate",
+        fail_if_called,
+    )
+
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1", "unit": "G"}, "form": "INVALID_FORM"},
+        ]
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 422, r.text
+    # Router's _map_form should catch this before engine
+    data = r.json()
+    assert "detail" in data
+
+
+def test_generate_invalid_rounding_returns_422_and_engine_not_called(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid rounding -> 422; engine must not be invoked (fail-fast)."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("Engine must not be called on invalid rounding")
+
+    monkeypatch.setattr(
+        "app.routers.vip_shoplist.ShoplistEngine.generate",
+        fail_if_called,
+    )
+
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1", "unit": "G"}, "form": "RAW"},
+        ],
+        "packaging_rules": [
+            {
+                "food_id": "flour",
+                "pack_size": {"value": "1000", "unit": "G"},
+                "rounding": "INVALID_ROUNDING",
+                "min_packs": 1,
+            }
+        ],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 422, r.text
+    # Router's _map_rounding should catch this before engine
+    data = r.json()
+    assert "detail" in data
+
+
+def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_called(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """min_packs=0 should fail DTO validation -> 422; engine must not be invoked."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("Engine must not be called on invalid DTO")
+
+    monkeypatch.setattr(
+        "app.routers.vip_shoplist.ShoplistEngine.generate",
+        fail_if_called,
+    )
+
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1", "unit": "G"}, "form": "RAW"},
+        ],
+        "packaging_rules": [
+            {
+                "food_id": "flour",
+                "pack_size": {"value": "1000", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 0,  # Invalid: must be >= 1
+            }
+        ],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 422, r.text
+    # Pydantic validation should catch this
+    data = r.json()
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+
+
+def test_generate_missing_api_key_returns_401_or_403(
+    app_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Проверяем, что require_vip_tier реально работает.
+    Статус может быть 401 или 403 — не фиксируем жёстко.
+    """
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    # Create client WITHOUT VIP access (no dependency override)
+    client = TestClient(app_module.app)
+
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1", "unit": "G"}, "form": "RAW"},
+        ]
+    }
+
+    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    # legacy_app may return 401 or 403 depending on implementation
+    assert r.status_code in (401, 403), f"Expected 401 or 403, got {r.status_code}: {r.text}"
