@@ -99,9 +99,7 @@ class ShoplistGenerateResponse(BaseModel):
                 provided=QuantityDTO(
                     value=p.provided.value, unit=cast(UnitDTO, p.provided.unit.name)
                 ),
-                overage=QuantityDTO(
-                    value=p.overage.value, unit=cast(UnitDTO, p.overage.unit.name)
-                ),
+                overage=QuantityDTO(value=p.overage.value, unit=cast(UnitDTO, p.overage.unit.name)),
                 rounding=cast(RoundingModeDTO, rules_index[p.food.food_id].rounding.name),
                 min_packs=rules_index[p.food.food_id].min_packs,
             )
