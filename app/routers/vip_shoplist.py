@@ -9,10 +9,9 @@ Contract:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from typing import Annotated
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
@@ -364,14 +363,10 @@ async def vip_shoplist_generate(
 )
 async def vip_shoplist_daily(
     payload: ShoplistDailyRequest,
-    region_id: Annotated[
-        Optional[str],
-        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
-    ] = None,
-    store_id: Annotated[
-        Optional[str],
-        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
-    ] = None,
+    region_store: Annotated[
+        tuple[str | None, str | None],
+        Depends(region_store_params),
+    ] = (None, None),
     _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> ShoplistGenerateResponse:
@@ -422,14 +417,10 @@ async def vip_shoplist_daily(
 )
 async def vip_shoplist_weekly(
     payload: ShoplistWeeklyRequest,
-    region_id: Annotated[
-        Optional[str],
-        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
-    ] = None,
-    store_id: Annotated[
-        Optional[str],
-        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
-    ] = None,
+    region_store: Annotated[
+        tuple[str | None, str | None],
+        Depends(region_store_params),
+    ] = (None, None),
     _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> ShoplistWeeklyResponse:
