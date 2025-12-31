@@ -269,9 +269,7 @@ def test_generate_accepts_missing_packaging_rules_field(
 
     mock_result = PackagingResult(
         packed=[],
-        unpacked=[
-            ShoplistLine(food=FoodRef(food_id="salt"), qty=Quantity(Decimal("10"), Unit.G))
-        ],
+        unpacked=[ShoplistLine(food=FoodRef(food_id="salt"), qty=Quantity(Decimal("10"), Unit.G))],
     )
 
     def mock_generate(
