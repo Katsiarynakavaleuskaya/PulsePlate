@@ -46,8 +46,8 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_shoplist_missing_function(self, monkeypatch):
-        """Тест VIP shoplist endpoint with new API format"""
+    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch):
+        """Тест VIP shoplist weekly endpoint with new API format"""
         import app
 
         # Enable VIP module
@@ -216,7 +216,10 @@ class TestVIPCoverageBoostFixed:
             app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
 
             try:
-                response = client.post(
+                # Create fresh TestClient after setting dependency_overrides
+                shoplist_client = TestClient(cast(ASGIApp, app.app))
+
+                response = shoplist_client.post(
                     "/api/v1/vip/shoplist/weekly",
                     json={
                         "days": [
