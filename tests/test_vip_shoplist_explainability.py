@@ -207,3 +207,89 @@ def test_generate_reasons_are_deterministic(
     # RU: Если в роутере зафиксируешь порядок reasons — это цементируем.
     assert reasons[0].startswith("rounding=")
     assert reasons[1].startswith("min_packs=")
+
+
+def test_generate_raises_when_packed_item_missing_rule(
+    client_with_vip_access,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Contract: packed lines require a rule -> 500 if missing."""
+    _enable_vip(monkeypatch)
+
+    from core.shoplist_engine.models import (
+        FoodRef,
+        PackPlan,
+        Quantity,
+        Unit,
+    )
+    from core.shoplist_engine.packager import PackagingResult
+
+    # packed has "flour", but payload.packaging_rules is empty -> rules_index empty
+    mock_result = PackagingResult(
+        packed=[
+            PackPlan(
+                food=FoodRef(food_id="flour"),
+                requested=Quantity(Decimal("1800"), Unit.G),
+                pack_size=Quantity(Decimal("1000"), Unit.G),
+                packs=2,
+                provided=Quantity(Decimal("2000"), Unit.G),
+                overage=Quantity(Decimal("200"), Unit.G),
+            )
+        ],
+        unpacked=[],
+    )
+
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
+        return mock_result
+
+    monkeypatch.setattr("app.routers.vip_shoplist.ShoplistEngine.generate", mock_generate)
+
+    payload = {
+        "items": [{"food_id": "flour", "qty": {"value": "1.8", "unit": "KG"}, "form": "RAW"}],
+        "packaging_rules": [],  # <--- key point (rules_index empty)
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 500, r.text
+    assert "missing packaging rule" in r.json()["detail"]
+
+
+def test_generate_accepts_missing_packaging_rules_field(
+    client_with_vip_access,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If packaging_rules omitted (None), endpoint still works and returns unpacked."""
+    _enable_vip(monkeypatch)
+
+    from core.shoplist_engine.models import FoodRef, Quantity, ShoplistLine, Unit
+    from core.shoplist_engine.packager import PackagingResult
+
+    mock_result = PackagingResult(
+        packed=[],
+        unpacked=[
+            ShoplistLine(food=FoodRef(food_id="salt"), qty=Quantity(Decimal("10"), Unit.G))
+        ],
+    )
+
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
+        return mock_result
+
+    monkeypatch.setattr("app.routers.vip_shoplist.ShoplistEngine.generate", mock_generate)
+
+    # packaging_rules intentionally omitted -> payload.packaging_rules == None
+    payload = {
+        "items": [{"food_id": "salt", "qty": {"value": "10", "unit": "G"}, "form": "RAW"}],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    _, unpacked = _extract_packed_and_unpacked(data)
+    assert len(unpacked) == 1
+    assert unpacked[0]["reason"] == REASON_NO_PACKAGING_RULE
