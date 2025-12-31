@@ -1,8 +1,8 @@
 # VIP Shoplist API — Contract Freeze (v1)
 
-> **Status:** Frozen  
-> **Scope:** Backend contract only (engine-first, adapter-only)  
-> **Audience:** iOS / React / API consumers  
+> **Status:** Frozen
+> **Scope:** Backend contract only (engine-first, adapter-only)
+> **Audience:** iOS / React / API consumers
 > **Updated:** PR-5
 
 ---
@@ -39,7 +39,7 @@ VIP Shoplist API provides **deterministic shopping list generation** with:
 | Invalid enum / DTO validation error    | 422         |
 | Adapter invariant violation            | 500         |
 
-> **Note:** 500 is reserved for internal invariant violations  
+> **Note:** 500 is reserved for internal invariant violations
 > (e.g. engine returned `packed`, but adapter cannot find `PackageRule`).
 
 ---
@@ -473,4 +473,3 @@ curl -X POST \
 ---
 
 **End of contract**
-
