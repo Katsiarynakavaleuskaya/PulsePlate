@@ -285,7 +285,9 @@ class TestVIPCoveragePrecise:
         def mock_is_vip_module_enabled() -> bool:
             return True
 
-        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", mock_is_vip_module_enabled)
+        monkeypatch.setattr(
+            "app.routers.vip_shoplist.is_vip_module_enabled", mock_is_vip_module_enabled
+        )
 
         # Override VIP tier dependency
         async def mock_require_vip_tier() -> str:

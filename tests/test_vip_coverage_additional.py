@@ -325,9 +325,7 @@ class TestVIPCoverageAdditional:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_error_coverage_lines_300_312(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_vip_shoplist_daily_error_coverage_lines_300_312(self, monkeypatch: pytest.MonkeyPatch):
         """Test VIP shoplist daily error coverage for lines 300-312."""
         import app
 
