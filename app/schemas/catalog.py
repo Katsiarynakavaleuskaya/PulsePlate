@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Catalog enrichment schemas (adapter-only).
+Catalog schemas (legacy public API + PR-6 enrichment).
 
-RU: Схемы для enrichment слоя (каталожная информация: SKU, цена, aisle).
-EN: Schemas for enrichment layer (catalog info: SKU, price, aisle).
+RU: Схемы для catalog API (legacy) и enrichment слоя (PR-6).
+EN: Schemas for catalog API (legacy) and enrichment layer (PR-6).
 """
 
 from __future__ import annotations
@@ -12,7 +12,74 @@ from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+# --- Legacy public surface (MUST stay for app/routers/catalog.py) ---
+
+
+class CatalogRegion(BaseModel):
+    """
+    RU: Регион каталога (legacy/public contract).
+    EN: Catalog region (legacy/public contract).
+
+    Region catalog public DTO (used by app/routers/catalog.py).
+    Keep backward-compatible with core.catalog.service model_dump().
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(..., min_length=2, max_length=8, examples=["es"])
+    name: str = Field(..., min_length=1, max_length=100, examples=["Spain"])
+
+
+class CatalogStore(BaseModel):
+    """
+    RU: Магазин/сеть в регионе (legacy/public contract).
+    EN: Store in region (legacy/public contract).
+
+    Store public DTO (used by app/routers/catalog.py).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(..., min_length=1, max_length=64, examples=["carrefour_es"])
+    region_id: str = Field(..., min_length=2, max_length=8, examples=["es"])
+    name: str = Field(..., min_length=1, max_length=100, examples=["Carrefour ES"])
+    source_id: str = Field(..., min_length=1, max_length=32, examples=["carrefour"])
+
+
+class CatalogSKU(BaseModel):
+    """
+    RU: SKU запись (legacy/public contract).
+    EN: SKU record (legacy/public contract).
+
+    SKU public DTO (used by app/routers/catalog.py).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(..., min_length=1, max_length=128, examples=["CRF-ES-000123"])
+    name: str = Field(..., min_length=1, max_length=200, examples=["Carrot 500g"])
+    brand: str | None = Field(default=None, max_length=100, examples=["Carrefour"])
+    barcode: str | None = Field(default=None, max_length=64, examples=["1234567890123"])
+    region_id: str = Field(..., min_length=2, max_length=8, examples=["es"])
+    store_id: str = Field(..., min_length=1, max_length=64, examples=["carrefour_es"])
+    source_id: str = Field(..., min_length=1, max_length=32, examples=["carrefour"])
+
+    # Optional metadata (keep flexible; core can evolve)
+    pack_label: Optional[str] = Field(default=None, examples=["500 g bag"])
+    aisle: Optional[str] = Field(default=None, examples=["Vegetables"])
+
+    # Optional price fields (legacy-friendly; do not force a shape)
+    price_value: Optional[Decimal] = Field(
+        default=None,
+        description="Decimal serialized as string in JSON (Pydantic v2).",
+        examples=[Decimal("1.29")],
+    )
+    price_currency: Optional[str] = Field(default=None, examples=["EUR"])
+
+
+# --- New PR-6 enrichment DTOs (adapter-only) ---
 
 
 class CurrencyDTO(str, Enum):
