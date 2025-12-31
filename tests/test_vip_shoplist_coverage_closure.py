@@ -169,6 +169,57 @@ def test_generate_with_multiple_packed_items_different_units(
     assert len(overage_by_unit) >= 1  # At least one unit has overage
 
 
+def test_build_shoplist_response_without_analytics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _build_shoplist_response with include_analytics=False - coverage for branch 247->257."""
+    from app.routers import vip_shoplist
+    from core.shoplist_engine.models import (
+        FoodRef,
+        PackPlan,
+        PackageRule,
+        Quantity,
+        RoundingMode,
+        Unit,
+    )
+    from core.shoplist_engine.packager import PackagingResult
+
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    # Create minimal result
+    result = PackagingResult(
+        packed=[
+            PackPlan(
+                food=FoodRef(food_id="chicken"),
+                requested=Quantity(Decimal("1200"), Unit.G),
+                pack_size=Quantity(Decimal("500"), Unit.G),
+                packs=3,
+                provided=Quantity(Decimal("1500"), Unit.G),
+                overage=Quantity(Decimal("300"), Unit.G),
+            )
+        ],
+        unpacked=[],
+    )
+
+    rules = [
+        PackageRule(
+            food_id="chicken",
+            pack_size=Quantity(Decimal("500"), Unit.G),
+            rounding=RoundingMode.CEIL,
+            min_packs=1,
+        )
+    ]
+
+    # Call with include_analytics=False
+    response = vip_shoplist._build_shoplist_response(result, rules, include_analytics=False)
+
+    # Verify response structure
+    assert response.packed is not None
+    assert response.unpacked is not None
+    # Analytics should be None when include_analytics=False
+    assert response.analytics is None
+
+
 def test_generate_with_packaging_rules_not_none(
     client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,

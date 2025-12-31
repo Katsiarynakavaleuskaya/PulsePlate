@@ -15,15 +15,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
+    PackageRuleDTO,
     PackedLineDTO,
     QuantityDTO,
     REASON_NO_PACKAGING_RULE,
     RoundingModeDTO,
     ShoplistAnalyticsDTO,
+    ShoplistDailyRequest,
     ShoplistGenerateRequest,
     ShoplistGenerateResponse,
+    ShoplistItemDTO,
     ShoplistPreviewItem,
     ShoplistPreviewResponse,
+    ShoplistWeeklyRequest,
+    ShoplistWeeklyResponse,
     UnpackedLineDTO,
     UnitDTO,
 )
@@ -121,63 +126,82 @@ def _sum_overage_by_unit(result: PackagingResult) -> dict[UnitDTO, Decimal]:
     return totals
 
 
-@router.get("/preview", response_model=ShoplistPreviewResponse)
-async def vip_shoplist_preview(
-    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
-    _vip: Annotated[str, Depends(require_vip_tier)],
-) -> ShoplistPreviewResponse:
-    """VIP shoplist preview endpoint (legacy)."""
-    preview = build_preview()
-    return ShoplistPreviewResponse(
-        items=[
-            ShoplistPreviewItem(category=i.category, name=i.name, quantity=i.quantity)
-            for i in preview.items
-        ]
-    )
-
-
-@router.post("/generate", response_model=ShoplistGenerateResponse)
-async def vip_shoplist_generate(
-    payload: ShoplistGenerateRequest,
-    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
-    _vip: Annotated[str, Depends(require_vip_tier)],
-) -> ShoplistGenerateResponse:
+def _map_dto_to_engine_specs(
+    items: list[ShoplistItemDTO],
+) -> list[IngredientSpec]:
     """
-    Generate shopping list with packaging rules (ShoplistEngine v1).
+    Map DTO items to engine IngredientSpec models.
 
-    RU: Генерирует список покупок с применением правил упаковки.
-    EN: Generates shopping list with packaging rules applied.
+    RU: Преобразует DTO items в core IngredientSpec модели для engine.
+    EN: Maps DTO items to core IngredientSpec models for engine.
 
-    This endpoint uses the pure ShoplistEngine v1 pipeline:
-    normalize → aggregate → package
+    Args:
+        items: List of ShoplistItemDTO from request
 
-    No prices, no stores, no external calls - pure deterministic calculation.
+    Returns:
+        List of IngredientSpec for engine pipeline
     """
-    # Map DTO -> core models
-    specs = [
+    return [
         IngredientSpec(
             food=FoodRef(food_id=item.food_id),
             qty=Quantity(value=item.qty.value, unit=_map_unit(item.qty.unit)),
             form=_map_form(item.form),
         )
-        for item in payload.items
+        for item in items
     ]
 
-    rules = []
-    if payload.packaging_rules:
-        rules = [
-            PackageRule(
-                food_id=r.food_id,
-                pack_size=Quantity(value=r.pack_size.value, unit=_map_unit(r.pack_size.unit)),
-                rounding=_map_rounding(r.rounding),
-                min_packs=r.min_packs,
-            )
-            for r in payload.packaging_rules
-        ]
 
-    # Run engine pipeline
-    result = ShoplistEngine.generate(specs, packaging_rules=rules)
+def _map_dto_to_engine_rules(
+    packaging_rules: list[PackageRuleDTO] | None,
+) -> list[PackageRule]:
+    """
+    Map DTO packaging rules to engine PackageRule models.
 
+    RU: Преобразует DTO packaging rules в core PackageRule модели.
+    EN: Maps DTO packaging rules to core PackageRule models.
+
+    Args:
+        packaging_rules: Optional list of PackageRuleDTO from request
+
+    Returns:
+        List of PackageRule for engine pipeline
+    """
+    if not packaging_rules:
+        return []
+    return [
+        PackageRule(
+            food_id=r.food_id,
+            pack_size=Quantity(value=r.pack_size.value, unit=_map_unit(r.pack_size.unit)),
+            rounding=_map_rounding(r.rounding),
+            min_packs=r.min_packs,
+        )
+        for r in packaging_rules
+    ]
+
+
+def _build_shoplist_response(
+    result: PackagingResult,
+    rules: list[PackageRule],
+    *,
+    include_analytics: bool = True,
+) -> ShoplistGenerateResponse:
+    """
+    Build shoplist response DTO from engine result.
+
+    RU: Собирает DTO ответ из результата engine (explainability + analytics).
+    EN: Builds DTO response from engine result (explainability + analytics).
+
+    Args:
+        result: PackagingResult from ShoplistEngine.generate
+        rules: List of PackageRule used for generation
+        include_analytics: Whether to include analytics in response
+
+    Returns:
+        ShoplistGenerateResponse with packed/unpacked lines and analytics
+
+    Raises:
+        HTTPException: 500 if packed item missing packaging rule (contract violation)
+    """
     # Build rules index for lookup (rounding, min_packs, explainability)
     rules_index = {r.food_id: r for r in rules}
 
@@ -219,21 +243,126 @@ async def vip_shoplist_generate(
         for u in result.unpacked
     ]
 
-    overage_totals = _sum_overage_by_unit(result)
-
-    analytics = ShoplistAnalyticsDTO(
-        total_lines=len(result.packed) + len(result.unpacked),
-        packed_lines=len(result.packed),
-        unpacked_lines=len(result.unpacked),
-        # k is already UnitDTO from _sum_overage_by_unit return type
-        total_overage_by_unit={k: str(v) for k, v in overage_totals.items()},
-    )
+    analytics = None
+    if include_analytics:
+        overage_totals = _sum_overage_by_unit(result)
+        analytics = ShoplistAnalyticsDTO(
+            total_lines=len(result.packed) + len(result.unpacked),
+            packed_lines=len(result.packed),
+            unpacked_lines=len(result.unpacked),
+            # k is already UnitDTO from _sum_overage_by_unit return type
+            total_overage_by_unit={k: str(v) for k, v in overage_totals.items()},
+        )
 
     return ShoplistGenerateResponse(
         packed=packed_dto,
         unpacked=unpacked_dto,
         analytics=analytics,
     )
+
+
+@router.get("/preview", response_model=ShoplistPreviewResponse)
+async def vip_shoplist_preview(
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
+    _vip: Annotated[str, Depends(require_vip_tier)],
+) -> ShoplistPreviewResponse:
+    """VIP shoplist preview endpoint (legacy)."""
+    preview = build_preview()
+    return ShoplistPreviewResponse(
+        items=[
+            ShoplistPreviewItem(category=i.category, name=i.name, quantity=i.quantity)
+            for i in preview.items
+        ]
+    )
+
+
+@router.post("/generate", response_model=ShoplistGenerateResponse)
+async def vip_shoplist_generate(
+    payload: ShoplistGenerateRequest,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
+    _vip: Annotated[str, Depends(require_vip_tier)],
+) -> ShoplistGenerateResponse:
+    """
+    Generate shopping list with packaging rules (ShoplistEngine v1).
+
+    RU: Генерирует список покупок с применением правил упаковки.
+    EN: Generates shopping list with packaging rules applied.
+
+    This endpoint uses the pure ShoplistEngine v1 pipeline:
+    normalize → aggregate → package
+
+    No prices, no stores, no external calls - pure deterministic calculation.
+    """
+    # Map DTO -> core models
+    specs = _map_dto_to_engine_specs(payload.items)
+    rules = _map_dto_to_engine_rules(payload.packaging_rules)
+
+    # Run engine pipeline
+    result = ShoplistEngine.generate(specs, packaging_rules=rules)
+
+    # Build response
+    return _build_shoplist_response(result, rules, include_analytics=True)
+
+
+@router.post("/daily", response_model=ShoplistGenerateResponse)
+async def vip_shoplist_daily(
+    payload: ShoplistDailyRequest,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
+    _vip: Annotated[str, Depends(require_vip_tier)],
+) -> ShoplistGenerateResponse:
+    """
+    Generate daily shopping list with packaging rules (ShoplistEngine v1).
+
+    RU: Генерирует список покупок на день с применением правил упаковки.
+    EN: Generates daily shopping list with packaging rules applied.
+
+    This endpoint uses the same pipeline as /generate:
+    normalize → aggregate → package
+
+    Contract matches /generate: same gating, mapping, and response format.
+    """
+    # Map DTO -> core models
+    specs = _map_dto_to_engine_specs(payload.items)
+    rules = _map_dto_to_engine_rules(payload.packaging_rules)
+
+    # Run engine pipeline
+    result = ShoplistEngine.generate(specs, packaging_rules=rules)
+
+    # Build response
+    return _build_shoplist_response(result, rules, include_analytics=True)
+
+
+@router.post("/weekly", response_model=ShoplistWeeklyResponse)
+async def vip_shoplist_weekly(
+    payload: ShoplistWeeklyRequest,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
+    _vip: Annotated[str, Depends(require_vip_tier)],
+) -> ShoplistWeeklyResponse:
+    """
+    Generate weekly shopping list with packaging rules (ShoplistEngine v1).
+
+    RU: Генерирует список покупок на неделю с применением правил упаковки.
+    EN: Generates weekly shopping list with packaging rules applied.
+
+    This endpoint processes each day independently using the same pipeline as /generate:
+    normalize → aggregate → package
+
+    Contract matches /generate: same gating, mapping, and response format per day.
+    """
+    days = []
+    for day_req in payload.days:
+        # Map DTO -> core models
+        specs = _map_dto_to_engine_specs(day_req.items)
+        rules = _map_dto_to_engine_rules(day_req.packaging_rules)
+
+        # Run engine pipeline
+        result = ShoplistEngine.generate(specs, packaging_rules=rules)
+
+        # Build response for this day
+        day_response = _build_shoplist_response(result, rules, include_analytics=True)
+        days.append(day_response)
+
+    return ShoplistWeeklyResponse(days=days)
 
 
 __all__ = ["router"]

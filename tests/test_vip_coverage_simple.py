@@ -173,93 +173,173 @@ class TestVIPCoverageSimple:
             data = response.json()
             assert data["status"] in ["success", "error"]  # Accept either
 
-    def test_vip_shoplist_weekly_success_coverage(self):
+    def test_vip_shoplist_weekly_success_coverage(self, monkeypatch):
         """Test VIP shoplist weekly success coverage."""
         import app
+        from app.middleware import api_tiers
 
-        client = TestClient(cast(ASGIApp, app.app))
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
-        # Mock ShoplistGenerator to return success
-        mock_generator = MagicMock()
-        mock_generator.return_value.generate_weekly_shoplist.return_value = {
-            "items": ["milk", "bread"]
-        }
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
 
-        with patch("app.routers.vip.ShoplistGenerator", mock_generator):
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(cast(ASGIApp, app.app))
+
+            # Use new API format for vip_shoplist router
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
-                json={"week_plan": {"days": []}},
+                json={
+                    "days": [
+                        {
+                            "items": [
+                                {
+                                    "food_id": "chicken",
+                                    "qty": {"value": "500", "unit": "G"},
+                                    "form": "RAW",
+                                }
+                            ],
+                            "packaging_rules": [
+                                {
+                                    "food_id": "chicken",
+                                    "pack_size": {"value": "500", "unit": "G"},
+                                    "rounding": "CEIL",
+                                    "min_packs": 1,
+                                }
+                            ],
+                        }
+                    ]
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "success"
-            assert "shopping_list" in data
+            assert "days" in data
+            assert isinstance(data["days"], list)
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_weekly_error_coverage(self):
+    def test_vip_shoplist_weekly_error_coverage(self, monkeypatch):
         """Test VIP shoplist weekly error coverage."""
         import app
+        from app.middleware import api_tiers
 
-        client = TestClient(cast(ASGIApp, app.app))
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
-        # Mock ShoplistGenerator to raise exception
-        mock_generator = MagicMock()
-        mock_generator.return_value.generate_weekly_shoplist.side_effect = Exception(
-            "Generation failed"
-        )
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
 
-        with patch("app.routers.vip.ShoplistGenerator", mock_generator):
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(cast(ASGIApp, app.app))
+
+            # Use new API format - invalid enum should return 422
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
-                json={"week_plan": {"days": []}},
+                json={
+                    "days": [
+                        {
+                            "items": [
+                                {
+                                    "food_id": "chicken",
+                                    "qty": {"value": "500", "unit": "INVALID"},
+                                    "form": "RAW",
+                                }
+                            ]
+                        }
+                    ]
+                },
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"  # Returns success with echo mode
+            # Invalid enum should return 422
+            assert response.status_code == 422
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_success_coverage(self):
+    def test_vip_shoplist_daily_success_coverage(self, monkeypatch):
         """Test VIP shoplist daily success coverage."""
         import app
+        from app.middleware import api_tiers
 
-        client = TestClient(cast(ASGIApp, app.app))
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
-        # Mock ShoplistGenerator to return success
-        mock_generator = MagicMock()
-        mock_generator.return_value.generate_daily_shoplist.return_value = {"items": ["milk"]}
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
 
-        with patch("app.routers.vip.ShoplistGenerator", mock_generator):
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(cast(ASGIApp, app.app))
+
+            # Use new API format for vip_shoplist router
             response = client.post(
                 "/api/v1/vip/shoplist/daily",
-                json={"day_plan": {"meals": []}},
+                json={
+                    "items": [
+                        {"food_id": "chicken", "qty": {"value": "500", "unit": "G"}, "form": "RAW"}
+                    ],
+                    "packaging_rules": [
+                        {
+                            "food_id": "chicken",
+                            "pack_size": {"value": "500", "unit": "G"},
+                            "rounding": "CEIL",
+                            "min_packs": 1,
+                        }
+                    ],
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "success"
-            assert "shopping_list" in data
+            assert "packed" in data
+            assert "unpacked" in data
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_error_coverage(self):
+    def test_vip_shoplist_daily_error_coverage(self, monkeypatch):
         """Test VIP shoplist daily error coverage."""
         import app
+        from app.middleware import api_tiers
 
-        client = TestClient(cast(ASGIApp, app.app))
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
-        # Mock ShoplistGenerator to raise exception
-        mock_generator = MagicMock()
-        mock_generator.return_value.generate_daily_shoplist.side_effect = Exception(
-            "Daily generation failed"
-        )
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
 
-        with patch("app.routers.vip.ShoplistGenerator", mock_generator):
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(cast(ASGIApp, app.app))
+
+            # Use new API format - invalid enum should return 422
             response = client.post(
                 "/api/v1/vip/shoplist/daily",
-                json={"day_plan": {"meals": []}},
+                json={
+                    "items": [
+                        {
+                            "food_id": "chicken",
+                            "qty": {"value": "500", "unit": "INVALID"},
+                            "form": "RAW",
+                        }
+                    ]
+                },
                 headers={"X-API-Key": "test_key"},
             )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"  # Returns success with echo mode
+            # Invalid enum should return 422
+            assert response.status_code == 422
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_shoplist_formats_success_coverage(self):
         """Test VIP shoplist formats success coverage."""
