@@ -207,4 +207,3 @@ def test_generate_reasons_are_deterministic(
     # RU: Если в роутере зафиксируешь порядок reasons — это цементируем.
     assert reasons[0].startswith("rounding=")
     assert reasons[1].startswith("min_packs=")
-
