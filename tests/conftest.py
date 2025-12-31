@@ -16,6 +16,7 @@ import tempfile
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionError
@@ -408,7 +409,7 @@ def client(app: FastAPI) -> TestClient:
 # --- VIP shoplist test fixtures ---
 
 
-def _iter_route_dependencies(route) -> Iterable[Callable]:
+def _iter_route_dependencies(route: APIRoute) -> Iterable[Callable]:
     """
     RU: Извлекаем callables зависимостей, навешанных на маршрут (route.dependencies).
     EN: Extract dependency callables attached at route level.
@@ -419,20 +420,21 @@ def _iter_route_dependencies(route) -> Iterable[Callable]:
             yield fn
 
 
-def _find_route_by_endpoint_name(app, endpoint_name: str):
+def _find_route_by_endpoint_name(app: FastAPI, endpoint_name: str) -> APIRoute | None:
     """
     RU: Находим маршрут по имени endpoint-функции.
     EN: Find route by endpoint function name.
     """
     for route in app.routes:
-        endpoint = getattr(route, "endpoint", None)
-        if callable(endpoint) and getattr(endpoint, "__name__", "") == endpoint_name:
-            return route
+        if isinstance(route, APIRoute):
+            endpoint = getattr(route, "endpoint", None)
+            if callable(endpoint) and getattr(endpoint, "__name__", "") == endpoint_name:
+                return route
     return None
 
 
 @pytest.fixture
-def client_with_vip_access(app_module: ModuleType) -> TestClient:
+def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None, None]:
     """
     Create test client with VIP tier access bypassed AND API key bypassed,
     including route-level dependencies.

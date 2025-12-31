@@ -14,11 +14,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
+    PackedLineDTO,
+    QuantityDTO,
     RoundingModeDTO,
     ShoplistGenerateRequest,
     ShoplistGenerateResponse,
     ShoplistPreviewItem,
     ShoplistPreviewResponse,
+    UnpackedLineDTO,
     UnitDTO,
 )
 from app.utils.feature_flags import is_vip_module_enabled
@@ -114,8 +117,6 @@ async def vip_shoplist_generate(
     rules_index = {r.food_id: r for r in rules}
 
     # Map core result -> DTO response
-    from app.schemas.vip_shoplist import PackedLineDTO, QuantityDTO, UnpackedLineDTO
-
     packed_dto = [
         PackedLineDTO(
             food_id=p.food.food_id,
