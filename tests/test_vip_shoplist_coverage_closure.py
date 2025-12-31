@@ -16,7 +16,6 @@ import pytest
 from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-import app.main as app_main_module
 from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
 from core.shoplist_engine.packager import PackagingResult
 
