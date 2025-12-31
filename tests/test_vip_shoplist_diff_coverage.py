@@ -22,7 +22,7 @@ def test_map_unit_invalid_returns_422() -> None:
     # Pydantic validates DTO before reaching _map_unit, so test function directly
     with pytest.raises(HTTPException) as exc_info:
         _map_unit("INVALID_UNIT")
-    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "Invalid unit" in exc_info.value.detail
 
 
@@ -34,7 +34,7 @@ def test_map_rounding_invalid_returns_422() -> None:
     # Pydantic validates DTO before reaching _map_rounding, so test function directly
     with pytest.raises(HTTPException) as exc_info:
         _map_rounding("INVALID_ROUNDING")
-    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "Invalid rounding" in exc_info.value.detail
 
 
@@ -46,7 +46,7 @@ def test_map_form_invalid_returns_422() -> None:
     # Pydantic validates DTO before reaching _map_form, so test function directly
     with pytest.raises(HTTPException) as exc_info:
         _map_form("INVALID_FORM")
-    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert "Invalid form" in exc_info.value.detail
 
 

@@ -107,15 +107,51 @@ class TestVipCoverageTargeted:
         # This will depend on whether VIP modules are available
         assert response.status_code in [200, 404, 501]
 
-    def test_vip_shoplist_weekly_endpoint(self):
+    def test_vip_shoplist_weekly_endpoint(self, monkeypatch):
         """Test VIP shoplist weekly endpoint."""
-        client = TestClient(_get_app())
-        payload = {"plan_id": "test_plan"}
-        response = client.post(
-            "/api/v1/vip/shoplist/weekly", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        # This will depend on whether VIP modules are available
-        assert response.status_code in [200, 404, 501]
+        import app
+        from app.middleware import api_tiers
+
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
+
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(_get_app())
+            payload = {
+                "days": [
+                    {
+                        "items": [
+                            {
+                                "food_id": "chicken",
+                                "qty": {"value": "500", "unit": "G"},
+                                "form": "RAW",
+                            }
+                        ],
+                        "packaging_rules": [
+                            {
+                                "food_id": "chicken",
+                                "pack_size": {"value": "500", "unit": "G"},
+                                "rounding": "CEIL",
+                                "min_packs": 1,
+                            }
+                        ],
+                    }
+                ]
+            }
+            response = client.post(
+                "/api/v1/vip/shoplist/weekly", json=payload, headers={"X-API-Key": "test_key"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "days" in data
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_recipes_weekly_endpoint(self):
         """Test VIP recipes weekly endpoint."""

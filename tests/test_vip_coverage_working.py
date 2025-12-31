@@ -6,6 +6,7 @@ RU: Тесты для VIP модуля с реальными эндпоинта�
 EN: VIP module tests with real endpoints (echo mode)
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -16,9 +17,6 @@ def _get_app():
     if app.app is None:
         raise RuntimeError("FastAPI app is not initialized")
     return app.app
-
-
-import pytest
 
 
 @pytest.mark.smoke
@@ -50,19 +48,53 @@ class TestVIPCoverageWorking:
         assert "echo" in data
         assert "menu" in data
 
-    def test_vip_shoplist_endpoint(self):
-        """Тест VIP shoplist endpoint в echo режиме"""
-        client = TestClient(_get_app())
+    def test_vip_shoplist_endpoint(self, monkeypatch):
+        """Тест VIP shoplist endpoint"""
+        import app
+        from app.middleware import api_tiers
 
-        response = client.post(
-            "/api/v1/vip/shoplist/weekly",
-            json={"plan_id": "test123", "format": "grouped"},
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "echo" in data
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
+
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(_get_app())
+
+            response = client.post(
+                "/api/v1/vip/shoplist/weekly",
+                json={
+                    "days": [
+                        {
+                            "items": [
+                                {
+                                    "food_id": "chicken",
+                                    "qty": {"value": "500", "unit": "G"},
+                                    "form": "RAW",
+                                }
+                            ],
+                            "packaging_rules": [
+                                {
+                                    "food_id": "chicken",
+                                    "pack_size": {"value": "500", "unit": "G"},
+                                    "rounding": "CEIL",
+                                    "min_packs": 1,
+                                }
+                            ],
+                        }
+                    ]
+                },
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "days" in data
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_regions_endpoint(self):
         """Тест VIP regions endpoint"""
@@ -108,18 +140,46 @@ class TestVIPCoverageWorking:
         ]  # Allow either status depending on module availability
         assert "echo" in data
 
-    def test_vip_daily_shoplist_endpoint(self):
+    def test_vip_daily_shoplist_endpoint(self, monkeypatch):
         """Тест VIP daily shoplist endpoint"""
-        client = TestClient(_get_app())
+        import app
+        from app.middleware import api_tiers
 
-        response = client.post(
-            "/api/v1/vip/shoplist/daily",
-            json={"day_plan": {"breakfast": [], "lunch": [], "dinner": []}},
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
+        # Enable VIP module
+        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
+
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(_get_app())
+
+            response = client.post(
+                "/api/v1/vip/shoplist/daily",
+                json={
+                    "items": [
+                        {"food_id": "chicken", "qty": {"value": "500", "unit": "G"}, "form": "RAW"}
+                    ],
+                    "packaging_rules": [
+                        {
+                            "food_id": "chicken",
+                            "pack_size": {"value": "500", "unit": "G"},
+                            "rounding": "CEIL",
+                            "min_packs": 1,
+                        }
+                    ],
+                },
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "packed" in data
+            assert "unpacked" in data
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_shoplist_formats_endpoint(self):
         """Тест VIP shoplist formats endpoint"""

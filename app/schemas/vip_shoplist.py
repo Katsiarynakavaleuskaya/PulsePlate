@@ -59,6 +59,32 @@ class ShoplistGenerateRequest(BaseModel):
     packaging_rules: list[PackageRuleDTO] | None = None
 
 
+class ShoplistDailyRequest(BaseModel):
+    """Request payload for POST /api/v1/vip/shoplist/daily."""
+
+    items: list[ShoplistItemDTO] = Field(default_factory=list)
+    packaging_rules: list[PackageRuleDTO] | None = None
+
+
+class ShoplistWeeklyDayRequest(BaseModel):
+    """Request payload for one day in weekly shoplist."""
+
+    items: list[ShoplistItemDTO] = Field(default_factory=list)
+    packaging_rules: list[PackageRuleDTO] | None = None
+
+
+class ShoplistWeeklyRequest(BaseModel):
+    """Request payload for POST /api/v1/vip/shoplist/weekly."""
+
+    days: list[ShoplistWeeklyDayRequest] = Field(default_factory=list)
+
+
+class ShoplistWeeklyResponse(BaseModel):
+    """Response for POST /api/v1/vip/shoplist/weekly."""
+
+    days: list[ShoplistGenerateResponse] = Field(default_factory=list)
+
+
 # --- Response DTOs ---
 
 
