@@ -1,8 +1,12 @@
 # VIP Shoplist API — iOS Mapping Table
 
-> **Status:** Reference for iOS integration
-> **Contract:** [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md)
+> **Status:** Reference for iOS integration  
+> **Contract:** [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md)  
 > **Swift Models:** [`VIPShoplistDTO.swift`](VIPShoplistDTO.swift)
+
+---
+
+## JSON ↔ Swift Type Mapping
 
 ---
 

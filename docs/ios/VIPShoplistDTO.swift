@@ -53,7 +53,7 @@ struct ShoplistItemDTO: Codable {
     }
 }
 
-struct PackagingRuleDTO: Codable {
+struct PackageRuleDTO: Codable {
     let foodId: String
     let packSize: QuantityDTO
     let rounding: RoundingMode
