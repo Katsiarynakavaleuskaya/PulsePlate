@@ -11,6 +11,10 @@
 Before any changes, read `AGENTS.md` in the repo root and in the relevant module
 (for example `app/AGENTS.md`, `core/AGENTS.md`) and follow those rules.
 
+## 📚 API Documentation
+
+- **VIP Shoplist API**: [`docs/VIP_Shoplist_API.md`](docs/VIP_Shoplist_API.md) — Contract freeze for generate/daily/weekly endpoints
+
 ## 🚀 Quick Start
 
 ### 🐳 Docker Best Practices
