@@ -30,8 +30,13 @@ def test_generate_invalid_unit_returns_422(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == 422, r.text
     data = r.json()
-    # Pydantic validates at DTO level, so error mentions expected literals
-    assert "unit" in str(data).lower() or "G" in str(data)
+    # Pydantic validates at DTO level - check error structure
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+    assert any(
+        "unit" in str(err.get("loc", [])).lower() or "unit" in str(err.get("msg", "")).lower()
+        for err in errors
+    )
 
 
 def test_generate_invalid_rounding_returns_422(
@@ -58,8 +63,13 @@ def test_generate_invalid_rounding_returns_422(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == 422, r.text
     data = r.json()
-    # Pydantic validates at DTO level
-    assert "rounding" in str(data).lower() or "CEIL" in str(data)
+    # Pydantic validates at DTO level - check error structure
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+    assert any(
+        "rounding" in str(err.get("loc", [])).lower() or "rounding" in str(err.get("msg", "")).lower()
+        for err in errors
+    )
 
 
 def test_generate_invalid_form_returns_422(
@@ -78,8 +88,13 @@ def test_generate_invalid_form_returns_422(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == 422, r.text
     data = r.json()
-    # Pydantic validates at DTO level
-    assert "form" in str(data).lower() or "RAW" in str(data)
+    # Pydantic validates at DTO level - check error structure
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+    assert any(
+        "form" in str(err.get("loc", [])).lower() or "form" in str(err.get("msg", "")).lower()
+        for err in errors
+    )
 
 
 def test_generate_min_packs_zero_returns_422(
@@ -105,9 +120,15 @@ def test_generate_min_packs_zero_returns_422(
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == 422, r.text
-    # Pydantic validation error should mention min_packs constraint
     data = r.json()
-    assert "min_packs" in str(data).lower() or "greater than or equal to 1" in str(data).lower()
+    # Pydantic validation error should mention min_packs constraint
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+    assert any(
+        "min_packs" in str(err.get("loc", [])).lower()
+        or "greater than or equal to 1" in str(err.get("msg", "")).lower()
+        for err in errors
+    )
 
 
 def test_generate_empty_food_id_returns_422(
@@ -130,7 +151,9 @@ def test_generate_empty_food_id_returns_422(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == 422, r.text
     data = r.json()
-    assert "food_id" in str(data).lower()
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+    assert any("food_id" in str(err.get("loc", [])).lower() for err in errors)
 
 
 def test_generate_negative_quantity_returns_422(
@@ -153,7 +176,13 @@ def test_generate_negative_quantity_returns_422(
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == 422, r.text
     data = r.json()
-    assert "greater than or equal to 0" in str(data).lower() or "value" in str(data).lower()
+    errors = data.get("detail", [])
+    assert isinstance(errors, list)
+    assert any(
+        "greater than or equal to 0" in str(err.get("msg", "")).lower()
+        or "value" in str(err.get("loc", [])).lower()
+        for err in errors
+    )
 
 
 def test_generate_vip_module_disabled_returns_404(
@@ -180,8 +209,6 @@ def test_generate_missing_api_key_returns_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing API key should return 403 Forbidden (legacy_app handles it as 403)."""
-    from fastapi.testclient import TestClient
-
     monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
     # Create client WITHOUT VIP access (no dependency override)
@@ -205,8 +232,6 @@ def test_generate_invalid_api_key_tier_returns_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid API key (insufficient tier) should return 403 Forbidden."""
-    from fastapi.testclient import TestClient
-
     monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
     # Create client WITHOUT VIP access override
