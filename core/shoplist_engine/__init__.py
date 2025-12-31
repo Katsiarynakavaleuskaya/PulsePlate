@@ -13,6 +13,7 @@ RU: Этот модуль предоставляет стабильную, offli
 """
 
 from .aggregator import aggregate_specs
+from .engine import ShoplistEngine, generate_shoplist
 from .models import (
     FoodForm,
     FoodRef,
@@ -38,8 +39,10 @@ __all__ = [
     "RoundingMode",
     "ShoplistLine",
     "Unit",
+    "ShoplistEngine",
     "aggregate_specs",
     "apply_packaging",
+    "generate_shoplist",
     "normalize_ingredient",
     "normalize_quantity",
     "normalize_specs",
