@@ -99,14 +99,6 @@ make dev
 
 ## Files Changed
 
-```
-docs/VIP_Shoplist_API.md                    (new)
-docs/ios/VIPShoplistDTO.swift               (new)
-docs/ios/VIP_Shoplist_iOS_Mapping.md        (new)
-app/schemas/vip_shoplist.py                 (enhanced)
-app/routers/vip_shoplist.py                 (enhanced)
-README.md                                   (link added)
-```
 
 ---
 

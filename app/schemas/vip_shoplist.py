@@ -9,9 +9,11 @@ EN: Schemas for VIP shopping list (preview and generate endpoints).
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+from app.schemas.catalog import CatalogInfoDTO
 
 
 # RU: DTO слой — адаптер над core моделями. Здесь можно использовать Decimal.
@@ -21,10 +23,8 @@ from pydantic import BaseModel, Field
 # EN: Constant for explainability (single source of truth).
 REASON_NO_PACKAGING_RULE = "no_packaging_rule"
 
-# RU: Type alias для явного указания Decimal-as-string в OpenAPI (для документации).
-# EN: Type alias for explicit Decimal-as-string in OpenAPI (for documentation).
-# NOTE: Pydantic v2 automatically serializes Decimal as string in JSON.
-DecimalStr = str  # Used in type hints for documentation clarity
+# RU: Decimal сериализуется в JSON как строка автоматически (Pydantic v2).
+# EN: Decimal is automatically serialized as string in JSON (Pydantic v2).
 
 UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности / expand as needed
 FoodFormDTO = Literal[
@@ -140,15 +140,6 @@ class ShoplistWeeklyRequest(BaseModel):
     )
 
 
-class ShoplistWeeklyResponse(BaseModel):
-    """Response for POST /api/v1/vip/shoplist/weekly."""
-
-    days: list[ShoplistGenerateResponse] = Field(
-        default_factory=list,
-        description="One response per day (length = as requested by client)",
-    )
-
-
 # --- Response DTOs ---
 
 
@@ -170,6 +161,10 @@ class PackedLineDTO(BaseModel):
             ["rounding=CEIL", "min_packs=1", "requested=100 G", "provided=500 G", "overage=400 G"]
         ],
     )
+    catalog: Optional[CatalogInfoDTO] = Field(
+        default=None,
+        description="Optional catalog enrichment (adapter-only, fail-soft).",
+    )
 
 
 class UnpackedLineDTO(BaseModel):
@@ -183,6 +178,10 @@ class UnpackedLineDTO(BaseModel):
         default=REASON_NO_PACKAGING_RULE,
         description="Why item is unpacked",
         examples=[REASON_NO_PACKAGING_RULE],
+    )
+    catalog: Optional[CatalogInfoDTO] = Field(
+        default=None,
+        description="Optional catalog enrichment (adapter-only, fail-soft).",
     )
 
 
@@ -254,6 +253,15 @@ class ShoplistGenerateResponse(BaseModel):
             ]
         }
     }
+
+
+class ShoplistWeeklyResponse(BaseModel):
+    """Response for POST /api/v1/vip/shoplist/weekly."""
+
+    days: list[ShoplistGenerateResponse] = Field(
+        default_factory=list,
+        description="One response per day (length = as requested by client)",
+    )
 
 
 # --- Preview schemas (legacy) ---

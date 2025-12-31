@@ -88,10 +88,9 @@ VIP Shoplist API provides **deterministic shopping list generation** with:
 
 - `PackedLineDTO.reasons: string[]`
   - **stable order** (deterministic)
-  - Examples: `["min_packs", "rounding"]`, `["rounding"]`
+  - Examples: `["rounding=CEIL", "min_packs=1", "requested=100 G", "provided=500 G", "overage=400 G"]`
 - `UnpackedLineDTO.reason`
   - Default: `"no_packaging_rule"`
-
 ### Analytics
 
 Returned when `include_analytics=True` (default for all endpoints):
