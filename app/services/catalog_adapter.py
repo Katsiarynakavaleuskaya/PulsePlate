@@ -140,9 +140,7 @@ def enrich_shoplist_response(
             region_id=region_id,
             store_id=store_id,
         )
-        enriched_packed.append(
-            line.model_copy(update={"catalog": catalog}, deep=False)
-        )
+        enriched_packed.append(line.model_copy(update={"catalog": catalog}, deep=False))
 
     enriched_unpacked: list[UnpackedLineDTO] = []
     for line in response.unpacked:
@@ -151,9 +149,7 @@ def enrich_shoplist_response(
             region_id=region_id,
             store_id=store_id,
         )
-        enriched_unpacked.append(
-            line.model_copy(update={"catalog": catalog}, deep=False)
-        )
+        enriched_unpacked.append(line.model_copy(update={"catalog": catalog}, deep=False))
 
     enriched_response = response.model_copy(
         update={
