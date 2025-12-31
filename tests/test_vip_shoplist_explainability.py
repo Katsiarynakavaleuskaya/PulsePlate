@@ -11,7 +11,7 @@ added to packed and unpacked lines without modifying core engine logic.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -63,7 +63,7 @@ def _mock_engine_result_with_one_packed_one_unpacked() -> PackagingResult:
     )
 
 
-def _payload_one_rule() -> dict:
+def _payload_one_rule() -> dict[str, Any]:
     """RU: Держим payload минимальным, но валидным для текущего request DTO."""
     return {
         "items": [
@@ -81,7 +81,7 @@ def _payload_one_rule() -> dict:
     }
 
 
-def _extract_packed_and_unpacked(data: dict) -> tuple[list, list]:
+def _extract_packed_and_unpacked(data: dict) -> tuple[list[dict], list[dict]]:
     """
     RU: На всякий случай поддерживаем оба ключа ответа:
         - packed/unpacked
@@ -200,3 +200,4 @@ def test_generate_reasons_are_deterministic(
     # RU: Если в роутере зафиксируешь порядок reasons — это цементируем.
     assert reasons[0].startswith("rounding=")
     assert reasons[1].startswith("min_packs=")
+

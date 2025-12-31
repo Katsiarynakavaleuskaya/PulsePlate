@@ -81,6 +81,22 @@ def _map_form(dto_form: str) -> FoodForm:
         ) from exc
 
 
+def _build_reasons(p: PackPlan, rule: PackageRule) -> list[str]:
+    """
+    Build explainability reasons for packed line in fixed order.
+
+    RU: Фиксированный порядок — тест на детерминизм.
+    EN: Fixed order — determinism test relies on it.
+    """
+    return [
+        f"rounding={rule.rounding.name}",
+        f"min_packs={rule.min_packs}",
+        f"requested={p.requested.value} {p.requested.unit.name}",
+        f"provided={p.provided.value} {p.provided.unit.name}",
+        f"overage={p.overage.value} {p.overage.unit.name}",
+    ]
+
+
 @router.get("/preview", response_model=ShoplistPreviewResponse)
 async def vip_shoplist_preview(
     _enabled: Annotated[None, Depends(require_vip_module_enabled)],
@@ -149,21 +165,6 @@ async def vip_shoplist_generate(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Packed item {p.food.food_id} missing packaging rule",
             )
-
-    def _build_reasons(p: PackPlan, rule: PackageRule) -> list[str]:
-        """
-        Build explainability reasons for packed line in fixed order.
-
-        RU: Фиксированный порядок — тест на детерминизм.
-        EN: Fixed order — determinism test relies on it.
-        """
-        return [
-            f"rounding={rule.rounding.name}",
-            f"min_packs={rule.min_packs}",
-            f"requested={p.requested.value} {p.requested.unit.name}",
-            f"provided={p.provided.value} {p.provided.unit.name}",
-            f"overage={p.overage.value} {p.overage.unit.name}",
-        ]
 
     # Map core result -> DTO response
     packed_dto = [
