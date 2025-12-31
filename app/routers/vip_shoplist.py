@@ -295,7 +295,6 @@ async def vip_shoplist_preview(
     "/generate",
     response_model=ShoplistGenerateResponse,
     responses=COMMON_VIP_SHOPLIST_RESPONSES,
-    tags=["VIP Shoplist"],
     summary="Generate VIP shoplist (deterministic)",
     description=(
         "Deterministic shoplist generation. Decimals are serialized as strings. "
@@ -333,7 +332,6 @@ async def vip_shoplist_generate(
     "/daily",
     response_model=ShoplistGenerateResponse,
     responses=COMMON_VIP_SHOPLIST_RESPONSES,
-    tags=["VIP Shoplist"],
     summary="Generate daily VIP shoplist (deterministic)",
     description=(
         "Daily shoplist generation. Same contract as /generate: "
@@ -372,7 +370,6 @@ async def vip_shoplist_daily(
     "/weekly",
     response_model=ShoplistWeeklyResponse,
     responses=COMMON_VIP_SHOPLIST_RESPONSES,
-    tags=["VIP Shoplist"],
     summary="Generate weekly VIP shoplist (deterministic)",
     description=(
         "Weekly shoplist generation (multiple days). "
