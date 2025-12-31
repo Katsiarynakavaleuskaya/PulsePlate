@@ -16,9 +16,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from app.schemas.vip_shoplist import REASON_NO_PACKAGING_RULE
-
-if TYPE_CHECKING:
-    from core.shoplist_engine.packager import PackagingResult
+from core.shoplist_engine.packager import PackagingResult
 
 
 def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,7 +101,10 @@ def test_generate_returns_reasons_for_packed_lines(
 
     mock_result = _mock_engine_result_with_one_packed_one_unpacked()
 
-    def mock_generate(specs, packaging_rules=None):
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
         return mock_result
 
     monkeypatch.setattr(
@@ -141,7 +142,10 @@ def test_generate_sets_reason_for_unpacked_lines(
 
     mock_result = _mock_engine_result_with_one_packed_one_unpacked()
 
-    def mock_generate(specs, packaging_rules=None):
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
         return mock_result
 
     monkeypatch.setattr(
@@ -172,7 +176,10 @@ def test_generate_reasons_are_deterministic(
 
     mock_result = _mock_engine_result_with_one_packed_one_unpacked()
 
-    def mock_generate(specs, packaging_rules=None):
+    def mock_generate(
+        specs: list,
+        packaging_rules: list | None = None,
+    ) -> PackagingResult:
         return mock_result
 
     monkeypatch.setattr(
