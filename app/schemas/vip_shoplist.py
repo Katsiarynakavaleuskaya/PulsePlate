@@ -9,7 +9,7 @@ EN: Schemas for VIP shopping list (preview and generate endpoints).
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,23 +21,29 @@ from pydantic import BaseModel, Field
 # EN: Constant for explainability (single source of truth).
 REASON_NO_PACKAGING_RULE = "no_packaging_rule"
 
-UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности
-FoodFormDTO = Literal["RAW", "COOKED", "FROZEN", "DRIED", "CANNED"]  # расширится позже
-RoundingModeDTO = Literal["CEIL", "NEAREST", "NONE"]
+UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности / expand as needed
+FoodFormDTO = Literal["RAW", "COOKED", "FROZEN", "DRIED", "CANNED"]  # расширится позже / will expand later
+RoundingModeDTO = Literal["CEIL", "NEAREST", "NONE"]  # rounding mode
 
 
 class QuantityDTO(BaseModel):
+    """Quantity with value and unit (deterministic, no prices)."""
+
     value: Decimal = Field(..., ge=0)
     unit: UnitDTO
 
 
 class ShoplistItemDTO(BaseModel):
+    """Shopping list item specification (food, quantity, form)."""
+
     food_id: str = Field(..., min_length=1)
     qty: QuantityDTO
     form: FoodFormDTO = "RAW"
 
 
 class PackageRuleDTO(BaseModel):
+    """Packaging rule for a food item (pack size, rounding mode, minimum packs)."""
+
     food_id: str = Field(..., min_length=1)
     pack_size: QuantityDTO
     rounding: RoundingModeDTO = "CEIL"
@@ -45,14 +51,18 @@ class PackageRuleDTO(BaseModel):
 
 
 class ShoplistGenerateRequest(BaseModel):
+    """Request payload for POST /api/v1/vip/shoplist/generate."""
+
     items: list[ShoplistItemDTO] = Field(default_factory=list)
-    packaging_rules: Optional[list[PackageRuleDTO]] = None
+    packaging_rules: list[PackageRuleDTO] | None = None
 
 
 # --- Response DTOs ---
 
 
 class PackedLineDTO(BaseModel):
+    """Packed shopping list line with packaging details and explainability reasons."""
+
     food_id: str
     requested: QuantityDTO
     pack_size: QuantityDTO
@@ -65,6 +75,8 @@ class PackedLineDTO(BaseModel):
 
 
 class UnpackedLineDTO(BaseModel):
+    """Unpacked shopping list line (no packaging rule available)."""
+
     food_id: str
     requested: QuantityDTO
     # RU: Default, чтобы не ломать старые конструкторы и гарантировать стабильный API контракт.
@@ -73,6 +85,8 @@ class UnpackedLineDTO(BaseModel):
 
 
 class ShoplistAnalyticsDTO(BaseModel):
+    """Analytics summary for shoplist generation (deterministic, no prices)."""
+
     total_lines: int = Field(..., ge=0)
     packed_lines: int = Field(..., ge=0)
     unpacked_lines: int = Field(..., ge=0)
@@ -83,6 +97,8 @@ class ShoplistAnalyticsDTO(BaseModel):
 
 
 class ShoplistGenerateResponse(BaseModel):
+    """Response for POST /api/v1/vip/shoplist/generate (deterministic, no prices)."""
+
     packed: list[PackedLineDTO]
     unpacked: list[UnpackedLineDTO]
 
