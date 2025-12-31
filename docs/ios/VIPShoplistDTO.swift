@@ -71,7 +71,7 @@ struct PackageRuleDTO: Codable {
 
 struct ShoplistGenerateRequest: Codable {
     let items: [ShoplistItemDTO]
-    let packagingRules: [PackagingRuleDTO]?
+    let packagingRules: [PackageRuleDTO]?
 
     enum CodingKeys: String, CodingKey {
         case items
@@ -83,7 +83,7 @@ typealias ShoplistDailyRequest = ShoplistGenerateRequest
 
 struct ShoplistWeeklyDayRequest: Codable {
     let items: [ShoplistItemDTO]
-    let packagingRules: [PackagingRuleDTO]?
+    let packagingRules: [PackageRuleDTO]?
 
     enum CodingKeys: String, CodingKey {
         case items

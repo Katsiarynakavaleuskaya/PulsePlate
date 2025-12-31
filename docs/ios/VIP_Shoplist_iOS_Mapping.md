@@ -1,7 +1,7 @@
 # VIP Shoplist API — iOS Mapping Table
 
-> **Status:** Reference for iOS integration  
-> **Contract:** [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md)  
+> **Status:** Reference for iOS integration
+> **Contract:** [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md)
 > **Swift Models:** [`VIPShoplistDTO.swift`](VIPShoplistDTO.swift)
 
 ---
@@ -22,7 +22,7 @@
 | `packed[].reasons`                 | string[]       | `[String]`                    | Stable order (deterministic)            |
 | `unpacked[].reason`                | string         | `String`                      | Default: `"no_packaging_rule"`           |
 | `analytics.total_overage_by_unit` | object map     | `[Unit: String]`              | Values are Decimal strings              |
-| `weekly.days[]`                    | array          | `[ShoplistGenerateResponse]` | Length = as requested (no fixed 7-day)  |
+| `days[]`                           | array          | `[ShoplistGenerateResponse]` | Weekly endpoint response; length = as requested (no fixed 7-day requirement) |
 
 ---
 
@@ -67,7 +67,7 @@ struct ShoplistItemDTO: Codable {
 
 ### 4. Optional Fields
 
-- `packaging_rules`: `[PackagingRuleDTO]?` (can be `null`)
+- `packaging_rules`: `[PackageRuleDTO]?` (can be `null`)
 - `analytics`: `ShoplistAnalyticsDTO?` (included by default, but optional in contract)
 
 ---
@@ -86,7 +86,7 @@ let request = ShoplistGenerateRequest(
         )
     ],
     packagingRules: [
-        PackagingRuleDTO(
+        PackageRuleDTO(
             foodId: "carrot",
             packSize: QuantityDTO(value: "500", unit: .g),
             rounding: .ceil,
