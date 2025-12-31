@@ -282,3 +282,4 @@ def test_engine_integration_real_pipeline() -> None:
     assert eggs_plan.packs == 1
     assert eggs_plan.provided.value == Decimal("6")
     assert eggs_plan.overage.value == Decimal("0")
+
