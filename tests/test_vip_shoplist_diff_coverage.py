@@ -38,6 +38,18 @@ def test_map_rounding_invalid_returns_422() -> None:
     assert "Invalid rounding" in exc_info.value.detail
 
 
+def test_map_form_invalid_returns_422() -> None:
+    """Cover _map_form KeyError -> HTTPException(422) branch."""
+    from fastapi import HTTPException, status
+    from app.routers.vip_shoplist import _map_form
+
+    # Pydantic validates DTO before reaching _map_form, so test function directly
+    with pytest.raises(HTTPException) as exc_info:
+        _map_form("INVALID_FORM")
+    assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert "Invalid form" in exc_info.value.detail
+
+
 def test_shoplist_generate_request_default_packaging_rules() -> None:
     """Cover default branch for packaging_rules when field is omitted."""
     from app.schemas.vip_shoplist import ShoplistGenerateRequest
