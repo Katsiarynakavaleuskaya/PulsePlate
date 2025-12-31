@@ -13,6 +13,7 @@ RU: Этот модуль предоставляет стабильную, offli
 """
 
 from .aggregator import aggregate_specs
+from .engine import ShoplistEngine, generate_shoplist
 from .models import (
     FoodForm,
     FoodRef,
@@ -25,6 +26,7 @@ from .models import (
     Unit,
 )
 from .normalizer import normalize_ingredient, normalize_quantity, normalize_specs
+from .packager import PackagingResult, apply_packaging
 
 __all__ = [
     "FoodForm",
@@ -32,11 +34,15 @@ __all__ = [
     "IngredientSpec",
     "PackPlan",
     "PackageRule",
+    "PackagingResult",
     "Quantity",
     "RoundingMode",
     "ShoplistLine",
     "Unit",
+    "ShoplistEngine",
     "aggregate_specs",
+    "apply_packaging",
+    "generate_shoplist",
     "normalize_ingredient",
     "normalize_quantity",
     "normalize_specs",
