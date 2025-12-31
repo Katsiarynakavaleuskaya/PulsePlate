@@ -21,9 +21,10 @@ from pydantic import BaseModel, Field
 # EN: Constant for explainability (single source of truth).
 REASON_NO_PACKAGING_RULE = "no_packaging_rule"
 
-# RU: Type alias для явного указания Decimal-as-string в OpenAPI.
-# EN: Type alias for explicit Decimal-as-string in OpenAPI.
-DecimalStr = str  # OpenAPI: string (Decimal serialized as string)
+# RU: Type alias для явного указания Decimal-as-string в OpenAPI (для документации).
+# EN: Type alias for explicit Decimal-as-string in OpenAPI (for documentation).
+# NOTE: Pydantic v2 automatically serializes Decimal as string in JSON.
+DecimalStr = str  # Used in type hints for documentation clarity
 
 UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности / expand as needed
 FoodFormDTO = Literal[
@@ -35,10 +36,11 @@ RoundingModeDTO = Literal["CEIL", "NEAREST", "NONE"]  # rounding mode
 class QuantityDTO(BaseModel):
     """Quantity with value and unit (deterministic, no prices)."""
 
-    value: DecimalStr = Field(
+    value: Decimal = Field(
         ...,
-        description="Decimal serialized as string (no floats). Example: '100', '12.5'",
-        examples=["100", "150.5", "0"],
+        ge=0,
+        description="Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'",
+        examples=[Decimal("100"), Decimal("150.5"), Decimal("0")],
     )
     unit: UnitDTO = Field(..., description="Measurement unit", examples=["G", "ML", "PCS"])
 
@@ -57,7 +59,8 @@ class PackageRuleDTO(BaseModel):
     food_id: str = Field(..., min_length=1, examples=["carrot", "tomato"])
     pack_size: QuantityDTO = Field(..., description="Pack size for this food")
     rounding: RoundingModeDTO = Field(
-        default="CEIL", description="Rounding mode (CEIL=never undersupply, NEAREST=prefer oversupply)"
+        default="CEIL",
+        description="Rounding mode (CEIL=never undersupply, NEAREST=prefer oversupply)",
     )
     min_packs: int = Field(1, ge=1, description="Minimum packs to buy (>=1)", examples=[1, 2])
 
@@ -163,7 +166,9 @@ class PackedLineDTO(BaseModel):
     reasons: list[str] = Field(
         default_factory=list,
         description="Explainability reasons (stable order, deterministic)",
-        examples=[["rounding=CEIL", "min_packs=1", "requested=100 G", "provided=500 G", "overage=400 G"]],
+        examples=[
+            ["rounding=CEIL", "min_packs=1", "requested=100 G", "provided=500 G", "overage=400 G"]
+        ],
     )
 
 
@@ -192,7 +197,7 @@ class ShoplistAnalyticsDTO(BaseModel):
     # EN: Return Decimal totals as strings for stable JSON and no floats.
     total_overage_by_unit: dict[UnitDTO, str] = Field(
         default_factory=dict,
-        description="Aggregated overage per unit type (Decimal serialized as string)",
+        description="Aggregated overage per unit type (Decimal values serialized as strings)",
         examples=[{"G": "150", "ML": "0"}],
     )
 

@@ -1,7 +1,7 @@
 # VIP Shoplist API — iOS Mapping Table
 
-> **Status:** Reference for iOS integration  
-> **Contract:** [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md)  
+> **Status:** Reference for iOS integration
+> **Contract:** [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md)
 > **Swift Models:** [`VIPShoplistDTO.swift`](VIPShoplistDTO.swift)
 
 ---
@@ -54,7 +54,7 @@ Swift models use camelCase with `CodingKeys`:
 ```swift
 struct ShoplistItemDTO: Codable {
     let foodId: String  // JSON: "food_id"
-    
+
     enum CodingKeys: String, CodingKey {
         case foodId = "food_id"
     }
@@ -166,4 +166,3 @@ if let analytics = response.analytics {
 
 - [`docs/VIP_Shoplist_API.md`](../VIP_Shoplist_API.md) — Full API contract
 - [`VIPShoplistDTO.swift`](VIPShoplistDTO.swift) — Complete Swift models
-

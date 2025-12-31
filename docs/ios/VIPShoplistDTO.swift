@@ -177,4 +177,3 @@ extension QuantityDTO {
         value.asDecimal()
     }
 }
-
