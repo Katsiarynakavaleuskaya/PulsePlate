@@ -39,6 +39,7 @@ from core.shoplist_engine.models import (
     RoundingMode,
     Unit,
 )
+from core.shoplist_engine.packager import PackagingResult
 from core.shoplist_preview.preview_service import build_preview
 
 router = APIRouter(prefix="/shoplist", tags=["vip"])
@@ -99,7 +100,7 @@ def _build_reasons(p: PackPlan, rule: PackageRule) -> list[str]:
     ]
 
 
-def _sum_overage_by_unit(result) -> dict[str, Decimal]:
+def _sum_overage_by_unit(result: PackagingResult) -> dict[str, Decimal]:
     """
     Sum overage totals by unit.
 

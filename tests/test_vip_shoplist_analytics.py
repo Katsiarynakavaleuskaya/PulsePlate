@@ -191,7 +191,9 @@ def test_analytics_overage_multi_unit_is_reported_separately(
             PackPlan(
                 food=FoodRef(food_id="flour"),
                 requested=Quantity(Decimal("1"), Unit.G),
-                pack_size=Quantity(Decimal("201"), Unit.G),  # pack_size = 201, provided = 201, overage = 201-1 = 200
+                pack_size=Quantity(
+                    Decimal("201"), Unit.G
+                ),  # pack_size = 201, provided = 201, overage = 201-1 = 200
                 packs=1,
                 provided=Quantity(Decimal("201"), Unit.G),
                 overage=Quantity(Decimal("200"), Unit.G),
@@ -199,7 +201,9 @@ def test_analytics_overage_multi_unit_is_reported_separately(
             PackPlan(
                 food=FoodRef(food_id="milk"),
                 requested=Quantity(Decimal("1"), Unit.ML),
-                pack_size=Quantity(Decimal("51"), Unit.ML),  # pack_size = 51, provided = 51, overage = 51-1 = 50
+                pack_size=Quantity(
+                    Decimal("51"), Unit.ML
+                ),  # pack_size = 51, provided = 51, overage = 51-1 = 50
                 packs=1,
                 provided=Quantity(Decimal("51"), Unit.ML),
                 overage=Quantity(Decimal("50"), Unit.ML),
@@ -250,5 +254,3 @@ def test_analytics_overage_multi_unit_is_reported_separately(
     assert analytics["packed_lines"] == 2
     assert analytics["unpacked_lines"] == 0
     assert analytics["total_lines"] == 2
-
-
