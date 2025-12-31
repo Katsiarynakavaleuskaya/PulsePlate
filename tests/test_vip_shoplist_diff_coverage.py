@@ -93,4 +93,3 @@ def test_vip_shoplist_schemas_defaults_and_serialization() -> None:
     dumped = resp.model_dump()
     assert dumped["packed"][0]["food_id"] == "x"
     assert dumped["unpacked"][0]["food_id"] == "y"
-
