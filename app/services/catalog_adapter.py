@@ -134,28 +134,33 @@ def enrich_shoplist_response(
     # Pydantic models are mutable by default; we keep changes minimal & explicit
     # by reconstructing line DTOs (safer for invariants).
     enriched_packed: list[PackedLineDTO] = []
-    for line in response.packed:
+    for packed_line in response.packed:
         catalog = provider.get_catalog_info(
-            food_id=line.food_id,
+            food_id=packed_line.food_id,
             region_id=region_id,
             store_id=store_id,
         )
-        enriched_packed.append(line.model_copy(update={"catalog": catalog}, deep=False))
+        # model_copy preserves the type correctly
+        enriched_packed.append(
+            packed_line.model_copy(update={"catalog": catalog}, deep=False)
+        )
 
     enriched_unpacked: list[UnpackedLineDTO] = []
-    for line in response.unpacked:
+    for unpacked_line in response.unpacked:
         catalog = provider.get_catalog_info(
-            food_id=line.food_id,
+            food_id=unpacked_line.food_id,
             region_id=region_id,
             store_id=store_id,
         )
-        enriched_unpacked.append(line.model_copy(update={"catalog": catalog}, deep=False))
+        # model_copy preserves the type correctly
+        enriched_unpacked.append(
+            unpacked_line.model_copy(update={"catalog": catalog}, deep=False)
+        )
 
-    enriched_response = response.model_copy(
+    return response.model_copy(
         update={
             "packed": enriched_packed,
             "unpacked": enriched_unpacked,
         },
         deep=False,
     )
-    return enriched_response

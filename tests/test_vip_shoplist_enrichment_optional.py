@@ -48,17 +48,21 @@ def test_generate_without_region_store_has_no_catalog(
 
     app_module.app.dependency_overrides[require_vip_tier] = lambda: "vip"
 
-    # Create fresh client after overrides
-    client = TestClient(app_module.app)
+    try:
+        # Create fresh client after overrides
+        client = TestClient(app_module.app)
 
-    r = client.post("/api/v1/vip/shoplist/generate", json=_generate_payload_minimal())
-    assert r.status_code == status.HTTP_200_OK, r.text
+        r = client.post("/api/v1/vip/shoplist/generate", json=_generate_payload_minimal())
+        assert r.status_code == status.HTTP_200_OK, r.text
 
-    data = r.json()
-    assert data["packed"], data
-    # Catalog field exists in schema but is None when not enriched
-    packed_item = data["packed"][0]
-    assert "catalog" not in packed_item or packed_item.get("catalog") is None
+        data = r.json()
+        assert data["packed"], data
+        # Catalog field exists in schema but is None when not enriched
+        packed_item = data["packed"][0]
+        assert "catalog" not in packed_item or packed_item.get("catalog") is None
+    finally:
+        # Clean up dependency override to prevent test pollution
+        app_module.app.dependency_overrides.pop(require_vip_tier, None)
 
 
 def test_generate_with_region_store_attaches_catalog(
@@ -72,23 +76,27 @@ def test_generate_with_region_store_attaches_catalog(
 
     app_module.app.dependency_overrides[require_vip_tier] = lambda: "vip"
 
-    # Create fresh client after overrides
-    client = TestClient(app_module.app)
+    try:
+        # Create fresh client after overrides
+        client = TestClient(app_module.app)
 
-    r = client.post(
-        "/api/v1/vip/shoplist/generate?region_id=es&store_id=carrefour_es",
-        json=_generate_payload_minimal(),
-    )
-    assert r.status_code == status.HTTP_200_OK, r.text
+        r = client.post(
+            "/api/v1/vip/shoplist/generate?region_id=es&store_id=carrefour_es",
+            json=_generate_payload_minimal(),
+        )
+        assert r.status_code == status.HTTP_200_OK, r.text
 
-    data = r.json()
-    catalog = data["packed"][0].get("catalog")
-    # Mock provider has carrot in es/carrefour_es, so catalog should be present
-    assert catalog is not None
-    assert catalog["region_id"] == "es"
-    assert catalog["store_id"] == "carrefour_es"
-    assert "sku" in catalog
-    assert catalog["sku"] == "CRF-ES-000123"
+        data = r.json()
+        catalog = data["packed"][0].get("catalog")
+        # Mock provider has carrot in es/carrefour_es, so catalog should be present
+        assert catalog is not None
+        assert catalog["region_id"] == "es"
+        assert catalog["store_id"] == "carrefour_es"
+        assert "sku" in catalog
+        assert catalog["sku"] == "CRF-ES-000123"
+    finally:
+        # Clean up dependency override to prevent test pollution
+        app_module.app.dependency_overrides.pop(require_vip_tier, None)
 
 
 def test_daily_with_enrichment_applies_to_response(
@@ -102,17 +110,21 @@ def test_daily_with_enrichment_applies_to_response(
 
     app_module.app.dependency_overrides[require_vip_tier] = lambda: "vip"
 
-    client = TestClient(app_module.app)
+    try:
+        client = TestClient(app_module.app)
 
-    r = client.post(
-        "/api/v1/vip/shoplist/daily?region_id=es&store_id=carrefour_es",
-        json=_generate_payload_minimal(),
-    )
-    assert r.status_code == status.HTTP_200_OK, r.text
+        r = client.post(
+            "/api/v1/vip/shoplist/daily?region_id=es&store_id=carrefour_es",
+            json=_generate_payload_minimal(),
+        )
+        assert r.status_code == status.HTTP_200_OK, r.text
 
-    data = r.json()
-    assert "packed" in data
-    # Enrichment applied (catalog should be present for carrot in mock)
-    catalog = data["packed"][0].get("catalog")
-    assert catalog is not None
-    assert catalog["region_id"] == "es"
+        data = r.json()
+        assert "packed" in data
+        # Enrichment applied (catalog should be present for carrot in mock)
+        catalog = data["packed"][0].get("catalog")
+        assert catalog is not None
+        assert catalog["region_id"] == "es"
+    finally:
+        # Clean up dependency override to prevent test pollution
+        app_module.app.dependency_overrides.pop(require_vip_tier, None)

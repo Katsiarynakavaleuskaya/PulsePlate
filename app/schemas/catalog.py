@@ -83,12 +83,22 @@ class CatalogSKU(BaseModel):
 
 
 class CurrencyDTO(str, Enum):
-    """Currency codes for price enrichment."""
+    """
+    Currency codes for price enrichment.
 
-    EUR = "EUR"
-    USD = "USD"
-    BYN = "BYN"
-    RUB = "RUB"
+    RU: Коды валют для обогащения цен. Поддерживаются основные региональные валюты.
+    EN: Currency codes for price enrichment. Supports major regional currencies.
+    """
+
+    EUR = "EUR"  # Euro (ES, FR, IT, DE, etc.)
+    USD = "USD"  # US Dollar (US)
+    GBP = "GBP"  # British Pound (UK)
+    CAD = "CAD"  # Canadian Dollar (CA)
+    MXN = "MXN"  # Mexican Peso (MX)
+    AUD = "AUD"  # Australian Dollar (AU)
+    JPY = "JPY"  # Japanese Yen (JP)
+    BYN = "BYN"  # Belarusian Ruble (BY)
+    RUB = "RUB"  # Russian Ruble (RU)
 
 
 class MoneyDTO(BaseModel):
@@ -102,7 +112,9 @@ class MoneyDTO(BaseModel):
         description="Decimal-as-string in JSON (no floats)",
         examples=[Decimal("1.29"), Decimal("2.50")],
     )
-    currency: CurrencyDTO = Field(..., examples=[CurrencyDTO.EUR, CurrencyDTO.USD])
+    currency: CurrencyDTO = Field(
+        ..., examples=[CurrencyDTO.EUR, CurrencyDTO.USD, CurrencyDTO.GBP]
+    )
 
 
 class CatalogInfoDTO(BaseModel):
