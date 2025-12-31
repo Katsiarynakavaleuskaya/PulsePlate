@@ -119,7 +119,11 @@ def test_generate_empty_food_id_returns_422(
 
     payload = {
         "items": [
-            {"food_id": "", "qty": {"value": "1", "unit": "G"}, "form": "RAW"},  # Invalid: empty string
+            {
+                "food_id": "",
+                "qty": {"value": "1", "unit": "G"},
+                "form": "RAW",
+            },  # Invalid: empty string
         ]
     }
 
@@ -138,7 +142,11 @@ def test_generate_negative_quantity_returns_422(
 
     payload = {
         "items": [
-            {"food_id": "flour", "qty": {"value": "-1", "unit": "G"}, "form": "RAW"},  # Invalid: negative
+            {
+                "food_id": "flour",
+                "qty": {"value": "-1", "unit": "G"},
+                "form": "RAW",
+            },  # Invalid: negative
         ]
     }
 
@@ -219,7 +227,11 @@ def test_generate_invalid_api_key_tier_returns_403(
     assert r.status_code == 403, r.text
     data = r.json()
     # legacy_app may return generic "Invalid API Key" or specific tier message
-    assert "API key" in data["detail"].lower() or "VIP" in data["detail"] or "Invalid" in data["detail"]
+    assert (
+        "API key" in data["detail"].lower()
+        or "VIP" in data["detail"]
+        or "Invalid" in data["detail"]
+    )
 
 
 def test_generate_missing_items_field_returns_200_with_empty_result(
@@ -258,4 +270,3 @@ def test_generate_empty_items_list_returns_200(
     assert data["analytics"]["total_lines"] == 0
     assert data["analytics"]["packed_lines"] == 0
     assert data["analytics"]["unpacked_lines"] == 0
-
