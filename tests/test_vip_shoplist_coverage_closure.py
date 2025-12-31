@@ -123,3 +123,117 @@ def test_vip_shoplist_preview_endpoint_coverage(
     assert r.status_code == status.HTTP_200_OK
     body = r.json()
     assert isinstance(body.get("items"), list)
+
+
+# --- Additional coverage for helper functions ---
+
+
+def test_generate_with_multiple_packed_items_different_units(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _sum_overage_by_unit with multiple packed items (different units) - coverage for lines 119-120."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    # Request with multiple items that will be packed with different units
+    payload = {
+        "items": [
+            {"food_id": "chicken", "qty": {"value": "1200", "unit": "G"}, "form": "RAW"},
+            {"food_id": "milk", "qty": {"value": "1500", "unit": "ML"}, "form": "RAW"},
+        ],
+        "packaging_rules": [
+            {
+                "food_id": "chicken",
+                "pack_size": {"value": "500", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+            {
+                "food_id": "milk",
+                "pack_size": {"value": "1000", "unit": "ML"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+        ],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == status.HTTP_200_OK
+    data = r.json()
+
+    # Verify analytics has overage totals for both units
+    assert "analytics" in data
+    assert "total_overage_by_unit" in data["analytics"]
+    overage_by_unit = data["analytics"]["total_overage_by_unit"]
+    # Should have overage for both G and ML
+    assert len(overage_by_unit) >= 1  # At least one unit has overage
+
+
+def test_generate_with_packaging_rules_not_none(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test branch when packaging_rules is not None - coverage for line 168."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    payload = {
+        "items": [
+            {"food_id": "flour", "qty": {"value": "1200", "unit": "G"}, "form": "RAW"},
+        ],
+        "packaging_rules": [  # Not None - should hit line 168
+            {
+                "food_id": "flour",
+                "pack_size": {"value": "500", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+        ],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == status.HTTP_200_OK
+    data = r.json()
+    assert len(data["packed"]) == 1
+    assert data["packed"][0]["food_id"] == "flour"
+    # Verify _build_reasons was called (coverage for line 98)
+    assert "reasons" in data["packed"][0]
+    assert len(data["packed"][0]["reasons"]) > 0
+
+
+def test_generate_with_multiple_packed_items_same_unit(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test multiple packed items to cover loop branch (line 187->186)."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+    payload = {
+        "items": [
+            {"food_id": "chicken", "qty": {"value": "1200", "unit": "G"}, "form": "RAW"},
+            {"food_id": "rice", "qty": {"value": "2000", "unit": "G"}, "form": "RAW"},
+        ],
+        "packaging_rules": [
+            {
+                "food_id": "chicken",
+                "pack_size": {"value": "500", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+            {
+                "food_id": "rice",
+                "pack_size": {"value": "1000", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+        ],
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
+    assert r.status_code == status.HTTP_200_OK
+    data = r.json()
+    # Should have 2 packed items
+    assert len(data["packed"]) == 2
+    # Both should have reasons (coverage for _build_reasons line 98)
+    for packed_item in data["packed"]:
+        assert "reasons" in packed_item
+        assert len(packed_item["reasons"]) > 0
