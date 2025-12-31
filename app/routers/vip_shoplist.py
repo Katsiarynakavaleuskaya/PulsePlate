@@ -8,16 +8,21 @@ Contract:
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
+    PackedLineDTO,
+    QuantityDTO,
+    RoundingModeDTO,
     ShoplistGenerateRequest,
     ShoplistGenerateResponse,
     ShoplistPreviewItem,
     ShoplistPreviewResponse,
+    UnpackedLineDTO,
+    UnitDTO,
 )
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
@@ -63,6 +68,17 @@ def _map_rounding(dto_rounding: str) -> RoundingMode:
         ) from exc
 
 
+def _map_form(dto_form: str) -> FoodForm:
+    """Map DTO form string to core FoodForm enum."""
+    try:
+        return FoodForm[dto_form]
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid form: {dto_form}",
+        ) from exc
+
+
 @router.get("/preview", response_model=ShoplistPreviewResponse)
 async def vip_shoplist_preview(
     _enabled: Annotated[None, Depends(require_vip_module_enabled)],
@@ -100,7 +116,7 @@ async def vip_shoplist_generate(
         IngredientSpec(
             food=FoodRef(food_id=item.food_id),
             qty=Quantity(value=item.qty.value, unit=_map_unit(item.qty.unit)),
-            form=FoodForm[item.form],
+            form=_map_form(item.form),
         )
         for item in payload.items
     ]
@@ -123,8 +139,34 @@ async def vip_shoplist_generate(
     # Build rules index for lookup (rounding, min_packs)
     rules_index = {r.food_id: r for r in rules}
 
-    # Map core result -> DTO response using from_core helper
-    return ShoplistGenerateResponse.from_core(result, rules_index)
+    # Map core result -> DTO response
+    packed_dto = [
+        PackedLineDTO(
+            food_id=p.food.food_id,
+            requested=QuantityDTO(
+                value=p.requested.value, unit=cast(UnitDTO, p.requested.unit.name)
+            ),
+            pack_size=QuantityDTO(
+                value=p.pack_size.value, unit=cast(UnitDTO, p.pack_size.unit.name)
+            ),
+            packs=p.packs,
+            provided=QuantityDTO(value=p.provided.value, unit=cast(UnitDTO, p.provided.unit.name)),
+            overage=QuantityDTO(value=p.overage.value, unit=cast(UnitDTO, p.overage.unit.name)),
+            rounding=cast(RoundingModeDTO, rules_index[p.food.food_id].rounding.name),
+            min_packs=rules_index[p.food.food_id].min_packs,
+        )
+        for p in result.packed
+    ]
+
+    unpacked_dto = [
+        UnpackedLineDTO(
+            food_id=u.food.food_id,
+            requested=QuantityDTO(value=u.qty.value, unit=cast(UnitDTO, u.qty.unit.name)),
+        )
+        for u in result.unpacked
+    ]
+
+    return ShoplistGenerateResponse(packed=packed_dto, unpacked=unpacked_dto)
 
 
 __all__ = ["router"]

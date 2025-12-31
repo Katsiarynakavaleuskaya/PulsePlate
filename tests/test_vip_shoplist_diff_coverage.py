@@ -12,13 +12,6 @@ These tests intentionally target:
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-
-
-def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Enable VIP module for tests."""
-    # Важно: monkeypatch по модулю роутера (иначе может не сработать из-за import binding)
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
 
 def test_map_unit_invalid_returns_422() -> None:
@@ -45,31 +38,37 @@ def test_map_rounding_invalid_returns_422() -> None:
     assert "Invalid rounding" in exc_info.value.detail
 
 
-def test_vip_shoplist_schemas_defaults_and_serialization() -> None:
-    """Cover schema defaults + model_dump paths for diff-coverage."""
+def test_shoplist_generate_request_default_packaging_rules() -> None:
+    """Cover default branch for packaging_rules when field is omitted."""
+    from app.schemas.vip_shoplist import ShoplistGenerateRequest
+
+    req = ShoplistGenerateRequest(
+        items=[{"food_id": "x", "qty": {"value": "1", "unit": "G"}, "form": "RAW"}]
+    )
+    assert req.items[0].food_id == "x"
+    assert req.packaging_rules is None
+
+
+def test_shoplist_generate_request_explicit_empty_packaging_rules() -> None:
+    """Cover explicit empty list branch for packaging_rules."""
+    from app.schemas.vip_shoplist import ShoplistGenerateRequest
+
+    req = ShoplistGenerateRequest(
+        items=[{"food_id": "x", "qty": {"value": "1", "unit": "G"}, "form": "RAW"}],
+        packaging_rules=[],
+    )
+    assert req.packaging_rules == []
+
+
+def test_shoplist_generate_response_model_dump() -> None:
+    """Cover response model_dump serialization path."""
     from app.schemas.vip_shoplist import (
         PackedLineDTO,
         QuantityDTO,
-        ShoplistGenerateRequest,
         ShoplistGenerateResponse,
         UnpackedLineDTO,
     )
 
-    # 1) default branch for packaging_rules (field omitted)
-    req1 = ShoplistGenerateRequest(
-        items=[{"food_id": "x", "qty": {"value": "1", "unit": "G"}, "form": "RAW"}]
-    )
-    assert req1.items[0].food_id == "x"
-    assert req1.packaging_rules is None
-
-    # 2) explicit empty list branch
-    req2 = ShoplistGenerateRequest(
-        items=[{"food_id": "x", "qty": {"value": "1", "unit": "G"}, "form": "RAW"}],
-        packaging_rules=[],
-    )
-    assert req2.packaging_rules == []
-
-    # 3) response model_dump branch
     resp = ShoplistGenerateResponse(
         packed=[
             PackedLineDTO(
