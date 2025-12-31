@@ -8,6 +8,7 @@ Contract:
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -18,6 +19,7 @@ from app.schemas.vip_shoplist import (
     QuantityDTO,
     REASON_NO_PACKAGING_RULE,
     RoundingModeDTO,
+    ShoplistAnalyticsDTO,
     ShoplistGenerateRequest,
     ShoplistGenerateResponse,
     ShoplistPreviewItem,
@@ -95,6 +97,22 @@ def _build_reasons(p: PackPlan, rule: PackageRule) -> list[str]:
         f"provided={p.provided.value} {p.provided.unit.name}",
         f"overage={p.overage.value} {p.overage.unit.name}",
     ]
+
+
+def _sum_overage_by_unit(result) -> dict[str, Decimal]:
+    """
+    Sum overage totals by unit.
+
+    RU: Агрегируем перерасход (overage) по единицам (G/ML/PCS/...).
+    EN: Aggregate overage totals by unit (G/ML/PCS/...).
+
+    Adapter-only: uses engine output as-is.
+    """
+    totals: dict[str, Decimal] = {}
+    for p in result.packed:
+        unit = p.overage.unit.name
+        totals[unit] = totals.get(unit, Decimal("0")) + p.overage.value
+    return totals
 
 
 @router.get("/preview", response_model=ShoplistPreviewResponse)
@@ -195,7 +213,20 @@ async def vip_shoplist_generate(
         for u in result.unpacked
     ]
 
-    return ShoplistGenerateResponse(packed=packed_dto, unpacked=unpacked_dto)
+    overage_totals = _sum_overage_by_unit(result)
+
+    analytics = ShoplistAnalyticsDTO(
+        total_lines=len(result.packed) + len(result.unpacked),
+        packed_lines=len(result.packed),
+        unpacked_lines=len(result.unpacked),
+        total_overage_by_unit={cast(UnitDTO, k): str(v) for k, v in overage_totals.items()},
+    )
+
+    return ShoplistGenerateResponse(
+        packed=packed_dto,
+        unpacked=unpacked_dto,
+        analytics=analytics,
+    )
 
 
 __all__ = ["router"]

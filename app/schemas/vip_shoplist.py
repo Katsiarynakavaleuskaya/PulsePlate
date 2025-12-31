@@ -72,9 +72,23 @@ class UnpackedLineDTO(BaseModel):
     reason: str = Field(default=REASON_NO_PACKAGING_RULE)
 
 
+class ShoplistAnalyticsDTO(BaseModel):
+    total_lines: int = Field(..., ge=0)
+    packed_lines: int = Field(..., ge=0)
+    unpacked_lines: int = Field(..., ge=0)
+
+    # RU: Decimal отдаём строкой → стабильный JSON, без float.
+    # EN: Return Decimal totals as strings for stable JSON and no floats.
+    total_overage_by_unit: dict[UnitDTO, str] = Field(default_factory=dict)
+
+
 class ShoplistGenerateResponse(BaseModel):
     packed: list[PackedLineDTO]
     unpacked: list[UnpackedLineDTO]
+
+    # RU: Optional для backward-compat (старые конструкторы/тесты).
+    # EN: Optional for backward compatibility with older constructors/tests.
+    analytics: ShoplistAnalyticsDTO | None = None
 
 
 # --- Preview schemas (legacy) ---
