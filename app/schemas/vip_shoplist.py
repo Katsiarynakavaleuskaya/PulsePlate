@@ -13,8 +13,8 @@ from typing import Literal, Optional, cast
 
 from pydantic import BaseModel, Field
 
+from core.shoplist_engine.models import PackageRule
 from core.shoplist_engine.packager import PackagingResult
-from core.shoplist_engine.models import Unit, RoundingMode
 
 # RU: DTO слой — адаптер над core моделями. Здесь можно использовать Decimal.
 # EN: DTO layer — adapter over core models. Decimal is allowed.
@@ -71,27 +71,39 @@ class ShoplistGenerateResponse(BaseModel):
     unpacked: list[UnpackedLineDTO]
 
     @classmethod
-    def from_core(cls, result: PackagingResult) -> ShoplistGenerateResponse:
+    def from_core(
+        cls,
+        result: PackagingResult,
+        rules_index: dict[str, PackageRule],
+    ) -> ShoplistGenerateResponse:
+        """
+        Convert core PackagingResult to DTO response.
+
+        Args:
+            result: Core packaging result from ShoplistEngine
+            rules_index: Mapping of food_id -> PackageRule for rounding/min_packs lookup
+
+        Note:
+            PackPlan does not store rounding/min_packs directly; they come from PackageRule.
+        """
         packed_dto = [
             PackedLineDTO(
                 food_id=p.food.food_id,
                 requested=QuantityDTO(
-                    value=p.requested.value, unit=cast(UnitDTO, p.requested.unit.value)
+                    value=p.requested.value, unit=cast(UnitDTO, p.requested.unit.name)
                 ),
                 pack_size=QuantityDTO(
-                    value=p.pack_size.value, unit=cast(UnitDTO, p.pack_size.unit.value)
+                    value=p.pack_size.value, unit=cast(UnitDTO, p.pack_size.unit.name)
                 ),
                 packs=p.packs,
                 provided=QuantityDTO(
-                    value=p.provided.value, unit=cast(UnitDTO, p.provided.unit.value)
+                    value=p.provided.value, unit=cast(UnitDTO, p.provided.unit.name)
                 ),
                 overage=QuantityDTO(
-                    value=p.overage.value, unit=cast(UnitDTO, p.overage.unit.value)
+                    value=p.overage.value, unit=cast(UnitDTO, p.overage.unit.name)
                 ),
-                rounding=cast(
-                    RoundingModeDTO, p.pack_size.rounding.value
-                ),  # NOTE: PackPlan does not store rounding mode directly, it's from PackageRule
-                min_packs=p.packs,  # NOTE: PackPlan does not store min_packs directly, it's from PackageRule
+                rounding=cast(RoundingModeDTO, rules_index[p.food.food_id].rounding.name),
+                min_packs=rules_index[p.food.food_id].min_packs,
             )
             for p in result.packed
         ]
@@ -99,7 +111,7 @@ class ShoplistGenerateResponse(BaseModel):
         unpacked_dto = [
             UnpackedLineDTO(
                 food_id=u.food.food_id,
-                requested=QuantityDTO(value=u.qty.value, unit=cast(UnitDTO, u.qty.unit.value)),
+                requested=QuantityDTO(value=u.qty.value, unit=cast(UnitDTO, u.qty.unit.name)),
             )
             for u in result.unpacked
         ]
