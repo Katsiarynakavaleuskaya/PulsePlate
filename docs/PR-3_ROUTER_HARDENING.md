@@ -70,7 +70,7 @@
 | Empty food_id | 422 | Pydantic | `test_generate_empty_food_id_returns_422` |
 | Negative quantity | 422 | Pydantic | `test_generate_negative_quantity_returns_422` |
 | VIP module disabled | 404 | Router | `test_generate_vip_module_disabled_returns_404` |
-| Missing API key | 403 | legacy_app | `test_generate_missing_api_key_returns_403` |
+| Missing API key | 401 or 403 | legacy_app | `test_generate_missing_api_key_returns_401_or_403` |
 | Invalid API key tier | 403 | legacy_app | `test_generate_invalid_api_key_tier_returns_403` |
 | Packed item without rule | 500 | Router contract-check | `test_generate_raises_when_packed_item_missing_rule` (PR-1) |
 | Empty items list | 200 | Valid edge case | `test_generate_empty_items_list_returns_200` |
