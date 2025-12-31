@@ -9,9 +9,9 @@ Contract:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
@@ -32,6 +32,7 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
     UnitDTO,
 )
+from app.services.catalog_adapter import build_default_mock_provider, enrich_shoplist_response
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from core.shoplist_engine.models import (
@@ -48,6 +49,11 @@ from core.shoplist_engine.packager import PackagingResult
 from core.shoplist_preview.preview_service import build_preview
 
 router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
+
+# Catalog provider (module-level singleton, mock-only in PR-6, no I/O)
+# RU: В PR-6 это чистый in-memory объект; безопасно.
+# EN: In PR-6 this is pure in-memory; safe.
+_CATALOG_PROVIDER = build_default_mock_provider()
 
 # Common OpenAPI responses for gating matrix
 COMMON_VIP_SHOPLIST_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -298,13 +304,22 @@ async def vip_shoplist_preview(
     summary="Generate VIP shoplist (deterministic)",
     description=(
         "Deterministic shoplist generation. Decimals are serialized as strings. "
-        "Includes explainability (reasons/reason) and analytics."
+        "Includes explainability (reasons/reason) and analytics. "
+        "Optional catalog enrichment via region_id/store_id query params."
     ),
 )
 async def vip_shoplist_generate(
     payload: ShoplistGenerateRequest,
-    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
-    _vip: Annotated[str, Depends(require_vip_tier)],
+    region_id: Annotated[
+        Optional[str],
+        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
+    ] = None,
+    store_id: Annotated[
+        Optional[str],
+        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+    ] = None,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
+    _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> ShoplistGenerateResponse:
     """
     Generate shopping list with packaging rules (ShoplistEngine v1).
@@ -325,7 +340,16 @@ async def vip_shoplist_generate(
     result = ShoplistEngine.generate(specs, packaging_rules=rules)
 
     # Build response
-    return _build_shoplist_response(result, rules, include_analytics=True)
+    response = _build_shoplist_response(result, rules, include_analytics=True)
+
+    # Enrichment (fail-soft, adapter-only)
+    response = enrich_shoplist_response(
+        response,
+        region_id=region_id,
+        store_id=store_id,
+        provider=_CATALOG_PROVIDER,
+    )
+    return response
 
 
 @router.post(
@@ -336,13 +360,22 @@ async def vip_shoplist_generate(
     description=(
         "Daily shoplist generation. Same contract as /generate: "
         "deterministic, includes explainability (reasons/reason) and analytics. "
-        "Decimals serialized as strings."
+        "Decimals serialized as strings. "
+        "Optional catalog enrichment via region_id/store_id query params."
     ),
 )
 async def vip_shoplist_daily(
     payload: ShoplistDailyRequest,
-    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
-    _vip: Annotated[str, Depends(require_vip_tier)],
+    region_id: Annotated[
+        Optional[str],
+        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
+    ] = None,
+    store_id: Annotated[
+        Optional[str],
+        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+    ] = None,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
+    _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> ShoplistGenerateResponse:
     """
     Generate daily shopping list with packaging rules (ShoplistEngine v1).
@@ -363,7 +396,16 @@ async def vip_shoplist_daily(
     result = ShoplistEngine.generate(specs, packaging_rules=rules)
 
     # Build response
-    return _build_shoplist_response(result, rules, include_analytics=True)
+    response = _build_shoplist_response(result, rules, include_analytics=True)
+
+    # Enrichment (fail-soft, adapter-only)
+    response = enrich_shoplist_response(
+        response,
+        region_id=region_id,
+        store_id=store_id,
+        provider=_CATALOG_PROVIDER,
+    )
+    return response
 
 
 @router.post(
@@ -375,13 +417,22 @@ async def vip_shoplist_daily(
         "Weekly shoplist generation (multiple days). "
         "Each day processed independently with same contract as /generate: "
         "deterministic, includes explainability (reasons/reason) and analytics per day. "
-        "Decimals serialized as strings. Days length = as requested (no fixed 7-day requirement)."
+        "Decimals serialized as strings. Days length = as requested (no fixed 7-day requirement). "
+        "Optional catalog enrichment via region_id/store_id query params (applied to all days)."
     ),
 )
 async def vip_shoplist_weekly(
     payload: ShoplistWeeklyRequest,
-    _enabled: Annotated[None, Depends(require_vip_module_enabled)],
-    _vip: Annotated[str, Depends(require_vip_tier)],
+    region_id: Annotated[
+        Optional[str],
+        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
+    ] = None,
+    store_id: Annotated[
+        Optional[str],
+        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+    ] = None,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
+    _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> ShoplistWeeklyResponse:
     """
     Generate weekly shopping list with packaging rules (ShoplistEngine v1).
@@ -405,6 +456,14 @@ async def vip_shoplist_weekly(
 
         # Build response for this day
         day_response = _build_shoplist_response(result, rules, include_analytics=True)
+
+        # Enrichment (fail-soft, adapter-only)
+        day_response = enrich_shoplist_response(
+            day_response,
+            region_id=region_id,
+            store_id=store_id,
+            provider=_CATALOG_PROVIDER,
+        )
         days.append(day_response)
 
     return ShoplistWeeklyResponse(days=days)
