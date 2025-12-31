@@ -74,11 +74,21 @@ def require_vip_module_enabled() -> None:
 def region_store_params(
     region_id: Annotated[
         str | None,
-        Query(default=None, min_length=2, max_length=8, description="Optional region id (e.g. 'es', 'us')"),
+        Query(
+            default=None,
+            min_length=2,
+            max_length=8,
+            description="Optional region id (e.g. 'es', 'us')",
+        ),
     ] = None,
     store_id: Annotated[
         str | None,
-        Query(default=None, min_length=1, max_length=64, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+        Query(
+            default=None,
+            min_length=1,
+            max_length=64,
+            description="Optional store id (e.g. 'carrefour_es', 'walmart_us')",
+        ),
     ] = None,
 ) -> tuple[str | None, str | None]:
     """
