@@ -48,12 +48,24 @@ def require_vip_module_enabled() -> None:
 
 def _map_unit(dto_unit: str) -> Unit:
     """Map DTO unit string to core Unit enum."""
-    return Unit[dto_unit]
+    try:
+        return Unit[dto_unit]
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid unit: {dto_unit}",
+        ) from exc
 
 
 def _map_rounding(dto_rounding: str) -> RoundingMode:
     """Map DTO rounding string to core RoundingMode enum."""
-    return RoundingMode[dto_rounding]
+    try:
+        return RoundingMode[dto_rounding]
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid rounding: {dto_rounding}",
+        ) from exc
 
 
 @router.get("/preview", response_model=ShoplistPreviewResponse)

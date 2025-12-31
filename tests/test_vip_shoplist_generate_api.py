@@ -50,8 +50,25 @@ def test_vip_shoplist_generate_happy_path(client_with_vip_access, monkeypatch):
 
     assert flour["packs"] == 2
     assert flour["provided"]["value"] == "2000"
+    # Verify unit mapping (G for flour)
+    assert flour["requested"]["unit"] == "G"
+    assert flour["pack_size"]["unit"] == "G"
+    assert flour["provided"]["unit"] == "G"
+    assert flour["overage"]["unit"] == "G"
+    # Verify rounding and min_packs
+    assert flour["rounding"] == "CEIL"
+    assert flour["min_packs"] == 1
+
     assert eggs["packs"] == 1
     assert eggs["provided"]["value"] == "6"
+    # Verify unit mapping (PCS for eggs)
+    assert eggs["requested"]["unit"] == "PCS"
+    assert eggs["pack_size"]["unit"] == "PCS"
+    assert eggs["provided"]["unit"] == "PCS"
+    assert eggs["overage"]["unit"] == "PCS"
+    # Verify rounding and min_packs
+    assert eggs["rounding"] == "CEIL"
+    assert eggs["min_packs"] == 1
 
 
 def test_vip_shoplist_generate_vip_disabled_404(client_with_vip_access, monkeypatch):
