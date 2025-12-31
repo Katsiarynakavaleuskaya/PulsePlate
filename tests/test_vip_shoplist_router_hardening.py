@@ -55,6 +55,7 @@ def _payload_one_item(
 
 
 def test_generate_invalid_unit_returns_422(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid unit value should return 422 (Pydantic validation at DTO level)."""
@@ -66,8 +67,7 @@ def test_generate_invalid_unit_returns_422(
         ]
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
     data = r.json()
     # Pydantic validates at DTO level - check error structure
@@ -80,6 +80,7 @@ def test_generate_invalid_unit_returns_422(
 
 
 def test_generate_invalid_rounding_returns_422(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid rounding value should return 422 (Pydantic validation at DTO level)."""
@@ -99,8 +100,7 @@ def test_generate_invalid_rounding_returns_422(
         ],
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
     data = r.json()
     # Pydantic validates at DTO level - check error structure
@@ -114,6 +114,7 @@ def test_generate_invalid_rounding_returns_422(
 
 
 def test_generate_invalid_form_returns_422(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid form value should return 422 (Pydantic validation at DTO level)."""
@@ -125,8 +126,7 @@ def test_generate_invalid_form_returns_422(
         ]
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
     data = r.json()
     # Pydantic validates at DTO level - check error structure
@@ -139,6 +139,7 @@ def test_generate_invalid_form_returns_422(
 
 
 def test_generate_min_packs_zero_returns_422(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """min_packs=0 should be rejected by Pydantic validation (ge=1)."""
@@ -158,8 +159,7 @@ def test_generate_min_packs_zero_returns_422(
         ],
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
     data = r.json()
     # Pydantic validation error should mention min_packs constraint
@@ -173,6 +173,7 @@ def test_generate_min_packs_zero_returns_422(
 
 
 def test_generate_empty_food_id_returns_422(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Empty food_id should be rejected by Pydantic validation (min_length=1)."""
@@ -188,8 +189,7 @@ def test_generate_empty_food_id_returns_422(
         ]
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
     data = r.json()
     errors = data.get("detail", [])
@@ -198,6 +198,7 @@ def test_generate_empty_food_id_returns_422(
 
 
 def test_generate_negative_quantity_returns_422(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Negative quantity value should be rejected by Pydantic validation (ge=0)."""
@@ -213,8 +214,7 @@ def test_generate_negative_quantity_returns_422(
         ]
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
     data = r.json()
     errors = data.get("detail", [])
@@ -227,6 +227,7 @@ def test_generate_negative_quantity_returns_422(
 
 
 def test_generate_vip_module_disabled_returns_404(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """VIP module disabled (feature flag off) should return 404."""
@@ -238,8 +239,9 @@ def test_generate_vip_module_disabled_returns_404(
         ]
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    # client_with_vip_access bypasses VIP tier, but require_vip_module_enabled
+    # should still check the feature flag and return 404
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_404_NOT_FOUND, r.text
     data = r.json()
     assert "not found" in str(data["detail"]).lower()
@@ -310,6 +312,7 @@ def test_generate_invalid_api_key_tier_returns_403(
 
 
 def test_generate_missing_items_field_returns_200_with_empty_result(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing 'items' field uses default_factory=list, returns 200 with empty result."""
@@ -317,8 +320,7 @@ def test_generate_missing_items_field_returns_200_with_empty_result(
 
     payload = {}  # Missing 'items' field (defaults to [])
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     # items has default_factory=list, so empty list is valid
     assert r.status_code == status.HTTP_200_OK, r.text
     data = r.json()
@@ -332,6 +334,7 @@ def test_generate_missing_items_field_returns_200_with_empty_result(
 
 
 def test_generate_empty_items_list_returns_200(
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Empty items list should return 200 with empty packed/unpacked (edge case)."""
@@ -341,8 +344,7 @@ def test_generate_empty_items_list_returns_200(
         "items": [],
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_200_OK, r.text
     data = r.json()
     assert data["packed"] == []
@@ -367,17 +369,11 @@ def test_generate_empty_items_list_returns_200(
 def test_generate_invalid_input_returns_422_and_engine_not_called(
     patch_field: str,
     bad_value: str,
-    app_module: ModuleType,
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid input -> 422; engine must not be invoked (fail-fast)."""
     _enable_vip(monkeypatch)
-    
-    # Bypass VIP tier gating via dependency override
-    import app.routers.vip_shoplist as vip_router
-    async def mock_vip_tier() -> str:
-        return "vip"
-    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_vip_tier
 
     def fail_if_called(*_args, **_kwargs):
         raise AssertionError("Engine must not be called on invalid input")
@@ -395,27 +391,17 @@ def test_generate_invalid_input_returns_422_and_engine_not_called(
     elif patch_field == "rounding":
         payload["packaging_rules"][0]["rounding"] = bad_value
 
-    try:
-        client = TestClient(app_module.app)
-        r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
 
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    finally:
-        app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
 def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_called(
-    app_module: ModuleType,
+    client_with_vip_access: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """min_packs=0 should fail DTO validation -> 422; engine must not be invoked."""
     _enable_vip(monkeypatch)
-    
-    # Bypass VIP tier gating via dependency override
-    import app.routers.vip_shoplist as vip_router
-    async def mock_vip_tier() -> str:
-        return "vip"
-    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_vip_tier
 
     def fail_if_called(*_args, **_kwargs):
         raise AssertionError("Engine must not be called on invalid DTO")
@@ -439,10 +425,6 @@ def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_calle
         ],
     }
 
-    try:
-        client = TestClient(app_module.app)
-        r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
 
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-    finally:
-        app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
