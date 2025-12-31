@@ -1,7 +1,7 @@
 # 🧭 PR-6 HANDOFF — PulsePlate / VIP Shoplist Track
 
-**Topic:** Region/Catalog Adapter (mock-first) — enrichment без изменений core  
-**Date:** 31 Dec 2025  
+**Topic:** Region/Catalog Adapter (mock-first) — enrichment без изменений core
+**Date:** 31 Dec 2025
 **Status:** Ready for implementation
 
 ---
@@ -269,4 +269,3 @@ PR-6 только интерфейс (mock-first):
 ---
 
 **Ready for implementation** ✅
-

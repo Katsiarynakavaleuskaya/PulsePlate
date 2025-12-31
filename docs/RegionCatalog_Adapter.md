@@ -101,4 +101,3 @@ Response lines may include optional `catalog` field with:
 
 - [`docs/VIP_Shoplist_API.md`](VIP_Shoplist_API.md) — Base API contract
 - [`PR-6_HANDOFF.md`](../PR-6_HANDOFF.md) — Implementation handoff
-

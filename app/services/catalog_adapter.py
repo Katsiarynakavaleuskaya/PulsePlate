@@ -151,11 +151,11 @@ def enrich_shoplist_response(
         )
         enriched_unpacked.append(line.model_copy(update={"catalog": catalog}, deep=False))
 
-    return response.model_copy(
+    enriched_response = response.model_copy(
         update={
             "packed": enriched_packed,
             "unpacked": enriched_unpacked,
         },
         deep=False,
     )
-
+    return cast(ShoplistGenerateResponse, enriched_response)

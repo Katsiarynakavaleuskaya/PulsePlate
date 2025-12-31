@@ -48,7 +48,9 @@ class CatalogInfoDTO(BaseModel):
     """
 
     sku: str = Field(..., description="Stock Keeping Unit", examples=["CRF-ES-000123"])
-    store_id: str = Field(..., description="Store identifier", examples=["carrefour_es", "walmart_us"])
+    store_id: str = Field(
+        ..., description="Store identifier", examples=["carrefour_es", "walmart_us"]
+    )
     region_id: str = Field(..., description="Region identifier", examples=["es", "us"])
 
     pack_label: Optional[str] = Field(
