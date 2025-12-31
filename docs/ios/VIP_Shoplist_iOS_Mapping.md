@@ -8,10 +8,6 @@
 
 ## JSON ↔ Swift Type Mapping
 
----
-
-## JSON ↔ Swift Type Mapping
-
 | JSON Path                          | JSON Type      | Swift Type                    | Notes                                    |
 |------------------------------------|----------------|-------------------------------|------------------------------------------|
 | `qty.value`                        | string         | `String`                      | Decimal-as-string (parse with `asDecimal()`) |
