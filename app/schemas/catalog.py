@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Catalog enrichment schemas (adapter-only).
+Catalog schemas (legacy public API + PR-6 enrichment).
 
-RU: Схемы для enrichment слоя (каталожная информация: SKU, цена, aisle).
-EN: Schemas for enrichment layer (catalog info: SKU, price, aisle).
+RU: Схемы для catalog API (legacy) и enrichment слоя (PR-6).
+EN: Schemas for catalog API (legacy) and enrichment layer (PR-6).
 """
 
 from __future__ import annotations
@@ -12,7 +12,55 @@ from decimal import Decimal
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+# --- Legacy public surface (MUST stay for app/routers/catalog.py) ---
+
+
+class CatalogRegion(BaseModel):
+    """
+    RU: Регион каталога (legacy/public contract).
+    EN: Catalog region (legacy/public contract).
+    """
+
+    id: str = Field(..., min_length=2, max_length=8)
+    name: str = Field(..., min_length=1, max_length=100)
+
+    model_config = ConfigDict(frozen=True)
+
+
+class CatalogStore(BaseModel):
+    """
+    RU: Магазин/сеть в регионе (legacy/public contract).
+    EN: Store in region (legacy/public contract).
+    """
+
+    id: str = Field(..., min_length=1, max_length=64)
+    region_id: str = Field(..., min_length=2, max_length=8)
+    name: str = Field(..., min_length=1, max_length=100)
+    source_id: str = Field(..., min_length=1, max_length=32)
+
+    model_config = ConfigDict(frozen=True)
+
+
+class CatalogSKU(BaseModel):
+    """
+    RU: SKU запись (legacy/public contract).
+    EN: SKU record (legacy/public contract).
+    """
+
+    id: str = Field(..., min_length=1, max_length=128)
+    name: str = Field(..., min_length=1, max_length=200)
+    brand: str | None = Field(default=None, max_length=100)
+    barcode: str | None = Field(default=None, max_length=64)
+    region_id: str = Field(..., min_length=2, max_length=8)
+    store_id: str = Field(..., min_length=1, max_length=64)
+    source_id: str = Field(..., min_length=1, max_length=32)
+
+    model_config = ConfigDict(frozen=True)
+
+
+# --- New PR-6 enrichment DTOs (adapter-only) ---
 
 
 class CurrencyDTO(str, Enum):
