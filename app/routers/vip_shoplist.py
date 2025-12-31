@@ -61,7 +61,7 @@ def _map_unit(dto_unit: str) -> Unit:
         return Unit[dto_unit]
     except KeyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid unit: {dto_unit}",
         ) from exc
 
@@ -72,7 +72,7 @@ def _map_rounding(dto_rounding: str) -> RoundingMode:
         return RoundingMode[dto_rounding]
     except KeyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid rounding: {dto_rounding}",
         ) from exc
 
@@ -83,7 +83,7 @@ def _map_form(dto_form: str) -> FoodForm:
         return FoodForm[dto_form]
     except KeyError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Invalid form: {dto_form}",
         ) from exc
 

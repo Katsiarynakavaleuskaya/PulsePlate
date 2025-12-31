@@ -68,7 +68,7 @@ def test_generate_invalid_unit_returns_422(
     }
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     data = r.json()
     # Pydantic validates at DTO level - check error structure
     errors = data.get("detail", [])
@@ -101,7 +101,7 @@ def test_generate_invalid_rounding_returns_422(
     }
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     data = r.json()
     # Pydantic validates at DTO level - check error structure
     errors = data.get("detail", [])
@@ -127,7 +127,7 @@ def test_generate_invalid_form_returns_422(
     }
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     data = r.json()
     # Pydantic validates at DTO level - check error structure
     errors = data.get("detail", [])
@@ -160,7 +160,7 @@ def test_generate_min_packs_zero_returns_422(
     }
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     data = r.json()
     # Pydantic validation error should mention min_packs constraint
     errors = data.get("detail", [])
@@ -190,7 +190,7 @@ def test_generate_empty_food_id_returns_422(
     }
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     data = r.json()
     errors = data.get("detail", [])
     assert isinstance(errors, list)
@@ -215,7 +215,7 @@ def test_generate_negative_quantity_returns_422(
     }
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, r.text
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, r.text
     data = r.json()
     errors = data.get("detail", [])
     assert isinstance(errors, list)
@@ -393,7 +393,7 @@ def test_generate_invalid_input_returns_422_and_engine_not_called(
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
 
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_called(
@@ -427,4 +427,4 @@ def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_calle
 
     r = client_with_vip_access.post("/api/v1/vip/shoplist/generate", json=payload)
 
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
