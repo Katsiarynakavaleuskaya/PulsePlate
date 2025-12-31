@@ -228,6 +228,7 @@ class TestVIPCoverageBoost:
                 del sys.modules["app.routers.vip"]
 
             import app
+            from app.routers import vip_shoplist
 
             client = TestClient(cast(ASGIApp, app.app))
 
@@ -253,7 +254,8 @@ class TestVIPCoverageBoost:
                 return True
 
             monkeypatch.setattr(
-                "app.routers.vip_shoplist.is_vip_module_enabled",
+                vip_shoplist,
+                "is_vip_module_enabled",
                 mock_is_vip_module_enabled,
             )
 
@@ -344,6 +346,7 @@ class TestVIPCoverageBoost:
                 del sys.modules["app.routers.vip"]
 
             import app
+            from app.routers import vip_shoplist
 
             client = TestClient(cast(ASGIApp, app.app))
 
@@ -369,7 +372,8 @@ class TestVIPCoverageBoost:
                 return True
 
             monkeypatch.setattr(
-                "app.routers.vip_shoplist.is_vip_module_enabled",
+                vip_shoplist,
+                "is_vip_module_enabled",
                 mock_is_vip_module_enabled,
             )
 

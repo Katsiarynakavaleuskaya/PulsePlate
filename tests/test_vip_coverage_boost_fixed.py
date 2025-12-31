@@ -199,11 +199,14 @@ class TestVIPCoverageBoostFixed:
             assert response.status_code == 200
 
             # Тест shoplist (new API format)
+            from app.routers import vip_shoplist
+
             def mock_is_vip_module_enabled() -> bool:
                 return True
 
             monkeypatch.setattr(
-                "app.routers.vip_shoplist.is_vip_module_enabled",
+                vip_shoplist,
+                "is_vip_module_enabled",
                 mock_is_vip_module_enabled,
             )
 
@@ -297,12 +300,14 @@ class TestVIPCoverageBoostFixed:
 
             # Тест shoplist error (new API format)
             import app
+            from app.routers import vip_shoplist
 
             def mock_is_vip_module_enabled() -> bool:
                 return True
 
             monkeypatch.setattr(
-                "app.routers.vip_shoplist.is_vip_module_enabled",
+                vip_shoplist,
+                "is_vip_module_enabled",
                 mock_is_vip_module_enabled,
             )
 
