@@ -8,6 +8,11 @@ EN: Integration tests for optional catalog enrichment.
 
 from __future__ import annotations
 
+# NOTE: Always use client_with_vip_access for VIP endpoints to avoid leaking
+# dependency_overrides (API key + tier gating) across the test session.
+# The fixture properly handles both VIP tier and route-level API key dependencies
+# and cleans up overrides in teardown.
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -74,7 +79,10 @@ def test_generate_with_region_store_attaches_catalog(
     assert r.status_code == status.HTTP_200_OK, r.text
 
     data = r.json()
-    catalog = data["packed"][0].get("catalog")
+    packed_item = data["packed"][0]
+    # Catalog field always present in schema; populated when enrichment succeeds
+    assert "catalog" in packed_item
+    catalog = packed_item["catalog"]
     # Mock provider has carrot in es/carrefour_es, so catalog should be present
     assert catalog is not None
     assert catalog["region_id"] == "es"
@@ -101,7 +109,10 @@ def test_daily_with_enrichment_applies_to_response(
 
     data = r.json()
     assert "packed" in data
+    packed_item = data["packed"][0]
+    # Catalog field always present in schema; populated when enrichment succeeds
+    assert "catalog" in packed_item
+    catalog = packed_item["catalog"]
     # Enrichment applied (catalog should be present for carrot in mock)
-    catalog = data["packed"][0].get("catalog")
     assert catalog is not None
     assert catalog["region_id"] == "es"
