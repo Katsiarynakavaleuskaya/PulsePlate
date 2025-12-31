@@ -91,7 +91,7 @@ def test_shoplist_generate_response_model_dump() -> None:
                 provided=QuantityDTO(value="1", unit="G"),
                 overage=QuantityDTO(value="0", unit="G"),
                 rounding="CEIL",
-                min_packs=0,
+                min_packs=1,
             )
         ],
         unpacked=[
