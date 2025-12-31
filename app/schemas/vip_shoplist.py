@@ -17,6 +17,10 @@ from pydantic import BaseModel, Field
 # RU: DTO слой — адаптер над core моделями. Здесь можно использовать Decimal.
 # EN: DTO layer — adapter over core models. Decimal is allowed.
 
+# RU: Константа для explainability (один источник правды).
+# EN: Constant for explainability (single source of truth).
+REASON_NO_PACKAGING_RULE = "no_packaging_rule"
+
 UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности
 FoodFormDTO = Literal["RAW", "COOKED", "FROZEN", "DRIED", "CANNED"]  # расширится позже
 RoundingModeDTO = Literal["CEIL", "NEAREST", "NONE"]
@@ -57,11 +61,15 @@ class PackedLineDTO(BaseModel):
     overage: QuantityDTO
     rounding: RoundingModeDTO
     min_packs: int
+    reasons: list[str] = Field(default_factory=list)
 
 
 class UnpackedLineDTO(BaseModel):
     food_id: str
     requested: QuantityDTO
+    # RU: Default, чтобы не ломать старые конструкторы и гарантировать стабильный API контракт.
+    # EN: Default to keep backward compatibility and stable API contract.
+    reason: str = Field(default=REASON_NO_PACKAGING_RULE)
 
 
 class ShoplistGenerateResponse(BaseModel):
