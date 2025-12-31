@@ -17,8 +17,20 @@ from decimal import Decimal
 
 import pytest
 
-from core.shoplist_engine.models import FoodRef, PackageRule, Quantity, RoundingMode, ShoplistLine, Unit
-from core.shoplist_engine.packager import PackagingResult, apply_packaging, build_rules_index, compute_packs
+from core.shoplist_engine.models import (
+    FoodRef,
+    PackageRule,
+    Quantity,
+    RoundingMode,
+    ShoplistLine,
+    Unit,
+)
+from core.shoplist_engine.packager import (
+    PackagingResult,
+    apply_packaging,
+    build_rules_index,
+    compute_packs,
+)
 
 
 # --- compute_packs tests ---
@@ -199,6 +211,7 @@ class TestComputePacks:
 
     def test_compute_packs_raises_on_unknown_mode(self) -> None:
         """compute_packs raises ValueError on unknown rounding mode."""
+
         # Use a mock mode that doesn't exist
         class UnknownMode:
             pass
@@ -510,3 +523,28 @@ class TestApplyPackaging:
         assert result.packed[0].provided.value == Decimal("2000")
         assert result.packed[0].overage.value == Decimal("1900")
 
+    def test_apply_packaging_raises_on_negative_overage(self) -> None:
+        """apply_packaging raises ValueError if computed overage is negative (defensive check)."""
+        # This should never happen with correct compute_packs logic,
+        # but we test the defensive check for coverage
+        from unittest.mock import patch
+
+        lines = [
+            ShoplistLine(
+                food=FoodRef(food_id="flour"),
+                qty=Quantity(Decimal("1000"), Unit.G),
+            ),
+        ]
+        rules = [
+            PackageRule(
+                food_id="flour",
+                pack_size=Quantity(Decimal("500"), Unit.G),
+                rounding=RoundingMode.CEIL,
+                min_packs=1,
+            ),
+        ]
+
+        # Mock compute_packs to return packs that don't cover requested (bug scenario)
+        with patch("core.shoplist_engine.packager.compute_packs", return_value=1):
+            with pytest.raises(ValueError, match="Negative overage computed for food_id=flour"):
+                apply_packaging(lines, rules)

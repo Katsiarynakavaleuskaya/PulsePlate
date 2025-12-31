@@ -11,7 +11,6 @@ by integration tests (e.g., mapper exception handlers, VIP module check).
 from __future__ import annotations
 
 from decimal import Decimal
-from types import ModuleType
 
 import pytest
 from fastapi import HTTPException, status

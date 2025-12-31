@@ -291,6 +291,15 @@ def apply_packaging(
         provided_value = packs * rule.pack_size.value
         overage_value = provided_value - line.qty.value
 
+        # Defensive check: overage should never be negative (packs must cover requested)
+        if overage_value < 0:
+            raise ValueError(
+                f"Negative overage computed for food_id={food_id}: "
+                f"provided={provided_value}, requested={line.qty.value}, "
+                f"pack_size={rule.pack_size.value}, packs={packs}. "
+                f"This indicates a bug in compute_packs logic."
+            )
+
         # Create PackPlan
         plan = PackPlan(
             food=line.food,

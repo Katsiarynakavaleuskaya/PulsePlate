@@ -46,4 +46,3 @@ def test_generate_shoplist_with_none_packaging_rules() -> None:
     assert len(result.packed) == 0
     assert len(result.unpacked) == 1
     assert result.unpacked[0].food.food_id == "rice"
-
