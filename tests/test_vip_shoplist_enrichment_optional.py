@@ -58,7 +58,8 @@ def test_generate_without_region_store_has_no_catalog(
     assert data["packed"], data
     # Catalog field exists in schema but is None when not enriched
     packed_item = data["packed"][0]
-    assert "catalog" not in packed_item or packed_item.get("catalog") is None
+    assert "catalog" in packed_item
+    assert packed_item["catalog"] is None
 
 
 def test_generate_with_region_store_attaches_catalog(

@@ -16,6 +16,7 @@ from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
     QuantityDTO,
+    ShoplistAnalyticsDTO,
     ShoplistGenerateResponse,
     UnpackedLineDTO,
 )

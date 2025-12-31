@@ -128,7 +128,7 @@ def enrich_shoplist_response(
     Returns:
         Enriched response (catalog fields added where available)
     """
-    if not region_id or not store_id:
+    if region_id is None or store_id is None:
         return response
 
     # Pydantic models are mutable by default; we keep changes minimal & explicit

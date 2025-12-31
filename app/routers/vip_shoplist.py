@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Annotated
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
@@ -310,14 +311,10 @@ async def vip_shoplist_preview(
 )
 async def vip_shoplist_generate(
     payload: ShoplistGenerateRequest,
-    region_id: Annotated[
-        Optional[str],
-        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
-    ] = None,
-    store_id: Annotated[
-        Optional[str],
-        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
-    ] = None,
+    region_store: Annotated[
+        tuple[str | None, str | None],
+        Depends(region_store_params),
+    ] = (None, None),
     _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> ShoplistGenerateResponse:
@@ -343,6 +340,7 @@ async def vip_shoplist_generate(
     response = _build_shoplist_response(result, rules, include_analytics=True)
 
     # Enrichment (fail-soft, adapter-only)
+    region_id, store_id = region_store
     response = enrich_shoplist_response(
         response,
         region_id=region_id,
@@ -399,6 +397,7 @@ async def vip_shoplist_daily(
     response = _build_shoplist_response(result, rules, include_analytics=True)
 
     # Enrichment (fail-soft, adapter-only)
+    region_id, store_id = region_store
     response = enrich_shoplist_response(
         response,
         region_id=region_id,
@@ -458,6 +457,7 @@ async def vip_shoplist_weekly(
         day_response = _build_shoplist_response(result, rules, include_analytics=True)
 
         # Enrichment (fail-soft, adapter-only)
+        region_id, store_id = region_store
         day_response = enrich_shoplist_response(
             day_response,
             region_id=region_id,
