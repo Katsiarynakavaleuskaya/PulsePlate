@@ -7,8 +7,11 @@ import sys
 from typing import cast
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+from app.middleware import api_tiers
 
 
 class TestVIPCoverageClean:
@@ -140,22 +143,60 @@ class TestVIPCoverageClean:
         assert "echo" in data
         assert "menu" in data
 
-    def test_vip_shoplist_weekly_coverage(self):
+    def test_vip_shoplist_weekly_coverage(self, monkeypatch):
         """Test VIP shoplist weekly coverage with proper isolation."""
         import app
 
-        client = TestClient(cast(ASGIApp, app.app))
+        # Enable VIP module
+        def mock_is_vip_module_enabled() -> bool:
+            return True
 
-        # Test weekly shoplist generation
-        response = client.post(
-            "/api/v1/vip/shoplist/weekly",
-            json={"menu": {"days": []}},
-            headers={"X-API-Key": "test-key"},
+        monkeypatch.setattr(
+            "app.routers.vip_shoplist.is_vip_module_enabled",
+            mock_is_vip_module_enabled,
         )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "shopping_list" in data
+
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
+
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
+            client = TestClient(cast(ASGIApp, app.app))
+
+            # Use new API format for vip_shoplist router
+            response = client.post(
+                "/api/v1/vip/shoplist/weekly",
+                json={
+                    "days": [
+                        {
+                            "items": [
+                                {
+                                    "food_id": "chicken",
+                                    "qty": {"value": "500", "unit": "G"},
+                                    "form": "RAW",
+                                }
+                            ],
+                            "packaging_rules": [
+                                {
+                                    "food_id": "chicken",
+                                    "pack_size": {"value": "500", "unit": "G"},
+                                    "rounding": "CEIL",
+                                    "min_packs": 1,
+                                }
+                            ],
+                        }
+                    ]
+                },
+                headers={"X-API-Key": "test-key"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "days" in data
+            assert isinstance(data["days"], list)
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_regions_coverage(self):
         """Test VIP regions coverage with proper isolation."""

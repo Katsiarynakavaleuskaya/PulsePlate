@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from tests.conftest import _enable_vip
 
 
-def _valid_payload_for_daily() -> dict:
+def _valid_payload_for_daily() -> dict[str, Any]:
     """Valid payload for daily endpoint."""
     return {
         "items": [
@@ -36,7 +36,7 @@ def _valid_payload_for_daily() -> dict:
     }
 
 
-def _valid_payload_for_weekly() -> dict:
+def _valid_payload_for_weekly() -> dict[str, Any]:
     """Valid payload for weekly endpoint."""
     return {
         "days": [

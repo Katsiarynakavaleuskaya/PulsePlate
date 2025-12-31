@@ -8,8 +8,11 @@ import sys
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
+
+from app.middleware import api_tiers
 
 
 class TestVIPCoverageBoost:
@@ -62,26 +65,59 @@ class TestVIPCoverageBoost:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_shoplist_missing_function(self):
-        """Тест VIP shoplist когда ShoplistGenerator недоступен"""
-        with patch("app.routers.vip.ShoplistGenerator", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
+    def test_vip_shoplist_missing_function(self, monkeypatch):
+        """Тест VIP shoplist endpoint with new API format"""
+        import app
 
-            import app
+        # Enable VIP module
+        def mock_is_vip_module_enabled() -> bool:
+            return True
 
+        monkeypatch.setattr(
+            "app.routers.vip_shoplist.is_vip_module_enabled",
+            mock_is_vip_module_enabled,
+        )
+
+        # Override VIP tier dependency
+        async def mock_require_vip_tier() -> str:
+            return "vip"
+
+        app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+        try:
             client = TestClient(cast(ASGIApp, app.app))
 
+            # Use new API format for vip_shoplist router
             response = client.post(
                 "/api/v1/vip/shoplist/weekly",
-                json={"plan_id": "test123"},
+                json={
+                    "days": [
+                        {
+                            "items": [
+                                {
+                                    "food_id": "chicken",
+                                    "qty": {"value": "500", "unit": "G"},
+                                    "form": "RAW",
+                                }
+                            ],
+                            "packaging_rules": [
+                                {
+                                    "food_id": "chicken",
+                                    "pack_size": {"value": "500", "unit": "G"},
+                                    "rounding": "CEIL",
+                                    "min_packs": 1,
+                                }
+                            ],
+                        }
+                    ]
+                },
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "success"
+            assert "days" in data
+        finally:
+            app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_regions_missing_function(self):
         """Тест VIP regions когда get_available_regions недоступен"""
@@ -153,7 +189,7 @@ class TestVIPCoverageBoost:
             data = response.json()
             assert data["status"] == "error"  # Exception handling path
 
-    def test_vip_with_all_functions_working(self):
+    def test_vip_with_all_functions_working(self, monkeypatch):
         """Тест VIP endpoints с функциональными мок-функциями"""
         # Моксим функции чтобы они возвращали данные
         mock_make_weekly_menu = MagicMock()
@@ -212,13 +248,51 @@ class TestVIPCoverageBoost:
             )
             assert response.status_code == 200
 
-            # Тест shoplist
-            response = client.post(
-                "/api/v1/vip/shoplist/weekly",
-                json={"plan_id": "test123"},
-                headers={"X-API-Key": "test_key"},
+            # Тест shoplist (new API format)
+            def mock_is_vip_module_enabled() -> bool:
+                return True
+
+            monkeypatch.setattr(
+                "app.routers.vip_shoplist.is_vip_module_enabled",
+                mock_is_vip_module_enabled,
             )
-            assert response.status_code == 200
+
+            async def mock_require_vip_tier() -> str:
+                return "vip"
+
+            app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+            try:
+                response = client.post(
+                    "/api/v1/vip/shoplist/weekly",
+                    json={
+                        "days": [
+                            {
+                                "items": [
+                                    {
+                                        "food_id": "chicken",
+                                        "qty": {"value": "500", "unit": "G"},
+                                        "form": "RAW",
+                                    }
+                                ],
+                                "packaging_rules": [
+                                    {
+                                        "food_id": "chicken",
+                                        "pack_size": {"value": "500", "unit": "G"},
+                                        "rounding": "CEIL",
+                                        "min_packs": 1,
+                                    }
+                                ],
+                            }
+                        ]
+                    },
+                    headers={"X-API-Key": "test_key"},
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert "days" in data
+            finally:
+                app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
             # Тест regions
             response = client.get(
@@ -251,7 +325,7 @@ class TestVIPCoverageBoost:
             )
             assert response.status_code == 200
 
-    def test_vip_error_handling_paths(self):
+    def test_vip_error_handling_paths(self, monkeypatch):
         """Тест VIP error handling когда функции поднимают исключения"""
         # Моксим функции чтобы они поднимали исключения
         mock_make_weekly_menu = MagicMock()
@@ -290,10 +364,39 @@ class TestVIPCoverageBoost:
             )
             assert response.status_code == 200
 
-            # Тест shoplist error
-            response = client.post(
-                "/api/v1/vip/shoplist/weekly",
-                json={"plan_id": "test123"},
-                headers={"X-API-Key": "test_key"},
+            # Тест shoplist error (new API format)
+            def mock_is_vip_module_enabled() -> bool:
+                return True
+
+            monkeypatch.setattr(
+                "app.routers.vip_shoplist.is_vip_module_enabled",
+                mock_is_vip_module_enabled,
             )
-            assert response.status_code == 200
+
+            async def mock_require_vip_tier() -> str:
+                return "vip"
+
+            app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
+
+            try:
+                # Invalid enum should return 422
+                response = client.post(
+                    "/api/v1/vip/shoplist/weekly",
+                    json={
+                        "days": [
+                            {
+                                "items": [
+                                    {
+                                        "food_id": "chicken",
+                                        "qty": {"value": "500", "unit": "INVALID"},
+                                        "form": "RAW",
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    headers={"X-API-Key": "test_key"},
+                )
+                assert response.status_code == 422
+            finally:
+                app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)

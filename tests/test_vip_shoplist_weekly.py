@@ -12,6 +12,8 @@ This test suite ensures weekly endpoint matches /generate contract:
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -19,7 +21,7 @@ from fastapi.testclient import TestClient
 from tests.conftest import _disable_vip, _enable_vip
 
 
-def _payload_one_day() -> dict:
+def _payload_one_day() -> dict[str, Any]:
     """Minimal valid payload with one day."""
     return {
         "days": [

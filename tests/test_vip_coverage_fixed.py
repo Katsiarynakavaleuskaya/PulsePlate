@@ -10,6 +10,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from app.middleware import api_tiers
+
 
 class TestVIPCoverageFixed:
     """Test class to achieve 97% coverage for VIP router with proper isolation."""
@@ -113,10 +115,15 @@ class TestVIPCoverageFixed:
     def test_vip_shoplist_weekly_coverage_lines_219_259(self, monkeypatch):
         """Test VIP shoplist weekly coverage for lines 219-259."""
         import app
-        from app.middleware import api_tiers
 
-        # Enable VIP module
-        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+        # Enable VIP module with properly typed function
+        def mock_is_vip_module_enabled() -> bool:
+            return True
+
+        monkeypatch.setattr(
+            "app.routers.vip_shoplist.is_vip_module_enabled",
+            mock_is_vip_module_enabled,
+        )
 
         # Override VIP tier dependency
         async def mock_require_vip_tier() -> str:
@@ -163,10 +170,15 @@ class TestVIPCoverageFixed:
     def test_vip_shoplist_daily_coverage_lines_315_316(self, monkeypatch):
         """Test VIP shoplist daily coverage for lines 315-316."""
         import app
-        from app.middleware import api_tiers
 
-        # Enable VIP module
-        monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+        # Enable VIP module with properly typed function
+        def mock_is_vip_module_enabled() -> bool:
+            return True
+
+        monkeypatch.setattr(
+            "app.routers.vip_shoplist.is_vip_module_enabled",
+            mock_is_vip_module_enabled,
+        )
 
         # Override VIP tier dependency
         async def mock_require_vip_tier() -> str:
