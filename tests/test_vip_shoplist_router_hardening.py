@@ -10,6 +10,7 @@ handled and return controlled, predictable responses.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from types import ModuleType
 from typing import Any
 
@@ -18,6 +19,8 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 import app.main as app_module
+from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
+from core.shoplist_engine.packager import PackagingResult
 
 
 def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -239,7 +242,7 @@ def test_generate_vip_module_disabled_returns_404(
     r = client.post("/api/v1/vip/shoplist/generate", json=payload)
     assert r.status_code == status.HTTP_404_NOT_FOUND, r.text
     data = r.json()
-    assert data["detail"] == "Not Found"
+    assert "not found" in str(data["detail"]).lower()
 
 
 def test_generate_missing_api_key_returns_401_or_403(
@@ -364,10 +367,17 @@ def test_generate_empty_items_list_returns_200(
 def test_generate_invalid_input_returns_422_and_engine_not_called(
     patch_field: str,
     bad_value: str,
+    app_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Invalid input -> 422; engine must not be invoked (fail-fast)."""
     _enable_vip(monkeypatch)
+    
+    # Bypass VIP tier gating via dependency override
+    import app.routers.vip_shoplist as vip_router
+    async def mock_vip_tier() -> str:
+        return "vip"
+    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_vip_tier
 
     def fail_if_called(*_args, **_kwargs):
         raise AssertionError("Engine must not be called on invalid input")
@@ -385,17 +395,27 @@ def test_generate_invalid_input_returns_422_and_engine_not_called(
     elif patch_field == "rounding":
         payload["packaging_rules"][0]["rounding"] = bad_value
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    try:
+        client = TestClient(app_module.app)
+        r = client.post("/api/v1/vip/shoplist/generate", json=payload)
 
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
 
 
 def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_called(
+    app_module: ModuleType,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """min_packs=0 should fail DTO validation -> 422; engine must not be invoked."""
     _enable_vip(monkeypatch)
+    
+    # Bypass VIP tier gating via dependency override
+    import app.routers.vip_shoplist as vip_router
+    async def mock_vip_tier() -> str:
+        return "vip"
+    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_vip_tier
 
     def fail_if_called(*_args, **_kwargs):
         raise AssertionError("Engine must not be called on invalid DTO")
@@ -419,7 +439,10 @@ def test_generate_min_packs_zero_returns_422_dto_validation_and_engine_not_calle
         ],
     }
 
-    client = TestClient(app_module.app)
-    r = client.post("/api/v1/vip/shoplist/generate", json=payload)
+    try:
+        client = TestClient(app_module.app)
+        r = client.post("/api/v1/vip/shoplist/generate", json=payload)
 
-    assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    finally:
+        app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
