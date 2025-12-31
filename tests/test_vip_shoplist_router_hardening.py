@@ -18,7 +18,7 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-import app.main as app_module
+import app.main as app_main_module
 from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
 from core.shoplist_engine.packager import PackagingResult
 
@@ -261,7 +261,7 @@ def test_generate_missing_api_key_returns_401_or_403(
     _enable_vip(monkeypatch)
 
     # Create client WITHOUT VIP access (no dependency override)
-    client = TestClient(app_module.app)
+    client = TestClient(app_main_module.app)
 
     payload = {
         "items": [
@@ -287,7 +287,7 @@ def test_generate_invalid_api_key_tier_returns_403(
     _enable_vip(monkeypatch)
 
     # Create client WITHOUT VIP access override
-    client = TestClient(app_module.app)
+    client = TestClient(app_main_module.app)
 
     payload = {
         "items": [

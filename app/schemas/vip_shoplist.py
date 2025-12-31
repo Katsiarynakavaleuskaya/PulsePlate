@@ -22,7 +22,9 @@ from pydantic import BaseModel, Field
 REASON_NO_PACKAGING_RULE = "no_packaging_rule"
 
 UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности / expand as needed
-FoodFormDTO = Literal["RAW", "COOKED", "FROZEN", "DRIED", "CANNED"]  # расширится позже / will expand later
+FoodFormDTO = Literal[
+    "RAW", "COOKED", "FROZEN", "DRIED", "CANNED"
+]  # расширится позже / will expand later
 RoundingModeDTO = Literal["CEIL", "NEAREST", "NONE"]  # rounding mode
 
 

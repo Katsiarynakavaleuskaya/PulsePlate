@@ -179,7 +179,9 @@ def compute_packs(
         # Ensure at least min_packs, and at least 1 if requested > 0
         packs = max(packs, min_packs, 1 if requested > 0 else 0)
     elif mode == RoundingMode.NONE:
-        # NONE: natural rounding (floor), but must cover requested
+        # NONE: natural/floor rounding with coverage guarantee.
+        # Uses floor as default but will add one pack if floor count does not
+        # cover the requested quantity (ensures we never under-supply).
         packs = int(ratio.to_integral_value(rounding=ROUND_FLOOR))
         packs = max(packs, min_packs, 1 if requested > 0 else 0)
 

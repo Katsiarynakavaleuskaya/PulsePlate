@@ -51,6 +51,10 @@ def require_vip_module_enabled() -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
 
 
+# RU: Pydantic валидирует DTO literals первым, эти функции — defense-in-depth
+#     для случаев, когда валидация обходится (например, прямой вызов из кода).
+# EN: Pydantic validates DTO literals first; these functions are defense-in-depth
+#     for cases where validation is bypassed (e.g., direct code calls).
 def _map_unit(dto_unit: str) -> Unit:
     """Map DTO unit string to core Unit enum."""
     try:
