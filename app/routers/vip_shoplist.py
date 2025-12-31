@@ -30,6 +30,7 @@ from core.shoplist_engine.models import (
     FoodForm,
     FoodRef,
     IngredientSpec,
+    PackPlan,
     PackageRule,
     Quantity,
     RoundingMode,
@@ -136,8 +137,24 @@ async def vip_shoplist_generate(
     # Run engine pipeline
     result = ShoplistEngine.generate(specs, packaging_rules=rules)
 
-    # Build rules index for lookup (rounding, min_packs)
+    # Build rules index for lookup (rounding, min_packs, explainability)
     rules_index = {r.food_id: r for r in rules}
+
+    def _build_reasons(p: PackPlan) -> list[str]:
+        """Build explainability reasons for packed line in fixed order."""
+        rule = rules_index.get(p.food.food_id)
+        rounding = rule.rounding.name if rule else "UNKNOWN"
+        min_packs = rule.min_packs if rule else 1
+
+        # RU: Фиксированный порядок для determinism теста
+        # EN: Fixed order for determinism test
+        return [
+            f"rounding={rounding}",
+            f"min_packs={min_packs}",
+            f"requested={p.requested.value} {p.requested.unit.name}",
+            f"provided={p.provided.value} {p.provided.unit.name}",
+            f"overage={p.overage.value} {p.overage.unit.name}",
+        ]
 
     # Map core result -> DTO response
     packed_dto = [
@@ -154,6 +171,7 @@ async def vip_shoplist_generate(
             overage=QuantityDTO(value=p.overage.value, unit=cast(UnitDTO, p.overage.unit.name)),
             rounding=cast(RoundingModeDTO, rules_index[p.food.food_id].rounding.name),
             min_packs=rules_index[p.food.food_id].min_packs,
+            reasons=_build_reasons(p),
         )
         for p in result.packed
     ]
@@ -162,6 +180,7 @@ async def vip_shoplist_generate(
         UnpackedLineDTO(
             food_id=u.food.food_id,
             requested=QuantityDTO(value=u.qty.value, unit=cast(UnitDTO, u.qty.unit.name)),
+            reason="no_packaging_rule",
         )
         for u in result.unpacked
     ]

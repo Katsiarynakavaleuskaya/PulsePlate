@@ -57,11 +57,13 @@ class PackedLineDTO(BaseModel):
     overage: QuantityDTO
     rounding: RoundingModeDTO
     min_packs: int
+    reasons: list[str] = Field(default_factory=list)
 
 
 class UnpackedLineDTO(BaseModel):
     food_id: str
     requested: QuantityDTO
+    reason: str
 
 
 class ShoplistGenerateResponse(BaseModel):
