@@ -55,9 +55,7 @@ def test_enrich_adds_catalog_when_food_id_found() -> None:
         analytics=None,
     )
 
-    out = enrich_shoplist_response(
-        base, region_id="es", store_id="carrefour_es", provider=provider
-    )
+    out = enrich_shoplist_response(base, region_id="es", store_id="carrefour_es", provider=provider)
 
     assert out.packed[0].catalog is not None
     assert out.packed[0].catalog.sku == "CRF-ES-000123"
@@ -93,9 +91,7 @@ def test_enrich_is_fail_soft_when_not_found() -> None:
         analytics=None,
     )
 
-    out = enrich_shoplist_response(
-        base, region_id="es", store_id="carrefour_es", provider=provider
-    )
+    out = enrich_shoplist_response(base, region_id="es", store_id="carrefour_es", provider=provider)
 
     assert out.packed[0].catalog is None
     assert out.unpacked[0].catalog is None
@@ -131,9 +127,7 @@ def test_enrich_does_not_mutate_core_fields() -> None:
         analytics=None,
     )
 
-    out = enrich_shoplist_response(
-        base, region_id="es", store_id="carrefour_es", provider=provider
-    )
+    out = enrich_shoplist_response(base, region_id="es", store_id="carrefour_es", provider=provider)
 
     # Core fields unchanged
     assert out.packed[0].packs == 2
@@ -176,7 +170,9 @@ def test_enrich_no_op_when_region_store_not_provided() -> None:
     )
 
     # No region_id
-    out1 = enrich_shoplist_response(base, region_id=None, store_id="carrefour_es", provider=provider)
+    out1 = enrich_shoplist_response(
+        base, region_id=None, store_id="carrefour_es", provider=provider
+    )
     assert out1.packed[0].catalog is None
 
     # No store_id
@@ -186,4 +182,3 @@ def test_enrich_no_op_when_region_store_not_provided() -> None:
     # Both None
     out3 = enrich_shoplist_response(base, region_id=None, store_id=None, provider=provider)
     assert out3.packed[0].catalog is None
-

@@ -116,4 +116,3 @@ def test_daily_with_enrichment_applies_to_response(
     catalog = data["packed"][0].get("catalog")
     assert catalog is not None
     assert catalog["region_id"] == "es"
-
