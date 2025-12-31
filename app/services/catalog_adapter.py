@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Mapping, Optional, Protocol, cast
+from typing import Mapping, Optional, Protocol
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
@@ -162,4 +162,4 @@ def enrich_shoplist_response(
         },
         deep=False,
     )
-    return cast(ShoplistGenerateResponse, enriched_response)
+    return enriched_response
