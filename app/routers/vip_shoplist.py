@@ -312,11 +312,11 @@ async def vip_shoplist_generate(
     payload: ShoplistGenerateRequest,
     region_id: Annotated[
         Optional[str],
-        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
+        Query(description="Optional region id (e.g. 'es', 'us')"),
     ] = None,
     store_id: Annotated[
         Optional[str],
-        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+        Query(description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
     ] = None,
     _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
@@ -368,11 +368,11 @@ async def vip_shoplist_daily(
     payload: ShoplistDailyRequest,
     region_id: Annotated[
         Optional[str],
-        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
+        Query(description="Optional region id (e.g. 'es', 'us')"),
     ] = None,
     store_id: Annotated[
         Optional[str],
-        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+        Query(description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
     ] = None,
     _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
@@ -425,11 +425,11 @@ async def vip_shoplist_weekly(
     payload: ShoplistWeeklyRequest,
     region_id: Annotated[
         Optional[str],
-        Query(default=None, description="Optional region id (e.g. 'es', 'us')"),
+        Query(description="Optional region id (e.g. 'es', 'us')"),
     ] = None,
     store_id: Annotated[
         Optional[str],
-        Query(default=None, description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+        Query(description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
     ] = None,
     _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
