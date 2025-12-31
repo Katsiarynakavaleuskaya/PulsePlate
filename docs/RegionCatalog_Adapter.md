@@ -63,7 +63,7 @@ POST /api/v1/vip/shoplist/generate?region_id=es&store_id=carrefour_es
 
 ## Fields
 
-Response lines may include optional `catalog` field with:
+Response lines may include an optional `catalog` field with:
 
 - `sku`: Stock Keeping Unit
 - `store_id`: Store identifier
