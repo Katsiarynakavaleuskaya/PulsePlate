@@ -220,7 +220,10 @@ async def vip_shoplist_generate(
         total_lines=len(result.packed) + len(result.unpacked),
         packed_lines=len(result.packed),
         unpacked_lines=len(result.unpacked),
-        total_overage_by_unit={k: str(v) for k, v in overage_totals.items()},
+        # RU: k приходит из unit.name (Unit enum), который всегда соответствует UnitDTO Literal.
+        # EN: k comes from unit.name (Unit enum), which always matches UnitDTO Literal.
+        # Pydantic validates keys at runtime, cast is safe for mypy.
+        total_overage_by_unit={cast(UnitDTO, k): str(v) for k, v in overage_totals.items()},
     )
 
     return ShoplistGenerateResponse(
