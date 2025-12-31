@@ -557,3 +557,13 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
     except Exception as e:
         # Handle any other unexpected exceptions during teardown
         logger.warning(f"Unexpected error during test teardown cleanup: {e}")
+
+
+def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Enable VIP module flag via router module patch."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+
+
+def _disable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable VIP module flag via router module patch."""
+    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: False)

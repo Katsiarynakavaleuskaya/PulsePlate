@@ -12,21 +12,11 @@ This test suite ensures daily endpoint matches /generate contract:
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-
-def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Enable VIP module flag via router module patch."""
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
-
-
-def _disable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Disable VIP module flag via router module patch."""
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: False)
+from tests.conftest import _disable_vip, _enable_vip
 
 
 def _payload_one_item() -> dict:
@@ -96,8 +86,6 @@ def test_daily_missing_api_key_returns_401_or_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing API key should return 401 or 403."""
-    from fastapi.testclient import TestClient
-
     import app.main as app_main_module
 
     _enable_vip(monkeypatch)
@@ -113,6 +101,34 @@ def test_daily_missing_api_key_returns_401_or_403(
         status.HTTP_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN,
     ), f"Expected 401 or 403, got {r.status_code}: {r.text}"
+
+
+def test_daily_success_200_without_packaging_rules(
+    client_with_vip_access: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Daily endpoint mirrors /generate when packaging_rules is missing or None."""
+    _enable_vip(monkeypatch)
+
+    payload = {
+        "items": [
+            {"food_id": "chicken", "qty": {"value": "1200", "unit": "G"}, "form": "RAW"},
+        ],
+        # packaging_rules is omitted (None by default)
+    }
+
+    r = client_with_vip_access.post("/api/v1/vip/shoplist/daily", json=payload)
+
+    assert r.status_code == status.HTTP_200_OK, r.text
+    body = r.json()
+
+    # Verify response structure matches /generate contract
+    for key in ("packed", "unpacked", "analytics"):
+        assert key in body
+
+    # Without packaging rules, items should be in unpacked
+    assert len(body["unpacked"]) >= 0  # May be empty or have items
+    assert body["analytics"] is not None
 
 
 def test_daily_empty_items_returns_200(

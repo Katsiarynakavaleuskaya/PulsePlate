@@ -169,9 +169,7 @@ def test_generate_with_multiple_packed_items_different_units(
     assert len(overage_by_unit) >= 1  # At least one unit has overage
 
 
-def test_build_shoplist_response_without_analytics(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_build_shoplist_response_without_analytics() -> None:
     """Test _build_shoplist_response with include_analytics=False - coverage for branch 247->257."""
     from app.routers import vip_shoplist
     from core.shoplist_engine.models import (
@@ -183,8 +181,6 @@ def test_build_shoplist_response_without_analytics(
         Unit,
     )
     from core.shoplist_engine.packager import PackagingResult
-
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
     # Create minimal result
     result = PackagingResult(
@@ -218,6 +214,49 @@ def test_build_shoplist_response_without_analytics(
     assert response.unpacked is not None
     # Analytics should be None when include_analytics=False
     assert response.analytics is None
+
+
+def test_build_shoplist_response_raises_500_when_package_rule_missing() -> None:
+    """
+    RU: Adapter обязан падать с 500, если packed item не имеет PackageRule.
+    EN: Adapter must raise 500 when packed item has no matching PackageRule.
+
+    This is an invariant violation: engine returned "packed", but adapter
+    cannot find the corresponding packaging rule. This is NOT a user error → 500.
+    """
+    from decimal import Decimal
+
+    import pytest
+    from fastapi import HTTPException, status
+
+    from app.routers import vip_shoplist
+    from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
+    from core.shoplist_engine.packager import PackagingResult
+
+    # Create result with packed item that has NO matching rule
+    result = PackagingResult(
+        packed=[
+            PackPlan(
+                food=FoodRef(food_id="missing-food-id"),
+                requested=Quantity(Decimal("1200"), Unit.G),
+                pack_size=Quantity(Decimal("500"), Unit.G),
+                packs=3,
+                provided=Quantity(Decimal("1500"), Unit.G),
+                overage=Quantity(Decimal("300"), Unit.G),
+            )
+        ],
+        unpacked=[],
+    )
+
+    # Deliberately empty rules (missing-food-id has no rule)
+    rules: list[vip_shoplist.PackageRule] = []
+
+    with pytest.raises(HTTPException) as exc_info:
+        vip_shoplist._build_shoplist_response(result, rules, include_analytics=False)
+
+    assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+    assert "missing packaging rule" in exc_info.value.detail.lower()
+    assert "missing-food-id" in exc_info.value.detail
 
 
 def test_generate_with_packaging_rules_not_none(

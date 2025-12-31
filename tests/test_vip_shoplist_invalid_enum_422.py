@@ -10,14 +10,13 @@ across daily/weekly endpoints, matching /generate behavior.
 
 from __future__ import annotations
 
+from typing import Any, Callable
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-
-def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Enable VIP module flag via router module patch."""
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+from tests.conftest import _enable_vip
 
 
 def _valid_payload_for_daily() -> dict:
@@ -103,7 +102,7 @@ def _inject_invalid_enum(payload: dict, field: str, value: str, endpoint: str) -
 )
 def test_vip_shoplist_invalid_enum_returns_422(
     endpoint: str,
-    payload_factory: callable,
+    payload_factory: Callable[..., dict[str, Any]],
     field: str,
     bad_value: str,
     client_with_vip_access: TestClient,

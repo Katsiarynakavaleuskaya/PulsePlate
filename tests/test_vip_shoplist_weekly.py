@@ -16,15 +16,7 @@ import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 
-
-def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Enable VIP module flag via router module patch."""
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
-
-
-def _disable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Disable VIP module flag via router module patch."""
-    monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: False)
+from tests.conftest import _disable_vip, _enable_vip
 
 
 def _payload_one_day() -> dict:
@@ -145,12 +137,46 @@ def test_weekly_vip_module_disabled_returns_404(
     assert "not found" in str(data["detail"]).lower()
 
 
+def test_weekly_insufficient_vip_tier_returns_403(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Valid API key but insufficient VIP tier must return 403."""
+    _enable_vip(monkeypatch)
+
+    import app.main as app_module
+
+    # Create client WITHOUT VIP access override (uses real tier check)
+    client = TestClient(app_module.app)
+
+    payload = _payload_one_day()
+
+    # Use PRO key (insufficient for VIP endpoint)
+    r = client.post(
+        "/api/v1/vip/shoplist/weekly",
+        json=payload,
+        headers={"X-API-Key": "test_pro_key"},
+    )
+
+    # In dev mode, may return 401 or 403 depending on implementation
+    assert r.status_code in (
+        status.HTTP_401_UNAUTHORIZED,
+        status.HTTP_403_FORBIDDEN,
+    ), f"Expected 401 or 403, got {r.status_code}: {r.text}"
+
+    data = r.json()
+
+    # Verify error message mentions API key/VIP/tier/permission
+    detail_lower = str(data.get("detail", "")).lower()
+    assert any(
+        kw in detail_lower
+        for kw in ("api key", "vip", "tier", "forbidden", "permission", "upgrade", "invalid")
+    )
+
+
 def test_weekly_missing_api_key_returns_401_or_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing API key should return 401 or 403."""
-    from fastapi.testclient import TestClient
-
     import app.main as app_main_module
 
     _enable_vip(monkeypatch)

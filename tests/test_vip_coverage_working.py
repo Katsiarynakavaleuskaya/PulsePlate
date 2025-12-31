@@ -6,6 +6,7 @@ RU: Тесты для VIP модуля с реальными эндпоинта�
 EN: VIP module tests with real endpoints (echo mode)
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -16,9 +17,6 @@ def _get_app():
     if app.app is None:
         raise RuntimeError("FastAPI app is not initialized")
     return app.app
-
-
-import pytest
 
 
 @pytest.mark.smoke
