@@ -9,7 +9,7 @@ Contract:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from typing import Annotated
