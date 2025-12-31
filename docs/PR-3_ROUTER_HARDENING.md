@@ -21,7 +21,7 @@
 ### ✅ Feature Flag & Auth (404/403)
 
 7. **VIP module disabled** → 404 (`require_vip_module_enabled`)
-8. **Missing API key** → 403 (legacy_app handling)
+8. **Missing API key** → 401 or 403 (legacy_app handling)
 9. **Invalid API key tier** → 403 (PRO key for VIP endpoint)
 
 ### ✅ Edge Cases (200)
