@@ -21,6 +21,10 @@ from pydantic import BaseModel, Field
 # EN: Constant for explainability (single source of truth).
 REASON_NO_PACKAGING_RULE = "no_packaging_rule"
 
+# RU: Type alias для явного указания Decimal-as-string в OpenAPI.
+# EN: Type alias for explicit Decimal-as-string in OpenAPI.
+DecimalStr = str  # OpenAPI: string (Decimal serialized as string)
+
 UnitDTO = Literal["G", "ML", "PCS", "KG", "L"]  # расширишь по мере надобности / expand as needed
 FoodFormDTO = Literal[
     "RAW", "COOKED", "FROZEN", "DRIED", "CANNED"
@@ -31,10 +35,9 @@ RoundingModeDTO = Literal["CEIL", "NEAREST", "NONE"]  # rounding mode
 class QuantityDTO(BaseModel):
     """Quantity with value and unit (deterministic, no prices)."""
 
-    value: Decimal = Field(
+    value: DecimalStr = Field(
         ...,
-        ge=0,
-        description="Decimal serialized as string in JSON, e.g. '100.0'",
+        description="Decimal serialized as string (no floats). Example: '100', '12.5'",
         examples=["100", "150.5", "0"],
     )
     unit: UnitDTO = Field(..., description="Measurement unit", examples=["G", "ML", "PCS"])
@@ -211,6 +214,41 @@ class ShoplistGenerateResponse(BaseModel):
         default=None,
         description="Analytics summary (included by default in generate/daily/weekly endpoints)",
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "packed": [
+                        {
+                            "food_id": "carrot",
+                            "requested": {"value": "100", "unit": "G"},
+                            "pack_size": {"value": "500", "unit": "G"},
+                            "packs": 1,
+                            "provided": {"value": "500", "unit": "G"},
+                            "overage": {"value": "400", "unit": "G"},
+                            "rounding": "CEIL",
+                            "min_packs": 1,
+                            "reasons": [
+                                "rounding=CEIL",
+                                "min_packs=1",
+                                "requested=100 G",
+                                "provided=500 G",
+                                "overage=400 G",
+                            ],
+                        }
+                    ],
+                    "unpacked": [],
+                    "analytics": {
+                        "total_lines": 1,
+                        "packed_lines": 1,
+                        "unpacked_lines": 0,
+                        "total_overage_by_unit": {"G": "400"},
+                    },
+                }
+            ]
+        }
+    }
 
 
 # --- Preview schemas (legacy) ---

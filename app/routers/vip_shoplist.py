@@ -9,7 +9,7 @@ Contract:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -50,12 +50,12 @@ from core.shoplist_preview.preview_service import build_preview
 router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 
 # Common OpenAPI responses for gating matrix
-COMMON_RESPONSES = {
-    401: {"description": "Missing/invalid API key (auth layer dependent)"},
+COMMON_VIP_SHOPLIST_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"description": "Unauthorized: missing/invalid API key (auth-layer dependent)"},
     403: {"description": "Forbidden: valid auth but insufficient VIP tier"},
     404: {"description": "VIP module disabled"},
-    422: {"description": "Validation error (invalid enum/DTO)"},
-    500: {"description": "Invariant violation (internal, e.g. packed item missing packaging rule)"},
+    422: {"description": "Validation error (invalid enum / DTO)"},
+    500: {"description": "Invariant violation (internal)"},
 }
 
 
@@ -273,7 +273,7 @@ def _build_shoplist_response(
 @router.get(
     "/preview",
     response_model=ShoplistPreviewResponse,
-    responses=COMMON_RESPONSES,
+    responses=COMMON_VIP_SHOPLIST_RESPONSES,
     summary="VIP shoplist preview (legacy)",
     description="Legacy preview endpoint. For new integrations, use /generate, /daily, or /weekly.",
 )
@@ -294,12 +294,12 @@ async def vip_shoplist_preview(
 @router.post(
     "/generate",
     response_model=ShoplistGenerateResponse,
-    responses=COMMON_RESPONSES,
-    summary="Generate VIP shopping list (deterministic)",
+    responses=COMMON_VIP_SHOPLIST_RESPONSES,
+    tags=["VIP Shoplist"],
+    summary="Generate VIP shoplist (deterministic)",
     description=(
-        "Deterministic shopping list generation with packaging rules. "
-        "Decimals serialized as strings. Includes explainability (reasons) + analytics. "
-        "No prices, no stores, no external calls - pure deterministic calculation."
+        "Deterministic shoplist generation. Decimals are serialized as strings. "
+        "Includes explainability (reasons/reason) and analytics."
     ),
 )
 async def vip_shoplist_generate(
@@ -332,11 +332,12 @@ async def vip_shoplist_generate(
 @router.post(
     "/daily",
     response_model=ShoplistGenerateResponse,
-    responses=COMMON_RESPONSES,
-    summary="Generate daily VIP shopping list (deterministic)",
+    responses=COMMON_VIP_SHOPLIST_RESPONSES,
+    tags=["VIP Shoplist"],
+    summary="Generate daily VIP shoplist (deterministic)",
     description=(
-        "Daily shopping list generation. Same contract as /generate: "
-        "deterministic, includes explainability + analytics. "
+        "Daily shoplist generation. Same contract as /generate: "
+        "deterministic, includes explainability (reasons/reason) and analytics. "
         "Decimals serialized as strings."
     ),
 )
@@ -370,12 +371,13 @@ async def vip_shoplist_daily(
 @router.post(
     "/weekly",
     response_model=ShoplistWeeklyResponse,
-    responses=COMMON_RESPONSES,
-    summary="Generate weekly VIP shopping list (deterministic)",
+    responses=COMMON_VIP_SHOPLIST_RESPONSES,
+    tags=["VIP Shoplist"],
+    summary="Generate weekly VIP shoplist (deterministic)",
     description=(
-        "Weekly shopping list generation (multiple days). "
+        "Weekly shoplist generation (multiple days). "
         "Each day processed independently with same contract as /generate: "
-        "deterministic, includes explainability + analytics per day. "
+        "deterministic, includes explainability (reasons/reason) and analytics per day. "
         "Decimals serialized as strings. Days length = as requested (no fixed 7-day requirement)."
     ),
 )
