@@ -84,4 +84,3 @@ def generate_shoplist(
         PackagingResult с packed и unpacked линиями.
     """
     return ShoplistEngine.generate(specs, packaging_rules=packaging_rules)
-

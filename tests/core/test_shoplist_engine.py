@@ -48,23 +48,38 @@ class _Result:
 
 
 def test_engine_pipeline_wiring(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that engine calls normalize → aggregate → package in correct order."""
+    """
+    Test that engine calls normalize → aggregate → package in correct order
+    AND that each stage consumes the previous stage's output.
+    """
     calls: list[str] = []
 
-    def fake_normalize(specs: Sequence[_Spec]) -> list[_Spec]:
+    def fake_normalize(specs: Sequence[_Spec]) -> list[dict[str, Any]]:
         calls.append("normalize")
-        return list(specs)
+        # Явно трансформируем вход
+        return [{"spec": spec, "normalized": True} for spec in specs]
 
-    def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
+    def fake_aggregate(specs: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         calls.append("aggregate")
-        return list(specs)
+        # Проверяем, что получили именно вывод normalize
+        assert all(isinstance(spec, dict) and spec.get("normalized") is True for spec in specs)
+        # Добавляем следующий маркер
+        return [{**spec, "aggregated": True} for spec in specs]
 
-    def fake_package(lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:
+    def fake_package(
+        specs: Sequence[dict[str, Any]],
+        packaging_rules: Sequence[_Rule],  # noqa: ARG001
+    ) -> _Result:
         calls.append("package")
-        # возвращаем что-то детерминированное
-        return _Result(packed=tuple(lines), unpacked=tuple(packaging_rules))
+        # Проверяем, что получили вывод aggregate
+        assert all(
+            spec.get("normalized") is True and spec.get("aggregated") is True for spec in specs
+        )
+        return _Result(
+            packed=tuple(spec["spec"] for spec in specs),
+            unpacked=(),
+        )
 
-    # Подменяем функции внутри модуля engine
     monkeypatch.setattr("core.shoplist_engine.engine.normalize_specs", fake_normalize)
     monkeypatch.setattr("core.shoplist_engine.engine.aggregate_specs", fake_aggregate)
     monkeypatch.setattr("core.shoplist_engine.engine.apply_packaging", fake_package)
@@ -75,7 +90,8 @@ def test_engine_pipeline_wiring(monkeypatch: pytest.MonkeyPatch) -> None:
     out = ShoplistEngine.generate(specs, packaging_rules=rules)  # type: ignore[arg-type]
 
     assert calls == ["normalize", "aggregate", "package"]
-    assert out == _Result(packed=tuple(specs), unpacked=tuple(rules))
+    assert out.packed == tuple(specs)
+    assert out.unpacked == ()
 
 
 def test_engine_determinism_same_input_same_output(
@@ -119,7 +135,9 @@ def test_engine_zero_quantity_flows(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
         return list(specs)
 
-    def fake_package(lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:  # noqa: ARG001
+    def fake_package(
+        lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]
+    ) -> _Result:  # noqa: ARG001
         # если qty=0 дошло — тест пройдёт
         assert any(s.qty == 0 for s in lines)
         return _Result(packed=tuple(lines), unpacked=())
@@ -159,7 +177,9 @@ def test_engine_never_catches_packager_errors(monkeypatch: pytest.MonkeyPatch) -
     def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
         return list(specs)
 
-    def fake_package(_: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:  # noqa: ARG001
+    def fake_package(
+        _: Sequence[_Spec], packaging_rules: Sequence[_Rule]
+    ) -> _Result:  # noqa: ARG001
         raise PackError("packager failed")
 
     monkeypatch.setattr("core.shoplist_engine.engine.normalize_specs", fake_normalize)
@@ -181,7 +201,9 @@ def test_engine_empty_specs(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
         return list(specs)
 
-    def fake_package(lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:  # noqa: ARG001
+    def fake_package(
+        lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]
+    ) -> _Result:  # noqa: ARG001
         return _Result(packed=tuple(lines), unpacked=())
 
     monkeypatch.setattr("core.shoplist_engine.engine.normalize_specs", fake_normalize)
@@ -282,4 +304,3 @@ def test_engine_integration_real_pipeline() -> None:
     # Eggs: 6 pcs → 1 pack по 6 pcs
     assert eggs_plan.packs == 1
     assert eggs_plan.provided.value == Decimal("6")
-
