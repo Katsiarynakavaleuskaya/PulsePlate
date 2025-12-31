@@ -11,8 +11,14 @@ added to packed and unpacked lines without modifying core engine logic.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pytest
+
+from app.schemas.vip_shoplist import REASON_NO_PACKAGING_RULE
+
+if TYPE_CHECKING:
+    from core.shoplist_engine.packager import PackagingResult
 
 
 def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -23,7 +29,7 @@ def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _mock_engine_result_with_one_packed_one_unpacked():
+def _mock_engine_result_with_one_packed_one_unpacked() -> PackagingResult:
     """
     RU: Возвращаем реальный core-модельный результат, чтобы роутер прошёл свой mapping как в проде.
     EN: Return real core model objects to exercise router mapping (adapter-only tests).
@@ -154,7 +160,7 @@ def test_generate_sets_reason_for_unpacked_lines(
     assert len(unpacked) >= 1
 
     u0 = unpacked[0]
-    assert u0.get("reason") == "no_packaging_rule"
+    assert u0.get("reason") == REASON_NO_PACKAGING_RULE
 
 
 def test_generate_reasons_are_deterministic(
