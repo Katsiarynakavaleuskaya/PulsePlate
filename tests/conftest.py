@@ -11,7 +11,7 @@ import sys
 import warnings
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Generator, cast
+from typing import Any, Callable, Generator, Iterable, cast
 import tempfile
 
 import pytest
@@ -403,6 +403,72 @@ def app(app_module: ModuleType) -> FastAPI:
 def client(app: FastAPI) -> TestClient:
     """Return a TestClient for the FastAPI app."""
     return TestClient(app)
+
+
+# --- VIP shoplist test fixtures ---
+
+
+def _iter_route_dependencies(route) -> Iterable[Callable]:
+    """
+    RU: Извлекаем callables зависимостей, навешанных на маршрут (route.dependencies).
+    EN: Extract dependency callables attached at route level.
+    """
+    for dep in getattr(route, "dependencies", []) or []:
+        fn = getattr(dep, "dependency", None)
+        if callable(fn):
+            yield fn
+
+
+def _find_route_by_endpoint_name(app, endpoint_name: str):
+    """
+    RU: Находим маршрут по имени endpoint-функции.
+    EN: Find route by endpoint function name.
+    """
+    for route in app.routes:
+        endpoint = getattr(route, "endpoint", None)
+        if callable(endpoint) and getattr(endpoint, "__name__", "") == endpoint_name:
+            return route
+    return None
+
+
+@pytest.fixture
+def client_with_vip_access(app_module: ModuleType) -> TestClient:
+    """
+    Create test client with VIP tier access bypassed AND API key bypassed,
+    including route-level dependencies.
+
+    RU: Создаёт тестовый клиент с обходом проверки VIP tier и API-key
+    (включая route-level зависимости).
+    """
+    import app.routers.vip_shoplist as vip_router
+
+    # ⚠️ NO *args/**kwargs — иначе FastAPI требует query args/kwargs
+    async def mock_require_vip_tier() -> str:
+        return "test_vip_key"
+
+    async def mock_api_key() -> str:
+        return "test_api_key"
+
+    # Override VIP tier dependency (bypass auth check)
+    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_require_vip_tier
+    # NOTE: We do NOT override require_vip_module_enabled - it should check the feature flag
+    # Tests can use monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", ...)
+
+    route = _find_route_by_endpoint_name(app_module.app, "vip_shoplist_generate")
+    assert route is not None, "Route for endpoint 'vip_shoplist_generate' not found"
+
+    # Route has API-key dependency applied at route level (via app.include_router);
+    # override it here to avoid requiring headers/env in tests.
+    route_level_deps = list(_iter_route_dependencies(route))
+    for dep_fn in route_level_deps:
+        app_module.app.dependency_overrides[dep_fn] = mock_api_key
+
+    client = TestClient(app_module.app)
+    yield client
+
+    app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
+    for dep_fn in route_level_deps:
+        app_module.app.dependency_overrides.pop(dep_fn, None)
 
 
 @pytest.fixture
