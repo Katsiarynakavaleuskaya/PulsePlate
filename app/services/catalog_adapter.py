@@ -162,8 +162,15 @@ def _get_provider() -> CatalogProvider:
 
             _PROVIDER = SQLiteCatalogProvider(str(sqlite_path))
             return _PROVIDER
-        except (ValueError, FileNotFoundError) as e:
-            # Fallback to mock if SQLite provider is misconfigured (fail-soft)
+        except ImportError as e:
+            # Fallback to mock if SQLite provider is missing or has import errors (fail-soft)
+            logger.warning(
+                f"SQLite catalog provider failed (path={sqlite_path}): {e}. "
+                "Falling back to mock provider.",
+                exc_info=True,
+            )
+        except Exception as e:
+            # Fallback to mock if SQLite provider is misconfigured or fails unexpectedly (fail-soft)
             logger.warning(
                 f"SQLite catalog provider failed (path={sqlite_path}): {e}. "
                 "Falling back to mock provider.",

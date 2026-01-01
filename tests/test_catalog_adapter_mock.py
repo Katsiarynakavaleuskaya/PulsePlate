@@ -24,7 +24,7 @@ from app.services.catalog_adapter import (
     enrich_shoplist_response,
     reset_catalog_provider_for_tests,
 )
-from core.catalog.provider import CatalogProvider
+from core.catalog.provider import CatalogProvider, CatalogStore
 
 
 class FakeCatalogProvider:
@@ -57,7 +57,7 @@ class FakeCatalogProvider:
             )
         return None
 
-    def list_stores(self, *, region_id: str) -> list:
+    def list_stores(self, *, region_id: str) -> list[CatalogStore]:
         """RU/EN: Return empty list for fake provider."""
         return []
 
