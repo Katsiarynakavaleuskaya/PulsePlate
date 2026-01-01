@@ -63,11 +63,17 @@ def _assert_catalog_fields(
     store_id: str,
     sku: str | None = None,
 ) -> None:
-    assert catalog["region_id"] == region_id  # Contract: lowercase in DTO
-    assert catalog["store_id"] == store_id
+    assert (
+        catalog["region_id"] == region_id
+    ), f"catalog['region_id'] expected {region_id!r}, got {catalog.get('region_id')!r}"
+    assert (
+        catalog["store_id"] == store_id
+    ), f"catalog['store_id'] expected {store_id!r}, got {catalog.get('store_id')!r}"
     if sku is not None:
-        assert "sku" in catalog
-        assert catalog["sku"] == sku
+        assert (
+            "sku" in catalog
+        ), f"catalog missing 'sku' key; expected sku={sku!r} (catalog keys={list(catalog.keys())})"
+        assert catalog["sku"] == sku, f"catalog['sku'] expected {sku!r}, got {catalog.get('sku')!r}"
 
 
 def test_generate_without_region_store_has_no_catalog(
@@ -224,5 +230,29 @@ def test_generate_with_uppercase_region_id_normalizes_to_lowercase(
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
     # Verify catalog is attached to test normalization
+    assert catalog is not None, "Expected catalog to be attached to verify normalization"
+    _assert_catalog_fields(catalog, region_id="es", store_id="carrefour_es")
+
+
+def test_generate_with_uppercase_store_id_normalizes_to_lowercase(
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+) -> None:
+    """Test that store_id is normalized to lowercase in catalog response."""
+    _enable_vip(monkeypatch)
+    _force_mock_catalog_provider(monkeypatch)
+
+    client = client_with_vip_access
+
+    r = client.post(
+        "/api/v1/vip/shoplist/generate?region_id=es&store_id=CARREFOUR_ES",
+        json=_generate_payload_minimal(),
+    )
+    assert r.status_code == status.HTTP_200_OK, r.text
+
+    data = r.json()
+    packed_item = data["packed"][0]
+    assert "catalog" in packed_item
+    catalog = packed_item["catalog"]
     assert catalog is not None, "Expected catalog to be attached to verify normalization"
     _assert_catalog_fields(catalog, region_id="es", store_id="carrefour_es")
