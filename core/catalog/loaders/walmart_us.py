@@ -14,9 +14,9 @@ import hashlib
 from pathlib import Path
 
 from core.catalog.loaders.base import read_csv_rows
+from core.catalog.normalize.alias import norm_alias
 from core.catalog.normalize.common import normalize_currency, normalize_unit, parse_decimal
 from core.catalog.provider import (
-    CatalogLoader,
     CatalogRegion,
     CatalogSKU,
     CatalogSnapshot,
@@ -70,7 +70,7 @@ class WalmartUSLoader:
                     meta_json=None,
                 )
 
-            alias = _norm_alias(r.get("alias") or r.get("ean") or r.get("name") or "")
+            alias = norm_alias(r.get("alias") or r.get("ean") or r.get("name") or "")
             if not alias:
                 continue
 
@@ -117,6 +117,3 @@ def _opt(v: str | None) -> str | None:
     return s or None
 
 
-def _norm_alias(alias: str) -> str:
-    """Normalize alias (lowercase, strip)."""
-    return alias.strip().lower()

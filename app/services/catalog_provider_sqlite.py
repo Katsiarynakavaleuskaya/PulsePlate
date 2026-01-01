@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.services.catalog_adapter import CatalogProvider
+from core.catalog.normalize.alias import norm_alias
 from core.catalog.normalize.common import parse_decimal
 from core.catalog.provider import CatalogSKU, CatalogStore
 
@@ -115,7 +116,7 @@ class SQLiteCatalogProvider(CatalogProvider):
                 JOIN skus s ON s.sku_id = a.sku_id
                 WHERE a.region_id = ? AND a.alias = ?
                 """,
-                (region_id, _norm_alias(alias)),
+                (region_id, norm_alias(alias)),
             ).fetchone()
 
             if row is None:
@@ -183,6 +184,3 @@ class SQLiteCatalogProvider(CatalogProvider):
             conn.close()
 
 
-def _norm_alias(alias: str) -> str:
-    """Normalize alias (lowercase, strip)."""
-    return alias.strip().lower()

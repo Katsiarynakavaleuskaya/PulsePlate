@@ -8,6 +8,7 @@ EN: Catalog normalization utilities (Decimal, units, currency).
 
 from __future__ import annotations
 
+from core.catalog.normalize.alias import norm_alias
 from core.catalog.normalize.common import (
     normalize_currency,
     normalize_unit,
@@ -18,4 +19,5 @@ __all__ = [
     "parse_decimal",
     "normalize_currency",
     "normalize_unit",
+    "norm_alias",
 ]
