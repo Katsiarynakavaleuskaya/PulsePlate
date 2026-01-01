@@ -526,7 +526,7 @@ async def vip_shoplist_export(
         _vip=_vip,
     )
 
-    csv_data = export_shoplist_to_csv(result, region_id=region_id)
+    csv_data = export_shoplist_to_csv(result)
 
     return Response(
         content=csv_data,
