@@ -11,7 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Annotated, Any, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
@@ -33,6 +33,7 @@ from app.schemas.vip_shoplist import (
     UnitDTO,
 )
 from app.services.catalog_adapter import CatalogProvider, _get_provider, enrich_shoplist_response
+from app.services.shoplist_export.csv_export import export_shoplist_to_csv
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from core.shoplist_engine.models import (
@@ -476,6 +477,62 @@ async def vip_shoplist_weekly(
         days.append(day_response)
 
     return ShoplistWeeklyResponse(days=days)
+
+
+@router.post(
+    "/export",
+    responses=COMMON_VIP_SHOPLIST_RESPONSES,
+    summary="Export VIP shoplist to CSV",
+    description=(
+        "Export shoplist in CSV format. "
+        "PR-8a: CSV only. Uses same generation logic as /generate endpoint. "
+        "Deterministic ordering: store_id, aisle, food_id."
+    ),
+)
+async def vip_shoplist_export(
+    payload: ShoplistGenerateRequest,
+    format: Annotated[str, Query(description="Export format (PR-8a: csv only)")] = "csv",
+    region_id: Annotated[
+        Optional[str],
+        Query(description="Optional region id (e.g. 'es', 'us')"),
+    ] = None,
+    store_id: Annotated[
+        Optional[str],
+        Query(description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+    ] = None,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
+    _vip: Annotated[str, Depends(require_vip_tier)] = "",
+) -> Response:
+    """
+    Export shopping list to CSV format.
+
+    RU: Экспортирует список покупок в CSV.
+    EN: Exports shopping list to CSV.
+
+    This endpoint reuses the /generate logic without duplicating engine code.
+    No engine changes, pure export function.
+    """
+    if format.lower() != "csv":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Only csv supported in PR-8a"
+        )
+
+    # Важно: НЕ дублируем логику, не трогаем engine — переиспользуем generate.
+    result = await vip_shoplist_generate(
+        payload=payload,
+        region_id=region_id,
+        store_id=store_id,
+        _enabled=_enabled,
+        _vip=_vip,
+    )
+
+    csv_data = export_shoplist_to_csv(result, region_id=region_id)
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="shoplist.csv"'},
+    )
 
 
 __all__ = ["router"]
