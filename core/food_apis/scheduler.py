@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
+import threading
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -20,6 +22,12 @@ from ..time_utils import now_utc
 from .update_manager import DatabaseUpdateManager, UpdateResult
 
 logger = logging.getLogger(__name__)
+
+
+def _is_test_runtime() -> bool:
+    """RU: Проверяет, запущен ли код в тестовой среде (pytest/xdist).
+    EN: Check if code is running in test environment (pytest/xdist)."""
+    return bool(os.getenv("PYTEST_CURRENT_TEST")) or bool(os.getenv("GITHUB_ACTIONS"))
 
 
 class DatabaseUpdateScheduler:
@@ -63,6 +71,10 @@ class DatabaseUpdateScheduler:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
+        # RU: В xdist/параллельных воркерах signal.signal() запрещён (не main thread).
+        # EN: Under pytest-xdist signal handlers cannot be set in worker threads.
+        if threading.current_thread() is not threading.main_thread() or _is_test_runtime():
+            return
 
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")

@@ -15,12 +15,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+def _is_test_runtime() -> bool:
+    """RU: Проверяет, запущен ли код в тестовой среде (pytest/xdist).
+    EN: Check if code is running in test environment (pytest/xdist)."""
+    return bool(os.getenv("PYTEST_CURRENT_TEST")) or bool(os.getenv("GITHUB_ACTIONS"))
 
 
 @dataclass
@@ -186,7 +193,13 @@ class USDAClient:
             return foods
 
         except Exception as e:
-            logger.error(f"Error searching USDA foods for '{query}': {e}")
+            # RU: Блокировка сети в тестах — ожидаемое поведение (guard), не ошибка продукта.
+            # EN: Network blocked in tests is expected (guard), so don't log as ERROR in CI.
+            error_msg = str(e)
+            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+                logger.debug("USDA search blocked in tests for %r: %s", query, e)
+            else:
+                logger.error("Error searching USDA foods for %r: %s", query, e)
             return []
 
     async def get_food_details(self, fdc_id: int) -> Optional[USDAFoodItem]:

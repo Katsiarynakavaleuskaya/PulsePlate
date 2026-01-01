@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -21,6 +22,12 @@ from typing import Any
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+def _is_test_runtime() -> bool:
+    """RU: Проверяет, запущен ли код в тестовой среде (pytest/xdist).
+    EN: Check if code is running in test environment (pytest/xdist)."""
+    return bool(os.getenv("PYTEST_CURRENT_TEST")) or bool(os.getenv("GITHUB_ACTIONS"))
 
 
 # Availability flag for OpenFoodFacts API. Can be toggled in tests via mock.patch() to
@@ -182,7 +189,13 @@ class OFFClient:
             return products
 
         except Exception as e:
-            logger.error(f"Error searching Open Food Facts products for '{query}': {e}")
+            # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
+            # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
+            error_msg = str(e)
+            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+                logger.debug("OFF search blocked in tests for %r: %s", query, e)
+            else:
+                logger.error("Error searching Open Food Facts products for %r: %s", query, e)
             return []
 
     async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
