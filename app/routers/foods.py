@@ -19,8 +19,8 @@ class FoodStore(Protocol):
 
 def get_food_store() -> FoodStore:
     # food_store is a module exporting functions that match the FoodStore Protocol; mypy treats
-    # module values as Any here, so returning it triggers no-any-return.
-    return food_store  # type: ignore[no-any-return]
+    # module values as Any and sees type mismatch (Module vs Protocol), so we need to ignore both.
+    return food_store  # type: ignore[return-value,no-any-return]
 
 
 @router.get("/api/v1/foods", response_model=list[FoodHit])
@@ -54,7 +54,7 @@ def list_foods_search(
     offset: int = 0,
     store: FoodStore = Depends(get_food_store),
 ) -> list[FoodHit]:
-    return list_foods(query=query, limit=limit, offset=offset, store=store)  # type: ignore[no-any-return]
+    return list_foods(query=query, limit=limit, offset=offset, store=store)
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
