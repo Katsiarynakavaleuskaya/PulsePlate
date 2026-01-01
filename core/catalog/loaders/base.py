@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+
 def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
     """
     RU: Читает CSV файл и возвращает список словарей.
@@ -21,8 +22,20 @@ def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
 
     Returns:
         List of row dictionaries (keys from CSV header)
+
+    Raises:
+        FileNotFoundError: If CSV file does not exist
+        ValueError: If CSV file is empty or has no data rows
     """
     p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"CSV file not found: {p}")
+
     with p.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
-        return [dict(r) for r in reader]
+        rows = [dict(r) for r in reader]
+
+    if not rows:
+        raise ValueError(f"CSV file is empty or has no data rows: {p}")
+
+    return rows
