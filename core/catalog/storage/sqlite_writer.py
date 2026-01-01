@@ -32,16 +32,17 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
     db_path = Path(path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # RU: Для offline builder логично перезаписывать файл целиком.
+    # EN: Offline builder: overwrite the SQLite file to avoid bloat.
+    if db_path.exists():
+        db_path.unlink()
+
     conn = sqlite3.connect(str(db_path))
     try:
         conn.execute("PRAGMA foreign_keys = ON;")
         _apply_schema(conn)
 
         with conn:
-            conn.execute("DELETE FROM sku_aliases;")
-            conn.execute("DELETE FROM skus;")
-            conn.execute("DELETE FROM stores;")
-            conn.execute("DELETE FROM regions;")
 
             for r in snapshot.regions:
                 conn.execute(
@@ -81,17 +82,28 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
 
             # Precompute lookup maps to avoid O(n*m) in alias loop
             store_by_id = {store.store_id: store for store in snapshot.stores}
-            sku_id_to_region_id = {
-                sku.sku_id: store_by_id[sku.store_id].region_id
-                for sku in snapshot.skus
-                if sku.store_id in store_by_id
-            }
 
+            # Build sku_id_to_region_id with strict validation
+            sku_id_to_region_id: dict[str, str] = {}
+            for sku in snapshot.skus:
+                store = store_by_id.get(sku.store_id)
+                if store is None:
+                    raise ValueError(
+                        f"Unknown store_id referenced by sku: {sku.store_id} (sku_id={sku.sku_id})"
+                    )
+                sku_id_to_region_id[sku.sku_id] = store.region_id
+
+            # Validate alias uniqueness and insert
+            seen_alias_keys: set[tuple[str, str]] = set()
             for alias, sku_id in snapshot.aliases:
-                # alias keys should be normalized (lower/strip) by loaders
                 region_id = sku_id_to_region_id.get(sku_id)
                 if region_id is None:
                     raise ValueError(f"Unknown sku_id in aliases: {sku_id}")
+                key = (region_id, alias)
+                if key in seen_alias_keys:
+                    raise ValueError(f"Duplicate alias in snapshot: region_id={region_id}, alias={alias}")
+                seen_alias_keys.add(key)
+
                 conn.execute(
                     "INSERT INTO sku_aliases(region_id,alias,sku_id) VALUES (?,?,?)",
                     (region_id, alias, sku_id),
