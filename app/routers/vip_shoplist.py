@@ -9,7 +9,7 @@ Contract:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, Optional, Protocol, cast, runtime_checkable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
@@ -305,8 +305,21 @@ async def vip_shoplist_preview(
     )
 
 
+@runtime_checkable
+class _ShoplistLikeRequest(Protocol):
+    """
+    RU: Минимальный контракт для генерации shoplist.
+    EN: Minimal request contract for shoplist generation.
+
+    Any request DTO that provides these fields can be used by the shared generator.
+    """
+
+    items: Any
+    packaging_rules: Any
+
+
 async def _generate_vip_shoplist(
-    payload: ShoplistGenerateRequest,
+    payload: _ShoplistLikeRequest,
     *,
     region_id: Optional[str] = None,
     store_id: Optional[str] = None,
@@ -411,13 +424,8 @@ async def vip_shoplist_daily(
 
     Contract matches /generate: same gating, mapping, and response format.
     """
-    # RU: DRY — daily использует тот же генератор, что и /generate
-    # EN: DRY — daily reuses the same generator as /generate
-    # ShoplistDailyRequest has the same structure as ShoplistGenerateRequest
-    generate_payload = ShoplistGenerateRequest(
-        items=payload.items, packaging_rules=payload.packaging_rules
-    )
-    return await _generate_vip_shoplist(generate_payload, region_id=region_id, store_id=store_id)
+    # DRY: delegate to the shared generator used by /generate and /export.
+    return await _generate_vip_shoplist(payload, region_id=region_id, store_id=store_id)
 
 
 @router.post(
