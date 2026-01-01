@@ -56,7 +56,8 @@ class DatabaseUpdateScheduler:
         self.retry_counts: Dict[str, int] = {}
 
         # Background task
-        self._update_task: Optional[asyncio.Task] = None
+        self._update_task: Optional[asyncio.Task[None]] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
@@ -72,8 +73,24 @@ class DatabaseUpdateScheduler:
             return
 
         def signal_handler(signum: int, frame: FrameType | None) -> None:
-            logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            asyncio.create_task(self.stop())
+            logger.info("Received signal %s, initiating graceful shutdown...", signum)
+
+            loop = self._loop
+            if loop is None or loop.is_closed() or not loop.is_running():
+                logger.warning(
+                    "Scheduler shutdown requested but no running event loop is available "
+                    "(loop=%r)",
+                    loop,
+                )
+                return
+
+            def schedule_stop() -> None:
+                asyncio.create_task(self.stop())
+
+            try:
+                loop.call_soon_threadsafe(schedule_stop)
+            except Exception as e:
+                logger.warning("Could not schedule scheduler shutdown task: %s", e)
 
         # Handle common shutdown signals
         try:
@@ -91,6 +108,7 @@ class DatabaseUpdateScheduler:
             logger.warning("Update scheduler is already running")
             return
 
+        self._loop = asyncio.get_running_loop()
         self.is_running = True
         logger.info("Starting database update scheduler...")
 
