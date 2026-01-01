@@ -11,7 +11,6 @@ This provider reads from pre-built SQLite snapshots (no I/O in request-path).
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import asdict
 from decimal import Decimal
 from pathlib import Path
 

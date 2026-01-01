@@ -50,13 +50,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Select loader
-    if args.loader == "carrefour_es":
-        loader: CarrefourESLoader | WalmartUSLoader = CarrefourESLoader(args.raw_path)
-    elif args.loader == "walmart_us":
-        loader = WalmartUSLoader(args.raw_path)
-    else:
-        raise ValueError(f"Unknown loader: {args.loader}")
+    # Select loader using dict mapping (argparse choices already validate loader name)
+    loader_mapping: dict[str, type[CarrefourESLoader | WalmartUSLoader]] = {
+        "carrefour_es": CarrefourESLoader,
+        "walmart_us": WalmartUSLoader,
+    }
+    loader_class = loader_mapping[args.loader]
+    loader = loader_class(args.raw_path)
 
     # Load snapshot
     print(f"Loading catalog from {loader.source_name}...")

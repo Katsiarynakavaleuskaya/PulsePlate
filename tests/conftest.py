@@ -615,7 +615,7 @@ def build_demo_catalog_sqlite(path: Path, *, fixtures_dir: Path) -> None:
     write_snapshot(path, merged)
 
 
-def _merge_snapshots(*snapshots) -> Any:
+def _merge_snapshots(*snapshots: CatalogSnapshot) -> CatalogSnapshot:
     """
     RU: Склеиваем snapshots в один для удобства тестов.
     EN: Merge snapshots (regions/stores/skus/aliases) into one.

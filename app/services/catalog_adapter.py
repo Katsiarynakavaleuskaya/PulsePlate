@@ -13,6 +13,7 @@ Principles:
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from decimal import Decimal
@@ -25,6 +26,8 @@ from app.schemas.vip_shoplist import (
     ShoplistGenerateResponse,
     UnpackedLineDTO,
 )
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------
 # Provider interface (mock-first)
@@ -143,9 +146,13 @@ def _get_provider() -> CatalogProvider:
 
             _PROVIDER = SQLiteCatalogProvider(str(sqlite_path))
             return _PROVIDER
-        except (ValueError, FileNotFoundError):
+        except (ValueError, FileNotFoundError) as e:
             # Fallback to mock if SQLite provider is misconfigured (fail-soft)
-            pass
+            logger.warning(
+                f"SQLite catalog provider failed (path={sqlite_path}): {e}. "
+                "Falling back to mock provider.",
+                exc_info=True,
+            )
 
     # Default: mock
     _PROVIDER = build_default_mock_provider()

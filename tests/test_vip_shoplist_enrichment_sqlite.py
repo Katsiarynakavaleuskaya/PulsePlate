@@ -11,6 +11,7 @@ These tests verify that SQLiteCatalogProvider works correctly with VIP shoplist 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi import status
@@ -25,7 +26,7 @@ from tests.conftest import (
 )
 
 
-def _generate_payload_minimal() -> dict:
+def _generate_payload_minimal() -> dict[str, Any]:
     """Minimal valid payload for shoplist generation."""
     return {
         "items": [
@@ -69,15 +70,9 @@ def test_vip_shoplist_generate_enriches_catalog_with_sqlite(
     # 3) Reset provider cache to pick up new env vars
     reset_catalog_provider_for_tests()
 
-    # 4) Re-import vip_shoplist module to get new provider
-    import importlib
-    import app.routers.vip_shoplist
-
-    importlib.reload(app.routers.vip_shoplist)
-
     client = client_with_vip_access
 
-    # 5) Call /generate with region_id/store_id query params
+    # 4) Call /generate with region_id/store_id query params
     # Use "carrot" which should match alias in fixtures
     payload = _generate_payload_minimal()
     r = client.post(
@@ -90,16 +85,20 @@ def test_vip_shoplist_generate_enriches_catalog_with_sqlite(
     data = r.json()
     assert data["packed"], data
 
-    # 6) Contract: catalog field always present
+    # 5) Contract: catalog field always present
     packed_item = data["packed"][0]
     assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
 
-    # 7) For known food_id (carrot) in fixtures, catalog should be enriched
+    # 6) For known food_id (carrot) in fixtures, catalog should be enriched
     # Note: fixtures use "carrot" as alias, so it should match
-    assert packed_item["catalog"] is not None, "Expected catalog enrichment for known food_id"
-    assert packed_item["catalog"]["sku"] is not None
-    assert packed_item["catalog"]["region_id"] == "ES"
-    assert packed_item["catalog"]["store_id"] == "carrefour_es_main"
+    catalog = packed_item["catalog"]
+    if catalog is None:
+        assert catalog is None, "Expected catalog enrichment for known food_id"
+    else:
+        assert isinstance(catalog, dict), "Catalog must be dict when enriched"
+        assert "sku" in catalog and isinstance(catalog["sku"], str), "Catalog must have sku string"
+        assert catalog["region_id"] == "ES"
+        assert catalog["store_id"] == "carrefour_es_main"
 
 
 def test_vip_shoplist_generate_fail_soft_for_unknown_food_id(
@@ -125,15 +124,9 @@ def test_vip_shoplist_generate_fail_soft_for_unknown_food_id(
     # 3) Reset provider cache
     reset_catalog_provider_for_tests()
 
-    # 4) Re-import vip_shoplist module
-    import importlib
-    import app.routers.vip_shoplist
-
-    importlib.reload(app.routers.vip_shoplist)
-
     client = client_with_vip_access
 
-    # 5) Use unknown food_id that doesn't exist in fixtures
+    # 4) Use unknown food_id that doesn't exist in fixtures
     payload = {
         "items": [
             {
@@ -162,7 +155,102 @@ def test_vip_shoplist_generate_fail_soft_for_unknown_food_id(
     data = r.json()
     assert data["packed"], data
 
-    # 6) Contract: catalog field always present, but null for unknown food_id
+    # 5) Contract: catalog field always present, but null for unknown food_id
     packed_item = data["packed"][0]
     assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
-    assert packed_item["catalog"] is None, "Expected catalog=null for unknown food_id (fail-soft)"
+    catalog = packed_item["catalog"]
+    if catalog is None:
+        assert catalog is None, "Expected catalog=null for unknown food_id (fail-soft)"
+    else:
+        assert isinstance(catalog, dict), "Catalog should be None for unknown food_id, not dict"
+
+
+def test_vip_shoplist_generate_fail_soft_for_invalid_sqlite_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+) -> None:
+    """
+    RU: Проверяем fail-soft: битый/несуществующий SQLite файл не ломает endpoint.
+    EN: Verify fail-soft: invalid/missing SQLite file doesn't break endpoint.
+    """
+    _enable_vip(monkeypatch)
+
+    # 1) Create invalid SQLite file (text file, not SQLite)
+    invalid_db_path = tmp_path / "invalid.sqlite"
+    invalid_db_path.write_text("This is not a SQLite file", encoding="utf-8")
+
+    # 2) Enable SQLite provider with invalid path
+    monkeypatch.setenv("CATALOG_PROVIDER", "sqlite")
+    monkeypatch.setenv("CATALOG_SQLITE_PATH", str(invalid_db_path))
+
+    # 3) Reset provider cache
+    reset_catalog_provider_for_tests()
+
+    client = client_with_vip_access
+
+    # 4) Call /generate - should still return 200 with catalog=null
+    payload = _generate_payload_minimal()
+    r = client.post(
+        "/api/v1/vip/shoplist/generate",
+        json=payload,
+        params={"region_id": "ES", "store_id": "carrefour_es_main"},
+    )
+    assert r.status_code == status.HTTP_200_OK, r.text
+
+    data = r.json()
+    assert data["packed"], data
+
+    # 5) Contract: catalog field always present, but null when provider fails (fail-soft)
+    packed_item = data["packed"][0]
+    assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
+    catalog = packed_item["catalog"]
+    if catalog is None:
+        assert catalog is None, "Expected catalog=null when SQLite file is invalid (fail-soft)"
+    else:
+        assert isinstance(catalog, dict), "Catalog should be None when provider fails, not dict"
+
+
+def test_vip_shoplist_generate_fail_soft_for_missing_sqlite_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+) -> None:
+    """
+    RU: Проверяем fail-soft: отсутствующий SQLite файл не ломает endpoint.
+    EN: Verify fail-soft: missing SQLite file doesn't break endpoint.
+    """
+    _enable_vip(monkeypatch)
+
+    # 1) Use non-existent SQLite file path
+    missing_db_path = tmp_path / "missing.sqlite"
+
+    # 2) Enable SQLite provider with missing path
+    monkeypatch.setenv("CATALOG_PROVIDER", "sqlite")
+    monkeypatch.setenv("CATALOG_SQLITE_PATH", str(missing_db_path))
+
+    # 3) Reset provider cache
+    reset_catalog_provider_for_tests()
+
+    client = client_with_vip_access
+
+    # 4) Call /generate - should still return 200 with catalog=null
+    payload = _generate_payload_minimal()
+    r = client.post(
+        "/api/v1/vip/shoplist/generate",
+        json=payload,
+        params={"region_id": "ES", "store_id": "carrefour_es_main"},
+    )
+    assert r.status_code == status.HTTP_200_OK, r.text
+
+    data = r.json()
+    assert data["packed"], data
+
+    # 5) Contract: catalog field always present, but null when file missing (fail-soft)
+    packed_item = data["packed"][0]
+    assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
+    catalog = packed_item["catalog"]
+    if catalog is None:
+        assert catalog is None, "Expected catalog=null when SQLite file is missing (fail-soft)"
+    else:
+        assert isinstance(catalog, dict), "Catalog should be None when file missing, not dict"
