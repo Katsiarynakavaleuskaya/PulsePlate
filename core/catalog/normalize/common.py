@@ -41,14 +41,11 @@ def parse_decimal(value: str | None) -> Decimal | None:
             # EU format: "1.234,56" -> "1234.56"
             s = s.replace(".", "").replace(",", ".")
         else:
-            # US format: "1,234.56" -> "1234.56"
+            # US format: "1,234.56" -> "1234.56" or "1,234,567.89" -> "1234567.89"
             s = s.replace(",", "")
     elif s.count(",") == 1 and "." not in s:
         # "1234,56" -> "1234.56" (EU decimal)
         s = s.replace(",", ".")
-    elif s.count(",") > 1 and "." in s:
-        # "1,234,567.89" -> "1234567.89" (US with multiple thousands)
-        s = s.replace(",", "")
 
     try:
         return Decimal(s)
@@ -69,7 +66,10 @@ def normalize_currency(value: str | None, *, default: str) -> str:
     """
     if not value:
         return default
-    return value.strip().upper()
+    s = value.strip()
+    if not s:
+        return default
+    return s.upper()
 
 
 def normalize_unit(value: str | None) -> str | None:
@@ -84,7 +84,10 @@ def normalize_unit(value: str | None) -> str | None:
     """
     if not value:
         return None
-    u = value.strip().lower()
+    u = value.strip()
+    if not u:
+        return None
+    u = u.lower()
     mapping = {
         "g": "g",
         "гр": "g",

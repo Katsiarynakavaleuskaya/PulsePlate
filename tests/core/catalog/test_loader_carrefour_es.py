@@ -11,8 +11,6 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
-
 from core.catalog.loaders.carrefour_es import CarrefourESLoader
 
 

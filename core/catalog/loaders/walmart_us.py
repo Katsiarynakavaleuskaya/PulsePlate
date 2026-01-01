@@ -53,7 +53,8 @@ class WalmartUSLoader:
         seen_aliases: set[str] = set()
 
         for row in rows:
-            if row.get("region_id") != "US":
+            region_id_value = (row.get("region_id") or "").strip().upper()
+            if region_id_value != "US":
                 continue
 
             store_id = (row.get("store_id") or "walmart_us_main").strip()

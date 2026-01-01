@@ -33,7 +33,7 @@ def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
 
     with p.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
-        rows = [dict(r) for r in reader]
+        rows = list(reader)
 
     if not rows:
         raise ValueError(f"CSV file is empty or has no data rows: {p}")

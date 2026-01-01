@@ -73,8 +73,8 @@ def test_store_aware_lookup_prefers_store_specific(tmp_path: Path) -> None:
             ),
         ],
         aliases=[
-            ("milk", "SKU_MILK_WALMART"),
-            ("milk", "SKU_MILK_GENERIC"),
+            ("milk_walmart", "SKU_MILK_WALMART"),
+            ("milk_generic", "SKU_MILK_GENERIC"),
         ],
     )
 
@@ -83,7 +83,7 @@ def test_store_aware_lookup_prefers_store_specific(tmp_path: Path) -> None:
 
     # Act: store-aware lookup for walmart
     info = provider.get_catalog_info(
-        food_id="milk",
+        food_id="milk_walmart",
         region_id="US",
         store_id="walmart_us_main",
     )
@@ -193,8 +193,8 @@ def test_store_aware_lookup_deterministic_when_no_store_id(tmp_path: Path) -> No
             ),
         ],
         aliases=[
-            ("product", "SKU_A"),
-            ("product", "SKU_B"),
+            ("product_a", "SKU_A"),
+            ("product_b", "SKU_B"),
         ],
     )
 
@@ -202,8 +202,8 @@ def test_store_aware_lookup_deterministic_when_no_store_id(tmp_path: Path) -> No
     provider = SQLiteCatalogProvider(str(db_path))
 
     # Act: lookup without store_id (should be deterministic)
-    info1 = provider.get_catalog_info(food_id="product", region_id="US", store_id=None)
-    info2 = provider.get_catalog_info(food_id="product", region_id="US", store_id=None)
+    info1 = provider.get_catalog_info(food_id="product_a", region_id="US", store_id=None)
+    info2 = provider.get_catalog_info(food_id="product_a", region_id="US", store_id=None)
 
     # Assert: should return same SKU (deterministic by ORDER BY sku_id ASC)
     assert info1 is not None

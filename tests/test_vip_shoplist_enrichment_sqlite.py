@@ -92,13 +92,11 @@ def test_vip_shoplist_generate_enriches_catalog_with_sqlite(
     # 6) For known food_id (carrot) in fixtures, catalog should be enriched
     # Note: fixtures use "carrot" as alias, so it should match
     catalog = packed_item["catalog"]
-    if catalog is None:
-        assert catalog is None, "Expected catalog enrichment for known food_id"
-    else:
-        assert isinstance(catalog, dict), "Catalog must be dict when enriched"
-        assert "sku" in catalog and isinstance(catalog["sku"], str), "Catalog must have sku string"
-        assert catalog["region_id"] == "ES"
-        assert catalog["store_id"] == "carrefour_es_main"
+    assert catalog is not None, "Expected catalog enrichment for known food_id"
+    assert isinstance(catalog, dict), "Catalog must be dict when enriched"
+    assert "sku" in catalog and isinstance(catalog["sku"], str), "Catalog must have sku string"
+    assert catalog["region_id"] == "ES"
+    assert catalog["store_id"] == "carrefour_es_main"
 
 
 def test_vip_shoplist_generate_fail_soft_for_unknown_food_id(
@@ -159,10 +157,7 @@ def test_vip_shoplist_generate_fail_soft_for_unknown_food_id(
     packed_item = data["packed"][0]
     assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
     catalog = packed_item["catalog"]
-    if catalog is None:
-        assert catalog is None, "Expected catalog=null for unknown food_id (fail-soft)"
-    else:
-        assert isinstance(catalog, dict), "Catalog should be None for unknown food_id, not dict"
+    assert catalog is None, "Expected catalog=null for unknown food_id (fail-soft)"
 
 
 def test_vip_shoplist_generate_fail_soft_for_invalid_sqlite_file(
@@ -205,10 +200,7 @@ def test_vip_shoplist_generate_fail_soft_for_invalid_sqlite_file(
     packed_item = data["packed"][0]
     assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
     catalog = packed_item["catalog"]
-    if catalog is None:
-        assert catalog is None, "Expected catalog=null when SQLite file is invalid (fail-soft)"
-    else:
-        assert isinstance(catalog, dict), "Catalog should be None when provider fails, not dict"
+    assert catalog is None, "Expected catalog=null when SQLite file is invalid (fail-soft)"
 
 
 def test_vip_shoplist_generate_fail_soft_for_missing_sqlite_file(
@@ -250,7 +242,4 @@ def test_vip_shoplist_generate_fail_soft_for_missing_sqlite_file(
     packed_item = data["packed"][0]
     assert "catalog" in packed_item, "Contract: field `catalog` must always be present"
     catalog = packed_item["catalog"]
-    if catalog is None:
-        assert catalog is None, "Expected catalog=null when SQLite file is missing (fail-soft)"
-    else:
-        assert isinstance(catalog, dict), "Catalog should be None when file missing, not dict"
+    assert catalog is None, "Expected catalog=null when SQLite file is missing (fail-soft)"

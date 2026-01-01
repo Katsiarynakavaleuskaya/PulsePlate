@@ -8,6 +8,8 @@ EN: Alias normalization utilities (canonical form).
 
 from __future__ import annotations
 
+import unicodedata
+
 
 def norm_alias(value: str) -> str:
     """
@@ -22,6 +24,8 @@ def norm_alias(value: str) -> str:
         Returns empty string if input is empty or whitespace-only.
     """
     s = value.strip().lower()
+    # Unicode normalization (NFC: composed form)
+    s = unicodedata.normalize("NFC", s)
     # Collapse multiple spaces into single space
     s = " ".join(s.split())
     return s

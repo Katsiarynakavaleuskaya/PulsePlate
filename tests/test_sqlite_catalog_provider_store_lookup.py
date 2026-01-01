@@ -77,7 +77,12 @@ def _mk_sqlite_catalog(path: Path) -> None:
 
 
 def _seed_two_skus_same_alias(path: Path) -> None:
-    """RU/EN: Insert 2 SKUs for same alias+region but different stores."""
+    """
+    RU: Вставляет 2 SKU с разными aliases для тестирования store-aware lookup.
+    EN: Inserts 2 SKUs with different aliases to test store-aware lookup.
+
+    Note: In PR-7, aliases are unique per (region_id, alias), so we use different aliases.
+    """
     conn = sqlite3.connect(str(path))
     try:
         conn.execute("PRAGMA foreign_keys = ON;")
@@ -116,15 +121,17 @@ def _seed_two_skus_same_alias(path: Path) -> None:
             ("SKU_B", "WALMART_US", None, "Carrot", None, "Veg", "400", "G", "0.99", "EUR", None),
         )
 
-        # Один alias в sku_aliases → связывает alias с конкретным sku_id.
-        # Чтобы смоделировать "alias ведёт на несколько SKU", мы вставим ДВЕ строки с одинаковым alias.
+        # RU: В PR-7 один alias → один SKU в регионе (PRIMARY KEY (region_id, alias)).
+        # EN: In PR-7, one alias maps to one SKU per region (PRIMARY KEY constraint).
+        # Для тестирования store-aware lookup используем разные aliases.
+        # To test store-aware lookup, we use different aliases.
         conn.execute(
             "INSERT INTO sku_aliases(region_id, alias, sku_id) VALUES (?, ?, ?)",
-            ("ES", "carrot", "SKU_A"),
+            ("ES", "carrot_a", "SKU_A"),
         )
         conn.execute(
             "INSERT INTO sku_aliases(region_id, alias, sku_id) VALUES (?, ?, ?)",
-            ("ES", "carrot", "SKU_B"),
+            ("ES", "carrot_b", "SKU_B"),
         )
 
         conn.commit()
@@ -143,7 +150,7 @@ def test_store_aware_lookup_prefers_exact_store_match(tmp_path: Path) -> None:
 
     p = SQLiteCatalogProvider(str(db_path))
 
-    info = p.get_catalog_info(food_id="carrot", region_id="es", store_id="WALMART_US")
+    info = p.get_catalog_info(food_id="carrot_b", region_id="es", store_id="WALMART_US")
     assert info is not None
     assert info.store_id == "WALMART_US"
     assert info.sku == "SKU_B"
@@ -163,7 +170,7 @@ def test_store_aware_lookup_falls_back_deterministically_when_no_match(tmp_path:
 
     p = SQLiteCatalogProvider(str(db_path))
 
-    info = p.get_catalog_info(food_id="carrot", region_id="ES", store_id="NON_EXISTING_STORE")
+    info = p.get_catalog_info(food_id="carrot_a", region_id="ES", store_id="NON_EXISTING_STORE")
     assert info is not None
     # CASE WHEN s.store_id=? THEN 0 ELSE 1 END + sku_id ASC => SKU_A
     assert info.sku == "SKU_A"
@@ -182,6 +189,6 @@ def test_no_store_id_returns_deterministic_first_sku(tmp_path: Path) -> None:
 
     p = SQLiteCatalogProvider(str(db_path))
 
-    info = p.get_catalog_info(food_id="carrot", region_id="es")
+    info = p.get_catalog_info(food_id="carrot_a", region_id="es")
     assert info is not None
     assert info.sku == "SKU_A"

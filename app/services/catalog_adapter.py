@@ -83,21 +83,19 @@ class MockCatalogProvider:
 
         Returns empty list for mock provider.
         """
-        from core.catalog.provider import CatalogStore
-
         # Extract unique stores from mock data for this region
-        region_lc = region_id.strip().lower()
-        region_uc = region_id.strip().upper()
+        region_id_norm = region_id.strip().lower()
         stores: dict[str, CatalogStore] = {}
         for (r, store_id, _), catalog in self.data.items():
-            if r == region_lc and store_id not in stores:
+            if r == region_id_norm and store_id not in stores:
                 stores[store_id] = CatalogStore(
                     store_id=store_id,
-                    region_id=region_uc,
+                    region_id=region_id_norm,
                     name=f"Mock Store {store_id}",
                     provider="mock",
                     meta_json=None,
                 )
+        return list(stores.values())
         return list(stores.values())
 
 

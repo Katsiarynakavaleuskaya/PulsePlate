@@ -151,7 +151,4 @@ def test_catalog_adapter_no_network() -> None:
         assert "catalog" in packed_item.model_dump() or hasattr(packed_item, "catalog")
         # Catalog field may be None or populated (fail-soft)
         catalog = packed_item.catalog
-        if catalog is None:
-            assert catalog is None
-        else:
-            assert isinstance(catalog, dict) or hasattr(catalog, "sku")
+        assert catalog is None or isinstance(catalog, dict) or hasattr(catalog, "sku")

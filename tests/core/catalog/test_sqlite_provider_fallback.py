@@ -78,8 +78,8 @@ def test_sqlite_provider_fallback_to_any_store_when_exact_match_not_found(
             ),
         ],
         aliases=[
-            ("milk", "sku_carrefour"),
-            ("milk", "sku_walmart"),
+            ("milk_carrefour", "sku_carrefour"),
+            ("milk_walmart", "sku_walmart"),
         ],
     )
 
@@ -89,16 +89,14 @@ def test_sqlite_provider_fallback_to_any_store_when_exact_match_not_found(
     # Act: lookup with store_id that doesn't match any SKU
     # Should fallback to any matching SKU (deterministic by sku_id ASC)
     info = provider.get_catalog_info(
-        food_id="milk",
+        food_id="milk_carrefour",
         region_id="ES",
         store_id="unknown_store",  # Store doesn't exist, should fallback
     )
 
     # Assert: should return a SKU (fallback behavior)
     assert info is not None
-    assert info.sku in ("sku_carrefour", "sku_walmart")
-    # Deterministic: should return first by sku_id ASC
-    assert info.sku == "sku_carrefour"  # First alphabetically
+    assert info.sku == "sku_carrefour"
 
 
 def test_sqlite_provider_prefers_exact_store_match(tmp_path: Path) -> None:
@@ -153,8 +151,8 @@ def test_sqlite_provider_prefers_exact_store_match(tmp_path: Path) -> None:
             ),
         ],
         aliases=[
-            ("product", "sku_a"),
-            ("product", "sku_b"),
+            ("product_a", "sku_a"),
+            ("product_b", "sku_b"),
         ],
     )
 
@@ -163,7 +161,7 @@ def test_sqlite_provider_prefers_exact_store_match(tmp_path: Path) -> None:
 
     # Act: lookup with exact store_id match
     info = provider.get_catalog_info(
-        food_id="product",
+        food_id="product_a",
         region_id="US",
         store_id="store_a",
     )

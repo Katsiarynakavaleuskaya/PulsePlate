@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS sku_aliases (
     alias TEXT NOT NULL,
     sku_id TEXT NOT NULL,
     PRIMARY KEY (region_id, alias),
-    FOREIGN KEY (region_id) REFERENCES regions(region_id),
+    FOREIGN KEY (region_id) REFERENCES regions(region_id) ON DELETE CASCADE,
     FOREIGN KEY (sku_id) REFERENCES skus(sku_id) ON DELETE CASCADE
 );
 

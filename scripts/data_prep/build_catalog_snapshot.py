@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -50,25 +51,62 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # Select loader using dict mapping (argparse choices already validate loader name)
-    loader_mapping: dict[str, type[CarrefourESLoader | WalmartUSLoader]] = {
-        "carrefour_es": CarrefourESLoader,
-        "walmart_us": WalmartUSLoader,
-    }
-    loader_class = loader_mapping[args.loader]
-    loader = loader_class(args.raw_path)
+    # Validate raw file exists
+    if not args.raw_path.exists():
+        print(f"Error: Raw file not found: {args.raw_path}", file=sys.stderr)
+        sys.exit(1)
 
-    # Load snapshot
-    print(f"Loading catalog from {loader.source_name}...")
-    snapshot = loader.load()
-    print(
-        f"Loaded: {len(snapshot.regions)} regions, {len(snapshot.stores)} stores, {len(snapshot.skus)} SKUs, {len(snapshot.aliases)} aliases"
-    )
+    if not args.raw_path.is_file():
+        print(f"Error: Path is not a file: {args.raw_path}", file=sys.stderr)
+        sys.exit(1)
 
-    # Write to SQLite
-    print(f"Writing to {args.output}...")
-    write_snapshot(args.output, snapshot)
-    print(f"✓ Snapshot written to {args.output}")
+    # Ensure output directory exists
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Select loader using dict mapping (argparse choices already validate loader name)
+        loader_mapping: dict[str, type[CarrefourESLoader | WalmartUSLoader]] = {
+            "carrefour_es": CarrefourESLoader,
+            "walmart_us": WalmartUSLoader,
+        }
+        loader_class = loader_mapping[args.loader]
+        loader = loader_class(args.raw_path)
+
+        # Load snapshot
+        print(f"Loading catalog from {loader.source_name}...")
+        try:
+            snapshot = loader.load()
+        except (ValueError, FileNotFoundError) as e:
+            print(f"Error: Failed to load catalog data: {e}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error: Unexpected error during catalog loading: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        print(
+            f"Loaded: {len(snapshot.regions)} regions, {len(snapshot.stores)} stores, "
+            f"{len(snapshot.skus)} SKUs, {len(snapshot.aliases)} aliases"
+        )
+
+        # Write to SQLite
+        print(f"Writing to {args.output}...")
+        try:
+            write_snapshot(args.output, snapshot)
+        except (ValueError, sqlite3.Error, OSError) as e:
+            print(f"Error: Failed to write SQLite snapshot: {e}", file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(f"Error: Unexpected error during snapshot write: {e}", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"✓ Snapshot written to {args.output}")
+
+    except KeyboardInterrupt:
+        print("\nInterrupted by user", file=sys.stderr)
+        sys.exit(130)
+    except Exception as e:
+        print(f"Error: Unexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

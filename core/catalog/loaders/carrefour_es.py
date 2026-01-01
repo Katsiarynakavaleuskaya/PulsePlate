@@ -58,7 +58,8 @@ class CarrefourESLoader:
         seen_aliases: set[str] = set()
 
         for row in rows:
-            if row.get("region_id") != "ES":
+            region_id_value = (row.get("region_id") or "").strip().upper()
+            if region_id_value != "ES":
                 continue
 
             store_id = (row.get("store_id") or "carrefour_es_main").strip()

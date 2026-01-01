@@ -19,7 +19,9 @@ def get_catalog_service() -> CatalogService:
 
 
 @router.get("/regions", response_model=list[CatalogRegion])
-def list_regions(service: CatalogService = Depends(get_catalog_service)) -> list[CatalogRegion]:
+async def list_regions(
+    service: CatalogService = Depends(get_catalog_service),
+) -> list[CatalogRegion]:
     """
     RU: Список доступных регионов каталога.
     EN: List available catalog regions.
@@ -29,7 +31,7 @@ def list_regions(service: CatalogService = Depends(get_catalog_service)) -> list
 
 
 @router.get("/stores", response_model=list[CatalogStore])
-def list_stores(
+async def list_stores(
     region_id: str = Query(..., min_length=2, max_length=8),
     service: CatalogService = Depends(get_catalog_service),
 ) -> list[CatalogStore]:
@@ -42,7 +44,7 @@ def list_stores(
 
 
 @router.get("/search", response_model=list[CatalogSKU])
-def search(
+async def search(
     q: str = Query(..., min_length=1, max_length=64),
     region_id: str = Query(..., min_length=2, max_length=8),
     store_id: str | None = Query(default=None, min_length=1, max_length=64),

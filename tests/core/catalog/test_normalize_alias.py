@@ -11,8 +11,6 @@ for empty/whitespace inputs (no exceptions), allowing fail-soft logic in loaders
 
 from __future__ import annotations
 
-import pytest
-
 from core.catalog.normalize.alias import norm_alias
 
 
