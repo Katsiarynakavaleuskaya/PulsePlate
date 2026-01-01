@@ -417,9 +417,7 @@ async def vip_shoplist_daily(
     generate_payload = ShoplistGenerateRequest(
         items=payload.items, packaging_rules=payload.packaging_rules
     )
-    return await _generate_vip_shoplist(
-        generate_payload, region_id=region_id, store_id=store_id
-    )
+    return await _generate_vip_shoplist(generate_payload, region_id=region_id, store_id=store_id)
 
 
 @router.post(
