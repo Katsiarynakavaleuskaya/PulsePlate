@@ -11,7 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Annotated, Any, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.middleware.api_tiers import require_vip_tier
 from app.schemas.vip_shoplist import (
@@ -33,6 +33,7 @@ from app.schemas.vip_shoplist import (
     UnitDTO,
 )
 from app.services.catalog_adapter import CatalogProvider, _get_provider, enrich_shoplist_response
+from app.services.shoplist_export.csv_export import export_shoplist_to_csv
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from core.shoplist_engine.models import (
@@ -304,6 +305,38 @@ async def vip_shoplist_preview(
     )
 
 
+async def _generate_vip_shoplist(
+    payload: ShoplistGenerateRequest,
+    *,
+    region_id: Optional[str] = None,
+    store_id: Optional[str] = None,
+) -> ShoplistGenerateResponse:
+    """
+    Internal function to generate VIP shoplist (shared by /generate and /export).
+
+    RU: Внутренняя функция генерации shoplist (используется /generate и /export).
+    EN: Internal shoplist generation function (used by /generate and /export).
+    """
+    # Map DTO -> core models
+    specs = _map_dto_to_engine_specs(payload.items)
+    rules = _map_dto_to_engine_rules(payload.packaging_rules)
+
+    # Run engine pipeline
+    result = ShoplistEngine.generate(specs, packaging_rules=rules)
+
+    # Build response
+    response = _build_shoplist_response(result, rules, include_analytics=True)
+
+    # Enrichment (fail-soft, adapter-only)
+    response = enrich_shoplist_response(
+        response,
+        region_id=region_id,
+        store_id=store_id,
+        provider=_get_catalog_provider(),
+    )
+    return response
+
+
 @router.post(
     "/generate",
     response_model=ShoplistGenerateResponse,
@@ -339,24 +372,7 @@ async def vip_shoplist_generate(
 
     No prices, no stores, no external calls - pure deterministic calculation.
     """
-    # Map DTO -> core models
-    specs = _map_dto_to_engine_specs(payload.items)
-    rules = _map_dto_to_engine_rules(payload.packaging_rules)
-
-    # Run engine pipeline
-    result = ShoplistEngine.generate(specs, packaging_rules=rules)
-
-    # Build response
-    response = _build_shoplist_response(result, rules, include_analytics=True)
-
-    # Enrichment (fail-soft, adapter-only)
-    response = enrich_shoplist_response(
-        response,
-        region_id=region_id,
-        store_id=store_id,
-        provider=_get_catalog_provider(),
-    )
-    return response
+    return await _generate_vip_shoplist(payload, region_id=region_id, store_id=store_id)
 
 
 @router.post(
@@ -476,6 +492,64 @@ async def vip_shoplist_weekly(
         days.append(day_response)
 
     return ShoplistWeeklyResponse(days=days)
+
+
+@router.post(
+    "/export",
+    responses=COMMON_VIP_SHOPLIST_RESPONSES,
+    summary="Export VIP shoplist to CSV",
+    description=(
+        "Export shoplist in CSV format. "
+        "CSV only. Uses same generation logic as /generate endpoint. "
+        "Deterministic ordering: store_id, aisle, food_id."
+    ),
+)
+async def vip_shoplist_export(
+    payload: ShoplistGenerateRequest,
+    export_format: Annotated[
+        str | None, Query(description="Export format (export_format; csv only)")
+    ] = None,
+    _legacy_format: Annotated[
+        str | None,
+        Query(alias="format", include_in_schema=False, description="Deprecated: use export_format"),
+    ] = None,
+    region_id: Annotated[
+        Optional[str],
+        Query(description="Optional region id (e.g. 'es', 'us')"),
+    ] = None,
+    store_id: Annotated[
+        Optional[str],
+        Query(description="Optional store id (e.g. 'carrefour_es', 'walmart_us')"),
+    ] = None,
+    _enabled: Annotated[None, Depends(require_vip_module_enabled)] = None,
+    _vip: Annotated[str, Depends(require_vip_tier)] = "",
+) -> Response:
+    """
+    Export shopping list to CSV format.
+
+    RU: Экспортирует список покупок в CSV.
+    EN: Exports shopping list to CSV.
+
+    This endpoint reuses the /generate logic without duplicating engine code.
+    No engine changes, pure export function.
+    """
+
+    export_format = export_format or _legacy_format or "csv"
+    if export_format.lower() != "csv":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Only csv format is supported"
+        )
+
+    # Важно: НЕ дублируем логику, не трогаем engine — переиспользуем внутреннюю функцию.
+    result = await _generate_vip_shoplist(payload, region_id=region_id, store_id=store_id)
+
+    csv_data = export_shoplist_to_csv(result)
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="shoplist.csv"'},
+    )
 
 
 __all__ = ["router"]
