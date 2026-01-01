@@ -89,6 +89,22 @@ docker-compose -f docker-compose.production.yaml ps
 curl -fsS https://pulseplate.app/health | jq .
 ```
 
+Пример ответа:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "git_sha": "f4c8b72e593f",
+  "timestamp": "2026-01-01T13:27:54.215248+00:00",
+  "environment": "production"
+}
+```
+
+> ℹ️ `git_sha` нормализуется из `GIT_SHA`:
+> - поддерживает `sha256:<digest>` и `repo@sha256:<digest>`
+> - в `/health` отображаются первые **12 символов** digest
+
 ---
 
 ## 🔄 Полный цикл деплоя
@@ -131,6 +147,18 @@ docker-compose -f docker-compose.production.yaml up -d --force-recreate
 
 # Проверить
 curl -fsS https://pulseplate.app/health | jq .
+```
+
+Пример ответа:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "git_sha": "f4c8b72e593f",
+  "timestamp": "2026-01-01T13:27:54.215248+00:00",
+  "environment": "production"
+}
 ```
 
 ---
@@ -213,10 +241,23 @@ docker inspect "$APP_CID" --format '{{.Config.Image}}'
 
 ```bash
 curl -fsS https://pulseplate.app/health | jq .
-# Должен показывать актуальные значения:
-# - "environment": "production"
-# - "git_sha": "abc12345" (если GIT_SHA установлен)
 ```
+
+Пример ответа:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "git_sha": "f4c8b72e593f",
+  "timestamp": "2026-01-01T13:27:54.215248+00:00",
+  "environment": "production"
+}
+```
+
+> ℹ️ `git_sha` нормализуется из `GIT_SHA`:
+> - поддерживает `sha256:<digest>` и `repo@sha256:<digest>`
+> - в `/health` отображаются первые **12 символов** digest
 
 ### 4. Проверить логи:
 
@@ -224,6 +265,16 @@ curl -fsS https://pulseplate.app/health | jq .
 docker-compose -f docker-compose.production.yaml logs app --tail=50
 # Не должно быть ошибок
 ```
+
+### Git SHA verification
+
+В production `GIT_SHA` может быть:
+- git commit hash (CI)
+- docker image digest (`sha256:...`)
+- `repo@sha256:...`
+
+Endpoint `/health` автоматически нормализует значение и показывает
+короткий стабильный идентификатор (12 символов), пригодный для сверки деплоя.
 
 ---
 

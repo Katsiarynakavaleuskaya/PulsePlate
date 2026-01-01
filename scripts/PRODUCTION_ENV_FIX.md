@@ -66,6 +66,23 @@ docker exec pulseplate-production_app_1 python -c "import os; print('APP_ENV:', 
 curl -fsS https://pulseplate.app/health | jq .
 ```
 
+Пример ответа:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "git_sha": "f4c8b72e593f",
+  "timestamp": "2026-01-01T13:25:47.488673+00:00",
+  "environment": "production"
+}
+```
+
+> Примечание:
+> Значение `git_sha` берётся из env `GIT_SHA` и приводится к короткому виду
+> (12 символов) для удобства визуальной проверки деплоя.
+```
+
 ## 🔧 Автоматизированное решение (скрипт)
 
 Используйте готовый скрипт:
