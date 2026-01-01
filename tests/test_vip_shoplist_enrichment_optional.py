@@ -13,6 +13,8 @@ from __future__ import annotations
 # The fixture properly handles both VIP tier and route-level API key dependencies
 # and cleans up overrides in teardown.
 
+import warnings
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -79,14 +81,14 @@ def test_generate_with_region_store_attaches_catalog(
     assert r.status_code == status.HTTP_200_OK, r.text
 
     data = r.json()
-    packed_item = data["packed"][0]
+    packed_index = 0
+    packed_item = data["packed"][packed_index]
     # Catalog field always present in schema (contract: never None when region/store provided)
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
-    # Contract: catalog must not be None when region/store provided
-    assert (
-        catalog is not None
-    ), "Catalog enrichment should always attach metadata when region/store provided"
+    assert catalog is not None, (
+        "Catalog enrichment should always attach metadata when region/store provided"
+    )
     assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
     assert catalog["store_id"] == "carrefour_es"
     assert "sku" in catalog
@@ -115,7 +117,6 @@ def test_daily_with_enrichment_applies_to_response(
     # Catalog field always present in schema (contract: never None when region/store provided)
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
-    # Contract: catalog must not be None when region/store provided
     assert (
         catalog is not None
     ), "Catalog enrichment should always attach metadata when region/store provided"
