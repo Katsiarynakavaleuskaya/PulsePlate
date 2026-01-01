@@ -227,9 +227,17 @@ class OFFClient:
                 return self._parse_product_item(data.get("product", {}))
 
         except Exception as e:
-            logger.error(
-                f"Error getting Open Food Facts product details for barcode {barcode}: {e}"
-            )
+            # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
+            # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
+            error_msg = str(e)
+            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+                logger.debug("OFF product details blocked in tests for %r: %s", barcode, e)
+            else:
+                logger.error(
+                    "Error getting Open Food Facts product details for barcode %r: %s",
+                    barcode,
+                    e,
+                )
             return None
 
         # Explicitly return None when product is not found

@@ -224,7 +224,17 @@ class USDAClient:
             return self._parse_food_item(data)
 
         except Exception as e:
-            logger.error(f"Error getting USDA food details for FDC ID {fdc_id}: {e}")
+            # RU: Блокировка сети в тестах — ожидаемое поведение (guard), не ошибка продукта.
+            # EN: Network blocked in tests is expected (guard), so don't log as ERROR in CI.
+            error_msg = str(e)
+            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+                logger.debug("USDA food details blocked in tests for %r: %s", fdc_id, e)
+            else:
+                logger.error(
+                    "Error getting USDA food details for FDC ID %r: %s",
+                    fdc_id,
+                    e,
+                )
             return None
 
     async def get_multiple_foods(self, fdc_ids: List[int]) -> List[USDAFoodItem]:
