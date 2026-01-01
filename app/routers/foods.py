@@ -18,8 +18,8 @@ class FoodStore(Protocol):
 
 
 def get_food_store() -> FoodStore:
-    # food_store module exports search_foods and get_food functions
-    # that match the FoodStore protocol
+    # food_store is a module exporting functions that match the FoodStore Protocol; mypy treats
+    # module values as Any here, so returning it triggers no-any-return.
     return food_store  # type: ignore[no-any-return]
 
 
