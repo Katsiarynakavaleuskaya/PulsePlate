@@ -567,3 +567,97 @@ def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
 def _disable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
     """Disable VIP module flag via router module patch."""
     monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: False)
+
+
+# ============================================================================
+# Catalog fixtures (PR-7)
+# ============================================================================
+
+
+@pytest.fixture()
+def fixtures_dir() -> Path:
+    """
+    RU: Корень tests/fixtures.
+    EN: Root directory for test fixtures.
+    """
+    return Path(__file__).parent / "fixtures"
+
+
+def build_demo_catalog_sqlite(path: Path, *, fixtures_dir: Path) -> None:
+    """
+    RU: Собирает SQLite каталог из tiny CSV fixtures без сети.
+    EN: Builds SQLite catalog from tiny CSV fixtures (offline).
+
+    Args:
+        path: Path to output SQLite database file
+        fixtures_dir: Root directory for test fixtures
+
+    Raises:
+        RuntimeError: If no catalog CSV fixtures found
+    """
+    from core.catalog.loaders.carrefour_es import CarrefourESLoader
+    from core.catalog.loaders.walmart_us import WalmartUSLoader
+    from core.catalog.storage.sqlite_writer import write_snapshot
+
+    carrefour_csv = fixtures_dir / "catalog_raw" / "carrefour_es_sample.csv"
+    walmart_csv = fixtures_dir / "catalog_raw" / "walmart_us_sample.csv"
+
+    snapshots = []
+    if carrefour_csv.exists():
+        snapshots.append(CarrefourESLoader(carrefour_csv).load())
+    if walmart_csv.exists():
+        snapshots.append(WalmartUSLoader(walmart_csv).load())
+
+    if not snapshots:
+        raise RuntimeError("No catalog CSV fixtures found under tests/fixtures/catalog_raw/")
+
+    merged = _merge_snapshots(*snapshots)
+    write_snapshot(path, merged)
+
+
+def _merge_snapshots(*snapshots) -> Any:
+    """
+    RU: Склеиваем snapshots в один для удобства тестов.
+    EN: Merge snapshots (regions/stores/skus/aliases) into one.
+
+    Args:
+        *snapshots: Variable number of CatalogSnapshot instances
+
+    Returns:
+        Merged CatalogSnapshot with deduplicated regions/stores/skus/aliases
+    """
+    from core.catalog.provider import CatalogSnapshot
+
+    regions = []
+    stores = []
+    skus = []
+    aliases = []
+    seen_region = set()
+    seen_store = set()
+    seen_sku = set()
+    seen_alias = set()
+
+    for snap in snapshots:
+        for r in snap.regions:
+            if r.region_id not in seen_region:
+                regions.append(r)
+                seen_region.add(r.region_id)
+
+        for s in snap.stores:
+            if s.store_id not in seen_store:
+                stores.append(s)
+                seen_store.add(s.store_id)
+
+        for sku in snap.skus:
+            if sku.sku_id not in seen_sku:
+                skus.append(sku)
+                seen_sku.add(sku.sku_id)
+
+        for alias, sku_id in snap.aliases:
+            # alias uniqueness in sqlite is (region_id, alias), but here we keep raw list.
+            key = (alias, sku_id)
+            if key not in seen_alias:
+                aliases.append((alias, sku_id))
+                seen_alias.add(key)
+
+    return CatalogSnapshot(regions=regions, stores=stores, skus=skus, aliases=aliases)
