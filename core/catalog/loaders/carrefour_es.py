@@ -56,11 +56,11 @@ class CarrefourESLoader:
         skus: list[CatalogSKU] = []
         aliases: list[tuple[str, str]] = []
 
-        for r in rows:
-            if r.get("region_id") != "ES":
+        for row in rows:
+            if row.get("region_id") != "ES":
                 continue
 
-            store_id = (r.get("store_id") or "carrefour_es_main").strip()
+            store_id = (row.get("store_id") or "carrefour_es_main").strip()
             if store_id not in stores:
                 stores[store_id] = CatalogStore(
                     store_id=store_id,
@@ -70,27 +70,29 @@ class CarrefourESLoader:
                     meta_json=None,
                 )
 
-            alias = norm_alias(r.get("alias") or r.get("ean") or r.get("name") or "")
-            if not alias:
+            try:
+                alias = norm_alias(row.get("alias") or row.get("ean") or row.get("name") or "")
+            except ValueError:
+                # Skip rows with empty aliases (fail-soft)
                 continue
 
-            sku_id = (r.get("sku_id") or "").strip() or _stable_sku_id(
+            sku_id = (row.get("sku_id") or "").strip() or _stable_sku_id(
                 "carrefour", "ES", store_id, alias
             )
 
-            currency = normalize_currency(r.get("currency"), default="EUR")
+            currency = normalize_currency(row.get("currency"), default="EUR")
             sku = CatalogSKU(
                 sku_id=sku_id,
                 store_id=store_id,
-                ean=_opt(r.get("ean")),
-                name=(r.get("name") or "").strip(),
-                brand=_opt(r.get("brand")),
-                aisle=_opt(r.get("aisle")),
-                package_size=parse_decimal(_opt(r.get("package_size"))),
-                unit=normalize_unit(_opt(r.get("unit"))),
-                price=parse_decimal(_opt(r.get("price"))),
+                ean=_opt(row.get("ean")),
+                name=(row.get("name") or "").strip(),
+                brand=_opt(row.get("brand")),
+                aisle=_opt(row.get("aisle")),
+                package_size=parse_decimal(_opt(row.get("package_size"))),
+                unit=normalize_unit(_opt(row.get("unit"))),
+                price=parse_decimal(_opt(row.get("price"))),
                 currency=currency,
-                updated_at=_opt(r.get("updated_at")),
+                updated_at=_opt(row.get("updated_at")),
             )
             skus.append(sku)
             aliases.append((alias, sku_id))
