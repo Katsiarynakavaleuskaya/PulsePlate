@@ -94,7 +94,7 @@ class TestShortGitSha:
             _short_git_sha("  f4c8b72e593f1234567890abcdef  ")  # pragma: allowlist secret
             == "f4c8b72e593f"  # pragma: allowlist secret
         )
-        assert _short_git_sha("  sha256:abcd1234567890abcdef1234567890  ") == "abcd12345678"
+        assert _short_git_sha("  sha256:abcd1234567890abcdef1234567890  ") == "abcd12345678"  # pragma: allowlist secret
         assert (
             _short_git_sha("  ghcr.io/repo@sha256:abcd1234567890abcdef1234567890  ")
             == "abcd12345678"
