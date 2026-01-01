@@ -54,7 +54,7 @@ def list_foods_search(
     offset: int = 0,
     store: FoodStore = Depends(get_food_store),
 ) -> list[FoodHit]:
-    return list_foods(query=query, limit=limit, offset=offset, store=store)  # type: ignore[no-any-return]
+    return list_foods(query=query, limit=limit, offset=offset, store=store)
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
