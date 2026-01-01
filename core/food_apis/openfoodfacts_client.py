@@ -115,7 +115,7 @@ class OFFClient:
 
     BASE_URL = "https://world.openfoodfacts.org/api/v2"
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Open Food Facts client."""
         # Underlying async HTTP client
         self.client = httpx.AsyncClient()
@@ -359,7 +359,7 @@ class OFFClient:
         event_loop_closed_pattern = re.compile(r"event\s+loop\s+(is\s+)?closed")
         return bool(event_loop_closed_pattern.search(error_msg))
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         try:
             await self.client.aclose()
