@@ -79,9 +79,19 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
                     ),
                 )
 
+            # Precompute lookup maps to avoid O(n*m) in alias loop
+            store_by_id = {store.store_id: store for store in snapshot.stores}
+            sku_id_to_region_id = {
+                sku.sku_id: store_by_id[sku.store_id].region_id
+                for sku in snapshot.skus
+                if sku.store_id in store_by_id
+            }
+
             for alias, sku_id in snapshot.aliases:
                 # alias keys should be normalized (lower/strip) by loaders
-                region_id = _region_id_from_sku(snapshot, sku_id)
+                region_id = sku_id_to_region_id.get(sku_id)
+                if region_id is None:
+                    raise ValueError(f"Unknown sku_id in aliases: {sku_id}")
                 conn.execute(
                     "INSERT INTO sku_aliases(region_id,alias,sku_id) VALUES (?,?,?)",
                     (region_id, alias, sku_id),
@@ -97,26 +107,3 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(schema_sql)
 
 
-def _region_id_from_sku(snapshot: CatalogSnapshot, sku_id: str) -> str:
-    """
-    RU: Берём region через store_id. EN: Derive region_id via store relation.
-
-    Args:
-        snapshot: Catalog snapshot
-        sku_id: SKU identifier
-
-    Returns:
-        Region ID for the SKU
-
-    Raises:
-        ValueError: If sku_id is not found in snapshot
-    """
-    store_by_id = {s.store_id: s for s in snapshot.stores}
-    for sku in snapshot.skus:
-        if sku.sku_id == sku_id:
-            store = store_by_id.get(sku.store_id)
-            if store is None:
-                break
-            return store.region_id
-    # Invariant: aliases should reference existing sku
-    raise ValueError(f"Unknown sku_id in aliases: {sku_id}")
