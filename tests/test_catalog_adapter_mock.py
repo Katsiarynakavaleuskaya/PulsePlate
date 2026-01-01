@@ -19,23 +19,53 @@ from app.schemas.vip_shoplist import (
     ShoplistGenerateResponse,
     UnpackedLineDTO,
 )
-from app.services.catalog_adapter import MockCatalogProvider, enrich_shoplist_response
+from app.services.catalog_adapter import (
+    MockCatalogProvider,
+    enrich_shoplist_response,
+    reset_catalog_provider_for_tests,
+)
+from core.catalog.provider import CatalogProvider, CatalogStore
+
+
+class FakeCatalogProvider:
+    """
+    RU: Фейковый provider для тестов enrichment (контракт PR-7).
+    EN: Fake provider for enrichment tests (PR-7 contract).
+
+    Гарантирует стабильное поведение независимо от реализации MockCatalogProvider.
+    """
+
+    def get_catalog_info(
+        self,
+        *,
+        food_id: str,
+        region_id: str,
+        store_id: str | None = None,
+    ) -> CatalogInfoDTO | None:
+        """RU/EN: Return catalog for carrot in ES region, None otherwise."""
+        rid = region_id.strip().lower()
+        sid = (store_id or "carrefour_es").strip().lower()
+
+        if food_id == "carrot" and rid == "es":
+            return CatalogInfoDTO(
+                sku="SKU_TEST_CARROT",
+                store_id=sid,
+                region_id=rid,
+                pack_label="500 G",
+                aisle="Vegetables",
+                price=MoneyDTO(value=Decimal("1.29"), currency=CurrencyDTO.EUR),
+            )
+        return None
+
+    def list_stores(self, *, region_id: str) -> list[CatalogStore]:
+        """RU/EN: Return empty list for fake provider."""
+        return []
 
 
 def test_enrich_adds_catalog_when_food_id_found() -> None:
     """Test that enrichment adds catalog when food_id is found in provider."""
-    provider = MockCatalogProvider(
-        data={
-            ("es", "carrefour_es", "carrot"): CatalogInfoDTO(
-                sku="CRF-ES-000123",
-                store_id="carrefour_es",
-                region_id="es",
-                pack_label="500 g bag",
-                aisle="Vegetables",
-                price=MoneyDTO(value=Decimal("1.29"), currency=CurrencyDTO.EUR),
-            )
-        }
-    )
+    reset_catalog_provider_for_tests()
+    provider = FakeCatalogProvider()
 
     base = ShoplistGenerateResponse(
         packed=[
@@ -58,7 +88,7 @@ def test_enrich_adds_catalog_when_food_id_found() -> None:
     out = enrich_shoplist_response(base, region_id="es", store_id="carrefour_es", provider=provider)
 
     assert out.packed[0].catalog is not None
-    assert out.packed[0].catalog.sku == "CRF-ES-000123"
+    assert out.packed[0].catalog.sku == "SKU_TEST_CARROT"
     assert out.packed[0].catalog.store_id == "carrefour_es"
     assert out.packed[0].catalog.region_id == "es"
 
@@ -99,15 +129,8 @@ def test_enrich_is_fail_soft_when_not_found() -> None:
 
 def test_enrich_does_not_mutate_core_fields() -> None:
     """Test that enrichment does not mutate packs/reasons/analytics."""
-    provider = MockCatalogProvider(
-        data={
-            ("es", "carrefour_es", "carrot"): CatalogInfoDTO(
-                sku="CRF-ES-000123",
-                store_id="carrefour_es",
-                region_id="es",
-            )
-        }
-    )
+    reset_catalog_provider_for_tests()
+    provider = FakeCatalogProvider()
 
     base = ShoplistGenerateResponse(
         packed=[
@@ -136,20 +159,13 @@ def test_enrich_does_not_mutate_core_fields() -> None:
 
     # Catalog added
     assert out.packed[0].catalog is not None
-    assert out.packed[0].catalog.sku == "CRF-ES-000123"
+    assert out.packed[0].catalog.sku == "SKU_TEST_CARROT"
 
 
 def test_enrich_no_op_when_region_store_not_provided() -> None:
     """Test that enrichment is no-op when region_id or store_id is None."""
-    provider = MockCatalogProvider(
-        data={
-            ("es", "carrefour_es", "carrot"): CatalogInfoDTO(
-                sku="CRF-ES-000123",
-                store_id="carrefour_es",
-                region_id="es",
-            )
-        }
-    )
+    reset_catalog_provider_for_tests()
+    provider = FakeCatalogProvider()
 
     base = ShoplistGenerateResponse(
         packed=[

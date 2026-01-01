@@ -32,7 +32,7 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
     UnitDTO,
 )
-from app.services.catalog_adapter import build_default_mock_provider, enrich_shoplist_response
+from app.services.catalog_adapter import CatalogProvider, _get_provider, enrich_shoplist_response
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from core.shoplist_engine.models import (
@@ -50,10 +50,17 @@ from core.shoplist_preview.preview_service import build_preview
 
 router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 
-# Catalog provider (module-level singleton, mock-only in PR-6, no I/O)
-# RU: В PR-6 это чистый in-memory объект; безопасно.
-# EN: In PR-6 this is pure in-memory; safe.
-_CATALOG_PROVIDER = build_default_mock_provider()
+# Catalog provider (lazy, selected via CATALOG_PROVIDER env var)
+# RU: В PR-6 это mock; в PR-7 можно переключить на sqlite через env var.
+# EN: In PR-6 this is mock; in PR-7 can switch to sqlite via env var.
+# Fail-soft: если provider недоступен, fallback на mock.
+# Lazy evaluation: provider is fetched on each request to allow env var changes in tests.
+
+
+def _get_catalog_provider() -> CatalogProvider:
+    """Get catalog provider (lazy, respects env vars and cache reset)."""
+    return _get_provider()
+
 
 # Common OpenAPI responses for gating matrix
 COMMON_VIP_SHOPLIST_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -347,7 +354,7 @@ async def vip_shoplist_generate(
         response,
         region_id=region_id,
         store_id=store_id,
-        provider=_CATALOG_PROVIDER,
+        provider=_get_catalog_provider(),
     )
     return response
 
@@ -403,7 +410,7 @@ async def vip_shoplist_daily(
         response,
         region_id=region_id,
         store_id=store_id,
-        provider=_CATALOG_PROVIDER,
+        provider=_get_catalog_provider(),
     )
     return response
 
@@ -445,6 +452,8 @@ async def vip_shoplist_weekly(
 
     Contract matches /generate: same gating, mapping, and response format per day.
     """
+    # Hoist provider lookup before loop to avoid repeated calls
+    provider = _get_catalog_provider()
     days = []
     for day_req in payload.days:
         # Map DTO -> core models
@@ -462,7 +471,7 @@ async def vip_shoplist_weekly(
             day_response,
             region_id=region_id,
             store_id=store_id,
-            provider=_CATALOG_PROVIDER,
+            provider=provider,
         )
         days.append(day_response)
 
