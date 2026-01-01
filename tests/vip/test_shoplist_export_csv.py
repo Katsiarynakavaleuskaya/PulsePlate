@@ -149,12 +149,13 @@ def test_vip_shoplist_export_csv_invalid_format(
 
     payload = _generate_payload_minimal()
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?format=pdf",
+        "/api/v1/vip/shoplist/export?export_format=json",
         json=payload,
     )
 
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
-    assert "csv" in resp.json()["detail"].lower()
+    detail = resp.json()["detail"].lower()
+    assert "csv" in detail or "pdf" in detail
 
 
 def test_vip_shoplist_export_csv_injection_protection(
