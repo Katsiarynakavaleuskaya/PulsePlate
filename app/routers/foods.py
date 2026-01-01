@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -12,15 +12,17 @@ router = APIRouter(tags=["foods"])
 
 
 class FoodStore(Protocol):
-    def search_foods(
-        self, query: str, limit: int, offset: int
-    ) -> Sequence[Mapping[str, Any]]: ...
+    def search_foods(self, query: str, limit: int, offset: int) -> Sequence[Mapping[str, Any]]: ...
 
     def get_food(self, food_id: str) -> Mapping[str, Any] | None: ...
 
 
 def get_food_store() -> FoodStore:
-    return food_store
+    # With pre-push mypy (--follow-imports=skip), imported modules are treated as Any. Assigning to
+    # a typed local ensures the router's DI surface stays type-safe in CI and doesn't trip
+    # no-any-return locally.
+    store: FoodStore = food_store
+    return store
 
 
 @router.get("/api/v1/foods", response_model=list[FoodHit])
@@ -54,7 +56,10 @@ def list_foods_search(
     offset: int = 0,
     store: FoodStore = Depends(get_food_store),
 ) -> list[FoodHit]:
-    return list_foods(query=query, limit=limit, offset=offset, store=store)
+    # With --follow-imports=skip, FastAPI decorators are Any and `list_foods` becomes Any too.
+    # Using a typed local keeps mypy happy while still allowing tests to monkeypatch `list_foods`.
+    delegate: Callable[..., list[FoodHit]] = list_foods
+    return delegate(query=query, limit=limit, offset=offset, store=store)
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)
