@@ -60,18 +60,8 @@ class FakeCatalogProvider:
 
 def test_enrich_adds_catalog_when_food_id_found() -> None:
     """Test that enrichment adds catalog when food_id is found in provider."""
-    provider = MockCatalogProvider(
-        data={
-            ("es", "carrefour_es", "carrot"): CatalogInfoDTO(
-                sku="CRF-ES-000123",
-                store_id="carrefour_es",
-                region_id="es",
-                pack_label="500 g bag",
-                aisle="Vegetables",
-                price=MoneyDTO(value=Decimal("1.29"), currency=CurrencyDTO.EUR),
-            )
-        }
-    )
+    reset_catalog_provider_for_tests()
+    provider = FakeCatalogProvider()
 
     base = ShoplistGenerateResponse(
         packed=[
@@ -170,15 +160,8 @@ def test_enrich_does_not_mutate_core_fields() -> None:
 
 def test_enrich_no_op_when_region_store_not_provided() -> None:
     """Test that enrichment is no-op when region_id or store_id is None."""
-    provider = MockCatalogProvider(
-        data={
-            ("es", "carrefour_es", "carrot"): CatalogInfoDTO(
-                sku="CRF-ES-000123",
-                store_id="carrefour_es",
-                region_id="es",
-            )
-        }
-    )
+    reset_catalog_provider_for_tests()
+    provider = FakeCatalogProvider()
 
     base = ShoplistGenerateResponse(
         packed=[
