@@ -48,7 +48,7 @@ def test_vip_shoplist_export_csv_basic(
 
     payload = _generate_payload_minimal()
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?export_format=csv",
+        "/api/v1/vip/shoplist/export?format=csv",
         json=payload,
     )
 
@@ -81,10 +81,10 @@ def test_vip_shoplist_export_csv_basic(
     assert header == expected_columns
 
     # Проверяем, что есть данные
-    if len(rows) > 1:
-        data_row = rows[1]
-        assert len(data_row) == len(expected_columns)
-        assert data_row[0] == "carrot"  # food_id
+    assert len(rows) > 1, "CSV must contain at least one data row"
+    data_row = rows[1]
+    assert len(data_row) == len(expected_columns)
+    assert data_row[0] == "carrot"  # food_id
 
 
 def test_vip_shoplist_export_csv_deterministic_ordering(
@@ -116,7 +116,7 @@ def test_vip_shoplist_export_csv_deterministic_ordering(
     }
 
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?export_format=csv",
+        "/api/v1/vip/shoplist/export?format=csv",
         json=payload,
     )
 
@@ -151,7 +151,7 @@ def test_vip_shoplist_export_csv_invalid_format(
 
     payload = _generate_payload_minimal()
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?export_format=pdf",
+        "/api/v1/vip/shoplist/export?format=pdf",
         json=payload,
     )
 
@@ -169,7 +169,7 @@ def test_vip_shoplist_export_csv_injection_protection(
     # Используем food_id с опасными символами (проверяем sanitize для food_id)
     payload = _generate_payload_minimal(food_id="=SUM(A1:A10)")
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?export_format=csv",
+        "/api/v1/vip/shoplist/export?format=csv",
         json=payload,
     )
 
@@ -180,10 +180,11 @@ def test_vip_shoplist_export_csv_injection_protection(
     header = rows[0]
     data = rows[1:]
 
+    assert len(data) > 0, "CSV must contain data rows"
+
     # Проверяем, что food_id с формулой экранирован
     food_i = header.index("food_id")
-    if data:
-        food_id_cell = data[0][food_i]
-        # Если food_id начинается с опасного символа, он должен быть экранирован
-        if food_id_cell and food_id_cell[0] in ("=", "+", "-", "@"):
-            assert food_id_cell.startswith("'"), f"CSV injection not prevented: {food_id_cell}"
+    food_id_cell = data[0][food_i]
+
+    # Главное: проверяем, что добавился апостроф для защиты от CSV injection
+    assert food_id_cell.startswith("'="), f"CSV injection not prevented: {food_id_cell}"
