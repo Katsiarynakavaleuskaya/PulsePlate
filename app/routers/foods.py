@@ -19,8 +19,8 @@ class FoodStore(Protocol):
 
 def get_food_store() -> FoodStore:
     # food_store is a module exporting functions that match the FoodStore Protocol; mypy sees
-    # type mismatch (Module vs Protocol), so we need to ignore return-value.
-    return food_store  # type: ignore[return-value]
+    # Any return when using --follow-imports=skip, so we need to ignore no-any-return.
+    return food_store  # type: ignore[no-any-return]
 
 
 @router.get("/api/v1/foods", response_model=list[FoodHit])
