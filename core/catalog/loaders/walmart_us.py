@@ -16,12 +16,7 @@ from pathlib import Path
 from core.catalog.loaders.base import read_csv_rows
 from core.catalog.normalize.alias import norm_alias
 from core.catalog.normalize.common import normalize_currency, normalize_unit, parse_decimal
-from core.catalog.provider import (
-    CatalogRegion,
-    CatalogSKU,
-    CatalogSnapshot,
-    CatalogStore,
-)
+from core.catalog.provider import CatalogRegion, CatalogSKU, CatalogSnapshot, CatalogStore
 
 
 class WalmartUSLoader:
@@ -79,9 +74,7 @@ class WalmartUSLoader:
             if not name:
                 continue
 
-            sku_id = (row.get("sku_id") or "").strip() or _stable_sku_id(
-                "walmart", "US", store_id, alias
-            )
+            sku_id = (row.get("sku_id") or "").strip() or _stable_sku_id("walmart", "US", store_id, alias)
 
             currency = normalize_currency(row.get("currency"), default="USD")
             sku = CatalogSKU(
@@ -124,5 +117,3 @@ def _opt(v: str | None) -> str | None:
         return None
     s = v.strip()
     return s or None
-
-
