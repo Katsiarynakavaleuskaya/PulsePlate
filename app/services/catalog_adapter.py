@@ -77,7 +77,7 @@ class MockCatalogProvider:
         from core.catalog.provider import CatalogStore
 
         # Extract unique stores from mock data for this region
-        region_id_norm = region_id.strip().upper()
+        region_id_norm = region_id.strip().lower()
         stores: dict[str, CatalogStore] = {}
         for (r, store_id, _), catalog in self.data.items():
             if r == region_id_norm and store_id not in stores:
