@@ -1,0 +1,6 @@
+region_id,store_id,provider,sku_id,alias,ean,name,brand,aisle,package_size,unit,price,currency,updated_at
+ES,carrefour_es_main,carrefour,,carrot,841000000001,Carrot 500g,Carrefour,Verduras,500,g,1.29,EUR,2026-01-01
+ES,carrefour_es_main,carrefour,,tomato,841000000002,Tomate 1kg,Carrefour,Verduras,1000,g,2.50,EUR,2026-01-01
+ES,carrefour_es_main,carrefour,,olive_oil_1l,841000000003,Olive Oil Extra Virgin 1L,Carrefour,Aceites,1,l,6.99,EUR,2026-01-01
+ES,carrefour_es_main,carrefour,,rice_basmati_1kg,841000000004,Rice Basmati 1kg,,Arroz,1,kg,2.49,EUR,2026-01-01
+
