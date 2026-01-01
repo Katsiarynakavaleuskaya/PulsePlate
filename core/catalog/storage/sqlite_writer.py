@@ -101,7 +101,9 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
                     raise ValueError(f"Unknown sku_id in aliases: {sku_id}")
                 key = (region_id, alias)
                 if key in seen_alias_keys:
-                    raise ValueError(f"Duplicate alias in snapshot: region_id={region_id}, alias={alias}")
+                    raise ValueError(
+                        f"Duplicate alias in snapshot: region_id={region_id}, alias={alias}"
+                    )
                 seen_alias_keys.add(key)
 
                 conn.execute(
@@ -117,5 +119,3 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     """Apply SQLite schema from schema.sql file."""
     schema_sql = (Path(__file__).parent / "schema.sql").read_text(encoding="utf-8")
     conn.executescript(schema_sql)
-
-

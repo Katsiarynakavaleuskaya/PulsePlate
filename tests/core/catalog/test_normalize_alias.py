@@ -49,4 +49,3 @@ def test_norm_alias_collapses_multiple_spaces() -> None:
     assert norm_alias("olive   oil") == "olive oil"
     assert norm_alias("olive\t\toil") == "olive oil"  # tabs become spaces
     assert norm_alias("olive\n\noil") == "olive oil"  # newlines become spaces
-

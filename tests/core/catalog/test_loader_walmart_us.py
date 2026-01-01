@@ -8,6 +8,7 @@ EN: Tests for Walmart US catalog loader.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -46,7 +47,4 @@ def test_walmart_loader_skus_have_decimal_prices(fixtures_dir: Path) -> None:
 
     for sku in snapshot.skus:
         if sku.price is not None:
-            assert isinstance(sku.price, type(snapshot.skus[0].price)), "Price must be Decimal type"
-            # Verify it's not float (Decimal has different type)
-            assert str(type(sku.price).__name__) == "Decimal" or hasattr(sku.price, "as_tuple"), "Price must be Decimal"
-
+            assert isinstance(sku.price, Decimal), "Price must be Decimal type"

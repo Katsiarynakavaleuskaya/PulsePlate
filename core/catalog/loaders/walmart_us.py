@@ -74,7 +74,9 @@ class WalmartUSLoader:
             if not name:
                 continue
 
-            sku_id = (row.get("sku_id") or "").strip() or _stable_sku_id("walmart", "US", store_id, alias)
+            sku_id = (row.get("sku_id") or "").strip() or _stable_sku_id(
+                "walmart", "US", store_id, alias
+            )
 
             currency = normalize_currency(row.get("currency"), default="USD")
             sku = CatalogSKU(

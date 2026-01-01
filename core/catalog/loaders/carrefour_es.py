@@ -124,5 +124,3 @@ def _opt(v: str | None) -> str | None:
         return None
     s = v.strip()
     return s or None
-
-

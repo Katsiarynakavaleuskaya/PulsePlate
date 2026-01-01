@@ -25,4 +25,3 @@ def norm_alias(value: str) -> str:
     # Collapse multiple spaces into single space
     s = " ".join(s.split())
     return s
-

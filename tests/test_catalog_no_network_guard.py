@@ -42,7 +42,11 @@ def test_mock_provider_no_network() -> None:
             assert catalog is None
         else:
             assert isinstance(catalog, dict) or hasattr(catalog, "sku")
-            assert isinstance(catalog.sku, str) if hasattr(catalog, "sku") else isinstance(catalog.get("sku"), str)
+            assert (
+                isinstance(catalog.sku, str)
+                if hasattr(catalog, "sku")
+                else isinstance(catalog.get("sku"), str)
+            )
 
 
 def test_sqlite_provider_no_network(
@@ -72,7 +76,11 @@ def test_sqlite_provider_no_network(
             assert catalog is None
         else:
             assert isinstance(catalog, dict) or hasattr(catalog, "sku")
-            assert isinstance(catalog.sku, str) if hasattr(catalog, "sku") else isinstance(catalog.get("sku"), str)
+            assert (
+                isinstance(catalog.sku, str)
+                if hasattr(catalog, "sku")
+                else isinstance(catalog.get("sku"), str)
+            )
 
 
 def test_loaders_no_network_in_load(fixtures_dir: Path) -> None:

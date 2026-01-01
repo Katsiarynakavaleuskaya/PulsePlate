@@ -26,9 +26,7 @@ def test_sqlite_roundtrip_alias_lookup(tmp_path: Path) -> None:
     path = tmp_path / "catalog.sqlite"
 
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -79,9 +77,7 @@ def test_sqlite_roundtrip_decimal_preservation(tmp_path: Path) -> None:
 
     # Use precise decimal values that would lose precision with float
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")
-        ],
+        regions=[CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")],
         stores=[
             CatalogStore(
                 store_id="walmart_us_main",
@@ -130,9 +126,7 @@ def test_sqlite_writer_rejects_duplicate_alias(tmp_path: Path) -> None:
 
     # Snapshot with duplicate alias in same region
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -184,9 +178,7 @@ def test_sqlite_writer_rejects_unknown_store_id(tmp_path: Path) -> None:
     path = tmp_path / "catalog.sqlite"
 
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -222,9 +214,7 @@ def test_sqlite_writer_rejects_unknown_sku_id_in_alias(tmp_path: Path) -> None:
     path = tmp_path / "catalog.sqlite"
 
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -256,4 +246,3 @@ def test_sqlite_writer_rejects_unknown_sku_id_in_alias(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Unknown sku_id"):
         write_snapshot(path, snapshot)
-
