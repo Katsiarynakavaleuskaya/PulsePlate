@@ -130,7 +130,7 @@ echo ""
 echo "=== Step 7: Environment variables in app container ==="
 APP_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'app|pulseplate.*app' | head -1)
 if [ -n "$APP_CONTAINER" ]; then
-    docker exec -it "$APP_CONTAINER" python -c "import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT')); print('ENV:', os.getenv('ENV'))" 2>/dev/null || echo "⚠️  Could not check env in container"
+    docker exec "$APP_CONTAINER" python -c "import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT')); print('ENV:', os.getenv('ENV'))" 2>/dev/null || echo "⚠️  Could not check env in container"
 else
     echo "⚠️  App container not found"
 fi

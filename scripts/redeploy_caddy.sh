@@ -16,33 +16,39 @@ echo "Redeploy Caddy Container"
 echo "=========================================="
 echo ""
 
-# Auto-detect deploy directory
-DEPLOY_DIR=""
-COMPOSE_FILE=""
+# Auto-detect deploy directory (allow override via environment)
+DEPLOY_DIR="${DEPLOY_DIR:-}"
+COMPOSE_FILE="${COMPOSE_FILE:-}"
 
-# Try common locations first
-for dir in "/srv/pulseplate-production" "/opt/pulseplate" "/home/pulseplate" "$HOME/pulseplate-production"; do
-    if [ -d "$dir" ] && [ -f "$dir/docker-compose.production.yaml" ]; then
-        DEPLOY_DIR="$dir"
-        COMPOSE_FILE="docker-compose.production.yaml"
-        echo "✅ Found deploy directory: $DEPLOY_DIR"
-        break
-    fi
-done
+# If DEPLOY_DIR is already set, use it
+if [ -n "$DEPLOY_DIR" ] && [ -d "$DEPLOY_DIR" ] && [ -f "$DEPLOY_DIR/docker-compose.production.yaml" ]; then
+    COMPOSE_FILE="docker-compose.production.yaml"
+    echo "✅ Using provided DEPLOY_DIR: $DEPLOY_DIR"
+else
+    # Try common locations first
+    for dir in "/srv/pulseplate-production" "/opt/pulseplate" "/home/pulseplate" "$HOME/pulseplate-production"; do
+        if [ -d "$dir" ] && [ -f "$dir/docker-compose.production.yaml" ]; then
+            DEPLOY_DIR="$dir"
+            COMPOSE_FILE="docker-compose.production.yaml"
+            echo "✅ Found deploy directory: $DEPLOY_DIR"
+            break
+        fi
+    done
 
-# If not found, search
-if [ -z "$DEPLOY_DIR" ]; then
-    echo "Searching for docker-compose.production.yaml..."
-    FOUND=$(sudo find / -maxdepth 4 -name "docker-compose.production.yaml" 2>/dev/null | head -1)
-    if [ -n "$FOUND" ]; then
-        DEPLOY_DIR=$(dirname "$FOUND")
-        COMPOSE_FILE="docker-compose.production.yaml"
-        echo "✅ Found: $DEPLOY_DIR"
-    else
-        echo "❌ docker-compose.production.yaml not found!"
-        echo "   Please specify DEPLOY_DIR manually:"
-        echo "   DEPLOY_DIR=/path/to/deploy bash redeploy_caddy.sh"
-        exit 1
+    # If not found, search
+    if [ -z "$DEPLOY_DIR" ]; then
+        echo "Searching for docker-compose.production.yaml..."
+        FOUND=$(sudo find / -maxdepth 4 -name "docker-compose.production.yaml" 2>/dev/null | head -1)
+        if [ -n "$FOUND" ]; then
+            DEPLOY_DIR=$(dirname "$FOUND")
+            COMPOSE_FILE="docker-compose.production.yaml"
+            echo "✅ Found: $DEPLOY_DIR"
+        else
+            echo "❌ docker-compose.production.yaml not found!"
+            echo "   Please specify DEPLOY_DIR manually:"
+            echo "   DEPLOY_DIR=/path/to/deploy bash redeploy_caddy.sh"
+            exit 1
+        fi
     fi
 fi
 

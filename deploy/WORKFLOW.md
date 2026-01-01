@@ -51,7 +51,7 @@ git push origin main
 
 **Проверка:**
 - Зайди в GitHub → Actions → проверь, что workflow зелёный
-- Проверь GHCR: `https://github.com/katsiarynakavaleuskaya/pulseplate/pkgs/container/pulseplate`
+- Проверь GHCR: <https://github.com/katsiarynakavaleuskaya/pulseplate/pkgs/container/pulseplate>
 
 ---
 
@@ -87,7 +87,7 @@ docker-compose -f docker-compose.production.yaml up -d --force-recreate
 docker-compose -f docker-compose.production.yaml ps
 
 # 4. Проверить health
-curl -fsS https://pulseplate.app/health | jq .
+curl -fsS <https://pulseplate.app/health> | jq .
 ```
 
 ---
@@ -131,7 +131,7 @@ docker-compose -f docker-compose.production.yaml pull
 docker-compose -f docker-compose.production.yaml up -d --force-recreate
 
 # Проверить
-curl -fsS https://pulseplate.app/health | jq .
+curl -fsS <https://pulseplate.app/health> | jq .
 ```
 
 ---
@@ -211,7 +211,7 @@ docker inspect pulseplate-production_app_1 | grep Image
 ### 3. Проверить health endpoint:
 
 ```bash
-curl -fsS https://pulseplate.app/health | jq .
+curl -fsS <https://pulseplate.app/health> | jq .
 # Должен показывать актуальные значения:
 # - "environment": "production"
 # - "git_sha": "abc12345" (если GIT_SHA установлен)
@@ -249,8 +249,8 @@ docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.CreatedAt}}'
 **Причина:** GitHub Actions ещё не завершился, или image не запушен.
 
 **Решение:**
-1. Проверить GitHub Actions: https://github.com/.../actions
-2. Проверить GHCR: https://github.com/.../pkgs/container/pulseplate
+1. Проверить GitHub Actions: <https://github.com/.../actions>
+2. Проверить GHCR: <https://github.com/.../pkgs/container/pulseplate>
 3. Убедиться, что используется правильный image tag
 
 ### Проблема: Environment переменные не применяются

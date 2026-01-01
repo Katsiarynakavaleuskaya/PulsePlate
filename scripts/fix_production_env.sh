@@ -205,7 +205,18 @@ echo "=========================================="
 echo ""
 echo "Next steps:"
 echo "1. Check health endpoint:"
-echo "   curl -fsS https://\${PRODUCTION_DOMAIN}/health | jq ."
+PROD_DOMAIN="$(grep -E '^PRODUCTION_DOMAIN=' .env 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '\r\n' || true)"
+if [ -z "${PROD_DOMAIN}" ]; then
+    PROD_DOMAIN="YOUR_DOMAIN"
+fi
+echo "   curl -fsS https://${PROD_DOMAIN}/health | jq ."
+if [ "${PROD_DOMAIN}" = "YOUR_DOMAIN" ]; then
+    echo "   (If it prints YOUR_DOMAIN — set PRODUCTION_DOMAIN in .env)"
+fi
 echo ""
 echo "2. Verify environment is 'production':"
-echo "   docker compose exec app python -c \"import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))\""
+if [ "$DC_CMD" = "docker-compose" ]; then
+    echo "   docker-compose -f $COMPOSE_FILE exec app python -c \"import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))\""
+else
+    echo "   docker compose --env-file .env -f $COMPOSE_FILE exec app python -c \"import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))\""
+fi

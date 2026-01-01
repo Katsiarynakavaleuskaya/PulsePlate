@@ -77,7 +77,7 @@ bash scripts/fix_production_env.sh
 
 Скрипт автоматически:
 1. Находит deploy директорию
-2. Определяет версию docker compose (v2 или v1)
+2. Определяет версию docker compose (v2 или v1) и выбирает правильную команду
 3. Проверяет, есть ли postgres в compose
 4. Пытается найти существующий `POSTGRES_PASSWORD` из контейнера
 5. Обновляет `.env` файл
