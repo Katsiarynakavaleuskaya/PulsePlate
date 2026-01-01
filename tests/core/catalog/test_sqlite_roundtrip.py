@@ -143,7 +143,7 @@ def test_sqlite_roundtrip_alias_lookup(tmp_path: Path) -> None:
     assert catalog is not None
     assert catalog.sku == "sku_1"
     assert catalog.store_id == "carrefour_es_main"
-    assert catalog.region_id == "ES"
+    assert catalog.region_id == "es"  # Contract: lowercase in DTO
     assert catalog.price is not None
     assert catalog.price.value == Decimal("6.99")
     assert catalog.price.currency.value == "EUR"
