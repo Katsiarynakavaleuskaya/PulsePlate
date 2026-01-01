@@ -32,11 +32,22 @@ def parse_decimal(value: str | None) -> Decimal | None:
     # Remove spaces as thousand separators
     s = s.replace(" ", "")
 
-    # Support comma decimals
-    if s.count(",") == 1 and s.count(".") == 0:
+    # Handle mixed separators (deterministic: use last separator as decimal)
+    if "," in s and "." in s:
+        # Determine decimal separator by last occurrence
+        last_comma = s.rfind(",")
+        last_dot = s.rfind(".")
+        if last_comma > last_dot:
+            # EU format: "1.234,56" -> "1234.56"
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            # US format: "1,234.56" -> "1234.56"
+            s = s.replace(",", "")
+    elif s.count(",") == 1 and "." not in s:
+        # "1234,56" -> "1234.56" (EU decimal)
         s = s.replace(",", ".")
-    elif s.count(",") > 0 and s.count(".") > 0:
-        # "1,234.56" style -> remove commas
+    elif s.count(",") > 1 and "." in s:
+        # "1,234,567.89" -> "1234567.89" (US with multiple thousands)
         s = s.replace(",", "")
 
     try:
