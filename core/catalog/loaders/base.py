@@ -26,6 +26,7 @@ def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
     Raises:
         FileNotFoundError: If CSV file does not exist
         ValueError: If CSV file is empty or has no data rows
+        csv.Error: If the CSV is malformed/has parsing errors
     """
     p = Path(path)
     if not p.exists():

@@ -21,6 +21,84 @@ from core.catalog.provider import CatalogRegion, CatalogSKU, CatalogSnapshot, Ca
 from core.catalog.storage.sqlite_writer import write_snapshot
 
 
+def test_sqlite_writer_overwrites_existing_file(tmp_path: Path) -> None:
+    """Test that write_snapshot overwrites existing SQLite file."""
+    db_path = tmp_path / "catalog.sqlite"
+
+    # Write first snapshot
+    snapshot1 = CatalogSnapshot(
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
+        stores=[
+            CatalogStore(
+                store_id="store1",
+                region_id="ES",
+                name="Store 1",
+                provider="test",
+            )
+        ],
+        skus=[
+            CatalogSKU(
+                sku_id="sku1",
+                store_id="store1",
+                ean=None,
+                name="Product 1",
+                brand=None,
+                aisle=None,
+                package_size=None,
+                unit=None,
+                price=None,
+                currency="EUR",
+                updated_at=None,
+            )
+        ],
+        aliases=[("product1", "sku1")],
+    )
+    write_snapshot(db_path, snapshot1)
+
+    # Verify file exists
+    assert db_path.exists()
+
+    # Write second snapshot (should overwrite)
+    snapshot2 = CatalogSnapshot(
+        regions=[CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")],
+        stores=[
+            CatalogStore(
+                store_id="store2",
+                region_id="US",
+                name="Store 2",
+                provider="test",
+            )
+        ],
+        skus=[
+            CatalogSKU(
+                sku_id="sku2",
+                store_id="store2",
+                ean=None,
+                name="Product 2",
+                brand=None,
+                aisle=None,
+                package_size=None,
+                unit=None,
+                price=None,
+                currency="USD",
+                updated_at=None,
+            )
+        ],
+        aliases=[("product2", "sku2")],
+    )
+    write_snapshot(db_path, snapshot2)
+
+    # Verify new data is in file (not old data)
+    provider = SQLiteCatalogProvider(str(db_path))
+    stores = provider.list_stores(region_id="US")
+    assert len(stores) == 1
+    assert stores[0].store_id == "store2"
+
+    # Old data should be gone
+    stores_es = provider.list_stores(region_id="ES")
+    assert len(stores_es) == 0
+
+
 def test_sqlite_roundtrip_alias_lookup(tmp_path: Path) -> None:
     """Test that alias lookup works after roundtrip through SQLite."""
     path = tmp_path / "catalog.sqlite"

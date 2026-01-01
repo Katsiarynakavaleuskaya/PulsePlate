@@ -38,9 +38,7 @@ def test_mock_provider_no_network() -> None:
         mock_socket.assert_not_called()
 
         # Should return catalog info (or None)
-        if catalog is None:
-            assert catalog is None
-        else:
+        if catalog:
             assert isinstance(catalog, dict) or hasattr(catalog, "sku")
             assert (
                 isinstance(catalog.sku, str)
@@ -72,9 +70,7 @@ def test_sqlite_provider_no_network(
         mock_socket.assert_not_called()
 
         # Should return catalog info (or None)
-        if catalog is None:
-            assert catalog is None
-        else:
+        if catalog:
             assert isinstance(catalog, dict) or hasattr(catalog, "sku")
             assert (
                 isinstance(catalog.sku, str)

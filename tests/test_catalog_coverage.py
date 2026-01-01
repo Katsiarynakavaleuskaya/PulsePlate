@@ -298,6 +298,60 @@ class TestSQLiteCatalogProviderCoverage:
         assert info is not None
         assert info.pack_label is None
 
+    def test_get_catalog_info_without_store_id(self, tmp_path: Path) -> None:
+        """Test that get_catalog_info works without store_id (covers else branch)."""
+        db_path = tmp_path / "catalog.sqlite"
+        snapshot = CatalogSnapshot(
+            regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
+            stores=[
+                CatalogStore(
+                    store_id="test_store",
+                    region_id="ES",
+                    name="Test Store",
+                    provider="test",
+                )
+            ],
+            skus=[
+                CatalogSKU(
+                    sku_id="sku1",
+                    store_id="test_store",
+                    ean=None,
+                    name="Product",
+                    brand=None,
+                    aisle=None,
+                    package_size=Decimal("1"),
+                    unit="l",
+                    price=Decimal("5.00"),
+                    currency="EUR",
+                    updated_at=None,
+                )
+            ],
+            aliases=[("product", "sku1")],
+        )
+        write_snapshot(db_path, snapshot)
+
+        provider = SQLiteCatalogProvider(str(db_path))
+        # Call without store_id (covers else branch in _get_sku_by_alias)
+        info = provider.get_catalog_info(
+            food_id="product",
+            region_id="ES",
+            store_id=None,  # No store_id
+        )
+
+        assert info is not None
+        assert info.sku == "sku1"
+
+    def test_get_sku_by_alias_handles_connection_error(self, tmp_path: Path) -> None:
+        """Test that _get_sku_by_alias handles SQLite connection errors."""
+        # Create a directory (not a file) to cause connection error
+        db_path = tmp_path / "catalog.sqlite"
+        db_path.mkdir()  # Create as directory, not file
+
+        provider = SQLiteCatalogProvider(str(db_path))
+        # Should return None on connection error
+        sku = provider._get_sku_by_alias(region_id="ES", alias="test", store_id=None)
+        assert sku is None
+
 
 class TestCatalogAdapterProviderSelection:
     """Tests for _get_provider coverage."""
@@ -362,3 +416,21 @@ class TestCatalogAdapterProviderSelection:
 
         provider = _get_provider()
         assert isinstance(provider, MockCatalogProvider)
+
+    def test_get_provider_sqlite_error_handling(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Test _get_provider error handling when SQLite provider raises ValueError."""
+        reset_catalog_provider_for_tests()
+
+        monkeypatch.setenv("CATALOG_PROVIDER", "sqlite")
+        monkeypatch.setenv("CATALOG_SQLITE_PATH", str(tmp_path / "catalog.sqlite"))
+
+        # Mock the import inside _get_provider to raise ValueError
+        with patch(
+            "app.services.catalog_provider_sqlite.SQLiteCatalogProvider",
+            side_effect=ValueError("Invalid path"),
+        ):
+            provider = _get_provider()
+            # Should fallback to mock
+            assert isinstance(provider, MockCatalogProvider)

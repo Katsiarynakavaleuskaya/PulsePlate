@@ -57,9 +57,8 @@ class MockCatalogProvider:
         """Get catalog info from in-memory data."""
         # Normalize region_id to lowercase (matching data keys)
         region_id_norm = region_id.strip().lower()
-        # Mock implementation:
-        # - If store_id provided: try exact match first, then fallback to any store (fail-soft)
-        # - If store_id not provided: match any store (deterministic)
+
+        # If store_id provided: try exact match first, then fallback to any store (fail-soft)
         if store_id:
             store_id_norm = store_id.strip().lower()
             exact = self.data.get((region_id_norm, store_id_norm, food_id))
@@ -95,7 +94,6 @@ class MockCatalogProvider:
                     provider="mock",
                     meta_json=None,
                 )
-        return list(stores.values())
         return list(stores.values())
 
 

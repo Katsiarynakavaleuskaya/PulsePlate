@@ -50,7 +50,7 @@ class FakeCatalogProvider:
             return CatalogInfoDTO(
                 sku="SKU_TEST_CARROT",
                 store_id=sid,
-                region_id="es",
+                region_id=rid,
                 pack_label="500 G",
                 aisle="Vegetables",
                 price=MoneyDTO(value=Decimal("1.29"), currency=CurrencyDTO.EUR),
