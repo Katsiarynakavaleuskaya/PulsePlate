@@ -179,4 +179,3 @@ def export_shoplist_to_csv(response: ShoplistGenerateResponse) -> str:
         )
 
     return buf.getvalue()
-

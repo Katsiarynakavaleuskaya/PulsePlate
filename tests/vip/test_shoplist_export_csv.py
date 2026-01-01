@@ -164,4 +164,3 @@ def test_vip_shoplist_export_csv_injection_protection(
     # CSV injection protection is tested implicitly:
     # if formulas appear in reason/aisle fields, they should be prefixed with '
     # This test verifies the endpoint works; detailed injection tests are in unit tests
-
