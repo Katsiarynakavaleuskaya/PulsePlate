@@ -86,7 +86,7 @@ docker-compose -f docker-compose.production.yaml up -d --force-recreate
 docker-compose -f docker-compose.production.yaml ps
 
 # 4. Проверить health
-curl -fsS <https://pulseplate.app/health> | jq .
+curl -fsS https://pulseplate.app/health | jq .
 ```
 
 ---
@@ -130,7 +130,7 @@ docker-compose -f docker-compose.production.yaml pull
 docker-compose -f docker-compose.production.yaml up -d --force-recreate
 
 # Проверить
-curl -fsS <https://pulseplate.app/health> | jq .
+curl -fsS https://pulseplate.app/health | jq .
 ```
 
 ---
@@ -203,14 +203,16 @@ docker images | grep pulseplate
 ### 2. Проверить, что контейнер использует новый образ:
 
 ```bash
-docker inspect pulseplate-production_app_1 | grep Image
+# Получить container id сервиса app и посмотреть image
+APP_CID="$(docker-compose -f docker-compose.production.yaml ps -q app)"
+docker inspect "$APP_CID" --format '{{.Config.Image}}'
 # Должен показывать актуальный image ID
 ```
 
 ### 3. Проверить health endpoint:
 
 ```bash
-curl -fsS <https://pulseplate.app/health> | jq .
+curl -fsS https://pulseplate.app/health | jq .
 # Должен показывать актуальные значения:
 # - "environment": "production"
 # - "git_sha": "abc12345" (если GIT_SHA установлен)
@@ -267,8 +269,8 @@ nano .env
 # 3. Перезапустить контейнер
 docker-compose -f docker-compose.production.yaml up -d --force-recreate app
 
-# 4. Проверить env внутри контейнера
-docker exec pulseplate-production_app_1 env | grep -E 'APP_ENV|ENVIRONMENT'
+# 4. Проверить env внутри контейнера (через service name, без хардкода)
+docker-compose -f docker-compose.production.yaml exec -T app env | grep -E 'APP_ENV|ENVIRONMENT'
 ```
 
 ---
