@@ -45,8 +45,8 @@ git push origin main
 
 **Что происходит:**
 1. Push в `main` → триггерит workflow
-2. Workflow собирает Docker image
-3. Image пушится в GHCR: `ghcr.io/katsiarynakavaleuskaya/pulseplate:latest`
+2. CI собирает Docker image
+3. Образ пушится в GHCR: `ghcr.io/katsiarynakavaleuskaya/pulseplate:latest`
 
 **Проверка:**
 - Зайди в GitHub → Actions → проверь, что workflow зелёный
