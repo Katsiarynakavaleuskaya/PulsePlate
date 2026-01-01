@@ -64,7 +64,9 @@ class TestShortGitSha:
         """Test that sha256: prefix is stripped correctly."""
         # Valid long hex
         assert (
-            _short_git_sha("sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890")  # pragma: allowlist secret
+            _short_git_sha(
+                "sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+            )  # pragma: allowlist secret
             == "abcd12345678"  # pragma: allowlist secret
         )
         # Too short after stripping
@@ -76,10 +78,8 @@ class TestShortGitSha:
         """Test that repo@sha256: format is handled correctly."""
         # Valid repo digest
         assert (
-            _short_git_sha(
-                "ghcr.io/user/repo@sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890"  # pragma: allowlist secret
-            )
-            == "abcd12345678"
+            _short_git_sha("ghcr.io/user/repo@sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890")  # pragma: allowlist secret
+            == "abcd12345678"  # pragma: allowlist secret
         )
         # Too short after stripping
         assert _short_git_sha("ghcr.io/user/repo@sha256:123") == "unknown"
