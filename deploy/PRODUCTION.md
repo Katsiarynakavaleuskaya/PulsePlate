@@ -31,18 +31,30 @@ On the production server:
   - `.env` (application runtime env; not committed)
 - Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
 
-Example `docker-compose.yml`:
+Example `docker-compose.production.yaml`:
 
 ```yaml
 services:
   app:
     image: ${IMAGE_REF:?IMAGE_REF is required}
     restart: unless-stopped
-    ports: ["8000:8000"]
+    networks: [web]
+    expose: ["8000"]  # Internal only, accessed via Caddy
     env_file: [".env"]
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --proxy-headers
+      --proxy-headers --forwarded-allow-ips="caddy"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    networks: [web]
+    ports: ["80:80", "443:443"]  # Public ports for Cloudflare
+    volumes:
+      - /srv/pulseplate-production/Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [app]
 ```
 
 ## GitHub Environment + Secrets
