@@ -44,11 +44,11 @@ class TestShortGitSha:
         """Test that valid plain hex strings return first 12 chars."""
         assert (
             _short_git_sha("f4c8b72e593f1234567890abcdef")  # pragma: allowlist secret
-            == "f4c8b72e593f"
+            == "f4c8b72e593f"  # pragma: allowlist secret
         )
         assert (
             _short_git_sha("abcd1234567890abcdef1234567890")  # pragma: allowlist secret
-            == "abcd12345678"
+            == "abcd12345678"  # pragma: allowlist secret
         )
         # Exactly 12 chars
         assert _short_git_sha("abcd12345678") == "abcd12345678"  # pragma: allowlist secret
@@ -64,7 +64,9 @@ class TestShortGitSha:
         """Test that sha256: prefix is stripped correctly."""
         # Valid long hex
         assert (
-            _short_git_sha("sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890")  # pragma: allowlist secret
+            _short_git_sha(
+                "sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+            )  # pragma: allowlist secret
             == "abcd12345678"
         )
         # Too short after stripping
@@ -102,20 +104,20 @@ class TestShortGitSha:
         """Test that uppercase hex is accepted."""
         assert (
             _short_git_sha("ABCD1234567890ABCDEF1234567890")  # pragma: allowlist secret
-            == "ABCD12345678"
+            == "ABCD12345678"  # pragma: allowlist secret
         )
         assert (
             _short_git_sha("F4C8B72E593F1234567890ABCDEF")  # pragma: allowlist secret
-            == "F4C8B72E593F"
+            == "F4C8B72E593F"  # pragma: allowlist secret
         )
 
     def test_short_git_sha_mixed_case_hex(self) -> None:
         """Test that mixed case hex is accepted."""
         assert (
             _short_git_sha("AbCd1234567890aBcDeF1234567890")  # pragma: allowlist secret
-            == "AbCd12345678"
+            == "AbCd12345678"  # pragma: allowlist secret
         )
         assert (
             _short_git_sha("f4C8b72E593F1234567890aBcDeF")  # pragma: allowlist secret
-            == "f4C8b72E593F"
+            == "f4C8b72E593F"  # pragma: allowlist secret
         )
