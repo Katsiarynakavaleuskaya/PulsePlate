@@ -84,7 +84,9 @@ def test_generate_with_region_store_attaches_catalog(
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
     # Contract: catalog must not be None when region/store provided
-    assert catalog is not None, "Catalog enrichment should always attach metadata when region/store provided"
+    assert (
+        catalog is not None
+    ), "Catalog enrichment should always attach metadata when region/store provided"
     assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
     assert catalog["store_id"] == "carrefour_es"
     assert "sku" in catalog
@@ -114,7 +116,9 @@ def test_daily_with_enrichment_applies_to_response(
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
     # Contract: catalog must not be None when region/store provided
-    assert catalog is not None, "Catalog enrichment should always attach metadata when region/store provided"
+    assert (
+        catalog is not None
+    ), "Catalog enrichment should always attach metadata when region/store provided"
     assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
 
 
@@ -143,5 +147,3 @@ def test_generate_with_uppercase_region_id_normalizes_to_lowercase(
     assert catalog is not None
     # Contract: region_id always lowercase in response
     assert catalog["region_id"] == "es", f"Expected lowercase 'es', got '{catalog['region_id']}'"
-
-

@@ -95,7 +95,7 @@ curl -fsS https://pulseplate.app/health | jq .
 {
   "status": "ok",
   "version": "1.0.0",
-  "git_sha": "f4c8b72e593f",
+  "git_sha": "f4c8b72e593f",  # pragma: allowlist secret
   "timestamp": "2026-01-01T13:27:54.215248+00:00",
   "environment": "production"
 }
@@ -155,7 +155,7 @@ curl -fsS https://pulseplate.app/health | jq .
 {
   "status": "ok",
   "version": "1.0.0",
-  "git_sha": "f4c8b72e593f",
+  "git_sha": "f4c8b72e593f",  # pragma: allowlist secret
   "timestamp": "2026-01-01T13:27:54.215248+00:00",
   "environment": "production"
 }
@@ -249,7 +249,7 @@ curl -fsS https://pulseplate.app/health | jq .
 {
   "status": "ok",
   "version": "1.0.0",
-  "git_sha": "f4c8b72e593f",
+  "git_sha": "f4c8b72e593f",  # pragma: allowlist secret
   "timestamp": "2026-01-01T13:27:54.215248+00:00",
   "environment": "production"
 }
