@@ -8,6 +8,7 @@ Contract:
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Annotated, Any, Optional, Protocol, cast
 
@@ -34,7 +35,6 @@ from app.schemas.vip_shoplist import (
 )
 from app.services.catalog_adapter import CatalogProvider, _get_provider, enrich_shoplist_response
 from app.services.shoplist_export.csv_export import export_shoplist_to_csv
-from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from core.shoplist_engine.models import (
@@ -49,6 +49,8 @@ from core.shoplist_engine.models import (
 )
 from core.shoplist_engine.packager import PackagingResult
 from core.shoplist_preview.preview_service import build_preview
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 
@@ -552,6 +554,8 @@ async def vip_shoplist_export(
         )
     else:  # pdf
         try:
+            from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
+
             pdf_data = export_shoplist_to_pdf(result)
             return Response(
                 content=pdf_data,
@@ -559,9 +563,10 @@ async def vip_shoplist_export(
                 headers={"Content-Disposition": 'attachment; filename="shoplist.pdf"'},
             )
         except ImportError as e:
+            logger.exception("PDF export is not available")
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"PDF export is not available: {e}",
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="PDF export is not available",
             ) from e
 
 
