@@ -19,7 +19,11 @@ from app.schemas.vip_shoplist import (
     ShoplistGenerateResponse,
     UnpackedLineDTO,
 )
-from app.services.catalog_adapter import MockCatalogProvider, enrich_shoplist_response, reset_catalog_provider_for_tests
+from app.services.catalog_adapter import (
+    MockCatalogProvider,
+    enrich_shoplist_response,
+    reset_catalog_provider_for_tests,
+)
 from core.catalog.provider import CatalogProvider
 
 

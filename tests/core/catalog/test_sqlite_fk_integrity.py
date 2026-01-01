@@ -37,9 +37,7 @@ def test_sku_aliases_has_fk_region_id_to_regions_region_id(tmp_path: Path) -> No
 
     # Create minimal valid snapshot to trigger schema creation
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -72,7 +70,11 @@ def test_sku_aliases_has_fk_region_id_to_regions_region_id(tmp_path: Path) -> No
     conn = sqlite3.connect(str(db_path))
     try:
         fks = _fk_targets(conn, "sku_aliases")
-        assert ("region_id", "regions", "region_id") in fks, "FK sku_aliases.region_id -> regions.region_id must exist"
+        assert (
+            "region_id",
+            "regions",
+            "region_id",
+        ) in fks, "FK sku_aliases.region_id -> regions.region_id must exist"
     finally:
         conn.close()
 
@@ -120,7 +122,9 @@ def test_fk_enforced_unknown_region_in_alias_fails(tmp_path: Path) -> None:
 
     # Expect FK error when trying to insert alias for missing region
     # Note: This will fail at store insertion (store.region_id FK) or alias insertion (alias.region_id FK)
-    with pytest.raises((sqlite3.IntegrityError, ValueError), match="Unknown|foreign key|FOREIGN KEY"):
+    with pytest.raises(
+        (sqlite3.IntegrityError, ValueError), match="Unknown|foreign key|FOREIGN KEY"
+    ):
         write_snapshot(db_path, snapshot)
 
 
@@ -134,9 +138,7 @@ def test_fk_enforced_unknown_sku_id_in_alias_fails(tmp_path: Path) -> None:
 
     # Create snapshot with alias referencing non-existent sku_id
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -153,7 +155,9 @@ def test_fk_enforced_unknown_sku_id_in_alias_fails(tmp_path: Path) -> None:
     )
 
     # Expect FK error when trying to insert alias for missing sku_id
-    with pytest.raises((sqlite3.IntegrityError, ValueError), match="Unknown sku_id|foreign key|FOREIGN KEY"):
+    with pytest.raises(
+        (sqlite3.IntegrityError, ValueError), match="Unknown sku_id|foreign key|FOREIGN KEY"
+    ):
         write_snapshot(db_path, snapshot)
 
 
@@ -167,9 +171,7 @@ def test_fk_enforced_unknown_store_id_in_sku_fails(tmp_path: Path) -> None:
 
     # Create snapshot with SKU referencing non-existent store_id
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[],  # <- нет store
         skus=[
             CatalogSKU(
@@ -193,4 +195,3 @@ def test_fk_enforced_unknown_store_id_in_sku_fails(tmp_path: Path) -> None:
     # This should be caught by our validation (ValueError) before FK check
     with pytest.raises(ValueError, match="Unknown store_id"):
         write_snapshot(db_path, snapshot)
-

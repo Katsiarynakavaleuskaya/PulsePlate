@@ -118,8 +118,14 @@ def _seed_two_skus_same_alias(path: Path) -> None:
 
         # Один alias в sku_aliases → связывает alias с конкретным sku_id.
         # Чтобы смоделировать "alias ведёт на несколько SKU", мы вставим ДВЕ строки с одинаковым alias.
-        conn.execute("INSERT INTO sku_aliases(region_id, alias, sku_id) VALUES (?, ?, ?)", ("ES", "carrot", "SKU_A"))
-        conn.execute("INSERT INTO sku_aliases(region_id, alias, sku_id) VALUES (?, ?, ?)", ("ES", "carrot", "SKU_B"))
+        conn.execute(
+            "INSERT INTO sku_aliases(region_id, alias, sku_id) VALUES (?, ?, ?)",
+            ("ES", "carrot", "SKU_A"),
+        )
+        conn.execute(
+            "INSERT INTO sku_aliases(region_id, alias, sku_id) VALUES (?, ?, ?)",
+            ("ES", "carrot", "SKU_B"),
+        )
 
         conn.commit()
     finally:
@@ -179,4 +185,3 @@ def test_no_store_id_returns_deterministic_first_sku(tmp_path: Path) -> None:
     info = p.get_catalog_info(food_id="carrot", region_id="es")
     assert info is not None
     assert info.sku == "SKU_A"
-

@@ -34,9 +34,7 @@ def test_sqlite_provider_fallback_to_any_store_when_exact_match_not_found(
 
     # Create snapshot with SKU in different store
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -111,9 +109,7 @@ def test_sqlite_provider_prefers_exact_store_match(tmp_path: Path) -> None:
     db_path = tmp_path / "catalog.sqlite"
 
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")
-        ],
+        regions=[CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")],
         stores=[
             CatalogStore(
                 store_id="store_a",
@@ -176,4 +172,3 @@ def test_sqlite_provider_prefers_exact_store_match(tmp_path: Path) -> None:
     assert info is not None
     assert info.sku == "sku_a"
     assert info.store_id == "store_a"
-

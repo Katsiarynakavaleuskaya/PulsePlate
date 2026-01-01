@@ -29,9 +29,7 @@ def test_store_aware_lookup_prefers_store_specific(tmp_path: Path) -> None:
     # - alias "milk" -> SKU_MILK_WALMART (store=walmart_us_main)
     # - alias "milk" -> SKU_MILK_GENERIC (store=carrefour_es_main)
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")
-        ],
+        regions=[CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")],
         stores=[
             CatalogStore(
                 store_id="walmart_us_main",
@@ -102,9 +100,7 @@ def test_store_aware_lookup_fallback_to_any_store(tmp_path: Path) -> None:
 
     # Create snapshot with only one SKU for alias
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")
-        ],
+        regions=[CatalogRegion(region_id="ES", country="ES", currency="EUR", locale="es-ES")],
         stores=[
             CatalogStore(
                 store_id="carrefour_es_main",
@@ -153,9 +149,7 @@ def test_store_aware_lookup_deterministic_when_no_store_id(tmp_path: Path) -> No
 
     # Create snapshot with multiple SKUs for same alias
     snapshot = CatalogSnapshot(
-        regions=[
-            CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")
-        ],
+        regions=[CatalogRegion(region_id="US", country="US", currency="USD", locale="en-US")],
         stores=[
             CatalogStore(
                 store_id="store_a",
@@ -216,4 +210,3 @@ def test_store_aware_lookup_deterministic_when_no_store_id(tmp_path: Path) -> No
     assert info2 is not None
     assert info1.sku == info2.sku  # Deterministic
     assert info1.sku == "SKU_A"  # First by sku_id ASC
-
