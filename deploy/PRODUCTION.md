@@ -29,7 +29,9 @@ On the production server:
 - A deploy directory containing:
   - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
   - `.env` (application runtime env; not committed)
+  - `Caddyfile.production` (Caddy reverse proxy config)
 - Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
+- **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
 
 Example `docker-compose.production.yaml`:
 
@@ -55,6 +57,83 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [app]
+```
+
+## Firewall Setup (Critical!)
+
+**RU: Критически важно открыть порты 80 и 443 для Caddy.**
+**EN: Critical: Ports 80 and 443 must be open for Caddy.**
+
+### UFW (Ubuntu/Debian)
+
+```bash
+# Install UFW if not present
+sudo apt install -y ufw
+
+# Allow SSH (verify your SSH port first!)
+SSH_PORT=$(grep -E "^Port " /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}' || echo "22")
+sudo ufw allow ${SSH_PORT}/tcp
+
+# Allow HTTP and HTTPS (REQUIRED for Caddy)
+sudo ufw allow 80/tcp   # HTTP
+sudo ufw allow 443/tcp  # HTTPS
+
+# Enable firewall
+sudo ufw --force enable
+
+# Verify firewall status
+sudo ufw status
+```
+
+Expected output should show:
+```
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW       Anywhere
+80/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
+```
+
+### DigitalOcean Firewall (if using DO Firewall)
+
+In DigitalOcean Control Panel → Networking → Firewalls:
+
+1. Create or edit firewall rules
+2. Add inbound rules:
+   - **HTTP**: Port 80, Protocol TCP, Source: All IPv4, All IPv6
+   - **HTTPS**: Port 443, Protocol TCP, Source: All IPv4, All IPv6
+   - **SSH**: Port 22 (or your custom port), Protocol TCP, Source: Your IP (recommended)
+
+### Verify Ports Are Open
+
+```bash
+# Check if ports are listening (from server)
+sudo netstat -tlnp | grep -E ':(80|443)'
+# OR
+sudo ss -tlnp | grep -E ':(80|443)'
+
+# Expected output should show Caddy listening:
+# tcp  0  0 0.0.0.0:80  0.0.0.0:*  LISTEN  <pid>/caddy
+# tcp  0  0 0.0.0.0:443 0.0.0.0:*  LISTEN  <pid>/caddy
+
+# Test from external machine (replace with your domain)
+curl -I http://your-domain.com/health
+curl -I https://your-domain.com/health
+```
+
+### Verify Caddy Container
+
+```bash
+# Check Caddy container is running
+docker compose ps caddy
+
+# Check Caddy logs
+docker compose logs caddy
+
+# Verify Caddy is proxying to app:8000
+docker compose exec caddy cat /etc/caddy/Caddyfile
 ```
 
 ## GitHub Environment + Secrets
@@ -96,13 +175,20 @@ High-level steps (run on the production server):
 
 ## Post-merge checklist (first production auto-deploy)
 
-1. Ensure the production server deploy directory contains the compose file + `.env`.
-2. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
-3. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
-4. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
-5. Approve the deploy job in the GitHub `production` environment prompt.
-6. Verify `/health` via `https://$PRODUCTION_DOMAIN/health` and confirm the running container uses the
-   expected `ghcr.io/<owner>/<repo>@sha256:...` digest.
+1. **Firewall**: Ensure ports 80 and 443 are open (see Firewall Setup above).
+2. Ensure the production server deploy directory contains:
+   - compose file (`docker-compose.production.yaml`)
+   - `.env` (application runtime env)
+   - `Caddyfile.production` (copied from `deploy/Caddyfile.production`)
+3. Ensure the compose file uses `IMAGE_REF` (preferred) or `TAG` (backwards-compatible).
+4. Wait for a successful Nightly run on `main`, then create and push a new semver tag (e.g. `v0.2.2`).
+5. Ensure `PROD_DEPLOY_MODE` is set (`self-hosted` recommended).
+6. Approve the deploy job in the GitHub `production` environment prompt.
+7. **Verify deployment**:
+   - Check Caddy container: `docker compose ps caddy`
+   - Check ports: `sudo ss -tlnp | grep -E ':(80|443)'`
+   - Verify health: `curl -I https://$PRODUCTION_DOMAIN/health`
+   - Confirm container digest: `docker compose exec app cat /app/.git/HEAD` (or check image digest)
 
 ## Rollback
 
