@@ -14,10 +14,9 @@ import sqlite3
 from pathlib import Path
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
-from app.services.catalog_adapter import CatalogProvider
 from core.catalog.normalize.alias import norm_alias
 from core.catalog.normalize.common import parse_decimal
-from core.catalog.provider import CatalogSKU, CatalogStore
+from core.catalog.provider import CatalogProvider, CatalogSKU, CatalogStore
 
 
 class SQLiteCatalogProvider(CatalogProvider):
@@ -26,7 +25,7 @@ class SQLiteCatalogProvider(CatalogProvider):
     EN: Read-only provider used by adapter layer; no network, fail-soft.
     """
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str | Path) -> None:
         """
         Args:
             path: Path to SQLite database file
@@ -41,7 +40,7 @@ class SQLiteCatalogProvider(CatalogProvider):
         *,
         food_id: str,
         region_id: str,
-        store_id: str,
+        store_id: str | None = None,
     ) -> CatalogInfoDTO | None:
         """
         RU: Получить каталожную информацию для food_id в регионе/магазине.
@@ -49,14 +48,17 @@ class SQLiteCatalogProvider(CatalogProvider):
 
         Args:
             food_id: Food identifier (used as alias)
-            region_id: Region identifier (e.g., "es", "us")
-            store_id: Store identifier (e.g., "carrefour_es", "walmart_us")
+            region_id: Region identifier (e.g., "es", "us") - will be normalized to uppercase
+            store_id: Optional store identifier
 
         Returns:
             CatalogInfoDTO if found, None otherwise (fail-soft)
         """
-        sku = self._get_sku_by_alias(region_id=region_id, alias=food_id)
-        if not sku:
+        # Normalize region_id (e.g., "es" -> "ES")
+        region_id_norm = region_id.strip().upper()
+
+        sku = self._get_sku_by_alias(region_id=region_id_norm, alias=food_id, store_id=store_id)
+        if sku is None:
             return None
 
         # Convert core.CatalogSKU to app.schemas.CatalogInfoDTO
@@ -64,12 +66,10 @@ class SQLiteCatalogProvider(CatalogProvider):
         if sku.price is not None:
             try:
                 currency = CurrencyDTO(sku.currency)
-            except ValueError:
-                # Unknown currency -> skip price
-                currency = None
-
-            if currency:
                 price = MoneyDTO(value=sku.price, currency=currency)
+            except ValueError:
+                # Unknown currency -> skip price (fail-soft)
+                price = None
 
         # Build pack_label from package_size and unit
         pack_label: str | None = None
@@ -79,20 +79,23 @@ class SQLiteCatalogProvider(CatalogProvider):
         return CatalogInfoDTO(
             sku=sku.sku_id,
             store_id=sku.store_id,
-            region_id=region_id,  # Use provided region_id
+            region_id=region_id_norm,
             pack_label=pack_label,
             aisle=sku.aisle,
             price=price,
         )
 
-    def _get_sku_by_alias(self, *, region_id: str, alias: str) -> CatalogSKU | None:
+    def _get_sku_by_alias(
+        self, *, region_id: str, alias: str, store_id: str | None = None
+    ) -> CatalogSKU | None:
         """
         RU: Найти SKU по alias (food_id, EAN, или название).
         EN: Find SKU by alias (food_id, EAN, or name).
 
         Args:
-            region_id: Region identifier
+            region_id: Region identifier (already normalized to uppercase)
             alias: Food ID, EAN, or name to search
+            store_id: Optional store filter
 
         Returns:
             CatalogSKU if found, None otherwise (fail-soft)
@@ -100,24 +103,41 @@ class SQLiteCatalogProvider(CatalogProvider):
         if not self._path.exists():
             return None
 
-        # Open read-only (SQLite URI mode)
+        # Open read-only (SQLite URI mode) with timeout
         uri = f"file:{self._path.as_posix()}?mode=ro"
         try:
-            conn = sqlite3.connect(uri, uri=True)
+            conn = sqlite3.connect(uri, uri=True, timeout=1.0)
         except sqlite3.Error:
             return None
 
         try:
-            row = conn.execute(
-                """
-                SELECT s.sku_id, s.store_id, s.ean, s.name, s.brand, s.aisle,
-                       s.package_size, s.unit, s.price, s.currency, s.updated_at
-                FROM sku_aliases a
-                JOIN skus s ON s.sku_id = a.sku_id
-                WHERE a.region_id = ? AND a.alias = ?
-                """,
-                (region_id, norm_alias(alias)),
-            ).fetchone()
+            alias_norm = norm_alias(alias)
+
+            # Filter by store_id if provided
+            if store_id:
+                row = conn.execute(
+                    """
+                    SELECT s.sku_id, s.store_id, s.ean, s.name, s.brand, s.aisle,
+                           s.package_size, s.unit, s.price, s.currency, s.updated_at
+                    FROM sku_aliases a
+                    JOIN skus s ON s.sku_id = a.sku_id
+                    WHERE a.region_id = ? AND a.alias = ? AND s.store_id = ?
+                    LIMIT 1
+                    """,
+                    (region_id, alias_norm, store_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT s.sku_id, s.store_id, s.ean, s.name, s.brand, s.aisle,
+                           s.package_size, s.unit, s.price, s.currency, s.updated_at
+                    FROM sku_aliases a
+                    JOIN skus s ON s.sku_id = a.sku_id
+                    WHERE a.region_id = ? AND a.alias = ?
+                    LIMIT 1
+                    """,
+                    (region_id, alias_norm),
+                ).fetchone()
 
             if row is None:
                 return None
@@ -149,7 +169,7 @@ class SQLiteCatalogProvider(CatalogProvider):
         EN: List stores in region.
 
         Args:
-            region_id: Region identifier
+            region_id: Region identifier (will be normalized to uppercase)
 
         Returns:
             List of stores (empty if region not found or file missing)
@@ -157,16 +177,19 @@ class SQLiteCatalogProvider(CatalogProvider):
         if not self._path.exists():
             return []
 
+        # Normalize region_id
+        region_id_norm = region_id.strip().upper()
+
         uri = f"file:{self._path.as_posix()}?mode=ro"
         try:
-            conn = sqlite3.connect(uri, uri=True)
+            conn = sqlite3.connect(uri, uri=True, timeout=1.0)
         except sqlite3.Error:
             return []
 
         try:
             rows = conn.execute(
                 "SELECT store_id, region_id, name, provider, meta_json FROM stores WHERE region_id = ?",
-                (region_id,),
+                (region_id_norm,),
             ).fetchall()
             return [
                 CatalogStore(
@@ -182,5 +205,3 @@ class SQLiteCatalogProvider(CatalogProvider):
             return []
         finally:
             conn.close()
-
-

@@ -13,7 +13,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Protocol, Sequence
+from typing import TYPE_CHECKING, Protocol, Sequence
+
+if TYPE_CHECKING:
+    from app.schemas.catalog import CatalogInfoDTO
 
 
 @dataclass(frozen=True)
@@ -110,24 +113,24 @@ class CatalogProvider(Protocol):
     Providers are used by adapter layer at runtime (no I/O, no network).
     """
 
-    def get_sku_by_alias(
+    def get_catalog_info(
         self,
         *,
+        food_id: str,
         region_id: str,
-        alias: str,
         store_id: str | None = None,
-    ) -> CatalogSKU | None:
+    ) -> CatalogInfoDTO | None:
         """
-        RU: Найти SKU по alias (food_id, EAN, или название).
-        EN: Find SKU by alias (food_id, EAN, or name).
+        RU: Получить каталожную информацию для food_id в регионе/магазине.
+        EN: Get catalog info for food_id in region/store.
 
         Args:
+            food_id: Food identifier (used as alias)
             region_id: Region identifier (e.g., "es", "us")
-            alias: Food ID, EAN, or name to search
-            store_id: Optional store filter
+            store_id: Optional store identifier
 
         Returns:
-            CatalogSKU if found, None otherwise (fail-soft)
+            CatalogInfoDTO if found, None otherwise (fail-soft)
         """
         ...
 

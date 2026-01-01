@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Mapping, Optional, Protocol
+from typing import Mapping, Optional
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
@@ -26,36 +26,13 @@ from app.schemas.vip_shoplist import (
     ShoplistGenerateResponse,
     UnpackedLineDTO,
 )
+from core.catalog.provider import CatalogProvider, CatalogStore
 
 logger = logging.getLogger(__name__)
 
 # ----------------------------
 # Provider interface (mock-first)
 # ----------------------------
-
-
-class CatalogProvider(Protocol):
-    """
-    RU: Контракт провайдера каталога. В PR-6 — только mock.
-    EN: Catalog provider contract. PR-6 uses mock only.
-
-    Future PR-7 will implement real loaders (Carrefour/Walmart) behind this interface.
-    """
-
-    def get_catalog_info(
-        self,
-        *,
-        food_id: str,
-        region_id: str,
-        store_id: str,
-    ) -> Optional[CatalogInfoDTO]:
-        """
-        RU: Получить каталожную информацию для food_id в регионе/магазине.
-        EN: Get catalog info for food_id in region/store.
-
-        Returns None if not found (fail-soft).
-        """
-        ...
 
 
 @dataclass(frozen=True)
@@ -75,10 +52,42 @@ class MockCatalogProvider:
         *,
         food_id: str,
         region_id: str,
-        store_id: str,
+        store_id: str | None = None,
     ) -> Optional[CatalogInfoDTO]:
         """Get catalog info from in-memory data."""
-        return self.data.get((region_id, store_id, food_id))
+        # Normalize region_id for consistency
+        region_id_norm = region_id.strip().upper()
+        # Mock implementation: if store_id provided, use it; otherwise match any
+        if store_id:
+            return self.data.get((region_id_norm, store_id, food_id))
+        # Try to find any store for this region
+        for (r, s, f), catalog in self.data.items():
+            if r == region_id_norm and f == food_id:
+                return catalog
+        return None
+
+    def list_stores(self, *, region_id: str) -> list[CatalogStore]:
+        """
+        RU: Список магазинов в регионе (mock implementation).
+        EN: List stores in region (mock implementation).
+
+        Returns empty list for mock provider.
+        """
+        from core.catalog.provider import CatalogStore
+
+        # Extract unique stores from mock data for this region
+        region_id_norm = region_id.strip().upper()
+        stores: dict[str, CatalogStore] = {}
+        for (r, store_id, _), catalog in self.data.items():
+            if r == region_id_norm and store_id not in stores:
+                stores[store_id] = CatalogStore(
+                    store_id=store_id,
+                    region_id=region_id_norm,
+                    name=f"Mock Store {store_id}",
+                    provider="mock",
+                    meta_json=None,
+                )
+        return list(stores.values())
 
 
 def build_default_mock_provider() -> MockCatalogProvider:
