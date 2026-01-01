@@ -5,6 +5,7 @@ RU: Сервис доступа к FoodDB (SQLite) с FTS и алиасами.
 EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
 
+from contextlib import contextmanager
 import csv
 import sqlite3
 from pathlib import Path
@@ -48,15 +49,22 @@ DEFAULT_ALIASES: Dict[str, List[str]] = {
 }
 
 
-def _safe_float(value: Any) -> float:
+def _safe_float(value: int | float | str | None) -> float:
     """Best-effort float conversion; returns 0.0 on None/non-numeric.
 
     RU: Безопасное приведение к float; возвращает 0.0 для None/нечисловых значений.
     """
-    try:
-        return float(value)
-    except (TypeError, ValueError):
+    if value is None:
         return 0.0
+
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
 
 
 def _validate_csv_quotes(csv_path: Path, is_production: bool) -> bool:
@@ -341,10 +349,14 @@ def expand_query(q: str) -> List[str]:
     return list(terms)
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
-    return con
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def _validate_pagination_params(limit: int | str, offset: int | str) -> tuple[int, int]:
@@ -467,7 +479,7 @@ def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Optional[Tuple[str, 
     return (food_id, grams)
 
 
-def _safe_per_g(per_g_raw: Any, food_id: str) -> float:
+def _safe_per_g(per_g_raw: object, food_id: str) -> float:
     """
     Safely parse per_g value with fallback to DEFAULT_PER_G.
 
@@ -475,22 +487,37 @@ def _safe_per_g(per_g_raw: Any, food_id: str) -> float:
     EN: Safely parses per_g with fallback to DEFAULT_PER_G on error.
 
     Args:
-        per_g_raw: Raw per_g value from food row
+        per_g_raw: Raw per_g value from food row (can be any type from DB)
         food_id: Food identifier for logging
 
     Returns:
         Parsed per_g value or DEFAULT_PER_G if invalid/zero
     """
-    try:
+    if per_g_raw is None:
+        return DEFAULT_PER_G
+
+    if isinstance(per_g_raw, (int, float)):
         per_g = float(per_g_raw)
-    except (TypeError, ValueError):
+    elif isinstance(per_g_raw, str):
+        try:
+            per_g = float(per_g_raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "nutrients_for: per_g invalid for food_id=%s (value=%r); defaulting to %s",
+                food_id,
+                per_g_raw,
+                DEFAULT_PER_G,
+            )
+            return DEFAULT_PER_G
+    else:
         logger.warning(
-            "nutrients_for: per_g invalid for food_id=%s (value=%r); defaulting to %s",
+            "nutrients_for: per_g has unsupported type for food_id=%s (value=%r); defaulting to %s",
             food_id,
             per_g_raw,
             DEFAULT_PER_G,
         )
         return DEFAULT_PER_G
+
     if per_g == 0.0:
         logger.warning(
             "nutrients_for: per_g is zero for food_id=%s; defaulting to %s to avoid division by zero",

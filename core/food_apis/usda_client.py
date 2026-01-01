@@ -20,7 +20,16 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import httpx
 
+from ._testing import is_test_runtime
+
 logger = logging.getLogger(__name__)
+
+
+def _log_network_error(context: str, exc: Exception) -> None:
+    if is_test_runtime():
+        logger.info("External HTTP blocked in tests: %s", context)
+        return
+    logger.error("External HTTP error %s: %s", context, exc, exc_info=True)
 
 
 @dataclass
@@ -105,7 +114,7 @@ class USDAClient:
         Sequence[Union[str, int, float, bool, None]],
     ]
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None) -> None:
         """
         Initialize USDA client.
 
@@ -186,7 +195,7 @@ class USDAClient:
             return foods
 
         except Exception as e:
-            logger.error(f"Error searching USDA foods for '{query}': {e}")
+            _log_network_error(f"USDA search foods query={query!r}", e)
             return []
 
     async def get_food_details(self, fdc_id: int) -> Optional[USDAFoodItem]:
@@ -211,7 +220,7 @@ class USDAClient:
             return self._parse_food_item(data)
 
         except Exception as e:
-            logger.error(f"Error getting USDA food details for FDC ID {fdc_id}: {e}")
+            _log_network_error(f"USDA food details fdc_id={fdc_id!r}", e)
             return None
 
     async def get_multiple_foods(self, fdc_ids: List[int]) -> List[USDAFoodItem]:
@@ -246,10 +255,10 @@ class USDAClient:
             return foods
 
         except Exception as e:
-            logger.error(f"Error getting multiple USDA foods: {e}")
+            _log_network_error(f"USDA multiple foods fdc_ids_count={len(fdc_ids)}", e)
             return []
 
-    def _validate_fdc_id(self, fdc_id_raw: Any) -> Optional[int]:
+    def _validate_fdc_id(self, fdc_id_raw: object) -> Optional[int]:
         """
         RU: Валидирует и нормализует FDC ID.
         EN: Validates and normalizes FDC ID.
@@ -335,9 +344,18 @@ class USDAClient:
             logger.error(f"Error parsing USDA food item: {e}")
             return None
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
-        await self.client.aclose()
+        try:
+            await self.client.aclose()
+        except RuntimeError as e:
+            # Mirror OFFClient.close: suppress only when the loop is already closed.
+            # (This can happen during interpreter shutdown / pytest teardown.)
+            error_msg = str(e).lower()
+            if "event loop" in error_msg and "closed" in error_msg:
+                logger.debug("RuntimeError during USDA client close (event loop closed): %s", e)
+                return
+            raise
 
 
 # Convenience functions for common foods
@@ -396,7 +414,7 @@ async def get_common_foods_database() -> Dict[str, USDAFoodItem]:
 
 if __name__ == "__main__":  # pragma: no cover
     # Test the USDA client
-    async def test_usda_client():
+    async def test_usda_client() -> None:
         client = USDAClient()
 
         try:

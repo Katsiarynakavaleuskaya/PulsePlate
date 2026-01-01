@@ -48,16 +48,23 @@ class SQLiteCatalogProvider(CatalogProvider):
 
         Args:
             food_id: Food identifier (used as alias)
-            region_id: Region identifier (e.g., "es", "us") - will be normalized to uppercase
+            region_id: Region identifier (e.g., "es", "us") - will be normalized for lookup
             store_id: Optional store identifier
 
         Returns:
             CatalogInfoDTO if found, None otherwise (fail-soft)
-        """
-        # Normalize region_id (e.g., "es" -> "ES")
-        region_id_norm = region_id.strip().upper()
 
-        sku = self._get_sku_by_alias(region_id=region_id_norm, alias=food_id, store_id=store_id)
+        Contract:
+            - Lookup uses UPPER (matches snapshot schema/ids)
+            - DTO output uses lowercase (stable API surface for UI/i18n)
+        """
+        # Contract:
+        # - lookup uses UPPER (matches snapshot schema/ids)
+        # - DTO output uses lowercase (stable API surface for UI/i18n)
+        region_lookup = region_id.strip().upper()
+        region_out = region_id.strip().lower()
+
+        sku = self._get_sku_by_alias(region_id=region_lookup, alias=food_id, store_id=store_id)
         if sku is None:
             return None
 
@@ -79,7 +86,7 @@ class SQLiteCatalogProvider(CatalogProvider):
         return CatalogInfoDTO(
             sku=sku.sku_id,
             store_id=sku.store_id,
-            region_id=region_id_norm,
+            region_id=region_out,
             pack_label=pack_label,
             aisle=sku.aisle,
             price=price,

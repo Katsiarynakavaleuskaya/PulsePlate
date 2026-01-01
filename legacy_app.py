@@ -5,6 +5,7 @@ import logging
 import math
 import ipaddress
 import os
+import re
 import secrets
 import sys
 import threading
@@ -1815,6 +1816,46 @@ async def favicon() -> Response:
     return Response(status_code=204)
 
 
+# Regex for validating hex digest
+_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+def _short_git_sha(raw: str | None) -> str:
+    """
+    RU: Нормализует git SHA / image digest для /health.
+    EN: Normalize git sha / image digest for /health.
+
+    Accepts:
+      - "sha256:<digest>"
+      - "ghcr.io/...@sha256:<digest>"
+      - "<sha>"
+    Returns:
+      - first 12 hex chars when possible, "unknown" if empty/invalid
+    """
+    if not raw:
+        return "unknown"
+
+    s = raw.strip()
+    if not s:
+        return "unknown"
+
+    # If this is a repo digest, keep only the digest part after '@'
+    if "@sha256:" in s:
+        s = s.split("@sha256:", 1)[1]
+    elif s.startswith("sha256:"):
+        s = s.split("sha256:", 1)[1]
+
+    s = s.strip()
+    if not s:
+        return "unknown"
+
+    # Validate hex digest (reasonable minimum length)
+    if len(s) < 12 or not _HEX_RE.fullmatch(s):
+        return "unknown"
+
+    return s[:12]
+
+
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     """Health check endpoint with version info for debugging.
@@ -1824,9 +1865,6 @@ async def health() -> Dict[str, Any]:
     """
     import datetime
 
-    # Get git SHA if available (for version tracking)
-    git_sha = (os.getenv("GIT_SHA") or "unknown").strip()
-
     # RU: Окружение должно приходить из env. В проде ставим production по умолчанию.
     # EN: Environment must come from env vars. Default to production in prod.
     environment = (
@@ -1835,10 +1873,13 @@ async def health() -> Dict[str, Any]:
         .lower()
     )
 
+    # Get git SHA if available (for version tracking)
+    git_sha = _short_git_sha(os.getenv("GIT_SHA"))
+
     return {
         "status": "ok",
         "version": "1.0.0",  # TODO: Read from pyproject.toml
-        "git_sha": git_sha[:8] if len(git_sha) > 8 else git_sha,
+        "git_sha": git_sha,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "environment": environment,
     }

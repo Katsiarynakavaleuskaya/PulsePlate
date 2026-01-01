@@ -95,7 +95,7 @@ def test_vip_shoplist_generate_enriches_catalog_with_sqlite(
     assert catalog is not None, "Expected catalog enrichment for known food_id"
     assert isinstance(catalog, dict), "Catalog must be dict when enriched"
     assert "sku" in catalog and isinstance(catalog["sku"], str), "Catalog must have sku string"
-    assert catalog["region_id"] == "ES"
+    assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
     assert catalog["store_id"] == "carrefour_es_main"
 
 

@@ -24,15 +24,16 @@ class TestSchedulerMissingCoverage:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_setup_signal_handlers_success(self):
-        """Test _setup_signal_handlers success case."""
+    def test_setup_signal_handlers_skipped_in_test_runtime(self):
+        """Test _setup_signal_handlers is skipped in test runtime."""
         scheduler = DatabaseUpdateScheduler()
 
         # Mock signal.signal to succeed
         with patch("core.food_apis.scheduler.signal.signal") as mock_signal:
             scheduler._setup_signal_handlers()
-            # Should call signal.signal twice (for SIGTERM and SIGINT)
-            assert mock_signal.call_count == 2
+            # RU: В тестах signal handlers не устанавливаются (ранний return).
+            # EN: In test runtime signal handlers are not set up (early return).
+            mock_signal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_start_already_running(self):

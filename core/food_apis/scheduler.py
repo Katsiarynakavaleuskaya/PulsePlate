@@ -13,10 +13,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+import threading
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from types import FrameType
+from typing import Any
 
 from ..time_utils import now_utc
+from ._testing import is_test_runtime
 from .update_manager import DatabaseUpdateManager, UpdateResult
 
 logger = logging.getLogger(__name__)
@@ -40,7 +43,7 @@ class DatabaseUpdateScheduler:
         update_interval_hours: int = 24,
         retry_interval_minutes: int = 30,
         max_retries: int = 3,
-    ):
+    ) -> None:
         self.update_interval = timedelta(hours=update_interval_hours)
         self.retry_interval = timedelta(minutes=retry_interval_minutes)
         self.max_retries = max_retries
@@ -49,11 +52,12 @@ class DatabaseUpdateScheduler:
 
         # State tracking
         self.is_running = False
-        self.last_update_check: Optional[datetime] = None
-        self.retry_counts: Dict[str, int] = {}
+        self.last_update_check: datetime | None = None
+        self.retry_counts: dict[str, int] = {}
 
         # Background task
-        self._update_task: Optional[asyncio.Task] = None
+        self._update_task: asyncio.Task[None] | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
@@ -61,21 +65,41 @@ class DatabaseUpdateScheduler:
         # Setup graceful shutdown
         self._setup_signal_handlers()
 
-    def _setup_signal_handlers(self):
+    def _setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
+        # RU: В xdist/параллельных воркерах signal.signal() запрещён (не main thread).
+        # EN: Under pytest-xdist signal handlers cannot be set in worker threads.
+        if threading.current_thread() is not threading.main_thread() or is_test_runtime():
+            return
 
-        def signal_handler(signum, frame):
-            logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            asyncio.create_task(self.stop())
+        def signal_handler(signum: int, frame: FrameType | None) -> None:
+            logger.info("Received signal %s, initiating graceful shutdown...", signum)
+
+            loop = self._loop
+            if loop is None or loop.is_closed() or not loop.is_running():
+                logger.warning(
+                    "Scheduler shutdown requested but no running event loop is available "
+                    "(loop=%r)",
+                    loop,
+                )
+                return
+
+            def schedule_stop() -> None:
+                asyncio.create_task(self.stop())
+
+            try:
+                loop.call_soon_threadsafe(schedule_stop)
+            except Exception as e:
+                logger.warning("Could not schedule scheduler shutdown task: %s", e)
 
         # Handle common shutdown signals
         try:
             signal.signal(signal.SIGTERM, signal_handler)
             signal.signal(signal.SIGINT, signal_handler)
         except Exception as e:
-            logger.warning(f"Could not setup signal handlers: {e}")
+            logger.warning("Could not setup signal handlers: %s", e)
 
-    async def start(self):
+    async def start(self) -> None:
         """
         RU: Запускает планировщик обновлений.
         EN: Start the update scheduler.
@@ -84,6 +108,7 @@ class DatabaseUpdateScheduler:
             logger.warning("Update scheduler is already running")
             return
 
+        self._loop = asyncio.get_running_loop()
         self.is_running = True
         logger.info("Starting database update scheduler...")
 
@@ -92,7 +117,7 @@ class DatabaseUpdateScheduler:
 
         logger.info(f"Update scheduler started (interval: {self.update_interval})")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """
         RU: Останавливает планировщик обновлений.
         EN: Stop the update scheduler.
@@ -116,7 +141,7 @@ class DatabaseUpdateScheduler:
 
         logger.info("Database update scheduler stopped")
 
-    async def _update_loop(self):
+    async def _update_loop(self) -> None:
         """Main update loop running in background."""
         while self.is_running:
             try:
@@ -146,7 +171,7 @@ class DatabaseUpdateScheduler:
         time_since_last_check = current_time - self.last_update_check
         return time_since_last_check >= self.update_interval
 
-    async def _run_update_check(self):
+    async def _run_update_check(self) -> None:
         """Check for and run any available updates."""
         try:
             logger.info("Checking for database updates...")
@@ -166,7 +191,7 @@ class DatabaseUpdateScheduler:
         except Exception as e:
             logger.error(f"Error during update check: {e}")
 
-    async def _run_source_update(self, source: str):
+    async def _run_source_update(self, source: str) -> None:
         """Run update for a specific source with retry logic."""
         retry_count = self.retry_counts.get(source, 0)
 
@@ -191,7 +216,7 @@ class DatabaseUpdateScheduler:
             # Handle exception
             self._handle_update_failure(source, [str(e)])
 
-    def _handle_update_failure(self, source: str, errors: list):
+    def _handle_update_failure(self, source: str, errors: list[str]) -> None:
         """Handle update failure with retry logic."""
         self.retry_counts[source] = self.retry_counts.get(source, 0) + 1
 
@@ -205,7 +230,7 @@ class DatabaseUpdateScheduler:
                 f"Will retry. Errors: {errors}"
             )
 
-    def _on_update_complete(self, result: UpdateResult):
+    def _on_update_complete(self, result: UpdateResult) -> None:
         """Callback for when an update completes."""
         if result.success:
             logger.info(
@@ -215,7 +240,7 @@ class DatabaseUpdateScheduler:
         else:
             logger.warning(f"Update notification: {result.source} update failed - {result.errors}")
 
-    async def force_update(self, source: Optional[str] = None) -> Dict[str, UpdateResult]:
+    async def force_update(self, source: str | None = None) -> dict[str, UpdateResult]:
         """
         RU: Принудительно запускает обновление.
         EN: Force an immediate update.
@@ -224,9 +249,9 @@ class DatabaseUpdateScheduler:
             source: Specific source to update, or None for all sources
 
         Returns:
-            Dict of update results by source
+            dict of update results by source
         """
-        results = {}
+        results: dict[str, UpdateResult] = {}
 
         if source:
             # Update specific source
@@ -244,7 +269,7 @@ class DatabaseUpdateScheduler:
 
         return results
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         RU: Получает статус планировщика и баз данных.
         EN: Get scheduler and database status.
@@ -265,7 +290,7 @@ class DatabaseUpdateScheduler:
 
 
 # Global scheduler instance
-_scheduler_instance: Optional[DatabaseUpdateScheduler] = None
+_scheduler_instance: DatabaseUpdateScheduler | None = None
 
 
 async def get_update_scheduler() -> DatabaseUpdateScheduler:
@@ -302,7 +327,7 @@ async def stop_background_updates() -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     # Test the scheduler
-    async def test_scheduler():
+    async def test_scheduler() -> None:
         scheduler = DatabaseUpdateScheduler(
             update_interval_hours=1
         )  # 1 hour for testing (minimum int value)

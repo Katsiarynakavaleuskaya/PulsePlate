@@ -9,7 +9,9 @@ import csv
 import json
 import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
+from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,7 +23,7 @@ class TestUpdateManagerNewCoverage:
     """Test new functionality in update_manager.py to restore coverage."""
 
     @pytest.fixture
-    def temp_cache_dir(self):
+    def temp_cache_dir(self) -> Generator[str, None, None]:
         """Create temporary cache directory."""
         temp_dir = tempfile.mkdtemp()
         yield temp_dir
@@ -30,7 +32,7 @@ class TestUpdateManagerNewCoverage:
         shutil.rmtree(temp_dir)
 
     @pytest.fixture
-    def mock_manager(self, temp_cache_dir):
+    def mock_manager(self, temp_cache_dir: str) -> Generator[DatabaseUpdateManager, None, None]:
         """Create DatabaseUpdateManager with mocked dependencies."""
         with (
             patch("core.food_apis.update_manager.USDAClient") as mock_usda,
@@ -55,7 +57,7 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database
         sqlite_file = cache_dir / "off.sqlite"
-        with sqlite3.connect(str(sqlite_file)) as conn:
+        with closing(sqlite3.connect(str(sqlite_file))) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             conn.execute(
                 "INSERT INTO products (name, data) VALUES (?, ?)",
@@ -240,7 +242,7 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database with problematic data
         sqlite_file = cache_dir / "off.sqlite"
-        with sqlite3.connect(str(sqlite_file)) as conn:
+        with closing(sqlite3.connect(str(sqlite_file))) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             # Insert data that might cause encoding issues
             conn.execute(
@@ -260,7 +262,7 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database with invalid JSON
         sqlite_file = cache_dir / "off.sqlite"
-        with sqlite3.connect(str(sqlite_file)) as conn:
+        with closing(sqlite3.connect(str(sqlite_file))) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             conn.execute(
                 "INSERT INTO products (name, data) VALUES (?, ?)",
@@ -359,7 +361,7 @@ class TestUpdateManagerNewCoverage:
 
         # Create test SQLite database
         sqlite_file = cache_dir / "off.sqlite"
-        with sqlite3.connect(str(sqlite_file)) as conn:
+        with closing(sqlite3.connect(str(sqlite_file))) as conn:
             conn.execute("CREATE TABLE products (name TEXT, data TEXT)")
             conn.execute(
                 "INSERT INTO products (name, data) VALUES (?, ?)",

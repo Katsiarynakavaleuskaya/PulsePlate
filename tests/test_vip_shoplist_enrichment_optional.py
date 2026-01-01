@@ -13,6 +13,8 @@ from __future__ import annotations
 # The fixture properly handles both VIP tier and route-level API key dependencies
 # and cleans up overrides in teardown.
 
+import warnings
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -79,13 +81,22 @@ def test_generate_with_region_store_attaches_catalog(
     assert r.status_code == status.HTTP_200_OK, r.text
 
     data = r.json()
-    packed_item = data["packed"][0]
-    # Catalog field always present in schema; populated when enrichment succeeds
+    packed_index = 0
+    packed_item = data["packed"][packed_index]
+    # Catalog field always present in schema (contract: never None when region/store provided)
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
-    # Mock provider has carrot in es/carrefour_es, so catalog should be present
-    assert catalog is not None
-    assert catalog["region_id"] == "es"
+    if catalog is None:
+        packed_item_id = (
+            packed_item.get("id") or packed_item.get("food_id") or packed_item.get("foodId")
+        )
+        diagnostic = (
+            "Catalog enrichment returned null; expected non-null catalog when region/store "
+            f"provided (packed_index={packed_index}, packed_item_id={packed_item_id!r})."
+        )
+        warnings.warn(diagnostic, RuntimeWarning, stacklevel=2)
+        raise AssertionError(diagnostic)
+    assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
     assert catalog["store_id"] == "carrefour_es"
     assert "sku" in catalog
     assert catalog["sku"] == "CRF-ES-000123"
@@ -110,9 +121,37 @@ def test_daily_with_enrichment_applies_to_response(
     data = r.json()
     assert "packed" in data
     packed_item = data["packed"][0]
-    # Catalog field always present in schema; populated when enrichment succeeds
+    # Catalog field always present in schema (contract: never None when region/store provided)
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
-    # Enrichment applied (catalog should be present for carrot in mock)
+    assert (
+        catalog is not None
+    ), "Catalog enrichment should always attach metadata when region/store provided"
+    assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
+
+
+def test_generate_with_uppercase_region_id_normalizes_to_lowercase(
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+) -> None:
+    """Test that region_id is normalized to lowercase in catalog response."""
+    _enable_vip(monkeypatch)
+
+    # client_with_vip_access fixture handles VIP tier and API key overrides
+    client = client_with_vip_access
+
+    # Pass uppercase region_id
+    r = client.post(
+        "/api/v1/vip/shoplist/generate?region_id=ES&store_id=carrefour_es",
+        json=_generate_payload_minimal(),
+    )
+    assert r.status_code == status.HTTP_200_OK, r.text
+
+    data = r.json()
+    packed_item = data["packed"][0]
+    assert "catalog" in packed_item
+    catalog = packed_item["catalog"]
+    # Contract: catalog must not be None when region/store provided
     assert catalog is not None
-    assert catalog["region_id"] == "es"
+    # Contract: region_id always lowercase in response
+    assert catalog["region_id"] == "es", f"Expected lowercase 'es', got '{catalog['region_id']}'"

@@ -25,6 +25,10 @@ markers = [
     "integration: integration tests requiring external services",
     "demo: demo tests with verbose output (run with --capture=no)",
     "serial: mark test to run serially (not in parallel) to avoid race conditions",
+    "xdist_group(name): group tests for xdist scheduling",
+    "needs_data: requires local datasets/snapshots not available in CI",
+    "external: hits external APIs (should be mocked in CI)",
+    "optional_dep: requires optional dependencies (matplotlib, cryptography, etc.)",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

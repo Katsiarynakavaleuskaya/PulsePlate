@@ -20,6 +20,9 @@ from typing import Any
 
 import httpx
 
+from ._testing import is_test_runtime
+from ..test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
+
 logger = logging.getLogger(__name__)
 
 
@@ -108,7 +111,7 @@ class OFFClient:
 
     BASE_URL = "https://world.openfoodfacts.org/api/v2"
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Open Food Facts client."""
         # Underlying async HTTP client
         self.client = httpx.AsyncClient()
@@ -182,7 +185,15 @@ class OFFClient:
             return products
 
         except Exception as e:
-            logger.error(f"Error searching Open Food Facts products for '{query}': {e}")
+            # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
+            # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
+            error_msg = str(e)
+            # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
+            # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
+            if EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE in error_msg and is_test_runtime():
+                logger.debug("OFF search blocked in tests for %r: %s", query, e)
+            else:
+                logger.error("Error searching Open Food Facts products for %r: %s", query, e)
             return []
 
     async def get_product_details(self, barcode: str) -> OFFFoodItem | None:
@@ -214,9 +225,19 @@ class OFFClient:
                 return self._parse_product_item(data.get("product", {}))
 
         except Exception as e:
-            logger.error(
-                f"Error getting Open Food Facts product details for barcode {barcode}: {e}"
-            )
+            # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
+            # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
+            error_msg = str(e)
+            # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
+            # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
+            if EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE in error_msg and is_test_runtime():
+                logger.debug("OFF product details blocked in tests for %r: %s", barcode, e)
+            else:
+                logger.error(
+                    "Error getting Open Food Facts product details for barcode %r: %s",
+                    barcode,
+                    e,
+                )
             return None
 
         # Explicitly return None when product is not found
@@ -346,7 +367,7 @@ class OFFClient:
         event_loop_closed_pattern = re.compile(r"event\s+loop\s+(is\s+)?closed")
         return bool(event_loop_closed_pattern.search(error_msg))
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         try:
             await self.client.aclose()

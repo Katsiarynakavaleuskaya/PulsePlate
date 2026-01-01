@@ -19,25 +19,17 @@ class TestSchedulerFinalCoverage:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_setup_signal_handlers_exception_detailed(self):
-        """Test _setup_signal_handlers with exception in signal.signal."""
+    def test_setup_signal_handlers_skipped_in_test_runtime(self) -> None:
+        """Test _setup_signal_handlers is skipped in test runtime."""
         scheduler = DatabaseUpdateScheduler()
 
-        # Mock signal.signal to raise an exception on the first call but not the second
-        call_count = 0
-
-        def side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise Exception("Test error")
-            # Second call should succeed (we don't need to test it specifically)
-
-        with patch("core.food_apis.scheduler.signal.signal", side_effect=side_effect):
+        with patch("core.food_apis.scheduler.signal.signal") as mock_signal:
             with patch("core.food_apis.scheduler.logger") as mock_logger:
                 scheduler._setup_signal_handlers()
-                # Should log warning when exception occurs
-                mock_logger.warning.assert_called_once()
+                # RU: В тестах signal handlers не устанавливаются (ранний return).
+                # EN: In test runtime signal handlers are not set up (early return).
+                mock_signal.assert_not_called()
+                mock_logger.warning.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_run_update_check_exception_detailed(self):

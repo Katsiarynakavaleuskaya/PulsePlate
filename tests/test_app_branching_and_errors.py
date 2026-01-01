@@ -186,6 +186,10 @@ def test_weekly_menu_generation_error(
     assert response.status_code in [500, 403]
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="calculate_all_bmr may not be None after reload; patching not supported in this environment. TODO: Fix module reload/patching or use dependency override",
+)
 def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:
     """Checks the fallback branch when calculate_all_bmr is missing (ImportError)."""
     import app as app_module
@@ -200,20 +204,15 @@ def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:
         # Expected when modules are missing - app.py should handle this
         pass
 
-    # sourcery skip: no-conditionals-in-tests
-    if app_module.calculate_all_bmr is not None:
-        pytest.xfail(
-            "calculate_all_bmr is not None after reload; patching not supported in this environment"
-        )
-    # sourcery skip: no-conditionals-in-tests
-    if app_module.calculate_all_tdee is not None:
-        pytest.xfail(
-            "calculate_all_tdee is not None after reload; patching not supported in this environment"
-        )
-    if getattr(app_module, "get_activity_descriptions", None) is not None:
-        pytest.xfail(
-            "get_activity_descriptions is not None after reload; patching not supported in this environment"
-        )
+    assert (
+        app_module.calculate_all_bmr is None
+    ), "calculate_all_bmr is not None after reload; patching not supported in this environment"
+    assert (
+        app_module.calculate_all_tdee is None
+    ), "calculate_all_tdee is not None after reload; patching not supported in this environment"
+    assert (
+        getattr(app_module, "get_activity_descriptions", None) is None
+    ), "get_activity_descriptions is not None after reload; patching not supported in this environment"
 
 
 def test_no_bmi_pro_router(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,15 +293,17 @@ def test_invalid_method(client: TestClient, api_key_headers: dict[str, str]) -> 
     assert response.status_code in (405, 404)
 
 
-def test_internal_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Принудительно вызываем ошибку внутри обработчика
-    import pytest
+def test_internal_error(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.routers.foods import get_food_store
 
-    try:
-        from app.routers import foods
+    class BrokenFoodStore:
+        def search_foods(self, query: str, limit: int, offset: int) -> list[dict[str, object]]:
+            raise RuntimeError("Boom")
 
-        monkeypatch.setattr(foods, "get_foods", lambda *a, **kw: 1 / 0)
-        response = client.get("/api/v1/foods")
-        assert response.status_code in (500, 422, 404)
-    except AttributeError:
-        pytest.xfail("app.routers.foods has no attribute 'get_foods'")
+        def get_food(self, food_id: str) -> dict[str, object] | None:  # pragma: no cover
+            return None
+
+    monkeypatch.setitem(app.dependency_overrides, get_food_store, lambda: BrokenFoodStore())  # type: ignore[misc]
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/api/v1/foods")
+    assert response.status_code == 500, response.text

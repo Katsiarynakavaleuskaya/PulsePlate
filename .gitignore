@@ -369,3 +369,5 @@ bandit-report.json
 # Security scan artifacts
 local-safety-report.json
 **/tmp_security_*/
+**/tmp_security_*/
+coverage.json

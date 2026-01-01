@@ -6,10 +6,11 @@ EN: Access to RecipeDB (SQLite) — search and details.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 import sqlite3
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 
 def _validate_db_path(path: Path, source: str) -> Path:
@@ -94,9 +95,10 @@ def _get_db_path() -> Path:
     return _DB_PATH
 
 
-def _con() -> sqlite3.Connection:
-    """RU: Создаёт соединение SQLite (контекст-менеджер).
-    EN: Creates SQLite connection (context manager).
+@contextmanager
+def _con() -> Iterator[sqlite3.Connection]:
+    """RU: Создаёт соединение SQLite (контекст-менеджер; всегда закрывает соединение).
+    EN: Creates SQLite connection (context manager; always closes connection).
 
     Raises:
         FileNotFoundError: If the database file does not exist and cannot be created.
@@ -105,7 +107,10 @@ def _con() -> sqlite3.Connection:
     db_path = _get_db_path()
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
-    return con
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def search_recipes(query: str, limit: int = 20, offset: int = 0) -> List[Dict]:

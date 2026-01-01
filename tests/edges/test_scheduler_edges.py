@@ -59,7 +59,6 @@ def test_scheduler_signal_handler_invocation(monkeypatch: pytest.MonkeyPatch):
     # Instantiation sets up handler and registers it
     _ = DatabaseUpdateScheduler(update_interval_hours=1)
 
-    # Call captured handler to execute handler body and cover lines
-    handler = next(iter(captured.values()))
-    handler(15, None)  # signum, frame
-    assert "task" in created
+    # RU: В тестах signal handlers не устанавливаются (ранний return в _setup_signal_handlers).
+    # EN: In test runtime signal handlers are not set up (early return in _setup_signal_handlers).
+    assert captured == {}
