@@ -29,13 +29,23 @@ On the production server:
 - A deploy directory containing:
   - a compose file (`docker-compose.yml`, `docker-compose.production.yaml`, etc.)
   - `.env` (application runtime env; not committed)
-  - `Caddyfile.production` (Caddy reverse proxy config)
+  - `Caddyfile.production` (Caddy reverse proxy config; see Caddyfile Configuration below)
 - Compose must reference `IMAGE_REF` (recommended) or `TAG` (backwards-compatible):
 - **Firewall configured**: Ports 80 (HTTP) and 443 (HTTPS) must be open (see Firewall Setup below)
 
 Example `docker-compose.production.yaml`:
 
 ```yaml
+version: "3.9"
+
+networks:
+  web:
+    external: false
+
+volumes:
+  caddy_data:
+  caddy_config:
+
 services:
   app:
     image: ${IMAGE_REF:?IMAGE_REF is required}
@@ -45,19 +55,69 @@ services:
     env_file: [".env"]
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --proxy-headers --forwarded-allow-ips="caddy"
+      --proxy-headers
+      --forwarded-allow-ips="*"
 
   caddy:
     image: caddy:2
     restart: unless-stopped
     networks: [web]
-    ports: ["80:80", "443:443"]  # Public ports for Cloudflare
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - PRODUCTION_DOMAIN=${PRODUCTION_DOMAIN}
     volumes:
-      - /srv/pulseplate-production/Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on: [app]
 ```
+
+## Caddyfile Configuration
+
+The production Caddy configuration is located at:
+
+**`deploy/Caddyfile.production`**
+
+It already contains a complete and secure reverse proxy setup using the `{$PRODUCTION_DOMAIN}` environment variable and does not need to be created manually.
+
+**To use it on the production server:**
+
+1. Copy the file to your deploy directory:
+
+   ```bash
+   cp deploy/Caddyfile.production /srv/pulseplate-production/
+   # or
+   cp deploy/Caddyfile.production /opt/pulseplate/
+   ```
+
+2. Ensure the file is readable by Docker (mode 644 or similar):
+
+   ```bash
+   chmod 644 /srv/pulseplate-production/Caddyfile.production
+   ```
+
+3. The compose file mounts it as `./Caddyfile.production` (relative to the deploy directory).
+
+**Note:** The Caddyfile uses `{$PRODUCTION_DOMAIN}` which must be set in your `.env` file or exported as an environment variable when starting the compose stack.
+
+## Required Environment Variables
+
+The following environment variables must be set in your `.env` file or exported in the shell:
+
+- **`PRODUCTION_DOMAIN`** (required): Your production domain name (e.g., `api.pulseplate.com`)
+- **`IMAGE_REF`** (required): Docker image reference (e.g., `ghcr.io/owner/repo@sha256:...`)
+
+Example `.env` file:
+
+```bash
+PRODUCTION_DOMAIN=api.pulseplate.com
+IMAGE_REF=ghcr.io/owner/repo@sha256:abc123...
+# Add other application-specific variables here
+```
+
+**Security Note:** Never commit `.env` files to the repository. If deploying via GitHub Actions, store sensitive variables as GitHub Secrets in the `production` environment.
 
 ## Firewall Setup (Critical!)
 
@@ -86,7 +146,8 @@ sudo ufw status
 ```
 
 Expected output should show:
-```
+
+```text
 Status: active
 
 To                         Action      From
