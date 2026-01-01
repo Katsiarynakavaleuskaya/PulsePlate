@@ -126,4 +126,4 @@ def test_catalog_adapter_no_network() -> None:
         mock_socket.assert_not_called()
 
         # Should return enriched response (catalog field may be None or populated)
-        assert hasattr(enriched.packed[0], 'catalog')
+        assert hasattr(enriched.packed[0], "catalog")
