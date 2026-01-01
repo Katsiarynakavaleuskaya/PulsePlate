@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Any
 
 
 def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
