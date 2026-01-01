@@ -44,8 +44,12 @@ class TestShortGitSha:
 
     def test_short_git_sha_valid_plain_hex(self) -> None:
         """Test that valid plain hex strings return first 12 chars."""
-        assert _short_git_sha("f4c8b72e593f1234567890abcdef") == "f4c8b72e593f"  # pragma: allowlist secret
-        assert _short_git_sha("abcd1234567890abcdef1234567890") == "abcd12345678"  # pragma: allowlist secret
+        assert (
+            _short_git_sha("f4c8b72e593f1234567890abcdef") == "f4c8b72e593f"
+        )  # pragma: allowlist secret
+        assert (
+            _short_git_sha("abcd1234567890abcdef1234567890") == "abcd12345678"
+        )  # pragma: allowlist secret
         # Exactly 12 chars
         assert _short_git_sha("abcd12345678") == "abcd12345678"  # pragma: allowlist secret
 
@@ -53,7 +57,9 @@ class TestShortGitSha:
         """Test that sha256: prefix is stripped correctly."""
         # Valid long hex
         assert (
-            _short_git_sha("sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890")  # pragma: allowlist secret
+            _short_git_sha(
+                "sha256:abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+            )  # pragma: allowlist secret
             == "abcd12345678"
         )
         # Too short after stripping
@@ -77,7 +83,7 @@ class TestShortGitSha:
 
     def test_short_git_sha_with_whitespace(self) -> None:
         """Test that whitespace around values is handled correctly."""
-        assert _short_git_sha("  f4c8b72e593f1234567890abcdef  ") == "f4c8b72e593f"
+        assert _short_git_sha("  f4c8b72e593f1234567890abcdef  ") == "f4c8b72e593f"  # pragma: allowlist secret
         assert _short_git_sha("  sha256:abcd1234567890abcdef1234567890  ") == "abcd12345678"
         assert (
             _short_git_sha("  ghcr.io/repo@sha256:abcd1234567890abcdef1234567890  ")
@@ -86,10 +92,18 @@ class TestShortGitSha:
 
     def test_short_git_sha_uppercase_hex(self) -> None:
         """Test that uppercase hex is accepted."""
-        assert _short_git_sha("ABCD1234567890ABCDEF1234567890") == "ABCD12345678"  # pragma: allowlist secret
-        assert _short_git_sha("F4C8B72E593F1234567890ABCDEF") == "F4C8B72E593F"  # pragma: allowlist secret
+        assert (
+            _short_git_sha("ABCD1234567890ABCDEF1234567890") == "ABCD12345678"
+        )  # pragma: allowlist secret
+        assert (
+            _short_git_sha("F4C8B72E593F1234567890ABCDEF") == "F4C8B72E593F"
+        )  # pragma: allowlist secret
 
     def test_short_git_sha_mixed_case_hex(self) -> None:
         """Test that mixed case hex is accepted."""
-        assert _short_git_sha("AbCd1234567890aBcDeF1234567890") == "AbCd12345678"  # pragma: allowlist secret
-        assert _short_git_sha("f4C8b72E593F1234567890aBcDeF") == "f4C8b72E593F"  # pragma: allowlist secret
+        assert (
+            _short_git_sha("AbCd1234567890aBcDeF1234567890") == "AbCd12345678"
+        )  # pragma: allowlist secret
+        assert (
+            _short_git_sha("f4C8b72E593F1234567890aBcDeF") == "f4C8b72E593F"
+        )  # pragma: allowlist secret
