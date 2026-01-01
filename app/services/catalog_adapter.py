@@ -57,15 +57,24 @@ class MockCatalogProvider:
         """Get catalog info from in-memory data."""
         # Normalize region_id to lowercase (matching data keys)
         region_id_norm = region_id.strip().lower()
-        # Mock implementation: if store_id provided, use it; otherwise match any
+        # Mock implementation:
+        # - If store_id provided: try exact match first, then fallback to any store (fail-soft)
+        # - If store_id not provided: match any store (deterministic)
         if store_id:
             store_id_norm = store_id.strip().lower()
-            return self.data.get((region_id_norm, store_id_norm, food_id))
-        # Try to find any store for this region
+            exact = self.data.get((region_id_norm, store_id_norm, food_id))
+            if exact is not None:
+                return exact
+
+        # Fallback: try to find any store for this region+food (deterministic by key sort)
+        candidates: list[tuple[tuple[str, str, str], CatalogInfoDTO]] = []
         for (r, s, f), catalog in self.data.items():
             if r == region_id_norm and f == food_id:
-                return catalog
-        return None
+                candidates.append(((r, s, f), catalog))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda x: x[0])  # deterministic fallback
+        return candidates[0][1]
 
     def list_stores(self, *, region_id: str) -> list[CatalogStore]:
         """
@@ -77,13 +86,14 @@ class MockCatalogProvider:
         from core.catalog.provider import CatalogStore
 
         # Extract unique stores from mock data for this region
-        region_id_norm = region_id.strip().lower()
+        region_lc = region_id.strip().lower()
+        region_uc = region_id.strip().upper()
         stores: dict[str, CatalogStore] = {}
         for (r, store_id, _), catalog in self.data.items():
-            if r == region_id_norm and store_id not in stores:
+            if r == region_lc and store_id not in stores:
                 stores[store_id] = CatalogStore(
                     store_id=store_id,
-                    region_id=region_id_norm,
+                    region_id=region_uc,
                     name=f"Mock Store {store_id}",
                     provider="mock",
                     meta_json=None,
