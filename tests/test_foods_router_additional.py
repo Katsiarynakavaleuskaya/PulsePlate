@@ -11,7 +11,7 @@ from app.schemas.food import FoodHit, FoodItem
 
 def test_list_foods_invalid_limit() -> None:
     with pytest.raises(HTTPException):
-        foods.list_foods(query="apple", limit=0, offset=0)
+        foods.list_foods(query="apple", limit=0, offset=0, store=foods.food_store)
 
 
 def test_list_foods_success(monkeypatch: pytest.MonkeyPatch) -> None:

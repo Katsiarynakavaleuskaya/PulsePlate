@@ -33,7 +33,7 @@ class TestSchedulerMissingCoverage:
             scheduler._setup_signal_handlers()
             # RU: В тестах signal handlers не устанавливаются (ранний return).
             # EN: In test runtime signal handlers are not set up (early return).
-            assert mock_signal.call_count == 0
+            mock_signal.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_start_already_running(self):

@@ -25,7 +25,9 @@ async def test_openfoodfacts_product_details_network_blocked_logs_debug(
         client.client,
         "get",
         AsyncMock(
-            side_effect=AssertionError("External HTTP blocked in tests: GET https://example")
+            side_effect=AssertionError(
+                f"{EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE}: GET https://example"
+            )
         ),
     )
 

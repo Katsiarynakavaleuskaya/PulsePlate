@@ -49,13 +49,13 @@ DEFAULT_ALIASES: Dict[str, List[str]] = {
 }
 
 
-def _safe_float(value: Any) -> float:
+def _safe_float(value: object) -> float:
     """Best-effort float conversion; returns 0.0 on None/non-numeric.
 
     RU: Безопасное приведение к float; возвращает 0.0 для None/нечисловых значений.
     """
     try:
-        return float(value)
+        return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
 
@@ -487,7 +487,7 @@ def _safe_per_g(per_g_raw: object, food_id: str) -> float:
         Parsed per_g value or DEFAULT_PER_G if invalid/zero
     """
     try:
-        per_g = float(per_g_raw)
+        per_g = float(per_g_raw)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         logger.warning(
             "nutrients_for: per_g invalid for food_id=%s (value=%r); defaulting to %s",

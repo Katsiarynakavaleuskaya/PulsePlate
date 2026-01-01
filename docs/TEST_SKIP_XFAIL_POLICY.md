@@ -145,8 +145,12 @@ pytest -q -ra | grep -E "(SKIPPED|XFAIL|XPASS)"
 # Count skipped by reason
 pytest -q -ra | grep SKIPPED | sort | uniq -c
 
-# Run only non-skipped tests
+# Note: `-m "not skip"` excludes only tests explicitly marked with `@pytest.mark.skip`.
+# It does NOT exclude tests that call `pytest.skip()` dynamically at runtime.
 pytest -q -m "not skip"
+
+# Prefer excluding by project markers (more reliable than relying on dynamic skips)
+pytest -q -m "not external and not integration and not needs_data"
 ```
 
 ## References
