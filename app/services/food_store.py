@@ -5,6 +5,7 @@ RU: Сервис доступа к FoodDB (SQLite) с FTS и алиасами.
 EN: Access to FoodDB (SQLite) with FTS and alias expansion.
 """
 
+from contextlib import contextmanager
 import csv
 import sqlite3
 from pathlib import Path
@@ -341,10 +342,14 @@ def expand_query(q: str) -> List[str]:
     return list(terms)
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect() -> Iterator[sqlite3.Connection]:
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
-    return con
+    try:
+        yield con
+    finally:
+        con.close()
 
 
 def _validate_pagination_params(limit: int | str, offset: int | str) -> tuple[int, int]:
@@ -467,7 +472,7 @@ def _validate_ingredient_mapping(ing: Mapping[str, Any]) -> Optional[Tuple[str, 
     return (food_id, grams)
 
 
-def _safe_per_g(per_g_raw: Any, food_id: str) -> float:
+def _safe_per_g(per_g_raw: object, food_id: str) -> float:
     """
     Safely parse per_g value with fallback to DEFAULT_PER_G.
 

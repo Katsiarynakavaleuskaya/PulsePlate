@@ -19,7 +19,7 @@ class TestSchedulerFinalCoverage:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_setup_signal_handlers_skipped_in_test_runtime(self):
+    def test_setup_signal_handlers_skipped_in_test_runtime(self) -> None:
         """Test _setup_signal_handlers is skipped in test runtime."""
         scheduler = DatabaseUpdateScheduler()
 

@@ -90,13 +90,12 @@ def test_generate_with_region_store_attaches_catalog(
         packed_item_id = (
             packed_item.get("id") or packed_item.get("food_id") or packed_item.get("foodId")
         )
-        warnings.warn(
-            "Catalog enrichment returned null; skipping catalog assertions "
-            f"(packed_index={packed_index}, packed_item_id={packed_item_id!r}).",
-            RuntimeWarning,
-            stacklevel=1,
+        diagnostic = (
+            "Catalog enrichment returned null; expected non-null catalog when region/store "
+            f"provided (packed_index={packed_index}, packed_item_id={packed_item_id!r})."
         )
-        return
+        warnings.warn(diagnostic, RuntimeWarning, stacklevel=2)
+        raise AssertionError(diagnostic)
     assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
     assert catalog["store_id"] == "carrefour_es"
     assert "sku" in catalog

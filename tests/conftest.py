@@ -22,6 +22,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionError
 
 import core.recipe_synth as recipe_synth
+from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
 
 # ============================================================================
 # CI NETWORK GUARD (prevents flaky real external calls)
@@ -80,7 +81,7 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
         ) -> httpx.Response:
             if _is_external_url(url):
                 raise AssertionError(
-                    f"External HTTP blocked in tests: {method} {url} "
+                    f"{EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE}: {method} {url} "
                     "(set ALLOW_TEST_NETWORK=true to bypass in CI; "
                     "or add host via TEST_NETWORK_ALLOWED_HOSTS=host1,host2)"
                 )
@@ -95,7 +96,7 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
         ) -> httpx.Response:
             if _is_external_url(url):
                 raise AssertionError(
-                    f"External HTTP blocked in tests: {method} {url} "
+                    f"{EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE}: {method} {url} "
                     "(set ALLOW_TEST_NETWORK=true to bypass in CI; "
                     "or add host via TEST_NETWORK_ALLOWED_HOSTS=host1,host2)"
                 )
@@ -124,7 +125,7 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
         ) -> requests.Response:
             if _is_external_url(url):
                 raise AssertionError(
-                    f"External HTTP blocked in tests: {method} {url} "
+                    f"{EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE}: {method} {url} "
                     "(set ALLOW_TEST_NETWORK=true to bypass in CI; "
                     "or add host via TEST_NETWORK_ALLOWED_HOSTS=host1,host2)"
                 )

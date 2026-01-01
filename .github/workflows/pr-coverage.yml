@@ -102,7 +102,7 @@ jobs:
       - name: Create diff-cover HTML report (debug)
         if: github.event_name == 'pull_request'
         run: |
-          diff-cover coverage.xml --compare-branch "${{ github.base_ref }}" --html-report diff-coverage.html || true
+          diff-cover coverage.xml --compare-branch "${{ github.base_ref }}" --format html:diff-coverage.html || true
 
       - name: Upload diff-cover report
         if: github.event_name == 'pull_request'

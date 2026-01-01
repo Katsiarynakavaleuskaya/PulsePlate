@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 
 from ._testing import is_test_runtime
+from ..test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ class OFFClient:
             error_msg = str(e)
             # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
             # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
-            if "External HTTP blocked in tests" in error_msg and is_test_runtime():
+            if EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE in error_msg and is_test_runtime():
                 logger.debug("OFF search blocked in tests for %r: %s", query, e)
             else:
                 logger.error("Error searching Open Food Facts products for %r: %s", query, e)
@@ -229,7 +230,7 @@ class OFFClient:
             error_msg = str(e)
             # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
             # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
-            if "External HTTP blocked in tests" in error_msg and is_test_runtime():
+            if EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE in error_msg and is_test_runtime():
                 logger.debug("OFF product details blocked in tests for %r: %s", barcode, e)
             else:
                 logger.error(

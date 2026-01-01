@@ -24,8 +24,8 @@ class TestSchedulerMissingCoverage:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def test_setup_signal_handlers_success(self):
-        """Test _setup_signal_handlers success case."""
+    def test_setup_signal_handlers_skipped_in_test_runtime(self):
+        """Test _setup_signal_handlers is skipped in test runtime."""
         scheduler = DatabaseUpdateScheduler()
 
         # Mock signal.signal to succeed

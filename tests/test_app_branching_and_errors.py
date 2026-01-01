@@ -298,19 +298,17 @@ def test_invalid_method(client: TestClient, api_key_headers: dict[str, str]) -> 
     assert response.status_code in (405, 404)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="app.routers.foods may have no attribute 'get_foods'. TODO: Fix router structure or use proper dependency injection",
-)
-def test_internal_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Принудительно вызываем ошибку внутри обработчика
-    import pytest
+def test_internal_error(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.routers.foods import get_food_store
 
-    try:
-        from app.routers import foods
+    class BrokenFoodStore:
+        def search_foods(self, query: str, limit: int, offset: int) -> list[dict[str, object]]:
+            raise RuntimeError("Boom")
 
-        monkeypatch.setattr(foods, "get_foods", lambda *a, **kw: 1 / 0)
-        response = client.get("/api/v1/foods")
-        assert response.status_code in (500, 422, 404)
-    except AttributeError:
-        pytest.xfail("app.routers.foods has no attribute 'get_foods'")
+        def get_food(self, food_id: str) -> dict[str, object] | None:  # pragma: no cover
+            return None
+
+    monkeypatch.setitem(app.dependency_overrides, get_food_store, lambda: BrokenFoodStore())
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.get("/api/v1/foods")
+    assert response.status_code == 500, response.text
