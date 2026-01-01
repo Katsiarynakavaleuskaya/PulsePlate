@@ -55,11 +55,12 @@ class MockCatalogProvider:
         store_id: str | None = None,
     ) -> Optional[CatalogInfoDTO]:
         """Get catalog info from in-memory data."""
-        # Normalize region_id for consistency
-        region_id_norm = region_id.strip().upper()
+        # Normalize region_id to lowercase (matching data keys)
+        region_id_norm = region_id.strip().lower()
         # Mock implementation: if store_id provided, use it; otherwise match any
         if store_id:
-            return self.data.get((region_id_norm, store_id, food_id))
+            store_id_norm = store_id.strip().lower()
+            return self.data.get((region_id_norm, store_id_norm, food_id))
         # Try to find any store for this region
         for (r, s, f), catalog in self.data.items():
             if r == region_id_norm and f == food_id:
