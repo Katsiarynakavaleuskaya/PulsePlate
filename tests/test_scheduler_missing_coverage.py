@@ -31,8 +31,9 @@ class TestSchedulerMissingCoverage:
         # Mock signal.signal to succeed
         with patch("core.food_apis.scheduler.signal.signal") as mock_signal:
             scheduler._setup_signal_handlers()
-            # Should call signal.signal twice (for SIGTERM and SIGINT)
-            assert mock_signal.call_count == 2
+            # RU: В тестах signal handlers не устанавливаются (ранний return).
+            # EN: In test runtime signal handlers are not set up (early return).
+            assert mock_signal.call_count == 0
 
     @pytest.mark.asyncio
     async def test_start_already_running(self):
