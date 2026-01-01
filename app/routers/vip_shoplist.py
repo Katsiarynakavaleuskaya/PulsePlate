@@ -314,9 +314,8 @@ class _ShoplistLikeRequest(Protocol):
     Any request DTO that provides these fields can be used by the shared generator.
     """
 
-    items: Any
-    packaging_rules: Any
-
+    items: list[ShoplistItemDTO]
+    packaging_rules: list[PackageRuleDTO] | None
 
 async def _generate_vip_shoplist(
     payload: _ShoplistLikeRequest,
