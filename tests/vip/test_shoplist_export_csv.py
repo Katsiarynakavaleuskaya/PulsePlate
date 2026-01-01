@@ -136,9 +136,7 @@ def test_vip_shoplist_export_csv_deterministic_ordering(
     keys = [(r[store_i], r[aisle_i], r[food_i]) for r in data]
 
     # Проверяем, что сортировка соответствует правилу: empty last
-    expected_keys = sorted(
-        keys, key=lambda k: (k[0] == "", k[0], k[1] == "", k[1], k[2])
-    )
+    expected_keys = sorted(keys, key=lambda k: (k[0] == "", k[0], k[1] == "", k[1], k[2]))
     assert keys == expected_keys, "Sorting should put empty values last"
 
 

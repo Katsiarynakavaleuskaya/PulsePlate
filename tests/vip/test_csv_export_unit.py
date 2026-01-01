@@ -442,4 +442,3 @@ class TestExportShoplistToCSV:
         food_ids = [row[0] for row in rows[1:]]
         assert "carrot" in food_ids
         assert "tomato" in food_ids
-
