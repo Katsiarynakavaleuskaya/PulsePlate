@@ -18,4 +18,3 @@ def is_test_runtime() -> bool:
         True if running in pytest or CI environment, False otherwise
     """
     return bool(os.getenv("PYTEST_CURRENT_TEST")) or bool(os.getenv("GITHUB_ACTIONS"))
-

@@ -87,7 +87,9 @@ def test_generate_with_region_store_attaches_catalog(
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
     if catalog is None:
-        packed_item_id = packed_item.get("id") or packed_item.get("food_id") or packed_item.get("foodId")
+        packed_item_id = (
+            packed_item.get("id") or packed_item.get("food_id") or packed_item.get("foodId")
+        )
         warnings.warn(
             "Catalog enrichment returned null; skipping catalog assertions "
             f"(packed_index={packed_index}, packed_item_id={packed_item_id!r}).",

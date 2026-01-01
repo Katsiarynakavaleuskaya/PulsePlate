@@ -20,7 +20,9 @@ async def test_openfoodfacts_product_details_network_blocked_logs_debug(
     monkeypatch.setattr(
         client.client,
         "get",
-        AsyncMock(side_effect=AssertionError("External HTTP blocked in tests: GET https://example")),
+        AsyncMock(
+            side_effect=AssertionError("External HTTP blocked in tests: GET https://example")
+        ),
     )
 
     out = await client.get_product_details("1234567890")
@@ -40,7 +42,9 @@ async def test_usda_food_details_network_blocked_logs_debug(
     monkeypatch.setattr(
         client.client,
         "get",
-        AsyncMock(side_effect=AssertionError("External HTTP blocked in tests: GET https://example")),
+        AsyncMock(
+            side_effect=AssertionError("External HTTP blocked in tests: GET https://example")
+        ),
     )
 
     out = await client.get_food_details(123)
@@ -50,7 +54,9 @@ async def test_usda_food_details_network_blocked_logs_debug(
     )
 
 
-def test_scheduler_defines_signal_handler_when_not_test_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scheduler_defines_signal_handler_when_not_test_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import core.food_apis.scheduler as scheduler
 
     called: list[tuple[int, object]] = []
@@ -59,7 +65,9 @@ def test_scheduler_defines_signal_handler_when_not_test_runtime(monkeypatch: pyt
         called.append((signum, handler))
 
     monkeypatch.setattr(scheduler, "is_test_runtime", lambda: False)
-    monkeypatch.setattr(scheduler.threading, "current_thread", lambda: scheduler.threading.main_thread())
+    monkeypatch.setattr(
+        scheduler.threading, "current_thread", lambda: scheduler.threading.main_thread()
+    )
     monkeypatch.setattr(scheduler.signal, "signal", fake_signal)
 
     DatabaseUpdateScheduler(update_interval_hours=1)
