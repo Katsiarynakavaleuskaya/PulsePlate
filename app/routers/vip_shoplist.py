@@ -32,7 +32,7 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
     UnitDTO,
 )
-from app.services.catalog_adapter import build_default_mock_provider, enrich_shoplist_response
+from app.services.catalog_adapter import _get_provider, enrich_shoplist_response
 from app.utils.feature_flags import is_vip_module_enabled
 from core.shoplist_engine.engine import ShoplistEngine
 from core.shoplist_engine.models import (
@@ -50,10 +50,11 @@ from core.shoplist_preview.preview_service import build_preview
 
 router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 
-# Catalog provider (module-level singleton, mock-only in PR-6, no I/O)
-# RU: В PR-6 это чистый in-memory объект; безопасно.
-# EN: In PR-6 this is pure in-memory; safe.
-_CATALOG_PROVIDER = build_default_mock_provider()
+# Catalog provider (module-level singleton, selected via CATALOG_PROVIDER env var)
+# RU: В PR-6 это mock; в PR-7 можно переключить на sqlite через env var.
+# EN: In PR-6 this is mock; in PR-7 can switch to sqlite via env var.
+# Fail-soft: если provider недоступен, fallback на mock.
+_CATALOG_PROVIDER = _get_provider()
 
 # Common OpenAPI responses for gating matrix
 COMMON_VIP_SHOPLIST_RESPONSES: dict[int | str, dict[str, Any]] = {

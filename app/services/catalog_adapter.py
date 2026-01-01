@@ -13,8 +13,10 @@ Principles:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
 from typing import Mapping, Optional, Protocol
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
@@ -102,6 +104,61 @@ def build_default_mock_provider() -> MockCatalogProvider:
         ),
     }
     return MockCatalogProvider(data=data)
+
+
+# ----------------------------
+# Provider selection (PR-7)
+# ----------------------------
+
+_PROVIDER: Optional[CatalogProvider] = None
+
+
+def _get_provider() -> CatalogProvider:
+    """
+    RU: Выбирает provider по env. EN: Select provider via env flag.
+    Fail-soft: при ошибке возвращаем mock (или no-op provider).
+
+    Returns:
+        CatalogProvider instance (MockCatalogProvider or SQLiteCatalogProvider)
+    """
+    global _PROVIDER
+
+    if _PROVIDER is not None:
+        return _PROVIDER
+
+    provider_type = (os.getenv("CATALOG_PROVIDER") or "mock").strip().lower()
+
+    if provider_type == "sqlite":
+        sqlite_path_str = os.getenv("CATALOG_SQLITE_PATH") or "data/catalog/snapshots/catalog_demo.sqlite"
+        sqlite_path = Path(sqlite_path_str)
+        if not sqlite_path.is_absolute():
+            # Resolve relative to project root
+            project_root = Path(__file__).resolve().parents[2]
+            sqlite_path = project_root / sqlite_path
+
+        try:
+            from app.services.catalog_provider_sqlite import SQLiteCatalogProvider
+
+            _PROVIDER = SQLiteCatalogProvider(str(sqlite_path))
+            return _PROVIDER
+        except (ValueError, FileNotFoundError):
+            # Fallback to mock if SQLite provider is misconfigured (fail-soft)
+            pass
+
+    # Default: mock
+    _PROVIDER = build_default_mock_provider()
+    return _PROVIDER
+
+
+def reset_catalog_provider_for_tests() -> None:
+    """
+    RU: Сброс singleton provider для тестов/reload.
+    EN: Reset cached provider for tests.
+
+    This allows tests to change CATALOG_PROVIDER env var and get a fresh provider.
+    """
+    global _PROVIDER
+    _PROVIDER = None
 
 
 def enrich_shoplist_response(
