@@ -18,15 +18,11 @@ def norm_alias(value: str) -> str:
         value: Raw alias string
 
     Returns:
-        Normalized alias (lowercase, trimmed, single spaces)
-
-    Raises:
-        ValueError: If normalized alias is empty (input was empty or whitespace-only)
+        Normalized alias (lowercase, trimmed, single spaces).
+        Returns empty string if input is empty or whitespace-only.
     """
     s = value.strip().lower()
     # Collapse multiple spaces into single space
     s = " ".join(s.split())
-    if not s:
-        raise ValueError("alias must be non-empty")
     return s
 

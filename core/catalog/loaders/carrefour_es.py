@@ -55,6 +55,7 @@ class CarrefourESLoader:
         stores: dict[str, CatalogStore] = {}
         skus: list[CatalogSKU] = []
         aliases: list[tuple[str, str]] = []
+        seen_aliases: set[str] = set()
 
         for row in rows:
             if row.get("region_id") != "ES":
@@ -70,10 +71,12 @@ class CarrefourESLoader:
                     meta_json=None,
                 )
 
-            try:
-                alias = norm_alias(row.get("alias") or row.get("ean") or row.get("name") or "")
-            except ValueError:
-                # Skip rows with empty aliases (fail-soft)
+            alias = norm_alias(row.get("alias") or row.get("ean") or row.get("name") or "")
+            if not alias:
+                continue
+
+            name = (row.get("name") or "").strip()
+            if not name:
                 continue
 
             sku_id = (row.get("sku_id") or "").strip() or _stable_sku_id(
@@ -85,7 +88,7 @@ class CarrefourESLoader:
                 sku_id=sku_id,
                 store_id=store_id,
                 ean=_opt(row.get("ean")),
-                name=(row.get("name") or "").strip(),
+                name=name,
                 brand=_opt(row.get("brand")),
                 aisle=_opt(row.get("aisle")),
                 package_size=parse_decimal(_opt(row.get("package_size"))),
@@ -95,6 +98,10 @@ class CarrefourESLoader:
                 updated_at=_opt(row.get("updated_at")),
             )
             skus.append(sku)
+
+            if alias in seen_aliases:
+                continue
+            seen_aliases.add(alias)
             aliases.append((alias, sku_id))
 
         return CatalogSnapshot(
