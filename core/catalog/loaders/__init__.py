@@ -8,9 +8,8 @@ EN: Catalog loaders for converting raw data into canonical snapshots.
 
 from __future__ import annotations
 
-from core.catalog.loaders.base import BaseCatalogLoader
+from core.catalog.loaders.base import read_csv_rows
 
 __all__ = [
-    "BaseCatalogLoader",
+    "read_csv_rows",
 ]
-

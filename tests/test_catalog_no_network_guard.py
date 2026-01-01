@@ -127,4 +127,3 @@ def test_catalog_adapter_no_network() -> None:
 
         # Should return enriched response
         assert enriched.packed[0].catalog is not None or enriched.packed[0].catalog is None
-

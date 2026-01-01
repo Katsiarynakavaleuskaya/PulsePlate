@@ -13,4 +13,3 @@ from core.catalog.storage.sqlite_writer import write_snapshot
 __all__ = [
     "write_snapshot",
 ]
-

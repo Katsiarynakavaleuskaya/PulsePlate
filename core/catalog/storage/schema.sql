@@ -52,4 +52,3 @@ CREATE INDEX IF NOT EXISTS idx_stores_region_id ON stores(region_id);
 CREATE INDEX IF NOT EXISTS idx_skus_store_id ON skus(store_id);
 CREATE INDEX IF NOT EXISTS idx_skus_ean ON skus(ean) WHERE ean IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_alias_region ON sku_aliases(region_id, alias);
-

@@ -23,19 +23,23 @@ sys.path.insert(0, str(project_root))
 
 from core.catalog.loaders.carrefour_es import CarrefourESLoader
 from core.catalog.loaders.walmart_us import WalmartUSLoader
-from core.catalog.storage.sqlite_writer import SQLiteCatalogWriter
+from core.catalog.storage.sqlite_writer import write_snapshot
 
 
 def main() -> None:
     """Build catalog snapshot from loader."""
-    parser = argparse.ArgumentParser(
-        description="Build catalog SQLite snapshot from loader"
-    )
+    parser = argparse.ArgumentParser(description="Build catalog SQLite snapshot from loader")
     parser.add_argument(
         "--loader",
         choices=["carrefour_es", "walmart_us"],
         required=True,
         help="Loader to use",
+    )
+    parser.add_argument(
+        "--raw-path",
+        type=Path,
+        required=True,
+        help="Path to raw CSV file",
     )
     parser.add_argument(
         "--output",
@@ -48,24 +52,24 @@ def main() -> None:
 
     # Select loader
     if args.loader == "carrefour_es":
-        loader = CarrefourESLoader()
+        loader = CarrefourESLoader(args.raw_path)
     elif args.loader == "walmart_us":
-        loader = WalmartUSLoader()
+        loader = WalmartUSLoader(args.raw_path)
     else:
         raise ValueError(f"Unknown loader: {args.loader}")
 
     # Load snapshot
     print(f"Loading catalog from {loader.source_name}...")
     snapshot = loader.load()
-    print(f"Loaded: {len(snapshot.regions)} regions, {len(snapshot.stores)} stores, {len(snapshot.skus)} SKUs, {len(snapshot.aliases)} aliases")
+    print(
+        f"Loaded: {len(snapshot.regions)} regions, {len(snapshot.stores)} stores, {len(snapshot.skus)} SKUs, {len(snapshot.aliases)} aliases"
+    )
 
     # Write to SQLite
     print(f"Writing to {args.output}...")
-    writer = SQLiteCatalogWriter(args.output)
-    writer.write(snapshot)
+    write_snapshot(args.output, snapshot)
     print(f"✓ Snapshot written to {args.output}")
 
 
 if __name__ == "__main__":
     main()
-

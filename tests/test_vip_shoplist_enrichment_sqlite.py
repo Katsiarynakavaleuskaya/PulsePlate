@@ -17,7 +17,12 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.services.catalog_adapter import reset_catalog_provider_for_tests
-from tests.conftest import _enable_vip, build_demo_catalog_sqlite, client_with_vip_access, fixtures_dir
+from tests.conftest import (
+    _enable_vip,
+    build_demo_catalog_sqlite,
+    client_with_vip_access,
+    fixtures_dir,
+)
 
 
 def _generate_payload_minimal() -> dict:

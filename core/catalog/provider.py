@@ -40,6 +40,7 @@ class CatalogStore:
     region_id: str
     name: str
     provider: str  # "carrefour" / "walmart"
+    meta_json: str | None = None  # optional serialized metadata
 
 
 @dataclass(frozen=True)
@@ -142,4 +143,3 @@ class CatalogProvider(Protocol):
             List of stores (empty if region not found)
         """
         ...
-

@@ -129,7 +129,9 @@ def _get_provider() -> CatalogProvider:
     provider_type = (os.getenv("CATALOG_PROVIDER") or "mock").strip().lower()
 
     if provider_type == "sqlite":
-        sqlite_path_str = os.getenv("CATALOG_SQLITE_PATH") or "data/catalog/snapshots/catalog_demo.sqlite"
+        sqlite_path_str = (
+            os.getenv("CATALOG_SQLITE_PATH") or "data/catalog/snapshots/catalog_demo.sqlite"
+        )
         sqlite_path = Path(sqlite_path_str)
         if not sqlite_path.is_absolute():
             # Resolve relative to project root

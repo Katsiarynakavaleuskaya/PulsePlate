@@ -10,13 +10,12 @@ from __future__ import annotations
 
 from core.catalog.normalize.common import (
     normalize_currency,
-    normalize_decimal,
     normalize_unit,
+    parse_decimal,
 )
 
 __all__ = [
-    "normalize_decimal",
+    "parse_decimal",
     "normalize_currency",
     "normalize_unit",
 ]
-
