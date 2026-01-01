@@ -60,7 +60,7 @@ else
 fi
 
 # 7. Проверить env внутри контейнера
-docker exec -it pulseplate-production_app_1 python -c "import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))"
+docker exec pulseplate-production_app_1 python -c "import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))"
 
 # 8. Проверить health
 curl -fsS https://pulseplate.app/health | jq .
@@ -76,8 +76,8 @@ bash scripts/fix_production_env.sh
 ```
 
 Скрипт автоматически:
-1. Находит deploy директорию
-2. Определяет версию docker compose (v2 или v1) и выбирает правильную команду
+1. Находит deploy директорию **и** определяет версию docker compose (v2 или v1)
+2. Выбирает правильную команду **и** валидирует compose
 3. Проверяет, есть ли postgres в compose
 4. Пытается найти существующий `POSTGRES_PASSWORD` из контейнера
 5. Обновляет `.env` файл

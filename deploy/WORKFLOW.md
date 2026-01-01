@@ -34,8 +34,7 @@ git push origin main
 ```
 
 ⏳ **Ждём**, пока GitHub Actions:
-- Соберёт Docker image
-- Запушит в `ghcr.io/<owner>/<repo>:latest` (или `prod-vX.Y.Z`)
+- Соберёт Docker image **и** запушит его в `ghcr.io/<owner>/<repo>:latest` (или `prod-vX.Y.Z`)
 
 ---
 
