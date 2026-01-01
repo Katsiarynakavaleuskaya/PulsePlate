@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -75,3 +76,46 @@ def test_scheduler_defines_signal_handler_when_not_test_runtime(
     assert any(signum == scheduler.signal.SIGTERM for signum, _ in called)
     assert any(signum == scheduler.signal.SIGINT for signum, _ in called)
     assert all(callable(handler) for _, handler in called)
+
+
+@pytest.mark.asyncio
+async def test_usda_client_close_swallows_event_loop_closed_runtime_error(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    caplog.set_level(logging.DEBUG)
+
+    client = USDAClient(api_key="demo")
+    real_http_client = client.client
+    try:
+        monkeypatch.setattr(
+            client,
+            "client",
+            SimpleNamespace(aclose=AsyncMock(side_effect=RuntimeError("Event loop is closed"))),
+        )
+
+        await client.close()
+        assert any(
+            "RuntimeError during USDA client close (event loop closed)" in record.getMessage()
+            for record in caplog.records
+        )
+    finally:
+        await real_http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_usda_client_close_raises_unexpected_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = USDAClient(api_key="demo")
+    real_http_client = client.client
+    try:
+        monkeypatch.setattr(
+            client,
+            "client",
+            SimpleNamespace(aclose=AsyncMock(side_effect=RuntimeError("boom"))),
+        )
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await client.close()
+    finally:
+        await real_http_client.aclose()
