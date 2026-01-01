@@ -411,24 +411,15 @@ async def vip_shoplist_daily(
 
     Contract matches /generate: same gating, mapping, and response format.
     """
-    # Map DTO -> core models
-    specs = _map_dto_to_engine_specs(payload.items)
-    rules = _map_dto_to_engine_rules(payload.packaging_rules)
-
-    # Run engine pipeline
-    result = ShoplistEngine.generate(specs, packaging_rules=rules)
-
-    # Build response
-    response = _build_shoplist_response(result, rules, include_analytics=True)
-
-    # Enrichment (fail-soft, adapter-only)
-    response = enrich_shoplist_response(
-        response,
-        region_id=region_id,
-        store_id=store_id,
-        provider=_get_catalog_provider(),
+    # RU: DRY — daily использует тот же генератор, что и /generate
+    # EN: DRY — daily reuses the same generator as /generate
+    # ShoplistDailyRequest has the same structure as ShoplistGenerateRequest
+    generate_payload = ShoplistGenerateRequest(
+        items=payload.items, packaging_rules=payload.packaging_rules
     )
-    return response
+    return await _generate_vip_shoplist(
+        generate_payload, region_id=region_id, store_id=store_id
+    )
 
 
 @router.post(
