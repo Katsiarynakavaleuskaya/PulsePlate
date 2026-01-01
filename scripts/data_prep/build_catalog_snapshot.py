@@ -52,7 +52,7 @@ def main() -> None:
 
     # Select loader
     if args.loader == "carrefour_es":
-        loader = CarrefourESLoader(args.raw_path)
+        loader: CarrefourESLoader | WalmartUSLoader = CarrefourESLoader(args.raw_path)
     elif args.loader == "walmart_us":
         loader = WalmartUSLoader(args.raw_path)
     else:
