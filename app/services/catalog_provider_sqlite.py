@@ -113,20 +113,11 @@ class SQLiteCatalogProvider(CatalogProvider):
         try:
             alias_norm = norm_alias(alias)
 
-            # Filter by store_id if provided
+            # Store-aware lookup with fallback:
+            # 1) If store_id provided: exact store match wins, then fallback to any store
+            # 2) If store_id not provided: return any matching SKU (deterministic by sku_id)
             if store_id:
-                row = conn.execute(
-                    """
-                    SELECT s.sku_id, s.store_id, s.ean, s.name, s.brand, s.aisle,
-                           s.package_size, s.unit, s.price, s.currency, s.updated_at
-                    FROM sku_aliases a
-                    JOIN skus s ON s.sku_id = a.sku_id
-                    WHERE a.region_id = ? AND a.alias = ? AND s.store_id = ?
-                    LIMIT 1
-                    """,
-                    (region_id, alias_norm, store_id),
-                ).fetchone()
-            else:
+                # Prefer exact store match, fallback to any store for this alias
                 row = conn.execute(
                     """
                     SELECT s.sku_id, s.store_id, s.ean, s.name, s.brand, s.aisle,
@@ -134,6 +125,23 @@ class SQLiteCatalogProvider(CatalogProvider):
                     FROM sku_aliases a
                     JOIN skus s ON s.sku_id = a.sku_id
                     WHERE a.region_id = ? AND a.alias = ?
+                    ORDER BY
+                      CASE WHEN s.store_id = ? THEN 0 ELSE 1 END,
+                      s.sku_id ASC
+                    LIMIT 1
+                    """,
+                    (region_id, alias_norm, store_id),
+                ).fetchone()
+            else:
+                # No store specified: return any matching SKU (deterministic)
+                row = conn.execute(
+                    """
+                    SELECT s.sku_id, s.store_id, s.ean, s.name, s.brand, s.aisle,
+                           s.package_size, s.unit, s.price, s.currency, s.updated_at
+                    FROM sku_aliases a
+                    JOIN skus s ON s.sku_id = a.sku_id
+                    WHERE a.region_id = ? AND a.alias = ?
+                    ORDER BY s.sku_id ASC
                     LIMIT 1
                     """,
                     (region_id, alias_norm),
