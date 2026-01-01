@@ -155,7 +155,28 @@ def test_vip_shoplist_export_csv_invalid_format(
 
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
     detail = resp.json()["detail"].lower()
-    assert "csv" in detail or "pdf" in detail
+    # Check that error message mentions both supported formats
+    assert "csv" in detail
+    assert "pdf" in detail
+
+
+def test_vip_shoplist_export_accepts_legacy_format_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+) -> None:
+    """Test that legacy 'format' query parameter alias still works."""
+    _enable_vip(monkeypatch)
+
+    payload = _generate_payload_minimal()
+    resp = client_with_vip_access.post(
+        "/api/v1/vip/shoplist/export?format=csv",  # legacy alias
+        json=payload,
+    )
+
+    assert resp.status_code == status.HTTP_200_OK
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "Content-Disposition" in resp.headers
+    assert 'filename="shoplist.csv"' in resp.headers["Content-Disposition"]
 
 
 def test_vip_shoplist_export_csv_injection_protection(
