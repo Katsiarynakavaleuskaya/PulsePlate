@@ -5,6 +5,7 @@ import logging
 import math
 import ipaddress
 import os
+import re
 import secrets
 import sys
 import threading
@@ -1815,6 +1816,10 @@ async def favicon() -> Response:
     return Response(status_code=204)
 
 
+# Regex for validating hex digest
+_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
 def _short_git_sha(raw: str | None) -> str:
     """
     RU: Нормализует git SHA / image digest для /health.
@@ -1840,8 +1845,15 @@ def _short_git_sha(raw: str | None) -> str:
     elif s.startswith("sha256:"):
         s = s.split("sha256:", 1)[1]
 
-    # Final trim for display (12 chars for better readability)
-    return s[:12] if len(s) >= 12 else s
+    s = s.strip()
+    if not s:
+        return "unknown"
+
+    # Validate hex digest (reasonable minimum length)
+    if len(s) < 12 or not _HEX_RE.fullmatch(s):
+        return "unknown"
+
+    return s[:12]
 
 
 @app.get("/health")

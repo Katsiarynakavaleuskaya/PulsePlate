@@ -80,16 +80,15 @@ def test_generate_with_region_store_attaches_catalog(
 
     data = r.json()
     packed_item = data["packed"][0]
-    # Catalog field always present in schema (fail-soft contract)
+    # Catalog field always present in schema (contract: never None when region/store provided)
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
-    # Fail-soft: if provider can't resolve (e.g. fixture mismatch), catalog may be None.
-    # But when it resolves, the shape + normalization must match contract.
-    if catalog is not None:
-        assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
-        assert catalog["store_id"] == "carrefour_es"
-        assert "sku" in catalog
-        assert catalog["sku"] == "CRF-ES-000123"
+    # Contract: catalog must not be None when region/store provided
+    assert catalog is not None, "Catalog enrichment should always attach metadata when region/store provided"
+    assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
+    assert catalog["store_id"] == "carrefour_es"
+    assert "sku" in catalog
+    assert catalog["sku"] == "CRF-ES-000123"
 
 
 def test_daily_with_enrichment_applies_to_response(
@@ -111,10 +110,38 @@ def test_daily_with_enrichment_applies_to_response(
     data = r.json()
     assert "packed" in data
     packed_item = data["packed"][0]
-    # Catalog field always present in schema (fail-soft contract)
+    # Catalog field always present in schema (contract: never None when region/store provided)
     assert "catalog" in packed_item
     catalog = packed_item["catalog"]
-    # Fail-soft: if provider can't resolve, catalog may be None.
-    # But when it resolves, the shape + normalization must match contract.
-    if catalog is not None:
-        assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
+    # Contract: catalog must not be None when region/store provided
+    assert catalog is not None, "Catalog enrichment should always attach metadata when region/store provided"
+    assert catalog["region_id"] == "es"  # Contract: lowercase in DTO
+
+
+def test_generate_with_uppercase_region_id_normalizes_to_lowercase(
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+) -> None:
+    """Test that region_id is normalized to lowercase in catalog response."""
+    _enable_vip(monkeypatch)
+
+    # client_with_vip_access fixture handles VIP tier and API key overrides
+    client = client_with_vip_access
+
+    # Pass uppercase region_id
+    r = client.post(
+        "/api/v1/vip/shoplist/generate?region_id=ES&store_id=carrefour_es",
+        json=_generate_payload_minimal(),
+    )
+    assert r.status_code == status.HTTP_200_OK, r.text
+
+    data = r.json()
+    packed_item = data["packed"][0]
+    assert "catalog" in packed_item
+    catalog = packed_item["catalog"]
+    # Contract: catalog must not be None when region/store provided
+    assert catalog is not None
+    # Contract: region_id always lowercase in response
+    assert catalog["region_id"] == "es", f"Expected lowercase 'es', got '{catalog['region_id']}'"
+
+
