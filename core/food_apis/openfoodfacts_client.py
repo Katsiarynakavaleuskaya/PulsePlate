@@ -14,20 +14,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+from ._testing import is_test_runtime
+
 logger = logging.getLogger(__name__)
-
-
-def _is_test_runtime() -> bool:
-    """RU: Проверяет, запущен ли код в тестовой среде (pytest/xdist).
-    EN: Check if code is running in test environment (pytest/xdist)."""
-    return bool(os.getenv("PYTEST_CURRENT_TEST")) or bool(os.getenv("GITHUB_ACTIONS"))
 
 
 # Availability flag for OpenFoodFacts API. Can be toggled in tests via mock.patch() to
@@ -192,7 +187,9 @@ class OFFClient:
             # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
             # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
             error_msg = str(e)
-            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+            # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
+            # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
+            if "External HTTP blocked in tests" in error_msg and is_test_runtime():
                 logger.debug("OFF search blocked in tests for %r: %s", query, e)
             else:
                 logger.error("Error searching Open Food Facts products for %r: %s", query, e)
@@ -230,7 +227,9 @@ class OFFClient:
             # RU: Блокировка сети в тестах — ожидаемая ветка (guard), не ошибка.
             # EN: Network blocked in tests is expected (guard), avoid ERROR noise in CI.
             error_msg = str(e)
-            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+            # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
+            # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
+            if "External HTTP blocked in tests" in error_msg and is_test_runtime():
                 logger.debug("OFF product details blocked in tests for %r: %s", barcode, e)
             else:
                 logger.error(

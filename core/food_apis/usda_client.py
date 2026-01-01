@@ -15,19 +15,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import httpx
 
+from ._testing import is_test_runtime
+
 logger = logging.getLogger(__name__)
-
-
-def _is_test_runtime() -> bool:
-    """RU: Проверяет, запущен ли код в тестовой среде (pytest/xdist).
-    EN: Check if code is running in test environment (pytest/xdist)."""
-    return bool(os.getenv("PYTEST_CURRENT_TEST")) or bool(os.getenv("GITHUB_ACTIONS"))
 
 
 @dataclass
@@ -196,7 +191,9 @@ class USDAClient:
             # RU: Блокировка сети в тестах — ожидаемое поведение (guard), не ошибка продукта.
             # EN: Network blocked in tests is expected (guard), so don't log as ERROR in CI.
             error_msg = str(e)
-            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+            # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
+            # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
+            if "External HTTP blocked in tests" in error_msg and is_test_runtime():
                 logger.debug("USDA search blocked in tests for %r: %s", query, e)
             else:
                 logger.error("Error searching USDA foods for %r: %s", query, e)
@@ -227,7 +224,9 @@ class USDAClient:
             # RU: Блокировка сети в тестах — ожидаемое поведение (guard), не ошибка продукта.
             # EN: Network blocked in tests is expected (guard), so don't log as ERROR in CI.
             error_msg = str(e)
-            if "External HTTP blocked in tests" in error_msg and _is_test_runtime():
+            # RU: Проверяем строку из network guard в tests/conftest.py (fixture _block_external_network_in_ci).
+            # EN: Check for string from network guard in tests/conftest.py (fixture _block_external_network_in_ci).
+            if "External HTTP blocked in tests" in error_msg and is_test_runtime():
                 logger.debug("USDA food details blocked in tests for %r: %s", fdc_id, e)
             else:
                 logger.error(
@@ -360,7 +359,16 @@ class USDAClient:
 
     async def close(self) -> None:
         """Close the HTTP client."""
-        await self.client.aclose()
+        try:
+            await self.client.aclose()
+        except RuntimeError as e:
+            # Mirror OFFClient.close: suppress only when the loop is already closed.
+            # (This can happen during interpreter shutdown / pytest teardown.)
+            error_msg = str(e).lower()
+            if "event loop" in error_msg and "closed" in error_msg:
+                logger.debug("RuntimeError during USDA client close (event loop closed): %s", e)
+                return
+            raise
 
 
 # Convenience functions for common foods

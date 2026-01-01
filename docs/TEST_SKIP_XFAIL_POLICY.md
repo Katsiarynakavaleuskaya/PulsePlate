@@ -49,7 +49,7 @@ These are tests skipped due to:
 - Real bugs/regressions
 - Temporary workarounds
 
-**Action**: 
+**Action**:
 - Create issue with deadline/criteria for fixing
 - Convert to `xfail(strict=True)` temporarily if needed
 - Track in project board
@@ -153,4 +153,3 @@ pytest -q -m "not skip"
 
 - [Pytest Skip/XFail Documentation](https://docs.pytest.org/en/stable/skipping.html)
 - [Pytest Markers Documentation](https://docs.pytest.org/en/stable/how-to/mark.html)
-
