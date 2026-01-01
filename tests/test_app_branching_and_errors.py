@@ -203,7 +203,8 @@ def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:
     # sourcery skip: no-conditionals-in-tests
     if app_module.calculate_all_bmr is not None:
         pytest.xfail(
-            "calculate_all_bmr is not None after reload; patching not supported in this environment"
+            strict=True,
+            reason="calculate_all_bmr is not None after reload; patching not supported in this environment. TODO: Fix module reload/patching or use dependency override",
         )
     # sourcery skip: no-conditionals-in-tests
     if app_module.calculate_all_tdee is not None:
@@ -305,4 +306,7 @@ def test_internal_error(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> 
         response = client.get("/api/v1/foods")
         assert response.status_code in (500, 422, 404)
     except AttributeError:
-        pytest.xfail("app.routers.foods has no attribute 'get_foods'")
+        pytest.xfail(
+            strict=True,
+            reason="app.routers.foods has no attribute 'get_foods'. TODO: Fix router structure or use proper dependency injection",
+        )

@@ -520,7 +520,7 @@ def test_bmi_visualization_endpoint_without_api_key():
     assert response.status_code in [403, 503, 404]
 
 
-@pytest.mark.xfail(reason="Test isolation issue in full suite - passes individually")
+@pytest.mark.xfail(strict=True, reason="Test isolation issue in full suite - passes individually. TODO: Fix test isolation or use dependency override for API key")
 def test_bmi_visualization_endpoint_with_api_key():
     """Test visualization endpoint with API key."""
     payload = {
