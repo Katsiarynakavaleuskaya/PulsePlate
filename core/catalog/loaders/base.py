@@ -11,7 +11,6 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-
 def read_csv_rows(path: str | Path) -> list[dict[str, str]]:
     """
     RU: Читает CSV файл и возвращает список словарей.

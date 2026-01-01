@@ -452,6 +452,8 @@ async def vip_shoplist_weekly(
 
     Contract matches /generate: same gating, mapping, and response format per day.
     """
+    # Hoist provider lookup before loop to avoid repeated calls
+    provider = _get_catalog_provider()
     days = []
     for day_req in payload.days:
         # Map DTO -> core models
@@ -469,7 +471,7 @@ async def vip_shoplist_weekly(
             day_response,
             region_id=region_id,
             store_id=store_id,
-            provider=_get_catalog_provider(),
+            provider=provider,
         )
         days.append(day_response)
 
