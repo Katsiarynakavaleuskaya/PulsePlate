@@ -82,14 +82,22 @@ def _get_reason_str(line: PackedLineDTO | UnpackedLineDTO) -> str:
     return line.reason or ""
 
 
+def _cell(value: str | None) -> str:
+    """
+    RU: Применяет CSV sanitize к строковому значению.
+    EN: Applies CSV sanitize to string value.
+    """
+    return _sanitize_csv_cell(value or "")
+
+
 def export_shoplist_to_csv(response: ShoplistGenerateResponse) -> str:
     """
     RU: Экспортирует shoplist в CSV (строго детерминированно).
     EN: Exports shoplist to CSV (strictly deterministic).
 
     Ordering:
-    - store_id (empty last via "")
-    - aisle (empty last via "")
+    - store_id (non-empty first; empty last)
+    - aisle (non-empty first; empty last)
     - food_id
 
     Args:
@@ -107,8 +115,10 @@ def export_shoplist_to_csv(response: ShoplistGenerateResponse) -> str:
     all_lines.extend(response.packed)
     all_lines.extend(response.unpacked)
 
-    # Детерминированная сортировка
-    def sort_key(line: PackedLineDTO | UnpackedLineDTO) -> tuple[str, str, str]:
+    # Детерминированная сортировка: empty values last
+    def sort_key(
+        line: PackedLineDTO | UnpackedLineDTO,
+    ) -> tuple[bool, str, bool, str, str]:
         # Извлекаем store_id из catalog или используем пустую строку
         store_id = ""
         if line.catalog and line.catalog.store_id:
@@ -117,7 +127,9 @@ def export_shoplist_to_csv(response: ShoplistGenerateResponse) -> str:
         aisle = ""
         if line.catalog and line.catalog.aisle:
             aisle = line.catalog.aisle
-        return (store_id, aisle, line.food_id)
+
+        # False < True => непустые значения раньше, пустые позже
+        return (store_id == "", store_id, aisle == "", aisle, line.food_id)
 
     sorted_lines = sorted(all_lines, key=sort_key)
 
@@ -159,22 +171,22 @@ def export_shoplist_to_csv(response: ShoplistGenerateResponse) -> str:
         if catalog_price_value is not None and packs > 0:
             subtotal_value = catalog_price_value * Decimal(packs)
 
-        # Формируем строку CSV
+        # Формируем строку CSV (sanitize для всех строковых полей)
         writer.writerow(
             [
-                line.food_id,
+                _cell(line.food_id),
                 "",  # name - нет в DTO, оставляем пустым
                 _fmt_decimal(requested_value),
-                requested_unit or "",
+                _cell(requested_unit),
                 _fmt_quantity(pack_size_value, pack_size_unit),
                 str(packs),
                 str(min_packs),
-                _sanitize_csv_cell(_get_reason_str(line)),
-                _sanitize_csv_cell(catalog_aisle),
+                _cell(_get_reason_str(line)),
+                _cell(catalog_aisle),
                 _fmt_decimal(catalog_price_value),
                 _fmt_decimal(subtotal_value),
-                catalog_store_id,
-                final_region_id,
+                _cell(catalog_store_id),
+                _cell(final_region_id),
             ]
         )
 

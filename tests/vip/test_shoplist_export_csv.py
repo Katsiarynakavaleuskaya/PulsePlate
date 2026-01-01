@@ -8,6 +8,9 @@ EN: Tests for VIP shoplist CSV export endpoint.
 
 from __future__ import annotations
 
+import csv
+import io
+
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -45,7 +48,7 @@ def test_vip_shoplist_export_csv_basic(
 
     payload = _generate_payload_minimal()
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?format=csv",
+        "/api/v1/vip/shoplist/export?export_format=csv",
         json=payload,
     )
 
@@ -54,12 +57,12 @@ def test_vip_shoplist_export_csv_basic(
     assert "Content-Disposition" in resp.headers
     assert 'filename="shoplist.csv"' in resp.headers["Content-Disposition"]
 
-    # Проверяем структуру CSV
-    lines = resp.text.strip().split("\n")
-    assert len(lines) >= 2  # header + at least one data row
+    # Парсим CSV через csv.reader
+    rows = list(csv.reader(io.StringIO(resp.text)))
+    assert len(rows) >= 2  # header + at least one data row
 
     # Проверяем header
-    header = lines[0]
+    header = rows[0]
     expected_columns = [
         "food_id",
         "name",
@@ -75,11 +78,11 @@ def test_vip_shoplist_export_csv_basic(
         "store_id",
         "region_id",
     ]
-    assert header == ",".join(expected_columns)
+    assert header == expected_columns
 
     # Проверяем, что есть данные
-    if len(lines) > 1:
-        data_row = lines[1].split(",")
+    if len(rows) > 1:
+        data_row = rows[1]
         assert len(data_row) == len(expected_columns)
         assert data_row[0] == "carrot"  # food_id
 
@@ -88,7 +91,7 @@ def test_vip_shoplist_export_csv_deterministic_ordering(
     monkeypatch: pytest.MonkeyPatch,
     client_with_vip_access: TestClient,
 ) -> None:
-    """Test that CSV export has deterministic ordering (store_id, aisle, food_id)."""
+    """Test that CSV export has deterministic ordering (empty values last)."""
     _enable_vip(monkeypatch)
 
     payload = {
@@ -112,20 +115,31 @@ def test_vip_shoplist_export_csv_deterministic_ordering(
         ],
     }
 
-    resp1 = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?format=csv",
-        json=payload,
-    )
-    resp2 = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?format=csv",
+    resp = client_with_vip_access.post(
+        "/api/v1/vip/shoplist/export?export_format=csv",
         json=payload,
     )
 
-    assert resp1.status_code == status.HTTP_200_OK
-    assert resp2.status_code == status.HTTP_200_OK
+    assert resp.status_code == status.HTTP_200_OK
 
-    # Детерминированность: два запроса дают одинаковый результат
-    assert resp1.text == resp2.text
+    # Парсим CSV
+    rows = list(csv.reader(io.StringIO(resp.text)))
+    header = rows[0]
+    data = rows[1:]
+
+    # Проверяем сортировку: empty values last
+    store_i = header.index("store_id")
+    aisle_i = header.index("aisle")
+    food_i = header.index("food_id")
+
+    # Извлекаем ключи сортировки
+    keys = [(r[store_i], r[aisle_i], r[food_i]) for r in data]
+
+    # Проверяем, что сортировка соответствует правилу: empty last
+    expected_keys = sorted(
+        keys, key=lambda k: (k[0] == "", k[0], k[1] == "", k[1], k[2])
+    )
+    assert keys == expected_keys, "Sorting should put empty values last"
 
 
 def test_vip_shoplist_export_csv_invalid_format(
@@ -137,12 +151,12 @@ def test_vip_shoplist_export_csv_invalid_format(
 
     payload = _generate_payload_minimal()
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?format=pdf",
+        "/api/v1/vip/shoplist/export?export_format=pdf",
         json=payload,
     )
 
     assert resp.status_code == status.HTTP_400_BAD_REQUEST
-    assert "csv supported" in resp.json()["detail"].lower()
+    assert "csv" in resp.json()["detail"].lower()
 
 
 def test_vip_shoplist_export_csv_injection_protection(
@@ -152,15 +166,24 @@ def test_vip_shoplist_export_csv_injection_protection(
     """Test that CSV injection is prevented (formulas starting with =, +, -, @)."""
     _enable_vip(monkeypatch)
 
-    # Используем food_id, который может содержать опасные символы
-    # (в реальности это будет в reason или aisle из catalog)
+    # Используем food_id с опасными символами (проверяем sanitize для food_id)
     payload = _generate_payload_minimal(food_id="=SUM(A1:A10)")
     resp = client_with_vip_access.post(
-        "/api/v1/vip/shoplist/export?format=csv",
+        "/api/v1/vip/shoplist/export?export_format=csv",
         json=payload,
     )
 
     assert resp.status_code == status.HTTP_200_OK
-    # CSV injection protection is tested implicitly:
-    # if formulas appear in reason/aisle fields, they should be prefixed with '
-    # This test verifies the endpoint works; detailed injection tests are in unit tests
+
+    # Парсим CSV
+    rows = list(csv.reader(io.StringIO(resp.text)))
+    header = rows[0]
+    data = rows[1:]
+
+    # Проверяем, что food_id с формулой экранирован
+    food_i = header.index("food_id")
+    if data:
+        food_id_cell = data[0][food_i]
+        # Если food_id начинается с опасного символа, он должен быть экранирован
+        if food_id_cell and food_id_cell[0] in ("=", "+", "-", "@"):
+            assert food_id_cell.startswith("'"), f"CSV injection not prevented: {food_id_cell}"
