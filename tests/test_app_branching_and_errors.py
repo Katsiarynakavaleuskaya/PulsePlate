@@ -303,7 +303,7 @@ def test_internal_error(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
         def get_food(self, food_id: str) -> dict[str, object] | None:  # pragma: no cover
             return None
 
-    monkeypatch.setitem(app.dependency_overrides, get_food_store, lambda: BrokenFoodStore())
+    monkeypatch.setitem(app.dependency_overrides, get_food_store, lambda: BrokenFoodStore())  # type: ignore[misc]
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/api/v1/foods")
     assert response.status_code == 500, response.text
