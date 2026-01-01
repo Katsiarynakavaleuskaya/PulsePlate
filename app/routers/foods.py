@@ -20,7 +20,7 @@ class FoodStore(Protocol):
 def get_food_store() -> FoodStore:
     # food_store module exports search_foods and get_food functions
     # that match the FoodStore protocol
-    return food_store  # type: ignore[return-value]
+    return food_store  # type: ignore[no-any-return]
 
 
 @router.get("/api/v1/foods", response_model=list[FoodHit])
@@ -54,7 +54,7 @@ def list_foods_search(
     offset: int = 0,
     store: FoodStore = Depends(get_food_store),
 ) -> list[FoodHit]:
-    return list_foods(query=query, limit=limit, offset=offset, store=store)
+    return list_foods(query=query, limit=limit, offset=offset, store=store)  # type: ignore[no-any-return]
 
 
 @router.get("/api/v1/foods/{food_id}", response_model=FoodItem)

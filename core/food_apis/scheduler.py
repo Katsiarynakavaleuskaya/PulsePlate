@@ -16,7 +16,7 @@ import signal
 import threading
 from datetime import datetime, timedelta
 from types import FrameType
-from typing import Any, Dict, Optional
+from typing import Any
 
 from ..time_utils import now_utc
 from ._testing import is_test_runtime
@@ -52,12 +52,12 @@ class DatabaseUpdateScheduler:
 
         # State tracking
         self.is_running = False
-        self.last_update_check: Optional[datetime] = None
-        self.retry_counts: Dict[str, int] = {}
+        self.last_update_check: datetime | None = None
+        self.retry_counts: dict[str, int] = {}
 
         # Background task
-        self._update_task: Optional[asyncio.Task[None]] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._update_task: asyncio.Task[None] | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
         # Setup update callbacks
         self.update_manager.add_update_callback(self._on_update_complete)
@@ -97,7 +97,7 @@ class DatabaseUpdateScheduler:
             signal.signal(signal.SIGTERM, signal_handler)
             signal.signal(signal.SIGINT, signal_handler)
         except Exception as e:
-            logger.warning(f"Could not setup signal handlers: {e}")
+            logger.warning("Could not setup signal handlers: %s", e)
 
     async def start(self) -> None:
         """
@@ -240,7 +240,7 @@ class DatabaseUpdateScheduler:
         else:
             logger.warning(f"Update notification: {result.source} update failed - {result.errors}")
 
-    async def force_update(self, source: Optional[str] = None) -> Dict[str, UpdateResult]:
+    async def force_update(self, source: str | None = None) -> dict[str, UpdateResult]:
         """
         RU: Принудительно запускает обновление.
         EN: Force an immediate update.
@@ -249,9 +249,9 @@ class DatabaseUpdateScheduler:
             source: Specific source to update, or None for all sources
 
         Returns:
-            Dict of update results by source
+            dict of update results by source
         """
-        results = {}
+        results: dict[str, UpdateResult] = {}
 
         if source:
             # Update specific source
@@ -269,7 +269,7 @@ class DatabaseUpdateScheduler:
 
         return results
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """
         RU: Получает статус планировщика и баз данных.
         EN: Get scheduler and database status.
@@ -290,7 +290,7 @@ class DatabaseUpdateScheduler:
 
 
 # Global scheduler instance
-_scheduler_instance: Optional[DatabaseUpdateScheduler] = None
+_scheduler_instance: DatabaseUpdateScheduler | None = None
 
 
 async def get_update_scheduler() -> DatabaseUpdateScheduler:
