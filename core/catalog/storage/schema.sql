@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS stores (
     name TEXT NOT NULL,
     provider TEXT NOT NULL,
     meta_json TEXT,  -- JSON metadata (flexible)
-    FOREIGN KEY (region_id) REFERENCES regions(region_id)
+    FOREIGN KEY (region_id) REFERENCES regions(region_id) ON DELETE CASCADE
 );
 
 -- SKUs table
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS skus (
     price TEXT,  -- Decimal stored as TEXT
     currency TEXT NOT NULL,
     updated_at TEXT,  -- ISO date string
-    FOREIGN KEY (store_id) REFERENCES stores(store_id)
+    FOREIGN KEY (store_id) REFERENCES stores(store_id) ON DELETE CASCADE
 );
 
 -- SKU aliases table (for food_id -> sku_id mapping)
@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS sku_aliases (
     alias TEXT NOT NULL,
     sku_id TEXT NOT NULL,
     PRIMARY KEY (region_id, alias),
-    FOREIGN KEY (sku_id) REFERENCES skus(sku_id)
+    FOREIGN KEY (region_id) REFERENCES regions(region_id),
+    FOREIGN KEY (sku_id) REFERENCES skus(sku_id) ON DELETE CASCADE
 );
 
 -- Indexes for fast lookups
