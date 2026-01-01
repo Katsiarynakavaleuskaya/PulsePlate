@@ -1825,14 +1825,22 @@ async def health() -> Dict[str, Any]:
     import datetime
 
     # Get git SHA if available (for version tracking)
-    git_sha = os.getenv("GIT_SHA", "unknown")
+    git_sha = (os.getenv("GIT_SHA") or "unknown").strip()
+
+    # RU: Окружение должно приходить из env. В проде ставим production по умолчанию.
+    # EN: Environment must come from env vars. Default to production in prod.
+    environment = (
+        (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or os.getenv("ENV") or "production")
+        .strip()
+        .lower()
+    )
 
     return {
         "status": "ok",
         "version": "1.0.0",  # TODO: Read from pyproject.toml
         "git_sha": git_sha[:8] if len(git_sha) > 8 else git_sha,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "environment": os.getenv("ENVIRONMENT", "development"),
+        "environment": environment,
     }
 
 

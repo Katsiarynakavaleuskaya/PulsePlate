@@ -3,6 +3,8 @@
 This repo publishes production images to GHCR and can optionally auto-deploy to a production server via
 SSH + `docker compose`.
 
+**📌 Important:** See `deploy/WORKFLOW.md` for the canonical deployment workflow (where to make changes, when to deploy, etc.).
+
 ## Deploy mode (required)
 
 Auto-deploy is controlled by repository variable `PROD_DEPLOY_MODE`:
@@ -36,11 +38,12 @@ On the production server:
 Example `docker-compose.production.yaml`:
 
 ```yaml
-version: "3.9"
-
 networks:
   web:
     external: false
+    ipam:
+      config:
+        - subnet: 172.30.100.0/24
 
 volumes:
   caddy_data:
@@ -56,10 +59,10 @@ services:
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
-      --forwarded-allow-ips="*"
+      --forwarded-allow-ips="172.30.100.0/24"
 
   caddy:
-    image: caddy:2
+    image: caddy:2.10.2
     restart: unless-stopped
     networks: [web]
     ports:
@@ -95,7 +98,7 @@ It already contains a complete and secure reverse proxy setup using the `{$PRODU
 2. Ensure the file is readable by Docker (mode 644 or similar):
 
    ```bash
-   chmod 644 /srv/pulseplate-production/Caddyfile.production
+   chmod 644 ./Caddyfile.production
    ```
 
 3. The compose file mounts it as `./Caddyfile.production` (relative to the deploy directory).
@@ -197,6 +200,47 @@ docker compose logs caddy
 docker compose exec caddy cat /etc/caddy/Caddyfile
 ```
 
+## Remote Server Check (when SSH is not available)
+
+If `ssh root@pulseplate.app` times out (common when behind Cloudflare), you can still check the server status remotely:
+
+### Quick Health Check (from anywhere)
+
+```bash
+curl -fsS https://pulseplate.app/health | jq .
+```
+
+Expected output:
+
+```json
+{
+  "status": "ok",
+  "environment": "production",  // Should be "production", not "development"
+  "git_sha": "abc12345",         // Should be real SHA, not "unknown"
+  ...
+}
+```
+
+### Accessing the Server
+
+If SSH port 22 is blocked, try:
+
+1. **DigitalOcean Console** (or your VPS provider's web console):
+   - Access via provider dashboard → Droplet → Console
+   - Run commands directly on the server
+
+2. **Alternative SSH port** (if configured):
+
+   ```bash
+   ssh -p 2222 root@pulseplate.app
+   ```
+
+3. **Self-hosted runner** (recommended):
+   - If you have a self-hosted runner on the server, use it to execute commands
+   - See `scripts/REMOTE_SERVER_CHECK.md` for detailed instructions
+
+For detailed remote check instructions, see `scripts/REMOTE_SERVER_CHECK.md`.
+
 ## GitHub Environment + Secrets
 
 Configure GitHub Environment `production` with required reviewers (recommended).
@@ -250,6 +294,33 @@ High-level steps (run on the production server):
    - Check ports: `sudo ss -tlnp | grep -E ':(80|443)'`
    - Verify health: `curl -I https://$PRODUCTION_DOMAIN/health`
    - Confirm container digest: `docker compose exec app cat /app/.git/HEAD` (or check image digest)
+
+## Redeploy Caddy Container
+
+If you need to redeploy the Caddy container (e.g., after updating `Caddyfile.production`), use the provided script:
+
+### On the Server
+
+```bash
+# Option 1: Use the automated script (recommended)
+bash scripts/redeploy_caddy.sh
+
+# Option 2: Manual commands
+cd /srv/pulseplate-production  # or your deploy directory
+docker compose -f docker-compose.production.yaml pull caddy
+docker compose -f docker-compose.production.yaml up -d caddy
+docker compose -f docker-compose.production.yaml ps caddy
+docker compose -f docker-compose.production.yaml logs --tail=100 caddy
+```
+
+The script will:
+
+1. Auto-detect the deploy directory
+2. Pull the latest Caddy image
+3. Restart the Caddy container
+4. Show container status and recent logs
+
+**Note:** If SSH is not available, use DigitalOcean Console or self-hosted runner to execute these commands.
 
 ## Rollback
 

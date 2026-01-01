@@ -1,6 +1,12 @@
 networks:
   web:
     external: false
+    # Pin the subnet so uvicorn can safely trust forwarded headers only from this
+    # internal Docker network (instead of "*"). If this subnet conflicts with
+    # your host/VPC, change it and keep --forwarded-allow-ips in sync below.
+    ipam:
+      config:
+        - subnet: 172.30.100.0/24
 
 services:
   app:
@@ -14,7 +20,7 @@ services:
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers
-      --forwarded-allow-ips="*"  # Security: TODO narrow to docker subnet after stabilization
+      --forwarded-allow-ips="172.30.100.0/24"
     healthcheck:
       test:
         [
@@ -29,7 +35,7 @@ services:
       start_period: 40s
 
   caddy:
-    image: caddy:2.7.6
+    image: caddy:2.10.2
     restart: unless-stopped
     networks: [web]
     ports:
@@ -43,6 +49,11 @@ services:
       - caddy_config:/config
     depends_on:
       - app
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   caddy_data:
