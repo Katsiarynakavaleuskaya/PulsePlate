@@ -42,6 +42,15 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
         conn.execute("PRAGMA foreign_keys = ON;")
         _apply_schema(conn)
 
+        # RU: Валидация ДО транзакции для детерминированных ошибок (не sqlite3.IntegrityError).
+        # EN: Validate BEFORE transaction for deterministic errors (not sqlite3.IntegrityError).
+        store_by_id = {store.store_id: store for store in snapshot.stores}
+        for sku in snapshot.skus:
+            if sku.store_id not in store_by_id:
+                raise ValueError(
+                    f"Unknown store_id referenced by sku: {sku.store_id} (sku_id={sku.sku_id})"
+                )
+
         with conn:
 
             for r in snapshot.regions:
@@ -81,16 +90,12 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
                 )
 
             # Precompute lookup maps to avoid O(n*m) in alias loop
-            store_by_id = {store.store_id: store for store in snapshot.stores}
+            # Note: store_by_id already computed above, reuse it
 
-            # Build sku_id_to_region_id with strict validation
+            # Build sku_id_to_region_id (store_id already validated above)
             sku_id_to_region_id: dict[str, str] = {}
             for sku in snapshot.skus:
-                store = store_by_id.get(sku.store_id)
-                if store is None:
-                    raise ValueError(
-                        f"Unknown store_id referenced by sku: {sku.store_id} (sku_id={sku.sku_id})"
-                    )
+                store = store_by_id[sku.store_id]  # Safe: already validated
                 sku_id_to_region_id[sku.sku_id] = store.region_id
 
             # Validate alias uniqueness and insert
