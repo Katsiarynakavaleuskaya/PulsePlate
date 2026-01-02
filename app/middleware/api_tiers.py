@@ -213,7 +213,7 @@ async def require_vip_tier(x_api_key: Optional[str] = Header(None)) -> str:
         str: Validated API key
 
     Raises:
-        HTTPException: 401 if API key is missing or invalid
+        HTTPException: 403 if API key is missing or invalid (VIP = feature-gate, not auth-gate)
         HTTPException: 403 if API key tier is insufficient
 
     Usage:
@@ -224,9 +224,8 @@ async def require_vip_tier(x_api_key: Optional[str] = Header(None)) -> str:
     if not x_api_key:
         logger.warning("VIP endpoint accessed without API key")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key required for VIP tier access",
-            headers={"WWW-Authenticate": "ApiKey"},
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="VIP access required",
         )
 
     if not _validate_api_key_tier(x_api_key, SubscriptionTier.VIP):
