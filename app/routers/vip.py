@@ -312,12 +312,9 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                         return "anonymous"
                 else:
                     # Invalid API key provided - preserve 403 from app layer (VIP = feature-gate)
-                    if exc.status_code == 403:
-                        raise HTTPException(
-                            status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
-                        ) from exc
-                    # For other status codes, preserve original
-                    raise
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
+                    ) from exc
             raise
 
     # Check environment API key
@@ -372,10 +369,16 @@ def _extract_api_key(request: Request) -> Optional[str]:
     """
     raw = request.headers.get("x-api-key")
     if raw:
-        return raw.strip()
+        # With pre-push mypy (--follow-imports=skip), headers.get returns Any.
+        # Assigning to typed local ensures type safety in CI.
+        api_key: str = raw.strip()
+        return api_key
     auth = request.headers.get("authorization")
     if auth and auth.lower().startswith("bearer "):
-        return auth.split(" ", 1)[1].strip()
+        # With pre-push mypy (--follow-imports=skip), split returns Any.
+        # Assigning to typed local ensures type safety in CI.
+        bearer_key: str = auth.split(" ", 1)[1].strip()
+        return bearer_key
     return None
 
 
@@ -670,7 +673,6 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="[DEPRECATED] Generate weekly meal plan",
     description="⚠️ DEPRECATED: Use /api/v1/vip/menu/weekly/plan instead. This endpoint will be removed in v2.0.",
-    dependencies=[Depends(_require_api_key_dev_legacy)],
     deprecated=True,
 )
 async def weekly_menu_plan_alias(
