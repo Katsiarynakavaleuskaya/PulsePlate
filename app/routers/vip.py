@@ -577,8 +577,11 @@ def vip_health() -> Dict[str, Any]:
     }
 
 
-@router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key_strict)])
-def weekly_menu_plan(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+@router.post("/menu/weekly/plan")
+def weekly_menu_plan(
+    payload: Dict[str, Any] = Body(...),
+    _api_key: str = Depends(_require_api_key_strict),
+) -> Dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
     EN: Weekly menu planning with VIP features
@@ -596,13 +599,13 @@ def weekly_menu_plan(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     # IMPORTANT: Validate after auth to ensure 403 wins over 422
     try:
         request = WeeklyPlanRequest.model_validate(payload)
-    except Exception:
+    except Exception as e:
         # Preserve FastAPI-like contract for invalid payload,
         # but only after auth has already been enforced by dependency.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid weekly plan request payload",
-        )
+        ) from e
 
     # Store original data for echo before processing (keep falsy-but-valid values)
     request_dict = request.model_dump(exclude_none=True)
@@ -722,13 +725,13 @@ async def weekly_menu_plan_alias(
     # Validate after auth to ensure 403 wins over 422
     try:
         request_obj = WeeklyPlanRequest.model_validate(payload)
-    except Exception:
+    except Exception as e:
         # Preserve FastAPI-like contract for invalid payload,
         # but only after auth has already been enforced by dependency.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid weekly plan request payload",
-        )
+        ) from e
 
     # Log deprecation warning
     logging.warning(
