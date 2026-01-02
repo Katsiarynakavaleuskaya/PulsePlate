@@ -575,7 +575,8 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
     except Exception as exc:
         # IMPORTANT: must be an error contract for coverage tests
         logging.exception("VIP adapter call failed")
-        msg = "Internal error" if _is_production() else f"Adapter error: {exc}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Adapter error"
         return vip_error(
             code="adapter_error",
             message=msg,
@@ -664,9 +665,8 @@ def weekly_menu_plan(
         }
     except Exception as exc:
         logging.exception("Exception in weekly_menu_plan")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Weekly menu generation failed: {exc}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Weekly menu generation failed"
         return {
             "status": "error",
             "echo": request_obj.model_dump(),
@@ -899,12 +899,8 @@ def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
         formatted = format_export(shopping_list, locale="ru", format_type="json")
     except Exception as exc:
         logging.exception("Error generating shopping list")
-        is_prod, _ = _is_production_environment()
-        msg = (
-            "Error generating shopping list"
-            if is_prod
-            else f"Error generating shopping list: {exc}"
-        )
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error generating shopping list"
         return {
             "status": "error",
             "echo": request,
@@ -952,12 +948,8 @@ def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
         formatted = format_export(shopping_list, locale="ru", format_type="json")
     except Exception as exc:
         logging.exception("Error generating shopping list")
-        is_prod, _ = _is_production_environment()
-        msg = (
-            "Error generating shopping list"
-            if is_prod
-            else f"Error generating shopping list: {exc}"
-        )
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error generating shopping list"
         return {
             "status": "error",
             "echo": request,
@@ -1020,9 +1012,8 @@ def get_regions() -> Dict[str, Any]:
         return result_968
     except Exception as e:
         logging.exception("Error retrieving regions")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error retrieving regions: {e}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving regions"
         result_979: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
@@ -1092,9 +1083,8 @@ def search_region_products(
         return result_1034
     except Exception as e:
         logging.exception("Error searching products")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error searching products: {e}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error searching products"
         result_1048: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
@@ -1140,9 +1130,8 @@ def get_region_categories(region: str) -> Dict[str, Any]:
         return result_1082
     except Exception as e:
         logging.exception("Error retrieving categories")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error retrieving categories: {e}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving categories"
         result_1093: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
@@ -1187,9 +1176,8 @@ def get_region_stores(region: str) -> Dict[str, Any]:
         return result_1126
     except Exception as e:
         logging.exception("Error retrieving stores")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error retrieving stores: {e}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving stores"
         result_1137: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
@@ -1257,9 +1245,8 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
         return result_1193
     except Exception as e:
         logging.exception("Error comparing product prices")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error comparing prices: {e}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error comparing prices"
         result_1204: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
@@ -1546,9 +1533,8 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         return success_res
     except Exception as exc:
         logging.exception("Error during auto-repair")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error during auto-repair: {exc}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error during auto-repair"
         error_res2: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
@@ -1628,9 +1614,8 @@ def get_repair_strategies() -> Dict[str, Any]:
         return success_result
     except Exception as e:
         logging.exception("Error retrieving repair strategies")
-        is_prod, _ = _is_production_environment()
-        # RU: В проде не светим детали. EN: Mask details in prod.
-        msg = "Internal error" if is_prod else f"Error retrieving repair strategies: {e}"
+        # Do not include exception details in responses (CodeQL: info exposure).
+        msg = "Error retrieving repair strategies"
         error_result: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
