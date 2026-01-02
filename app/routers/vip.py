@@ -1428,11 +1428,12 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         Результат авто-ремонта с историей итераций
     """
     if auto_repair_week_plan is None:
-        return vip_error(
+        error_res: dict[str, Any] = vip_error(
             code="auto_repair_unavailable",
             message="Auto-repair module not available",
             repair_result={},
         )
+        return error_res
     try:
         week_plan = request.get("week_plan", {})
         targets_data = request.get("targets", {})
@@ -1475,11 +1476,12 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
                 "message": getattr(repair_result, "message", "Auto-repair completed"),
                 "suggestions": getattr(repair_result, "suggestions", []),
             }
-        return vip_success(
+        success_res: dict[str, Any] = vip_success(
             repair_result=result_data,
             message=f"Auto-repair completed with status: {result_data.get('status', 'repaired')}",
             echo=request,
         )
+        return success_res
     except Exception as exc:
         logging.exception("Error during auto-repair")
         is_prod, _ = _is_production_environment()
