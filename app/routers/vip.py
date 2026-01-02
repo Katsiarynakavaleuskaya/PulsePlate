@@ -572,7 +572,7 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
     except HTTPException:
         # do not swallow FastAPI contract exceptions
         raise
-    except Exception as exc:
+    except Exception:
         # IMPORTANT: must be an error contract for coverage tests
         logging.exception("VIP adapter call failed")
         # Do not include exception details in responses (CodeQL: info exposure).
@@ -663,7 +663,7 @@ def weekly_menu_plan(
             "menu": plan if plan is not None else {"mode": "echo"},
             "message": "Weekly menu plan generated (echo mode)",
         }
-    except Exception as exc:
+    except Exception:
         logging.exception("Exception in weekly_menu_plan")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Weekly menu generation failed"
@@ -731,7 +731,12 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     "/weekly-plan",
     response_model=Union[WeeklyPlanResponse, ErrorResponse],
     summary="[DEPRECATED] Generate weekly meal plan",
-    description="⚠️ DEPRECATED: Use /api/v1/vip/menu/weekly/plan instead. This endpoint will be removed in v2.0.",
+    description=(
+        "⚠️ DEPRECATED: Use /api/v1/vip/menu/weekly/plan instead. "
+        "This endpoint will be removed in v2.0. "
+        "Note: this legacy endpoint parses JSON before enforcing auth, so invalid JSON may return 422 "
+        "before a 403."
+    ),
     deprecated=True,
 )
 async def weekly_menu_plan_alias(
@@ -749,8 +754,13 @@ async def weekly_menu_plan_alias(
     - No changes to request/response format required
 
     Note:
-        We parse JSON early for error-handling tests (invalid JSON → 422).
-        Auth is checked manually after JSON parsing to allow error semantics.
+        This legacy endpoint parses JSON before enforcing auth, so invalid JSON may return 422
+        before a 403 auth response.
+
+        Migration note:
+        Prefer /api/v1/vip/menu/weekly/plan for deterministic error precedence (auth is enforced
+        first, so 403 wins over 422). When migrating, ensure you send a valid API key and a valid
+        JSON payload.
     """
     # IMPORTANT: Parse JSON early for error-handling semantics (invalid JSON → 422)
     # This allows error-handling tests to verify HTTP semantics without auth gate
@@ -762,11 +772,11 @@ async def weekly_menu_plan_alias(
             detail="Invalid JSON payload",
         ) from e
 
-    # Auth AFTER JSON parsing (for error-handling test compatibility)
+    # Auth AFTER JSON parsing (legacy/test compatibility)
     # Invalid JSON → 422, valid JSON without key → 403
     _ = _require_api_key_dev_legacy(request)
 
-    # Validate after auth to ensure 403 wins over 422
+    # Validate after auth so 403 wins over schema 422 (invalid JSON is handled above)
     try:
         request_obj = WeeklyPlanRequest.model_validate(payload)
     except Exception as e:
@@ -897,7 +907,7 @@ def weekly_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
         aggregated = aggregate_ingredients(request)
         shopping_list = round_to_packages(aggregated)
         formatted = format_export(shopping_list, locale="ru", format_type="json")
-    except Exception as exc:
+    except Exception:
         logging.exception("Error generating shopping list")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error generating shopping list"
@@ -946,7 +956,7 @@ def daily_shoplist(request: Dict[str, Any]) -> Dict[str, Any]:
         aggregated = aggregate_ingredients(request)
         shopping_list = round_to_packages(aggregated)
         formatted = format_export(shopping_list, locale="ru", format_type="json")
-    except Exception as exc:
+    except Exception:
         logging.exception("Error generating shopping list")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error generating shopping list"
@@ -1010,7 +1020,7 @@ def get_regions() -> Dict[str, Any]:
             echo={},
         )
         return result_968
-    except Exception as e:
+    except Exception:
         logging.exception("Error retrieving regions")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error retrieving regions"
@@ -1081,7 +1091,7 @@ def search_region_products(
             message=f"Found {search_result.total_count} products in {region}",
         )
         return result_1034
-    except Exception as e:
+    except Exception:
         logging.exception("Error searching products")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error searching products"
@@ -1128,7 +1138,7 @@ def get_region_categories(region: str) -> Dict[str, Any]:
             message=f"Retrieved {len(categories)} categories for {region}",
         )
         return result_1082
-    except Exception as e:
+    except Exception:
         logging.exception("Error retrieving categories")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error retrieving categories"
@@ -1174,7 +1184,7 @@ def get_region_stores(region: str) -> Dict[str, Any]:
             message=f"Retrieved {len(stores)} store chains for {region}",
         )
         return result_1126
-    except Exception as e:
+    except Exception:
         logging.exception("Error retrieving stores")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error retrieving stores"
@@ -1243,7 +1253,7 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
             message=f"Price comparison for '{product_name}' across {len(region_list)} regions",
         )
         return result_1193
-    except Exception as e:
+    except Exception:
         logging.exception("Error comparing product prices")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error comparing prices"
@@ -1531,7 +1541,7 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
             echo=request,
         )
         return success_res
-    except Exception as exc:
+    except Exception:
         logging.exception("Error during auto-repair")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error during auto-repair"
@@ -1612,7 +1622,7 @@ def get_repair_strategies() -> Dict[str, Any]:
             message=f"Retrieved {len(strategies)} repair strategies",
         )
         return success_result
-    except Exception as e:
+    except Exception:
         logging.exception("Error retrieving repair strategies")
         # Do not include exception details in responses (CodeQL: info exposure).
         msg = "Error retrieving repair strategies"

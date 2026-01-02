@@ -170,7 +170,7 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
 
                 # Calculate subtotal (price * packs)
                 if line.catalog and line.catalog.price and line.packs > 0:
-                    subtotal_str = _fmt_decimal(line.catalog.price.value * Decimal(line.packs))
+                    subtotal_str = _fmt_decimal(line.catalog.price.value * line.packs)
 
             table_data.append(
                 [

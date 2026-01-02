@@ -395,7 +395,9 @@ class TestVIPAnonymousAPIKeySafety:
             },
             headers={"X-API-Key": "wrong-key"},
         )
-        assert response.status_code in (401, 403)
+        assert response.status_code == 403
+        detail_lower = response.json()["detail"].lower()
+        assert "vip" in detail_lower or "invalid" in detail_lower
 
     def test_environment_variable_defaults(self):
         """Test that environment variables have correct defaults."""

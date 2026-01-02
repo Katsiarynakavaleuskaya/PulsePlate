@@ -20,6 +20,7 @@ from app.schemas.vip_shoplist import (
     UnitDTO,
     UnpackedLineDTO,
 )
+from app.services.shoplist_export import pdf_export
 
 
 def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
@@ -27,8 +28,6 @@ def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
 
 
 def test_export_shoplist_to_pdf_covers_packed_metadata_and_totals() -> None:
-    import app.services.shoplist_export.pdf_export as pdf_export
-
     catalog = CatalogInfoDTO(
         sku="SKU-1",
         store_id="store-1",
@@ -63,8 +62,6 @@ def test_export_shoplist_to_pdf_covers_packed_metadata_and_totals() -> None:
 
 
 def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
-    import app.services.shoplist_export.pdf_export as pdf_export
-
     class _BoomDoc:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass

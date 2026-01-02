@@ -72,8 +72,6 @@ def test_require_api_key_dev_legacy_nonprod_and_prod_allow():
     os.environ["ALLOW_ANONYMOUS_API_KEYS"] = "true"
     mock_request = MagicMock(spec=Request)
     mock_request.headers.get.return_value = None
-    import pytest
-    from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as ei:
         _require_api_key_dev_legacy(mock_request)

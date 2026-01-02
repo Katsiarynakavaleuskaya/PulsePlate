@@ -12,9 +12,15 @@ These tests target specific lines that diff-cover reports as missing:
 
 from __future__ import annotations
 
-import os
-
 from fastapi import FastAPI
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def vip_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", "test_key")  # pragma: allowlist secret
 
 
 class TestVIPRegistrationIdempotent:
@@ -54,17 +60,6 @@ class TestVIPRegistrationIdempotent:
 
 class TestVIPShoplistPDFExport:
     """Test VIP shoplist PDF export paths (covers vip_shoplist.py:70, 74-75, 567)."""
-
-    def setup_method(self):
-        """Setup for each test method."""
-        os.environ["VIP_MODULE_ENABLED"] = "true"
-        os.environ["API_KEY"] = "test_key"  # pragma: allowlist secret
-
-    def teardown_method(self):
-        """Cleanup after each test method."""
-        for var in ["VIP_MODULE_ENABLED", "API_KEY"]:
-            if var in os.environ:
-                del os.environ[var]
 
     def test_vip_shoplist_export_pdf_success(self, client_with_vip_access):
         """Test successful PDF export (covers vip_shoplist.py:70, 74-75)."""
