@@ -554,7 +554,7 @@ async def vip_shoplist_export(
         )
     else:  # pdf
         try:
-            from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
+            from app.services.shoplist_export import export_shoplist_to_pdf
 
             pdf_data = export_shoplist_to_pdf(result)
             return Response(

@@ -103,29 +103,30 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
     )
 
     styles = getSampleStyleSheet()
-    elements = []
+    elements: list[object] = []
 
     # Title
     elements.append(Paragraph("PulsePlate — VIP Shoplist", styles["Title"]))
     elements.append(Spacer(1, 0.2 * mm))
 
-    # Metadata
-    meta_info = []
-    # Canonical meta: use response fields first
-    all_lines: list[PackedLineDTO | UnpackedLineDTO] = []
-    all_lines.extend(response.packed)
-    all_lines.extend(response.unpacked)
-    if hasattr(response, "region_id") and response.region_id:
+    # Metadata (canonical from response fields)
+    meta_info: list[str] = []
+    if getattr(response, "region_id", None):
         meta_info.append(f"Region ID: {response.region_id}")
-    if hasattr(response, "store_id") and response.store_id:
+    if getattr(response, "store_id", None):
         meta_info.append(f"Store ID: {response.store_id}")
-
     if meta_info:
         elements.append(Paragraph(" | ".join(meta_info), styles["Normal"]))
         elements.append(Spacer(1, 0.1 * mm))
 
+    # Collect lines (packed + unpacked)
+    all_lines: list[PackedLineDTO | UnpackedLineDTO] = []
+    all_lines.extend(response.packed)
+    all_lines.extend(response.unpacked)
+    sorted_lines = sorted(all_lines, key=_sort_key)
+
     # Table Header
-    table_data = [
+    table_data: list[list[str]] = [
         [
             "Food ID",
             "Requested",
@@ -138,18 +139,15 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         ]
     ]
 
-    # Sort lines (same logic as CSV)
-    sorted_lines = sorted(all_lines, key=_sort_key)
-
     # Populate table data
     for line in sorted_lines:
         requested_qty = (
             _fmt_quantity(line.requested.value, line.requested.unit) if line.requested else ""
         )
         pack_size_qty = ""
-        packs_str = ""  # Empty for unpacked, filled for packed
+        packs_str = ""  # empty for unpacked
         reason_str = _get_reason_str(line)
-        aisle_str = ""
+        aisle_str = line.catalog.aisle if (line.catalog and line.catalog.aisle) else ""
         price_str = ""
         subtotal_str = ""
 
@@ -158,16 +156,15 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
                 _fmt_quantity(line.pack_size.value, line.pack_size.unit) if line.pack_size else ""
             )
             packs_str = str(line.packs)
+
             if line.catalog and line.catalog.price:
                 price_str = _fmt_decimal(line.catalog.price.value)
-            # Use subtotal from DTO if available, otherwise calculate
-            if hasattr(line, "subtotal") and line.subtotal is not None:
+
+            # Prefer DTO subtotal if present (aligns with CSV contract); fallback to deterministic calc
+            if getattr(line, "subtotal", None) is not None:
                 subtotal_str = _fmt_decimal(line.subtotal)
             elif line.catalog and line.catalog.price and line.packs > 0:
                 subtotal_str = _fmt_decimal(line.catalog.price.value * Decimal(line.packs))
-
-        if line.catalog and line.catalog.aisle:
-            aisle_str = line.catalog.aisle
 
         table_data.append(
             [
