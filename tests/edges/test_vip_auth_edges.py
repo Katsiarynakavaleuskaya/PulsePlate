@@ -49,8 +49,8 @@ def test_require_api_key_strict_missing_key_raises():
     mock_request.headers.get.return_value = None
     with pytest.raises(HTTPException) as ei:
         _require_api_key_strict(mock_request)
-    assert ei.value.status_code == 401  # Missing API key = 401
-    assert "api key" in ei.value.detail.lower()
+    assert ei.value.status_code == 403  # VIP = feature-gate, returns 403
+    assert "vip" in ei.value.detail.lower() or "access" in ei.value.detail.lower()
 
 
 def test_require_api_key_dev_legacy_nonprod_and_prod_allow():

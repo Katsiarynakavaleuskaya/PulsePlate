@@ -1,7 +1,7 @@
 import logging
 import os
 import inspect
-from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Optional, Type, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Literal, Mapping, Optional, Type, Union, cast
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
@@ -362,20 +362,20 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
     return raw_key
 
 
-def _extract_api_key(request: Request | None = None) -> Optional[str]:
+def _extract_api_key_from_headers(headers: Mapping[str, str] | None) -> Optional[str]:
     """
-    RU: Достаём API key из заголовков без auto_error схем.
-    EN: Extract API key from headers without auto_error security schemes.
+    RU: Извлекаем API key из заголовков (для тестов и unit-проверок).
+    EN: Extract API key from headers (for tests and unit checks).
     """
-    if request is None:
+    if not headers:
         return None
-    raw = request.headers.get("x-api-key")
+    raw = headers.get("x-api-key")
     if raw:
         # With pre-push mypy (--follow-imports=skip), headers.get returns Any.
         # Assigning to typed local ensures type safety in CI.
         api_key: str = raw.strip()
         return api_key
-    auth = request.headers.get("authorization")
+    auth = headers.get("authorization")
     if auth and auth.lower().startswith("bearer "):
         # With pre-push mypy (--follow-imports=skip), split returns Any.
         # Assigning to typed local ensures type safety in CI.
@@ -384,20 +384,27 @@ def _extract_api_key(request: Request | None = None) -> Optional[str]:
     return None
 
 
+def _extract_api_key(request: Request) -> Optional[str]:
+    """
+    RU: Достаём API key из заголовков без auto_error схем.
+    EN: Extract API key from headers without auto_error security schemes.
+    """
+    return _extract_api_key_from_headers(request.headers)
+
+
 def _require_api_key_strict(request: Request) -> str:
     """
     RU: Строгая проверка API key для VIP (production contract).
     EN: Strict API key gate for VIP (production contract).
 
-    Contract:
-    - 401: API key отсутствует
-    - 403: API key неверный / нет доступа
+    Contract (preserved from original):
+    - 403: API key отсутствует или неверный / нет доступа
     """
     api_key = _extract_api_key(request)
     if not api_key:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key is required",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="VIP access required",
         )
     # Validate using existing logic, but convert 401 to 403
     try:
