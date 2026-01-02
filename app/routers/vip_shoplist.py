@@ -69,7 +69,7 @@ def _get_catalog_provider() -> CatalogProvider:
 def _export_shoplist_to_pdf(result: ShoplistGenerateResponse) -> bytes:
     from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
 
-    return export_shoplist_to_pdf(result)  # type: ignore[no-any-return]
+    return export_shoplist_to_pdf(result)
 
 
 # Common OpenAPI responses for gating matrix
