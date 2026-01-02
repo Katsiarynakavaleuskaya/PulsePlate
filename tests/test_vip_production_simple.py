@@ -21,6 +21,7 @@ class TestVIPProductionMode:
         os.environ["VIP_MODULE_ENABLED"] = "true"
         # Set production environment to test real API key validation paths
         os.environ["APP_ENV"] = "production"
+        os.environ["DEBUG"] = "false"
         os.environ["ALLOW_DEV_API_KEY"] = "false"
 
     def teardown_method(self):
@@ -43,7 +44,8 @@ class TestVIPProductionMode:
         # Test request without API key to VIP endpoint
         response = client.post("/api/v1/vip/weekly-plan", json={"test": "data"})
         assert response.status_code == 403
-        assert "invalid api key" in response.json()["detail"].lower()
+        detail_lower = response.json()["detail"].lower()
+        assert "vip access" in detail_lower or "invalid api key" in detail_lower
 
     def test_vip_api_key_validation_wrong_key(self):
         """Test API key validation with incorrect key (line 95)."""
@@ -116,7 +118,9 @@ class TestVIPProductionMode:
 
         # Test recipes endpoint without API key
         response = client.post("/api/v1/vip/recipes/synthesize", json={"ingredients": []})
-        assert response.status_code == 403
+        assert response.status_code == 403  # VIP = feature-gate, returns 403
+        detail = response.json()["detail"].lower()
+        assert any(sub in detail for sub in ("vip", "access"))
 
     def test_vip_regions_endpoint_auth_check(self):
         """Test VIP regions endpoint requires authentication."""
@@ -129,7 +133,9 @@ class TestVIPProductionMode:
 
         # Test regions endpoint without API key
         response = client.get("/api/v1/vip/regions")
-        assert response.status_code == 403
+        assert response.status_code == 403  # VIP = feature-gate, returns 403
+        detail = response.json()["detail"].lower()
+        assert any(sub in detail for sub in ("vip", "access"))
 
     def test_vip_production_mode_coverage_lines(self):
         """Test specific production mode lines for coverage.

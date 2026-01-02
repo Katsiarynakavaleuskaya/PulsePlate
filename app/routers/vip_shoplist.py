@@ -8,8 +8,9 @@ Contract:
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
-from typing import Annotated, Any, Optional, cast
+from typing import Annotated, Any, Optional, Protocol, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
@@ -49,6 +50,8 @@ from core.shoplist_engine.models import (
 from core.shoplist_engine.packager import PackagingResult
 from core.shoplist_preview.preview_service import build_preview
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 
 # Catalog provider (lazy, selected via CATALOG_PROVIDER env var)
@@ -61,6 +64,15 @@ router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 def _get_catalog_provider() -> CatalogProvider:
     """Get catalog provider (lazy, respects env vars and cache reset)."""
     return _get_provider()
+
+
+def _export_shoplist_to_pdf(result: ShoplistGenerateResponse) -> bytes:
+    from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
+
+    # With pre-push mypy (--follow-imports=skip), imported functions are treated as Any.
+    # Assigning to a typed local ensures type safety in CI.
+    pdf_data: bytes = export_shoplist_to_pdf(result)
+    return pdf_data
 
 
 # Common OpenAPI responses for gating matrix
@@ -305,17 +317,29 @@ async def vip_shoplist_preview(
     )
 
 
+class _ShoplistLikeRequest(Protocol):
+    """
+    RU: Минимальный контракт для генерации shoplist.
+    EN: Minimal request contract for shoplist generation.
+
+    Any request DTO that provides these fields can be used by the shared generator.
+    """
+
+    items: list[ShoplistItemDTO]
+    packaging_rules: list[PackageRuleDTO] | None
+
+
 async def _generate_vip_shoplist(
-    payload: ShoplistGenerateRequest,
+    payload: _ShoplistLikeRequest,
     *,
     region_id: Optional[str] = None,
     store_id: Optional[str] = None,
 ) -> ShoplistGenerateResponse:
     """
-    Internal function to generate VIP shoplist (shared by /generate and /export).
+    Internal function to generate VIP shoplist (shared by /generate, /daily, and /export).
 
-    RU: Внутренняя функция генерации shoplist (используется /generate и /export).
-    EN: Internal shoplist generation function (used by /generate and /export).
+    RU: Внутренняя функция генерации shoplist (используется /generate, /daily и /export).
+    EN: Internal shoplist generation function (used by /generate, /daily, and /export).
     """
     # Map DTO -> core models
     specs = _map_dto_to_engine_specs(payload.items)
@@ -411,24 +435,8 @@ async def vip_shoplist_daily(
 
     Contract matches /generate: same gating, mapping, and response format.
     """
-    # Map DTO -> core models
-    specs = _map_dto_to_engine_specs(payload.items)
-    rules = _map_dto_to_engine_rules(payload.packaging_rules)
-
-    # Run engine pipeline
-    result = ShoplistEngine.generate(specs, packaging_rules=rules)
-
-    # Build response
-    response = _build_shoplist_response(result, rules, include_analytics=True)
-
-    # Enrichment (fail-soft, adapter-only)
-    response = enrich_shoplist_response(
-        response,
-        region_id=region_id,
-        store_id=store_id,
-        provider=_get_catalog_provider(),
-    )
-    return response
+    # DRY: delegate to the shared generator used by /generate and /export.
+    return await _generate_vip_shoplist(payload, region_id=region_id, store_id=store_id)
 
 
 @router.post(
@@ -497,17 +505,17 @@ async def vip_shoplist_weekly(
 @router.post(
     "/export",
     responses=COMMON_VIP_SHOPLIST_RESPONSES,
-    summary="Export VIP shoplist to CSV",
+    summary="Export VIP shoplist to CSV or PDF",
     description=(
-        "Export shoplist in CSV format. "
-        "CSV only. Uses same generation logic as /generate endpoint. "
+        "Export shoplist in CSV or PDF format. "
+        "Uses same generation logic as /generate endpoint. "
         "Deterministic ordering: store_id, aisle, food_id."
     ),
 )
 async def vip_shoplist_export(
     payload: ShoplistGenerateRequest,
     export_format: Annotated[
-        str | None, Query(description="Export format (export_format; csv only)")
+        str | None, Query(description="Export format (export_format; csv or pdf)")
     ] = None,
     _legacy_format: Annotated[
         str | None,
@@ -525,31 +533,48 @@ async def vip_shoplist_export(
     _vip: Annotated[str, Depends(require_vip_tier)] = "",
 ) -> Response:
     """
-    Export shopping list to CSV format.
+    Export shopping list to CSV or PDF format.
 
-    RU: Экспортирует список покупок в CSV.
-    EN: Exports shopping list to CSV.
+    RU: Экспортирует список покупок в CSV или PDF.
+    EN: Exports shopping list to CSV or PDF.
 
     This endpoint reuses the /generate logic without duplicating engine code.
     No engine changes, pure export function.
     """
 
     export_format = export_format or _legacy_format or "csv"
-    if export_format.lower() != "csv":
+    format_lower = export_format.lower()
+
+    if format_lower not in ("csv", "pdf"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Only csv format is supported"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only csv and pdf formats are supported",
         )
 
     # Важно: НЕ дублируем логику, не трогаем engine — переиспользуем внутреннюю функцию.
     result = await _generate_vip_shoplist(payload, region_id=region_id, store_id=store_id)
 
-    csv_data = export_shoplist_to_csv(result)
-
-    return Response(
-        content=csv_data,
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="shoplist.csv"'},
-    )
+    if format_lower == "csv":
+        csv_data = export_shoplist_to_csv(result)
+        return Response(
+            content=csv_data,
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="shoplist.csv"'},
+        )
+    else:  # pdf
+        try:
+            pdf_data = _export_shoplist_to_pdf(result)
+            return Response(
+                content=pdf_data,
+                media_type="application/pdf",
+                headers={"Content-Disposition": 'attachment; filename="shoplist.pdf"'},
+            )
+        except ImportError as e:
+            logger.exception("PDF export is not available")
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail="PDF export is not available",
+            ) from e
 
 
 __all__ = ["router"]

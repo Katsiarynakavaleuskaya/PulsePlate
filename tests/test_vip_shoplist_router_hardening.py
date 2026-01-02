@@ -270,13 +270,14 @@ def test_generate_missing_api_key_returns_401_or_403(
     }
 
     r = client.post("/api/v1/vip/shoplist/generate", json=payload)
-    # legacy_app may return 401 or 403 depending on implementation
-    assert r.status_code in (
-        status.HTTP_401_UNAUTHORIZED,
-        status.HTTP_403_FORBIDDEN,
-    ), f"Expected 401 or 403, got {r.status_code}: {r.text}"
+    # VIP = feature-gate, returns 403
+    assert (
+        r.status_code == status.HTTP_403_FORBIDDEN
+    ), f"Expected 403, got {r.status_code}: {r.text}"
     data = r.json()
-    assert "API key" in data["detail"].lower() or "Invalid" in data["detail"]
+    detail = str(data.get("detail", ""))
+    detail_lower = detail.lower()
+    assert "vip access" in detail_lower
 
 
 def test_generate_invalid_api_key_tier_returns_403(
@@ -304,11 +305,9 @@ def test_generate_invalid_api_key_tier_returns_403(
     assert r.status_code == status.HTTP_403_FORBIDDEN, r.text
     data = r.json()
     # legacy_app may return generic "Invalid API Key" or specific tier message
-    assert (
-        "API key" in data["detail"].lower()
-        or "VIP" in data["detail"]
-        or "Invalid" in data["detail"]
-    )
+    detail = str(data.get("detail", ""))
+    detail_lower = detail.lower()
+    assert "api key" in detail_lower or "vip" in detail_lower or "invalid" in detail_lower
 
 
 def test_generate_missing_items_field_returns_200_with_empty_result(

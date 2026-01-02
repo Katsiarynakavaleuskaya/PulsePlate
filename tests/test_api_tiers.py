@@ -146,12 +146,12 @@ class TestRequireVIPTier:
         assert "does not have VIP tier access" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_missing_key_raises_401(self) -> None:
-        """Test missing API key raises 401 Unauthorized."""
+    async def test_missing_key_raises_403(self) -> None:
+        """Test missing API key raises 403 Forbidden (VIP = feature-gate)."""
         with pytest.raises(HTTPException) as exc_info:
             await require_vip_tier(x_api_key=None)
-        assert exc_info.value.status_code == 401
-        assert "API key required" in exc_info.value.detail
+        assert exc_info.value.status_code == 403
+        assert "VIP access" in exc_info.value.detail or "API key required" in exc_info.value.detail
 
     @patch.dict(os.environ, {"APP_ENV": "local", "DEBUG": "true"})
     @pytest.mark.asyncio

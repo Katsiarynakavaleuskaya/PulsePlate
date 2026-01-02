@@ -141,6 +141,7 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
 # Ensure key feature flags are enabled during test collection
 os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
 os.environ.setdefault("BUSINESS_MODULE_ENABLED", "true")
+os.environ.setdefault("VIP_MODULE_ENABLED", "true")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
@@ -561,7 +562,16 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
 
 
 def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Enable VIP module flag via router module patch."""
+    """
+    Enable VIP module for tests.
+
+    RU: Включает VIP модуль для тестов.
+    EN: Enables VIP module for tests.
+
+    This helper must be side-effect free: it only flips feature flags via
+    monkeypatch and must not mutate the FastAPI app/router state.
+    """
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
 

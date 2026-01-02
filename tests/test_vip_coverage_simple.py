@@ -118,7 +118,7 @@ class TestVIPCoverageSimple:
         response = client.get("/api/v1/vip/health")
         assert response.status_code == 403
         data = response.json()
-        assert "api key" in data["detail"].lower()
+        assert "vip access" in data["detail"].lower()
 
     def test_vip_weekly_menu_plan_success_coverage(self):
         """Test VIP weekly menu plan success coverage."""

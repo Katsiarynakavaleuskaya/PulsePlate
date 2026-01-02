@@ -123,7 +123,7 @@ except ImportError:
 
 slowapi_available = Limiter is not None
 
-vip_router: Optional[APIRouter]
+vip_router: Optional[APIRouter] = None
 _scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
 
 # Track whether the app is running on a degraded/fallback database so /health/db
@@ -133,15 +133,27 @@ _db_fallback_active = False
 # Track if lenient API key mode warning has already been logged to avoid log flooding
 _lenient_mode_warning_logged = False
 
-# Safe import for VIP_MODULE_ENABLED to avoid attribute errors
+# VIP router registration (explicit, no import-side-effects)
+# Use centralized registration function instead of importing router directly
+_register_vip_routes: Callable[[FastAPI], None] | None = None
 try:
-    from app.routers import vip as _vip_mod
+    from app.routers.vip_registration import register_vip_routes
+    from app.utils.feature_flags import is_vip_module_enabled
 
-    VIP_MODULE_ENABLED = getattr(_vip_mod, "VIP_MODULE_ENABLED", False)
-    vip_router = getattr(_vip_mod, "router", None)
+    _register_vip_routes = register_vip_routes
+    VIP_MODULE_ENABLED = is_vip_module_enabled()  # Keep for backward compatibility
 except ImportError:
+    # VIP registration not available - VIP module disabled
     VIP_MODULE_ENABLED = False
-    vip_router = None
+
+# Backward-compat: expose vip_router for tests/introspection.
+if VIP_MODULE_ENABLED:
+    try:
+        from app.routers import vip as _vip_mod
+
+        vip_router = getattr(_vip_mod, "router", None)
+    except ImportError:
+        vip_router = None
 
 
 def _resolve_scheduler_starter(
@@ -1021,9 +1033,9 @@ app.include_router(export_router, dependencies=[protected_dependency])
 app.include_router(plan_router, dependencies=[protected_dependency])
 app.include_router(shoplist_router, dependencies=[protected_dependency])
 
-# Include VIP router (conditional only if import succeeded)
-if VIP_MODULE_ENABLED and vip_router is not None:
-    app.include_router(vip_router, dependencies=[protected_dependency])
+# Register VIP routes (centralized, explicit registration)
+if _register_vip_routes is not None:
+    _register_vip_routes(app)
 
 # Include PRO tier router (new standard structure for iOS)
 if pro_router is not None:
