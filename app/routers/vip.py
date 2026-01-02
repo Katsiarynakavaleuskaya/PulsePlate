@@ -967,9 +967,8 @@ def search_region_products(
         )
 
     try:
-        # search_products is not None after check above
-        assert search_products is not None
-        search_result = search_products(query, region, category, max_results)
+        search_products_fn = cast(Callable[[str, str, str, int], Any], search_products)
+        search_result = search_products_fn(query, region, category, max_results)
 
         # Конвертируем продукты в словари для JSON
         products_data = [
