@@ -936,10 +936,11 @@ def get_regions() -> Dict[str, Any]:
     Returns:
         Список доступных регионов
     """
-    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_available_regions is None:
-        return _success(
-            regions=[], total_regions=0, message="Available regions retrieved successfully"
+        return _error(
+            "regions_provider_unavailable",
+            message="Regions provider is not available",
+            regions=[],
         )
     try:
         regions_raw = get_available_regions()
@@ -954,7 +955,11 @@ def get_regions() -> Dict[str, Any]:
         logging.exception("Error retrieving regions")
         is_prod, _ = _is_production_environment()
         detail = "regions_provider_failed" if is_prod else f"regions_provider_failed: {e}"
-        return _error(detail, message="Error retrieving regions")
+        return _error(
+            detail,
+            message="Error retrieving regions",
+            regions=[],
+        )
 
 
 @router.get("/regions/{region}/search")
@@ -974,16 +979,13 @@ def search_region_products(
     Returns:
         Результаты поиска
     """
-    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if search_products is None:
-        return _success(
+        return _error(
+            "search_provider_unavailable",
+            message="Search provider is not available",
             region=region,
             query=query,
-            category=category,
             products=[],
-            total_count=0,
-            returned_count=0,
-            message=f"Found 0 products in {region}",
         )
 
     try:
@@ -1041,13 +1043,12 @@ def get_region_categories(region: str) -> Dict[str, Any]:
     Returns:
         Список категорий
     """
-    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_region_catalog is None:
-        return _success(
+        return _error(
+            "categories_provider_unavailable",
+            message="Categories provider is not available",
             region=region,
             categories=[],
-            total_categories=0,
-            message=f"Retrieved 0 categories for {region}",
         )
 
     try:
@@ -1084,13 +1085,12 @@ def get_region_stores(region: str) -> Dict[str, Any]:
     Returns:
         Список торговых сетей
     """
-    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_region_catalog is None:
-        return _success(
+        return _error(
+            "stores_provider_unavailable",
+            message="Stores provider is not available",
             region=region,
             stores=[],
-            total_stores=0,
-            message=f"Retrieved 0 store chains for {region}",
         )
 
     try:
@@ -1128,13 +1128,13 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
     Returns:
         Сравнение цен по регионам
     """
-    # FAIL-SOFT: если провайдера нет — success с пустым сравнением
     if get_price_comparison is None:
-        return _success(
+        return _error(
+            "price_comparison_provider_unavailable",
+            message="Price comparison provider is not available",
             product_name=product_name,
             regions=regions.split(","),
             comparison={},
-            message=f"Price comparison for '{product_name}' across {len(regions.split(','))} regions",
         )
 
     try:
@@ -1499,9 +1499,12 @@ def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
     Returns:
         Список доступных стратегий
     """
-    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if RepairStrategy is None:
-        return _success(strategies=[], total_strategies=0, message="Retrieved 0 repair strategies")
+        return _error(
+            "auto_repair_provider_unavailable",
+            message="Auto-repair provider is not available",
+            strategies=[],
+        )
 
     try:
         strategies = [
