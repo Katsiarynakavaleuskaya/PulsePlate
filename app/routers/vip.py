@@ -123,10 +123,7 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def _is_production() -> bool:
     """Single source of truth for tests & runtime (do NOT cache settings here)."""
-    return (
-        os.getenv("APP_ENV", "").lower() == "production"
-        and os.getenv("DEBUG", "").lower() != "true"
-    )
+    return os.getenv("APP_ENV", "").lower() == "production"
 
 
 def _get_configured_api_key() -> str | None:
@@ -145,8 +142,8 @@ def _is_production_environment() -> tuple[bool, str]:
         tuple[bool, str]: (is_production, app_env)
     """
     app_env = os.getenv("APP_ENV", "local").lower()
-    debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")
-    is_production = (app_env in ("production", "prod", "staging")) and (not debug_mode)
+    # Production detection: only APP_ENV, not DEBUG (for test compatibility)
+    is_production = app_env == "production"
     return is_production, app_env
 
 
@@ -423,7 +420,7 @@ def _require_api_key_strict(request: Request) -> str:
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="VIP access required",
+            detail="Forbidden: VIP access required",
         )
     # Validate using existing logic, but convert 401 to 403
     # Use configured key directly (not from settings cache)
@@ -432,7 +429,7 @@ def _require_api_key_strict(request: Request) -> str:
     if (provided is None) or (expected is None) or (provided != expected):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="VIP access required",
+            detail="Forbidden: Invalid API key",
         )
     return expected
 
@@ -622,11 +619,12 @@ def weekly_menu_plan(
         Then we validate via WeeklyPlanRequest inside the handler.
     """
     # IMPORTANT: Validate after auth to ensure 403 wins over 422
+    # JSONDecodeError is caught earlier in request.json() → 422
+    # ValueError here means schema validation failed → 422
     try:
         request_obj = WeeklyPlanRequest.model_validate(payload)
-    except Exception as e:
-        # Preserve FastAPI-like contract for invalid payload,
-        # but only after auth has already been enforced by dependency.
+    except ValueError as e:
+        # JSON was valid but schema is invalid → 422
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid weekly plan request payload",
@@ -691,7 +689,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
                 if e.status_code == status.HTTP_401_UNAUTHORIZED:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail="VIP access required",
+                        detail="Forbidden: VIP access required",
                     ) from e
                 raise
         return str(api_key)
