@@ -680,6 +680,11 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     """
     api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
+
+    # Treat staging like production for VIP
+    is_strict_env = _is_production() or os.getenv("APP_ENV", "").lower() == "staging"
+    debug_false = os.getenv("DEBUG", "").lower() == "false"
+
     if api_key:
         # In production validate strictly; in dev/test accept any provided key
         if is_production:
@@ -693,6 +698,14 @@ def _require_api_key_dev_legacy(request: Request) -> str:
                     ) from e
                 raise
         return str(api_key)
+
+    # No API key provided
+    if is_strict_env or debug_false:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: VIP access required",
+        )
+
     # explicit off
     _anon_flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
     _explicit_false = isinstance(_anon_flag, str) and _anon_flag.lower() in {
@@ -703,7 +716,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     }
     if not is_production and not _explicit_false:
         _log_api_key_event(
-            "VIP endpoint accessed without API key in development mode (legacy path).",
+            "VIP endpoint accessed without API key in legacy dev mode. Environment: %s",
             is_production,
             app_env,
         )
