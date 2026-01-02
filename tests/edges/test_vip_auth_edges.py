@@ -44,7 +44,7 @@ def test_require_api_key_strict_missing_key_raises():
     os.environ["DEBUG"] = "true"
     with pytest.raises(HTTPException) as ei:
         _require_api_key_strict(None)
-    assert ei.value.status_code == 401
+    assert ei.value.status_code == 403  # VIP = feature-gate, not auth-gate
 
 
 def test_require_api_key_dev_legacy_nonprod_and_prod_allow():

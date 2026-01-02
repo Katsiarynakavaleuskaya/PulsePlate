@@ -311,16 +311,19 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
                         )
                         return "anonymous"
                 else:
-                    # Invalid API key provided
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.detail
-                    ) from exc
+                    # Invalid API key provided - preserve 403 from app layer (VIP = feature-gate)
+                    if exc.status_code == 403:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
+                        ) from exc
+                    # For other status codes, preserve original
+                    raise
             raise
 
     # Check environment API key
     if expected := os.getenv("API_KEY"):
         if not raw_key or raw_key != expected:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
         return raw_key
 
     # Handle missing API key based on environment and configuration
@@ -362,11 +365,43 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
     return raw_key
 
 
-def _require_api_key_strict(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
-    """Strict wrapper for endpoints: missing key always unauthorized regardless of dev mode."""
-    if not raw_key:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key required")
-    return _require_api_key(raw_key)
+def _extract_api_key(request: Request) -> Optional[str]:
+    """
+    RU: Достаём API key из заголовков без auto_error схем.
+    EN: Extract API key from headers without auto_error security schemes.
+    """
+    raw = request.headers.get("x-api-key")
+    if raw:
+        return raw.strip()
+    auth = request.headers.get("authorization")
+    if auth and auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return None
+
+
+def _require_api_key_strict(request: Request) -> str:
+    """
+    RU: Строгая проверка API key для VIP (production contract).
+    EN: Strict API key gate for VIP (production contract).
+    
+    VIP = feature-gate, not auth-gate → returns 403 (not 401).
+    """
+    api_key = _extract_api_key(request)
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="VIP access required",
+        )
+    # Validate using existing logic, but convert 401 to 403
+    try:
+        return _require_api_key(api_key)
+    except HTTPException as e:
+        if e.status_code == status.HTTP_401_UNAUTHORIZED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid API key",
+            ) from e
+        raise
 
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
@@ -591,17 +626,27 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
         }
 
 
-def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
+def _require_api_key_dev_legacy(request: Request) -> str:
     """Dev-friendly variant: allow anonymous in dev/test/local by default for legacy path.
 
     Honors explicit ALLOW_ANONYMOUS_API_KEYS=false to disable anonymous even in dev.
+    VIP = feature-gate, not auth-gate → returns 403 (not 401).
     """
+    api_key = _extract_api_key(request)
     is_production, app_env = _is_production_environment()
-    if raw_key:
+    if api_key:
         # In production validate strictly; in dev/test accept any provided key
         if is_production:
-            return _require_api_key(raw_key)
-        return str(raw_key)
+            try:
+                return _require_api_key(api_key)
+            except HTTPException as e:
+                if e.status_code == status.HTTP_401_UNAUTHORIZED:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="VIP access required",
+                    ) from e
+                raise
+        return str(api_key)
     # explicit off
     _anon_flag = os.getenv("ALLOW_ANONYMOUS_API_KEYS")
     _explicit_false = isinstance(_anon_flag, str) and _anon_flag.lower() in {
@@ -611,9 +656,13 @@ def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header
         "off",
     }
     if not is_production and not _explicit_false:
-        return "anonymous"
-    # fallback to strict logic
-    return _require_api_key(raw_key)
+        _log_api_key_event(
+            "VIP endpoint accessed without API key in development mode (legacy path).",
+            is_production,
+            app_env,
+        )
+        return TEST_KEY
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API key")
 
 
 @router.post(
@@ -625,7 +674,7 @@ def _require_api_key_dev_legacy(raw_key: Optional[str] = Depends(_api_key_header
     deprecated=True,
 )
 async def weekly_menu_plan_alias(
-    request: WeeklyPlanRequest, x_api_key: str = Header(None)
+    request: WeeklyPlanRequest, _api_key: str = Depends(_require_api_key_dev_legacy)
 ) -> Union[WeeklyPlanResponse, ErrorResponse]:
     """
     [DEPRECATED] Generate a weekly meal plan based on user profile.
@@ -845,6 +894,26 @@ def available_export_formats() -> Dict[str, Any]:
     }
 
 
+def _error(detail: str, **kwargs: object) -> dict[str, object]:
+    """
+    RU: Унифицированный error-ответ для VIP coverage tests.
+    EN: Unified error response for VIP coverage tests.
+    """
+    payload: dict[str, object] = {"status": "error", "detail": detail}
+    payload.update(kwargs)
+    return payload
+
+
+def _success(**kwargs: object) -> dict[str, object]:
+    """
+    RU: Унифицированный success-ответ.
+    EN: Unified success response.
+    """
+    payload: dict[str, object] = {"status": "success"}
+    payload.update(kwargs)
+    return payload
+
+
 @router.get("/regions", dependencies=[Depends(_require_api_key_strict)])
 def get_regions() -> Dict[str, Any]:
     """
@@ -855,31 +924,18 @@ def get_regions() -> Dict[str, Any]:
         Список доступных регионов
     """
     if get_available_regions is None:
-        return {
-            "status": "success",
-            "regions": [],
-            "total_regions": 0,
-            "message": "Region catalog module not available (echo mode)",
-            "echo": {},
-        }
+        return _error("regions_provider_not_available", message="Region catalog module not available")
     try:
         regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
-        return {
-            "status": "success",
-            "regions": regions,
-            "total_regions": len(regions),
-            "message": "Available regions retrieved successfully",
-            "echo": {},
-        }
+        return _success(
+            regions=regions,
+            total_regions=len(regions),
+            message="Available regions retrieved successfully",
+            echo={},
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "regions": [],
-            "total_regions": 0,
-            "message": f"Error retrieving regions: {e}",
-            "echo": {},
-        }
+        return _error(f"regions_provider_failed: {e}", message=f"Error retrieving regions: {e}")
 
 
 @router.get("/regions/{region}/search")
@@ -900,11 +956,7 @@ def search_region_products(
         Результаты поиска
     """
     if search_products is None:
-        return {
-            "status": "error",
-            "message": "Region catalog module not available",
-            "results": [],
-        }
+        return _error("search_provider_not_available", message="Region catalog module not available", results=[])
 
     try:
         # search_products is not None after check above
@@ -928,24 +980,17 @@ def search_region_products(
             for product in search_result.products
         ]
 
-        return {
-            "status": "success",
-            "region": region,
-            "query": query,
-            "category": category,
-            "products": products_data,
-            "total_count": search_result.total_count,
-            "returned_count": len(products_data),
-            "message": f"Found {search_result.total_count} products in {region}",
-        }
+        return _success(
+            region=region,
+            query=query,
+            category=category,
+            products=products_data,
+            total_count=search_result.total_count,
+            returned_count=len(products_data),
+            message=f"Found {search_result.total_count} products in {region}",
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error searching products: {str(e)}",
-            "region": region,
-            "query": query,
-            "products": [],
-        }
+        return _error(f"search_provider_failed: {e}", message=f"Error searching products: {str(e)}", region=region, query=query, products=[])
 
 
 @router.get("/regions/{region}/categories")
