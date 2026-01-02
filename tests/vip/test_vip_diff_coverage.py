@@ -47,7 +47,7 @@ class TestVIPShoplistPDFExport:
     def setup_method(self):
         """Setup for each test method."""
         os.environ["VIP_MODULE_ENABLED"] = "true"
-        os.environ["API_KEY"] = "test_key"
+        os.environ["API_KEY"] = "test_key"  # pragma: allowlist secret
 
     def teardown_method(self):
         """Cleanup after each test method."""

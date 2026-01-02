@@ -11,14 +11,16 @@ Invariants:
 
 from __future__ import annotations
 
+import contextlib
 import io
+import logging
 from decimal import Decimal
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
@@ -94,111 +96,118 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
     Returns:
         PDF data as bytes
     """
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        title="PulsePlate VIP Shoplist",
-        author="PulsePlate",
-    )
+    buffer: io.BytesIO | None = None
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            title="PulsePlate VIP Shoplist",
+            author="PulsePlate",
+        )
 
-    styles = getSampleStyleSheet()
-    from reportlab.platypus import Flowable
+        styles = getSampleStyleSheet()
 
-    elements: list[Flowable] = []
+        elements: list[Flowable] = []
 
-    # Title
-    elements.append(Paragraph("PulsePlate — VIP Shoplist", styles["Title"]))
-    elements.append(Spacer(1, 0.2 * mm))
+        # Title
+        elements.append(Paragraph("PulsePlate — VIP Shoplist", styles["Title"]))
+        elements.append(Spacer(1, 5 * mm))
 
-    # Metadata (extract from first line's catalog if available)
-    meta_info: list[str] = []
-    all_lines: list[PackedLineDTO | UnpackedLineDTO] = []
-    all_lines.extend(response.packed)
-    all_lines.extend(response.unpacked)
-    if all_lines and all_lines[0].catalog:
-        if all_lines[0].catalog.region_id:
-            meta_info.append(f"Region ID: {all_lines[0].catalog.region_id}")
-        if all_lines[0].catalog.store_id:
-            meta_info.append(f"Store ID: {all_lines[0].catalog.store_id}")
-    if meta_info:
-        elements.append(Paragraph(" | ".join(meta_info), styles["Normal"]))
-        elements.append(Spacer(1, 0.1 * mm))
+        # Metadata (extract from first line's catalog if available)
+        meta_info: list[str] = []
+        all_lines: list[PackedLineDTO | UnpackedLineDTO] = []
+        all_lines.extend(response.packed)
+        all_lines.extend(response.unpacked)
+        if all_lines and all_lines[0].catalog:
+            if all_lines[0].catalog.region_id:
+                meta_info.append(f"Region ID: {all_lines[0].catalog.region_id}")
+            if all_lines[0].catalog.store_id:
+                meta_info.append(f"Store ID: {all_lines[0].catalog.store_id}")
+        if meta_info:
+            elements.append(Paragraph(" | ".join(meta_info), styles["Normal"]))
+            elements.append(Spacer(1, 5 * mm))
 
-    # Sort lines (same logic as CSV)
-    sorted_lines = sorted(all_lines, key=_sort_key)
+        # Sort lines (same logic as CSV)
+        sorted_lines = sorted(all_lines, key=_sort_key)
 
-    # Table Header
-    table_data: list[list[str]] = [
-        [
-            "Food ID",
-            "Requested",
-            "Pack Size",
-            "Packs",
-            "Reason",
-            "Aisle",
-            "Price",
-            "Subtotal",
+        # Table Header
+        table_data: list[list[str]] = [
+            [
+                "Food ID",
+                "Requested",
+                "Pack Size",
+                "Packs",
+                "Reason",
+                "Aisle",
+                "Price",
+                "Subtotal",
+            ]
         ]
-    ]
 
-    # Populate table data
-    for line in sorted_lines:
-        requested_qty = (
-            _fmt_quantity(line.requested.value, line.requested.unit) if line.requested else ""
-        )
-        pack_size_qty = ""
-        packs_str = ""  # empty for unpacked
-        reason_str = _get_reason_str(line)
-        aisle_str = line.catalog.aisle if (line.catalog and line.catalog.aisle) else ""
-        price_str = ""
-        subtotal_str = ""
-
-        if isinstance(line, PackedLineDTO):
-            pack_size_qty = (
-                _fmt_quantity(line.pack_size.value, line.pack_size.unit) if line.pack_size else ""
+        # Populate table data
+        for line in sorted_lines:
+            requested_qty = (
+                _fmt_quantity(line.requested.value, line.requested.unit) if line.requested else ""
             )
-            packs_str = str(line.packs)
+            pack_size_qty = ""
+            packs_str = ""  # empty for unpacked
+            reason_str = _get_reason_str(line)
+            aisle_str = line.catalog.aisle if (line.catalog and line.catalog.aisle) else ""
+            price_str = ""
+            subtotal_str = ""
 
-            if line.catalog and line.catalog.price:
-                price_str = _fmt_decimal(line.catalog.price.value)
+            if isinstance(line, PackedLineDTO):
+                pack_size_qty = (
+                    _fmt_quantity(line.pack_size.value, line.pack_size.unit)
+                    if line.pack_size
+                    else ""
+                )
+                packs_str = str(line.packs)
 
-            # Calculate subtotal (price * packs)
-            if line.catalog and line.catalog.price and line.packs > 0:
-                subtotal_str = _fmt_decimal(line.catalog.price.value * Decimal(line.packs))
+                if line.catalog and line.catalog.price:
+                    price_str = _fmt_decimal(line.catalog.price.value)
 
-        table_data.append(
-            [
-                line.food_id,
-                requested_qty,
-                pack_size_qty,
-                packs_str,
-                reason_str,
-                aisle_str,
-                price_str,
-                subtotal_str,
-            ]
+                # Calculate subtotal (price * packs)
+                if line.catalog and line.catalog.price and line.packs > 0:
+                    subtotal_str = _fmt_decimal(line.catalog.price.value * Decimal(line.packs))
+
+            table_data.append(
+                [
+                    line.food_id,
+                    requested_qty,
+                    pack_size_qty,
+                    packs_str,
+                    reason_str,
+                    aisle_str,
+                    price_str,
+                    subtotal_str,
+                ]
+            )
+
+        table = Table(table_data)
+        table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 2),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
         )
+        elements.append(table)
 
-    table = Table(table_data)
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("LEFTPADDING", (0, 0), (-1, -1), 2),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-            ]
-        )
-    )
-    elements.append(table)
-
-    # Build PDF
-    doc.build(elements)
-    pdf_data = buffer.getvalue()
-    buffer.close()
-    return pdf_data
+        doc.build(elements)
+        return buffer.getvalue()
+    except Exception as exc:
+        logging.exception("PDF generation failed")
+        raise RuntimeError(f"Failed to generate PDF: {exc}") from exc
+    finally:
+        if buffer is not None:
+            with contextlib.suppress(Exception):
+                buffer.close()

@@ -146,7 +146,7 @@ class TestRequireVIPTier:
         assert "does not have VIP tier access" in exc_info.value.detail
 
     @pytest.mark.asyncio
-    async def test_missing_key_raises_401(self) -> None:
+    async def test_missing_key_raises_403(self) -> None:
         """Test missing API key raises 403 Forbidden (VIP = feature-gate)."""
         with pytest.raises(HTTPException) as exc_info:
             await require_vip_tier(x_api_key=None)

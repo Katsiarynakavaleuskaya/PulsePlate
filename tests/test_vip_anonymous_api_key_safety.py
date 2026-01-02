@@ -60,6 +60,24 @@ class TestVIPAnonymousAPIKeySafety:
         detail_lower = response.json()["detail"].lower()
         assert "api key" in detail_lower or "vip access" in detail_lower
 
+        # Test request with invalid API key
+        response = client.post(
+            "/api/v1/vip/weekly-plan",
+            json={
+                "sex": "female",
+                "age": 30,
+                "height_cm": 165.0,
+                "weight_kg": 60.0,
+                "activity": "moderate",
+                "goal": "maintain",
+            },
+            headers={"X-API-Key": "wrong-key"},
+        )
+        # Invalid key should be 403 (insufficient permissions), not 401 (missing auth)
+        assert response.status_code == 403
+        detail_lower = response.json()["detail"].lower()
+        assert "vip" in detail_lower or "invalid" in detail_lower
+
     def test_production_mode_with_explicit_anonymous_allowed(self):
         """Test that production mode allows anonymous access when explicitly configured."""
         # Set production environment but allow anonymous access

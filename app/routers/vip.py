@@ -719,7 +719,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     }
     if not is_production and not _explicit_false:
         _log_api_key_event(
-            "VIP endpoint accessed without API key in legacy dev mode. Environment: %s",
+            "VIP endpoint accessed without API key in legacy dev mode.",
             is_production,
             app_env,
         )
