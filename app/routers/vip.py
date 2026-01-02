@@ -907,6 +907,8 @@ def search_region_products(
         }
 
     try:
+        # search_products is not None after check above
+        assert search_products is not None
         search_result = search_products(query, region, category, max_results)
 
         # Конвертируем продукты в словари для JSON
