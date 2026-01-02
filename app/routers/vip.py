@@ -7,7 +7,6 @@ from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
     Body,
     Depends,
-    Header,
     HTTPException,
     Request,
     status,
@@ -372,16 +371,10 @@ def _extract_api_key_from_headers(headers: Mapping[str, str] | None) -> Optional
         return None
     raw = headers.get("x-api-key")
     if raw:
-        # With pre-push mypy (--follow-imports=skip), headers.get returns Any.
-        # Assigning to typed local ensures type safety in CI.
-        api_key: str = raw.strip()
-        return api_key
+        return raw.strip()
     auth = headers.get("authorization")
     if auth and auth.lower().startswith("bearer "):
-        # With pre-push mypy (--follow-imports=skip), split returns Any.
-        # Assigning to typed local ensures type safety in CI.
-        bearer_key: str = auth.split(" ", 1)[1].strip()
-        return bearer_key
+        return auth.split(" ", 1)[1].strip()
     return None
 
 
@@ -585,25 +578,38 @@ def vip_health() -> Dict[str, Any]:
 
 
 @router.post("/menu/weekly/plan", dependencies=[Depends(_require_api_key_strict)])
-def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
+def weekly_menu_plan(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     RU: Планирование недельного меню с VIP функциями
     EN: Weekly menu planning with VIP features
 
     Args:
-        request: WeeklyPlanRequest with user profile and goals
+        payload: Raw request payload (validated after auth)
 
     Returns:
         Echo структура с планом меню
+
+    Note:
+        We intentionally accept raw dict here so auth (403) wins over Pydantic 422.
+        Then we validate via WeeklyPlanRequest inside the handler.
     """
-    # Store original data for echo before processing
-    # Keep falsy-but-valid values like 0 or False; drop only None and empty containers/strings
+    # IMPORTANT: Validate after auth to ensure 403 wins over 422
+    try:
+        request = WeeklyPlanRequest.model_validate(payload)
+    except Exception:
+        # Preserve FastAPI-like contract for invalid payload,
+        # but only after auth has already been enforced by dependency.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid weekly plan request payload",
+        )
+
+    # Store original data for echo before processing (keep falsy-but-valid values)
     request_dict = request.model_dump(exclude_none=True)
-    original_data = {}
+    original_data: Dict[str, Any] = {}
     for key, value in request_dict.items():
-        if isinstance(value, (str, list, tuple, dict, set)):
-            if len(value) == 0:
-                continue
+        if isinstance(value, (str, list, tuple, dict, set)) and len(value) == 0:
+            continue
         original_data[key] = value
 
     if make_weekly_menu is None:
@@ -613,7 +619,6 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
             "menu": {"mode": "echo"},
             "message": "Weekly menu plan generated (echo mode)",
         }
-    import logging
 
     try:
         # Convert WeeklyPlanRequest to dict for the core function
@@ -632,7 +637,7 @@ def weekly_menu_plan(request: WeeklyPlanRequest) -> Dict[str, Any]:
             "message": "Weekly menu plan generated (echo mode)",
         }
     except Exception as exc:
-        logging.error(f"Exception in weekly_menu_plan: {exc}")
+        logging.exception("Exception in weekly_menu_plan")
         return {
             "status": "error",
             "echo": request.model_dump(),
@@ -688,7 +693,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     deprecated=True,
 )
 async def weekly_menu_plan_alias(
-    request: WeeklyPlanRequest, _api_key: str = Depends(_require_api_key_dev_legacy)
+    request: Request, _api_key: str = Depends(_require_api_key_strict)
 ) -> Union[WeeklyPlanResponse, ErrorResponse]:
     """
     [DEPRECATED] Generate a weekly meal plan based on user profile.
@@ -701,13 +706,30 @@ async def weekly_menu_plan_alias(
     - Use strict API key validation (X-API-Key header required in production)
     - No changes to request/response format required
 
-    Args:
-        request: Weekly plan request with user profile data
-        x_api_key: API key for VIP access
-
-    Returns:
-        WeeklyPlanResponse with generated plan or ErrorResponse on failure
+    Note:
+        We intentionally use Request directly so auth (403) wins over Pydantic 422.
+        Then we parse and validate body inside the handler.
     """
+    # IMPORTANT: Parse body after auth to ensure 403 wins over 422
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid JSON payload",
+        )
+
+    # Validate after auth to ensure 403 wins over 422
+    try:
+        request_obj = WeeklyPlanRequest.model_validate(payload)
+    except Exception:
+        # Preserve FastAPI-like contract for invalid payload,
+        # but only after auth has already been enforced by dependency.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid weekly plan request payload",
+        )
+
     # Log deprecation warning
     logging.warning(
         "DEPRECATED endpoint /api/v1/vip/weekly-plan was called. "
@@ -725,12 +747,12 @@ async def weekly_menu_plan_alias(
         # Validate required fields are present
         if not all(
             [
-                request.sex,
-                request.age,
-                request.height_cm,
-                request.weight_kg,
-                request.activity,
-                request.goal,
+                request_obj.sex,
+                request_obj.age,
+                request_obj.height_cm,
+                request_obj.weight_kg,
+                request_obj.activity,
+                request_obj.goal,
             ]
         ):
             raise HTTPException(
@@ -740,12 +762,12 @@ async def weekly_menu_plan_alias(
 
         # so we can safely convert the values directly
         profile = UserProfile(
-            sex=request.sex or "male",
-            age=request.age or 30,
-            height_cm=request.height_cm or 175.0,
-            weight_kg=request.weight_kg or 70.0,
-            activity=request.activity or "moderate",
-            goal=request.goal or "maintain",
+            sex=request_obj.sex or "male",
+            age=request_obj.age or 30,
+            height_cm=request_obj.height_cm or 175.0,
+            weight_kg=request_obj.weight_kg or 70.0,
+            activity=request_obj.activity or "moderate",
+            goal=request_obj.goal or "maintain",
         )
 
         plan = make_weekly_menu(profile=profile)
@@ -920,26 +942,6 @@ def available_export_formats() -> Dict[str, Any]:
         "locales": ["ru", "en", "es"],
         "message": "Available export formats for shopping lists",
     }
-
-
-def _error(detail: str, **kwargs: object) -> dict[str, object]:
-    """
-    RU: Унифицированный error-ответ для VIP coverage tests.
-    EN: Unified error response for VIP coverage tests.
-    """
-    payload: dict[str, object] = {"status": "error", "detail": detail}
-    payload.update(kwargs)
-    return payload
-
-
-def _success(**kwargs: object) -> dict[str, object]:
-    """
-    RU: Унифицированный success-ответ.
-    EN: Unified success response.
-    """
-    payload: dict[str, object] = {"status": "success"}
-    payload.update(kwargs)
-    return payload
 
 
 @router.get("/regions", dependencies=[Depends(_require_api_key_strict)])
@@ -1159,6 +1161,8 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
             regions=regions.split(","),
             comparison={},
         )
+
+    region_list: list[str] = []
 
     try:
         region_list = [r.strip() for r in regions.split(",")]
@@ -1512,13 +1516,10 @@ def get_manual_repair_suggestions(request: Dict[str, Any] = Body(...)) -> Dict[s
 
 
 @router.get("/auto-repair/strategies", dependencies=[Depends(_require_api_key_strict)])
-def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
+def get_repair_strategies() -> Dict[str, Any]:
     """
     RU: Получить доступные стратегии ремонта
     EN: Get available repair strategies
-
-    Args:
-        x_api_key: API key for VIP access
 
     Returns:
         Список доступных стратегий
