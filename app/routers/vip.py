@@ -957,31 +957,34 @@ def get_regions() -> Dict[str, Any]:
         Список доступных регионов
     """
     if get_available_regions is None:
-        return vip_error(
+        result_959: dict[str, Any] = vip_error(
             code="region_provider_unavailable",
             message="Region provider is not available",
             regions=[],
         )
+        return result_959
     try:
         regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
         # Empty list is a valid outcome for a valid query
-        return vip_success(
+        result_968: dict[str, Any] = vip_success(
             regions=regions,
             total_regions=len(regions),
             message="Available regions retrieved successfully",
             echo={},
         )
+        return result_968
     except Exception as e:
         logging.exception("Error retrieving regions")
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error retrieving regions: {e}"
-        return vip_error(
+        result_979: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             regions=[],
         )
+        return result_979
 
 
 @router.get("/regions/{region}/search", dependencies=[Depends(_require_api_key_strict)])
@@ -1002,13 +1005,14 @@ def search_region_products(
         Результаты поиска
     """
     if search_products is None:
-        return vip_error(
+        result_1004: dict[str, Any] = vip_error(
             code="search_provider_unavailable",
             message="Search provider is not available",
             region=region,
             query=query,
             products=[],
         )
+        return result_1004
 
     try:
         search_products_fn = cast(Callable[[str, str, str, int], Any], search_products)
@@ -1032,7 +1036,7 @@ def search_region_products(
         ]
 
         # Empty list is a valid outcome for a valid query
-        return vip_success(
+        result_1034: dict[str, Any] = vip_success(
             region=region,
             query=query,
             category=category,
@@ -1041,18 +1045,20 @@ def search_region_products(
             returned_count=len(products_data),
             message=f"Found {search_result.total_count} products in {region}",
         )
+        return result_1034
     except Exception as e:
         logging.exception("Error searching products")
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error searching products: {e}"
-        return vip_error(
+        result_1048: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             region=region,
             query=query,
             products=[],
         )
+        return result_1048
 
 
 @router.get("/regions/{region}/categories", dependencies=[Depends(_require_api_key_strict)])
@@ -1068,35 +1074,38 @@ def get_region_categories(region: str) -> Dict[str, Any]:
         Список категорий
     """
     if get_region_catalog is None:
-        return vip_error(
+        result_1070: dict[str, Any] = vip_error(
             code="categories_provider_unavailable",
             message="Categories provider is not available",
             region=region,
             categories=[],
         )
+        return result_1070
 
     try:
         catalog = get_region_catalog()
         categories = catalog.get_categories(region)
 
         # Empty list is a valid outcome for a valid query
-        return vip_success(
+        result_1082: dict[str, Any] = vip_success(
             region=region,
             categories=categories,
             total_categories=len(categories),
             message=f"Retrieved {len(categories)} categories for {region}",
         )
+        return result_1082
     except Exception as e:
         logging.exception("Error retrieving categories")
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error retrieving categories: {e}"
-        return vip_error(
+        result_1093: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             region=region,
             categories=[],
         )
+        return result_1093
 
 
 @router.get("/regions/{region}/stores", dependencies=[Depends(_require_api_key_strict)])
@@ -1112,35 +1121,38 @@ def get_region_stores(region: str) -> Dict[str, Any]:
         Список торговых сетей
     """
     if get_region_catalog is None:
-        return vip_error(
+        result_1114: dict[str, Any] = vip_error(
             code="stores_provider_unavailable",
             message="Stores provider is not available",
             region=region,
             stores=[],
         )
+        return result_1114
 
     try:
         catalog = get_region_catalog()
         stores = catalog.get_store_chains(region)
 
         # Empty list is a valid outcome for a valid query
-        return vip_success(
+        result_1126: dict[str, Any] = vip_success(
             region=region,
             stores=stores,
             total_stores=len(stores),
             message=f"Retrieved {len(stores)} store chains for {region}",
         )
+        return result_1126
     except Exception as e:
         logging.exception("Error retrieving stores")
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error retrieving stores: {e}"
-        return vip_error(
+        result_1137: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             region=region,
             stores=[],
         )
+        return result_1137
 
 
 @router.get("/regions/compare/{product_name}", dependencies=[Depends(_require_api_key_strict)])
@@ -1157,13 +1169,14 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
         Сравнение цен по регионам
     """
     if get_price_comparison is None:
-        return vip_error(
+        result_1159: dict[str, Any] = vip_error(
             code="price_comparison_provider_unavailable",
             message="Price comparison provider is not available",
             product_name=product_name,
             regions=regions.split(","),
             comparison={},
         )
+        return result_1159
 
     region_list: list[str] = []
 
@@ -1191,24 +1204,26 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
         }
 
         # Empty dict is a valid outcome for a valid query
-        return vip_success(
+        result_1193: dict[str, Any] = vip_success(
             product_name=product_name,
             regions=region_list,
             comparison=formatted_comparison,
             message=f"Price comparison for '{product_name}' across {len(region_list)} regions",
         )
+        return result_1193
     except Exception as e:
         logging.exception("Error comparing product prices")
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error comparing prices: {e}"
-        return vip_error(
+        result_1204: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             product_name=product_name,
             regions=region_list,
             comparison={},
         )
+        return result_1204
 
 
 @router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key_strict)])
