@@ -664,11 +664,14 @@ def weekly_menu_plan(
         }
     except Exception as exc:
         logging.exception("Exception in weekly_menu_plan")
+        is_prod, _ = _is_production_environment()
+        # RU: В проде не светим детали. EN: Mask details in prod.
+        msg = "Internal error" if is_prod else f"Weekly menu generation failed: {exc}"
         return {
             "status": "error",
             "echo": request_obj.model_dump(),
             "menu": {"mode": "echo"},
-            "message": f"Weekly menu generation failed: {exc}",
+            "message": msg,
         }
 
 
