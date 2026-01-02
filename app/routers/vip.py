@@ -121,6 +121,23 @@ router.include_router(vip_shoplist_router)
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
+def _is_production() -> bool:
+    """Single source of truth for tests & runtime (do NOT cache settings here)."""
+    return (
+        os.getenv("APP_ENV", "").lower() == "production"
+        and os.getenv("DEBUG", "").lower() != "true"
+    )
+
+
+def _get_configured_api_key() -> str | None:
+    """Read API_KEY from environment (no caching)."""
+    raw = os.getenv("API_KEY")
+    if raw is None:
+        return None
+    raw = raw.strip()
+    return raw or None
+
+
 def _is_production_environment() -> tuple[bool, str]:
     """Determine if we're in production mode and return environment info.
 
@@ -395,10 +412,9 @@ def _require_api_key_strict(request: Request) -> str:
     - 403: API key отсутствует или неверный / нет доступа
     - 500: Production environment misconfigured (API key not set)
     """
-    # Coverage expects explicit HTTPException when prod env is misconfigured
-    is_production, _ = _is_production_environment()
-    expected_key = os.getenv("API_KEY")
-    if is_production and not expected_key:
+    # Coverage: env validation branch (production misconfiguration)
+    configured = _get_configured_api_key()
+    if _is_production() and configured is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="VIP API key is not configured",
@@ -410,15 +426,15 @@ def _require_api_key_strict(request: Request) -> str:
             detail="VIP access required",
         )
     # Validate using existing logic, but convert 401 to 403
-    try:
-        return _require_api_key(api_key)
-    except HTTPException as e:
-        if e.status_code == status.HTTP_401_UNAUTHORIZED:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="VIP access required",
-            ) from e
-        raise
+    # Use configured key directly (not from settings cache)
+    provided = api_key
+    expected = configured
+    if (provided is None) or (expected is None) or (provided != expected):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="VIP access required",
+        )
+    return expected
 
 
 def _create_user_profile_from_dict(profile_data: Dict[str, Any]) -> "UserProfile":
@@ -557,22 +573,16 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
         adapter_func = adapters[func_name]
         return adapter_func(*args, **kwargs)
     except HTTPException:
-        # Re-raise HTTPExceptions to preserve FastAPI error handling
+        # do not swallow FastAPI contract exceptions
         raise
-    except ValueError as e:
-        # Validation errors - log details on server, but do not expose them to user
-        error_msg = f"Validation error in {func_name}: {str(e)}"
-        logging.error(error_msg)
-        is_prod, _ = _is_production_environment()
-        msg = "Validation error" if is_prod else f"Validation error in {func_name}: {str(e)}"
-        return vip_error(code="adapter_error", message=msg)
-    except Exception as e:
-        # Log other exceptions and return consistent error response without details exposed
-        error_msg = f"Unexpected error in {func_name}: {str(e)}"
-        logging.exception(error_msg)
-        is_prod, _ = _is_production_environment()
-        msg = "An unexpected error occurred" if is_prod else f"Unexpected error in {func_name}: {str(e)}"
-        return vip_error(code="adapter_error", message=msg)
+    except Exception as exc:
+        # IMPORTANT: must be an error contract for coverage tests
+        logging.exception("VIP adapter call failed")
+        msg = "Internal error" if _is_production() else f"Adapter error: {exc}"
+        return vip_error(
+            code="adapter_error",
+            message=msg,
+        )
 
 
 # NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
