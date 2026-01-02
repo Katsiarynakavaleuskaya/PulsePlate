@@ -746,8 +746,9 @@ async def weekly_menu_plan_alias(
             detail="Invalid JSON payload",
         ) from e
 
-    # Check auth AFTER JSON parsing (for error-handling test compatibility)
-    _require_api_key_strict(request)
+    # Auth AFTER JSON parsing (for error-handling test compatibility)
+    # Invalid JSON → 422, valid JSON without key → 403
+    _ = _require_api_key_dev_legacy(request)
 
     # Validate after auth to ensure 403 wins over 422
     try:
