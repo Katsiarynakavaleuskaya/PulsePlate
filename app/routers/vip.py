@@ -1487,10 +1487,11 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error during auto-repair: {exc}"
-        return vip_error(
+        error_res2: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             repair_result={},
+        return error_res2
             echo=request,
         )
 
