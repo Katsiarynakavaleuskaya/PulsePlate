@@ -39,28 +39,45 @@ def test_require_api_key_dev_fallback_returns_test_key():
 
 def test_require_api_key_strict_missing_key_raises():
     from app.routers.vip import _require_api_key_strict
+    from fastapi import Request
+    from unittest.mock import MagicMock
 
     os.environ["APP_ENV"] = "development"
     os.environ["DEBUG"] = "true"
+    # Create a mock Request with no API key headers
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers.get.return_value = None
     with pytest.raises(HTTPException) as ei:
-        _require_api_key_strict(None)
-    assert ei.value.status_code == 403  # VIP = feature-gate, not auth-gate
+        _require_api_key_strict(mock_request)
+    assert ei.value.status_code == 401  # Missing API key = 401
+    assert "api key" in ei.value.detail.lower()
 
 
 def test_require_api_key_dev_legacy_nonprod_and_prod_allow():
-    from app.routers.vip import _require_api_key_dev_legacy
+    from app.routers.vip import _require_api_key_dev_legacy, TEST_KEY
+    from fastapi import Request
+    from unittest.mock import MagicMock
 
-    # Dev/local: anonymous
+    # Dev/local: returns TEST_KEY (not anonymous) when no explicit flag
     os.environ["APP_ENV"] = "dev"
     os.environ["DEBUG"] = "true"
     _clear(["ALLOW_ANONYMOUS_API_KEYS", "API_KEY"])  # default
-    assert _require_api_key_dev_legacy(None) == "anonymous"
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers.get.return_value = None
+    assert _require_api_key_dev_legacy(mock_request) == TEST_KEY
 
-    # Production with explicit anonymous allow
+    # Production with explicit anonymous allow - should raise 403 (no anonymous in prod)
     os.environ["APP_ENV"] = "production"
     os.environ["DEBUG"] = "false"
     os.environ["ALLOW_ANONYMOUS_API_KEYS"] = "true"
-    assert _require_api_key_dev_legacy(None) == "anonymous"
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers.get.return_value = None
+    import pytest
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as ei:
+        _require_api_key_dev_legacy(mock_request)
+    assert ei.value.status_code == 403
 
 
 def test_adapter_make_weekly_menu_no_profile_path():

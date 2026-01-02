@@ -362,11 +362,13 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
     return raw_key
 
 
-def _extract_api_key(request: Request) -> Optional[str]:
+def _extract_api_key(request: Optional[Request] = None) -> Optional[str]:
     """
     RU: Достаём API key из заголовков без auto_error схем.
     EN: Extract API key from headers without auto_error security schemes.
     """
+    if request is None:
+        return None
     raw = request.headers.get("x-api-key")
     if raw:
         # With pre-push mypy (--follow-imports=skip), headers.get returns Any.
@@ -387,13 +389,15 @@ def _require_api_key_strict(request: Request) -> str:
     RU: Строгая проверка API key для VIP (production contract).
     EN: Strict API key gate for VIP (production contract).
 
-    VIP = feature-gate, not auth-gate → returns 403 (not 401).
+    Contract:
+    - 401: API key отсутствует
+    - 403: API key неверный / нет доступа
     """
     api_key = _extract_api_key(request)
     if not api_key:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="VIP access required",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key is required",
         )
     # Validate using existing logic, but convert 401 to 403
     try:
@@ -402,7 +406,7 @@ def _require_api_key_strict(request: Request) -> str:
         if e.status_code == status.HTTP_401_UNAUTHORIZED:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid API key",
+                detail="VIP access required",
             ) from e
         raise
 
@@ -1364,12 +1368,11 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
         Результат авто-ремонта с историей итераций
     """
     if auto_repair_week_plan is None:
-        return {
-            "status": "success",
-            "repair_result": {},
-            "message": "Auto-repair module not available (echo mode)",
-            "echo": request,
-        }
+        return _error(
+            "auto_repair_provider_not_available",
+            message="Auto-repair module not available",
+            repair_result={},
+        )
     try:
         week_plan = request.get("week_plan", {})
         targets_data = request.get("targets", {})

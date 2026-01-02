@@ -116,7 +116,8 @@ class TestVIPProductionMode:
 
         # Test recipes endpoint without API key
         response = client.post("/api/v1/vip/recipes/synthesize", json={"ingredients": []})
-        assert response.status_code == 403
+        assert response.status_code == 401  # Missing API key = 401
+        assert "api key" in response.json()["detail"].lower()
 
     def test_vip_regions_endpoint_auth_check(self):
         """Test VIP regions endpoint requires authentication."""
@@ -129,7 +130,8 @@ class TestVIPProductionMode:
 
         # Test regions endpoint without API key
         response = client.get("/api/v1/vip/regions")
-        assert response.status_code == 403
+        assert response.status_code == 401  # Missing API key = 401
+        assert "api key" in response.json()["detail"].lower()
 
     def test_vip_production_mode_coverage_lines(self):
         """Test specific production mode lines for coverage.
