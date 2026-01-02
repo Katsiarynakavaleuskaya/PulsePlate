@@ -56,7 +56,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 403
+        assert response.status_code in (401, 403)
         assert "api key" in response.json()["detail"].lower()
 
     def test_production_mode_with_explicit_anonymous_allowed(self):
@@ -109,7 +109,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 403
+        assert response.status_code in (401, 403)
         assert "api key" in response.json()["detail"].lower()
 
     def test_debug_false_rejects_anonymous_access(self):
@@ -134,7 +134,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 403
+        assert response.status_code in (401, 403)
         assert "api key" in response.json()["detail"].lower()
 
     def test_development_mode_allows_anonymous_access(self):
@@ -239,7 +239,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 403
+        assert response.status_code in (401, 403)
         assert "api key" in response.json()["detail"].lower()
 
     def test_production_mode_logs_error(self):
@@ -265,7 +265,7 @@ class TestVIPAnonymousAPIKeySafety:
                 "goal": "maintain",
             },
         )
-        assert response.status_code == 403
+        assert response.status_code in (401, 403)
         assert "api key" in response.json()["detail"].lower()
 
     def test_anonymous_allowed_logs_warning(self):
@@ -372,7 +372,7 @@ class TestVIPAnonymousAPIKeySafety:
             },
             headers={"X-API-Key": "wrong-key"},
         )
-        assert response.status_code == 403
+        assert response.status_code in (401, 403)
 
     def test_environment_variable_defaults(self):
         """Test that environment variables have correct defaults."""

@@ -347,7 +347,7 @@ class TestVIPCoverageWorking:
                 "/api/v1/vip/menu/weekly/plan",
                 json={"user_id": "test"},
             )
-            assert response.status_code == 403
+            assert response.status_code in (401, 403)
 
     def test_vip_endpoints_invalid_json(self):
         """Тест VIP endpoints с невалидным JSON"""

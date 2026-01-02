@@ -123,7 +123,7 @@ except ImportError:
 
 slowapi_available = Limiter is not None
 
-vip_router: Optional[APIRouter]
+vip_router: Optional[APIRouter] = None
 _scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
 
 # Track whether the app is running on a degraded/fallback database so /health/db
@@ -145,6 +145,15 @@ try:
 except ImportError:
     # VIP registration not available - VIP module disabled
     VIP_MODULE_ENABLED = False
+
+# Backward-compat: expose vip_router for tests/introspection.
+if VIP_MODULE_ENABLED:
+    try:
+        from app.routers import vip as _vip_mod
+
+        vip_router = getattr(_vip_mod, "router", None)
+    except ImportError:
+        vip_router = None
 
 
 def _resolve_scheduler_starter(

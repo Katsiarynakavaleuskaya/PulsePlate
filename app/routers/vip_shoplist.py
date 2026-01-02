@@ -66,6 +66,12 @@ def _get_catalog_provider() -> CatalogProvider:
     return _get_provider()
 
 
+def _export_shoplist_to_pdf(result: ShoplistGenerateResponse) -> bytes:
+    from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
+
+    return export_shoplist_to_pdf(result)
+
+
 # Common OpenAPI responses for gating matrix
 COMMON_VIP_SHOPLIST_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Unauthorized: missing/invalid API key (auth-layer dependent)"},
@@ -554,9 +560,7 @@ async def vip_shoplist_export(
         )
     else:  # pdf
         try:
-            from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
-
-            pdf_data = export_shoplist_to_pdf(result)
+            pdf_data = _export_shoplist_to_pdf(result)
             return Response(
                 content=pdf_data,
                 media_type="application/pdf",

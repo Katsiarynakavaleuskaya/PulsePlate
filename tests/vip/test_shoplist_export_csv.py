@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 
 import pytest
 from fastapi import status
@@ -177,6 +178,36 @@ def test_vip_shoplist_export_accepts_legacy_format_alias(
     assert resp.headers["content-type"].startswith("text/csv")
     assert "Content-Disposition" in resp.headers
     assert 'filename="shoplist.csv"' in resp.headers["Content-Disposition"]
+
+
+def test_vip_shoplist_export_pdf_unavailable_returns_501(
+    monkeypatch: pytest.MonkeyPatch,
+    client_with_vip_access: TestClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that PDF export returns 501 when reportlab is unavailable."""
+    _enable_vip(monkeypatch)
+    caplog.set_level(logging.ERROR, logger="app.routers.vip_shoplist")
+
+    # Force the ImportError branch regardless of whether reportlab is installed.
+    def raise_import_error(*args: object, **kwargs: object) -> bytes:
+        raise ImportError("reportlab is missing")
+
+    monkeypatch.setattr("app.routers.vip_shoplist._export_shoplist_to_pdf", raise_import_error)
+
+    payload = _generate_payload_minimal()
+    resp = client_with_vip_access.post(
+        "/api/v1/vip/shoplist/export?export_format=pdf",
+        json=payload,
+    )
+
+    assert resp.status_code == status.HTTP_501_NOT_IMPLEMENTED
+    detail = resp.json()["detail"]
+    assert detail == "PDF export is not available"
+    assert "importerror" not in detail.lower()
+    assert "no module" not in detail.lower()
+
+    assert any("PDF export is not available" in r.message for r in caplog.records)
 
 
 def test_vip_shoplist_export_csv_injection_protection(

@@ -568,32 +568,11 @@ def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
     RU: Включает VIP модуль для тестов.
     EN: Enables VIP module for tests.
 
-    With centralized registration (register_vip_routes), this is now much simpler:
-    - Set env var (primary mechanism)
-    - Patch runtime check function
-    - Re-register routes if app is already imported
+    This helper must be side-effect free: it only flips feature flags via
+    monkeypatch and must not mutate the FastAPI app/router state.
     """
-    # Set env var (primary mechanism)
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    # Patch the function that checks VIP module enabled status (for runtime checks)
     monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
-
-    # Re-register VIP routes if app is already imported
-    # (centralized registration makes this straightforward)
-    try:
-        import legacy_app
-        from app.routers.vip_registration import register_vip_routes
-
-        # Check if VIP routes are already registered
-        vip_paths = {
-            r.path for r in legacy_app.app.routes if hasattr(r, "path") and "/api/v1/vip" in r.path
-        }
-        if not vip_paths:
-            # Routes not registered yet, register them now
-            register_vip_routes(legacy_app.app)
-    except (ImportError, AttributeError):
-        # Module not imported yet or registration not available - env var will handle it
-        pass
 
 
 def _disable_vip(monkeypatch: pytest.MonkeyPatch) -> None:

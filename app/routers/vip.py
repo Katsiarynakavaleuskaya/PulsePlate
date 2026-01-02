@@ -520,7 +520,7 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
 # NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
 
 
-@router.get("/health")
+@router.get("/health", dependencies=[Depends(_require_api_key_strict)])
 def vip_health() -> Dict[str, Any]:
     """
     RU: Проверка здоровья VIP модуля
@@ -854,7 +854,9 @@ def get_regions() -> Dict[str, Any]:
     Returns:
         Список доступных регионов
     """
-    if get_available_regions is None:
+    from app.routers import vip as vip_mod
+
+    if vip_mod.get_available_regions is None:
         return {
             "status": "success",
             "regions": [],
@@ -863,7 +865,8 @@ def get_regions() -> Dict[str, Any]:
             "echo": {},
         }
     try:
-        regions = get_available_regions()
+        regions_raw = vip_mod.get_available_regions()
+        regions = sorted({str(r).upper() for r in regions_raw})
         return {
             "status": "success",
             "regions": regions,
@@ -898,7 +901,9 @@ def search_region_products(
     Returns:
         Результаты поиска
     """
-    if search_products is None:
+    from app.routers import vip as vip_mod
+
+    if vip_mod.search_products is None:
         return {
             "status": "error",
             "message": "Region catalog module not available",
@@ -906,7 +911,7 @@ def search_region_products(
         }
 
     try:
-        search_result = search_products(query, region, category, max_results)
+        search_result = vip_mod.search_products(query, region, category, max_results)
 
         # Конвертируем продукты в словари для JSON
         products_data = [
