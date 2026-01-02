@@ -69,7 +69,10 @@ def _get_catalog_provider() -> CatalogProvider:
 def _export_shoplist_to_pdf(result: ShoplistGenerateResponse) -> bytes:
     from app.services.shoplist_export.pdf_export import export_shoplist_to_pdf
 
-    return export_shoplist_to_pdf(result)
+    # With pre-push mypy (--follow-imports=skip), imported functions are treated as Any.
+    # Assigning to a typed local ensures type safety in CI.
+    pdf_data: bytes = export_shoplist_to_pdf(result)
+    return pdf_data
 
 
 # Common OpenAPI responses for gating matrix
