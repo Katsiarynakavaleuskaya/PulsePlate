@@ -1525,11 +1525,12 @@ def get_repair_strategies() -> Dict[str, Any]:
         Список доступных стратегий
     """
     if RepairStrategy is None:
-        return vip_error(
+        result: dict[str, Any] = vip_error(
             code="auto_repair_unavailable",
             message="Auto-repair module not available",
             strategies=[],
         )
+        return result
 
     try:
         strategies = [
@@ -1554,18 +1555,20 @@ def get_repair_strategies() -> Dict[str, Any]:
         ]
 
         # Empty list is a valid outcome (shouldn't happen, but be safe)
-        return vip_success(
+        success_result: dict[str, Any] = vip_success(
             strategies=strategies,
             total_strategies=len(strategies),
             message=f"Retrieved {len(strategies)} repair strategies",
         )
+        return success_result
     except Exception as e:
         logging.exception("Error retrieving repair strategies")
         is_prod, _ = _is_production_environment()
         # RU: В проде не светим детали. EN: Mask details in prod.
         msg = "Internal error" if is_prod else f"Error retrieving repair strategies: {e}"
-        return vip_error(
+        error_result: dict[str, Any] = vip_error(
             code="internal_error",
             message=msg,
             strategies=[],
         )
+        return error_result
