@@ -570,17 +570,22 @@ def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
     # Also patch values in legacy_app and vip router modules if they're already imported
     try:
         import legacy_app
+
         monkeypatch.setattr(legacy_app, "VIP_MODULE_ENABLED", True)
         # Re-register router if it exists and is not already registered
         if hasattr(legacy_app, "vip_router") and legacy_app.vip_router is not None:
             # Check if router is already registered by looking for VIP paths
             vip_paths = {
-                r.path for r in legacy_app.app.routes if hasattr(r, "path") and "/api/v1/vip" in r.path
+                r.path
+                for r in legacy_app.app.routes
+                if hasattr(r, "path") and "/api/v1/vip" in r.path
             }
             if not vip_paths:
                 # Router not registered, add it
                 protected_dependency = legacy_app.Depends(legacy_app._get_api_key_dynamic)
-                legacy_app.app.include_router(legacy_app.vip_router, dependencies=[protected_dependency])
+                legacy_app.app.include_router(
+                    legacy_app.vip_router, dependencies=[protected_dependency]
+                )
     except (ImportError, AttributeError):
         # Module not imported yet or attribute missing - env var will handle it
         pass
