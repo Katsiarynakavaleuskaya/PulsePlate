@@ -938,7 +938,9 @@ def get_regions() -> Dict[str, Any]:
     """
     # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_available_regions is None:
-        return _success(regions=[], total_regions=0, message="Available regions retrieved successfully")
+        return _success(
+            regions=[], total_regions=0, message="Available regions retrieved successfully"
+        )
     try:
         regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
@@ -1041,7 +1043,12 @@ def get_region_categories(region: str) -> Dict[str, Any]:
     """
     # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_region_catalog is None:
-        return _success(region=region, categories=[], total_categories=0, message=f"Retrieved 0 categories for {region}")
+        return _success(
+            region=region,
+            categories=[],
+            total_categories=0,
+            message=f"Retrieved 0 categories for {region}",
+        )
 
     try:
         catalog = get_region_catalog()
@@ -1079,7 +1086,12 @@ def get_region_stores(region: str) -> Dict[str, Any]:
     """
     # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_region_catalog is None:
-        return _success(region=region, stores=[], total_stores=0, message=f"Retrieved 0 store chains for {region}")
+        return _success(
+            region=region,
+            stores=[],
+            total_stores=0,
+            message=f"Retrieved 0 store chains for {region}",
+        )
 
     try:
         catalog = get_region_catalog()
@@ -1521,7 +1533,11 @@ def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
     except Exception as e:
         logging.exception("Error retrieving repair strategies")
         is_prod, _ = _is_production_environment()
-        detail = "repair_strategies_provider_failed" if is_prod else f"repair_strategies_provider_failed: {e}"
+        detail = (
+            "repair_strategies_provider_failed"
+            if is_prod
+            else f"repair_strategies_provider_failed: {e}"
+        )
         return _error(
             detail,
             message="Error retrieving strategies",
