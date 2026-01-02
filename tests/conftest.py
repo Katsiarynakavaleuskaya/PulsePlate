@@ -141,6 +141,7 @@ def _block_external_network_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
 # Ensure key feature flags are enabled during test collection
 os.environ.setdefault("FEATURE_BMI_PRO_ENABLED", "true")
 os.environ.setdefault("BUSINESS_MODULE_ENABLED", "true")
+os.environ.setdefault("VIP_MODULE_ENABLED", "true")
 
 # Configure logger for test cleanup operations
 logger = logging.getLogger(__name__)
@@ -506,6 +507,8 @@ def test_environment(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, N
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "false")
     monkeypatch.setenv("METRICS_ENABLED", "true")
+    # Enable VIP module by patching imported modules
+    _enable_vip(monkeypatch)
     yield
     # Cleanup is automatic with monkeypatch
 
@@ -562,7 +565,32 @@ def _cleanup_users(configure_sqlite_database: Any) -> Generator[None, None, None
 
 def _enable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
     """Enable VIP module flag via router module patch."""
+    # Patch the function that checks VIP module enabled status
     monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
+    # Also patch values in legacy_app and vip router modules if they're already imported
+    try:
+        import legacy_app
+        monkeypatch.setattr(legacy_app, "VIP_MODULE_ENABLED", True)
+        # Re-register router if it exists and is not already registered
+        if hasattr(legacy_app, "vip_router") and legacy_app.vip_router is not None:
+            # Check if router is already registered by looking for VIP paths
+            vip_paths = {
+                r.path for r in legacy_app.app.routes if hasattr(r, "path") and "/api/v1/vip" in r.path
+            }
+            if not vip_paths:
+                # Router not registered, add it
+                protected_dependency = legacy_app.Depends(legacy_app._get_api_key_dynamic)
+                legacy_app.app.include_router(legacy_app.vip_router, dependencies=[protected_dependency])
+    except (ImportError, AttributeError):
+        # Module not imported yet or attribute missing - env var will handle it
+        pass
+    try:
+        from app.routers import vip as vip_mod
+
+        monkeypatch.setattr(vip_mod, "VIP_MODULE_ENABLED", True)
+    except (ImportError, AttributeError):
+        # Module not imported yet - env var will handle it
+        pass
 
 
 def _disable_vip(monkeypatch: pytest.MonkeyPatch) -> None:
