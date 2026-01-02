@@ -393,7 +393,16 @@ def _require_api_key_strict(request: Request) -> str:
 
     Contract (preserved from original):
     - 403: API key отсутствует или неверный / нет доступа
+    - 500: Production environment misconfigured (API key not set)
     """
+    # Coverage expects explicit HTTPException when prod env is misconfigured
+    is_production, _ = _is_production_environment()
+    expected_key = os.getenv("API_KEY")
+    if is_production and not expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="VIP API key is not configured",
+        )
     api_key = _extract_api_key(request)
     if not api_key:
         raise HTTPException(
@@ -528,6 +537,8 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
     """Call function with proper adapter and explicit error handling."""
     import logging
 
+    from app.contracts.vip_contract import vip_error
+
     # Map function names to their adapters
     adapters = {
         "make_weekly_menu": _adapter_make_weekly_menu,
@@ -540,7 +551,7 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
             f"No adapter found for function '{func_name}'. " f"Available adapters: {available}"
         )
         logging.error(error_msg)
-        return {"status": "error", "message": error_msg}
+        return vip_error(code="adapter_error", message=error_msg)
 
     try:
         adapter_func = adapters[func_name]
@@ -552,12 +563,16 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
         # Validation errors - log details on server, but do not expose them to user
         error_msg = f"Validation error in {func_name}: {str(e)}"
         logging.error(error_msg)
-        return {"status": "error", "message": "Validation error"}
+        is_prod, _ = _is_production_environment()
+        msg = "Validation error" if is_prod else f"Validation error in {func_name}: {str(e)}"
+        return vip_error(code="adapter_error", message=msg)
     except Exception as e:
         # Log other exceptions and return consistent error response without details exposed
         error_msg = f"Unexpected error in {func_name}: {str(e)}"
         logging.exception(error_msg)
-        return {"status": "error", "message": "An unexpected error occurred"}
+        is_prod, _ = _is_production_environment()
+        msg = "An unexpected error occurred" if is_prod else f"Unexpected error in {func_name}: {str(e)}"
+        return vip_error(code="adapter_error", message=msg)
 
 
 # NOTE: The legacy _safe_call has been removed. Use _safe_call_with_adapter instead.
@@ -598,7 +613,7 @@ def weekly_menu_plan(
     """
     # IMPORTANT: Validate after auth to ensure 403 wins over 422
     try:
-        request = WeeklyPlanRequest.model_validate(payload)
+        request_obj = WeeklyPlanRequest.model_validate(payload)
     except Exception as e:
         # Preserve FastAPI-like contract for invalid payload,
         # but only after auth has already been enforced by dependency.
@@ -608,7 +623,7 @@ def weekly_menu_plan(
         ) from e
 
     # Store original data for echo before processing (keep falsy-but-valid values)
-    request_dict = request.model_dump(exclude_none=True)
+    request_dict = request_obj.model_dump(exclude_none=True)
     original_data: Dict[str, Any] = {}
     for key, value in request_dict.items():
         if isinstance(value, (str, list, tuple, dict, set)) and len(value) == 0:
@@ -625,7 +640,7 @@ def weekly_menu_plan(
 
     try:
         # Convert WeeklyPlanRequest to dict for the core function
-        request_dict = request.model_dump()
+        request_dict = request_obj.model_dump()
         plan_candidate = _safe_call_with_adapter("make_weekly_menu", **request_dict)
 
         # Check if _safe_call_with_adapter returned an error
@@ -635,7 +650,7 @@ def weekly_menu_plan(
         plan = plan_candidate
         return {
             "status": "success",
-            "echo": request.model_dump(),
+            "echo": request_obj.model_dump(),
             "menu": plan if plan is not None else {"mode": "echo"},
             "message": "Weekly menu plan generated (echo mode)",
         }
@@ -643,7 +658,7 @@ def weekly_menu_plan(
         logging.exception("Exception in weekly_menu_plan")
         return {
             "status": "error",
-            "echo": request.model_dump(),
+            "echo": request_obj.model_dump(),
             "menu": {"mode": "echo"},
             "message": f"Weekly menu generation failed: {exc}",
         }
@@ -715,12 +730,12 @@ async def weekly_menu_plan_alias(
     """
     # IMPORTANT: Parse body after auth to ensure 403 wins over 422
     try:
-        payload = await request.json()
-    except Exception:
+        payload: Dict[str, Any] = await request.json()
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid JSON payload",
-        )
+        ) from e
 
     # Validate after auth to ensure 403 wins over 422
     try:
