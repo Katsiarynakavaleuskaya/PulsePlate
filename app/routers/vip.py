@@ -383,7 +383,7 @@ def _require_api_key_strict(request: Request) -> str:
     """
     RU: Строгая проверка API key для VIP (production contract).
     EN: Strict API key gate for VIP (production contract).
-    
+
     VIP = feature-gate, not auth-gate → returns 403 (not 401).
     """
     api_key = _extract_api_key(request)
@@ -924,7 +924,9 @@ def get_regions() -> Dict[str, Any]:
         Список доступных регионов
     """
     if get_available_regions is None:
-        return _error("regions_provider_not_available", message="Region catalog module not available")
+        return _error(
+            "regions_provider_not_available", message="Region catalog module not available"
+        )
     try:
         regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
@@ -956,7 +958,11 @@ def search_region_products(
         Результаты поиска
     """
     if search_products is None:
-        return _error("search_provider_not_available", message="Region catalog module not available", results=[])
+        return _error(
+            "search_provider_not_available",
+            message="Region catalog module not available",
+            results=[],
+        )
 
     try:
         # search_products is not None after check above
@@ -990,7 +996,13 @@ def search_region_products(
             message=f"Found {search_result.total_count} products in {region}",
         )
     except Exception as e:
-        return _error(f"search_provider_failed: {e}", message=f"Error searching products: {str(e)}", region=region, query=query, products=[])
+        return _error(
+            f"search_provider_failed: {e}",
+            message=f"Error searching products: {str(e)}",
+            region=region,
+            query=query,
+            products=[],
+        )
 
 
 @router.get("/regions/{region}/categories")
