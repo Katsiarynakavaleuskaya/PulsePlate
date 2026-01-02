@@ -362,7 +362,7 @@ def _require_api_key(raw_key: Optional[str] = Depends(_api_key_header)) -> str:
     return raw_key
 
 
-def _extract_api_key(request: Optional[Request] = None) -> Optional[str]:
+def _extract_api_key(request: Request | None = None) -> Optional[str]:
     """
     RU: Достаём API key из заголовков без auto_error схем.
     EN: Extract API key from headers without auto_error security schemes.
@@ -1023,30 +1023,29 @@ def get_region_categories(region: str) -> Dict[str, Any]:
         Список категорий
     """
     if get_region_catalog is None:
-        return {
-            "status": "error",
-            "message": "Region catalog module not available",
-            "categories": [],
-        }
+        return _error(
+            "categories_provider_not_available",
+            message="Region catalog module not available",
+            categories=[],
+        )
 
     try:
         catalog = get_region_catalog()
         categories = catalog.get_categories(region)
 
-        return {
-            "status": "success",
-            "region": region,
-            "categories": categories,
-            "total_categories": len(categories),
-            "message": f"Retrieved {len(categories)} categories for {region}",
-        }
+        return _success(
+            region=region,
+            categories=categories,
+            total_categories=len(categories),
+            message=f"Retrieved {len(categories)} categories for {region}",
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error retrieving categories: {str(e)}",
-            "region": region,
-            "categories": [],
-        }
+        return _error(
+            f"categories_provider_failed: {e}",
+            message=f"Error retrieving categories: {str(e)}",
+            region=region,
+            categories=[],
+        )
 
 
 @router.get("/regions/{region}/stores")
@@ -1062,30 +1061,29 @@ def get_region_stores(region: str) -> Dict[str, Any]:
         Список торговых сетей
     """
     if get_region_catalog is None:
-        return {
-            "status": "error",
-            "message": "Region catalog module not available",
-            "stores": [],
-        }
+        return _error(
+            "stores_provider_not_available",
+            message="Region catalog module not available",
+            stores=[],
+        )
 
     try:
         catalog = get_region_catalog()
         stores = catalog.get_store_chains(region)
 
-        return {
-            "status": "success",
-            "region": region,
-            "stores": stores,
-            "total_stores": len(stores),
-            "message": f"Retrieved {len(stores)} store chains for {region}",
-        }
+        return _success(
+            region=region,
+            stores=stores,
+            total_stores=len(stores),
+            message=f"Retrieved {len(stores)} store chains for {region}",
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error retrieving stores: {str(e)}",
-            "region": region,
-            "stores": [],
-        }
+        return _error(
+            f"stores_provider_failed: {e}",
+            message=f"Error retrieving stores: {str(e)}",
+            region=region,
+            stores=[],
+        )
 
 
 @router.get("/regions/compare/{product_name}")
@@ -1102,11 +1100,11 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
         Сравнение цен по регионам
     """
     if get_price_comparison is None:
-        return {
-            "status": "error",
-            "message": "Region catalog module not available",
-            "comparison": {},
-        }
+        return _error(
+            "price_comparison_provider_not_available",
+            message="Region catalog module not available",
+            comparison={},
+        )
 
     try:
         region_list = [r.strip() for r in regions.split(",")]
@@ -1131,21 +1129,20 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
             for region, data in comparison.items()
         }
 
-        return {
-            "status": "success",
-            "product_name": product_name,
-            "regions": region_list,
-            "comparison": formatted_comparison,
-            "message": f"Price comparison for '{product_name}' across {len(region_list)} regions",
-        }
+        return _success(
+            product_name=product_name,
+            regions=region_list,
+            comparison=formatted_comparison,
+            message=f"Price comparison for '{product_name}' across {len(region_list)} regions",
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error comparing prices: {str(e)}",
-            "product_name": product_name,
-            "regions": regions.split(","),
-            "comparison": {},
-        }
+        return _error(
+            f"price_comparison_provider_failed: {e}",
+            message=f"Error comparing prices: {str(e)}",
+            product_name=product_name,
+            regions=regions.split(","),
+            comparison={},
+        )
 
 
 @router.post("/recipes/synthesize", dependencies=[Depends(_require_api_key_strict)])
@@ -1465,11 +1462,11 @@ def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
         Список доступных стратегий
     """
     if RepairStrategy is None:
-        return {
-            "status": "error",
-            "message": "Auto-repair module not available",
-            "strategies": [],
-        }
+        return _error(
+            "repair_strategies_provider_not_available",
+            message="Auto-repair module not available",
+            strategies=[],
+        )
 
     try:
         strategies = [
@@ -1493,15 +1490,14 @@ def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
             },
         ]
 
-        return {
-            "status": "success",
-            "strategies": strategies,
-            "total_strategies": len(strategies),
-            "message": f"Retrieved {len(strategies)} repair strategies",
-        }
+        return _success(
+            strategies=strategies,
+            total_strategies=len(strategies),
+            message=f"Retrieved {len(strategies)} repair strategies",
+        )
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error retrieving strategies: {str(e)}",
-            "strategies": [],
-        }
+        return _error(
+            f"repair_strategies_provider_failed: {e}",
+            message=f"Error retrieving strategies: {str(e)}",
+            strategies=[],
+        )
