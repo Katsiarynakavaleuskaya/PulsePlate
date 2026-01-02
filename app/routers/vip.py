@@ -936,10 +936,9 @@ def get_regions() -> Dict[str, Any]:
     Returns:
         Список доступных регионов
     """
+    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_available_regions is None:
-        return _error(
-            "regions_provider_not_available", message="Region catalog module not available"
-        )
+        return _success(regions=[], total_regions=0, message="Available regions retrieved successfully")
     try:
         regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
@@ -950,7 +949,10 @@ def get_regions() -> Dict[str, Any]:
             echo={},
         )
     except Exception as e:
-        return _error(f"regions_provider_failed: {e}", message=f"Error retrieving regions: {e}")
+        logging.exception("Error retrieving regions")
+        is_prod, _ = _is_production_environment()
+        detail = "regions_provider_failed" if is_prod else f"regions_provider_failed: {e}"
+        return _error(detail, message="Error retrieving regions")
 
 
 @router.get("/regions/{region}/search")
@@ -970,11 +972,16 @@ def search_region_products(
     Returns:
         Результаты поиска
     """
+    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if search_products is None:
-        return _error(
-            "search_provider_not_available",
-            message="Region catalog module not available",
-            results=[],
+        return _success(
+            region=region,
+            query=query,
+            category=category,
+            products=[],
+            total_count=0,
+            returned_count=0,
+            message=f"Found 0 products in {region}",
         )
 
     try:
@@ -1008,9 +1015,12 @@ def search_region_products(
             message=f"Found {search_result.total_count} products in {region}",
         )
     except Exception as e:
+        logging.exception("Error searching products")
+        is_prod, _ = _is_production_environment()
+        detail = "search_provider_failed" if is_prod else f"search_provider_failed: {e}"
         return _error(
-            f"search_provider_failed: {e}",
-            message=f"Error searching products: {str(e)}",
+            detail,
+            message="Error searching products",
             region=region,
             query=query,
             products=[],
@@ -1029,12 +1039,9 @@ def get_region_categories(region: str) -> Dict[str, Any]:
     Returns:
         Список категорий
     """
+    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_region_catalog is None:
-        return _error(
-            "categories_provider_not_available",
-            message="Region catalog module not available",
-            categories=[],
-        )
+        return _success(region=region, categories=[], total_categories=0, message=f"Retrieved 0 categories for {region}")
 
     try:
         catalog = get_region_catalog()
@@ -1047,9 +1054,12 @@ def get_region_categories(region: str) -> Dict[str, Any]:
             message=f"Retrieved {len(categories)} categories for {region}",
         )
     except Exception as e:
+        logging.exception("Error retrieving categories")
+        is_prod, _ = _is_production_environment()
+        detail = "categories_provider_failed" if is_prod else f"categories_provider_failed: {e}"
         return _error(
-            f"categories_provider_failed: {e}",
-            message=f"Error retrieving categories: {str(e)}",
+            detail,
+            message="Error retrieving categories",
             region=region,
             categories=[],
         )
@@ -1067,12 +1077,9 @@ def get_region_stores(region: str) -> Dict[str, Any]:
     Returns:
         Список торговых сетей
     """
+    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if get_region_catalog is None:
-        return _error(
-            "stores_provider_not_available",
-            message="Region catalog module not available",
-            stores=[],
-        )
+        return _success(region=region, stores=[], total_stores=0, message=f"Retrieved 0 store chains for {region}")
 
     try:
         catalog = get_region_catalog()
@@ -1085,9 +1092,12 @@ def get_region_stores(region: str) -> Dict[str, Any]:
             message=f"Retrieved {len(stores)} store chains for {region}",
         )
     except Exception as e:
+        logging.exception("Error retrieving stores")
+        is_prod, _ = _is_production_environment()
+        detail = "stores_provider_failed" if is_prod else f"stores_provider_failed: {e}"
         return _error(
-            f"stores_provider_failed: {e}",
-            message=f"Error retrieving stores: {str(e)}",
+            detail,
+            message="Error retrieving stores",
             region=region,
             stores=[],
         )
@@ -1106,11 +1116,13 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
     Returns:
         Сравнение цен по регионам
     """
+    # FAIL-SOFT: если провайдера нет — success с пустым сравнением
     if get_price_comparison is None:
-        return _error(
-            "price_comparison_provider_not_available",
-            message="Region catalog module not available",
+        return _success(
+            product_name=product_name,
+            regions=regions.split(","),
             comparison={},
+            message=f"Price comparison for '{product_name}' across {len(regions.split(','))} regions",
         )
 
     try:
@@ -1143,9 +1155,16 @@ def compare_product_prices(product_name: str, regions: str = "es,us") -> Dict[st
             message=f"Price comparison for '{product_name}' across {len(region_list)} regions",
         )
     except Exception as e:
+        logging.exception("Error comparing product prices")
+        is_prod, _ = _is_production_environment()
+        detail = (
+            "price_comparison_provider_failed"
+            if is_prod
+            else f"price_comparison_provider_failed: {e}"
+        )
         return _error(
-            f"price_comparison_provider_failed: {e}",
-            message=f"Error comparing prices: {str(e)}",
+            detail,
+            message="Error comparing prices",
             product_name=product_name,
             regions=regions.split(","),
             comparison={},
@@ -1468,12 +1487,9 @@ def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
     Returns:
         Список доступных стратегий
     """
+    # FAIL-SOFT: если провайдера нет — success с пустым списком
     if RepairStrategy is None:
-        return _error(
-            "repair_strategies_provider_not_available",
-            message="Auto-repair module not available",
-            strategies=[],
-        )
+        return _success(strategies=[], total_strategies=0, message="Retrieved 0 repair strategies")
 
     try:
         strategies = [
@@ -1503,8 +1519,11 @@ def get_repair_strategies(x_api_key: str = Header(None)) -> Dict[str, Any]:
             message=f"Retrieved {len(strategies)} repair strategies",
         )
     except Exception as e:
+        logging.exception("Error retrieving repair strategies")
+        is_prod, _ = _is_production_environment()
+        detail = "repair_strategies_provider_failed" if is_prod else f"repair_strategies_provider_failed: {e}"
         return _error(
-            f"repair_strategies_provider_failed: {e}",
-            message=f"Error retrieving strategies: {str(e)}",
+            detail,
+            message="Error retrieving strategies",
             strategies=[],
         )
