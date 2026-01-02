@@ -1491,9 +1491,9 @@ def auto_repair_weekly_plan(request: Dict[str, Any]) -> Dict[str, Any]:
             code="internal_error",
             message=msg,
             repair_result={},
-        return error_res2
             echo=request,
         )
+        return error_res2
 
 
 @router.post("/auto-repair/suggestions", dependencies=[Depends(_require_api_key_strict)])
