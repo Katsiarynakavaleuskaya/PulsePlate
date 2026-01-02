@@ -103,26 +103,29 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
     )
 
     styles = getSampleStyleSheet()
-    elements: list[object] = []
+    from reportlab.platypus import Flowable
+
+    elements: list[Flowable] = []
 
     # Title
     elements.append(Paragraph("PulsePlate — VIP Shoplist", styles["Title"]))
     elements.append(Spacer(1, 0.2 * mm))
 
-    # Metadata (canonical from response fields)
+    # Metadata (extract from first line's catalog if available)
     meta_info: list[str] = []
-    if getattr(response, "region_id", None):
-        meta_info.append(f"Region ID: {response.region_id}")
-    if getattr(response, "store_id", None):
-        meta_info.append(f"Store ID: {response.store_id}")
+    all_lines: list[PackedLineDTO | UnpackedLineDTO] = []
+    all_lines.extend(response.packed)
+    all_lines.extend(response.unpacked)
+    if all_lines and all_lines[0].catalog:
+        if all_lines[0].catalog.region_id:
+            meta_info.append(f"Region ID: {all_lines[0].catalog.region_id}")
+        if all_lines[0].catalog.store_id:
+            meta_info.append(f"Store ID: {all_lines[0].catalog.store_id}")
     if meta_info:
         elements.append(Paragraph(" | ".join(meta_info), styles["Normal"]))
         elements.append(Spacer(1, 0.1 * mm))
 
-    # Collect lines (packed + unpacked)
-    all_lines: list[PackedLineDTO | UnpackedLineDTO] = []
-    all_lines.extend(response.packed)
-    all_lines.extend(response.unpacked)
+    # Sort lines (same logic as CSV)
     sorted_lines = sorted(all_lines, key=_sort_key)
 
     # Table Header
@@ -160,10 +163,8 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
             if line.catalog and line.catalog.price:
                 price_str = _fmt_decimal(line.catalog.price.value)
 
-            # Prefer DTO subtotal if present (aligns with CSV contract); fallback to deterministic calc
-            if getattr(line, "subtotal", None) is not None:
-                subtotal_str = _fmt_decimal(line.subtotal)
-            elif line.catalog and line.catalog.price and line.packs > 0:
+            # Calculate subtotal (price * packs)
+            if line.catalog and line.catalog.price and line.packs > 0:
                 subtotal_str = _fmt_decimal(line.catalog.price.value * Decimal(line.packs))
 
         table_data.append(
@@ -200,6 +201,4 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
     doc.build(elements)
     pdf_data = buffer.getvalue()
     buffer.close()
-
     return pdf_data
-
