@@ -854,9 +854,7 @@ def get_regions() -> Dict[str, Any]:
     Returns:
         Список доступных регионов
     """
-    from app.routers import vip as vip_mod
-
-    if vip_mod.get_available_regions is None:
+    if get_available_regions is None:
         return {
             "status": "success",
             "regions": [],
@@ -865,7 +863,7 @@ def get_regions() -> Dict[str, Any]:
             "echo": {},
         }
     try:
-        regions_raw = vip_mod.get_available_regions()
+        regions_raw = get_available_regions()
         regions = sorted({str(r).upper() for r in regions_raw})
         return {
             "status": "success",
@@ -901,9 +899,7 @@ def search_region_products(
     Returns:
         Результаты поиска
     """
-    from app.routers import vip as vip_mod
-
-    if vip_mod.search_products is None:
+    if search_products is None:
         return {
             "status": "error",
             "message": "Region catalog module not available",
@@ -911,7 +907,7 @@ def search_region_products(
         }
 
     try:
-        search_result = vip_mod.search_products(query, region, category, max_results)
+        search_result = search_products(query, region, category, max_results)
 
         # Конвертируем продукты в словари для JSON
         products_data = [
