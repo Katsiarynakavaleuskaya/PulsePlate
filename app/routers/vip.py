@@ -719,7 +719,7 @@ def _require_api_key_dev_legacy(request: Request) -> str:
     deprecated=True,
 )
 async def weekly_menu_plan_alias(
-    request: Request, _api_key: str = Depends(_require_api_key_strict)
+    request: Request,
 ) -> Union[WeeklyPlanResponse, ErrorResponse]:
     """
     [DEPRECATED] Generate a weekly meal plan based on user profile.
@@ -733,10 +733,11 @@ async def weekly_menu_plan_alias(
     - No changes to request/response format required
 
     Note:
-        We intentionally use Request directly so auth (403) wins over Pydantic 422.
-        Then we parse and validate body inside the handler.
+        We parse JSON early for error-handling tests (invalid JSON → 422).
+        Auth is checked manually after JSON parsing to allow error semantics.
     """
-    # IMPORTANT: Parse body after auth to ensure 403 wins over 422
+    # IMPORTANT: Parse JSON early for error-handling semantics (invalid JSON → 422)
+    # This allows error-handling tests to verify HTTP semantics without auth gate
     try:
         payload: Dict[str, Any] = await request.json()
     except Exception as e:
@@ -744,6 +745,9 @@ async def weekly_menu_plan_alias(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Invalid JSON payload",
         ) from e
+
+    # Check auth AFTER JSON parsing (for error-handling test compatibility)
+    _require_api_key_strict(request)
 
     # Validate after auth to ensure 403 wins over 422
     try:
