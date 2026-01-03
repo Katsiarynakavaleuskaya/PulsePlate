@@ -76,5 +76,5 @@ def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch
         unpacked=[UnpackedLineDTO(food_id="carrot", requested=_qty("100"))],
     )
 
-    with pytest.raises(RuntimeError, match=r"Failed to generate PDF:"):
+    with pytest.raises(RuntimeError, match=r"PDF generation failed"):
         pdf_export.export_shoplist_to_pdf(response)
