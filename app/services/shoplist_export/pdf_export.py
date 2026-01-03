@@ -116,19 +116,20 @@ def _lazy_reportlab() -> Tuple[Any, ...]:
     Uses @lru_cache for thread-safe atomic initialization.
 
     Returns:
-        Tuple of reportlab components: (colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
+        Tuple of reportlab components: (colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     return (
         colors,
         A4,
         getSampleStyleSheet,
         mm,
+        Flowable,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -242,9 +243,10 @@ def build_pdf_lines(response: ShoplistGenerateResponse) -> list[PdfLine]:
 
 def _pick_currency(currency_codes: set[str]) -> str | None:
     """Pick first currency from set (all should be same by invariant)."""
-    for c in currency_codes:
-        return c
-    return None
+    if not currency_codes:
+        return None
+
+    return sorted(currency_codes)[0]
 
 
 def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
@@ -353,10 +355,11 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
         reason_str = _get_reason_str(line)
 
         if isinstance(line, PackedLineDTO):
+            packs = int(line.packs)
             pack_size_qty = (
                 _fmt_quantity(line.pack_size.value, line.pack_size.unit) if line.pack_size else ""
             )
-            packs_str = str(line.packs)
+            packs_str = str(packs)
 
             if line.catalog and line.catalog.price:
                 currency = line.catalog.price.currency
@@ -365,8 +368,9 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
                 )
                 currency_codes.add(currency_code)
                 price_str = _fmt_money(line.catalog.price.value, currency_code)
-                subtotal_value = line.catalog.price.value * Decimal(int(line.packs))
-                subtotal_str = _fmt_money(subtotal_value, currency_code)
+                if packs > 0:
+                    subtotal_value = line.catalog.price.value * Decimal(packs)
+                    subtotal_str = _fmt_money(subtotal_value, currency_code)
 
         aisle_subtotal += subtotal_value
 
@@ -422,9 +426,18 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         PDF data as bytes
     """
     # Lazy import reportlab to keep module import-safe
-    colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle = (
-        _lazy_reportlab()
-    )
+    (
+        colors,
+        A4,
+        getSampleStyleSheet,
+        mm,
+        Flowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    ) = _lazy_reportlab()
 
     buffer: io.BytesIO | None = None
     try:

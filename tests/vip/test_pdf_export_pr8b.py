@@ -367,8 +367,6 @@ class TestFmtMoneyEdgeCases:
 
     def test_fmt_money_with_currency(self) -> None:
         """Test money formatting with currency code."""
-        from decimal import Decimal
-
         assert pdf_export._fmt_money(Decimal("1.50"), "EUR") == "1.50 EUR"
         assert pdf_export._fmt_money(Decimal("10.00"), "USD") == "10.00 USD"
 
@@ -381,8 +379,6 @@ class TestFmtMoneyEdgeCases:
 
     def test_fmt_money_quantize(self) -> None:
         """Test money formatting with quantize to 0.01."""
-        from decimal import Decimal
-
         # Should quantize to 0.01
         assert pdf_export._fmt_money(Decimal("1.2345"), "EUR") == "1.23 EUR"
         assert pdf_export._fmt_money(Decimal("10.999"), "USD") == "11.00 USD"

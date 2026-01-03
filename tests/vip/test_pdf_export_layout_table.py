@@ -177,4 +177,3 @@ def test_build_pdf_rows_deterministic_row_types() -> None:
     assert any(row.row_type == pdf_export.PdfRowType.ITEM for row in rows)
     assert any(row.row_type == pdf_export.PdfRowType.SUBTOTAL for row in rows)
     assert rows[-1].row_type == pdf_export.PdfRowType.GRAND_TOTAL
-

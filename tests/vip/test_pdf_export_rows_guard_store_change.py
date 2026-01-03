@@ -20,8 +20,8 @@ from app.schemas.vip_shoplist import (
 from app.services.shoplist_export import pdf_export
 
 
-def _qty(v: str, u: UnitDTO = "G") -> QuantityDTO:
-    return QuantityDTO(value=Decimal(v), unit=u)
+def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
+    return QuantityDTO(value=Decimal(value), unit=unit)
 
 
 def _packed(
@@ -44,7 +44,7 @@ def _packed(
         pack_size=_qty("500"),
         packs=packs,
         provided=_qty(str(500 * packs)),
-        overage=_qty(str(500 * packs - 600)),
+        overage=_qty(str(max(0, 500 * packs - 600))),
         rounding="CEIL",
         min_packs=1,
         reasons=["guard"],
@@ -76,4 +76,3 @@ def test_build_pdf_rows_flushes_subtotal_on_store_change() -> None:
     # Grand total
     total = next(r for r in rows if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
     assert total.cells[6] == "5.00 EUR"
-

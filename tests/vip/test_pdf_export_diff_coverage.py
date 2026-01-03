@@ -151,7 +151,9 @@ def test_export_shoplist_to_pdf_covers_first_catalog_scan_filter_branches() -> N
         catalog=catalog,
     )
 
-    response = ShoplistGenerateResponse(packed=[packed_no_catalog, packed_with_catalog], unpacked=[])
+    response = ShoplistGenerateResponse(
+        packed=[packed_no_catalog, packed_with_catalog], unpacked=[]
+    )
 
     data = pdf_export.export_shoplist_to_pdf(response)
     assert data.startswith(b"%PDF")
