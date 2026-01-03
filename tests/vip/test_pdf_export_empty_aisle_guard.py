@@ -27,7 +27,10 @@ def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
 
 def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
     """
-    Test that multiple lines with empty aisle generate only one "Aisle: —" header per store.
+    Test that empty aisle does not generate "Aisle: —" headers.
+
+    PR-8b intentionally removed generation of empty aisle headers as they are
+    not part of the desired PDF contract. This test verifies that behavior.
     """
     catalog_no_aisle = CatalogInfoDTO(
         sku="SKU-1",
@@ -67,6 +70,8 @@ def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
     )
 
     aisle_rows = find_rows(rows, RowType.AISLE)
-    # Expect only one "Aisle: —" header in this store section
+    # Empty aisle headers must not be generated (PR-8b architectural decision)
     labels = [r.cells[0] for r in aisle_rows]
-    assert labels.count("Aisle: —") == 1, f"Expected exactly one 'Aisle: —' header, got: {labels}"
+    assert (
+        "Aisle: —" not in labels
+    ), f"Empty aisle headers should not be generated, got: {labels}"
