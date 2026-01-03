@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Tuple
+from typing import Any, Callable, Tuple, Type, TypeAlias
 
 from app.schemas.catalog import CurrencyDTO
 from app.schemas.vip_shoplist import (
@@ -108,7 +108,7 @@ def _get_reason_str(line: PackedLineDTO | UnpackedLineDTO) -> str:
 
 
 @lru_cache(maxsize=1)
-def _lazy_reportlab() -> Tuple[Any, ...]:
+def _lazy_reportlab() -> ReportLabComponents:
     """
     RU: Ленивый импорт reportlab (модуль должен импортироваться без reportlab).
     EN: Lazy import reportlab (module must be import-safe without reportlab).
@@ -522,3 +522,15 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         if buffer is not None:
             with contextlib.suppress(Exception):
                 buffer.close()
+
+ReportLabComponents: TypeAlias = Tuple[
+    Any,  # colors
+    Any,  # A4
+    Callable[[], Any],  # getSampleStyleSheet
+    Any,  # mm
+    Type[Any],  # Paragraph
+    Type[Any],  # SimpleDocTemplate
+    Type[Any],  # Spacer
+    Type[Any],  # Table
+    Type[Any],  # TableStyle
+]

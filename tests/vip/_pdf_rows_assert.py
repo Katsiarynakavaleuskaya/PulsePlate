@@ -97,4 +97,5 @@ def assert_subtotals_and_total(
 
     total_row = next((r for r in rows if r.row_type == RowType.GRAND_TOTAL), None)
     assert total_row is not None, "GRAND_TOTAL row not found"
-    assert money_cell(total_row) == total
+    actual_total = money_cell(total_row)
+    assert actual_total == total, f"expected grand total {total} but got {actual_total}"
