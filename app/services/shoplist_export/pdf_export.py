@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Callable, Tuple, Type, TypeAlias
+from typing import Any, Callable, Type, TypeAlias
 
 from app.schemas.catalog import CurrencyDTO
 from app.schemas.vip_shoplist import (
@@ -28,7 +28,7 @@ from app.schemas.vip_shoplist import (
 )
 
 
-ReportLabComponents: TypeAlias = Tuple[
+ReportLabComponents: TypeAlias = tuple[
     Any,  # colors
     Any,  # A4
     Callable[[], Any],  # getSampleStyleSheet
@@ -62,8 +62,16 @@ def _fmt_quantity(value: Decimal | None, unit: str | None) -> str:
     return f"{_fmt_decimal(value)} {unit_str}".strip()
 
 
-# Money formatting constants
-MONEY_Q = Decimal("0.01")
+_MONEY_Q_DEFAULT = Decimal("0.01")
+_MONEY_Q_ZERO_DECIMAL = Decimal("1")
+_ZERO_DECIMAL_CURRENCIES = frozenset({"JPY", "KRW"})
+
+
+def _money_quantize_for_currency(currency: str | None) -> Decimal:
+    currency_code = (currency or "").upper()
+    if currency_code in _ZERO_DECIMAL_CURRENCIES:
+        return _MONEY_Q_ZERO_DECIMAL
+    return _MONEY_Q_DEFAULT
 
 
 class PdfRowType(str, Enum):
@@ -97,7 +105,7 @@ def _fmt_money(value: Decimal | None, currency: str | None) -> str:
     EN: Formats money (value + currency) for PDF.
 
     Args:
-        value: Decimal value (quantized to 0.01)
+        value: Decimal value (quantized per currency)
         currency: Currency code (e.g., "EUR", "USD") or None
 
     Returns:
@@ -105,7 +113,7 @@ def _fmt_money(value: Decimal | None, currency: str | None) -> str:
     """
     if value is None:
         return ""
-    v = value.quantize(MONEY_Q)
+    v = value.quantize(_money_quantize_for_currency(currency))
     cur = currency or ""
     return f"{format(v, 'f')} {cur}".strip()
 

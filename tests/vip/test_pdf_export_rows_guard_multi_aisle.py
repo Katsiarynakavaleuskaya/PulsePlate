@@ -42,6 +42,12 @@ def _packed(
     store_id: str = "store-1",
     region_id: str = "region-1",
 ) -> PackedLineDTO:
+    """Construct a `PackedLineDTO` test fixture simulating packing behavior.
+
+    Defaults to `requested=600` and `pack_size=500`. `provided` is computed as
+    `pack_size * packs`, and `overage` as `max(0, provided - requested)`. Uses default
+    `store_id`/`region_id` unless overridden.
+    """
     catalog = CatalogInfoDTO(
         sku=f"SKU-{food_id}",
         store_id=store_id,

@@ -85,7 +85,7 @@ tests/AGENTS.md                            |  31 ++
 - Updated `app/AGENTS.md`: PDF export invariants, product layout rules, `build_pdf_lines()` pattern
 - Updated `tests/AGENTS.md`: PDF export test guidelines (no snapshots, test data prep separately)
 
-## Tests
+## Test results & coverage
 - ✅ `make test-fast` passed
 - ✅ Total coverage ≥ 97% (97.18% locally)
 - ✅ diff-cover for pdf_export.py: 100%

@@ -53,7 +53,7 @@ def find_item(rows: Sequence[PdfRow], food_id: str) -> PdfRow:
 
 
 # PDF table column index contract: subtotal/total column
-MONEY_COLUMN_INDEX = 6
+MONEY_COLUMN_INDEX: int = 6
 
 
 def money_cell(row: PdfRow) -> str:

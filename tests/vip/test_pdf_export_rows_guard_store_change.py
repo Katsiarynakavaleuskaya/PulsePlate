@@ -29,6 +29,7 @@ from tests.vip.helpers import qty
 
 
 def _packed(
+    *,
     food_id: str,
     store_id: str,
     aisle: str,
@@ -62,8 +63,8 @@ def test_build_pdf_rows_flushes_subtotal_on_store_change() -> None:
     - branch where line.catalog is present
     - subtotal flush when store_id changes
     """
-    a = _packed("carrot", "store-1", "A1", "1.50", 2)  # 3.00
-    b = _packed("bread", "store-2", "A1", "2.00", 1)  # 2.00
+    a = _packed(food_id="carrot", store_id="store-1", aisle="A1", price="1.50", packs=2)  # 3.00
+    b = _packed(food_id="bread", store_id="store-2", aisle="A1", price="2.00", packs=1)  # 2.00
 
     response = ShoplistGenerateResponse(packed=[a, b], unpacked=[])
 

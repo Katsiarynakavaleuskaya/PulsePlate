@@ -130,3 +130,71 @@ def test_export_shoplist_to_pdf_covers_first_catalog_scan_filter_branches() -> N
 
     data = pdf_export.export_shoplist_to_pdf(response)
     assert data.startswith(b"%PDF")
+
+
+def test_build_pdf_rows_raises_on_mixed_currencies() -> None:
+    eur_catalog = CatalogInfoDTO(
+        sku="SKU-1",
+        store_id="store-1",
+        region_id="region-1",
+        aisle="Aisle-1",
+        price=MoneyDTO(value=Decimal("1.00"), currency=CurrencyDTO.EUR),
+    )
+    usd_catalog = CatalogInfoDTO(
+        sku="SKU-2",
+        store_id="store-1",
+        region_id="region-1",
+        aisle="Aisle-1",
+        price=MoneyDTO(value=Decimal("1.00"), currency=CurrencyDTO.USD),
+    )
+
+    a = PackedLineDTO(
+        food_id="a",
+        requested=qty("100"),
+        pack_size=qty("100"),
+        packs=1,
+        provided=qty("100"),
+        overage=qty("0"),
+        rounding="CEIL",
+        min_packs=1,
+        reasons=[],
+        catalog=eur_catalog,
+    )
+    b = PackedLineDTO(
+        food_id="b",
+        requested=qty("100"),
+        pack_size=qty("100"),
+        packs=1,
+        provided=qty("100"),
+        overage=qty("0"),
+        rounding="CEIL",
+        min_packs=1,
+        reasons=[],
+        catalog=usd_catalog,
+    )
+
+    response = ShoplistGenerateResponse(packed=[a, b], unpacked=[])
+
+    with pytest.raises(ValueError, match=r"Mixed currencies"):
+        pdf_export.build_pdf_rows(response)
+
+
+def test_export_shoplist_to_pdf_re_raises_importerror(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _BoomTable:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            raise ImportError("boom")
+
+    real_lazy = pdf_export._lazy_reportlab
+    monkeypatch.setattr(
+        pdf_export,
+        "_lazy_reportlab",
+        make_lazy_reportlab_mock(real_lazy, table=_BoomTable),
+    )
+
+    response = ShoplistGenerateResponse(
+        packed=[],
+        unpacked=[UnpackedLineDTO(food_id="carrot", requested=qty("100"))],
+    )
+
+    with pytest.raises(ImportError, match=r"boom"):
+        pdf_export.export_shoplist_to_pdf(response)

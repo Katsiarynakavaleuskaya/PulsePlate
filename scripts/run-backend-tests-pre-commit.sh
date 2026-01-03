@@ -105,19 +105,33 @@ if [ -z "$PYTHON_CHANGES" ]; then
             exit 1
         fi
 
-        echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${RECENT_COMMITS_FALLBACK} commits as safety measure..."
+        COMMIT_COUNT=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+        if ! [[ "$COMMIT_COUNT" =~ ^[0-9]+$ ]]; then
+            COMMIT_COUNT="0"
+        fi
+        MAX_DEPTH=$((COMMIT_COUNT > 0 ? COMMIT_COUNT - 1 : 0))
+        FALLBACK_DEPTH="$RECENT_COMMITS_FALLBACK"
+        if [ "$FALLBACK_DEPTH" -gt "$MAX_DEPTH" ]; then
+            FALLBACK_DEPTH="$MAX_DEPTH"
+        fi
+        if [ "$FALLBACK_DEPTH" -le 0 ]; then
+            echo "ℹ️  Repository has insufficient history for fallback diff, skipping backend tests"
+            exit 0
+        fi
+
+        echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${FALLBACK_DEPTH} commits as safety measure..."
         PYTHON_CHANGES=$(
-            git diff --name-only --diff-filter=ACM "HEAD~${RECENT_COMMITS_FALLBACK}" HEAD 2>/dev/null \
+            git diff --name-only --diff-filter=ACM "HEAD~${FALLBACK_DEPTH}" HEAD 2>/dev/null \
                 | grep "\.py$" \
                 | grep -v "^\.claude/" \
                 || true
         )
-        log_debug "Python changes (via recent commits fallback, n=${RECENT_COMMITS_FALLBACK}): ${PYTHON_CHANGES:-<none>}"
+        log_debug "Python changes (via recent commits fallback, n=${FALLBACK_DEPTH}): ${PYTHON_CHANGES:-<none>}"
         if [ -z "$PYTHON_CHANGES" ]; then
-            echo "ℹ️  No Python files changed in last ${RECENT_COMMITS_FALLBACK} commits, skipping backend tests"
+            echo "ℹ️  No Python files changed in last ${FALLBACK_DEPTH} commits, skipping backend tests"
             exit 0
         fi
-        echo "ℹ️  Found Python changes in last ${RECENT_COMMITS_FALLBACK} commits, running tests for safety"
+        echo "ℹ️  Found Python changes in last ${FALLBACK_DEPTH} commits, running tests for safety"
     else
         # Pre-commit: no staged Python files, skip
         echo "ℹ️  No Python files changed"
@@ -165,7 +179,11 @@ done <<< "$PYTHON_CHANGES"
 
 if [ ${#TEST_FILES[@]} -gt 0 ]; then
     # Deduplicate test files
-    mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
+    declare -a DEDUPED_TEST_FILES=()
+    while IFS= read -r test_file; do
+        [ -n "$test_file" ] && DEDUPED_TEST_FILES+=("$test_file")
+    done < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
+    TEST_FILES=("${DEDUPED_TEST_FILES[@]}")
     log_debug "Test files to run: ${TEST_FILES[*]}"
 
     # Pre-commit: fast feedback is preferred; pre-push: report all failures.

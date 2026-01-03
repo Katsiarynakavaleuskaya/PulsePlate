@@ -121,7 +121,12 @@ class TestVIPCoverageBoost:
         data = response.json()
         # Function is now implemented and returns success with regions list
         assert data["status"] == "success", f"Expected success, got: {data}"
-        assert isinstance(data.get("regions"), list), f"Expected regions list, got: {data}"
+        assert "regions" in data, f"Expected 'regions' key in response, got: {data}"
+        assert isinstance(data["regions"], list), f"Expected regions to be a list, got: {data}"
+        if data["regions"]:
+            assert all(isinstance(r, str) for r in data["regions"]), (
+                "Expected all regions to be strings"
+            )
         # Verify response structure matches API contract
         if "total_regions" in data:
             assert data["total_regions"] == len(data["regions"])

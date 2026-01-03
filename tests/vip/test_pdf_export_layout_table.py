@@ -20,6 +20,7 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
+from tests.vip._pdf_rows_assert import RowType
 from tests.vip._reportlab_lazy import make_lazy_reportlab_mock
 from tests.vip.helpers import qty
 
@@ -170,8 +171,6 @@ def test_build_pdf_rows_deterministic_row_types() -> None:
 
     # Verify row types in order: HEADER → STORE → AISLE → ITEM → SUBTOTAL → GRAND_TOTAL
     # Use RowType from _pdf_rows_assert for consistency with other guard tests
-    from tests.vip._pdf_rows_assert import RowType
-
     assert len(rows) >= 5
     assert rows[0].row_type == RowType.HEADER
     assert any(row.row_type == RowType.STORE for row in rows)

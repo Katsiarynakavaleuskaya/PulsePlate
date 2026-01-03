@@ -103,11 +103,6 @@ class TestVIPCoverageBoostFixed:
     def test_vip_regions_missing_function(self):
         """Тест VIP regions когда get_available_regions недоступен"""
         with patch("app.routers.vip.get_available_regions", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
             client = TestClient(_get_app())
 
             response = client.get(
@@ -115,6 +110,12 @@ class TestVIPCoverageBoostFixed:
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "error", f"Expected error, got: {data}"
+            assert data["code"] == "region_provider_unavailable"
+            assert data["detail"] == data["message"]
+            assert data["error"] == data["code"]
+            assert data["regions"] == []
 
     def test_vip_recipe_synthesis_missing_function(self):
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""

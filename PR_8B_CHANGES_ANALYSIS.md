@@ -101,7 +101,7 @@ done <<< "$(printf '%s\n' "${TEST_FILES[@]}" | sort -u)"
 
 ---
 
-### 3. **Type annotation: `tuple[...]` вместо `Tuple[...]`**
+### 3. **Type annotation: `tuple[...]` (замена `typing.Tuple[...]`)**
 **Файл:** `app/services/shoplist_export/pdf_export.py` (line 31)
 
 **Проблема:**
@@ -211,7 +211,7 @@ def _packed(
 
 **Решение:**
 
-**Тест 1: Mixed currencies (line 413)**
+### Тест 1: Mixed currencies (line 413)
 ```python
 def test_build_pdf_rows_raises_on_mixed_currencies() -> None:
     # Создаём два каталога с разными валютами (EUR и USD)
@@ -224,7 +224,7 @@ def test_build_pdf_rows_raises_on_mixed_currencies() -> None:
         pdf_export.build_pdf_rows(response)
 ```
 
-**Тест 2: ImportError re-raise (line 529)**
+### Тест 2: ImportError re-raise (line 529)
 ```python
 def test_export_shoplist_to_pdf_re_raises_importerror(monkeypatch):
     # Мокаем _lazy_reportlab, чтобы он выбрасывал ImportError
@@ -258,7 +258,7 @@ def test_export_shoplist_to_pdf_re_raises_importerror(monkeypatch):
 ---
 
 ### 2. **Shallow repos в CI — скрытая проблема**
-Проблема с `HEAD~10` в shallow repos не была очевидна до тех пор, пока CI не начал падать с неясными ошибками. Оказалось, что многие CI-системы используют `--depth=1` для экономии времени, что ломает логику, основанную на фиксированной глубине истории.
+Проблема с `HEAD~10` в shallow checkout не была очевидна до тех пор, пока CI не начал падать с неясными ошибками. Оказалось, что многие CI-системы используют `--depth=1` для экономии времени, что ломает логику, основанную на фиксированной глубине истории.
 
 **Урок:** Всегда проверять реальную глубину истории перед использованием `HEAD~N`, особенно в pre-push hooks.
 
