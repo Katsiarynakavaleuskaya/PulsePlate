@@ -16,19 +16,32 @@ fi
 
 # Get changed Python files
 # For pre-commit: check staged files
-# For pre-push: check files between HEAD and remote branch
+# For pre-push: check files in commits that will be pushed
 if [ -n "${PRE_COMMIT:-}" ]; then
     # Pre-commit hook: check staged files
     PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
 else
-    # Pre-push hook: check files between local and remote
-    REMOTE_BRANCH="${1:-origin/$(git rev-parse --abbrev-ref HEAD)}"
-    PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD "$REMOTE_BRANCH" 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
-    # Fallback: if remote branch doesn't exist, check all commits in current branch
-    if [ -z "$PYTHON_CHANGES" ] && ! git rev-parse --verify "$REMOTE_BRANCH" >/dev/null 2>&1; then
+    # Pre-push hook: check files in commits that will be pushed
+    # Pre-commit passes: $1=remote name, $2=remote URL
+    # We need to find commits between remote and local
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    REMOTE_NAME="${1:-origin}"
+    REMOTE_BRANCH="${REMOTE_NAME}/${CURRENT_BRANCH}"
+    
+    # Get the remote tracking branch SHA (what's on remote)
+    REMOTE_SHA=$(git rev-parse --verify "${REMOTE_BRANCH}" 2>/dev/null || echo "")
+    
+    if [ -n "$REMOTE_SHA" ]; then
+        # Compare local HEAD with remote branch
+        PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+    else
+        # Remote branch doesn't exist yet, compare with main/master
         BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || echo "")
         if [ -n "$BASE" ]; then
             PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+        else
+            # Last resort: check all files in current branch
+            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD~10 HEAD 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
         fi
     fi
 fi
