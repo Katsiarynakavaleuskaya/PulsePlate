@@ -1,5 +1,12 @@
 # Agent instructions (scope: repo root and subdirectories)
 
+## REQUIRED READING (before any change)
+1) `docs/ENGINEERING_LESSONS.md` (project-level lessons and hard-won invariants)
+2) `RUNBOOK_AGENT.md` (CI/debug playbook)
+3) The nearest scoped `AGENTS.md` for the files you touch (e.g. `tests/AGENTS.md`, `scripts/AGENTS.md`)
+
+If your change conflicts with these docs, you must explain why and how risks are mitigated.
+
 ## If you feel lost
 Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".
 

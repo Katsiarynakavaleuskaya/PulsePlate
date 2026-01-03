@@ -34,6 +34,8 @@ In large test runners, this manifested as **success instead of error**.
 
 **Repo status note:**
 - Policy guard `pytest -q tests/test_repo_policy_sys_modules.py` is enforced for `tests/vip/**` only (legacy tests still contain sys.modules mutations).
+- Policy uses AST-based detection (not regex) to avoid false positives on comments/strings.
+- Policy tracks import aliases (`import sys as s`, `from sys import modules as m`) to catch all mutation patterns.
 
 ### Use instead
 - `unittest.mock.patch(...)` (but see FAQ below)
