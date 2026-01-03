@@ -308,4 +308,5 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
             content=dto,
         )
 
+    assert isinstance(dto, WeekPlanResponse)
     return dto
