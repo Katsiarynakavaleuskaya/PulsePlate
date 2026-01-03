@@ -10,11 +10,36 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from core.i18n import Language
+
+RiskLevel = Literal["low", "moderate", "high"]
+
+
+class WaistRiskResultSchema(BaseModel):
+    """
+    RU: API-схема для сериализованного WaistRiskResult (domain dataclass).
+    EN: API schema for serialized WaistRiskResult (domain dataclass).
+    """
+
+    wht_ratio: float | None = Field(
+        None,
+        description="Waist-to-Height Ratio (WHtR) used for this assessment, if available.",
+        examples=[0.47, 0.52, None],
+    )
+    risk_level: RiskLevel = Field(
+        ...,
+        description="Waist-related risk level derived from the WHtR.",
+        examples=["moderate"],
+    )
+    notes: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Additional notes providing context for the waist risk assessment.",
+        examples=[("Increased waist-related risk",)],
+    )
 
 
 class BMICalculateRequest(BaseModel):
@@ -107,8 +132,10 @@ class BMICalculateResponse(BaseModel):
         None,
         description=(
             "BMI category (localized). "
-            "None for pregnant/too_young/child/teen - not an error, medical disclaimer. "
-            "BMI is not valid during pregnancy or for children <12 years."
+            "None for users in 'pregnant', 'too_young', 'child' or 'teen' age bands "
+            "- not an error, medical disclaimer. "
+            "BMI categories are not provided during pregnancy or for users in "
+            "'too_young', 'child' and 'teen' age bands."
         ),
         examples=["normal", "overweight", None],
     )
@@ -140,18 +167,17 @@ class BMICalculateResponse(BaseModel):
         examples=[0.47, 0.52, None],
     )
 
-    waist_risk: dict[str, Any] | None = Field(
+    waist_risk: WaistRiskResultSchema | None = Field(
         None,
         description=(
-            "Waist risk assessment result (serialized WaistRiskResult). "
-            "Present only if waist_cm was provided and risk was calculated. "
-            "Structure: {'wht_ratio': float | None, 'risk_level': 'low'|'moderate'|'high', 'notes': tuple[str, ...]}"
+            "Waist risk assessment result. Present only if waist_cm was provided "
+            "and risk was calculated."
         ),
         examples=[
             {
                 "wht_ratio": 0.52,
                 "risk_level": "moderate",
-                "notes": ["Increased waist-related risk"],
+                "notes": ("Increased waist-related risk",),
             },
             None,
         ],

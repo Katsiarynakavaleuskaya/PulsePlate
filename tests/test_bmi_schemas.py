@@ -9,7 +9,11 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse
+from app.schemas.bmi import (
+    BMICalculateRequest,
+    BMICalculateResponse,
+    WaistRiskResultSchema,
+)
 
 
 class TestBMICalculateRequest:
@@ -102,7 +106,7 @@ class TestBMICalculateRequest:
             BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="fr")
 
         errors = exc_info.value.errors()
-        assert any(err["loc"] == ("lang",) and "literal" in err["type"].lower() for err in errors)
+        assert any(err["loc"] == ("lang",) and err["type"] == "literal_error" for err in errors)
 
     def test_pregnant_string_and_bool(self) -> None:
         """Test that pregnant accepts both string and bool."""
@@ -150,6 +154,11 @@ class TestBMICalculateResponse:
 
     def test_full_response_with_waist_risk(self) -> None:
         """Test full response structure with waist risk."""
+        waist_risk_schema = WaistRiskResultSchema(
+            wht_ratio=0.52,
+            risk_level="moderate",
+            notes=("Increased waist-related risk",),
+        )
         response = BMICalculateResponse(
             bmi=25.3,
             category="overweight",
@@ -157,11 +166,7 @@ class TestBMICalculateResponse:
             group_display="General",
             interpretation="Your BMI indicates overweight.",
             wht_ratio=0.52,
-            waist_risk={
-                "wht_ratio": 0.52,
-                "risk_level": "moderate",
-                "notes": ("Increased waist-related risk",),
-            },
+            waist_risk=waist_risk_schema,
             notes=["Increased waist-related risk"],
             age_band="adult",
         )
@@ -170,7 +175,8 @@ class TestBMICalculateResponse:
         assert response.category == "overweight"
         assert response.wht_ratio == 0.52
         assert response.waist_risk is not None
-        assert response.waist_risk["risk_level"] == "moderate"
+        assert isinstance(response.waist_risk, WaistRiskResultSchema)
+        assert response.waist_risk.risk_level == "moderate"
         assert len(response.notes) == 1
         assert "waist" in response.notes[0].lower()
 
@@ -265,9 +271,24 @@ class TestBMICalculateResponse:
 
         assert response.age_band == age_band
 
+    def test_invalid_age_band_raises_validation_error(self) -> None:
+        """Test that an invalid age_band value is rejected."""
+        with pytest.raises(ValidationError):
+            BMICalculateResponse(
+                bmi=22.0,
+                category="normal",
+                group="general",
+                group_display="General",
+                interpretation="Test.",
+                wht_ratio=None,
+                waist_risk=None,
+                notes=[],
+                age_band="middle_age",  # Invalid value
+            )
+
     def test_notes_default_factory(self) -> None:
-        """Test that notes defaults to empty list."""
-        response = BMICalculateResponse(
+        """Test that notes uses a per-instance default list."""
+        response1 = BMICalculateResponse(
             bmi=22.0,
             category="normal",
             group="general",
@@ -277,5 +298,23 @@ class TestBMICalculateResponse:
             waist_risk=None,
             age_band="adult",
         )
+        response2 = BMICalculateResponse(
+            bmi=23.0,
+            category="normal",
+            group="general",
+            group_display="General",
+            interpretation="Another test.",
+            wht_ratio=None,
+            waist_risk=None,
+            age_band="adult",
+        )
 
-        assert response.notes == []
+        # Initial defaults are independent empty lists
+        assert response1.notes == []
+        assert response2.notes == []
+
+        # Mutating one instance's notes must not affect the other
+        response1.notes.append("some note")
+
+        assert response1.notes == ["some note"]
+        assert response2.notes == []

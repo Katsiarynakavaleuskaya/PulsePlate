@@ -137,7 +137,7 @@
 
 ## 📝 Commit Message
 
-```
+```text
 feat(api): add BMI request/response schemas
 
 - Create app/schemas/bmi.py with BMICalculateRequest/Response
@@ -152,7 +152,7 @@ feat(api): add BMI request/response schemas
 
 ## 🔜 Следующий PR
 
-**Commit 4 — BMI Calculate Endpoint**
+### Commit 4 — BMI Calculate Endpoint
 
 - `app/routers/bmi.py` (NEW)
 - `POST /api/v1/bmi/calculate`
