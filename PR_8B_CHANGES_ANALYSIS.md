@@ -43,7 +43,7 @@
 
 ## 🔍 Детальный разбор изменений
 
-### 1. **Pre-push hook: защита от shallow/new repos** 
+### 1. **Pre-push hook: защита от shallow/new repos**
 **Файл:** `scripts/run-backend-tests-pre-commit.sh` (line 108)
 
 **Проблема:**
@@ -200,7 +200,7 @@ def _packed(
 ---
 
 ### 6. **Закрытие Codecov patch gaps**
-**Файлы:** 
+**Файлы:**
 - `app/services/shoplist_export/pdf_export.py` (lines 413, 529)
 - `tests/vip/test_pdf_export_diff_coverage.py` (lines 135, 182)
 
@@ -217,9 +217,9 @@ def test_build_pdf_rows_raises_on_mixed_currencies() -> None:
     # Создаём два каталога с разными валютами (EUR и USD)
     eur_catalog = CatalogInfoDTO(..., currency=CurrencyDTO.EUR)
     usd_catalog = CatalogInfoDTO(..., currency=CurrencyDTO.USD)
-    
+
     response = ShoplistGenerateResponse(packed=[a, b], unpacked=[])
-    
+
     with pytest.raises(ValueError, match=r"Mixed currencies"):
         pdf_export.build_pdf_rows(response)
 ```
@@ -233,7 +233,7 @@ def test_export_shoplist_to_pdf_re_raises_importerror(monkeypatch):
         "_lazy_reportlab",
         make_lazy_reportlab_mock(real_lazy, table=_BoomTable),
     )
-    
+
     with pytest.raises(ImportError, match=r"boom"):
         pdf_export.export_shoplist_to_pdf(response)
 ```
@@ -343,4 +343,3 @@ def test_export_shoplist_to_pdf_re_raises_importerror(monkeypatch):
 - **PR-8c (#456)**: VIP router registration and error contract (frozen)
 - **AGENTS.md**: Обновлены инструкции для PDF export tests
 - **scripts/AGENTS.md**: Документирована логика pre-push hook
-
