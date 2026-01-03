@@ -40,7 +40,7 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch) -> None:
+    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест VIP shoplist weekly endpoint with new API format"""
         import app
 
@@ -94,22 +94,39 @@ class TestVIPCoverageBoostFixed:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_missing_function(self) -> None:
-        """Тест VIP regions когда get_available_regions недоступен"""
-        with patch("app.routers.vip.get_available_regions", None):
-            client = TestClient(_get_app())
+    def test_vip_regions_missing_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Тест VIP regions когда get_available_regions недоступен.
 
-            response = client.get(
-                "/api/v1/vip/regions",
-                headers={"X-API-Key": "test_key"},
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "error", f"Expected error, got: {data}"
-            assert data["code"] == "region_provider_unavailable"
-            assert data["detail"] == data["message"]
-            assert data["error"] == data["code"]
-            assert data["regions"] == []
+        Patch the actual route endpoint globals (not just the module attribute) to avoid
+        flakiness if the suite ends up with multiple loaded module instances.
+        """
+        app = _get_app()
+        endpoint = None
+        for route in getattr(app, "routes", []):
+            if getattr(route, "path", None) != "/api/v1/vip/regions":
+                continue
+            methods = getattr(route, "methods", None) or set()
+            if "GET" not in methods:
+                continue
+            endpoint = getattr(route, "endpoint", None)
+            break
+
+        assert endpoint is not None, "VIP regions route endpoint not found"
+        monkeypatch.setitem(getattr(endpoint, "__globals__", {}), "get_available_regions", None)
+
+        client = TestClient(app)
+
+        response = client.get(
+            "/api/v1/vip/regions",
+            headers={"X-API-Key": "test_key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error", f"Expected error, got: {data}"
+        assert data["code"] == "region_provider_unavailable"
+        assert data["detail"] == data["message"]
+        assert data["error"] == data["code"]
+        assert data["regions"] == []
 
     def test_vip_recipe_synthesis_missing_function(self) -> None:
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""
@@ -135,7 +152,7 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_with_all_functions_working(self, monkeypatch) -> None:
+    def test_vip_with_all_functions_working(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест VIP endpoints с функциональными мок-функциями"""
         import app
 
@@ -253,7 +270,7 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_error_handling_paths(self, monkeypatch) -> None:
+    def test_vip_error_handling_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест VIP error handling когда функции поднимают исключения"""
         # Моксим функции чтобы они поднимали исключения
         mock_make_weekly_menu = MagicMock()
