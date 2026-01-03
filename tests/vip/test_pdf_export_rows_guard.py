@@ -22,6 +22,14 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
+from tests.vip._pdf_rows_assert import (
+    RowType,
+    assert_contains_subsequence,
+    assert_subtotals_and_total,
+    find_item,
+    find_rows,
+    rows_sig,
+)
 
 
 def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
@@ -60,29 +68,29 @@ def test_build_pdf_rows_structure_and_totals_are_deterministic() -> None:
     # Deterministic: row types and cell strings match exactly
     assert [(r.row_type, r.cells) for r in rows1] == [(r.row_type, r.cells) for r in rows2]
 
-    # Helper: find row indices by type
-    idx_store = next(i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.STORE)
-    idx_aisle = next(i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.AISLE)
-    idx_subtotal = next(
-        i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.SUBTOTAL
-    )
-    idx_total = next(
-        i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL
-    )
+    sig = rows_sig(rows1)
 
-    # Structural order
-    assert idx_store < idx_aisle < idx_subtotal < idx_total
+    # Counts (semantic)
+    assert len(find_rows(rows1, RowType.STORE)) == 1
+    assert len(find_rows(rows1, RowType.AISLE)) >= 1
+    assert len(find_rows(rows1, RowType.ITEM)) >= 1
+    assert len(find_rows(rows1, RowType.SUBTOTAL)) >= 1
+    assert len(find_rows(rows1, RowType.GRAND_TOTAL)) == 1
 
-    # Items must be between aisle header and subtotal (semantic check)
-    item_rows = [r for r in rows1 if r.row_type == pdf_export.PdfRowType.ITEM]
-    assert item_rows, "Expected at least one ITEM row"
-    # Verify items exist and have correct structure
-    assert any(r.cells[0] == "carrot" for r in item_rows)
+    # Contract: STORE -> AISLE -> ITEM -> SUBTOTAL -> GRAND_TOTAL
+    assert_contains_subsequence(
+        sig,
+        [
+            RowType.STORE.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.GRAND_TOTAL.value,
+        ],
+    )
 
     # Validate presence of the item row for packed line
-    packed_row = next(
-        r for r in rows1 if r.row_type == pdf_export.PdfRowType.ITEM and r.cells[0] == "carrot"
-    )
+    packed_row = find_item(rows1, "carrot")
     # Columns: Food ID, Requested, Pack Size, Packs, Reason, Price, Subtotal
     assert packed_row.cells[0] == "carrot"
     assert packed_row.cells[3] == "2"
@@ -91,16 +99,7 @@ def test_build_pdf_rows_structure_and_totals_are_deterministic() -> None:
 
     # Validate subtotal and grand total numeric equality via Money string
     # Subtotal for carrot: 1.50 * 2 = 3.00 EUR
-    subtotal_row = rows1[idx_subtotal]
-    total_row = rows1[idx_total]
-
-    # Subtotal label format: "Subtotal (Aisle-1):"
-    assert subtotal_row.cells[4].startswith("Subtotal (")
-    assert subtotal_row.cells[4].endswith("):")
-    assert subtotal_row.cells[6] == "3.00 EUR"
-
-    assert total_row.cells[4] == "Total"
-    assert total_row.cells[6] == "3.00 EUR"
+    assert_subtotals_and_total(rows1, subtotals=["3.00 EUR"], total="3.00 EUR")
 
 
 def test_build_pdf_rows_multi_aisle_subtotals() -> None:
