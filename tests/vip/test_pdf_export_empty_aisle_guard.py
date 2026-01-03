@@ -62,10 +62,11 @@ def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
         catalog=catalog_no_aisle,
     )
 
-    rows = pdf_export.build_pdf_rows(ShoplistGenerateResponse(packed=[packed1, packed2], unpacked=[]))
+    rows = pdf_export.build_pdf_rows(
+        ShoplistGenerateResponse(packed=[packed1, packed2], unpacked=[])
+    )
 
     aisle_rows = find_rows(rows, RowType.AISLE)
     # Expect only one "Aisle: —" header in this store section
     labels = [r.cells[0] for r in aisle_rows]
     assert labels.count("Aisle: —") == 1, f"Expected exactly one 'Aisle: —' header, got: {labels}"
-

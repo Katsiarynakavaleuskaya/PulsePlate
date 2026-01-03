@@ -158,9 +158,7 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
     # Use semantic helpers instead of index-based checks
     store_rows_list = find_rows(rows, RowType.STORE)
     idx_store1 = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == RowType.STORE and "store-1" in r.cells[0]
+        i for i, r in enumerate(rows) if r.row_type == RowType.STORE and "store-1" in r.cells[0]
     )
     idx_aisle1_store1 = next(
         i
@@ -168,14 +166,10 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
         if r.row_type == RowType.AISLE and i > idx_store1 and "Aisle-1" in r.cells[0]
     )
     idx_sub1 = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == RowType.SUBTOTAL and i > idx_aisle1_store1
+        i for i, r in enumerate(rows) if r.row_type == RowType.SUBTOTAL and i > idx_aisle1_store1
     )
     idx_store2 = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == RowType.STORE and "store-2" in r.cells[0]
+        i for i, r in enumerate(rows) if r.row_type == RowType.STORE and "store-2" in r.cells[0]
     )
 
     # Verify order: store-1 → aisle-1 → item → subtotal → store-2
