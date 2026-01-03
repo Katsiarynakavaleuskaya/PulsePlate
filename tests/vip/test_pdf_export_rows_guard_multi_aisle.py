@@ -28,6 +28,9 @@ from tests.vip._pdf_rows_assert import (
     assert_contains_subsequence,
     assert_subtotals_and_total,
     find_item,
+    item_packs,
+    item_subtotal,
+    money_cell,
     find_rows,
     rows_sig,
 )
@@ -111,12 +114,12 @@ def test_build_pdf_rows_multi_aisle_flushes_subtotals_and_total() -> None:
 
     # Validate key item rows (semantic, no indices)
     carrot_row = find_item(rows, "carrot")
-    assert carrot_row.cells[3] == "2"  # packs
-    assert carrot_row.cells[6] == "3.00 EUR"  # line subtotal
+    assert item_packs(carrot_row) == "2"
+    assert item_subtotal(carrot_row) == "3.00 EUR"
 
     bread_row = find_item(rows, "bread")
-    assert bread_row.cells[3] == "1"
-    assert bread_row.cells[6] == "2.00 EUR"
+    assert item_packs(bread_row) == "1"
+    assert item_subtotal(bread_row) == "2.00 EUR"
 
     # Subtotals & total
     assert_subtotals_and_total(rows, subtotals=["3.00 EUR", "2.00 EUR"], total="5.00 EUR")
@@ -150,7 +153,7 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
 
     # Grand total must be 5.00 EUR (3.00 + 2.00)
     total_row = next(r for r in rows if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
-    assert total_row.cells[6] == "5.00 EUR"
+    assert money_cell(total_row) == "5.00 EUR"
 
     # Structural order: Store-1 → Aisle-1 → item → subtotal → Store-2 → Aisle-1 → item → subtotal → Total
     idx_store1 = next(

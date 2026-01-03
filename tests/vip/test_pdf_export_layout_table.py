@@ -64,6 +64,12 @@ class _FakeTableStyle:
         self.commands = commands
 
 
+@pytest.fixture(autouse=True)
+def _reset_fake_table_state() -> None:
+    _FakeTable.last_data = None
+    _FakeTable.last_style = None
+
+
 def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
