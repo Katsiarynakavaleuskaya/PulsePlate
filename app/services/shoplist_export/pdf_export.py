@@ -535,4 +535,3 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         if buffer is not None:
             with contextlib.suppress(Exception):
                 buffer.close()
-
