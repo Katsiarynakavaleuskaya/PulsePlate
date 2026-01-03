@@ -19,6 +19,8 @@
 ## Coverage / diff-cover (process invariant)
 - CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
 - If CI reports diff-cover gaps, add focused `*_diff_coverage.py` tests rather than weakening production checks.
+  Preferred placement: `tests/vip/test_<feature>_diff_coverage.py` for VIP features, or `tests/test_<feature>_diff_coverage.py` alongside the related unit tests.
+  Example: `tests/vip/test_pdf_export_diff_coverage.py`.
 
 ## PDF export tests (PR-8b)
 

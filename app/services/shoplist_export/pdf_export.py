@@ -116,20 +116,20 @@ def _lazy_reportlab() -> Tuple[Any, ...]:
     Uses @lru_cache for thread-safe atomic initialization.
 
     Returns:
-        Tuple of reportlab components: (colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
+        Tuple of reportlab components:
+        (colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     return (
         colors,
         A4,
         getSampleStyleSheet,
         mm,
-        Flowable,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -332,10 +332,12 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
                 )
             )
 
-        if current_aisle != aisle:
+        # Normalize empty aisle to None to prevent duplicate "Aisle: —" headers
+        normalized_aisle: str | None = aisle if aisle else None
+        if current_aisle != normalized_aisle:
             # Aisle changed => flush previous aisle subtotal
             flush_aisle_subtotal()
-            current_aisle = aisle if aisle else None
+            current_aisle = normalized_aisle
             rows.append(
                 PdfRow(
                     row_type=PdfRowType.AISLE,
@@ -431,7 +433,6 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         A4,
         getSampleStyleSheet,
         mm,
-        _unused_flowable,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -451,7 +452,6 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
 
         styles = getSampleStyleSheet()
 
-        # Type hint: Flowable is imported lazily, use Any for type checking
         elements: list[Any] = []
 
         # Title

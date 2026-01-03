@@ -74,6 +74,9 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that PDF table has correct layout: store→aisle→items→subtotal→grand_total."""
+    # Reset state to prevent test pollution (even with autouse fixture, explicit reset is safer)
+    _FakeTable.last_data = None
+    _FakeTable.last_style = None
     # Patch _lazy_reportlab so export_shoplist_to_pdf uses our fakes for doc/table.
     real_lazy = pdf_export._lazy_reportlab
 
@@ -84,7 +87,6 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
             A4,
             getSampleStyleSheet,
             mm,
-            _unused_flowable,
             Paragraph,
             _Doc,
             Spacer,
@@ -96,7 +98,6 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
             A4,
             getSampleStyleSheet,
             mm,
-            _unused_flowable,
             Paragraph,
             _FakeDoc,
             Spacer,

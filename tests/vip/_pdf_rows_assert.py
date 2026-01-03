@@ -52,13 +52,35 @@ def find_item(rows: Sequence[PdfRow], food_id: str) -> PdfRow:
     raise AssertionError(f"ITEM row not found for food_id={food_id}")
 
 
+# PDF table column index contract: subtotal/total column
+MONEY_COLUMN_INDEX = 6
+
+
 def money_cell(row: PdfRow) -> str:
     """
-    Contract: subtotal/total are stored in cells[6] (as in existing tests).
+    Contract: subtotal/total are stored in cells[MONEY_COLUMN_INDEX].
     """
-    if len(row.cells) < 7:
-        raise AssertionError(f"Expected money cell at [6], got cells={row.cells}")
-    return row.cells[6]
+    if len(row.cells) <= MONEY_COLUMN_INDEX:
+        raise AssertionError(
+            f"Expected money cell at [{MONEY_COLUMN_INDEX}], got cells={row.cells}"
+        )
+    return row.cells[MONEY_COLUMN_INDEX]
+
+
+def item_packs(row: PdfRow) -> str:
+    """Get packs value from ITEM row (cells[3])."""
+    if row.row_type != RowType.ITEM:
+        raise AssertionError(f"Expected ITEM row, got {row.row_type}")
+    if len(row.cells) < 4:
+        raise AssertionError(f"Expected packs at [3], got cells={row.cells}")
+    return row.cells[3]
+
+
+def item_subtotal(row: PdfRow) -> str:
+    """Get subtotal value from ITEM row (cells[6])."""
+    if row.row_type != RowType.ITEM:
+        raise AssertionError(f"Expected ITEM row, got {row.row_type}")
+    return money_cell(row)
 
 
 def assert_subtotals_and_total(

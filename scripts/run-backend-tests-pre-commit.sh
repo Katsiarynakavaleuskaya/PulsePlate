@@ -36,6 +36,7 @@ fi
 # Get changed Python files
 # For pre-commit: check staged files
 # For pre-push: check files in commits that will be pushed
+PYTHON_CHANGES=""
 if [ -n "${PRE_COMMIT:-}" ]; then
     # Pre-commit hook: check staged files
     PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
