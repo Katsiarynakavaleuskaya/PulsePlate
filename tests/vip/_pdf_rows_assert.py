@@ -34,7 +34,9 @@ def assert_contains_subsequence(sig: Sequence[str], subseq: Sequence[str]) -> No
             if cur == token:
                 break
         else:
-            raise AssertionError(f"Signature does not contain token in order: {token}. sig={list(sig)}")
+            raise AssertionError(
+                f"Signature does not contain token in order: {token}. sig={list(sig)}"
+            )
 
 
 def find_rows(rows: Sequence[PdfRow], row_type: RowType) -> list[PdfRow]:
@@ -74,4 +76,3 @@ def assert_subtotals_and_total(
     total_row = next((r for r in rows if r.row_type == RowType.GRAND_TOTAL), None)
     assert total_row is not None, "GRAND_TOTAL row not found"
     assert money_cell(total_row) == total
-

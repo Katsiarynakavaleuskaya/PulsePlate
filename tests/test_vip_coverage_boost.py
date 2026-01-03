@@ -126,7 +126,10 @@ class TestVIPCoverageBoost:
         data = response.json()
         # When provider is None, returns error (not success)
         assert data["status"] == "error"
-        assert "provider" in data.get("message", "").lower() or "provider" in data.get("detail", "").lower()
+        assert (
+            "provider" in data.get("message", "").lower()
+            or "provider" in data.get("detail", "").lower()
+        )
 
     def test_vip_recipe_synthesis_missing_function(self):
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""
