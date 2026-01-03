@@ -15,7 +15,11 @@ import re
 from pathlib import Path
 
 
-TESTS_DIR = Path("tests")
+# NOTE:
+# This policy intentionally scans raw text (including comments and strings).
+# Rationale: any appearance of sys.modules mutation in tests is discouraged,
+# even as an example or comment, to avoid normalizing this pattern.
+TESTS_DIR = Path(__file__).resolve().parent
 
 FORBIDDEN_PATTERNS: list[tuple[str, str]] = [
     # RU: Удаление из sys.modules приводит к двойным модулям и ломает patch().
@@ -49,6 +53,20 @@ def _find_violations(text: str) -> list[tuple[int, str]]:
             if rx.search(line):
                 violations.append((i, msg))
     return violations
+
+
+def test_policy_flags_sys_modules_even_in_comments() -> None:
+    """
+    RU: Политика намеренно срабатывает даже на упоминания в комментариях.
+    EN: Policy intentionally flags sys.modules usage even in comments.
+    """
+    content = "# del sys.modules['x']\n"
+    violations = _find_violations(content)
+
+    assert violations, (
+        "Policy intentionally flags sys.modules usage even in comments "
+        "to discourage this pattern entirely."
+    )
 
 
 def test_repo_policy_forbid_sys_modules_mutations_in_tests() -> None:
