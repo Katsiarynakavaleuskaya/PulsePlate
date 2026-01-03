@@ -16,6 +16,27 @@
 - Preserve xdist DB isolation: each worker gets its own SQLite path.
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
 
+## Coverage / diff-cover (process invariant)
+- CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
+- If CI reports diff-cover gaps, add focused `*_diff_coverage.py` tests rather than weakening production checks.
+
+## PDF export tests (PR-8b)
+
+### Test structure
+- Unit tests for data preparation: test `build_pdf_lines()` without PDF rendering (no reportlab dependency).
+- API tests for PDF bytes: verify `%PDF` header and non-empty content (no snapshot comparisons).
+- ImportError → 501 tests: verify that missing reportlab raises 501 with frozen error contract.
+
+### Key test files
+- `tests/vip/test_pdf_export_pr8b.py`: PR-8b specific tests (deterministic ordering, grouping, totals).
+- `tests/vip/test_pdf_export_diff_coverage.py`: diff-cover targeted tests.
+
+### Test invariants
+- Do NOT compare PDF bytes directly (non-deterministic due to timestamps/metadata).
+- Test data preparation (`PdfLine` objects) for determinism and correctness.
+- Test PDF generation only for basic validity (header + length).
+- Use `monkeypatch` to simulate `ImportError` for 501 tests (target `_lazy_reportlab`).
+
 ## Type hints policy (tests)
 
 ### Hard rules
@@ -56,6 +77,16 @@ If tempted to:
   (handled centrally in `pytest_configure`).
 - If a test imports symbols from `app`,
   a guard-test must assert their presence.
+
+## PDF export tests (hard rules)
+
+- ❌ No snapshot tests of raw PDF bytes (metadata/ordering/timezone/renderer variance is inherently flaky).
+- ✅ Prefer testing prepared “render rows” / data-model output for determinism and content.
+- ✅ If rendering is exercised, assert only coarse properties:
+  - `bytes` is non-empty (and optionally above a small minimum length)
+  - expected key strings are present (via text extraction or by validating prepared rows)
+- ✅ Required regression: missing optional PDF dependency (`ImportError(reportlab)`) returns HTTP `501`
+  and preserves the established error contract shape.
 
 ## No namespace duplication in tests (xdist stability)
 
