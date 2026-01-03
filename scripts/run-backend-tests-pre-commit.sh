@@ -22,26 +22,37 @@ if [ -n "${PRE_COMMIT:-}" ]; then
     PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
 else
     # Pre-push hook: check files in commits that will be pushed
-    # Pre-commit passes: $1=remote name, $2=remote URL
-    # We need to find commits between remote and local
+    # In pre-push, we need to compare what's being pushed with what's already on remote
+    # Pre-commit framework doesn't pass arguments, so we determine remote branch from git config
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    REMOTE_NAME="${1:-origin}"
-    REMOTE_BRANCH="${REMOTE_NAME}/${CURRENT_BRANCH}"
-
-    # Get the remote tracking branch SHA (what's on remote)
-    REMOTE_SHA=$(git rev-parse --verify "${REMOTE_BRANCH}" 2>/dev/null || echo "")
-
-    if [ -n "$REMOTE_SHA" ]; then
-        # Compare local HEAD with remote branch
-        PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
-    else
-        # Remote branch doesn't exist yet, compare with main/master
+    
+    # Try to get remote tracking branch from git config
+    REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || echo "")
+    
+    if [ -n "$REMOTE_BRANCH" ]; then
+        # Get the remote branch SHA (what's currently on remote)
+        REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
+        if [ -n "$REMOTE_SHA" ]; then
+            # Compare local HEAD with remote branch (files that will be pushed)
+            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+        fi
+    fi
+    
+    # Fallback: if we couldn't determine remote branch, try common patterns
+    if [ -z "$PYTHON_CHANGES" ]; then
+        # Try origin/current_branch
+        REMOTE_BRANCH="origin/${CURRENT_BRANCH}"
+        REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
+        if [ -n "$REMOTE_SHA" ]; then
+            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+        fi
+    fi
+    
+    # Last resort: compare with main/master
+    if [ -z "$PYTHON_CHANGES" ]; then
         BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || echo "")
         if [ -n "$BASE" ]; then
             PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
-        else
-            # Last resort: check all files in current branch
-            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD~10 HEAD 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
         fi
     fi
 fi
