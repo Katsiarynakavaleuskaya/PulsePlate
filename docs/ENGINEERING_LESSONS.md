@@ -32,6 +32,9 @@ In large test runners, this manifested as **success instead of error**.
 ### Rule
 **Never mutate `sys.modules` in tests.**
 
+**Repo status note:**
+- Policy guard `pytest -q tests/test_repo_policy_sys_modules.py` is enforced for `tests/vip/**` only (legacy tests still contain sys.modules mutations).
+
 ### Use instead
 - `unittest.mock.patch(...)` (but see FAQ below)
 - `monkeypatch.setattr(...)`
@@ -166,6 +169,9 @@ Prefer modern typing syntax (Python 3.9+):
 ```bash
 # Import hygiene / repo policy
 pytest -q tests/test_repo_policy_guards.py
+
+# VIP-only guard: forbid sys.modules mutations
+pytest -q tests/test_repo_policy_sys_modules.py
 
 # Smoke test
 make test-fast
