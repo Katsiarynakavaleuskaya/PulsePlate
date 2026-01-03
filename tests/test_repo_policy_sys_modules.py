@@ -24,6 +24,9 @@ FORBIDDEN_PATTERNS: list[tuple[str, str]] = [
     # RU: Переприсваивание sys.modules[...] = ... также опасно.
     # EN: Assigning sys.modules[...] = ... is also dangerous.
     (r"\bsys\.modules\s*\[[^\]]+\]\s*=", "Forbidden: `sys.modules[...] = ...` in tests."),
+    # RU: sys.modules.pop() также создаёт dual-module state.
+    # EN: sys.modules.pop() also creates dual-module state.
+    (r"\bsys\.modules\.pop\s*\(", "Forbidden: `sys.modules.pop(...)` in tests."),
 ]
 
 
