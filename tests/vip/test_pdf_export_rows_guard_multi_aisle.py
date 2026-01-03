@@ -28,10 +28,8 @@ from tests.vip._pdf_rows_assert import (
     assert_contains_subsequence,
     assert_subtotals_and_total,
     find_item,
-    item_packs,
-    item_subtotal,
-    money_cell,
     find_rows,
+    money_cell,
     rows_sig,
 )
 
@@ -114,12 +112,12 @@ def test_build_pdf_rows_multi_aisle_flushes_subtotals_and_total() -> None:
 
     # Validate key item rows (semantic, no indices)
     carrot_row = find_item(rows, "carrot")
-    assert item_packs(carrot_row) == "2"
-    assert item_subtotal(carrot_row) == "3.00 EUR"
+    assert carrot_row.cells[3] == "2"  # packs
+    assert money_cell(carrot_row) == "3.00 EUR"  # subtotal
 
     bread_row = find_item(rows, "bread")
-    assert item_packs(bread_row) == "1"
-    assert item_subtotal(bread_row) == "2.00 EUR"
+    assert bread_row.cells[3] == "1"  # packs
+    assert money_cell(bread_row) == "2.00 EUR"  # subtotal
 
     # Subtotals & total
     assert_subtotals_and_total(rows, subtotals=["3.00 EUR", "2.00 EUR"], total="5.00 EUR")
@@ -137,44 +135,47 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
     rows = pdf_export.build_pdf_rows(response)
 
     # Two store headers
-    store_rows = [r for r in rows if r.row_type == pdf_export.PdfRowType.STORE]
+    store_rows = [r for r in rows if r.row_type == RowType.STORE]
     assert len(store_rows) == 2
     assert any("store-1" in r.cells[0] for r in store_rows)
     assert any("store-2" in r.cells[0] for r in store_rows)
 
     # Two aisle headers (both Aisle-1, but different stores)
-    aisle_rows = [r for r in rows if r.row_type == pdf_export.PdfRowType.AISLE]
+    aisle_rows = [r for r in rows if r.row_type == RowType.AISLE]
     assert len(aisle_rows) == 2
     assert all("Aisle-1" in r.cells[0] for r in aisle_rows)
 
     # Two subtotals (one per store/aisle combination)
-    subtotal_rows = [r for r in rows if r.row_type == pdf_export.PdfRowType.SUBTOTAL]
+    subtotal_rows = find_rows(rows, RowType.SUBTOTAL)
     assert len(subtotal_rows) == 2
 
     # Grand total must be 5.00 EUR (3.00 + 2.00)
-    total_row = next(r for r in rows if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
-    assert money_cell(total_row) == "5.00 EUR"
+    total_rows = find_rows(rows, RowType.GRAND_TOTAL)
+    assert len(total_rows) == 1
+    assert money_cell(total_rows[0]) == "5.00 EUR"
 
     # Structural order: Store-1 → Aisle-1 → item → subtotal → Store-2 → Aisle-1 → item → subtotal → Total
+    # Use semantic helpers instead of index-based checks
+    store_rows_list = find_rows(rows, RowType.STORE)
     idx_store1 = next(
         i
         for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.STORE and "store-1" in r.cells[0]
+        if r.row_type == RowType.STORE and "store-1" in r.cells[0]
     )
     idx_aisle1_store1 = next(
         i
         for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.AISLE and i > idx_store1 and "Aisle-1" in r.cells[0]
+        if r.row_type == RowType.AISLE and i > idx_store1 and "Aisle-1" in r.cells[0]
     )
     idx_sub1 = next(
         i
         for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.SUBTOTAL and i > idx_aisle1_store1
+        if r.row_type == RowType.SUBTOTAL and i > idx_aisle1_store1
     )
     idx_store2 = next(
         i
         for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.STORE and "store-2" in r.cells[0]
+        if r.row_type == RowType.STORE and "store-2" in r.cells[0]
     )
 
     # Verify order: store-1 → aisle-1 → item → subtotal → store-2

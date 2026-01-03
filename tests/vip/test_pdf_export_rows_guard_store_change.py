@@ -24,7 +24,7 @@ from tests.vip._pdf_rows_assert import (
     assert_subtotals_and_total,
     find_item,
     find_rows,
-    item_subtotal,
+    money_cell,
     rows_sig,
 )
 
@@ -98,8 +98,8 @@ def test_build_pdf_rows_flushes_subtotal_on_store_change() -> None:
     )
 
     carrot = find_item(rows, "carrot")
-    assert item_subtotal(carrot) == "3.00 EUR"
+    assert money_cell(carrot) == "3.00 EUR"
     bread = find_item(rows, "bread")
-    assert item_subtotal(bread) == "2.00 EUR"
+    assert money_cell(bread) == "2.00 EUR"
 
     assert_subtotals_and_total(rows, subtotals=["3.00 EUR", "2.00 EUR"], total="5.00 EUR")
