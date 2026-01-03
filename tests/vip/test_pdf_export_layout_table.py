@@ -61,24 +61,25 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
     real_lazy = pdf_export._lazy_reportlab
 
     def _mock_lazy() -> tuple[Any, ...]:
+        real_result = real_lazy()
         (
             colors,
             A4,
             getSampleStyleSheet,
             mm,
-            Flowable,
+            _unused_flowable,
             Paragraph,
             _Doc,
             Spacer,
             _Table,
             _TableStyle,
-        ) = real_lazy()
+        ) = real_result
         return (
             colors,
             A4,
             getSampleStyleSheet,
             mm,
-            Flowable,
+            _unused_flowable,
             Paragraph,
             _FakeDoc,
             Spacer,

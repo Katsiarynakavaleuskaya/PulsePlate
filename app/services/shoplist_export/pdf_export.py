@@ -75,7 +75,7 @@ class PdfRow:
     """
 
     row_type: PdfRowType
-    cells: list[str]
+    cells: tuple[str, ...]
 
 
 def _fmt_money(value: Decimal | None, currency: str | None) -> str:
@@ -272,7 +272,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
     rows: list[PdfRow] = [
         PdfRow(
             row_type=PdfRowType.HEADER,
-            cells=["Food ID", "Requested", "Pack Size", "Packs", "Reason", "Price", "Subtotal"],
+            cells=("Food ID", "Requested", "Pack Size", "Packs", "Reason", "Price", "Subtotal"),
         )
     ]
 
@@ -301,7 +301,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
         rows.append(
             PdfRow(
                 row_type=PdfRowType.SUBTOTAL,
-                cells=[
+                cells=(
                     "",
                     "",
                     "",
@@ -309,7 +309,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
                     f"Subtotal ({current_aisle}):",
                     "",
                     _fmt_money(aisle_subtotal, aisle_currency),
-                ],
+                ),
             )
         )
         grand_total += aisle_subtotal
@@ -328,7 +328,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
             rows.append(
                 PdfRow(
                     row_type=PdfRowType.STORE,
-                    cells=[f"Store: {store_id or '—'}", "", "", "", "", "", ""],
+                    cells=(f"Store: {store_id or '—'}", "", "", "", "", "", ""),
                 )
             )
 
@@ -339,7 +339,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
             rows.append(
                 PdfRow(
                     row_type=PdfRowType.AISLE,
-                    cells=[f"Aisle: {aisle or '—'}", "", "", "", "", "", ""],
+                    cells=(f"Aisle: {aisle or '—'}", "", "", "", "", "", ""),
                 )
             )
 
@@ -377,7 +377,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
         rows.append(
             PdfRow(
                 row_type=PdfRowType.ITEM,
-                cells=[
+                cells=(
                     line.food_id,
                     requested_qty,
                     pack_size_qty,
@@ -385,7 +385,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
                     reason_str,
                     price_str,
                     subtotal_str,
-                ],
+                ),
             )
         )
 
@@ -402,7 +402,7 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
     rows.append(
         PdfRow(
             row_type=PdfRowType.GRAND_TOTAL,
-            cells=["", "", "", "", "Total", "", _fmt_money(grand_total, grand_total_currency)],
+            cells=("", "", "", "", "Total", "", _fmt_money(grand_total, grand_total_currency)),
         )
     )
 
@@ -431,7 +431,7 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         A4,
         getSampleStyleSheet,
         mm,
-        Flowable,
+        _unused_flowable,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
