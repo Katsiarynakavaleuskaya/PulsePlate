@@ -28,7 +28,7 @@ def test_find_route_endpoint_finds_registered_callable(monkeypatch: pytest.Monke
     patch_endpoint_global(
         monkeypatch=monkeypatch, endpoint=endpoint, name="dep", value=lambda: "patched"
     )
-    # напрямую вызываем endpoint, чтобы убедиться что глобалка реально заменена
+    # Call the endpoint directly to ensure the global was actually replaced.
     out = endpoint()
     assert out == {"v": "patched"}
 

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-RU: Тестовый helper для детерминированного патчинга реально зарегистрированных FastAPI endpoints.
-EN: Test helper to deterministically patch the actually registered FastAPI endpoints.
+Test helper to deterministically patch the actually registered FastAPI endpoints.
 
 Why:
 - String-based patch("module.symbol") may not hit the callable used by the registered route
@@ -23,10 +22,7 @@ import pytest
 
 @dataclass(frozen=True)
 class RouteMatch:
-    """
-    RU: Результат поиска маршрута.
-    EN: Route match result.
-    """
+    """Route match result."""
 
     path: str
     methods: tuple[str, ...]
@@ -39,9 +35,7 @@ def _norm_method(method: str) -> str:
 
 def find_route_endpoint(*, app: Any, path: str, method: str) -> Callable[..., Any]:
     """
-    RU: Находит endpoint (callable), реально зарегистрированный в FastAPI app.routes,
-        по точному path и HTTP method.
-    EN: Finds the actual registered endpoint callable in FastAPI app.routes by exact path+method.
+    Finds the actual registered endpoint callable in FastAPI app.routes by exact path+method.
 
     Raises:
         AssertionError: if route is not found or ambiguous.
@@ -95,9 +89,9 @@ def patch_endpoint_global(
     value: Any,
 ) -> None:
     """
-    RU: Патчит глобальную ссылку в endpoint.__globals__[name] = value.
-        Это надёжно, когда endpoint вызывает функцию из своего модуля.
-    EN: Patches a global symbol used by endpoint via endpoint.__globals__[name] = value.
+    Patches a global symbol used by endpoint via endpoint.__globals__[name] = value.
+
+    This is reliable when the endpoint calls a function referenced from its defining module.
 
     Raises:
         AssertionError: if endpoint has no __globals__ or name is absent.
@@ -115,8 +109,7 @@ def patch_endpoint_global(
             "Fix: patch the correct symbol name or use patch_endpoint_attr()."
         )
 
-    # RU: Используем monkeypatch, чтобы pytest корректно откатывал изменения.
-    # EN: Use monkeypatch to ensure pytest reverts changes.
+    # Use monkeypatch to ensure pytest reverts changes.
     monkeypatch.setitem(globals_dict, name, value)
 
 
@@ -128,8 +121,7 @@ def patch_endpoint_attr(
     value: Any,
 ) -> None:
     """
-    RU: Фоллбек: патчим атрибут на callable (например, если endpoint — bound method / object).
-    EN: Fallback: patch attribute on callable (e.g., endpoint is bound method/object).
+    Fallback: patch attribute on callable (e.g., endpoint is bound method/object).
     """
     if not hasattr(endpoint, name):
         raise AssertionError(
@@ -150,8 +142,7 @@ def patch_route_dependency(
     mode: str = "globals",
 ) -> Callable[..., Any]:
     """
-    RU: Высокоуровневый хелпер: находит endpoint по path+method и патчит symbol.
-    EN: High-level helper: find endpoint by path+method and patch a symbol.
+    High-level helper: find endpoint by path+method and patch a symbol.
 
     mode:
       - "globals": patch endpoint.__globals__[symbol]
