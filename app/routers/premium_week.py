@@ -301,5 +301,6 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
         # IMPORTANT: bypass response_model validation
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
-    assert isinstance(result, WeekPlanResponse)
+    if not isinstance(result, WeekPlanResponse):
+        raise TypeError(f"Expected WeekPlanResponse, got {type(result).__name__}")
     return result

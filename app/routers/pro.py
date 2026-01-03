@@ -318,7 +318,7 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
     from core.menu_engine_new import PlateDayTargets
 
     # Wrap WeekPlanResponse constructor to match postprocess_fn signature
-    def _postprocess_week(week: dict[str, Any]) -> WeekPlanResponse:
+    def _postprocess_week(week: Dict[str, Any]) -> WeekPlanResponse:
         return WeekPlanResponse(**week)
 
     result = run_weekly_pipeline_guarded(
@@ -354,7 +354,11 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
         # IMPORTANT: bypass response_model validation
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
-    assert isinstance(result, WeekPlanResponse)
+    if not isinstance(result, WeekPlanResponse):
+        raise TypeError(
+            "Expected WeekPlanResponse from weekly pipeline, "
+            f"got type={type(result).__name__} value={result!r}"
+        )
     return result
 
 
