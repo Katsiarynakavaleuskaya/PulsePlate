@@ -1,5 +1,12 @@
 # Agent instructions (scope: repo root and subdirectories)
 
+## REQUIRED READING (before any change)
+1) `docs/ENGINEERING_LESSONS.md` (project-level lessons and hard-won invariants)
+2) `RUNBOOK_AGENT.md` (CI/debug playbook)
+3) The nearest scoped `AGENTS.md` for the files you touch (e.g. `tests/AGENTS.md`, `scripts/AGENTS.md`)
+
+If your change conflicts with these docs, you must explain why and how risks are mitigated.
+
 ## If you feel lost
 Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".
 
@@ -36,6 +43,10 @@ make fmt-check
 Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
 - RUNBOOK_AGENT.md: greps + CI failure triage
 - tests/test_repo_policy_guards.py: enforced architecture rules
+
+## Engineering lessons
+See: `docs/ENGINEERING_LESSONS.md` (derived from PR-8b).
+Captures project-level lessons: test determinism, diff-coverage, portability, error contracts, sys.modules policy.
 
 ## Fast triage (run these first when things break)
 

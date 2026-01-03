@@ -267,6 +267,26 @@ def test_no_sys_modules_none_poisoning() -> None:
     )
 
 
+def test_engineering_lessons_are_linked_from_repo_entrypoints() -> None:
+    """Ensure ENGINEERING_LESSONS stays discoverable and doesn't get accidentally unlinked."""
+    lessons_path = REPO_ROOT / "docs" / "ENGINEERING_LESSONS.md"
+    assert lessons_path.exists(), "docs/ENGINEERING_LESSONS.md missing"
+
+    agents_path = REPO_ROOT / "AGENTS.md"
+    assert agents_path.exists(), "AGENTS.md missing"
+    agents_content = _read(agents_path)
+    assert (
+        "docs/ENGINEERING_LESSONS.md" in agents_content
+    ), "AGENTS.md must reference docs/ENGINEERING_LESSONS.md so agents have a stable entrypoint."
+
+    pr_template_path = REPO_ROOT / ".github" / "pull_request_template.md"
+    assert pr_template_path.exists(), ".github/pull_request_template.md missing"
+    pr_template_content = _read(pr_template_path)
+    assert (
+        "docs/ENGINEERING_LESSONS.md" in pr_template_content
+    ), "PR template must reference docs/ENGINEERING_LESSONS.md to keep humans/agents aligned."
+
+
 def test_no_direct_model_submodule_imports() -> None:
     """Prohibit importing models from submodules - causes duplicate registration.
 

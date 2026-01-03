@@ -39,6 +39,14 @@
 - Test PDF generation only for basic validity (header + length).
 - Use `monkeypatch` to simulate `ImportError` for 501 tests (target `_lazy_reportlab`).
 
+## Forbidden in tests
+- Do not mutate `sys.modules` (no `del sys.modules[...]`, no `sys.modules[...] = ...`).
+  Use `patch()` / `monkeypatch.setattr()` instead.
+  For FastAPI endpoints, prefer `tests/_route_patch.patch_route_dependency()`.
+
+To verify:
+- `pytest -q tests/test_repo_policy_sys_modules.py`
+
 ## Type hints policy (tests)
 
 ### Hard rules

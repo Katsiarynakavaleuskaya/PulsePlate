@@ -4,6 +4,7 @@
 
 (Free-form description of changes, e.g., "Fix crash in BMI calculation when height is zero")
 
+- [ ] I reviewed `docs/ENGINEERING_LESSONS.md` and followed repo policies (determinism, import hygiene, contracts).
 - [ ] Select one change type:
   - [ ] Bug fix
   - [ ] Feature
