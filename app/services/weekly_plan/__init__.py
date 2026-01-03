@@ -16,11 +16,13 @@ from app.services.weekly_plan.hooks import (
     WeeklyPlanEvent,
     WeeklyPlanHook,
 )
+from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 from app.services.weekly_plan.safety import safe_call, weekly_plan_error_envelope
 
 __all__ = [
     "safe_call",
     "weekly_plan_error_envelope",
+    "run_weekly_pipeline_guarded",
     "WeeklyPlanEvent",
     "WeeklyPlanHook",
     "NullWeeklyPlanHook",

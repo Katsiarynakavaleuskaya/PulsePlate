@@ -6,6 +6,7 @@ EN: Guard tests for weekly plan pipeline ordering.
 Guarantees:
 - If generation stage returns error envelope, postprocess must not run
 - Pipeline stages execute in correct order: validation → generation → postprocess
+- Error envelope returned from generation is not mutated
 """
 
 from __future__ import annotations
@@ -14,49 +15,58 @@ from typing import Any
 
 import pytest
 
-from app.services.weekly_plan.safety import safe_call
+from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 
 def test_pipeline_skips_postprocess_when_generation_returns_error_envelope() -> None:
     """
     RU: Если generation вернул error envelope, postprocess не должен запускаться.
     EN: If generation returns error envelope, postprocess must not run.
-    """
 
-    # Generation stage returns an error envelope dict
+    Contract:
+    - Generation error envelope is returned as-is (no mutation)
+    - Postprocess is not called when generation fails
+    """
+    # Expected error envelope from generation
+    expected_error = {
+        "status": "error",
+        "code": "weekly_generation_failed",
+        "detail": "Generation failed",
+        "stage": "generation",
+    }
+
+    # Generation stage returns error envelope
     def generation_fails() -> dict[str, Any]:
-        return {
-            "status": "error",
-            "code": "weekly_generation_failed",
-            "detail": "Generation failed",
-            "stage": "generation",
-        }
+        return expected_error
 
     # Postprocess stage must not be called if generation already failed
     postprocess_called = False
 
-    def postprocess() -> None:
+    def postprocess(week: dict[str, Any]) -> Any:
         nonlocal postprocess_called
         postprocess_called = True
         raise AssertionError("postprocess must not run when generation failed")
 
-    # Simulate generation stage
-    result = safe_call(
-        generation_fails,
-        default_code="weekly_generation_failed",
-        stage="generation",
+    # Call real pipeline entrypoint
+    result = run_weekly_pipeline_guarded(
+        generation_fn=generation_fails,
+        postprocess_fn=postprocess,
+        generation_kwargs={},
+        generation_map_error=lambda _e: ("weekly_generation_failed", "Failed to generate plan"),
+        generation_default_code="weekly_generation_failed",
+        postprocess_map_error=lambda _e: (
+            "weekly_postprocess_failed",
+            "Failed to build weekly plan response",
+        ),
+        postprocess_default_code="weekly_postprocess_failed",
     )
 
-    # Router logic: check if generation returned error envelope
-    assert isinstance(result, dict) and result.get("status") == "error"
+    # Contract: error envelope is returned as-is (no mutation)
+    assert result == expected_error
+    assert isinstance(result, dict)
+    assert result.get("status") == "error"
     assert result.get("code") == "weekly_generation_failed"
     assert result.get("stage") == "generation"
 
-    # Router must NOT call postprocess if result is error envelope
-    if isinstance(result, dict) and result.get("status") == "error":
-        # This is the correct behavior: skip postprocess
-        return
-
-    # If we reach here, postprocess would be called (wrong behavior)
-    postprocess()
+    # Contract: postprocess must not be called
     assert not postprocess_called, "postprocess must not be called when generation fails"
