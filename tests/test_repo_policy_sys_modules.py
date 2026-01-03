@@ -26,31 +26,6 @@ ENFORCED_GLOBS: tuple[str, ...] = (
 )
 
 
-def _is_sys_modules_attr(node: ast.AST) -> bool:
-    # sys.modules
-    return (
-        isinstance(node, ast.Attribute)
-        and node.attr == "modules"
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "sys"
-    )
-
-
-def _is_sys_modules_subscript(node: ast.AST) -> bool:
-    # sys.modules[...]
-    return isinstance(node, ast.Subscript) and _is_sys_modules_attr(node.value)
-
-
-def _is_sys_modules_pop_call(node: ast.AST) -> bool:
-    # sys.modules.pop(...)
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "pop"
-        and _is_sys_modules_attr(node.func.value)
-    )
-
-
 def _iter_test_py_files() -> list[Path]:
     if not TESTS_DIR.exists():
         return []
@@ -68,28 +43,73 @@ def _find_violations(text: str) -> list[tuple[int, str]]:
         tree = ast.parse(text)
     except SyntaxError:
         # Ignore syntactically invalid files (shouldn't happen for committed tests).
+        # Policy checks should stay non-blocking even if a file is temporarily invalid.
         return []
 
     violations: list[tuple[int, str]] = []
 
     class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.sys_module_names: set[str] = {"sys"}
+            self.modules_names: set[str] = set()
+
+        def _is_sys_modules_attr(self, node: ast.AST) -> bool:
+            # sys.modules  (also supports: import sys as s; s.modules)
+            return (
+                isinstance(node, ast.Attribute)
+                and node.attr == "modules"
+                and isinstance(node.value, ast.Name)
+                and node.value.id in self.sys_module_names
+            )
+
+        def _is_modules_container(self, node: ast.AST) -> bool:
+            # sys.modules OR (from sys import modules as m; m)
+            return self._is_sys_modules_attr(node) or (
+                isinstance(node, ast.Name) and node.id in self.modules_names
+            )
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                if alias.name == "sys":
+                    self.sys_module_names.add(alias.asname or alias.name)
+            self.generic_visit(node)
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            if node.module == "sys":
+                for alias in node.names:
+                    if alias.name == "modules":
+                        self.modules_names.add(alias.asname or alias.name)
+            self.generic_visit(node)
+
         def visit_Delete(self, node: ast.Delete) -> None:
             for target in node.targets:
-                if _is_sys_modules_subscript(target):
+                if isinstance(target, ast.Subscript) and self._is_modules_container(target.value):
                     violations.append((node.lineno, "Forbidden: `del sys.modules[...]` in tests."))
             self.generic_visit(node)
 
         def visit_Assign(self, node: ast.Assign) -> None:
             for target in node.targets:
-                if _is_sys_modules_subscript(target):
+                if isinstance(target, ast.Subscript) and self._is_modules_container(target.value):
                     violations.append(
                         (node.lineno, "Forbidden: `sys.modules[...] = ...` in tests.")
                     )
             self.generic_visit(node)
 
         def visit_Call(self, node: ast.Call) -> None:
-            if _is_sys_modules_pop_call(node):
-                violations.append((node.lineno, "Forbidden: `sys.modules.pop(...)` in tests."))
+            if isinstance(node.func, ast.Attribute) and self._is_modules_container(node.func.value):
+                messages_by_method = {
+                    "pop": "Forbidden: `sys.modules.pop(...)` in tests.",
+                    "update": "Forbidden: `sys.modules.update(...)` in tests.",
+                    "clear": "Forbidden: `sys.modules.clear()` in tests.",
+                    "setdefault": "Forbidden: `sys.modules.setdefault(...)` in tests.",
+                    "popitem": "Forbidden: `sys.modules.popitem()` in tests.",
+                    "__setitem__": "Forbidden: `sys.modules.__setitem__(...)` in tests.",
+                    "__delitem__": "Forbidden: `sys.modules.__delitem__(...)` in tests.",
+                }
+                msg = messages_by_method.get(node.func.attr)
+                if msg is not None:
+                    violations.append((node.lineno, msg))
             self.generic_visit(node)
 
     Visitor().visit(tree)
@@ -111,11 +131,44 @@ def test_policy_flags_runtime_mutations() -> None:
             "",
         ]
     )
-    violations = _find_violations(content)
-    assert [msg for _, msg in violations] == [
-        "Forbidden: `del sys.modules[...]` in tests.",
-        "Forbidden: `sys.modules[...] = ...` in tests.",
-        "Forbidden: `sys.modules.pop(...)` in tests.",
+    assert _find_violations(content) == [
+        (2, "Forbidden: `del sys.modules[...]` in tests."),
+        (3, "Forbidden: `sys.modules[...] = ...` in tests."),
+        (4, "Forbidden: `sys.modules.pop(...)` in tests."),
+    ]
+
+
+def test_policy_flags_sys_import_aliases() -> None:
+    content = "\n".join(
+        [
+            "import sys as s",
+            "del s.modules['x']",
+            "s.modules['y'] = object()",
+            "s.modules.pop('z', None)",
+            "",
+        ]
+    )
+    assert _find_violations(content) == [
+        (2, "Forbidden: `del sys.modules[...]` in tests."),
+        (3, "Forbidden: `sys.modules[...] = ...` in tests."),
+        (4, "Forbidden: `sys.modules.pop(...)` in tests."),
+    ]
+
+
+def test_policy_flags_from_sys_import_modules_alias() -> None:
+    content = "\n".join(
+        [
+            "from sys import modules as m",
+            "del m['x']",
+            "m['y'] = object()",
+            "m.pop('z', None)",
+            "",
+        ]
+    )
+    assert _find_violations(content) == [
+        (2, "Forbidden: `del sys.modules[...]` in tests."),
+        (3, "Forbidden: `sys.modules[...] = ...` in tests."),
+        (4, "Forbidden: `sys.modules.pop(...)` in tests."),
     ]
 
 
