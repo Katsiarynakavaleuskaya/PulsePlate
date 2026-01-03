@@ -131,4 +131,3 @@ This guard exists to prevent:
 
 * PR-8b: VIP Shoplist PDF export (source of lessons)
 * PR-10: Weekly Plan Hardening (will benefit from this policy guard)
-
