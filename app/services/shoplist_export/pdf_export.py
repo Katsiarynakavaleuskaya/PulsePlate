@@ -28,6 +28,19 @@ from app.schemas.vip_shoplist import (
 )
 
 
+ReportLabComponents: TypeAlias = Tuple[
+    Any,  # colors
+    Any,  # A4
+    Callable[[], Any],  # getSampleStyleSheet
+    Any,  # mm
+    Type[Any],  # Paragraph
+    Type[Any],  # SimpleDocTemplate
+    Type[Any],  # Spacer
+    Type[Any],  # Table
+    Type[Any],  # TableStyle
+]
+
+
 def _fmt_decimal(value: Decimal | None) -> str:
     """
     RU: Decimal -> строка без scientific notation.
@@ -523,15 +536,3 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
             with contextlib.suppress(Exception):
                 buffer.close()
 
-
-ReportLabComponents: TypeAlias = Tuple[
-    Any,  # colors
-    Any,  # A4
-    Callable[[], Any],  # getSampleStyleSheet
-    Any,  # mm
-    Type[Any],  # Paragraph
-    Type[Any],  # SimpleDocTemplate
-    Type[Any],  # Spacer
-    Type[Any],  # Table
-    Type[Any],  # TableStyle
-]
