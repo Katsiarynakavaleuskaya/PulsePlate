@@ -129,6 +129,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Require Marshmallow >=4.1.2 (CVE fix).
 - Formatting: Black line-length=100; keep PEP 8; ruff linting enforced.
 - Pre-commit hooks run tests on changed files; keep changes minimal and focused.
+- Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
 ## Known pitfalls
