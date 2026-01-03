@@ -52,11 +52,11 @@ class TestBuildPdfLinesDeterministic:
 
         packed1 = PackedLineDTO(
             food_id="carrot-z",
-            requested=_qty("600"),
-            pack_size=_qty("500"),
+            requested=qty("600"),
+            pack_size=qty("500"),
             packs=2,
-            provided=_qty("1000"),
-            overage=_qty("400"),
+            provided=qty("1000"),
+            overage=qty("400"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=600 G"],
@@ -64,11 +64,11 @@ class TestBuildPdfLinesDeterministic:
         )
         packed2 = PackedLineDTO(
             food_id="apple-a",
-            requested=_qty("200"),
-            pack_size=_qty("100"),
+            requested=qty("200"),
+            pack_size=qty("100"),
             packs=2,
-            provided=_qty("200"),
-            overage=_qty("0"),
+            provided=qty("200"),
+            overage=qty("0"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=200 G"],
@@ -76,11 +76,11 @@ class TestBuildPdfLinesDeterministic:
         )
         packed3 = PackedLineDTO(
             food_id="banana-a",
-            requested=_qty("300"),
-            pack_size=_qty("200"),
+            requested=qty("300"),
+            pack_size=qty("200"),
             packs=2,
-            provided=_qty("400"),
-            overage=_qty("100"),
+            provided=qty("400"),
+            overage=qty("100"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=300 G"],
@@ -115,17 +115,17 @@ class TestBuildPdfLinesDeterministic:
 
         packed1 = PackedLineDTO(
             food_id="with-catalog",
-            requested=_qty("100"),
-            pack_size=_qty("100"),
+            requested=qty("100"),
+            pack_size=qty("100"),
             packs=1,
-            provided=_qty("100"),
-            overage=_qty("0"),
+            provided=qty("100"),
+            overage=qty("0"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=100 G"],
             catalog=catalog1,
         )
-        unpacked1 = UnpackedLineDTO(food_id="no-catalog", requested=_qty("200"), catalog=None)
+        unpacked1 = UnpackedLineDTO(food_id="no-catalog", requested=qty("200"), catalog=None)
 
         response = ShoplistGenerateResponse(packed=[packed1], unpacked=[unpacked1])
 
@@ -168,11 +168,11 @@ class TestBuildPdfLinesGrouping:
 
         packed1 = PackedLineDTO(
             food_id="item-1",
-            requested=_qty("100"),
-            pack_size=_qty("100"),
+            requested=qty("100"),
+            pack_size=qty("100"),
             packs=1,
-            provided=_qty("100"),
-            overage=_qty("0"),
+            provided=qty("100"),
+            overage=qty("0"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=100 G"],
@@ -180,11 +180,11 @@ class TestBuildPdfLinesGrouping:
         )
         packed2 = PackedLineDTO(
             food_id="item-2",
-            requested=_qty("200"),
-            pack_size=_qty("200"),
+            requested=qty("200"),
+            pack_size=qty("200"),
             packs=1,
-            provided=_qty("200"),
-            overage=_qty("0"),
+            provided=qty("200"),
+            overage=qty("0"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=200 G"],
@@ -192,11 +192,11 @@ class TestBuildPdfLinesGrouping:
         )
         packed3 = PackedLineDTO(
             food_id="item-3",
-            requested=_qty("300"),
-            pack_size=_qty("300"),
+            requested=qty("300"),
+            pack_size=qty("300"),
             packs=1,
-            provided=_qty("300"),
-            overage=_qty("0"),
+            provided=qty("300"),
+            overage=qty("0"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=300 G"],
@@ -238,11 +238,11 @@ class TestBuildPdfLinesTotals:
 
         packed = PackedLineDTO(
             food_id="carrot",
-            requested=_qty("600"),
-            pack_size=_qty("500"),
+            requested=qty("600"),
+            pack_size=qty("500"),
             packs=2,
-            provided=_qty("1000"),
-            overage=_qty("400"),
+            provided=qty("1000"),
+            overage=qty("400"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=600 G"],
@@ -262,7 +262,7 @@ class TestBuildPdfLinesTotals:
 
     def test_subtotal_zero_for_unpacked_lines(self) -> None:
         """Test that unpacked lines have subtotal_value = 0."""
-        unpacked = UnpackedLineDTO(food_id="tomato", requested=_qty("200"))
+        unpacked = UnpackedLineDTO(food_id="tomato", requested=qty("200"))
 
         response = ShoplistGenerateResponse(packed=[], unpacked=[unpacked])
 
@@ -290,17 +290,17 @@ class TestExportShoplistToPdfBytes:
 
         packed = PackedLineDTO(
             food_id="carrot",
-            requested=_qty("600"),
-            pack_size=_qty("500"),
+            requested=qty("600"),
+            pack_size=qty("500"),
             packs=2,
-            provided=_qty("1000"),
-            overage=_qty("400"),
+            provided=qty("1000"),
+            overage=qty("400"),
             rounding="CEIL",
             min_packs=1,
             reasons=["requested=600 G"],
             catalog=catalog,
         )
-        unpacked = UnpackedLineDTO(food_id="tomato", requested=_qty("200"))
+        unpacked = UnpackedLineDTO(food_id="tomato", requested=qty("200"))
 
         response = ShoplistGenerateResponse(packed=[packed], unpacked=[unpacked])
 
