@@ -28,6 +28,7 @@ from tests.vip._pdf_rows_assert import (
     assert_subtotals_and_total,
     find_item,
     find_rows,
+    money_cell,
     rows_sig,
 )
 
@@ -100,7 +101,8 @@ def test_build_pdf_rows_structure_and_totals_are_deterministic() -> None:
     assert packed_row.cells[0] == "carrot"
     assert packed_row.cells[3] == "2"
     assert packed_row.cells[5].endswith("EUR")  # price
-    assert packed_row.cells[6].endswith("EUR")  # subtotal
+    # Use money_cell() for semantic access to subtotal column
+    assert money_cell(packed_row).endswith("EUR")  # subtotal
 
     # Validate subtotal and grand total numeric equality via Money string
     # Subtotal for carrot: 1.50 * 2 = 3.00 EUR
@@ -180,17 +182,17 @@ def test_build_pdf_rows_multi_aisle_subtotals() -> None:
     # Item-level checks (ensures correct row association independent of order)
     row_a = find_item(rows, "item-a")
     row_b = find_item(rows, "item-b")
-    assert row_a.cells[6] == "1.00 EUR"  # line subtotal
-    assert row_b.cells[6] == "2.00 EUR"
+    assert money_cell(row_a) == "1.00 EUR"  # line subtotal
+    assert money_cell(row_b) == "2.00 EUR"
 
     # Subtotals should be exactly per-aisle, in deterministic order
     # (Aisle-A subtotal then Aisle-B subtotal)
     subtotal_rows = find_rows(rows, RowType.SUBTOTAL)
     assert len(subtotal_rows) == 2
     assert "Aisle-A" in subtotal_rows[0].cells[4]
-    assert subtotal_rows[0].cells[6] == "1.00 EUR"
+    assert money_cell(subtotal_rows[0]) == "1.00 EUR"
     assert "Aisle-B" in subtotal_rows[1].cells[4]
-    assert subtotal_rows[1].cells[6] == "2.00 EUR"
+    assert money_cell(subtotal_rows[1]) == "2.00 EUR"
 
     # Grand total: 1.00 + 2.00 = 3.00 EUR
     assert_subtotals_and_total(rows, subtotals=["1.00 EUR", "2.00 EUR"], total="3.00 EUR")

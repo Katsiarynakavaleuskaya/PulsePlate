@@ -22,6 +22,7 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
+from tests.vip._reportlab_lazy import make_lazy_reportlab_mock
 
 
 def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
@@ -79,33 +80,16 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
     _FakeTable.last_style = None
     # Patch _lazy_reportlab so export_shoplist_to_pdf uses our fakes for doc/table.
     real_lazy = pdf_export._lazy_reportlab
-
-    def _mock_lazy() -> tuple[Any, ...]:
-        real_result = real_lazy()
-        (
-            colors,
-            A4,
-            getSampleStyleSheet,
-            mm,
-            Paragraph,
-            _Doc,
-            Spacer,
-            _Table,
-            _TableStyle,
-        ) = real_result
-        return (
-            colors,
-            A4,
-            getSampleStyleSheet,
-            mm,
-            Paragraph,
-            _FakeDoc,
-            Spacer,
-            _FakeTable,
-            _FakeTableStyle,
-        )
-
-    monkeypatch.setattr(pdf_export, "_lazy_reportlab", _mock_lazy)
+    monkeypatch.setattr(
+        pdf_export,
+        "_lazy_reportlab",
+        make_lazy_reportlab_mock(
+            real_lazy,
+            simple_doc_template=_FakeDoc,
+            table=_FakeTable,
+            table_style=_FakeTableStyle,
+        ),
+    )
 
     catalog = CatalogInfoDTO(
         sku="SKU-1",
@@ -192,10 +176,13 @@ def test_build_pdf_rows_deterministic_row_types() -> None:
     rows = pdf_export.build_pdf_rows(response)
 
     # Verify row types in order: HEADER → STORE → AISLE → ITEM → SUBTOTAL → GRAND_TOTAL
+    # Use RowType from _pdf_rows_assert for consistency with other guard tests
+    from tests.vip._pdf_rows_assert import RowType
+
     assert len(rows) >= 5
-    assert rows[0].row_type == pdf_export.PdfRowType.HEADER
-    assert any(row.row_type == pdf_export.PdfRowType.STORE for row in rows)
-    assert any(row.row_type == pdf_export.PdfRowType.AISLE for row in rows)
-    assert any(row.row_type == pdf_export.PdfRowType.ITEM for row in rows)
-    assert any(row.row_type == pdf_export.PdfRowType.SUBTOTAL for row in rows)
-    assert rows[-1].row_type == pdf_export.PdfRowType.GRAND_TOTAL
+    assert rows[0].row_type == RowType.HEADER
+    assert any(row.row_type == RowType.STORE for row in rows)
+    assert any(row.row_type == RowType.AISLE for row in rows)
+    assert any(row.row_type == RowType.ITEM for row in rows)
+    assert any(row.row_type == RowType.SUBTOTAL for row in rows)
+    assert rows[-1].row_type == RowType.GRAND_TOTAL
