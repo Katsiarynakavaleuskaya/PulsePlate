@@ -11,16 +11,30 @@ This module encapsulates the pipeline ordering contract:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, TypeVar
 
 from app.services.weekly_plan.safety import safe_call
 
 T = TypeVar("T")
+R = TypeVar("R")
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_truncated_repr(value: Any, *, limit: int = 1000) -> str:
+    try:
+        text = repr(value)
+    except Exception as exc:  # pragma: no cover
+        return f"<repr failed: {type(exc).__name__}>"
+    if len(text) <= limit:
+        return text
+    return text[:limit]
 
 
 def run_weekly_pipeline_guarded(
     generation_fn: Callable[..., T],
-    postprocess_fn: Callable[[dict[str, Any]], Any],
+    postprocess_fn: Callable[[dict[str, Any]], R],
     generation_kwargs: dict[str, Any],
     postprocess_kwargs: dict[str, Any] | None = None,
     *,
@@ -30,7 +44,7 @@ def run_weekly_pipeline_guarded(
     postprocess_default_code: str = "weekly_postprocess_failed",
     generation_debug_ctx: dict[str, Any] | None = None,
     postprocess_debug_ctx: dict[str, Any] | None = None,
-) -> T | dict[str, Any]:
+) -> T | R | dict[str, Any]:
     """
     RU: Выполняет pipeline weekly plan с защитой порядка стадий.
     EN: Execute weekly plan pipeline with stage ordering protection.
@@ -81,13 +95,18 @@ def run_weekly_pipeline_guarded(
     # For weekly plan, T is always dict[str, Any]
     if not isinstance(week, dict):
         # This should not happen for weekly plan, but handle gracefully
+        logger.error(
+            "Weekly pipeline generation returned non-dict: type=%s repr=%s",
+            type(week).__name__,
+            _safe_truncated_repr(week),
+        )
         raise TypeError(f"Expected dict from generation, got {type(week)}")
 
     # Wrap postprocess_fn call
-    def _postprocess_wrapper() -> Any:  # noqa: ANN401
+    def _postprocess_wrapper() -> R:
         return postprocess_fn(week)
 
-    dto = safe_call(
+    dto: R | dict[str, Any] = safe_call(
         _postprocess_wrapper,
         map_error=postprocess_map_error,
         default_code=postprocess_default_code,
@@ -95,5 +114,5 @@ def run_weekly_pipeline_guarded(
         debug_ctx=postprocess_debug_ctx,
     )
 
-    # safe_call returns either T or error envelope dict
-    return dto  # type: ignore[no-any-return]
+    # safe_call returns either R or error envelope dict
+    return dto
