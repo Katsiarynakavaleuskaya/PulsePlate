@@ -22,6 +22,7 @@ def test_pipeline_skips_postprocess_when_generation_returns_error_envelope() -> 
     RU: Если generation вернул error envelope, postprocess не должен запускаться.
     EN: If generation returns error envelope, postprocess must not run.
     """
+
     # Generation stage returns an error envelope dict
     def generation_fails() -> dict[str, Any]:
         return {
