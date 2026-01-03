@@ -84,7 +84,7 @@ def run_weekly_pipeline_guarded(
         raise TypeError(f"Expected dict from generation, got {type(week)}")
 
     # Wrap postprocess_fn call
-    def _postprocess_wrapper() -> Any:
+    def _postprocess_wrapper() -> Any:  # noqa: ANN401
         return postprocess_fn(week)
 
     dto = safe_call(
@@ -95,4 +95,5 @@ def run_weekly_pipeline_guarded(
         debug_ctx=postprocess_debug_ctx,
     )
 
-    return dto
+    # safe_call returns either T or error envelope dict
+    return dto  # type: ignore[no-any-return]
