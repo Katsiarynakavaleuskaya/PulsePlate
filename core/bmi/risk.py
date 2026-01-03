@@ -1,0 +1,106 @@
+# -*- coding: utf-8 -*-
+"""
+RU: Оценка риска по окружности талии (legacy thresholds).
+EN: Waist-circumference risk assessment (legacy thresholds).
+
+IMPORTANT:
+- No FastAPI/Pydantic imports here.
+- No I/O, env, time, random.
+- Keep behavior stable (golden tests).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Literal
+
+from bmi_core import compute_wht_ratio
+
+
+RiskLevel = Literal["low", "moderate", "high"]
+
+
+@dataclass(frozen=True)
+class WaistRiskResult:
+    """
+    RU: Результат оценки риска по талии.
+    EN: Waist risk assessment result.
+    """
+
+    wht_ratio: float | None
+    risk_level: RiskLevel
+    notes: list[str]
+
+
+def _norm_lang(lang: str) -> str:
+    """
+    RU: Нормализация языка. Unknown -> en (fail-soft).
+    EN: Normalize language. Unknown -> en (fail-soft).
+    """
+    val = (lang or "").strip().lower()
+    return val if val in {"ru", "en", "es"} else "en"
+
+
+def _norm_gender(gender: str) -> str:
+    """
+    RU: Нормализация пола для порогов талии. Unknown -> male (fail-soft).
+    EN: Normalize gender for waist thresholds. Unknown -> male (fail-soft).
+    """
+    g = (gender or "").strip().lower()
+    if g in {"female", "f", "woman", "w", "жен", "женщина"}:
+        return "female"
+    if g in {"male", "m", "man", "муж", "мужчина"}:
+        return "male"
+    return "male"
+
+
+def calculate_waist_risk(
+    waist_cm: float | None,
+    height_m: float,
+    gender: str,
+    lang: str,
+) -> WaistRiskResult | None:
+    """
+    RU: Вычисляет риск по окружности талии.
+    EN: Calculate waist-circumference risk.
+
+    Args:
+        waist_cm: Waist circumference in cm. If None -> returns None.
+        height_m: Height in meters (used only for WHtR; fail-soft).
+        gender: "male"/"female" (will be normalized).
+        lang: "ru"/"en"/"es" (will be normalized).
+
+    Returns:
+        WaistRiskResult | None
+    """
+    if waist_cm is None:
+        return None
+
+    g = _norm_gender(gender)
+    lang_norm = _norm_lang(lang)
+
+    warn, high = (94.0, 102.0) if g == "male" else (80.0, 88.0)
+
+    if waist_cm >= high:
+        risk_level: RiskLevel = "high"
+        msg = {
+            "ru": "Высокий риск по талии",
+            "en": "High waist-related risk",
+            "es": "Alto riesgo relacionado con la cintura",
+        }[lang_norm]
+        notes = [msg]
+    elif waist_cm >= warn:
+        risk_level = "moderate"
+        msg = {
+            "ru": "Повышенный риск по талии",
+            "en": "Increased waist-related risk",
+            "es": "Riesgo aumentado relacionado con la cintura",
+        }[lang_norm]
+        notes = [msg]
+    else:
+        risk_level = "low"
+        notes = []
+
+    wht_ratio = compute_wht_ratio(waist_cm, height_m)
+
+    return WaistRiskResult(wht_ratio=wht_ratio, risk_level=risk_level, notes=notes)
