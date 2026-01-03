@@ -285,4 +285,27 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
     week = result
-    return WeekPlanResponse(**week)
+
+    dto = safe_call(
+        WeekPlanResponse,
+        **week,
+        map_error=lambda _e: (
+            "weekly_postprocess_failed",
+            "Failed to build weekly plan response",
+        ),
+        default_code="weekly_postprocess_failed",
+        stage="postprocess",
+        debug_ctx={
+            "router": "premium_week",
+            "path": "/api/v1/premium/plan/week-flexible",
+            "deprecated": True,
+        },
+    )
+
+    if isinstance(dto, dict) and dto.get("status") == "error":
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=dto,
+        )
+
+    return dto
