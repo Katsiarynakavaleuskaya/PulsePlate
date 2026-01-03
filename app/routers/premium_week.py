@@ -11,13 +11,15 @@ Please migrate to /api/v1/pro/* endpoints.
 
 import logging
 from threading import Event
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.models.nutrition import TargetsIn
+from app.services.weekly_plan.safety import safe_call
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
@@ -202,7 +204,7 @@ def estimate_targets_minimal(
     - Cost estimation
     """,
 )
-async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
+async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JSONResponse]:
     """
     [DEPRECATED] Generate weekly meal plan with PRO tier features.
 
@@ -258,9 +260,29 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     if not _is_complete_targets(targets):
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
-    # 2) Построить неделю
+    # 2) Построить неделю (generation stage)
     from core.menu_engine_new import PlateDayTargets
-    from typing import cast
 
-    week = build_week(cast(PlateDayTargets, targets), req.diet_flags, req.lang, fooddb, recipedb)
+    result = safe_call(
+        build_week,
+        cast(PlateDayTargets, targets),
+        req.diet_flags,
+        req.lang,
+        fooddb,
+        recipedb,
+        map_error=lambda _e: ("weekly_generation_failed", "Failed to generate plan"),
+        default_code="weekly_generation_failed",
+        stage="generation",
+        debug_ctx={
+            "router": "premium_week",
+            "path": "/api/v1/premium/plan/week-flexible",
+        },
+    )
+
+    # safe_call returns either T or an error envelope dict
+    if isinstance(result, dict) and result.get("status") == "error":
+        # IMPORTANT: bypass response_model validation
+        return JSONResponse(status_code=500, content=result)
+
+    week = result
     return WeekPlanResponse(**week)

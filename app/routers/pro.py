@@ -15,13 +15,15 @@ Endpoints:
 
 import logging
 from datetime import date as Date
-from typing import Any, Dict, List, Literal, Optional, cast
+from typing import Any, Dict, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.models.nutrition import TargetsIn
+from app.services.weekly_plan.safety import safe_call
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language, translate_nutrition_segment
@@ -257,7 +259,7 @@ def estimate_targets_minimal(
     - Cost estimation
     """,
 )
-async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
+async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JSONResponse]:
     """Generate weekly meal plan with PRO tier features.
 
     Args:
@@ -312,10 +314,31 @@ async def generate_week_plan(req: WeekPlanRequest) -> WeekPlanResponse:
     if not _is_complete_targets(targets):
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
-    # Build week
+    # Build week (generation stage)
     from core.menu_engine_new import PlateDayTargets
 
-    week = build_week(cast(PlateDayTargets, targets), req.diet_flags, req.lang, fooddb, recipedb)
+    result = safe_call(
+        build_week,
+        cast(PlateDayTargets, targets),
+        req.diet_flags,
+        req.lang,
+        fooddb,
+        recipedb,
+        map_error=lambda _e: ("weekly_generation_failed", "Failed to generate plan"),
+        default_code="weekly_generation_failed",
+        stage="generation",
+        debug_ctx={
+            "router": "pro",
+            "path": "/api/v1/pro/meal/weekly",
+        },
+    )
+
+    # safe_call returns either T or an error envelope dict
+    if isinstance(result, dict) and result.get("status") == "error":
+        # IMPORTANT: bypass response_model validation
+        return JSONResponse(status_code=500, content=result)
+
+    week = result
     return WeekPlanResponse(**week)
 
 
