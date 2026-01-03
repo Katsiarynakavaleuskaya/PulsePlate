@@ -34,15 +34,15 @@ class _FakeDoc:
         # Store buffer for later use in build()
         self.buffer = buffer
         # Verify buffer is BytesIO-like
-        assert hasattr(buffer, 'write'), f"Buffer must have write method, got: {type(buffer)}"
-        assert hasattr(buffer, 'getvalue'), f"Buffer must have getvalue method, got: {type(buffer)}"
+        assert hasattr(buffer, "write"), f"Buffer must have write method, got: {type(buffer)}"
+        assert hasattr(buffer, "getvalue"), f"Buffer must have getvalue method, got: {type(buffer)}"
 
     def build(self, _elements: Any) -> None:
         # Write minimal PDF header and footer in build() when buffer is actually used
         # This mimics what SimpleDocTemplate does - writes to buffer during build()
         # SimpleDocTemplate writes PDF content during build(), so we do the same
         assert self.buffer is not None, "Buffer should not be None in build()"
-        assert hasattr(self.buffer, 'write'), "Buffer must have write method"
+        assert hasattr(self.buffer, "write"), "Buffer must have write method"
         # Write PDF header and footer
         self.buffer.write(b"%PDF-1.4\n")
         self.buffer.write(b"\n%%EOF")

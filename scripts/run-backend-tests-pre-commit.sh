@@ -14,8 +14,24 @@ if ! command -v pytest > /dev/null 2>&1; then
     exit 0
 fi
 
-# Get changed Python files (exclude .claude/)
-PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
+# Get changed Python files
+# For pre-commit: check staged files
+# For pre-push: check files between HEAD and remote branch
+if [ -n "${PRE_COMMIT:-}" ]; then
+    # Pre-commit hook: check staged files
+    PYTHON_CHANGES=$(git diff --cached --name-only --diff-filter=ACM | grep "\.py$" | grep -v "^\.claude/" || true)
+else
+    # Pre-push hook: check files between local and remote
+    REMOTE_BRANCH="${1:-origin/$(git rev-parse --abbrev-ref HEAD)}"
+    PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD "$REMOTE_BRANCH" 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
+    # Fallback: if remote branch doesn't exist, check all commits in current branch
+    if [ -z "$PYTHON_CHANGES" ] && ! git rev-parse --verify "$REMOTE_BRANCH" >/dev/null 2>&1; then
+        BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || echo "")
+        if [ -n "$BASE" ]; then
+            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+        fi
+    fi
+fi
 
 if [ -z "$PYTHON_CHANGES" ]; then
     echo "ℹ️  No Python files changed"
@@ -70,4 +86,3 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
 else
     echo "ℹ️  No corresponding test files found for changed Python files"
 fi
-
