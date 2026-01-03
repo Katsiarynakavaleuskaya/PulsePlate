@@ -62,6 +62,7 @@ def test_export_shoplist_to_pdf_covers_packed_metadata_and_totals() -> None:
 
 
 def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that exceptions in PDF generation are wrapped as RuntimeError."""
     class _BoomDoc:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
@@ -69,7 +70,36 @@ def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch
         def build(self, _elements: object) -> None:
             raise ValueError("boom")
 
-    monkeypatch.setattr(pdf_export, "SimpleDocTemplate", _BoomDoc)
+    # Monkeypatch _lazy_reportlab to return _BoomDoc instead of SimpleDocTemplate
+    real_lazy = pdf_export._lazy_reportlab
+
+    def _mock_lazy_reportlab():
+        (
+            colors,
+            A4,
+            getSampleStyleSheet,
+            mm,
+            Flowable,
+            Paragraph,
+            _SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        ) = real_lazy()
+        return (
+            colors,
+            A4,
+            getSampleStyleSheet,
+            mm,
+            Flowable,
+            Paragraph,
+            _BoomDoc,
+            Spacer,
+            Table,
+            TableStyle,
+        )
+
+    monkeypatch.setattr(pdf_export, "_lazy_reportlab", _mock_lazy_reportlab)
 
     response = ShoplistGenerateResponse(
         packed=[],

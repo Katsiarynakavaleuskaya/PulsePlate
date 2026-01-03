@@ -354,6 +354,18 @@ class TestExportEndpointPdfImportError:
 
         assert response.status_code == 501
         data = response.json()
-        # Verify frozen error contract
-        assert "detail" in data
-        assert data["detail"] == "PDF export is not available"
+
+        # Verify content-type is NOT application/pdf for 501
+        assert response.headers.get("content-type") != "application/pdf"
+
+        # Verify frozen error contract (supports both default FastAPI and VIP envelope)
+        assert (
+            data.get("detail") == "PDF export is not available"
+            or data.get("message") == "PDF export is not available"
+        )
+
+        # If VIP error envelope is present, verify invariants
+        if "status" in data:
+            assert data["status"] == "error"
+            assert data["detail"] == data["message"]
+            assert data["error"] == data["code"]

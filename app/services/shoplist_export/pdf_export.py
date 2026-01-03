@@ -25,6 +25,21 @@ from app.schemas.vip_shoplist import (
 )
 
 
+_REPORTLAB_UNSET = object()
+
+# reportlab is an optional dependency; keep module import-safe by initializing these lazily
+colors: Any = _REPORTLAB_UNSET
+A4: Any = _REPORTLAB_UNSET
+getSampleStyleSheet: Any = _REPORTLAB_UNSET
+mm: Any = _REPORTLAB_UNSET
+Flowable: Any = _REPORTLAB_UNSET
+Paragraph: Any = _REPORTLAB_UNSET
+SimpleDocTemplate: Any = _REPORTLAB_UNSET
+Spacer: Any = _REPORTLAB_UNSET
+Table: Any = _REPORTLAB_UNSET
+TableStyle: Any = _REPORTLAB_UNSET
+
+
 def _fmt_decimal(value: Decimal | None) -> str:
     """
     RU: Decimal -> строка без scientific notation.
@@ -87,11 +102,56 @@ def _lazy_reportlab():
     Returns:
         Tuple of reportlab components: (colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
     """
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet
-    from reportlab.lib.units import mm
-    from reportlab.platypus import Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    global A4, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, colors, getSampleStyleSheet, mm
+
+    if any(
+        value is _REPORTLAB_UNSET
+        for value in (
+            colors,
+            A4,
+            getSampleStyleSheet,
+            mm,
+            Flowable,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
+    ):
+        from reportlab.lib import colors as _colors
+        from reportlab.lib.pagesizes import A4 as _A4
+        from reportlab.lib.styles import getSampleStyleSheet as _getSampleStyleSheet
+        from reportlab.lib.units import mm as _mm
+        from reportlab.platypus import (
+            Flowable as _Flowable,
+            Paragraph as _Paragraph,
+            SimpleDocTemplate as _SimpleDocTemplate,
+            Spacer as _Spacer,
+            Table as _Table,
+            TableStyle as _TableStyle,
+        )
+
+        if colors is _REPORTLAB_UNSET:
+            colors = _colors
+        if A4 is _REPORTLAB_UNSET:
+            A4 = _A4
+        if getSampleStyleSheet is _REPORTLAB_UNSET:
+            getSampleStyleSheet = _getSampleStyleSheet
+        if mm is _REPORTLAB_UNSET:
+            mm = _mm
+        if Flowable is _REPORTLAB_UNSET:
+            Flowable = _Flowable
+        if Paragraph is _REPORTLAB_UNSET:
+            Paragraph = _Paragraph
+        if SimpleDocTemplate is _REPORTLAB_UNSET:
+            SimpleDocTemplate = _SimpleDocTemplate
+        if Spacer is _REPORTLAB_UNSET:
+            Spacer = _Spacer
+        if Table is _REPORTLAB_UNSET:
+            Table = _Table
+        if TableStyle is _REPORTLAB_UNSET:
+            TableStyle = _TableStyle
 
     return colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
@@ -113,6 +173,7 @@ class PdfLine:
     price: str
     subtotal: str
     subtotal_value: Decimal
+    currency_code: str | None  # Currency code (e.g., "EUR", "USD") or None
 
 
 def _sort_key(line: PackedLineDTO | UnpackedLineDTO) -> tuple[bool, str, bool, str, str]:
@@ -163,6 +224,7 @@ def build_pdf_lines(response: ShoplistGenerateResponse) -> list[PdfLine]:
         price_str = ""
         subtotal_str = ""
         subtotal_value = Decimal("0")
+        currency_code: str | None = None
 
         if isinstance(line, PackedLineDTO):
             packs = int(line.packs)
@@ -193,6 +255,7 @@ def build_pdf_lines(response: ShoplistGenerateResponse) -> list[PdfLine]:
                 price=price_str,
                 subtotal=subtotal_str,
                 subtotal_value=subtotal_value,
+                currency_code=currency_code,
             )
         )
     return out
@@ -215,9 +278,18 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         PDF data as bytes
     """
     # Lazy import reportlab to keep module import-safe
-    colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle = (
-        _lazy_reportlab()
-    )
+    (
+        colors,
+        A4,
+        getSampleStyleSheet,
+        mm,
+        Flowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    ) = _lazy_reportlab()
 
     buffer: io.BytesIO | None = None
     try:
@@ -344,11 +416,9 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
                         ]
                     )
                     aisle_subtotal += pdf_line.subtotal_value
-                    if currency_code is None and pdf_line.price:
-                        # Extract currency from first price (assume all same currency)
-                        currency_code = (
-                            pdf_line.price.split()[-1] if " " in pdf_line.price else None
-                        )
+                    # Use currency_code from PdfLine (no string parsing)
+                    if currency_code is None and pdf_line.currency_code:
+                        currency_code = pdf_line.currency_code
 
                 # Aisle subtotal
                 if aisle:
@@ -398,8 +468,14 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         # Make store/aisle headers and totals bold
         for row_idx, row in enumerate(table_data):
             if row_idx > 0:  # Skip header
-                cell_value = str(row[0]) if row else ""
-                if cell_value.startswith("STORE:") or cell_value.startswith("  Aisle:") or cell_value.startswith("Subtotal") or cell_value.startswith("GRAND TOTAL"):
+                col0 = str(row[0]) if len(row) > 0 and row[0] is not None else ""
+                col4 = str(row[4]) if len(row) > 4 and row[4] is not None else ""
+                if (
+                    col0.startswith("STORE:")
+                    or col0.startswith("  Aisle:")
+                    or col4.startswith("Subtotal")
+                    or col4.startswith("GRAND TOTAL")
+                ):
                     style_commands.append(("FONTNAME", (0, row_idx), (-1, row_idx), "Helvetica-Bold"))
         table.setStyle(TableStyle(style_commands))
         elements.append(table)
