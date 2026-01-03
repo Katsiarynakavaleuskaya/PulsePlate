@@ -54,7 +54,7 @@ Product-quality PDF export for VIP shoplist endpoint (`/api/v1/vip/shoplist/expo
 
 ## Files changed
 
-```
+```text
 app/services/shoplist_export/pdf_export.py  | 442 ++++++++++++++++++++++++-----
 tests/vip/test_pdf_export_pr8b.py          | 362 +++++++++++++++++++++++
 tests/vip/test_pdf_export_diff_coverage.py |  35 ++-
