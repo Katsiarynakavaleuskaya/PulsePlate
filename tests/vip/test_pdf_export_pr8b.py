@@ -16,17 +16,11 @@ from fastapi.testclient import TestClient
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
-    QuantityDTO,
     ShoplistGenerateResponse,
-    UnitDTO,
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
-
-
-def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
-    """Helper to create QuantityDTO."""
-    return QuantityDTO(value=Decimal(value), unit=unit)
+from tests.vip.helpers import qty
 
 
 class TestBuildPdfLinesDeterministic:

@@ -10,4 +10,3 @@ from app.schemas.vip_shoplist import QuantityDTO, UnitDTO
 
 def qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
     return QuantityDTO(value=Decimal(value), unit=unit)
-

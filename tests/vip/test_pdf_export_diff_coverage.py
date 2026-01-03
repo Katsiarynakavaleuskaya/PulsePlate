@@ -101,11 +101,11 @@ def test_export_shoplist_to_pdf_covers_first_catalog_scan_filter_branches() -> N
 
     packed_no_catalog = PackedLineDTO(
         food_id="no-catalog-first",
-        requested=_qty("100"),
-        pack_size=_qty("100"),
+        requested=qty("100"),
+        pack_size=qty("100"),
         packs=1,
-        provided=_qty("100"),
-        overage=_qty("0"),
+        provided=qty("100"),
+        overage=qty("0"),
         rounding="CEIL",
         min_packs=1,
         reasons=[],
@@ -113,11 +113,11 @@ def test_export_shoplist_to_pdf_covers_first_catalog_scan_filter_branches() -> N
     )
     packed_with_catalog = PackedLineDTO(
         food_id="with-catalog-second",
-        requested=_qty("200"),
-        pack_size=_qty("100"),
+        requested=qty("200"),
+        pack_size=qty("100"),
         packs=2,
-        provided=_qty("200"),
-        overage=_qty("0"),
+        provided=qty("200"),
+        overage=qty("0"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=200 G"],

@@ -153,11 +153,11 @@ def test_build_pdf_rows_deterministic_row_types() -> None:
 
     packed = PackedLineDTO(
         food_id="carrot",
-        requested=_qty("600"),
-        pack_size=_qty("500"),
+        requested=qty("600"),
+        pack_size=qty("500"),
         packs=2,
-        provided=_qty("1000"),
-        overage=_qty("400"),
+        provided=qty("1000"),
+        overage=qty("400"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=600 G"],

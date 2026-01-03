@@ -45,4 +45,3 @@ def make_lazy_reportlab_mock(
         )
 
     return _mock
-

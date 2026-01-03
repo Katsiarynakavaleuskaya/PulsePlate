@@ -8,6 +8,8 @@ EN: Guard test: empty aisle should not generate duplicate "Aisle: —" headers.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import PackedLineDTO, ShoplistGenerateResponse
 from app.services.shoplist_export import pdf_export
@@ -62,6 +64,4 @@ def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
     aisle_rows = find_rows(rows, RowType.AISLE)
     # Empty aisle headers must not be generated (PR-8b architectural decision)
     labels = [r.cells[0] for r in aisle_rows]
-    assert (
-        "Aisle: —" not in labels
-    ), f"Empty aisle headers should not be generated, got: {labels}"
+    assert "Aisle: —" not in labels, f"Empty aisle headers should not be generated, got: {labels}"
