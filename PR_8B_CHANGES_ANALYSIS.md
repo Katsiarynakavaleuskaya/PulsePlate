@@ -88,7 +88,7 @@ mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
 declare -a DEDUPED_TEST_FILES=()
 while IFS= read -r test_file; do
     [ -n "$test_file" ] && DEDUPED_TEST_FILES+=("$test_file")
-done <<< "$(printf '%s\n' "${TEST_FILES[@]}" | sort -u)"
+done < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
 ```
 
 **Что изменилось:**
@@ -258,7 +258,7 @@ def test_export_shoplist_to_pdf_re_raises_importerror(monkeypatch):
 ---
 
 ### 2. **Shallow repos в CI — скрытая проблема**
-Проблема с `HEAD~10` в shallow checkout не была очевидна до тех пор, пока CI не начал падать с неясными ошибками. Оказалось, что многие CI-системы используют `--depth=1` для экономии времени, что ломает логику, основанную на фиксированной глубине истории.
+Проблема с `HEAD~10` при ограниченной глубине истории checkout не была очевидна до тех пор, пока CI не начал падать с неясными ошибками. Оказалось, что многие CI-системы используют `--depth=1` для экономии времени, что ломает логику, основанную на фиксированной глубине истории.
 
 **Урок:** Всегда проверять реальную глубину истории перед использованием `HEAD~N`, особенно в pre-push hooks.
 

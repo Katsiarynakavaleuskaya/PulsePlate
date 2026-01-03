@@ -308,7 +308,8 @@ class TestExportShoplistToPdfBytes:
 
         # Verify PDF header
         assert pdf_data.startswith(b"%PDF")
-        # Verify non-empty (should be at least 500 bytes for a simple PDF)
+        # 500 bytes is a conservative minimum for this simple fixture (PDF header, basic objects,
+        # and trailer); adjust if the test fixture or PDF structure changes.
         assert len(pdf_data) > 500
 
 
