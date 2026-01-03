@@ -22,7 +22,7 @@ R = TypeVar("R")
 logger = logging.getLogger(__name__)
 
 
-def _safe_truncated_repr(value: Any, *, limit: int = 1000) -> str:
+def _safe_truncated_repr(value: Any, *, limit: int = 1000) -> str:  # noqa: ANN401
     try:
         text = repr(value)
     except Exception as exc:  # pragma: no cover
