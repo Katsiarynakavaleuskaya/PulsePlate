@@ -107,13 +107,8 @@ class TestVIPCoverageBoost:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_missing_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест VIP regions когда get_available_regions недоступен"""
-
-        import app.routers.vip as vip_module
-
-        monkeypatch.setattr(vip_module, "get_available_regions", None)
-
+    def test_vip_regions_endpoint_success(self) -> None:
+        """Тест VIP regions endpoint: возвращает success и список регионов"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
@@ -124,11 +119,17 @@ class TestVIPCoverageBoost:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "error"
-        assert (
-            "provider" in data.get("detail", "").lower()
-            or "provider" in data.get("message", "").lower()
-        )
+        # Function is now implemented and returns success with regions list
+        assert data["status"] == "success", f"Expected success, got: {data}"
+        assert "regions" in data, f"Expected 'regions' key in response, got: {data}"
+        assert isinstance(data["regions"], list), f"Expected regions to be a list, got: {data}"
+        if data["regions"]:
+            assert all(
+                isinstance(r, str) for r in data["regions"]
+            ), "Expected all regions to be strings"
+        # Verify response structure matches API contract
+        if "total_regions" in data:
+            assert data["total_regions"] == len(data["regions"])
 
     def test_vip_recipe_synthesis_missing_function(self):
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""

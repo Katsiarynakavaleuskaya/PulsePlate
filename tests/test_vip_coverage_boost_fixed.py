@@ -6,7 +6,6 @@ RU: Исправленные тесты для VIP модуля с правил�
 EN: Fixed VIP module tests with correct endpoints
 """
 
-import sys
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -29,14 +28,9 @@ def _get_app():
 class TestVIPCoverageBoostFixed:
     """Fixed VIP coverage tests with correct endpoint paths."""
 
-    def test_vip_weekly_plan_missing_function(self):
+    def test_vip_weekly_plan_missing_function(self) -> None:
         """Тест VIP weekly plan когда make_weekly_menu недоступен"""
         with patch("app.routers.vip.make_weekly_menu", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
             client = TestClient(_get_app())
 
             response = client.post(
@@ -46,7 +40,7 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch):
+    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест VIP shoplist weekly endpoint with new API format"""
         import app
 
@@ -100,30 +94,43 @@ class TestVIPCoverageBoostFixed:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_missing_function(self):
-        """Тест VIP regions когда get_available_regions недоступен"""
-        with patch("app.routers.vip.get_available_regions", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
+    def test_vip_regions_missing_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Тест VIP regions когда get_available_regions недоступен.
 
-            client = TestClient(_get_app())
+        Patch the actual route endpoint globals (not just the module attribute) to avoid
+        flakiness if the suite ends up with multiple loaded module instances.
+        """
+        app = _get_app()
+        endpoint = None
+        for route in getattr(app, "routes", []):
+            if getattr(route, "path", None) != "/api/v1/vip/regions":
+                continue
+            methods = getattr(route, "methods", None) or set()
+            if "GET" not in methods:
+                continue
+            endpoint = getattr(route, "endpoint", None)
+            break
 
-            response = client.get(
-                "/api/v1/vip/regions",
-                headers={"X-API-Key": "test_key"},
-            )
-            assert response.status_code == 200
+        assert endpoint is not None, "VIP regions route endpoint not found"
+        monkeypatch.setitem(getattr(endpoint, "__globals__", {}), "get_available_regions", None)
 
-    def test_vip_recipe_synthesis_missing_function(self):
+        client = TestClient(app)
+
+        response = client.get(
+            "/api/v1/vip/regions",
+            headers={"X-API-Key": "test_key"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "error", f"Expected error, got: {data}"
+        assert data["code"] == "region_provider_unavailable"
+        assert data["detail"] == data["message"]
+        assert data["error"] == data["code"]
+        assert data["regions"] == []
+
+    def test_vip_recipe_synthesis_missing_function(self) -> None:
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""
         with patch("app.routers.vip.get_recipe_synthesizer", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
             client = TestClient(_get_app())
 
             response = client.post(
@@ -133,14 +140,9 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_auto_repair_missing_function(self):
+    def test_vip_auto_repair_missing_function(self) -> None:
         """Тест VIP auto repair когда get_auto_repair_engine недоступен"""
         with patch("app.routers.vip.get_auto_repair_engine", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
             client = TestClient(_get_app())
 
             response = client.post(
@@ -150,7 +152,7 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_with_all_functions_working(self, monkeypatch):
+    def test_vip_with_all_functions_working(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест VIP endpoints с функциональными мок-функциями"""
         import app
 
@@ -183,11 +185,6 @@ class TestVIPCoverageBoostFixed:
             patch("app.routers.vip.get_recipe_synthesizer", mock_get_recipe_synthesizer),
             patch("app.routers.vip.get_auto_repair_engine", mock_get_auto_repair_engine),
         ):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
             client = TestClient(_get_app())
 
             # Тест weekly plan
@@ -273,7 +270,7 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_error_handling_paths(self, monkeypatch):
+    def test_vip_error_handling_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест VIP error handling когда функции поднимают исключения"""
         # Моксим функции чтобы они поднимали исключения
         mock_make_weekly_menu = MagicMock()
@@ -286,11 +283,6 @@ class TestVIPCoverageBoostFixed:
             patch("app.routers.vip.make_weekly_menu", mock_make_weekly_menu),
             patch("app.routers.vip.ShoplistGenerator", mock_shoplist_generator),
         ):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
             client = TestClient(_get_app())
 
             # Тест weekly plan error
@@ -342,7 +334,7 @@ class TestVIPCoverageBoostFixed:
             finally:
                 app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_health_endpoint(self):
+    def test_vip_health_endpoint(self) -> None:
         """Тест VIP health endpoint"""
         client = TestClient(_get_app())
 
