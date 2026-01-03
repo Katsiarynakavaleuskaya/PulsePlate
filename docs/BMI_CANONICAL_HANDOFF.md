@@ -33,4 +33,3 @@
 ## Notes
 
 - `category=None` is valid for `pregnant`, `too_young`, `child`, `teen` (medical disclaimer).
-
