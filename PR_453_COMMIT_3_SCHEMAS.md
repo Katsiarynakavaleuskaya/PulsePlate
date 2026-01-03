@@ -158,4 +158,3 @@ feat(api): add BMI request/response schemas
 - `POST /api/v1/bmi/calculate`
 - Использует `BMICalculateRequest` / `BMICalculateResponse`
 - Вызывает `core/bmi/engine.calculate_bmi_result()`
-
