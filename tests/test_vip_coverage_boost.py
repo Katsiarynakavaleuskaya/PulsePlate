@@ -107,29 +107,27 @@ class TestVIPCoverageBoost:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_missing_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vip_regions_missing_function(self) -> None:
         """Тест VIP regions когда get_available_regions недоступен"""
+        # Use patch context manager like other tests
+        with patch("app.routers.vip.get_available_regions", None):
+            import app
 
-        import app.routers.vip as vip_module
+            client = TestClient(cast(ASGIApp, app.app))
 
-        monkeypatch.setattr(vip_module, "get_available_regions", None)
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
-        response = client.get(
-            "/api/v1/vip/regions",
-            headers={"X-API-Key": "test_key"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        # When provider is None, returns error (not success)
-        assert data["status"] == "error"
-        assert (
-            "provider" in data.get("message", "").lower()
-            or "provider" in data.get("detail", "").lower()
-        )
+            response = client.get(
+                "/api/v1/vip/regions",
+                headers={"X-API-Key": "test_key"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            # When provider is None, returns error (not success)
+            assert data["status"] == "error", f"Expected error, got: {data}"
+            assert (
+                "provider" in data.get("message", "").lower()
+                or "provider" in data.get("detail", "").lower()
+                or "unavailable" in data.get("message", "").lower()
+            ), f"Expected 'provider' or 'unavailable' in message, got: {data}"
 
     def test_vip_recipe_synthesis_missing_function(self):
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""

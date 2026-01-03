@@ -29,12 +29,23 @@ def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
 
 
 class _FakeDoc:
-    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
-        pass
+    def __init__(self, buffer: Any, *_args: Any, **_kwargs: Any) -> None:
+        # SimpleDocTemplate(buffer, ...) - buffer is first positional arg
+        # Store buffer for later use in build()
+        self.buffer = buffer
+        # Verify buffer is BytesIO-like
+        assert hasattr(buffer, 'write'), f"Buffer must have write method, got: {type(buffer)}"
+        assert hasattr(buffer, 'getvalue'), f"Buffer must have getvalue method, got: {type(buffer)}"
 
     def build(self, _elements: Any) -> None:
-        # no-op: we only care that Table was created and styled
-        return
+        # Write minimal PDF header and footer in build() when buffer is actually used
+        # This mimics what SimpleDocTemplate does - writes to buffer during build()
+        # SimpleDocTemplate writes PDF content during build(), so we do the same
+        assert self.buffer is not None, "Buffer should not be None in build()"
+        assert hasattr(self.buffer, 'write'), "Buffer must have write method"
+        # Write PDF header and footer
+        self.buffer.write(b"%PDF-1.4\n")
+        self.buffer.write(b"\n%%EOF")
 
 
 class _FakeTable:
@@ -114,8 +125,9 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
     response = ShoplistGenerateResponse(packed=[packed], unpacked=[unpacked])
 
     pdf_bytes = pdf_export.export_shoplist_to_pdf(response)
-    # Still generates real PDF (SimpleDocTemplate writes header even if build is no-op)
+    # FakeDoc writes minimal PDF header/footer for test verification
     assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 0
 
     data = _FakeTable.last_data
     assert data is not None

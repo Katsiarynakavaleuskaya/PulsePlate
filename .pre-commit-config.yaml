@@ -162,6 +162,15 @@ repos:
         stages: [pre-commit]
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
 
+      # backend tests — run on pre-commit if Python files changed
+      - id: backend-tests
+        name: backend tests (pytest, changed files)
+        entry: bash scripts/run-backend-tests-pre-commit.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^(?!frontend/|\.claude/).+\.py$
+
       # ios syntax check — run on pre-commit if iOS files changed (macOS only)
       - id: ios-syntax-check
         name: ios syntax check (swift)
