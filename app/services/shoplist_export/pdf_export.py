@@ -16,6 +16,8 @@ import io
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import Enum
+from functools import lru_cache
 from typing import Any, Tuple
 
 from app.schemas.catalog import CurrencyDTO
@@ -24,21 +26,6 @@ from app.schemas.vip_shoplist import (
     ShoplistGenerateResponse,
     UnpackedLineDTO,
 )
-
-
-_REPORTLAB_UNSET = object()
-
-# reportlab is an optional dependency; keep module import-safe by initializing these lazily
-colors: Any = _REPORTLAB_UNSET
-A4: Any = _REPORTLAB_UNSET
-getSampleStyleSheet: Any = _REPORTLAB_UNSET
-mm: Any = _REPORTLAB_UNSET
-Flowable: Any = _REPORTLAB_UNSET
-Paragraph: Any = _REPORTLAB_UNSET
-SimpleDocTemplate: Any = _REPORTLAB_UNSET
-Spacer: Any = _REPORTLAB_UNSET
-Table: Any = _REPORTLAB_UNSET
-TableStyle: Any = _REPORTLAB_UNSET
 
 
 def _fmt_decimal(value: Decimal | None) -> str:
@@ -64,6 +51,31 @@ def _fmt_quantity(value: Decimal | None, unit: str | None) -> str:
 
 # Money formatting constants
 MONEY_Q = Decimal("0.01")
+
+
+class PdfRowType(str, Enum):
+    """
+    RU: Тип строки для стилизации таблицы без "магических" префиксов.
+    EN: Row type used for table styling without string-prefix heuristics.
+    """
+
+    HEADER = "header"
+    STORE = "store"
+    AISLE = "aisle"
+    ITEM = "item"
+    SUBTOTAL = "subtotal"
+    GRAND_TOTAL = "grand_total"
+
+
+@dataclass(frozen=True)
+class PdfRow:
+    """
+    RU: Одна строка PDF-таблицы.
+    EN: One PDF table row.
+    """
+
+    row_type: PdfRowType
+    cells: list[str]
 
 
 def _fmt_money(value: Decimal | None, currency: str | None) -> str:
@@ -95,77 +107,24 @@ def _get_reason_str(line: PackedLineDTO | UnpackedLineDTO) -> str:
     return line.reason or ""
 
 
+@lru_cache(maxsize=1)
 def _lazy_reportlab() -> Tuple[Any, ...]:
     """
     RU: Ленивый импорт reportlab (модуль должен импортироваться без reportlab).
     EN: Lazy import reportlab (module must be import-safe without reportlab).
 
+    Uses @lru_cache for thread-safe atomic initialization.
+
     Returns:
-        Tuple of reportlab components: (colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
+        Tuple of reportlab components: (colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle)
     """
-    global A4, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, colors, getSampleStyleSheet, mm
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    if any(
-        value is _REPORTLAB_UNSET
-        for value in (
-            colors,
-            A4,
-            getSampleStyleSheet,
-            mm,
-            Flowable,
-            Paragraph,
-            SimpleDocTemplate,
-            Spacer,
-            Table,
-            TableStyle,
-        )
-    ):
-        from reportlab.lib import colors as _colors
-        from reportlab.lib.pagesizes import A4 as _A4
-        from reportlab.lib.styles import getSampleStyleSheet as _getSampleStyleSheet
-        from reportlab.lib.units import mm as _mm
-        from reportlab.platypus import (
-            Flowable as _Flowable,
-            Paragraph as _Paragraph,
-            SimpleDocTemplate as _SimpleDocTemplate,
-            Spacer as _Spacer,
-            Table as _Table,
-            TableStyle as _TableStyle,
-        )
-
-        if colors is _REPORTLAB_UNSET:
-            colors = _colors
-        if A4 is _REPORTLAB_UNSET:
-            A4 = _A4
-        if getSampleStyleSheet is _REPORTLAB_UNSET:
-            getSampleStyleSheet = _getSampleStyleSheet
-        if mm is _REPORTLAB_UNSET:
-            mm = _mm
-        if Flowable is _REPORTLAB_UNSET:
-            Flowable = _Flowable
-        if Paragraph is _REPORTLAB_UNSET:
-            Paragraph = _Paragraph
-        if SimpleDocTemplate is _REPORTLAB_UNSET:
-            SimpleDocTemplate = _SimpleDocTemplate
-        if Spacer is _REPORTLAB_UNSET:
-            Spacer = _Spacer
-        if Table is _REPORTLAB_UNSET:
-            Table = _Table
-        if TableStyle is _REPORTLAB_UNSET:
-            TableStyle = _TableStyle
-
-    return (
-        colors,
-        A4,
-        getSampleStyleSheet,
-        mm,
-        Flowable,
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
+    return colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 @dataclass(frozen=True)
@@ -271,6 +230,155 @@ def build_pdf_lines(response: ShoplistGenerateResponse) -> list[PdfLine]:
     return out
 
 
+def _pick_currency(currency_codes: set[str]) -> str | None:
+    """Pick first currency from set (all should be same by invariant)."""
+    for c in currency_codes:
+        return c
+    return None
+
+
+def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
+    """
+    RU: Готовит строки для PDF (pure, без reportlab).
+    EN: Prepares PDF rows (pure, no reportlab).
+
+    Ordering:
+    - store_id (non-empty first; empty last)
+    - aisle (non-empty first; empty last)
+    - food_id
+
+    Args:
+        response: ShoplistGenerateResponse from generate endpoint
+
+    Returns:
+        List of PdfRow objects with row_type for styling
+    """
+    all_lines: list[PackedLineDTO | UnpackedLineDTO] = [*response.packed, *response.unpacked]
+    sorted_lines = sorted(all_lines, key=_sort_key)
+
+    # Header row
+    rows: list[PdfRow] = [
+        PdfRow(
+            row_type=PdfRowType.HEADER,
+            cells=["Food ID", "Requested", "Pack Size", "Packs", "Reason", "Price", "Subtotal"],
+        )
+    ]
+
+    # Group: store -> aisle
+    current_store: str | None = None
+    current_aisle: str | None = None
+    aisle_subtotal = Decimal("0")
+    grand_total = Decimal("0")
+    currency_codes: set[str] = set()
+
+    def _store_id(line: PackedLineDTO | UnpackedLineDTO) -> str:
+        return line.catalog.store_id if (line.catalog and line.catalog.store_id) else ""
+
+    def _aisle(line: PackedLineDTO | UnpackedLineDTO) -> str:
+        return line.catalog.aisle if (line.catalog and line.catalog.aisle) else ""
+
+    def flush_aisle_subtotal() -> None:
+        nonlocal aisle_subtotal, grand_total, current_aisle
+        if current_aisle is None:
+            return
+        aisle_currency = _pick_currency(currency_codes)
+        rows.append(
+            PdfRow(
+                row_type=PdfRowType.SUBTOTAL,
+                cells=["", "", "", "", f"Subtotal ({current_aisle}):", "", _fmt_money(aisle_subtotal, aisle_currency)],
+            )
+        )
+        grand_total += aisle_subtotal
+        aisle_subtotal = Decimal("0")
+        current_aisle = None
+
+    for line in sorted_lines:
+        store_id = _store_id(line)
+        aisle = _aisle(line)
+
+        if current_store != store_id:
+            # Store changed => flush previous aisle subtotal
+            flush_aisle_subtotal()
+            current_store = store_id
+            current_aisle = None
+            rows.append(
+                PdfRow(
+                    row_type=PdfRowType.STORE,
+                    cells=[f"Store: {store_id or '—'}", "", "", "", "", "", ""],
+                )
+            )
+
+        if current_aisle != aisle:
+            # Aisle changed => flush previous aisle subtotal
+            flush_aisle_subtotal()
+            current_aisle = aisle if aisle else None
+            rows.append(
+                PdfRow(
+                    row_type=PdfRowType.AISLE,
+                    cells=[f"Aisle: {aisle or '—'}", "", "", "", "", "", ""],
+                )
+            )
+
+        requested_qty = _fmt_quantity(line.requested.value, line.requested.unit) if line.requested else ""
+        pack_size_qty = ""
+        packs_str = ""
+        price_str = ""
+        subtotal_str = ""
+        subtotal_value = Decimal("0")
+
+        reason_str = _get_reason_str(line)
+
+        if isinstance(line, PackedLineDTO):
+            pack_size_qty = (
+                _fmt_quantity(line.pack_size.value, line.pack_size.unit) if line.pack_size else ""
+            )
+            packs_str = str(line.packs)
+
+            if line.catalog and line.catalog.price:
+                currency = line.catalog.price.currency
+                currency_code = currency.value if isinstance(currency, CurrencyDTO) else str(currency)
+                currency_codes.add(currency_code)
+                price_str = _fmt_money(line.catalog.price.value, currency_code)
+                subtotal_value = line.catalog.price.value * Decimal(int(line.packs))
+                subtotal_str = _fmt_money(subtotal_value, currency_code)
+
+        aisle_subtotal += subtotal_value
+
+        rows.append(
+            PdfRow(
+                row_type=PdfRowType.ITEM,
+                cells=[
+                    line.food_id,
+                    requested_qty,
+                    pack_size_qty,
+                    packs_str,
+                    reason_str,
+                    price_str,
+                    subtotal_str,
+                ],
+            )
+        )
+
+    # Flush last aisle subtotal
+    flush_aisle_subtotal()
+
+    # Defensive guard: mixed currencies are not supported by design.
+    # If this invariant is ever broken upstream, fail loudly (caller masks in production).
+    if len(currency_codes) > 1:
+        raise ValueError("Mixed currencies in VIP shoplist are not supported")
+
+    # Grand total row
+    grand_total_currency: str | None = _pick_currency(currency_codes)
+    rows.append(
+        PdfRow(
+            row_type=PdfRowType.GRAND_TOTAL,
+            cells=["", "", "", "", "Total", "", _fmt_money(grand_total, grand_total_currency)],
+        )
+    )
+
+    return rows
+
+
 def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
     """
     RU: Экспортирует shoplist в PDF (строго детерминированно).
@@ -288,18 +396,9 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         PDF data as bytes
     """
     # Lazy import reportlab to keep module import-safe
-    (
-        colors,
-        A4,
-        getSampleStyleSheet,
-        mm,
-        Flowable,
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    ) = _lazy_reportlab()
+    colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle = (
+        _lazy_reportlab()
+    )
 
     buffer: io.BytesIO | None = None
     try:
@@ -320,20 +419,12 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
         elements.append(Paragraph("PulsePlate — VIP Shoplist", styles["Title"]))
         elements.append(Spacer(1, 5 * mm))
 
-        # Build PDF lines (pure data preparation)
-        pdf_lines: list[PdfLine] = build_pdf_lines(response)
-
         # Metadata (extract from first non-empty catalog if available)
         meta_info: list[str] = []
-        # Find first non-empty catalog from original response
         all_original_lines: list[PackedLineDTO | UnpackedLineDTO] = []
         all_original_lines.extend(response.packed)
         all_original_lines.extend(response.unpacked)
-        first_catalog = None
-        for line in all_original_lines:
-            if line.catalog:
-                first_catalog = line.catalog
-                break
+        first_catalog = next((line.catalog for line in all_original_lines if line.catalog), None)
         if first_catalog:
             if first_catalog.region_id:
                 meta_info.append(f"Region ID: {first_catalog.region_id}")
@@ -343,152 +434,39 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
             elements.append(Paragraph(" | ".join(meta_info), styles["Normal"]))
             elements.append(Spacer(1, 5 * mm))
 
-        # Group lines by store → aisle
-        # Structure: {store_id: {aisle: [lines]}}
-        grouped: dict[str, dict[str, list[PdfLine]]] = {}
-        for pdf_line in pdf_lines:
-            store_id = pdf_line.store_id or ""
-            aisle = pdf_line.aisle or ""
-            if store_id not in grouped:
-                grouped[store_id] = {}
-            if aisle not in grouped[store_id]:
-                grouped[store_id][aisle] = []
-            grouped[store_id][aisle].append(pdf_line)
-
-        # Build table with grouping and subtotals
-        table_data: list[list[str]] = [
-            [
-                "Food ID",
-                "Requested",
-                "Pack Size",
-                "Packs",
-                "Reason",
-                "Price",
-                "Subtotal",
-            ]
-        ]
-
-        grand_total = Decimal("0")
-        currency_code: str | None = None
-
-        # Sort stores (non-empty first)
-        sorted_stores = sorted(grouped.keys(), key=lambda s: (s == "", s))
-
-        for store_id in sorted_stores:
-            store_lines = grouped[store_id]
-            # Store header
-            if store_id:
-                table_data.append(
-                    [
-                        f"STORE: {store_id}",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                        "",
-                    ]
-                )
-
-            # Sort aisles (non-empty first)
-            sorted_aisles = sorted(store_lines.keys(), key=lambda a: (a == "", a))
-
-            for aisle in sorted_aisles:
-                aisle_lines = store_lines[aisle]
-                aisle_subtotal = Decimal("0")
-
-                # Aisle header
-                if aisle:
-                    table_data.append(
-                        [
-                            f"  Aisle: {aisle}",
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                        ]
-                    )
-
-                # Items in aisle
-                for pdf_line in aisle_lines:
-                    packs_str = str(pdf_line.packs) if pdf_line.packs is not None else ""
-                    table_data.append(
-                        [
-                            pdf_line.food_id,
-                            pdf_line.requested,
-                            pdf_line.pack_size,
-                            packs_str,
-                            pdf_line.reason,
-                            pdf_line.price,
-                            pdf_line.subtotal,
-                        ]
-                    )
-                    aisle_subtotal += pdf_line.subtotal_value
-                    # Use currency_code from PdfLine (no string parsing)
-                    if currency_code is None and pdf_line.currency_code:
-                        currency_code = pdf_line.currency_code
-
-                # Aisle subtotal
-                if aisle:
-                    subtotal_str = _fmt_money(aisle_subtotal, currency_code)
-                    table_data.append(
-                        [
-                            "",
-                            "",
-                            "",
-                            "",
-                            f"Subtotal ({aisle}):",
-                            "",
-                            subtotal_str,
-                        ]
-                    )
-
-                grand_total += aisle_subtotal
-
-        # Grand total row
-        grand_total_str = _fmt_money(grand_total, currency_code)
-        table_data.append(
-            [
-                "",
-                "",
-                "",
-                "",
-                "GRAND TOTAL:",
-                "",
-                grand_total_str,
-            ]
-        )
+        # Build PDF rows (pure data preparation with row types)
+        rows = build_pdf_rows(response)
+        table_data = [row.cells for row in rows]
 
         table = Table(table_data)
-        # Build style commands
+
+        # Styling by row_type, not by string parsing
         style_commands: list[tuple[Any, ...]] = [
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
             ("ALIGN", (5, 1), (6, -1), "RIGHT"),  # Price and Subtotal right-aligned
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-            ("BOTTOMPADDING", (0, 0), (-1, 0), 6),
             ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
             ("LEFTPADDING", (0, 0), (-1, -1), 2),
             ("RIGHTPADDING", (0, 0), (-1, -1), 2),
         ]
-        # Make store/aisle headers and totals bold
-        for row_idx, row in enumerate(table_data):
-            if row_idx > 0:  # Skip header
-                col0 = str(row[0]) if len(row) > 0 and row[0] is not None else ""
-                col4 = str(row[4]) if len(row) > 4 and row[4] is not None else ""
-                if (
-                    col0.startswith("STORE:")
-                    or col0.startswith("  Aisle:")
-                    or col4.startswith("Subtotal")
-                    or col4.startswith("GRAND TOTAL")
-                ):
-                    style_commands.append(
-                        ("FONTNAME", (0, row_idx), (-1, row_idx), "Helvetica-Bold")
-                    )
+
+        for idx, row in enumerate(rows):
+            if row.row_type == PdfRowType.HEADER:
+                style_commands.extend(
+                    [
+                        ("BACKGROUND", (0, idx), (-1, idx), colors.lightgrey),
+                        ("TEXTCOLOR", (0, idx), (-1, idx), colors.black),
+                        ("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"),
+                        ("BOTTOMPADDING", (0, idx), (-1, idx), 6),
+                    ]
+                )
+            elif row.row_type == PdfRowType.STORE:
+                style_commands.append(("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"))
+                style_commands.append(("BACKGROUND", (0, idx), (-1, idx), colors.whitesmoke))
+            elif row.row_type == PdfRowType.AISLE:
+                style_commands.append(("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"))
+            elif row.row_type in (PdfRowType.SUBTOTAL, PdfRowType.GRAND_TOTAL):
+                style_commands.append(("FONTNAME", (0, idx), (-1, idx), "Helvetica-Bold"))
+
         table.setStyle(TableStyle(style_commands))
         elements.append(table)
 

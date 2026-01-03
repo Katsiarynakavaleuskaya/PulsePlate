@@ -109,3 +109,49 @@ def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch
 
     with pytest.raises(RuntimeError, match=r"PDF generation failed"):
         pdf_export.export_shoplist_to_pdf(response)
+
+
+def test_export_shoplist_to_pdf_covers_first_catalog_scan_filter_branches() -> None:
+    """
+    Cover the `next((line.catalog for line in ... if line.catalog), None)` scan in
+    `export_shoplist_to_pdf` so branch coverage sees both filter outcomes:
+    - at least one line with `catalog is None` (filter False)
+    - at least one line with a catalog (filter True)
+    """
+    catalog = CatalogInfoDTO(
+        sku="SKU-1",
+        store_id="store-1",
+        region_id="region-1",
+        aisle="Aisle-1",
+        price=MoneyDTO(value=Decimal("1.50"), currency=CurrencyDTO.EUR),
+    )
+
+    packed_no_catalog = PackedLineDTO(
+        food_id="no-catalog-first",
+        requested=_qty("100"),
+        pack_size=_qty("100"),
+        packs=1,
+        provided=_qty("100"),
+        overage=_qty("0"),
+        rounding="CEIL",
+        min_packs=1,
+        reasons=[],
+        catalog=None,
+    )
+    packed_with_catalog = PackedLineDTO(
+        food_id="with-catalog-second",
+        requested=_qty("200"),
+        pack_size=_qty("100"),
+        packs=2,
+        provided=_qty("200"),
+        overage=_qty("0"),
+        rounding="CEIL",
+        min_packs=1,
+        reasons=["requested=200 G"],
+        catalog=catalog,
+    )
+
+    response = ShoplistGenerateResponse(packed=[packed_no_catalog, packed_with_catalog], unpacked=[])
+
+    data = pdf_export.export_shoplist_to_pdf(response)
+    assert data.startswith(b"%PDF")

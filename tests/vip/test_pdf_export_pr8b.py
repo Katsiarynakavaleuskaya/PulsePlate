@@ -360,3 +360,34 @@ class TestExportEndpointPdfImportError:
             assert data["status"] == "error"
             assert data["detail"] == data["message"]
             assert data["error"] == data["code"]
+
+
+class TestFmtMoneyEdgeCases:
+    """Test currency formatting edge cases."""
+
+    def test_fmt_money_with_currency(self) -> None:
+        """Test money formatting with currency code."""
+        from decimal import Decimal
+
+        assert pdf_export._fmt_money(Decimal("1.50"), "EUR") == "1.50 EUR"
+        assert pdf_export._fmt_money(Decimal("10.00"), "USD") == "10.00 USD"
+
+    def test_fmt_money_without_currency(self) -> None:
+        """Test money formatting without currency code."""
+        from decimal import Decimal
+
+        assert pdf_export._fmt_money(Decimal("1"), None) == "1.00"
+        assert pdf_export._fmt_money(Decimal("10.5"), "") == "10.50"
+
+    def test_fmt_money_quantize(self) -> None:
+        """Test money formatting with quantize to 0.01."""
+        from decimal import Decimal
+
+        # Should quantize to 0.01
+        assert pdf_export._fmt_money(Decimal("1.2345"), "EUR") == "1.23 EUR"
+        assert pdf_export._fmt_money(Decimal("10.999"), "USD") == "11.00 USD"
+
+    def test_fmt_money_none_value(self) -> None:
+        """Test money formatting with None value."""
+        assert pdf_export._fmt_money(None, "EUR") == ""
+        assert pdf_export._fmt_money(None, None) == ""
