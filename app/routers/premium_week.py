@@ -13,7 +13,7 @@ import logging
 from threading import Event
 from typing import Any, Dict, List, Literal, Optional, Union, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -282,7 +282,7 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
     # safe_call returns either T or an error envelope dict
     if isinstance(result, dict) and result.get("status") == "error":
         # IMPORTANT: bypass response_model validation
-        return JSONResponse(status_code=500, content=result)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
     week = result
     return WeekPlanResponse(**week)

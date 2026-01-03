@@ -154,7 +154,7 @@ def test_safe_call_production_masking_excludes_debug_ctx(monkeypatch: pytest.Mon
         boom,
         default_code="test_code",
         stage="test",
-        debug_ctx={"secret": "value", "router": "test"},
+        debug_ctx={"secret": "value", "router": "test"},  # pragma: allowlist secret
     )
 
     assert isinstance(out, dict)
@@ -162,4 +162,3 @@ def test_safe_call_production_masking_excludes_debug_ctx(monkeypatch: pytest.Mon
     # debug_ctx should not be in response
     assert "secret" not in out
     assert "router" not in out
-
