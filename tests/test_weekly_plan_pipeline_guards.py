@@ -11,11 +11,12 @@ Guarantees:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pytest
 
-from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
+from app.services.weekly_plan.pipeline import _safe_truncated_repr, run_weekly_pipeline_guarded
 
 
 def test_pipeline_skips_postprocess_when_generation_returns_error_envelope() -> None:
@@ -71,3 +72,35 @@ def test_pipeline_skips_postprocess_when_generation_returns_error_envelope() -> 
 
     # Contract: postprocess must not be called
     assert not postprocess_called, "postprocess must not be called when generation fails"
+
+
+def test_safe_truncated_repr_truncates_long_values() -> None:
+    value = "x" * 2001
+    assert _safe_truncated_repr(value) == repr(value)[:1000]
+
+
+def test_safe_truncated_repr_returns_full_repr_for_short_values() -> None:
+    value = {"a": 1}
+    assert _safe_truncated_repr(value) == repr(value)
+
+
+def test_pipeline_raises_when_generation_returns_non_dict(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.ERROR, logger="app.services.weekly_plan.pipeline")
+
+    def generation_returns_str(*, user_id: str) -> str:
+        assert user_id == "user-1"
+        return "x" * 2001
+
+    def postprocess(_week: dict[str, Any]) -> Any:
+        raise AssertionError("postprocess must not run when generation returned non-dict")
+
+    with pytest.raises(TypeError, match=r"Expected dict from generation"):
+        _ = run_weekly_pipeline_guarded(
+            generation_fn=generation_returns_str,
+            postprocess_fn=postprocess,
+            generation_kwargs={"user_id": "user-1"},
+        )
+
+    assert any(
+        "Weekly pipeline generation returned non-dict" in r.getMessage() for r in caplog.records
+    )
