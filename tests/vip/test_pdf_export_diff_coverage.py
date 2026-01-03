@@ -15,16 +15,12 @@ import pytest
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
-    QuantityDTO,
     ShoplistGenerateResponse,
-    UnitDTO,
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
-
-
-def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
-    return QuantityDTO(value=Decimal(value), unit=unit)
+from tests.vip._reportlab_lazy import make_lazy_reportlab_mock
+from tests.vip.helpers import qty
 
 
 def test_export_shoplist_to_pdf_covers_packed_metadata_and_totals() -> None:
@@ -38,17 +34,17 @@ def test_export_shoplist_to_pdf_covers_packed_metadata_and_totals() -> None:
 
     packed = PackedLineDTO(
         food_id="carrot",
-        requested=_qty("600"),
-        pack_size=_qty("500"),
+        requested=qty("600"),
+        pack_size=qty("500"),
         packs=2,
-        provided=_qty("1000"),
-        overage=_qty("400"),
+        provided=qty("1000"),
+        overage=qty("400"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=600 G", "provided=1000 G"],
         catalog=catalog,
     )
-    unpacked = UnpackedLineDTO(food_id="tomato", requested=_qty("200"))
+    unpacked = UnpackedLineDTO(food_id="tomato", requested=qty("200"))
 
     response = ShoplistGenerateResponse(packed=[packed], unpacked=[unpacked])
 
@@ -73,36 +69,15 @@ def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch
 
     # Monkeypatch _lazy_reportlab to return _BoomDoc instead of SimpleDocTemplate
     real_lazy = pdf_export._lazy_reportlab
-
-    def _mock_lazy_reportlab():
-        (
-            colors,
-            A4,
-            getSampleStyleSheet,
-            mm,
-            Paragraph,
-            _SimpleDocTemplate,
-            Spacer,
-            Table,
-            TableStyle,
-        ) = real_lazy()
-        return (
-            colors,
-            A4,
-            getSampleStyleSheet,
-            mm,
-            Paragraph,
-            _BoomDoc,
-            Spacer,
-            Table,
-            TableStyle,
-        )
-
-    monkeypatch.setattr(pdf_export, "_lazy_reportlab", _mock_lazy_reportlab)
+    monkeypatch.setattr(
+        pdf_export,
+        "_lazy_reportlab",
+        make_lazy_reportlab_mock(real_lazy, simple_doc_template=_BoomDoc),
+    )
 
     response = ShoplistGenerateResponse(
         packed=[],
-        unpacked=[UnpackedLineDTO(food_id="carrot", requested=_qty("100"))],
+        unpacked=[UnpackedLineDTO(food_id="carrot", requested=qty("100"))],
     )
 
     with pytest.raises(RuntimeError, match=r"PDF generation failed"):

@@ -11,6 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
@@ -321,7 +322,7 @@ class TestExportEndpointPdfImportError:
     """Test ImportError → 501 handling at endpoint level."""
 
     def test_export_endpoint_pdf_importerror_returns_501(
-        self, monkeypatch: pytest.MonkeyPatch, client_with_vip_access
+        self, monkeypatch: pytest.MonkeyPatch, client_with_vip_access: TestClient
     ) -> None:
         """Test that ImportError in pdf_export raises 501 with frozen error contract."""
 

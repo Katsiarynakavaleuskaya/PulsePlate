@@ -16,9 +16,7 @@ from decimal import Decimal
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
-    QuantityDTO,
     ShoplistGenerateResponse,
-    UnitDTO,
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
@@ -31,10 +29,7 @@ from tests.vip._pdf_rows_assert import (
     money_cell,
     rows_sig,
 )
-
-
-def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
-    return QuantityDTO(value=Decimal(value), unit=unit)
+from tests.vip.helpers import qty
 
 
 def test_build_pdf_rows_structure_and_totals_are_deterministic() -> None:
@@ -49,17 +44,17 @@ def test_build_pdf_rows_structure_and_totals_are_deterministic() -> None:
 
     packed = PackedLineDTO(
         food_id="carrot",
-        requested=_qty("600"),
-        pack_size=_qty("500"),
+        requested=qty("600"),
+        pack_size=qty("500"),
         packs=2,
-        provided=_qty("1000"),
-        overage=_qty("400"),
+        provided=qty("1000"),
+        overage=qty("400"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=600 G", "provided=1000 G"],
         catalog=catalog,
     )
-    unpacked = UnpackedLineDTO(food_id="tomato", requested=_qty("200"))
+    unpacked = UnpackedLineDTO(food_id="tomato", requested=qty("200"))
 
     response = ShoplistGenerateResponse(packed=[packed], unpacked=[unpacked])
 
@@ -128,11 +123,11 @@ def test_build_pdf_rows_multi_aisle_subtotals() -> None:
 
     packed1 = PackedLineDTO(
         food_id="item-a",
-        requested=_qty("100"),
-        pack_size=_qty("100"),
+        requested=qty("100"),
+        pack_size=qty("100"),
         packs=1,
-        provided=_qty("100"),
-        overage=_qty("0"),
+        provided=qty("100"),
+        overage=qty("0"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=100 G"],
@@ -140,11 +135,11 @@ def test_build_pdf_rows_multi_aisle_subtotals() -> None:
     )
     packed2 = PackedLineDTO(
         food_id="item-b",
-        requested=_qty("200"),
-        pack_size=_qty("200"),
+        requested=qty("200"),
+        pack_size=qty("200"),
         packs=1,
-        provided=_qty("200"),
-        overage=_qty("0"),
+        provided=qty("200"),
+        overage=qty("0"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=200 G"],

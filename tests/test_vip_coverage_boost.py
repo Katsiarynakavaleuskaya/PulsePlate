@@ -107,8 +107,8 @@ class TestVIPCoverageBoost:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_missing_function(self) -> None:
-        """Тест VIP regions endpoint - функция реализована и возвращает success"""
+    def test_vip_regions_endpoint_success(self) -> None:
+        """Тест VIP regions endpoint: возвращает success и список регионов"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))

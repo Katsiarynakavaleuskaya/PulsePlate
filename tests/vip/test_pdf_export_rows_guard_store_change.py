@@ -13,9 +13,7 @@ from decimal import Decimal
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
-    QuantityDTO,
     ShoplistGenerateResponse,
-    UnitDTO,
 )
 from app.services.shoplist_export import pdf_export
 from tests.vip._pdf_rows_assert import (
@@ -27,10 +25,7 @@ from tests.vip._pdf_rows_assert import (
     money_cell,
     rows_sig,
 )
-
-
-def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
-    return QuantityDTO(value=Decimal(value), unit=unit)
+from tests.vip.helpers import qty
 
 
 def _packed(
@@ -49,11 +44,11 @@ def _packed(
     )
     return PackedLineDTO(
         food_id=food_id,
-        requested=_qty("600"),
-        pack_size=_qty("500"),
+        requested=qty("600"),
+        pack_size=qty("500"),
         packs=packs,
-        provided=_qty(str(500 * packs)),
-        overage=_qty(str(max(0, 500 * packs - 600))),
+        provided=qty(str(500 * packs)),
+        overage=qty(str(max(0, 500 * packs - 600))),
         rounding="CEIL",
         min_packs=1,
         reasons=["guard"],

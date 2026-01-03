@@ -16,17 +16,12 @@ import pytest
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
-    QuantityDTO,
     ShoplistGenerateResponse,
-    UnitDTO,
     UnpackedLineDTO,
 )
 from app.services.shoplist_export import pdf_export
 from tests.vip._reportlab_lazy import make_lazy_reportlab_mock
-
-
-def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
-    return QuantityDTO(value=Decimal(value), unit=unit)
+from tests.vip.helpers import qty
 
 
 class _FakeDoc:
@@ -75,9 +70,7 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test that PDF table has correct layout: store→aisle→items→subtotal→grand_total."""
-    # Reset state to prevent test pollution (even with autouse fixture, explicit reset is safer)
-    _FakeTable.last_data = None
-    _FakeTable.last_style = None
+    # State reset is handled by the autouse fixture `_reset_fake_table_state`.
     # Patch _lazy_reportlab so export_shoplist_to_pdf uses our fakes for doc/table.
     real_lazy = pdf_export._lazy_reportlab
     monkeypatch.setattr(
@@ -101,17 +94,17 @@ def test_export_shoplist_to_pdf_table_layout_store_aisle_subtotal_total(
 
     packed = PackedLineDTO(
         food_id="carrot",
-        requested=_qty("600"),
-        pack_size=_qty("500"),
+        requested=qty("600"),
+        pack_size=qty("500"),
         packs=2,
-        provided=_qty("1000"),
-        overage=_qty("400"),
+        provided=qty("1000"),
+        overage=qty("400"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=600 G", "provided=1000 G"],
         catalog=catalog,
     )
-    unpacked = UnpackedLineDTO(food_id="tomato", requested=_qty("200"))
+    unpacked = UnpackedLineDTO(food_id="tomato", requested=qty("200"))
 
     response = ShoplistGenerateResponse(packed=[packed], unpacked=[unpacked])
 

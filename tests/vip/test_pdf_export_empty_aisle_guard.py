@@ -8,21 +8,11 @@ EN: Guard test: empty aisle should not generate duplicate "Aisle: —" headers.
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 from app.schemas.catalog import CatalogInfoDTO, CurrencyDTO, MoneyDTO
-from app.schemas.vip_shoplist import (
-    PackedLineDTO,
-    QuantityDTO,
-    ShoplistGenerateResponse,
-    UnitDTO,
-)
+from app.schemas.vip_shoplist import PackedLineDTO, ShoplistGenerateResponse
 from app.services.shoplist_export import pdf_export
 from tests.vip._pdf_rows_assert import RowType, find_rows
-
-
-def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
-    return QuantityDTO(value=Decimal(value), unit=unit)
+from tests.vip.helpers import qty
 
 
 def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
@@ -42,11 +32,11 @@ def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
 
     packed1 = PackedLineDTO(
         food_id="x",
-        requested=_qty("100"),
-        pack_size=_qty("100"),
+        requested=qty("100"),
+        pack_size=qty("100"),
         packs=1,
-        provided=_qty("100"),
-        overage=_qty("0"),
+        provided=qty("100"),
+        overage=qty("0"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=100 G"],
@@ -54,11 +44,11 @@ def test_build_pdf_rows_does_not_repeat_empty_aisle_headers() -> None:
     )
     packed2 = PackedLineDTO(
         food_id="y",
-        requested=_qty("100"),
-        pack_size=_qty("100"),
+        requested=qty("100"),
+        pack_size=qty("100"),
         packs=1,
-        provided=_qty("100"),
-        overage=_qty("0"),
+        provided=qty("100"),
+        overage=qty("0"),
         rounding="CEIL",
         min_packs=1,
         reasons=["requested=100 G"],

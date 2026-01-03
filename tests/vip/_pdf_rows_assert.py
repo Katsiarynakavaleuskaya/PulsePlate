@@ -20,7 +20,7 @@ PdfRow = pdf_export.PdfRow
 
 def rows_sig(rows: Sequence[PdfRow]) -> list[str]:
     """Return row type signature."""
-    return [r.row_type.value if hasattr(r.row_type, "value") else str(r.row_type) for r in rows]
+    return [r.row_type.value for r in rows]
 
 
 def assert_contains_subsequence(sig: Sequence[str], subseq: Sequence[str]) -> None:

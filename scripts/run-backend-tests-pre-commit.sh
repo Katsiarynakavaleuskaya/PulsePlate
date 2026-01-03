@@ -144,9 +144,8 @@ while IFS= read -r file; do
 
         # Fallback: search recursively if no test files found
         if [ ${#FOUND_FOR_FILE[@]} -eq 0 ]; then
-            while IFS= read -r test_file; do
-                [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
-            done < <(find tests -type f -name "test_${basename}.py" 2>/dev/null)
+            test_file=$(find tests -maxdepth 4 -type f -name "test_${basename}.py" -print -quit 2>/dev/null)
+            [ -n "$test_file" ] && [ -f "$test_file" ] && FOUND_FOR_FILE+=("$test_file")
         fi
     fi
 
@@ -158,9 +157,17 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
     # Deduplicate test files
     mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
     log_debug "Test files to run: ${TEST_FILES[*]}"
+
+    # Pre-commit: fast feedback is preferred; pre-push: report all failures.
+    declare -a PYTEST_ARGS=("-q" "--tb=short")
+    if [ -n "${PRE_COMMIT:-}" ]; then
+        PYTEST_ARGS+=("-x")
+        log_debug "pytest fast-fail enabled (-x) for pre-commit"
+    fi
+
     echo "Running tests: ${TEST_FILES[*]}"
     # Use explicit exit code handling to ensure proper error propagation
-    if pytest -q --tb=short -x "${TEST_FILES[@]}"; then
+    if pytest "${PYTEST_ARGS[@]}" "${TEST_FILES[@]}"; then
         echo "✅ Backend tests passed"
     else
         echo "❌ Backend tests failed"
