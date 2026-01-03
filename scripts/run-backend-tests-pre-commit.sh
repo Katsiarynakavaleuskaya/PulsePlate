@@ -48,18 +48,41 @@ else
         fi
     fi
 
-    # Last resort: compare with main/master
+    # Last resort: compare with main/master using merge-base (better than fixed commit count)
     if [ -z "$PYTHON_CHANGES" ]; then
-        BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || echo "")
-        if [ -n "$BASE" ]; then
-            PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
-        fi
+        # Try origin/main first, then origin/master, then local main/master
+        for base_branch in origin/main origin/master main master; do
+            BASE=$(git merge-base HEAD "$base_branch" 2>/dev/null || echo "")
+            if [ -n "$BASE" ]; then
+                PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+                if [ -n "$PYTHON_CHANGES" ]; then
+                    break
+                fi
+            fi
+        done
     fi
 fi
 
 if [ -z "$PYTHON_CHANGES" ]; then
-    echo "ℹ️  No Python files changed"
-    exit 0
+    # In pre-push, if no Python changes detected, it might mean:
+    # 1. No Python files were changed (legitimate skip)
+    # 2. We couldn't determine base for comparison (should still check recent commits as safety)
+    if [ -z "${PRE_COMMIT:-}" ]; then
+        # Pre-push: if we can't determine changes, check recent commits as safety measure
+        # This handles edge cases: new branch, detached HEAD, force-push scenarios
+        # Using HEAD~10 as last resort (covers most realistic scenarios without being too slow)
+        echo "⚠️  Could not determine changed Python files via upstream/base, checking recent commits as safety measure..."
+        PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD~10 HEAD 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
+        if [ -z "$PYTHON_CHANGES" ]; then
+            echo "ℹ️  No Python files changed in recent commits, skipping backend tests"
+            exit 0
+        fi
+        echo "ℹ️  Found Python changes in recent commits, running tests for safety"
+    else
+        # Pre-commit: no staged Python files, skip
+        echo "ℹ️  No Python files changed"
+        exit 0
+    fi
 fi
 
 # Extract test files that correspond to changed Python files
@@ -105,8 +128,13 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
     # Deduplicate test files
     mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
     echo "Running tests: ${TEST_FILES[*]}"
-    pytest -q --tb=short -x "${TEST_FILES[@]}" || exit 1
-    echo "✅ Backend tests passed"
+    # Use explicit exit code handling to ensure proper error propagation
+    if pytest -q --tb=short -x "${TEST_FILES[@]}"; then
+        echo "✅ Backend tests passed"
+    else
+        echo "❌ Backend tests failed"
+        exit 1
+    fi
 else
     echo "ℹ️  No corresponding test files found for changed Python files"
 fi
