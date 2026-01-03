@@ -92,9 +92,7 @@ class TestBuildPdfLinesDeterministic:
             catalog=catalog3,
         )
 
-        response = ShoplistGenerateResponse(
-            packed=[packed1, packed2, packed3], unpacked=[]
-        )
+        response = ShoplistGenerateResponse(packed=[packed1, packed2, packed3], unpacked=[])
 
         lines = pdf_export.build_pdf_lines(response)
 
@@ -132,9 +130,7 @@ class TestBuildPdfLinesDeterministic:
             reasons=["requested=100 G"],
             catalog=catalog1,
         )
-        unpacked1 = UnpackedLineDTO(
-            food_id="no-catalog", requested=_qty("200"), catalog=None
-        )
+        unpacked1 = UnpackedLineDTO(food_id="no-catalog", requested=_qty("200"), catalog=None)
 
         response = ShoplistGenerateResponse(packed=[packed1], unpacked=[unpacked1])
 
@@ -212,9 +208,7 @@ class TestBuildPdfLinesGrouping:
             catalog=catalog3,
         )
 
-        response = ShoplistGenerateResponse(
-            packed=[packed1, packed2, packed3], unpacked=[]
-        )
+        response = ShoplistGenerateResponse(packed=[packed1, packed2, packed3], unpacked=[])
 
         lines = pdf_export.build_pdf_lines(response)
 
@@ -330,21 +324,18 @@ class TestExportEndpointPdfImportError:
         self, monkeypatch: pytest.MonkeyPatch, client_with_vip_access
     ) -> None:
         """Test that ImportError in pdf_export raises 501 with frozen error contract."""
+
         # Monkeypatch _lazy_reportlab to raise ImportError
         def _mock_lazy_reportlab():
             raise ImportError("reportlab not available")
 
-        monkeypatch.setattr(
-            pdf_export, "_lazy_reportlab", _mock_lazy_reportlab
-        )
+        monkeypatch.setattr(pdf_export, "_lazy_reportlab", _mock_lazy_reportlab)
 
         # Enable VIP module
         monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", lambda: True)
 
         payload = {
-            "items": [
-                {"food_id": "carrot", "qty": {"value": "100", "unit": "G"}, "form": "RAW"}
-            ],
+            "items": [{"food_id": "carrot", "qty": {"value": "100", "unit": "G"}, "form": "RAW"}],
             "packaging_rules": [],
         }
 

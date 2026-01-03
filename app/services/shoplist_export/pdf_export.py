@@ -16,7 +16,7 @@ import io
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Tuple, Tuple
 
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
@@ -94,7 +94,7 @@ def _get_reason_str(line: PackedLineDTO | UnpackedLineDTO) -> str:
     return line.reason or ""
 
 
-def _lazy_reportlab():
+def _lazy_reportlab() -> Tuple[Any, ...]:
     """
     RU: Ленивый импорт reportlab (модуль должен импортироваться без reportlab).
     EN: Lazy import reportlab (module must be import-safe without reportlab).
@@ -153,7 +153,18 @@ def _lazy_reportlab():
         if TableStyle is _REPORTLAB_UNSET:
             TableStyle = _TableStyle
 
-    return colors, A4, getSampleStyleSheet, mm, Flowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    return (
+        colors,
+        A4,
+        getSampleStyleSheet,
+        mm,
+        Flowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
 
 
 @dataclass(frozen=True)
@@ -476,7 +487,9 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
                     or col4.startswith("Subtotal")
                     or col4.startswith("GRAND TOTAL")
                 ):
-                    style_commands.append(("FONTNAME", (0, row_idx), (-1, row_idx), "Helvetica-Bold"))
+                    style_commands.append(
+                        ("FONTNAME", (0, row_idx), (-1, row_idx), "Helvetica-Bold")
+                    )
         table.setStyle(TableStyle(style_commands))
         elements.append(table)
 

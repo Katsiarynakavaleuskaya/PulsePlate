@@ -63,6 +63,7 @@ def test_export_shoplist_to_pdf_covers_packed_metadata_and_totals() -> None:
 
 def test_export_shoplist_to_pdf_wraps_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that exceptions in PDF generation are wrapped as RuntimeError."""
+
     class _BoomDoc:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
             pass
