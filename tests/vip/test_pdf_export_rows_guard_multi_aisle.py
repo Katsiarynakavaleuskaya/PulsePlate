@@ -156,7 +156,6 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
 
     # Structural order: Store-1 → Aisle-1 → item → subtotal → Store-2 → Aisle-1 → item → subtotal → Total
     # Use semantic helpers instead of index-based checks
-    store_rows_list = find_rows(rows, RowType.STORE)
     idx_store1 = next(
         i for i, r in enumerate(rows) if r.row_type == RowType.STORE and "store-1" in r.cells[0]
     )
