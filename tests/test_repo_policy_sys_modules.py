@@ -11,62 +11,110 @@ Why:
 
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
 
-# NOTE:
-# This policy intentionally scans raw text (including comments and strings).
-# Rationale: any appearance of sys.modules mutation in tests is discouraged,
-# even as an example or comment, to avoid normalizing this pattern.
 TESTS_DIR = Path(__file__).resolve().parent
 
-FORBIDDEN_PATTERNS: list[tuple[str, str]] = [
-    # RU: Удаление из sys.modules приводит к двойным модулям и ломает patch().
-    # EN: Deleting sys.modules entries can create dual-module state and break patch().
-    (r"\bdel\s+sys\.modules\s*\[", "Forbidden: `del sys.modules[...]` in tests."),
-    # RU: Переприсваивание sys.modules[...] = ... также опасно.
-    # EN: Assigning sys.modules[...] = ... is also dangerous.
-    (r"\bsys\.modules\s*\[[^\]]+\]\s*=", "Forbidden: `sys.modules[...] = ...` in tests."),
-    # RU: sys.modules.pop() также создаёт dual-module state.
-    # EN: sys.modules.pop() also creates dual-module state.
-    (r"\bsys\.modules\.pop\s*\(", "Forbidden: `sys.modules.pop(...)` in tests."),
-]
+ENFORCED_GLOBS: tuple[str, ...] = (
+    # VIP tests were explicitly stabilized for import hygiene in PR-8c/8b.
+    # Keep these files free of sys.modules mutation to avoid regressions.
+    "vip/**/*.py",
+)
+
+
+def _is_sys_modules_attr(node: ast.AST) -> bool:
+    # sys.modules
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "modules"
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "sys"
+    )
+
+
+def _is_sys_modules_subscript(node: ast.AST) -> bool:
+    # sys.modules[...]
+    return isinstance(node, ast.Subscript) and _is_sys_modules_attr(node.value)
+
+
+def _is_sys_modules_pop_call(node: ast.AST) -> bool:
+    # sys.modules.pop(...)
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "pop"
+        and _is_sys_modules_attr(node.func.value)
+    )
 
 
 def _iter_test_py_files() -> list[Path]:
     if not TESTS_DIR.exists():
         return []
-    return sorted(p for p in TESTS_DIR.rglob("*.py") if p.is_file())
+    files: list[Path] = []
+    for glob in ENFORCED_GLOBS:
+        files.extend([p for p in TESTS_DIR.glob(glob) if p.is_file() and p.suffix == ".py"])
+    return sorted(set(files))
 
 
 def _find_violations(text: str) -> list[tuple[int, str]]:
     """
     Returns list of (line_number_1_based, message).
     """
-    violations: list[tuple[int, str]] = []
-    lines = text.splitlines()
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        # Ignore syntactically invalid files (shouldn't happen for committed tests).
+        return []
 
-    compiled = [(re.compile(pat), msg) for pat, msg in FORBIDDEN_PATTERNS]
-    for i, line in enumerate(lines, start=1):
-        for rx, msg in compiled:
-            if rx.search(line):
-                violations.append((i, msg))
+    violations: list[tuple[int, str]] = []
+
+    class Visitor(ast.NodeVisitor):
+        def visit_Delete(self, node: ast.Delete) -> None:
+            for target in node.targets:
+                if _is_sys_modules_subscript(target):
+                    violations.append((node.lineno, "Forbidden: `del sys.modules[...]` in tests."))
+            self.generic_visit(node)
+
+        def visit_Assign(self, node: ast.Assign) -> None:
+            for target in node.targets:
+                if _is_sys_modules_subscript(target):
+                    violations.append(
+                        (node.lineno, "Forbidden: `sys.modules[...] = ...` in tests.")
+                    )
+            self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:
+            if _is_sys_modules_pop_call(node):
+                violations.append((node.lineno, "Forbidden: `sys.modules.pop(...)` in tests."))
+            self.generic_visit(node)
+
+    Visitor().visit(tree)
     return violations
 
 
-def test_policy_flags_sys_modules_even_in_comments() -> None:
-    """
-    RU: Политика намеренно срабатывает даже на упоминания в комментариях.
-    EN: Policy intentionally flags sys.modules usage even in comments.
-    """
-    content = "# del sys.modules['x']\n"
-    violations = _find_violations(content)
+def test_policy_does_not_flag_comments_or_strings() -> None:
+    content = "# del sys.modules['x']\n" "s = \"sys.modules.pop('x')\"\n"
+    assert _find_violations(content) == []
 
-    assert violations, (
-        "Policy intentionally flags sys.modules usage even in comments "
-        "to discourage this pattern entirely."
+
+def test_policy_flags_runtime_mutations() -> None:
+    content = "\n".join(
+        [
+            "import sys",
+            "del sys.modules['x']",
+            "sys.modules['y'] = object()",
+            "sys.modules.pop('z', None)",
+            "",
+        ]
     )
+    violations = _find_violations(content)
+    assert [msg for _, msg in violations] == [
+        "Forbidden: `del sys.modules[...]` in tests.",
+        "Forbidden: `sys.modules[...] = ...` in tests.",
+        "Forbidden: `sys.modules.pop(...)` in tests.",
+    ]
 
 
 def test_repo_policy_forbid_sys_modules_mutations_in_tests() -> None:

@@ -11,11 +11,12 @@ from fastapi import FastAPI
 from tests._route_patch import find_route_endpoint, patch_endpoint_global
 
 
+def dep() -> str:
+    return "ok"
+
+
 def test_find_route_endpoint_finds_registered_callable(monkeypatch: pytest.MonkeyPatch) -> None:
     app = FastAPI()
-
-    def dep() -> str:
-        return "ok"
 
     @app.get("/x")
     def handler() -> dict[str, str]:
