@@ -118,6 +118,25 @@ class TestProRouterIsolated:
         assert "total_cost" in data
         assert "adherence_score" in data
 
+    def test_weekly_meal_plan_pipeline_type_mismatch_raises_typeerror(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Covers defensive TypeError path when weekly pipeline returns unexpected type."""
+        # Avoid DB reads and other heavy deps.
+        monkeypatch.setattr(self.pro_mod, "get_food_db", lambda: object())
+        monkeypatch.setattr(self.pro_mod, "get_recipe_db", lambda: object())
+
+        # Bypass profile/targets validation to focus on pipeline contract.
+        monkeypatch.setattr(self.pro_mod, "_is_complete_targets", lambda _d: True)
+
+        def _fake_pipeline(**_kwargs: Any) -> str:
+            return "not-a-week-plan-response"
+
+        monkeypatch.setattr(self.pro_mod, "run_weekly_pipeline_guarded", _fake_pipeline)
+
+        with pytest.raises(TypeError, match=r"Expected WeekPlanResponse"):
+            _ = self.client.post("/api/v1/pro/meal/weekly", json={})
+
     def test_weekly_meal_plan_missing_profile_field_400(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

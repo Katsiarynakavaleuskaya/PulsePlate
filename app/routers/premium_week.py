@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.models.nutrition import TargetsIn
-from app.services.weekly_plan.safety import safe_call
+from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
 from core.meal_i18n import Language
@@ -260,53 +260,47 @@ async def generate_week_plan(req: WeekPlanRequest) -> Union[WeekPlanResponse, JS
     if not _is_complete_targets(targets):
         raise HTTPException(status_code=400, detail="Unable to derive targets")
 
-    # 2) Построить неделю (generation stage)
+    # 2) Построить неделю (generation stage) + postprocess (pipeline with ordering guard)
     from core.menu_engine_new import PlateDayTargets
 
-    result = safe_call(
-        build_week,
-        cast(PlateDayTargets, targets),
-        req.diet_flags,
-        req.lang,
-        fooddb,
-        recipedb,
-        map_error=lambda _e: ("weekly_generation_failed", "Failed to generate plan"),
-        default_code="weekly_generation_failed",
-        stage="generation",
-        debug_ctx={
-            "router": "premium_week",
-            "path": "/api/v1/premium/plan/week-flexible",
+    # Wrap WeekPlanResponse constructor to match postprocess_fn signature
+    def _postprocess_week(week: dict[str, Any]) -> WeekPlanResponse:
+        return WeekPlanResponse(**week)
+
+    result = run_weekly_pipeline_guarded(
+        generation_fn=build_week,
+        postprocess_fn=_postprocess_week,
+        generation_kwargs={
+            "targets": cast(PlateDayTargets, targets),
+            "diet_flags": req.diet_flags,
+            "lang": req.lang,
+            "fooddb": fooddb,
+            "recipedb": recipedb,
         },
-    )
-
-    # safe_call returns either T or an error envelope dict
-    if isinstance(result, dict) and result.get("status") == "error":
-        # IMPORTANT: bypass response_model validation
-        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
-
-    week = result
-
-    dto = safe_call(
-        WeekPlanResponse,
-        **week,
-        map_error=lambda _e: (
+        postprocess_kwargs={},
+        generation_map_error=lambda _e: ("weekly_generation_failed", "Failed to generate plan"),
+        generation_default_code="weekly_generation_failed",
+        postprocess_map_error=lambda _e: (
             "weekly_postprocess_failed",
             "Failed to build weekly plan response",
         ),
-        default_code="weekly_postprocess_failed",
-        stage="postprocess",
-        debug_ctx={
+        postprocess_default_code="weekly_postprocess_failed",
+        generation_debug_ctx={
+            "router": "premium_week",
+            "path": "/api/v1/premium/plan/week-flexible",
+        },
+        postprocess_debug_ctx={
             "router": "premium_week",
             "path": "/api/v1/premium/plan/week-flexible",
             "deprecated": True,
         },
     )
 
-    if isinstance(dto, dict) and dto.get("status") == "error":
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=dto,
-        )
+    # Pipeline returns either error envelope or postprocess result
+    if isinstance(result, dict) and result.get("status") == "error":
+        # IMPORTANT: bypass response_model validation
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
-    assert isinstance(dto, WeekPlanResponse)
-    return dto
+    if not isinstance(result, WeekPlanResponse):
+        raise TypeError(f"Expected WeekPlanResponse, got {type(result).__name__}")
+    return result
