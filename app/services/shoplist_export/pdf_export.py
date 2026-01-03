@@ -124,7 +124,17 @@ def _lazy_reportlab() -> Tuple[Any, ...]:
     from reportlab.lib.units import mm
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    return colors, A4, getSampleStyleSheet, mm, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    return (
+        colors,
+        A4,
+        getSampleStyleSheet,
+        mm,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
 
 
 @dataclass(frozen=True)
@@ -272,10 +282,14 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
     currency_codes: set[str] = set()
 
     def _store_id(line: PackedLineDTO | UnpackedLineDTO) -> str:
-        return line.catalog.store_id if (line.catalog and line.catalog.store_id) else ""
+        if line.catalog and line.catalog.store_id:
+            return str(line.catalog.store_id)
+        return ""
 
     def _aisle(line: PackedLineDTO | UnpackedLineDTO) -> str:
-        return line.catalog.aisle if (line.catalog and line.catalog.aisle) else ""
+        if line.catalog and line.catalog.aisle:
+            return str(line.catalog.aisle)
+        return ""
 
     def flush_aisle_subtotal() -> None:
         nonlocal aisle_subtotal, grand_total, current_aisle
@@ -285,7 +299,15 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
         rows.append(
             PdfRow(
                 row_type=PdfRowType.SUBTOTAL,
-                cells=["", "", "", "", f"Subtotal ({current_aisle}):", "", _fmt_money(aisle_subtotal, aisle_currency)],
+                cells=[
+                    "",
+                    "",
+                    "",
+                    "",
+                    f"Subtotal ({current_aisle}):",
+                    "",
+                    _fmt_money(aisle_subtotal, aisle_currency),
+                ],
             )
         )
         grand_total += aisle_subtotal
@@ -319,7 +341,9 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
                 )
             )
 
-        requested_qty = _fmt_quantity(line.requested.value, line.requested.unit) if line.requested else ""
+        requested_qty = (
+            _fmt_quantity(line.requested.value, line.requested.unit) if line.requested else ""
+        )
         pack_size_qty = ""
         packs_str = ""
         price_str = ""
@@ -336,7 +360,9 @@ def build_pdf_rows(response: ShoplistGenerateResponse) -> list[PdfRow]:
 
             if line.catalog and line.catalog.price:
                 currency = line.catalog.price.currency
-                currency_code = currency.value if isinstance(currency, CurrencyDTO) else str(currency)
+                currency_code = (
+                    currency.value if isinstance(currency, CurrencyDTO) else str(currency)
+                )
                 currency_codes.add(currency_code)
                 price_str = _fmt_money(line.catalog.price.value, currency_code)
                 subtotal_value = line.catalog.price.value * Decimal(int(line.packs))

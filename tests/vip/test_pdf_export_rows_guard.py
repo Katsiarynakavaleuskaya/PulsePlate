@@ -63,8 +63,12 @@ def test_build_pdf_rows_structure_and_totals_are_deterministic() -> None:
     # Helper: find row indices by type
     idx_store = next(i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.STORE)
     idx_aisle = next(i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.AISLE)
-    idx_subtotal = next(i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.SUBTOTAL)
-    idx_total = next(i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
+    idx_subtotal = next(
+        i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.SUBTOTAL
+    )
+    idx_total = next(
+        i for i, r in enumerate(rows1) if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL
+    )
 
     # Structural order
     assert idx_store < idx_aisle < idx_subtotal < idx_total
@@ -147,7 +151,9 @@ def test_build_pdf_rows_multi_aisle_subtotals() -> None:
     # Find indices
     store_indices = [i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.STORE]
     aisle_indices = [i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.AISLE]
-    subtotal_indices = [i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.SUBTOTAL]
+    subtotal_indices = [
+        i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.SUBTOTAL
+    ]
 
     # One store, two aisles, two subtotals
     assert len(store_indices) == 1
@@ -155,7 +161,13 @@ def test_build_pdf_rows_multi_aisle_subtotals() -> None:
     assert len(subtotal_indices) == 2
 
     # Order: STORE → AISLE-A → item-a → SUBTOTAL-A → AISLE-B → item-b → SUBTOTAL-B → GRAND_TOTAL
-    assert store_indices[0] < aisle_indices[0] < subtotal_indices[0] < aisle_indices[1] < subtotal_indices[1]
+    assert (
+        store_indices[0]
+        < aisle_indices[0]
+        < subtotal_indices[0]
+        < aisle_indices[1]
+        < subtotal_indices[1]
+    )
 
     # Validate subtotals
     subtotal_a = rows[subtotal_indices[0]]

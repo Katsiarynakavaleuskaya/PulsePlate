@@ -172,9 +172,7 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
     idx_aisle1_store1 = next(
         i
         for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.AISLE
-        and i > idx_store1
-        and "Aisle-1" in r.cells[0]
+        if r.row_type == pdf_export.PdfRowType.AISLE and i > idx_store1 and "Aisle-1" in r.cells[0]
     )
     idx_sub1 = next(
         i
@@ -189,4 +187,3 @@ def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
 
     # Verify order: store-1 → aisle-1 → item → subtotal → store-2
     assert idx_store1 < idx_aisle1_store1 < idx_sub1 < idx_store2
-

@@ -23,9 +23,9 @@ Product-quality PDF export for VIP shoplist endpoint (`/api/v1/vip/shoplist/expo
 
 ## Invariants preserved
 
-✅ **ImportError → 501**: Handled at endpoint level (`vip_shoplist_export`), not in `pdf_export.py`  
-✅ **No exception detail leaks**: Generic error messages in production  
-✅ **Deterministic ordering**: `store_id → aisle → food_id` (non-empty values first)  
+✅ **ImportError → 501**: Handled at endpoint level (`vip_shoplist_export`), not in `pdf_export.py`
+✅ **No exception detail leaks**: Generic error messages in production
+✅ **Deterministic ordering**: `store_id → aisle → food_id` (non-empty values first)
 ✅ **VIP error contract**: Frozen contract shape maintained (if envelope present: `status`, `detail==message`, `error==code`)
 
 ## Tests
@@ -43,6 +43,14 @@ Product-quality PDF export for VIP shoplist endpoint (`/api/v1/vip/shoplist/expo
 
 ### Diff-coverage tests (`tests/vip/test_pdf_export_diff_coverage.py`)
 - ✅ Updated exception wrapping test for lazy import pattern
+
+### Guard tests (branch coverage)
+- ✅ `test_pdf_export_rows_guard.py`: Deterministic structure and totals (single aisle)
+- ✅ `test_pdf_export_rows_guard_multi_aisle.py`: Multi-aisle subtotal flush (one store, two aisles)
+- ✅ `test_pdf_export_rows_guard_store_change.py`: Store-change subtotal flush (two stores, one aisle)
+- ✅ `test_pdf_export_layout_table.py`: Table layout via FakeTable (no PDF parsing)
+
+**Branch coverage**: Added guard tests to cover both outcomes of `if line.catalog` (Codecov `branch=True`) and to lock subtotal flush on aisle/store transitions.
 
 ## Files changed
 
@@ -72,4 +80,3 @@ tests/AGENTS.md                            |  31 ++
 
 - PR-8c (#456): VIP router registration and error contract (frozen)
 - Maintains compatibility with existing VIP endpoints
-
