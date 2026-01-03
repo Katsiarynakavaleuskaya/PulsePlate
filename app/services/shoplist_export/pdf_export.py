@@ -16,8 +16,9 @@ import io
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Tuple, Tuple
+from typing import Any, Tuple
 
+from app.schemas.catalog import CurrencyDTO
 from app.schemas.vip_shoplist import (
     PackedLineDTO,
     ShoplistGenerateResponse,
@@ -243,11 +244,9 @@ def build_pdf_lines(response: ShoplistGenerateResponse) -> list[PdfLine]:
                 _fmt_quantity(line.pack_size.value, line.pack_size.unit) if line.pack_size else ""
             )
             if line.catalog and line.catalog.price:
-                # Get currency code (CurrencyDTO enum has .value attribute)
+                currency = line.catalog.price.currency
                 currency_code = (
-                    line.catalog.price.currency.value
-                    if hasattr(line.catalog.price.currency, "value")
-                    else str(line.catalog.price.currency)
+                    currency.value if isinstance(currency, CurrencyDTO) else str(currency)
                 )
                 price_str = _fmt_money(line.catalog.price.value, currency_code)
                 if packs > 0:
