@@ -24,7 +24,9 @@ def test_find_route_endpoint_finds_registered_callable(monkeypatch: pytest.Monke
     endpoint = find_route_endpoint(app=app, path="/x", method="GET")
     assert callable(endpoint)
 
-    patch_endpoint_global(monkeypatch=monkeypatch, endpoint=endpoint, name="dep", value=lambda: "patched")
+    patch_endpoint_global(
+        monkeypatch=monkeypatch, endpoint=endpoint, name="dep", value=lambda: "patched"
+    )
     # напрямую вызываем endpoint, чтобы убедиться что глобалка реально заменена
     out = endpoint()
     assert out == {"v": "patched"}
@@ -34,4 +36,3 @@ def test_find_route_endpoint_errors_on_missing_route() -> None:
     app = FastAPI()
     with pytest.raises(AssertionError, match=r"Route not found"):
         _ = find_route_endpoint(app=app, path="/missing", method="GET")
-

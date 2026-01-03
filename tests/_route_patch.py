@@ -27,6 +27,7 @@ class RouteMatch:
     RU: Результат поиска маршрута.
     EN: Route match result.
     """
+
     path: str
     methods: tuple[str, ...]
     endpoint: Callable[..., Any]
@@ -64,7 +65,9 @@ def find_route_endpoint(*, app: Any, path: str, method: str) -> Callable[..., An
         if not callable(r_endpoint):
             continue
 
-        matches.append(RouteMatch(path=r_path, methods=methods, endpoint=cast(Callable[..., Any], r_endpoint)))
+        matches.append(
+            RouteMatch(path=r_path, methods=methods, endpoint=cast(Callable[..., Any], r_endpoint))
+        )
 
     if not matches:
         raise AssertionError(
@@ -162,4 +165,3 @@ def patch_route_dependency(
     else:
         raise AssertionError(f"Unknown mode: {mode!r}. Use 'globals' or 'attr'.")
     return endpoint
-

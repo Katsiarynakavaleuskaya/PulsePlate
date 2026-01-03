@@ -76,4 +76,3 @@ def test_repo_policy_forbid_sys_modules_mutations_in_tests() -> None:
             "- If you need re-import behavior, refactor code to inject dependencies.\n"
             "- For FastAPI endpoints, use `tests/_route_patch.patch_route_dependency()`.\n"
         )
-

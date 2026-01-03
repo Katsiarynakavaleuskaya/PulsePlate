@@ -179,4 +179,3 @@ make lint && make fmt-check
 # Detect forbidden sys.modules mutations in tests (manual scan)
 git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests
 ```
-
