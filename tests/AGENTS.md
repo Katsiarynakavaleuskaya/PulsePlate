@@ -22,6 +22,39 @@
   Preferred placement: `tests/vip/test_<feature>_diff_coverage.py` for VIP features, or `tests/test_<feature>_diff_coverage.py` alongside the related unit tests.
   Example: `tests/vip/test_pdf_export_diff_coverage.py`.
 
+### Reliable local diff-cover check (prevents phantom gaps)
+
+**Problem**: diff-cover may show "missing lines" if coverage.xml is stale or from wrong test session.
+
+**Reliable ritual** (run from repo root):
+
+```bash
+# 1. Update main and ensure clean working tree
+git fetch origin main
+git status --short
+
+# 2. Rebuild coverage from scratch in correct environment
+rm -f .coverage coverage.xml
+make cov
+# Or equivalent:
+# . .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage xml
+
+# 3. Run diff-cover against actual base
+diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
+```
+
+**Sanity check** (if diff-cover still shows missing lines):
+```bash
+# Verify coverage.xml matches current code
+ls -la coverage.xml
+grep "pipeline.py" coverage.xml | head
+```
+
+**Why this works**:
+- Fresh coverage.xml ensures no stale data
+- `origin/main` comparison ensures correct baseline
+- Clean working tree prevents diff-cover from seeing uncommitted changes
+
 ## PDF export tests (PR-8b)
 
 ### Test structure
