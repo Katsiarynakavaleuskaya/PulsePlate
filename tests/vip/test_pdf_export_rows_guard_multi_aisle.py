@@ -51,7 +51,7 @@ def _packed(
         pack_size=_qty("500"),
         packs=packs,
         provided=_qty(str(500 * packs)),
-        overage=_qty(str(500 * packs - 600)),
+        overage=_qty(str(max(0, 500 * packs - 600))),
         rounding="CEIL",
         min_packs=1,
         reasons=[f"packs={packs}"],

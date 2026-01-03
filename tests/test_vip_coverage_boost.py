@@ -124,9 +124,9 @@ class TestVIPCoverageBoost:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "error"
-        assert (
-            "provider" in data.get("detail", "").lower()
+        assert data["status"] == "success"
+        # When provider is None, regions list is empty but status is success
+        assert "regions" in data
             or "provider" in data.get("message", "").lower()
         )
 

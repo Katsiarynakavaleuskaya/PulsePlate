@@ -372,8 +372,6 @@ class TestFmtMoneyEdgeCases:
 
     def test_fmt_money_without_currency(self) -> None:
         """Test money formatting without currency code."""
-        from decimal import Decimal
-
         assert pdf_export._fmt_money(Decimal("1"), None) == "1.00"
         assert pdf_export._fmt_money(Decimal("10.5"), "") == "10.50"
 
