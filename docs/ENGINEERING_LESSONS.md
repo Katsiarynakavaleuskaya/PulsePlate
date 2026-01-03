@@ -1,0 +1,182 @@
+# Engineering Lessons — PR-8b (VIP Shoplist PDF)
+
+This document captures **project-level lessons** extracted from PR-8b.
+Goal: prevent повторение классов проблем (test nondeterminism, CI portability, contract drift).
+
+---
+
+## 1) `sys.modules` mutations create dual-module state (CRITICAL)
+
+### Problem
+Mutating `sys.modules` in tests (e.g. `del sys.modules["app.routers.vip"]`) can create a **dual-module state**:
+- imports resolve into different module objects
+- `patch("...")` silently patches a different object than the one used by code-under-test
+
+### Symptoms
+- Patches "don't work" without obvious error
+- flaky behavior depending on import order
+- hard-to-debug nondeterminism
+
+### Real incident (PR-8b)
+CI flaked because:
+
+`patch("app.routers.vip.get_available_regions", None)` sometimes did **not** affect the реально зарегистрированный handler for `/api/v1/vip/regions`.
+In large test runners, this manifested as **success instead of error**.
+
+**Fix (policy-compliant):**
+- Find endpoint from `app.routes` by `(path, method)`
+- Patch the callable used by the handler via:
+  `endpoint.__globals__["get_available_regions"] = None` (via `monkeypatch`)
+- No `sys.modules` mutations
+
+### Rule
+**Never mutate `sys.modules` in tests.**
+
+### Use instead
+- `unittest.mock.patch(...)` (but see FAQ below)
+- `monkeypatch.setattr(...)`
+- `tests/_route_patch.patch_route_dependency(...)` for FastAPI endpoints
+
+---
+
+## FAQ: When `patch("module.symbol")` is not enough?
+
+Sometimes the route handler used at runtime is not the same module object you think you're patching
+(e.g., due to import aliasing, reload patterns, or dual-module state from prior tests).
+
+**Robust approach (contract-safe):**
+- Identify the actual registered endpoint (`app.routes`) by path+method
+- Patch the function reference in `endpoint.__globals__` (or patch attribute on the actual callable)
+- Prefer `monkeypatch` to keep test deterministic
+- Use `tests/_route_patch.patch_route_dependency()` helper for FastAPI endpoints
+
+---
+
+## 2) Diff-coverage requires targeted tests for error paths
+
+### Problem
+Generic tests often don't execute specific branches (e.g. error lines 413/529), so diff-coverage fails.
+
+### Rule
+For each uncovered error path, add a **targeted test**.
+Preferred pattern: `tests/**/test_*_diff_coverage.py`
+
+---
+
+## 3) Bash scripts must be portable (Bash 3.2+)
+
+### Problem
+macOS default Bash is 3.2; Bash-4-only features (e.g. `mapfile`) break local workflow.
+
+### Rule
+Scripts in `scripts/` must run on **Bash 3.2+**.
+Prefer portable patterns: `while IFS= read -r ...`.
+
+---
+
+## 4) Shallow repos in CI require depth-aware git operations
+
+### Problem
+CI often uses shallow clones (`--depth=1`), so commands like `git diff HEAD~10 HEAD` can fail.
+
+### Rule
+Before using `HEAD~N`, verify actual depth:
+- `git rev-list --count HEAD`
+- fallback to merge-base or bounded depth
+
+---
+
+## 5) Always follow AGENTS.md before push
+
+### Rule
+Before pushing, follow the repo runbook.
+
+**Quick checklist (example):**
+- `pytest -q tests/test_repo_policy_guards.py`
+- `make test-fast`
+- `make cov-check`
+- `make lint && make fmt-check`
+
+---
+
+## 6) PR description structure accelerates review
+
+### Recommended sections
+- `Review order (recommended)`
+- `Why not split PR?`
+- `Scope` split: core vs infrastructure
+- `Risks / mitigations`
+- `How to test`
+
+---
+
+## 7) Validate full error-envelope in tests
+
+### Rule
+Test contract, not just `status == "error"`:
+- `status`
+- `code`
+- `error`
+- `detail` (must match expectation)
+- required fields present
+
+---
+
+## 8) Keyword-only args in test helpers
+
+### Rule
+For helpers with many parameters (5+), enforce keyword-only:
+
+```python
+def helper(*, a: int, b: str, c: str) -> None:
+    ...
+```
+
+This prevents accidental argument-order bugs and improves readability.
+
+---
+
+## 9) Zero-decimal currencies must have explicit scope boundaries
+
+### Rule
+
+Document supported zero-decimal currencies (currently: **JPY/KRW**) and define the path to extend (e.g. VND/CLP/ISK).
+
+---
+
+## 10) Use builtin generics for typing (`tuple[...]` over `Tuple[...]`)
+
+### Rule
+
+Prefer modern typing syntax (Python 3.9+):
+
+* `tuple[int, str]`
+* `list[str]`
+* `dict[str, int]`
+
+### Type hints for test fixtures
+
+- Prefer explicit typing for fixtures/helpers when patching internals:
+  `monkeypatch: pytest.MonkeyPatch`
+
+---
+
+## Repo Commands Reference
+
+```bash
+# Import hygiene / repo policy
+pytest -q tests/test_repo_policy_guards.py
+
+# Smoke test
+make test-fast
+
+# Coverage
+make cov-check
+
+# Lint / format
+make lint && make fmt-check
+
+# Detect forbidden sys.modules mutations in tests (manual scan)
+git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests
+```
+

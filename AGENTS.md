@@ -37,6 +37,10 @@ Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
 - RUNBOOK_AGENT.md: greps + CI failure triage
 - tests/test_repo_policy_guards.py: enforced architecture rules
 
+## Engineering lessons
+See: `docs/ENGINEERING_LESSONS.md` (derived from PR-8b).
+Captures project-level lessons: test determinism, diff-coverage, portability, error contracts, sys.modules policy.
+
 ## Fast triage (run these first when things break)
 
 ```bash
