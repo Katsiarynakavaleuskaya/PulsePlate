@@ -25,10 +25,10 @@ else
     # In pre-push, we need to compare what's being pushed with what's already on remote
     # Pre-commit framework doesn't pass arguments, so we determine remote branch from git config
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    
+
     # Try to get remote tracking branch from git config
     REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || echo "")
-    
+
     if [ -n "$REMOTE_BRANCH" ]; then
         # Get the remote branch SHA (what's currently on remote)
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
@@ -37,7 +37,7 @@ else
             PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
         fi
     fi
-    
+
     # Fallback: if we couldn't determine remote branch, try common patterns
     if [ -z "$PYTHON_CHANGES" ]; then
         # Try origin/current_branch
@@ -47,7 +47,7 @@ else
             PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
         fi
     fi
-    
+
     # Last resort: compare with main/master
     if [ -z "$PYTHON_CHANGES" ]; then
         BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null || echo "")
