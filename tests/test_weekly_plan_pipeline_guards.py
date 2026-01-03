@@ -36,7 +36,8 @@ def test_pipeline_skips_postprocess_when_generation_returns_error_envelope() -> 
     }
 
     # Generation stage returns error envelope
-    def generation_fails() -> dict[str, Any]:
+    def generation_fails(*, user_id: str) -> dict[str, Any]:
+        assert user_id == "user-1"
         return expected_error
 
     # Postprocess stage must not be called if generation already failed
@@ -51,7 +52,7 @@ def test_pipeline_skips_postprocess_when_generation_returns_error_envelope() -> 
     result = run_weekly_pipeline_guarded(
         generation_fn=generation_fails,
         postprocess_fn=postprocess,
-        generation_kwargs={},
+        generation_kwargs={"user_id": "user-1"},
         generation_map_error=lambda _e: ("weekly_generation_failed", "Failed to generate plan"),
         generation_default_code="weekly_generation_failed",
         postprocess_map_error=lambda _e: (
