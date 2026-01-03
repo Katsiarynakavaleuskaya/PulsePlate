@@ -44,10 +44,11 @@ def test_waist_risk_thresholds_and_localization(
     assert res.risk_level == expected_level
     assert res.wht_ratio == compute_wht_ratio(waist_cm, height_m)
 
-    # notes: empty for low, non-empty for moderate/high
+    # notes: empty tuple for low, non-empty tuple for moderate/high
     if expected_level == "low":
-        assert res.notes == []
+        assert res.notes == ()
     else:
+        assert isinstance(res.notes, tuple)
         assert len(res.notes) == 1
         assert isinstance(res.notes[0], str)
         assert res.notes[0] != ""
@@ -99,15 +100,18 @@ def test_normalization_fail_soft(gender: str, lang: str) -> None:
     res = calculate_waist_risk(waist_cm=90.0, height_m=1.70, gender=gender, lang=lang)
     assert res is not None
     assert res.risk_level in {"low", "moderate", "high"}
-    assert isinstance(res.notes, list)
+    assert isinstance(res.notes, tuple)
 
 
 def test_waist_risk_result_structure() -> None:
     """Test WaistRiskResult dataclass structure."""
-    res = calculate_waist_risk(waist_cm=100.0, height_m=1.70, gender="male", lang="en")
+    waist_cm = 100.0
+    height_m = 1.70
+    res = calculate_waist_risk(waist_cm=waist_cm, height_m=height_m, gender="male", lang="en")
     assert res is not None
     assert isinstance(res, WaistRiskResult)
-    assert res.wht_ratio is not None or res.wht_ratio is None  # Can be None if invalid
+    # Verify wht_ratio matches compute_wht_ratio contract
+    assert res.wht_ratio == compute_wht_ratio(waist_cm, height_m)
     assert res.risk_level in {"low", "moderate", "high"}
-    assert isinstance(res.notes, list)
+    assert isinstance(res.notes, tuple)
     assert all(isinstance(note, str) for note in res.notes)

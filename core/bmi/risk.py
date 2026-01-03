@@ -20,6 +20,17 @@ from bmi_core import compute_wht_ratio
 RiskLevel = Literal["low", "moderate", "high"]
 
 
+# Localized messages for waist risk assessment
+_MESSAGES: dict[tuple[RiskLevel, str], str] = {
+    ("moderate", "ru"): "Повышенный риск по талии",
+    ("high", "ru"): "Высокий риск по талии",
+    ("moderate", "en"): "Increased waist-related risk",
+    ("high", "en"): "High waist-related risk",
+    ("moderate", "es"): "Riesgo aumentado relacionado con la cintura",
+    ("high", "es"): "Alto riesgo relacionado con la cintura",
+}
+
+
 @dataclass(frozen=True)
 class WaistRiskResult:
     """
@@ -29,7 +40,7 @@ class WaistRiskResult:
 
     wht_ratio: float | None
     risk_level: RiskLevel
-    notes: list[str]
+    notes: tuple[str, ...]
 
 
 def _norm_lang(lang: str) -> str:
@@ -83,23 +94,17 @@ def calculate_waist_risk(
 
     if waist_cm >= high:
         risk_level: RiskLevel = "high"
-        msg = {
-            "ru": "Высокий риск по талии",
-            "en": "High waist-related risk",
-            "es": "Alto riesgo relacionado con la cintura",
-        }[lang_norm]
-        notes = [msg]
     elif waist_cm >= warn:
         risk_level = "moderate"
-        msg = {
-            "ru": "Повышенный риск по талии",
-            "en": "Increased waist-related risk",
-            "es": "Riesgo aumentado relacionado con la cintura",
-        }[lang_norm]
-        notes = [msg]
     else:
         risk_level = "low"
-        notes = []
+
+    # Get localized message for non-low risk levels
+    if risk_level != "low":
+        msg = _MESSAGES.get((risk_level, lang_norm), _MESSAGES[(risk_level, "en")])
+        notes: tuple[str, ...] = (msg,)
+    else:
+        notes = ()
 
     wht_ratio = compute_wht_ratio(waist_cm, height_m)
 
