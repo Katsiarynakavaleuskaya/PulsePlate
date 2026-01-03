@@ -176,7 +176,7 @@ repos:
         language: system
         pass_filenames: false
         stages: [pre-push]
-        files: ^(?!frontend/|\.claude/).+\.py$
+        # No files filter - script determines changed files itself
 
       # ios syntax check — run on pre-commit if iOS files changed (macOS only)
       - id: ios-syntax-check

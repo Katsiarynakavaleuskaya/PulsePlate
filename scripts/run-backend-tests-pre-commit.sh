@@ -27,10 +27,10 @@ else
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     REMOTE_NAME="${1:-origin}"
     REMOTE_BRANCH="${REMOTE_NAME}/${CURRENT_BRANCH}"
-    
+
     # Get the remote tracking branch SHA (what's on remote)
     REMOTE_SHA=$(git rev-parse --verify "${REMOTE_BRANCH}" 2>/dev/null || echo "")
-    
+
     if [ -n "$REMOTE_SHA" ]; then
         # Compare local HEAD with remote branch
         PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
