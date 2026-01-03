@@ -126,9 +126,7 @@ class TestVIPCoverageBoost:
         data = response.json()
         assert data["status"] == "success"
         # When provider is None, regions list is empty but status is success
-        assert "regions" in data
-            or "provider" in data.get("message", "").lower()
-        )
+        assert "regions" in data or "provider" in data.get("message", "").lower()
 
     def test_vip_recipe_synthesis_missing_function(self):
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""

@@ -18,6 +18,14 @@ from app.schemas.vip_shoplist import (
     UnitDTO,
 )
 from app.services.shoplist_export import pdf_export
+from tests.vip._pdf_rows_assert import (
+    RowType,
+    assert_contains_subsequence,
+    assert_subtotals_and_total,
+    find_item,
+    find_rows,
+    rows_sig,
+)
 
 
 def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
@@ -65,14 +73,32 @@ def test_build_pdf_rows_flushes_subtotal_on_store_change() -> None:
 
     rows = pdf_export.build_pdf_rows(response)
 
-    # Two store headers
-    stores = [r for r in rows if r.row_type == pdf_export.PdfRowType.STORE]
-    assert len(stores) == 2
+    sig = rows_sig(rows)
 
-    # Two subtotals (store change forces flush)
-    subtotals = [r for r in rows if r.row_type == pdf_export.PdfRowType.SUBTOTAL]
-    assert [r.cells[6] for r in subtotals] == ["3.00 EUR", "2.00 EUR"]
+    assert len(find_rows(rows, RowType.STORE)) == 2
+    assert len(find_rows(rows, RowType.AISLE)) == 2
+    assert len(find_rows(rows, RowType.SUBTOTAL)) == 2
+    assert len(find_rows(rows, RowType.GRAND_TOTAL)) == 1
 
-    # Grand total
-    total = next(r for r in rows if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
-    assert total.cells[6] == "5.00 EUR"
+    # Order contract: STORE -> AISLE -> ITEM -> SUBTOTAL -> STORE -> AISLE -> ITEM -> SUBTOTAL -> GRAND_TOTAL
+    assert_contains_subsequence(
+        sig,
+        [
+            RowType.STORE.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.STORE.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.GRAND_TOTAL.value,
+        ],
+    )
+
+    carrot = find_item(rows, "carrot")
+    assert carrot.cells[6] == "3.00 EUR"
+    bread = find_item(rows, "bread")
+    assert bread.cells[6] == "2.00 EUR"
+
+    assert_subtotals_and_total(rows, subtotals=["3.00 EUR", "2.00 EUR"], total="5.00 EUR")

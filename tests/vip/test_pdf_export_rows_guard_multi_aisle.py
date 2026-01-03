@@ -23,6 +23,14 @@ from app.schemas.vip_shoplist import (
     UnitDTO,
 )
 from app.services.shoplist_export import pdf_export
+from tests.vip._pdf_rows_assert import (
+    RowType,
+    assert_contains_subsequence,
+    assert_subtotals_and_total,
+    find_item,
+    find_rows,
+    rows_sig,
+)
 
 
 def _qty(value: str, unit: UnitDTO = "G") -> QuantityDTO:
@@ -74,63 +82,44 @@ def test_build_pdf_rows_multi_aisle_flushes_subtotals_and_total() -> None:
     rows2 = pdf_export.build_pdf_rows(response)
     assert [(r.row_type, r.cells) for r in rows] == [(r.row_type, r.cells) for r in rows2]
 
-    # One store header
-    store_rows = [r for r in rows if r.row_type == pdf_export.PdfRowType.STORE]
-    assert len(store_rows) == 1
+    sig = rows_sig(rows)
 
-    # Two aisle headers (Aisle-1 and Aisle-2)
-    aisle_rows = [r for r in rows if r.row_type == pdf_export.PdfRowType.AISLE]
-    assert len(aisle_rows) == 2
-    assert any("Aisle-1" in r.cells[0] for r in aisle_rows)
-    assert any("Aisle-2" in r.cells[0] for r in aisle_rows)
+    # Counts (semantic)
+    assert len(find_rows(rows, RowType.STORE)) == 1
+    assert len(find_rows(rows, RowType.AISLE)) == 2
+    assert len(find_rows(rows, RowType.SUBTOTAL)) == 2
+    assert len(find_rows(rows, RowType.GRAND_TOTAL)) == 1
 
-    # Two subtotals (one per aisle)
-    subtotal_rows = [r for r in rows if r.row_type == pdf_export.PdfRowType.SUBTOTAL]
-    assert len(subtotal_rows) == 2
-    # Subtotal format: "Subtotal (Aisle-1):"
-    assert all(r.cells[4].startswith("Subtotal (") for r in subtotal_rows)
+    aisle_rows = find_rows(rows, RowType.AISLE)
+    assert any("Aisle-1" in (r.cells[0] if r.cells else "") for r in aisle_rows)
+    assert any("Aisle-2" in (r.cells[0] if r.cells else "") for r in aisle_rows)
 
-    # The subtotal values should include both aisle totals (order matters: Aisle-1 then Aisle-2)
-    subtotal_values = [r.cells[6] for r in subtotal_rows]
-    assert subtotal_values == ["3.00 EUR", "2.00 EUR"]
-
-    # Grand total must be 5.00 EUR
-    total_row = next(r for r in rows if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
-    assert total_row.cells[4] == "Total"
-    assert total_row.cells[6] == "5.00 EUR"
-
-    # Structural order check: Aisle-1 items are before first subtotal; Aisle-2 items before second subtotal
-    idx_aisle1 = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.AISLE and "Aisle-1" in r.cells[0]
-    )
-    idx_sub1 = next(i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.SUBTOTAL)
-    idx_aisle2 = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.AISLE and "Aisle-2" in r.cells[0]
-    )
-    idx_sub2 = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.SUBTOTAL and i > idx_sub1
+    # Order contract (no indices): STORE -> AISLE -> ITEM -> SUBTOTAL -> AISLE -> ITEM -> SUBTOTAL -> GRAND_TOTAL
+    assert_contains_subsequence(
+        sig,
+        [
+            RowType.STORE.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.GRAND_TOTAL.value,
+        ],
     )
 
-    # Items in each aisle sit between its header and subtotal
-    idx_item_carrot = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.ITEM and r.cells[0] == "carrot"
-    )
-    idx_item_bread = next(
-        i
-        for i, r in enumerate(rows)
-        if r.row_type == pdf_export.PdfRowType.ITEM and r.cells[0] == "bread"
-    )
+    # Validate key item rows (semantic, no indices)
+    carrot_row = find_item(rows, "carrot")
+    assert carrot_row.cells[3] == "2"  # packs
+    assert carrot_row.cells[6] == "3.00 EUR"  # line subtotal
 
-    assert idx_aisle1 < idx_item_carrot < idx_sub1 < idx_aisle2
-    assert idx_aisle2 < idx_item_bread < idx_sub2
+    bread_row = find_item(rows, "bread")
+    assert bread_row.cells[3] == "1"
+    assert bread_row.cells[6] == "2.00 EUR"
+
+    # Subtotals & total
+    assert_subtotals_and_total(rows, subtotals=["3.00 EUR", "2.00 EUR"], total="5.00 EUR")
 
 
 def test_build_pdf_rows_store_change_flushes_previous_aisle() -> None:
