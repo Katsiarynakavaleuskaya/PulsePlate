@@ -1,8 +1,27 @@
 #!/usr/bin/env bash
-# Backend tests hook for pre-commit
+# Backend tests hook for pre-commit/pre-push
 # Runs pytest for changed Python files
+#
+# Pre-push backend tests (smart diff runner):
+# The pre-push hook runs backend pytest only when Python files changed.
+#
+# Change detection order:
+# 1) If upstream exists: diff `upstream..HEAD`
+# 2) Else: diff from merge-base against (origin/main|origin/master|main|master)
+# 3) If base cannot be resolved: fallback to last N commits (diagnostic mode)
+#
+# Debug:
+# - Set `PREPUSH_DEBUG=1` to print resolved upstream/base and file list.
 
 set -euo pipefail
+
+# Debug mode: set PREPUSH_DEBUG=1 to see detailed information
+DEBUG="${PREPUSH_DEBUG:-0}"
+log_debug() {
+    if [ "$DEBUG" = "1" ]; then
+        echo "🔎 [DEBUG] $*" >&2
+    fi
+}
 
 if [ "${SKIP_TESTS:-0}" = "1" ]; then
     echo "⏩ SKIP_TESTS=1 set, skipping backend tests"
@@ -28,13 +47,17 @@ else
 
     # Try to get remote tracking branch from git config
     REMOTE_BRANCH=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream} 2>/dev/null || echo "")
+    log_debug "Current branch: $CURRENT_BRANCH"
+    log_debug "Upstream branch: ${REMOTE_BRANCH:-<not set>}"
 
     if [ -n "$REMOTE_BRANCH" ]; then
         # Get the remote branch SHA (what's currently on remote)
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
+        log_debug "Upstream SHA: ${REMOTE_SHA:-<not found>}"
         if [ -n "$REMOTE_SHA" ]; then
             # Compare local HEAD with remote branch (files that will be pushed)
             PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+            log_debug "Python changes (via upstream): ${PYTHON_CHANGES:-<none>}"
         fi
     fi
 
@@ -43,19 +66,24 @@ else
         # Try origin/current_branch
         REMOTE_BRANCH="origin/${CURRENT_BRANCH}"
         REMOTE_SHA=$(git rev-parse --verify "$REMOTE_BRANCH" 2>/dev/null || echo "")
+        log_debug "Fallback remote branch: $REMOTE_BRANCH (SHA: ${REMOTE_SHA:-<not found>})"
         if [ -n "$REMOTE_SHA" ]; then
             PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$REMOTE_SHA" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
+            log_debug "Python changes (via fallback remote): ${PYTHON_CHANGES:-<none>}"
         fi
     fi
 
     # Last resort: compare with main/master using merge-base (better than fixed commit count)
     if [ -z "$PYTHON_CHANGES" ]; then
+        log_debug "Trying merge-base with main/master branches..."
         # Try origin/main first, then origin/master, then local main/master
         for base_branch in origin/main origin/master main master; do
             BASE=$(git merge-base HEAD "$base_branch" 2>/dev/null || echo "")
             if [ -n "$BASE" ]; then
+                log_debug "Merge-base with $base_branch: $BASE"
                 PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM "$BASE" HEAD | grep "\.py$" | grep -v "^\.claude/" || true)
                 if [ -n "$PYTHON_CHANGES" ]; then
+                    log_debug "Python changes (via merge-base $base_branch): $PYTHON_CHANGES"
                     break
                 fi
             fi
@@ -73,6 +101,7 @@ if [ -z "$PYTHON_CHANGES" ]; then
         # Using HEAD~10 as last resort (covers most realistic scenarios without being too slow)
         echo "⚠️  Could not determine changed Python files via upstream/base, checking recent commits as safety measure..."
         PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD~10 HEAD 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
+        log_debug "Python changes (via recent commits fallback): ${PYTHON_CHANGES:-<none>}"
         if [ -z "$PYTHON_CHANGES" ]; then
             echo "ℹ️  No Python files changed in recent commits, skipping backend tests"
             exit 0
@@ -127,6 +156,7 @@ done <<< "$PYTHON_CHANGES"
 if [ ${#TEST_FILES[@]} -gt 0 ]; then
     # Deduplicate test files
     mapfile -t TEST_FILES < <(printf '%s\n' "${TEST_FILES[@]}" | sort -u)
+    log_debug "Test files to run: ${TEST_FILES[*]}"
     echo "Running tests: ${TEST_FILES[*]}"
     # Use explicit exit code handling to ensure proper error propagation
     if pytest -q --tb=short -x "${TEST_FILES[@]}"; then
@@ -136,5 +166,6 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
         exit 1
     fi
 else
+    log_debug "No test files found for Python changes: $PYTHON_CHANGES"
     echo "ℹ️  No corresponding test files found for changed Python files"
 fi
