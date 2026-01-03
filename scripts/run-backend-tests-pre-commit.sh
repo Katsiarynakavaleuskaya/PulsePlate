@@ -99,15 +99,25 @@ if [ -z "$PYTHON_CHANGES" ]; then
     if [ -z "${PRE_COMMIT:-}" ]; then
         # Pre-push: if we can't determine changes, check recent commits as safety measure
         # This handles edge cases: new branch, detached HEAD, force-push scenarios
-        # Using HEAD~10 as last resort (covers most realistic scenarios without being too slow)
-        echo "⚠️  Could not determine changed Python files via upstream/base, checking recent commits as safety measure..."
-        PYTHON_CHANGES=$(git diff --name-only --diff-filter=ACM HEAD~10 HEAD 2>/dev/null | grep "\.py$" | grep -v "^\.claude/" || true)
-        log_debug "Python changes (via recent commits fallback): ${PYTHON_CHANGES:-<none>}"
+        RECENT_COMMITS_FALLBACK="${RECENT_COMMITS_FALLBACK:-10}"
+        if ! [[ "$RECENT_COMMITS_FALLBACK" =~ ^[1-9][0-9]*$ ]]; then
+            echo "❌ RECENT_COMMITS_FALLBACK must be a positive integer, got: '$RECENT_COMMITS_FALLBACK'" >&2
+            exit 1
+        fi
+
+        echo "⚠️  Could not determine changed Python files via upstream/base, checking last ${RECENT_COMMITS_FALLBACK} commits as safety measure..."
+        PYTHON_CHANGES=$(
+            git diff --name-only --diff-filter=ACM "HEAD~${RECENT_COMMITS_FALLBACK}" HEAD 2>/dev/null \
+                | grep "\.py$" \
+                | grep -v "^\.claude/" \
+                || true
+        )
+        log_debug "Python changes (via recent commits fallback, n=${RECENT_COMMITS_FALLBACK}): ${PYTHON_CHANGES:-<none>}"
         if [ -z "$PYTHON_CHANGES" ]; then
-            echo "ℹ️  No Python files changed in recent commits, skipping backend tests"
+            echo "ℹ️  No Python files changed in last ${RECENT_COMMITS_FALLBACK} commits, skipping backend tests"
             exit 0
         fi
-        echo "ℹ️  Found Python changes in recent commits, running tests for safety"
+        echo "ℹ️  Found Python changes in last ${RECENT_COMMITS_FALLBACK} commits, running tests for safety"
     else
         # Pre-commit: no staged Python files, skip
         echo "ℹ️  No Python files changed"

@@ -523,6 +523,7 @@ def export_shoplist_to_pdf(response: ShoplistGenerateResponse) -> bytes:
             with contextlib.suppress(Exception):
                 buffer.close()
 
+
 ReportLabComponents: TypeAlias = Tuple[
     Any,  # colors
     Any,  # A4
