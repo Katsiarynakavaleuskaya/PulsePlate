@@ -76,6 +76,10 @@ tests/AGENTS.md                            |  31 ++
 - [x] No exception detail leaks
 - [x] Tests cover all new code paths
 
+## Summary
+
+PR-8b delivers product-quality VIP shoplist PDF export (store→aisle grouping, subtotals, grand total) while preserving frozen VIP contracts. Reportlab remains lazy-imported (import-safe). ImportError is mapped to 501 at router level as invariant. Added guard tests to satisfy Codecov branch coverage for `if line.catalog` and to lock aisle/store subtotal flush behavior.
+
 ## Related
 
 - PR-8c (#456): VIP router registration and error contract (frozen)
