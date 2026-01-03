@@ -148,39 +148,44 @@ def test_build_pdf_rows_multi_aisle_subtotals() -> None:
 
     rows = pdf_export.build_pdf_rows(response)
 
-    # Find indices
-    store_indices = [i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.STORE]
-    aisle_indices = [i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.AISLE]
-    subtotal_indices = [
-        i for i, r in enumerate(rows) if r.row_type == pdf_export.PdfRowType.SUBTOTAL
-    ]
+    sig = rows_sig(rows)
 
-    # One store, two aisles, two subtotals
-    assert len(store_indices) == 1
-    assert len(aisle_indices) == 2
-    assert len(subtotal_indices) == 2
+    # Counts (semantic)
+    assert len(find_rows(rows, RowType.STORE)) == 1
+    assert len(find_rows(rows, RowType.AISLE)) == 2
+    assert len(find_rows(rows, RowType.ITEM)) == 2
+    assert len(find_rows(rows, RowType.SUBTOTAL)) == 2
+    assert len(find_rows(rows, RowType.GRAND_TOTAL)) == 1
 
-    # Order: STORE → AISLE-A → item-a → SUBTOTAL-A → AISLE-B → item-b → SUBTOTAL-B → GRAND_TOTAL
-    assert (
-        store_indices[0]
-        < aisle_indices[0]
-        < subtotal_indices[0]
-        < aisle_indices[1]
-        < subtotal_indices[1]
+    # Order contract: STORE -> AISLE -> ITEM -> SUBTOTAL -> AISLE -> ITEM -> SUBTOTAL -> GRAND_TOTAL
+    assert_contains_subsequence(
+        sig,
+        [
+            RowType.STORE.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.AISLE.value,
+            RowType.ITEM.value,
+            RowType.SUBTOTAL.value,
+            RowType.GRAND_TOTAL.value,
+        ],
     )
 
-    # Validate subtotals
-    subtotal_a = rows[subtotal_indices[0]]
-    subtotal_b = rows[subtotal_indices[1]]
-    grand_total = next(r for r in rows if r.row_type == pdf_export.PdfRowType.GRAND_TOTAL)
+    # Item-level checks (ensures correct row association independent of order)
+    row_a = find_item(rows, "item-a")
+    row_b = find_item(rows, "item-b")
+    assert row_a.cells[6] == "1.00 EUR"  # line subtotal
+    assert row_b.cells[6] == "2.00 EUR"
 
-    # Aisle-A subtotal: 1.00 * 1 = 1.00 EUR
-    assert "Aisle-A" in subtotal_a.cells[4]
-    assert subtotal_a.cells[6] == "1.00 EUR"
-
-    # Aisle-B subtotal: 2.00 * 1 = 2.00 EUR
-    assert "Aisle-B" in subtotal_b.cells[4]
-    assert subtotal_b.cells[6] == "2.00 EUR"
+    # Subtotals should be exactly per-aisle, in deterministic order
+    # (Aisle-A subtotal then Aisle-B subtotal)
+    subtotal_rows = find_rows(rows, RowType.SUBTOTAL)
+    assert len(subtotal_rows) == 2
+    assert "Aisle-A" in subtotal_rows[0].cells[4]
+    assert subtotal_rows[0].cells[6] == "1.00 EUR"
+    assert "Aisle-B" in subtotal_rows[1].cells[4]
+    assert subtotal_rows[1].cells[6] == "2.00 EUR"
 
     # Grand total: 1.00 + 2.00 = 3.00 EUR
-    assert grand_total.cells[6] == "3.00 EUR"
+    assert_subtotals_and_total(rows, subtotals=["1.00 EUR", "2.00 EUR"], total="3.00 EUR")
