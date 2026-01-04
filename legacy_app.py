@@ -2191,6 +2191,7 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     bmi_logger.info(log_msg)
     return result_payload
 
+
 def _ensure_insight_text_length(text: str) -> str:
     if len(text) > INSIGHT_TEXT_MAX_LENGTH:
         raise HTTPException(status_code=413, detail="Insight text too long")

@@ -3,7 +3,7 @@
 **Date:** 2025-01-04
 **GitHub PR:** #456
 **Goal:** One path → one handler. BMI math only in `core/bmi/*`.
-**Status:** Docs-only audit (no code changes)
+**Status:** Audit + implemented fixes (Commit 2 applied)
 
 ---
 

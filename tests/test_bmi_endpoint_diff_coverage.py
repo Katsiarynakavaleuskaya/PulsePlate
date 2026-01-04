@@ -57,18 +57,38 @@ def test_fallback_normalize_bool_flag() -> None:
     assert bmi_router._fallback_normalize_bool_flag("yes", yes_values={"ok"}) is False
 
 
-def test_lang_normalization_uses_core_i18n() -> None:
-    """Test that router uses core.i18n.normalize_lang (removed _get_lang_from_request in PR-456)."""
-    from core.i18n import normalize_lang
+@pytest.mark.anyio
+async def test_router_uses_core_i18n_normalize_lang_indirect(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    RU: Косвенно проверяем, что router использует core.i18n.normalize_lang,
+    нормализуя lang перед локализацией сообщений об ошибке.
+    EN: Indirectly verify router uses core.i18n.normalize_lang via localized error detail.
 
-    req_ru = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="ru")
-    req_es = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="es")
-    req_en = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="en")
+    Uses dict input to bypass Pydantic schema validation, allowing non-canonical lang values.
+    """
+    # Force engine-unavailable path
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
 
-    # Router should use core.i18n.normalize_lang (tested indirectly via endpoint behavior)
-    assert normalize_lang(str(req_ru.lang)) == "ru"
-    assert normalize_lang(str(req_es.lang)) == "es"
-    assert normalize_lang(str(req_en.lang)) == "en"
+    # Intentionally provide non-canonical lang variants (dict input bypasses Pydantic Literal validation)
+    payload_ru = {"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "RU"}
+    payload_es = {"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "es-ES"}
+    payload_en = {"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "EN"}
+
+    with pytest.raises(HTTPException) as exc_ru:
+        await bmi_router.bmi_calculate_handler(payload_ru)
+    with pytest.raises(HTTPException) as exc_es:
+        await bmi_router.bmi_calculate_handler(payload_es)
+    with pytest.raises(HTTPException) as exc_en:
+        await bmi_router.bmi_calculate_handler(payload_en)
+
+    assert exc_ru.value.status_code == 501
+    assert exc_ru.value.detail == t("ru", "bmi_engine_unavailable")
+
+    assert exc_es.value.status_code == 501
+    assert exc_es.value.detail == t("es", "bmi_engine_unavailable")
+
+    assert exc_en.value.status_code == 501
+    assert exc_en.value.detail == t("en", "bmi_engine_unavailable")
 
 
 @pytest.mark.anyio

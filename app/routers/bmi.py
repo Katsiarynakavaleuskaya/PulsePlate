@@ -15,7 +15,7 @@ from typing import Any, Callable, Protocol
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
-from core.i18n import Language, normalize_lang, t
+from core.i18n import normalize_lang, t
 
 
 # Import engine (will be available after PR-453 Commit 2)
