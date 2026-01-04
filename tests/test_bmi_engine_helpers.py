@@ -43,6 +43,10 @@ class TestNormalizeGender:
         assert _normalize_gender("") == "male"
         assert _normalize_gender("   ") == "male"
 
+    def test_none_input_handling(self) -> None:
+        """Test None input handling (defensive helper)."""
+        assert _normalize_gender(None) == "male"  # None → "" → "male"
+
 
 class TestNormalizeBoolFlag:
     """Tests for _normalize_bool_flag() with default yes values."""
@@ -77,6 +81,21 @@ class TestNormalizeBoolFlag:
         assert _normalize_bool_flag("custom_yes", yes_values=custom) is True
         assert _normalize_bool_flag("yes", yes_values=custom) is False
 
+    def test_whitespace_and_case_handling(self) -> None:
+        """Test whitespace and case normalization."""
+        # Whitespace trimming
+        assert _normalize_bool_flag(" Yes ") is True
+        assert _normalize_bool_flag(" TRUE ") is True
+        assert _normalize_bool_flag(" Sí ") is True
+        # Case insensitive
+        assert _normalize_bool_flag("YES") is True
+        assert _normalize_bool_flag("True") is True
+        assert _normalize_bool_flag("ДА") is True
+        # Custom yes_values with case
+        custom = {"ok"}
+        assert _normalize_bool_flag("OK", yes_values=custom) is True
+        assert _normalize_bool_flag(" Ok ", yes_values=custom) is True
+
 
 class TestNormalizeLang:
     """Tests for _normalize_lang() using core.i18n.normalize_lang()."""
@@ -99,6 +118,17 @@ class TestNormalizeLang:
         assert _normalize_lang("fr") == "en"
         assert _normalize_lang("unknown") == "en"
         assert _normalize_lang("") == "en"
+
+    def test_whitespace_and_case_handling(self) -> None:
+        """Test whitespace and case normalization."""
+        # Whitespace trimming (via core.i18n.normalize_lang)
+        assert _normalize_lang(" EN-us ") == "en"
+        assert _normalize_lang("Es-mx") == "es"
+        assert _normalize_lang(" ru ") == "ru"
+        # Case insensitive
+        assert _normalize_lang("EN") == "en"
+        assert _normalize_lang("ES") == "es"
+        assert _normalize_lang("RU") == "ru"
 
 
 class TestAgeBand:
@@ -193,8 +223,6 @@ class TestComputeWhtRatio:
         assert _compute_wht_ratio(300.0, 1.70) == 1.76  # boundary
         assert _compute_wht_ratio(301.0, 1.70) is None  # > 300.0
 
-    def test_exception_handling(self) -> None:
-        """Test exception handling (ZeroDivisionError, OverflowError)."""
-        # Very large values might cause OverflowError
-        # This is handled by try/except in the function
-        assert _compute_wht_ratio(1.0, 1.0) == 0.01  # Normal case
+    def test_normal_case_smoke(self) -> None:
+        """Test normal WHtR scenario returns rounded ratio."""
+        assert _compute_wht_ratio(1.0, 1.0) == 0.01

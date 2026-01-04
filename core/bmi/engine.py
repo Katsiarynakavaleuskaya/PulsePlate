@@ -39,7 +39,7 @@ _DEFAULT_YES_VALUES: set[str] = {
 }
 
 
-def _normalize_gender(gender: str) -> str:
+def _normalize_gender(gender: str | None) -> str:
     """
     RU: Нормализует gender к 'male'/'female' с parity по legacy.
     EN: Normalize gender to 'male'/'female' with legacy parity.
