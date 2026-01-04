@@ -74,7 +74,7 @@ from core.log_retention import (
     LogRetentionManager,
 )
 from core.db import get_session, init_db
-from core.i18n import Language, t
+from core.i18n import Language, normalize_lang, t
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 from core.data_sanitizer import MissingOptionalDependencyError
@@ -2080,20 +2080,22 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
         }
         i18n_key = category_i18n_map.get(category_slug)
         if i18n_key:
-            category_display = t(str(req.lang), i18n_key)
+            lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
+            category_display = t(lang_norm, i18n_key)
         else:
             category_display = category_slug  # Fallback to slug if unknown
 
     # Build legacy note (priority: pregnancy > athlete > waist risk > interpretation)
     group = canonical_result.get("group", "")
     notes_list = canonical_result.get("notes", [])
-    interpretation = canonical_result.get("interpretation", "")
+    interpretation = canonical_result.get("interpretation") or ""
 
+    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
     legacy_note = ""
     if group == "pregnant":
-        legacy_note = t(str(req.lang), "bmi_not_valid_during_pregnancy")
+        legacy_note = t(lang_norm, "bmi_not_valid_during_pregnancy")
     elif group == "athlete":
-        legacy_note = t(str(req.lang), "advice_athlete_bmi")
+        legacy_note = t(lang_norm, "advice_athlete_bmi")
         # Append waist risk notes if present
         if notes_list:
             waist_notes = " | ".join(notes_list)
@@ -2236,20 +2238,22 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         }
         i18n_key = category_i18n_map.get(category_slug)
         if i18n_key:
-            category_display = t(str(req.lang), i18n_key)
+            lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
+            category_display = t(lang_norm, i18n_key)
         else:
             category_display = category_slug  # Fallback to slug if unknown
 
     # Build legacy note (priority: pregnancy > athlete > waist risk > interpretation)
     group = canonical_result.get("group", "")
     notes_list = canonical_result.get("notes", [])
-    interpretation = canonical_result.get("interpretation", "")
+    interpretation = canonical_result.get("interpretation") or ""
 
+    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
     legacy_note = ""
     if group == "pregnant":
-        legacy_note = t(str(req.lang), "bmi_not_valid_during_pregnancy")
+        legacy_note = t(lang_norm, "bmi_not_valid_during_pregnancy")
     elif group == "athlete":
-        legacy_note = t(str(req.lang), "advice_athlete_bmi")
+        legacy_note = t(lang_norm, "advice_athlete_bmi")
         # Append waist risk notes if present
         if notes_list:
             waist_notes = " | ".join(notes_list)

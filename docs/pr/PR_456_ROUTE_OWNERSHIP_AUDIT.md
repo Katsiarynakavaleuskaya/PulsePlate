@@ -1,30 +1,43 @@
-# PR-456 Route Ownership Audit (Commit 1)
+# PR-456 Route Ownership Audit
 
 **Date:** 2025-01-04
 **GitHub PR:** #456
 **Goal:** One path → one handler. BMI math only in `core/bmi/*`.
-**Status:** Audit + implemented fixes (Commit 2 applied)
+**Status:** Audit (Commit 1) + implemented fixes (Commits 2-3 applied)
 
 ---
 
-## Quick conclusion (TL;DR)
+## Quick conclusion (TL;DR) - Current State
 
 - ✅ `/api/v1/bmi/calculate` → **OWNER: router** (`calculate_bmi`) → **Engine: YES** (Commit 2: removed legacy shim)
-- 🔄 `/api/v1/bmi` → **OWNER: legacy** (`bmi_endpoint_v1`) → **Engine: NO** (needs shim in Commit 3)
-- 🔄 `/bmi` → **OWNER: legacy** (`bmi_endpoint`) → **Engine: NO** (needs shim in Commit 3)
+- ✅ `/api/v1/bmi` → **OWNER: legacy** (`bmi_endpoint_v1`) → **Engine: YES** (Commit 3: shim to canonical handler)
+- ✅ `/bmi` → **OWNER: legacy** (`bmi_endpoint`) → **Engine: YES** (Commit 3: shim to canonical handler)
 - ✅ **Commit 2 applied:** Removed legacy `/api/v1/bmi/calculate` shim; router is the sole owner.
+- ✅ **Commit 3 applied:** Legacy `/api/v1/bmi` and `/bmi` now delegate to canonical handler.
 
 ---
 
-## Route map (ownership table)
+## Route map (ownership table) - Current State
+
+| Method | Path | Owner layer | File:line | Handler | Calls canonical engine? | Status |
+|--------|------|-------------|-----------|---------|------------------------|--------|
+| POST | `/api/v1/bmi/calculate` | router | `app/routers/bmi.py:207` | `calculate_bmi()` | ✅ YES (via `bmi_calculate_handler`) | ✅ Router owner (Commit 2) |
+| POST | `/api/v1/bmi` | **legacy (shim)** | `legacy_app.py:2130` | `bmi_endpoint_v1()` | ✅ YES (via `bmi_calculate_handler`) | ✅ Shim (Commit 3) |
+| POST | `/bmi` | **legacy (shim)** | `legacy_app.py:2026` | `bmi_endpoint()` | ✅ YES (via `bmi_calculate_handler`) | ✅ Shim (Commit 3) |
+| POST | `/api/v1/bmi/pro` | router | `app/routers/bmi_pro.py:45` | `bmi_pro()` | ❌ NO (PRO endpoint, separate) | ✅ Out of scope (PR-456) |
+
+---
+
+## Historical Context (Before PR-456)
+
+**Commit 1 (Historical Audit):**
 
 | Method | Path | Owner layer | File:line | Handler | Calls canonical engine? | Status |
 |--------|------|-------------|-----------|---------|------------------------|--------|
 | POST | `/api/v1/bmi/calculate` | **legacy (shim)** | `legacy_app.py:2196` | `bmi_calculate_legacy()` | ✅ YES (via `bmi_calculate_handler`) | ✅ Shim (PR-454) |
-| POST | `/api/v1/bmi/calculate` | router | `app/routers/bmi.py:207` | `calculate_bmi()` | ✅ YES (via `bmi_calculate_handler`) | ⚠️ **Redundant** (same handler, but router registered later) |
-| POST | `/api/v1/bmi` | **legacy** | `legacy_app.py:2139` | `bmi_endpoint_v1()` | ❌ NO (uses `bmi_core` directly) | 🔄 **Needs shim** (Commit 3) |
-| POST | `/bmi` | **legacy** | `legacy_app.py:2026` | `bmi_endpoint()` | ❌ NO (uses `bmi_core` directly) | 🔄 **Needs shim** (Commit 3) |
-| POST | `/api/v1/bmi/pro` | router | `app/routers/bmi_pro.py:45` | `bmi_pro()` | ❌ NO (PRO endpoint, separate) | ✅ Out of scope (PR-456) |
+| POST | `/api/v1/bmi/calculate` | router | `app/routers/bmi.py:207` | `calculate_bmi()` | ✅ YES (via `bmi_calculate_handler`) | ⚠️ **Redundant** (duplicate ownership) |
+| POST | `/api/v1/bmi` | **legacy** | `legacy_app.py:2139` | `bmi_endpoint_v1()` | ❌ NO (uses `bmi_core` directly) | 🔄 **Needs shim** |
+| POST | `/bmi` | **legacy** | `legacy_app.py:2026` | `bmi_endpoint()` | ❌ NO (uses `bmi_core` directly) | 🔄 **Needs shim** |
 
 ---
 
