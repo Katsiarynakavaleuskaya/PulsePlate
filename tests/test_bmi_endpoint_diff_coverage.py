@@ -58,7 +58,9 @@ def test_fallback_normalize_bool_flag() -> None:
 
 
 @pytest.mark.anyio
-async def test_router_uses_core_i18n_normalize_lang_indirect(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_router_uses_core_i18n_normalize_lang_indirect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     RU: Косвенно проверяем, что router использует core.i18n.normalize_lang,
     нормализуя lang перед локализацией сообщений об ошибке.
