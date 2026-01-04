@@ -11,14 +11,12 @@ PR-454: shim + thin adapter wiring.
 
 from __future__ import annotations
 
-import importlib
-import importlib.abc
-import sys
-from importlib.machinery import ModuleSpec
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from starlette import status
 
 from app.schemas.bmi import BMICalculateRequest
 from core.bmi.engine import BMICalculateResult
@@ -450,9 +448,6 @@ async def test_engine_unavailable_returns_501_from_handler(
         "waist_cm": None,
         "lang": "en",
     }
-
-    from fastapi import HTTPException
-    from starlette import status
 
     with pytest.raises(HTTPException) as exc:
         await bmi_router.bmi_calculate_handler(payload)

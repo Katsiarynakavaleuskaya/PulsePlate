@@ -2036,11 +2036,15 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     """
     # Local import to avoid import cycles on app startup
     from app.routers.bmi import bmi_calculate_handler
+    from app.schemas.bmi import BMICalculateRequest
+    from fastapi import HTTPException
+    from pydantic import ValidationError
+    from starlette import status
 
     # Convert BMIRequest (height_m) to BMICalculateRequest format (height_cm)
     shim_payload = {
         "weight_kg": req.weight_kg,
-        "height_cm": req.height_m * 100.0,  # Convert meters to centimeters
+        "height_cm": round(float(req.height_m) * 100.0, 1),  # Convert meters to centimeters, round to 1 decimal
         "age": req.age,
         "gender": req.gender,
         "pregnant": req.pregnant,
@@ -2049,15 +2053,64 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
         "lang": str(req.lang),
     }
 
+    # Validate and convert to BMICalculateRequest (handles ValidationError → 422)
+    try:
+        canonical_req = BMICalculateRequest.model_validate(shim_payload)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=e.errors(),
+        ) from e
+
     # Call canonical handler
-    canonical_result = await bmi_calculate_handler(shim_payload)
+    canonical_result = await bmi_calculate_handler(canonical_req)
+
+    # Localize category (engine returns slug, legacy expects localized display)
+    category_slug = canonical_result.get("category")
+    category_display: str | None = None
+    if category_slug:
+        # Map slug to i18n key and localize
+        category_i18n_map = {
+            "underweight": "bmi_underweight",
+            "normal": "bmi_normal",
+            "overweight": "bmi_overweight",
+            "obesity_1": "bmi_obese_1",
+            "obesity_2": "bmi_obese_2",
+            "obesity_3": "bmi_obese_3",
+        }
+        i18n_key = category_i18n_map.get(category_slug)
+        if i18n_key:
+            category_display = t(str(req.lang), i18n_key)
+        else:
+            category_display = category_slug  # Fallback to slug if unknown
+
+    # Build legacy note (priority: pregnancy > athlete > waist risk > interpretation)
+    group = canonical_result.get("group", "")
+    notes_list = canonical_result.get("notes", [])
+    interpretation = canonical_result.get("interpretation", "")
+
+    legacy_note = ""
+    if group == "pregnant":
+        legacy_note = t(str(req.lang), "bmi_not_valid_during_pregnancy")
+    elif group == "athlete":
+        legacy_note = t(str(req.lang), "advice_athlete_bmi")
+        # Append waist risk notes if present
+        if notes_list:
+            waist_notes = " | ".join(notes_list)
+            legacy_note = f"{legacy_note} | {waist_notes}" if waist_notes else legacy_note
+    else:
+        # For general/elderly: use waist risk notes if present, else interpretation
+        if notes_list:
+            legacy_note = " | ".join(notes_list)
+        else:
+            legacy_note = interpretation or ""
 
     # Adapt new format to legacy format for backward compatibility
     # Legacy expects: bmi, category, note (str), athlete (bool), group
     legacy_result: Dict[str, Any] = {
         "bmi": canonical_result["bmi"],
-        "category": canonical_result["category"],
-        "note": canonical_result.get("interpretation", ""),  # Use interpretation as note
+        "category": category_display,  # Localized display name (or None)
+        "note": legacy_note,
         "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
         "group": canonical_result["group"],
     }
@@ -2139,6 +2192,10 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     """
     # Local import to avoid import cycles on app startup
     from app.routers.bmi import bmi_calculate_handler
+    from app.schemas.bmi import BMICalculateRequest
+    from fastapi import HTTPException
+    from pydantic import ValidationError
+    from starlette import status
 
     # Convert BMIRequestV1 to BMICalculateRequest format (already has height_cm)
     shim_payload = {
@@ -2152,15 +2209,64 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         "lang": str(req.lang),
     }
 
+    # Validate and convert to BMICalculateRequest (handles ValidationError → 422)
+    try:
+        canonical_req = BMICalculateRequest.model_validate(shim_payload)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=e.errors(),
+        ) from e
+
     # Call canonical handler
-    canonical_result = await bmi_calculate_handler(shim_payload)
+    canonical_result = await bmi_calculate_handler(canonical_req)
+
+    # Localize category (engine returns slug, legacy expects localized display)
+    category_slug = canonical_result.get("category")
+    category_display: str | None = None
+    if category_slug:
+        # Map slug to i18n key and localize
+        category_i18n_map = {
+            "underweight": "bmi_underweight",
+            "normal": "bmi_normal",
+            "overweight": "bmi_overweight",
+            "obesity_1": "bmi_obese_1",
+            "obesity_2": "bmi_obese_2",
+            "obesity_3": "bmi_obese_3",
+        }
+        i18n_key = category_i18n_map.get(category_slug)
+        if i18n_key:
+            category_display = t(str(req.lang), i18n_key)
+        else:
+            category_display = category_slug  # Fallback to slug if unknown
+
+    # Build legacy note (priority: pregnancy > athlete > waist risk > interpretation)
+    group = canonical_result.get("group", "")
+    notes_list = canonical_result.get("notes", [])
+    interpretation = canonical_result.get("interpretation", "")
+
+    legacy_note = ""
+    if group == "pregnant":
+        legacy_note = t(str(req.lang), "bmi_not_valid_during_pregnancy")
+    elif group == "athlete":
+        legacy_note = t(str(req.lang), "advice_athlete_bmi")
+        # Append waist risk notes if present
+        if notes_list:
+            waist_notes = " | ".join(notes_list)
+            legacy_note = f"{legacy_note} | {waist_notes}" if waist_notes else legacy_note
+    else:
+        # For general/elderly: use waist risk notes if present, else interpretation
+        if notes_list:
+            legacy_note = " | ".join(notes_list)
+        else:
+            legacy_note = interpretation or ""
 
     # Adapt new format to legacy format for backward compatibility
     # Legacy expects: bmi, category, note (str), athlete (bool), group
     legacy_result: Dict[str, Any] = {
         "bmi": canonical_result["bmi"],
-        "category": canonical_result["category"],
-        "note": canonical_result.get("interpretation", ""),  # Use interpretation as note
+        "category": category_display,  # Localized display name (or None)
+        "note": legacy_note,
         "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
         "group": canonical_result["group"],
     }
