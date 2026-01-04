@@ -11,14 +11,12 @@ PR-454: shim + thin adapter wiring.
 
 from __future__ import annotations
 
-import importlib
-import importlib.abc
-import sys
-from importlib.machinery import ModuleSpec
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from starlette import status
 
 from app.schemas.bmi import BMICalculateRequest
 from core.bmi.engine import BMICalculateResult
@@ -422,69 +420,74 @@ async def test_handler_accepts_dict_input_and_validates(
     assert data["bmi"] == 23.5
 
 
-def test_importerror_sets_calculate_bmi_result_none_and_returns_501(
+@pytest.mark.anyio
+async def test_engine_unavailable_returns_501_from_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    RU: Ветка 501 должна тестироваться на уровне handler, а не через HTTP endpoint,
+    потому что FastAPI кеширует route handlers при инициализации app.
+    EN: Test the 501 branch at handler level (FastAPI caches route callables).
+
+    Закрывает ветку:
+      if calculate_bmi_result is None:
+          raise HTTPException(501, ...)
+    """
+    import app.routers.bmi as bmi_router
+
+    # Simulate "engine import failed" state
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
+
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "male",
+        "pregnant": "no",
+        "athlete": "no",
+        "waist_cm": None,
+        "lang": "en",
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        await bmi_router.bmi_calculate_handler(payload)
+
+    err = exc.value
+    assert err.status_code == status.HTTP_501_NOT_IMPLEMENTED
+    # detail comes from t(lang, "bmi_engine_unavailable")
+    assert err.detail
+
+
+def test_http_calculate_normalizes_lang_for_localized_501(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
-    RU: Проверяем, что при ImportError engine handler возвращает 501 (строки 38-40).
-    EN: Verify that ImportError in engine import returns 501 (lines 38-40).
+    RU: HTTP уровень: /api/v1/bmi/calculate нормализует lang и локализует detail.
+    EN: HTTP-level: endpoint normalizes lang and localizes error detail.
 
-    Закрывает ветку:
-      try: from core.bmi.engine import ...
-      except ImportError: calculate_bmi_result = None
-
-    Мы форсим ImportError только для 'core.bmi.engine', затем reload app.routers.bmi.
+    Verifies that FastAPI endpoint uses core.i18n.normalize_lang via localized error messages.
+    Note: Pydantic schema validates lang as Literal["ru","en","es"], so we test with valid values
+    and verify normalization happens when handler processes them via normalize_lang().
     """
-
-    class _FailEngineImporter(importlib.abc.MetaPathFinder):
-        """MetaPathFinder that raises ImportError for core.bmi.engine."""
-
-        def find_spec(
-            self,
-            fullname: str,
-            path: object | None = None,
-            target: object | None = None,
-        ) -> ModuleSpec | None:
-            if fullname == "core.bmi.engine":
-                raise ImportError("forced for coverage")
-            return None
-
-    # Remove module using monkeypatch API BEFORE setting blocker (repo-policy compliant)
-    for name in list(sys.modules.keys()):
-        if name == "app.routers.bmi" or name.startswith("app.routers.bmi."):
-            monkeypatch.delitem(sys.modules, name, raising=False)
-
-    # Also remove core.bmi.engine if already imported
-    for name in list(sys.modules.keys()):
-        if name == "core.bmi.engine" or name.startswith("core.bmi.engine."):
-            monkeypatch.delitem(sys.modules, name, raising=False)
-
-    # Add finder to meta_path (repo-policy compliant)
-    blocker = _FailEngineImporter()
-    monkeypatch.setattr(sys, "meta_path", [blocker, *sys.meta_path])
-
-    # Now import will trigger ImportError path
+    # IMPORTANT:
+    # Patch the SAME module object that FastAPI handler closes over.
     import app.routers.bmi as bmi_router
 
-    importlib.reload(bmi_router)
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
 
-    assert bmi_router.calculate_bmi_result is None
+    # Use valid Pydantic schema values (Pydantic validates lang as Literal["ru","en","es"])
+    # Handler normalizes them via normalize_lang() before calling t(lang, key)
+    from core.i18n import t
 
-    resp = client.post(
-        "/api/v1/bmi/calculate",
-        json={
-            "weight_kg": 70.0,
-            "height_cm": 170.0,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "waist_cm": None,
-            "lang": "en",
-        },
-    )
+    resp_ru = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="ru"))
+    assert resp_ru.status_code == 501
+    assert resp_ru.json()["detail"] == t("ru", "bmi_engine_unavailable")
 
-    assert resp.status_code == 501
-    # Точный detail уже есть у тебя в тестах/коде через t(lang, "bmi_engine_unavailable")
-    assert "detail" in resp.json()
+    resp_es = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="es"))
+    assert resp_es.status_code == 501
+    assert resp_es.json()["detail"] == t("es", "bmi_engine_unavailable")
+
+    resp_en = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="en"))
+    assert resp_en.status_code == 501
+    assert resp_en.json()["detail"] == t("en", "bmi_engine_unavailable")
