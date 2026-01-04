@@ -1,8 +1,8 @@
 # PR-456 Route Ownership Audit (Commit 1)
 
-**Date:** 2025-01-04  
-**GitHub PR:** #456  
-**Goal:** One path → one handler. BMI math only in `core/bmi/*`.  
+**Date:** 2025-01-04
+**GitHub PR:** #456
+**Goal:** One path → one handler. BMI math only in `core/bmi/*`.
 **Status:** Docs-only audit (no code changes)
 
 ---
