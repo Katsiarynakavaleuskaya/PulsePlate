@@ -17,21 +17,32 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Whitelist: paths where BMI math is allowed (temporary or canonical)
+#
+# POLICY: Each whitelist entry MUST have:
+#   - Comment explaining WHY it's allowed
+#   - Reference to PR/issue tracking cleanup (if temporary)
+#   - No silent additions (always document rationale)
+#
 WHITELIST_PARTS = [
-    "core/bmi/",  # Canonical location ✅
-    "tests/",  # Test code allowed ✅
-    "legacy_app.py",  # Temporary, until PR-456 ✅
-    "docs/",  # Documentation formulas OK ✅
-    "bmi_core.py",  # Legacy oracle, temporary ✅
-    ".venv/",  # Virtual environment (exclude)
-    ".venv-ci/",  # CI virtual environment (exclude)
-    "bmi_visualization.py",  # Visualization only (not core logic, but contains thresholds for charts)
-    "app/routers/bmi_pro.py",  # PRO endpoint (separate from Free BMI, PR-456 will handle)
-    "core/nutrition_",  # Nutrition constants (not BMI math)
-    "core/bmi_extras",  # PRO features (separate from Free BMI)
+    "core/bmi/",  # Canonical location ✅ (permanent)
+    "tests/",  # Test code allowed ✅ (permanent)
+    "legacy_app.py",  # TEMP: compatibility shim until PR-456 cleanup
+    "docs/",  # Documentation formulas OK ✅ (permanent)
+    "bmi_core.py",  # TEMP: legacy oracle for golden parity tests (PR-455 Commit 4)
+    ".venv/",  # Virtual environment (exclude from scanning)
+    ".venv-ci/",  # CI virtual environment (exclude from scanning)
+    # TEMP: Visualization thresholds for charts (not core BMI logic)
+    # Tracked in PR-456: migrate to use core/bmi/engine.py thresholds
+    "bmi_visualization.py",
+    # TEMP: PRO endpoint (separate from Free BMI, uses local calc_bmi helper)
+    # Tracked in PR-456: migrate to use core/bmi/engine.py
+    "app/routers/bmi_pro.py",
+    "core/nutrition_",  # Nutrition constants (not BMI math, different domain)
+    "core/bmi_extras",  # PRO features (separate from Free BMI canonical engine)
     "app/schemas/bmi.py",  # Schema Field descriptions (documentation, not code)
     "tests_strict/",  # Strict test suite (test code)
-    "core/nutrition_bayesian_analyzer.py",  # Uses BMI for nutrition analysis (not core BMI logic)
+    # Uses BMI for nutrition analysis context (not core BMI calculation logic)
+    "core/nutrition_bayesian_analyzer.py",
 ]
 
 # Forbidden patterns (domain signatures for BMI math)
