@@ -2088,7 +2088,7 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     canonical_result = await bmi_calculate_handler(canonical_req)
 
     # Normalize language once for all i18n calls
-    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
+    lang_norm: Language = normalize_lang(str(req.lang))
 
     # Localize category (engine returns slug, legacy expects localized display)
     category_slug = canonical_result.get("category")
@@ -2247,7 +2247,7 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     canonical_result = await bmi_calculate_handler(canonical_req)
 
     # Normalize language once for all i18n calls
-    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
+    lang_norm: Language = normalize_lang(str(req.lang))
 
     # Localize category (engine returns slug, legacy expects localized display)
     category_slug = canonical_result.get("category")
