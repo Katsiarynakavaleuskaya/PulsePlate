@@ -70,10 +70,10 @@
    - Для `teen` (15-18) — используется подростковая интерпретация
    - Это **не ошибка**, а медицинский дисклеймер
 
-2. **`waist_risk` — сериализованный dataclass:**
+2. **`waist_risk` — API schema для domain dataclass:**
    - Структура: `{'wht_ratio': float | None, 'risk_level': 'low'|'moderate'|'high', 'notes': tuple[str, ...]}`
    - Присутствует только если `waist_cm` был предоставлен и риск был рассчитан
-   - Сериализация происходит в endpoint (dataclass → dict)
+   - Сериализация происходит в endpoint (dataclass → `WaistRiskResultSchema`)
 
 3. **`notes` — всегда `list[str]`:**
    - Используется `default_factory=list` для мутабельного дефолта
@@ -89,15 +89,15 @@
 
 ---
 
-### 2. `tests/test_bmi_schemas.py` (NEW, 282 строки)
+### 2. `tests/test_bmi_schemas.py` (NEW, 320 строк)
 
 **Файл:** `tests/test_bmi_schemas.py`
 
-**Покрытие:** 26 тестов, все проходят ✅
+**Покрытие:** 27 pytest-кейсов (14 request + 13 response), все проходят ✅
 
 #### 2.1. `TestBMICalculateRequest` — Request Validation Tests
 
-**Тесты валидации (422 cases):**
+**Тесты валидации (14 pytest-кейсов):**
 
 1. ✅ `test_valid_request` — валидный запрос со всеми полями
 2. ✅ `test_default_values` — проверка дефолтных значений
@@ -107,23 +107,30 @@
 6. ✅ `test_age_above_maximum_raises_validation_error` — возраст > 120 → ValidationError
 7. ✅ `test_negative_waist_cm_raises_validation_error` — отрицательная талия → ValidationError
 8. ✅ `test_none_waist_cm_is_valid` — `waist_cm=None` валидно (опциональное поле)
-9. ✅ `test_valid_languages` (parametrize: `ru`, `en`, `es`) — валидные языки
-10. ✅ `test_invalid_language_raises_validation_error` — невалидный язык → ValidationError
-11. ✅ `test_pregnant_string_and_bool` — `pregnant` принимает string и bool
-12. ✅ `test_athlete_string_and_bool` — `athlete` принимает string и bool
+9. ✅ `test_valid_languages[ru]` — валидный язык `ru`
+10. ✅ `test_valid_languages[en]` — валидный язык `en`
+11. ✅ `test_valid_languages[es]` — валидный язык `es`
+12. ✅ `test_invalid_language_raises_validation_error` — невалидный язык → ValidationError
+13. ✅ `test_pregnant_string_and_bool` — `pregnant` принимает string и bool
+14. ✅ `test_athlete_string_and_bool` — `athlete` принимает string и bool
 
 #### 2.2. `TestBMICalculateResponse` — Response Structure Tests
 
-**Тесты структуры ответа:**
+**Тесты структуры ответа (13 pytest-кейсов):**
 
 1. ✅ `test_minimal_response` — минимальный ответ (без waist)
 2. ✅ `test_full_response_with_waist_risk` — полный ответ с waist risk
-3. ✅ `test_category_none_for_pregnant` — `category=None` для беременных (валидно)
+3. ✅ `test_category_none_for_pregnant` — `category=None` для pregnant (валидно)
 4. ✅ `test_category_none_for_too_young` — `category=None` для too_young (валидно)
 5. ✅ `test_category_none_for_child` — `category=None` для child (валидно)
 6. ✅ `test_category_none_for_teen` — `category=None` для teen (валидно)
-7. ✅ `test_all_age_bands` (parametrize: все age_band значения) — все возрастные группы валидны
-8. ✅ `test_notes_default_factory` — `notes` дефолтно пустой список
+7. ✅ `test_all_age_bands[too_young]` — валидный `age_band=too_young`
+8. ✅ `test_all_age_bands[child]` — валидный `age_band=child`
+9. ✅ `test_all_age_bands[teen]` — валидный `age_band=teen`
+10. ✅ `test_all_age_bands[adult]` — валидный `age_band=adult`
+11. ✅ `test_all_age_bands[elderly]` — валидный `age_band=elderly`
+12. ✅ `test_invalid_age_band_raises_validation_error` — невалидный `age_band` → ValidationError
+13. ✅ `test_notes_default_factory` — `notes` создается через `default_factory=list` и не шарится между инстансами
 
 **Особенности тестов:**
 - Все тесты проверяют конкретные значения, а не тавтологии
@@ -223,18 +230,25 @@
 
 ## ✅ Checklist реализации
 
+_Состояние: post-review (после правок из `PR_453_REVIEW_RESPONSE.md`)._
+
 - [x] Создан `app/schemas/bmi.py`
 - [x] `BMICalculateRequest` со всеми полями и валидацией
 - [x] `BMICalculateResponse` со всеми полями и описаниями
+- [x] `waist_risk` типобезопасен: `WaistRiskResultSchema | None` (вместо `dict[str, Any] | None`)
 - [x] Все поля имеют `description` и `examples`
 - [x] Создан `tests/test_bmi_schemas.py`
-- [x] 26 тестов покрывают все edge cases
-- [x] Тесты проходят (26/26 ✅)
+- [x] 27 pytest-кейсов покрывают все edge cases
+- [x] Добавлен negative-тест: `test_invalid_age_band_raises_validation_error`
+- [x] Усилен `test_notes_default_factory` (проверка независимых списков через `default_factory=list`)
+- [x] Тесты проходят (27/27 ✅)
 - [x] `ruff check` проходит
 - [x] `ruff format` проходит
 - [x] Импорты корректны (нет циклических зависимостей)
 - [x] Документация в docstrings на RU/EN
 - [x] `PR_453_COMMIT_3_SCHEMAS.md` создан
+- [x] Markdown-правки в `PR_453_COMMIT_3_SCHEMAS.md` применены (языковой тег + заголовок)
+- [x] Добавлен `docs/BMI_CANONICAL_HANDOFF.md` (canonical handoff)
 
 ---
 

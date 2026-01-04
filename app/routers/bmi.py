@@ -10,19 +10,35 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
-import dataclasses
-from typing import Any
+from typing import Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse
+from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+
 
 # Import engine (will be available after PR-453 Commit 2)
+class CalculateBmiResult(Protocol):
+    def __call__(
+        self,
+        weight_kg: float,
+        height_cm: float,
+        age: int,
+        gender: str,
+        pregnant: bool,
+        athlete: bool,
+        waist_cm: float | None,
+        lang: str,
+    ) -> "BMICalculateResult": ...
+
+
 try:
-    from core.bmi.engine import calculate_bmi_result
+    from core.bmi.engine import BMICalculateResult, calculate_bmi_result as _calculate_bmi_result
 except ImportError:
     # Fallback for development/testing when engine is not yet available
-    calculate_bmi_result = None  # type: ignore[assignment]
+    calculate_bmi_result: CalculateBmiResult | None = None
+else:
+    calculate_bmi_result = _calculate_bmi_result
 
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
@@ -89,13 +105,14 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             lang=req.lang,
         )
 
-        # Serialize waist_risk (dataclass → dict)
-        waist_risk_dict: dict[str, Any] | None = None
+        # Serialize waist_risk (dataclass → Pydantic schema)
+        waist_risk_schema: WaistRiskResultSchema | None = None
         if result.waist_risk:
-            waist_risk_dict = dataclasses.asdict(result.waist_risk)
-            # Convert tuple to list for JSON serialization
-            if "notes" in waist_risk_dict and isinstance(waist_risk_dict["notes"], tuple):
-                waist_risk_dict["notes"] = list(waist_risk_dict["notes"])
+            waist_risk_schema = WaistRiskResultSchema(
+                wht_ratio=result.waist_risk.wht_ratio,
+                risk_level=result.waist_risk.risk_level,
+                notes=result.waist_risk.notes,
+            )
 
         # Map to API response
         return BMICalculateResponse(
@@ -105,7 +122,7 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             group_display=result.group_display,
             interpretation=result.interpretation,
             wht_ratio=result.wht_ratio,
-            waist_risk=waist_risk_dict,
+            waist_risk=waist_risk_schema,
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
         )

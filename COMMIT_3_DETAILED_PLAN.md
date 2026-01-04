@@ -227,6 +227,15 @@ class BMICalculateResponse(BaseModel):
 # В endpoint (Commit 4):
 result = calculate_bmi_result(...)  # Returns BMICalculateResult (dataclass)
 
+# Serialize waist_risk (domain dataclass → API schema)
+waist_risk_schema = None
+if result.waist_risk:
+    waist_risk_schema = WaistRiskResultSchema(
+        wht_ratio=result.waist_risk.wht_ratio,
+        risk_level=result.waist_risk.risk_level,
+        notes=result.waist_risk.notes,
+    )
+
 return BMICalculateResponse(
     bmi=result.bmi,
     category=result.category if result.category else None,  # Handle None at API level
@@ -234,7 +243,7 @@ return BMICalculateResponse(
     group_display=result.group_display,
     interpretation=result.interpretation,
     wht_ratio=result.wht_ratio,
-    waist_risk=result.waist_risk.model_dump() if result.waist_risk else None,  # Serialize dataclass
+    waist_risk=waist_risk_schema,
     notes=list(result.notes),  # Convert tuple to list for JSON
     age_band=result.age_band,
 )
@@ -479,7 +488,7 @@ feat(api): add BMI request/response schemas
 
 3. **Pregnant/athlete string→bool НЕ в схеме**:
    - Схема принимает `str | bool`
-   - Конвертация в `bool` происходит в engine
+   - Конвертация в `bool` происходит в endpoint (перед вызовом engine)
 
 4. **Category=None — это НЕ ошибка**:
    - Для беременных и детей <12 лет `category=None` — это медицинский дисклеймер
@@ -487,8 +496,8 @@ feat(api): add BMI request/response schemas
 
 5. **WaistRiskResult сериализация**:
    - Engine возвращает `WaistRiskResult` (dataclass)
-   - Endpoint сериализует через `.model_dump()` или `dict(...)`
-   - Response содержит `dict[str, Any]` (не Pydantic модель)
+   - Endpoint сериализует в `WaistRiskResultSchema` (Pydantic)
+   - Response содержит `WaistRiskResultSchema | None` (строго типизировано)
 
 ---
 
