@@ -1316,8 +1316,7 @@ def legacy_category_label(cat: str, lang: str) -> str:
 # Rate limiting setup (only if slowapi is available)
 def _is_rate_limiting_available() -> bool:
     return (
-        slowapi_available
-        and Limiter is not None
+        slowapi_available and Limiter is not None
         # and RateLimitExceeded is not None
         # and _rate_limit_exceeded_handler is not None
     )
@@ -3704,7 +3703,7 @@ async def aggregate_day_micros(
         return cast(Dict[str, float] | None, result) or {}
     else:
         logger.warning(
-            "premium_plate: _aggregate_day_micronutrients not callable (%s), " "using empty micros",
+            "premium_plate: _aggregate_day_micronutrients not callable (%s), using empty micros",
             type(_aggregate_func),
         )
         return {}
@@ -4129,7 +4128,6 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     Uses a lenient schema to avoid pydantic 422s in error-path tests.
     """
     try:
-
         # Resolve wrappers at call time so test-time patches on app._calculate_all_* apply
         import sys as _sys
 

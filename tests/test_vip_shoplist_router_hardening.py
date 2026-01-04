@@ -271,9 +271,9 @@ def test_generate_missing_api_key_returns_401_or_403(
 
     r = client.post("/api/v1/vip/shoplist/generate", json=payload)
     # VIP = feature-gate, returns 403
-    assert (
-        r.status_code == status.HTTP_403_FORBIDDEN
-    ), f"Expected 403, got {r.status_code}: {r.text}"
+    assert r.status_code == status.HTTP_403_FORBIDDEN, (
+        f"Expected 403, got {r.status_code}: {r.text}"
+    )
     data = r.json()
     detail = str(data.get("detail", ""))
     detail_lower = detail.lower()

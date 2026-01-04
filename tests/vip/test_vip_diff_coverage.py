@@ -53,9 +53,9 @@ class TestVIPRegistrationIdempotent:
         register_vip_routes(app)
 
         paths = [r.path for r in app.routes if hasattr(r, "path")]
-        assert not any(
-            "/api/v1/vip" in path for path in paths
-        ), "VIP routes should not be registered"
+        assert not any("/api/v1/vip" in path for path in paths), (
+            "VIP routes should not be registered"
+        )
 
 
 class TestVIPShoplistPDFExport:

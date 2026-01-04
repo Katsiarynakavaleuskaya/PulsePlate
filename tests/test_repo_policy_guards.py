@@ -130,7 +130,7 @@ def test_tests_have_no_dynamic_imports_except_whitelist() -> None:
                 offenders.append(rel)
 
     assert not offenders, (
-        "Dynamic imports are forbidden in tests except whitelist. " f"Offenders: {offenders}"
+        f"Dynamic imports are forbidden in tests except whitelist. Offenders: {offenders}"
     )
 
 
@@ -147,7 +147,7 @@ def test_tests_have_no_sys_path_insert_except_whitelist() -> None:
                 offenders.append(rel)
 
     assert not offenders, (
-        "sys.path.insert is forbidden in tests except whitelist. " f"Offenders: {offenders}"
+        f"sys.path.insert is forbidden in tests except whitelist. Offenders: {offenders}"
     )
 
 
@@ -275,16 +275,16 @@ def test_engineering_lessons_are_linked_from_repo_entrypoints() -> None:
     agents_path = REPO_ROOT / "AGENTS.md"
     assert agents_path.exists(), "AGENTS.md missing"
     agents_content = _read(agents_path)
-    assert (
-        "docs/ENGINEERING_LESSONS.md" in agents_content
-    ), "AGENTS.md must reference docs/ENGINEERING_LESSONS.md so agents have a stable entrypoint."
+    assert "docs/ENGINEERING_LESSONS.md" in agents_content, (
+        "AGENTS.md must reference docs/ENGINEERING_LESSONS.md so agents have a stable entrypoint."
+    )
 
     pr_template_path = REPO_ROOT / ".github" / "pull_request_template.md"
     assert pr_template_path.exists(), ".github/pull_request_template.md missing"
     pr_template_content = _read(pr_template_path)
-    assert (
-        "docs/ENGINEERING_LESSONS.md" in pr_template_content
-    ), "PR template must reference docs/ENGINEERING_LESSONS.md to keep humans/agents aligned."
+    assert "docs/ENGINEERING_LESSONS.md" in pr_template_content, (
+        "PR template must reference docs/ENGINEERING_LESSONS.md to keep humans/agents aligned."
+    )
 
 
 def test_no_direct_model_submodule_imports() -> None:

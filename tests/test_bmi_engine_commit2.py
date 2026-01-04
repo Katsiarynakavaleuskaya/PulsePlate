@@ -61,7 +61,9 @@ class TestAutoGroup:
     def test_sport_is_not_athlete(self) -> None:
         """Test 'спорт' is NOT considered athlete (too general)."""
         assert (
-            _auto_group(age=30, gender="female", pregnant=False, athlete=False, athlete_text="спорт")
+            _auto_group(
+                age=30, gender="female", pregnant=False, athlete=False, athlete_text="спорт"
+            )
             == "general"
         )
 
@@ -112,6 +114,7 @@ class TestBMICategory:
         assert _bmi_category(bmi=25.9, age=65, group="elderly") == "normal"
         assert _bmi_category(bmi=26.0, age=65, group="elderly") == "overweight"
         assert _bmi_category(bmi=30.0, age=65, group="elderly") == "obesity_1"
+        assert _bmi_category(bmi=35.0, age=65, group="elderly") == "obesity_2"  # Coverage line 271
         assert _bmi_category(bmi=40.0, age=65, group="elderly") == "obesity_3"
 
     def test_athlete_thresholds(self) -> None:
@@ -122,6 +125,7 @@ class TestBMICategory:
         assert _bmi_category(bmi=26.9, age=30, group="athlete") == "normal"
         assert _bmi_category(bmi=27.0, age=30, group="athlete") == "overweight"
         assert _bmi_category(bmi=30.0, age=30, group="athlete") == "obesity_1"
+        assert _bmi_category(bmi=35.0, age=30, group="athlete") == "obesity_2"  # Coverage line 285
         assert _bmi_category(bmi=40.0, age=30, group="athlete") == "obesity_3"
 
 
@@ -136,6 +140,12 @@ class TestGroupDisplayName:
         assert _group_display_name("athlete", "en") != ""
         assert _group_display_name("athlete", "ru") != ""
         assert _group_display_name("athlete", "es") != ""
+
+    def test_group_display_name_fallback_to_en(self) -> None:
+        """Test fallback to 'en' for unknown language (coverage line 312)."""
+        # Unknown language should fallback to "en"
+        result = _group_display_name("general", "fr")  # Unknown language
+        assert result == "General"  # Should fallback to "en"
 
     def test_group_display_names_table_is_complete(self) -> None:
         """
@@ -217,4 +227,3 @@ class TestInterpretation:
         assert _interpretation(category=None, note="note") == "note"
         assert _interpretation(category=None, note="") == ""
         assert _interpretation(category=None, note=None) == ""
-

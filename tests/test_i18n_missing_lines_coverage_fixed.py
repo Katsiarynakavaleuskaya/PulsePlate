@@ -119,9 +119,9 @@ class TestI18nMissingLines:
         for lang in unknown_languages:
             result = normalize_lang(lang)
             # Should fallback to "en" (line 430)
-            assert (
-                result == "en"
-            ), f"Expected 'en' fallback for unknown language '{lang}', got '{result}'"
+            assert result == "en", (
+                f"Expected 'en' fallback for unknown language '{lang}', got '{result}'"
+            )
 
     def test_complex_locale_patterns_coverage(self):
         """Test complex locale patterns to trigger different code paths"""
@@ -178,9 +178,9 @@ class TestI18nMissingLines:
         for input_locale, expected_result in normalization_tests:
             result = normalize_lang(input_locale)
             # Should normalize and process correctly
-            assert (
-                result == expected_result
-            ), f"Expected '{expected_result}' for '{input_locale}', got '{result}'"
+            assert result == expected_result, (
+                f"Expected '{expected_result}' for '{input_locale}', got '{result}'"
+            )
 
     def test_edge_case_inputs_coverage(self):
         """Test edge case inputs to ensure robustness"""

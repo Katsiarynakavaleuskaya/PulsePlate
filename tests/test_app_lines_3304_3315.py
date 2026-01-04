@@ -124,8 +124,8 @@ class TestAppLines3304_3315:
         # Check that TDEE values exceed corresponding BMR values
         for formula in data["bmr"]:
             if formula in data["tdee"]:
-                assert (
-                    data["tdee"][formula] > data["bmr"][formula]
-                ), f"TDEE[{formula}] should exceed BMR[{formula}]"
+                assert data["tdee"][formula] > data["bmr"][formula], (
+                    f"TDEE[{formula}] should exceed BMR[{formula}]"
+                )
 
         assert isinstance(data["recommended_intake"], dict), "recommended_intake should be a dict"

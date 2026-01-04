@@ -121,9 +121,9 @@ def test_vip_shoplist_invalid_enum_returns_422(
 
     r = client_with_vip_access.post(endpoint, json=payload)
 
-    assert (
-        r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-    ), f"Expected 422 for invalid {field}={bad_value}, got {r.status_code}: {r.text}"
+    assert r.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, (
+        f"Expected 422 for invalid {field}={bad_value}, got {r.status_code}: {r.text}"
+    )
 
     # Verify error structure (Pydantic validation)
     data = r.json()

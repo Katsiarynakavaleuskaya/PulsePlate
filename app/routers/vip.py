@@ -560,9 +560,7 @@ def _safe_call_with_adapter(func_name: str, *args: Any, **kwargs: Any) -> Any:  
 
     if func_name not in adapters:
         available = list(adapters.keys())
-        error_msg = (
-            f"No adapter found for function '{func_name}'. " f"Available adapters: {available}"
-        )
+        error_msg = f"No adapter found for function '{func_name}'. Available adapters: {available}"
         logging.error(error_msg)
         return vip_error(code="adapter_error", message=error_msg)
 

@@ -57,15 +57,15 @@ class TestCoverageFinalBoost:
         result_url = db._build_engine_url()
         assert result_url.startswith("sqlite:///"), "Default path should produce sqlite:/// URL"
         # The default path is "cache/app.db" which is relative (tests line 162-163)
-        assert (
-            "cache/app.db" in result_url or "cache" in result_url
-        ), "Default path should be included"
+        assert "cache/app.db" in result_url or "cache" in result_url, (
+            "Default path should be included"
+        )
 
         # Verify the URL doesn't have absolute path markers (no leading // after sqlite:///)
         # This confirms the relative path logic was used (line 162: path_part = parsed.path.lstrip("/"))
-        assert not result_url.startswith(
-            "sqlite:////"
-        ), "Relative path should not have double slashes"
+        assert not result_url.startswith("sqlite:////"), (
+            "Relative path should not have double slashes"
+        )
 
     def test_business_router_edge_paths(
         self, test_client: TestClient, monkeypatch: pytest.MonkeyPatch

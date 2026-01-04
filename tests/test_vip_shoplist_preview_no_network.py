@@ -119,9 +119,7 @@ def test_vip_shoplist_preview_no_network(monkeypatch: pytest.MonkeyPatch) -> Non
             handler = getattr(cls, handler_name, None) if cls is not None else None
             if callable(handler):
 
-                def handle_request(
-                    self, method, url, *args, _real=handler, **kwargs
-                ):  # noqa: ANN001
+                def handle_request(self, method, url, *args, _real=handler, **kwargs):  # noqa: ANN001
                     if _is_external_url(url):
                         raise AssertionError(
                             f"External HTTP blocked in tests (httpcore): {_to_str(method)} {url}"

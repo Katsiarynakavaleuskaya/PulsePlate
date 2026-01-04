@@ -101,9 +101,9 @@ class TestDebugEndpoint:
         llm_keys = [
             key for key in debug_keys if "PROVIDER" in key or "MODEL" in key or "ENDPOINT" in key
         ]
-        assert (
-            len(llm_keys) > 0
-        ), "Expected at least one LLM-related key (PROVIDER/MODEL/ENDPOINT) in debug data"
+        assert len(llm_keys) > 0, (
+            "Expected at least one LLM-related key (PROVIDER/MODEL/ENDPOINT) in debug data"
+        )
 
         # Ensure insight functionality flag exists
         insight_keys = [key for key in debug_keys if "insight" in key.lower()]

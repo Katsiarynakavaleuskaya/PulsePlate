@@ -63,17 +63,17 @@ class TestI18nRealisticCoverage:
             result_ru = t("ru", key)
             result_es = t("es", key)
             assert result_ru and result_es
-            assert isinstance(
-                result_ru, str
-            ), f"Expected result_ru to be str, got {type(result_ru)}"
-            assert isinstance(
-                result_es, str
-            ), f"Expected result_es to be str, got {type(result_es)}"
+            assert isinstance(result_ru, str), (
+                f"Expected result_ru to be str, got {type(result_ru)}"
+            )
+            assert isinstance(result_es, str), (
+                f"Expected result_es to be str, got {type(result_es)}"
+            )
             assert len(result_ru) > 0, f"Expected non-empty Russian translation for '{key}'"
             assert len(result_es) > 0, f"Expected non-empty Spanish translation for '{key}'"
-            assert (
-                result_ru != result_es
-            ), f"Russian and Spanish translations should differ for '{key}'"
+            assert result_ru != result_es, (
+                f"Russian and Spanish translations should differ for '{key}'"
+            )
 
     def test_validation_message_translations(self) -> None:
         """Test validation message translations"""
@@ -91,9 +91,9 @@ class TestI18nRealisticCoverage:
             result = t("ru", key)
             assert result is not None, f"translation for {key} returned None"
             assert isinstance(result, str), f"translation for {key} is not str: {type(result)}"
-            assert (
-                len(result) >= MIN_VALIDATION_MSG_LENGTH
-            ), f"translation for {key} too short: {len(result)}"
+            assert len(result) >= MIN_VALIDATION_MSG_LENGTH, (
+                f"translation for {key} too short: {len(result)}"
+            )
 
     def test_activity_level_translations(self) -> None:
         """Test activity level translations"""

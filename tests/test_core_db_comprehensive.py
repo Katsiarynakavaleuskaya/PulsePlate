@@ -195,9 +195,9 @@ def test_result_wrapper_exit_on_exception() -> None:
 
     # Connection should be closed despite exception
     # Use SQLAlchemy's public API to verify connection closure
-    assert (
-        result._connection.closed
-    ), "Connection should be closed after exception in context manager"
+    assert result._connection.closed, (
+        "Connection should be closed after exception in context manager"
+    )
 
 
 def test_result_wrapper_close_already_closed_result() -> None:
@@ -277,9 +277,9 @@ async def test_async_engine_pool_config_sqlite_async(monkeypatch: pytest.MonkeyP
             engine_pool = async_engine.pool
             from sqlalchemy.pool import NullPool, StaticPool
 
-            assert isinstance(
-                engine_pool, (NullPool, StaticPool)
-            ), f"SQLite async engine should use NullPool/StaticPool, got {type(engine_pool).__name__}"
+            assert isinstance(engine_pool, (NullPool, StaticPool)), (
+                f"SQLite async engine should use NullPool/StaticPool, got {type(engine_pool).__name__}"
+            )
         # else: aiosqlite not available, engine creation failed gracefully (ImportError)
         # Both states are valid - test passes either way
     finally:
@@ -305,9 +305,9 @@ async def test_async_engine_import_error_fallback(monkeypatch: pytest.MonkeyPatc
     if db.create_async_engine is None:
         # This is the actual ImportError condition - verify module handles it correctly
         assert db._ASYNC_ENGINE is None, "Engine should be None when asyncio not available"
-        assert (
-            db.AsyncSessionLocal is None
-        ), "SessionLocal should be None when asyncio not available"
+        assert db.AsyncSessionLocal is None, (
+            "SessionLocal should be None when asyncio not available"
+        )
         assert db.async_engine is None, "async_engine alias should be None"
         return
 

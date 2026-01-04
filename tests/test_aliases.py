@@ -155,11 +155,7 @@ def test_load_aliases_schema_alias_canonical(tmp_path):
     """
     temp_file = tmp_path / "aliases.csv"
     temp_file.write_text(
-        "alias,canonical\n"
-        "leche,Milk\n"
-        "POLLO,Chicken\n"
-        "  yogurt  ,  Greek Yogurt  \n"
-        "Manzana,Apple\n",
+        "alias,canonical\nleche,Milk\nPOLLO,Chicken\n  yogurt  ,  Greek Yogurt  \nManzana,Apple\n",
         encoding="utf-8",
     )
 

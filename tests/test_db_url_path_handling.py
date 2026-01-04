@@ -79,7 +79,7 @@ def test_init_db_query_parameter_removal(monkeypatch: pytest.MonkeyPatch) -> Non
             base_name = os.path.basename(test_path)
             created_files = os.listdir(tmpdir)
             assert any(name.startswith(base_name) for name in created_files), (
-                f"No database file starting with {base_name} found in {tmpdir}: " f"{created_files}"
+                f"No database file starting with {base_name} found in {tmpdir}: {created_files}"
             )
         finally:
             # Cleanup - restore original state

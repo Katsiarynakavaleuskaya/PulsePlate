@@ -33,23 +33,23 @@ def _validate_pythonpath(pythonpath: str, repo_root: str) -> None:
         normalized_segments.append(segment_path)
 
     # Repo root must be present explicitly
-    assert any(
-        segment == root_path for segment in normalized_segments
-    ), f"Repo root not found in PYTHONPATH: {pythonpath}"
+    assert any(segment == root_path for segment in normalized_segments), (
+        f"Repo root not found in PYTHONPATH: {pythonpath}"
+    )
 
     # Tests directory should be present (either as absolute path or trailing '/tests')
-    assert any(
-        segment == tests_dir for segment in normalized_segments
-    ), f"'tests' not found in PYTHONPATH: {pythonpath}"
+    assert any(segment == tests_dir for segment in normalized_segments), (
+        f"'tests' not found in PYTHONPATH: {pythonpath}"
+    )
 
     # Standalone 'core' and 'app' entries must NOT be present to avoid module duplication
-    assert not any(
-        segment == root_path / "core" for segment in normalized_segments
-    ), f"'core' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+    assert not any(segment == root_path / "core" for segment in normalized_segments), (
+        f"'core' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+    )
 
-    assert not any(
-        segment == root_path / "app" for segment in normalized_segments
-    ), f"'app' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+    assert not any(segment == root_path / "app" for segment in normalized_segments), (
+        f"'app' must NOT be a standalone PYTHONPATH entry: {pythonpath}"
+    )
 
 
 class TestConftestEnvironmentCoverage:

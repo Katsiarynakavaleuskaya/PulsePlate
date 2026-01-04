@@ -20,18 +20,22 @@ class _WaistRisk:
     notes: list[str]
 
 
-def test_engine_stub_raises_not_implemented() -> None:
-    with pytest.raises(NotImplementedError):
-        calculate_bmi_result(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            gender="male",
-            pregnant=False,
-            athlete=False,
-            waist_cm=None,
-            lang="en",
-        )
+def test_engine_returns_result_after_implementation() -> None:
+    """Test that engine is now implemented and returns BMICalculateResult."""
+    result = calculate_bmi_result(
+        weight_kg=70.0,
+        height_cm=175.0,
+        age=30,
+        gender="male",
+        pregnant=False,
+        athlete=False,
+        waist_cm=None,
+        lang="en",
+    )
+    assert isinstance(result, BMICalculateResult)
+    assert result.bmi > 0
+    assert result.group == "general"
+    assert result.category == "normal"
 
 
 def test_normalize_bool_flag() -> None:

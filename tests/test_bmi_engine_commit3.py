@@ -246,6 +246,83 @@ class TestCalculateBMIResultWHtRAndRisk:
         assert res.notes == ("risk-note-1", "risk-note-2")
         assert "normal" in res.interpretation or "overweight" in res.interpretation
 
+    def test_waist_risk_typeerror_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test TypeError fallback path for calculate_waist_risk (coverage line 437-443)."""
+        from core.bmi import risk
+
+        call_count = {"count": 0}
+
+        def _type_error_first(*args, **kwargs):
+            call_count["count"] += 1
+            if call_count["count"] == 1:
+                # First call with keyword args raises TypeError
+                raise TypeError("signature mismatch")
+            # Second call with positional args succeeds
+            return _FakeWaistRisk("low", ("fallback-note",))
+
+        monkeypatch.setattr(risk, "calculate_waist_risk", _type_error_first)
+
+        res = eng.calculate_bmi_result(
+            weight_kg=70.0,
+            height_cm=170.0,
+            age=30,
+            gender="male",
+            pregnant=False,
+            athlete=False,
+            waist_cm=80.0,
+            lang="en",
+        )
+        # Should succeed on second try (positional args)
+        assert res.waist_risk is not None
+        assert call_count["count"] == 2
+
+    def test_waist_risk_exception_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test Exception fallback path for calculate_waist_risk (coverage line 445)."""
+        from core.bmi import risk
+
+        def _raise_exception(**kwargs):
+            raise RuntimeError("risk calculation failed")
+
+        monkeypatch.setattr(risk, "calculate_waist_risk", _raise_exception)
+
+        res = eng.calculate_bmi_result(
+            weight_kg=70.0,
+            height_cm=170.0,
+            age=30,
+            gender="male",
+            pregnant=False,
+            athlete=False,
+            waist_cm=80.0,
+            lang="en",
+        )
+        # Should fail-soft: waist_risk=None, but BMI calculation succeeds
+        assert res.waist_risk is None
+        assert res.bmi > 0  # BMI calculation succeeded
+        assert res.notes == ()  # No notes when waist_risk fails
+
+    def test_notes_aggregation_filters_non_strings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test notes aggregation filters non-strings (coverage line 452->457)."""
+        from core.bmi import risk
+
+        # Create fake risk with mixed notes (strings and non-strings)
+        class _MixedNotesRisk:
+            notes = ("valid-note", 123, "", "  ", "another-valid")
+
+        monkeypatch.setattr(risk, "calculate_waist_risk", lambda **kwargs: _MixedNotesRisk())
+
+        res = eng.calculate_bmi_result(
+            weight_kg=70.0,
+            height_cm=170.0,
+            age=30,
+            gender="male",
+            pregnant=False,
+            athlete=False,
+            waist_cm=80.0,
+            lang="en",
+        )
+        # Should filter: only non-empty strings
+        assert res.notes == ("valid-note", "another-valid")
+
 
 class TestPipelineOrderingGuard:
     """Guard test to ensure pipeline ordering is preserved."""

@@ -117,7 +117,7 @@ def _find_violations(text: str) -> list[tuple[int, str]]:
 
 
 def test_policy_does_not_flag_comments_or_strings() -> None:
-    content = "# del sys.modules['x']\n" "s = \"sys.modules.pop('x')\"\n"
+    content = "# del sys.modules['x']\ns = \"sys.modules.pop('x')\"\n"
     assert _find_violations(content) == []
 
 

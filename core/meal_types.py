@@ -199,7 +199,7 @@ def validate_meal_distribution(
         return (
             False,
             f"Total meal calories ({total:.0f}) deviate from daily target "
-            f"({daily_target:.0f}) by {deviation*100:.1f}%",
+            f"({daily_target:.0f}) by {deviation * 100:.1f}%",
         )
 
     # Check if any single meal is unreasonably large (>50% of daily)
@@ -209,8 +209,8 @@ def validate_meal_distribution(
         if meal_percentage > max_meal_percentage:
             return (
                 False,
-                f"{meal_type.value} has {meal_percentage*100:.1f}% of daily calories "
-                f"(max {max_meal_percentage*100:.0f}%)",
+                f"{meal_type.value} has {meal_percentage * 100:.1f}% of daily calories "
+                f"(max {max_meal_percentage * 100:.0f}%)",
             )
 
     return (True, "")

@@ -33,9 +33,9 @@ def test_app_public_surface_smoke() -> None:
 
     # Visualization flags (optional but must be present)
     assert hasattr(app, "MATPLOTLIB_AVAILABLE"), "app.MATPLOTLIB_AVAILABLE must be exported"
-    assert hasattr(
-        app, "generate_bmi_visualization"
-    ), "app.generate_bmi_visualization must be exported"
+    assert hasattr(app, "generate_bmi_visualization"), (
+        "app.generate_bmi_visualization must be exported"
+    )
 
 
 def test_no_dynamic_exec_module_in_app_package() -> None:
@@ -50,9 +50,9 @@ def test_no_dynamic_exec_module_in_app_package() -> None:
 
     # No dynamic module execution
     assert "exec_module" not in app_init, "app/__init__.py must not use exec_module"
-    assert (
-        "spec_from_file_location" not in app_init
-    ), "app/__init__.py must not use spec_from_file_location"
+    assert "spec_from_file_location" not in app_init, (
+        "app/__init__.py must not use spec_from_file_location"
+    )
 
     # __getattr__ is allowed for PEP 562 forwarding to legacy_app
     # (standard pattern for backward-compatible module aliasing)
@@ -68,6 +68,6 @@ def test_dockerfile_uses_legacy_app_not_app_py() -> None:
     assert "legacy_app.py" in dockerfile, "Dockerfile must COPY legacy_app.py"
 
     # Should NOT copy app.py (renamed file)
-    assert (
-        "COPY --chown=pulseplate:pulseplate app.py" not in dockerfile
-    ), "Dockerfile must not COPY app.py (file renamed to legacy_app.py)"
+    assert "COPY --chown=pulseplate:pulseplate app.py" not in dockerfile, (
+        "Dockerfile must not COPY app.py (file renamed to legacy_app.py)"
+    )

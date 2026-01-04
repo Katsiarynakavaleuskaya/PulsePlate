@@ -234,13 +234,13 @@ class TestComprehensiveCoverage:
             headers={"X-API-Key": "test_key"},
         )
         # When rollback_database returns True, endpoint should return 200
-        assert (
-            response.status_code == 200
-        ), f"Rollback success should return 200, got {response.status_code}"
+        assert response.status_code == 200, (
+            f"Rollback success should return 200, got {response.status_code}"
+        )
         data = response.json()
-        assert (
-            "message" in data
-        ), "API response must contain 'message' key per rollback endpoint contract"
+        assert "message" in data, (
+            "API response must contain 'message' key per rollback endpoint contract"
+        )
 
     @pytest.mark.serial
     def test_rollback_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:

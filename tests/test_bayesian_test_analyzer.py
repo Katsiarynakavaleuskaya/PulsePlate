@@ -439,9 +439,9 @@ class TestInternalsAndEdgeBranches:
             )
         report = analyzer.generate_test_report()
         # Locale-independent structural checks: verify recommendations exist and reference the failure
-        assert (
-            len(report["recommendations"]) > 0
-        ), "Report should contain recommendations for failing tests"
+        assert len(report["recommendations"]) > 0, (
+            "Report should contain recommendations for failing tests"
+        )
         # Check that at least one recommendation mentions the test name, error type, or error message
         recommendations_text = " ".join(report["recommendations"]).lower()
         assert (

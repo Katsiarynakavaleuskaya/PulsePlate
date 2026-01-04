@@ -52,7 +52,6 @@ def write_snapshot(path: str | Path, snapshot: CatalogSnapshot) -> None:
                 )
 
         with conn:
-
             for r in snapshot.regions:
                 conn.execute(
                     "INSERT INTO regions(region_id,country,currency,locale) VALUES (?,?,?,?)",
