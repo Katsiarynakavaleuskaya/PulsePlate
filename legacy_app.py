@@ -2193,25 +2193,9 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
 
 
 # Backward-compatible BMI calculate endpoint without API key
-@app.post("/api/v1/bmi/calculate")
-async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
-    """
-    RU: Shim endpoint. Исторически этот путь жил в legacy_app.py.
-    Теперь это тонкий прокси в новый Free BMI handler (app/routers/bmi.py),
-    чтобы не было двух реализаций и чтобы API/клиенты не расходились.
-
-    EN: Shim endpoint. This path historically lived in legacy_app.py.
-    Now it is a thin proxy to the new Free BMI handler (app/routers/bmi.py)
-    to avoid duplicate implementations and client divergence.
-    """
-    # Local import to avoid import cycles on app startup.
-    from app.routers.bmi import bmi_calculate_handler
-
-    # Delegate to the canonical Free BMI handler.
-    # Keep request/response shape stable for clients.
-    # Convert BMIRequestV1 to dict for handler compatibility
-    payload: dict[str, Any] = req.model_dump()
-    return await bmi_calculate_handler(payload)
+# REMOVED: Legacy shim for /api/v1/bmi/calculate (PR-456 Commit 2)
+# Router endpoint in app/routers/bmi.py is now the canonical owner.
+# This eliminates duplicate ownership and ensures one path → one handler.
 
 
 def _ensure_insight_text_length(text: str) -> str:

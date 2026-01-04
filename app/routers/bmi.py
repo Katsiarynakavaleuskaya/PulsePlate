@@ -15,7 +15,7 @@ from typing import Any, Callable, Protocol
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
-from core.i18n import Language, t
+from core.i18n import Language, normalize_lang, t
 
 
 # Import engine (will be available after PR-453 Commit 2)
@@ -79,23 +79,8 @@ except ImportError:  # pragma: no cover
     pass
 
 
-def _get_lang_from_request(req: BMICalculateRequest) -> Language:
-    """
-    RU: Извлекает язык из запроса (normalized).
-    EN: Extract language from request (normalized).
-
-    Args:
-        req: BMICalculateRequest with lang field
-
-    Returns:
-        Language: Normalized language code ("ru"/"en"/"es")
-    """
-    lang_str = str(req.lang).lower()
-    if lang_str == "ru":
-        return "ru"
-    if lang_str == "es":
-        return "es"
-    return "en"
+# Removed _get_lang_from_request() - use core.i18n.normalize_lang() directly
+# This removes duplication and ensures consistent language normalization across the app.
 
 
 async def bmi_calculate_handler(
@@ -131,7 +116,7 @@ async def bmi_calculate_handler(
             req = BMICalculateRequest.model_validate(req_in)
 
     if calculate_bmi_result is None:
-        lang = _get_lang_from_request(req)
+        lang = normalize_lang(str(req.lang))
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=t(lang, "bmi_engine_unavailable"),
@@ -182,7 +167,7 @@ async def bmi_calculate_handler(
 
     except NotImplementedError as e:
         # Engine stub: deterministic API response
-        lang = _get_lang_from_request(req)
+        lang = normalize_lang(str(req.lang))
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=t(lang, "bmi_engine_unavailable"),
@@ -190,14 +175,14 @@ async def bmi_calculate_handler(
     except ValueError as e:
         # Domain validation errors (BMI out of bounds, etc.)
         # Security: do not expose internal error details
-        lang = _get_lang_from_request(req)
+        lang = normalize_lang(str(req.lang))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=t(lang, "bmi_invalid_parameters"),
         ) from e
     except Exception as e:
         # Unexpected errors (engine failure, etc.)
-        lang = _get_lang_from_request(req)
+        lang = normalize_lang(str(req.lang))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=t(lang, "bmi_calculation_failed"),

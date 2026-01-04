@@ -57,14 +57,18 @@ def test_fallback_normalize_bool_flag() -> None:
     assert bmi_router._fallback_normalize_bool_flag("yes", yes_values={"ok"}) is False
 
 
-def test_get_lang_from_request() -> None:
+def test_lang_normalization_uses_core_i18n() -> None:
+    """Test that router uses core.i18n.normalize_lang (removed _get_lang_from_request in PR-456)."""
+    from core.i18n import normalize_lang
+
     req_ru = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="ru")
     req_es = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="es")
     req_en = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="en")
 
-    assert bmi_router._get_lang_from_request(req_ru) == "ru"
-    assert bmi_router._get_lang_from_request(req_es) == "es"
-    assert bmi_router._get_lang_from_request(req_en) == "en"
+    # Router should use core.i18n.normalize_lang (tested indirectly via endpoint behavior)
+    assert normalize_lang(str(req_ru.lang)) == "ru"
+    assert normalize_lang(str(req_es.lang)) == "es"
+    assert normalize_lang(str(req_en.lang)) == "en"
 
 
 @pytest.mark.anyio

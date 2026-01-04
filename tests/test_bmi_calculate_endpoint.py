@@ -469,7 +469,13 @@ def test_importerror_sets_calculate_bmi_result_none_and_returns_501(
 
     importlib.reload(bmi_router)
 
-    assert bmi_router.calculate_bmi_result is None
+    # Verify that ImportError path was executed
+    assert bmi_router.calculate_bmi_result is None, "calculate_bmi_result should be None after ImportError"
+
+    # Note: client fixture uses already-loaded app, so we need to patch the handler directly
+    # to test the ImportError branch. The endpoint will use the reloaded module's None value.
+    # Patch at the module level to simulate ImportError state
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
 
     resp = client.post(
         "/api/v1/bmi/calculate",
@@ -485,6 +491,7 @@ def test_importerror_sets_calculate_bmi_result_none_and_returns_501(
         },
     )
 
-    assert resp.status_code == 501
-    # Точный detail уже есть у тебя в тестах/коде через t(lang, "bmi_engine_unavailable")
+    # After PR-455, engine is implemented, so ImportError path should return 501
+    # If monkeypatch worked correctly, calculate_bmi_result should be None
+    assert resp.status_code == 501, f"Expected 501 when engine unavailable, got {resp.status_code}. Response: {resp.json()}"
     assert "detail" in resp.json()
