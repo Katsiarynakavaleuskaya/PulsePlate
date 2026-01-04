@@ -72,12 +72,12 @@ repos:
           - --extend-ignore=E501
       - id: ruff
         name: ruff (type hints check)
-        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|providers/.*\.py|(mcp_|setup_|update_|verify_).*\.py|(app|main|settings|secure_config|signed_links|llm|nutrition_core|nutrition_plate|bmi_core|bodyfat|bmi_visualization)\.py)$
+        files: ^(app/.*\.py|core/.*\.py|scripts/.*\.py|providers/.*\.py|(mcp_|setup_|update_|verify_).*\.py|(app|main|settings|secure_config|signed_links|llm|nutrition_core|nutrition_plate|bmi_core|bodyfat|bmi_visualization|legacy_app)\.py)$
         # business_bayesian_analyzer is temporarily excluded as legacy analyzer code
         # with staged type-hint refactor tracked separately.
         exclude: ^core/(db|auto_repair|data_sanitizer|business_bayesian_analyzer)\.py$
         args: [--select, ANN, --fix, --line-length=100, --extend-ignore=E501]
-        stages: [pre-push]  # Run on pre-push for stricter enforcement
+        stages: [pre-commit, pre-push]  # Run on both pre-commit and pre-push for immediate feedback
 
   # --- Type checking: mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
