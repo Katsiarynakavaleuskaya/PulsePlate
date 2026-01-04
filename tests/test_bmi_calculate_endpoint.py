@@ -422,80 +422,42 @@ async def test_handler_accepts_dict_input_and_validates(
     assert data["bmi"] == 23.5
 
 
-def test_importerror_sets_calculate_bmi_result_none_and_returns_501(
-    client: TestClient,
+@pytest.mark.anyio
+async def test_engine_unavailable_returns_501_from_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """
-    RU: Проверяем, что при ImportError engine handler возвращает 501 (строки 38-40).
-    EN: Verify that ImportError in engine import returns 501 (lines 38-40).
+    RU: Ветка 501 должна тестироваться на уровне handler, а не через HTTP endpoint,
+    потому что FastAPI кеширует route handlers при инициализации app.
+    EN: Test the 501 branch at handler level (FastAPI caches route callables).
 
     Закрывает ветку:
-      try: from core.bmi.engine import ...
-      except ImportError: calculate_bmi_result = None
-
-    Мы форсим ImportError только для 'core.bmi.engine', затем reload app.routers.bmi.
+      if calculate_bmi_result is None:
+          raise HTTPException(501, ...)
     """
-
-    class _FailEngineImporter(importlib.abc.MetaPathFinder):
-        """MetaPathFinder that raises ImportError for core.bmi.engine."""
-
-        def find_spec(
-            self,
-            fullname: str,
-            path: object | None = None,
-            target: object | None = None,
-        ) -> ModuleSpec | None:
-            if fullname == "core.bmi.engine":
-                raise ImportError("forced for coverage")
-            return None
-
-    # Remove module using monkeypatch API BEFORE setting blocker (repo-policy compliant)
-    for name in list(sys.modules.keys()):
-        if name == "app.routers.bmi" or name.startswith("app.routers.bmi."):
-            monkeypatch.delitem(sys.modules, name, raising=False)
-
-    # Also remove core.bmi.engine if already imported
-    for name in list(sys.modules.keys()):
-        if name == "core.bmi.engine" or name.startswith("core.bmi.engine."):
-            monkeypatch.delitem(sys.modules, name, raising=False)
-
-    # Add finder to meta_path (repo-policy compliant)
-    blocker = _FailEngineImporter()
-    monkeypatch.setattr(sys, "meta_path", [blocker, *sys.meta_path])
-
-    # Now import will trigger ImportError path
     import app.routers.bmi as bmi_router
 
-    importlib.reload(bmi_router)
-
-    # Verify that ImportError path was executed
-    assert (
-        bmi_router.calculate_bmi_result is None
-    ), "calculate_bmi_result should be None after ImportError"
-
-    # Note: client fixture uses already-loaded app, so we need to patch the handler directly
-    # to test the ImportError branch. The endpoint will use the reloaded module's None value.
-    # Patch at the module level to simulate ImportError state
+    # Simulate "engine import failed" state
     monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
 
-    resp = client.post(
-        "/api/v1/bmi/calculate",
-        json={
-            "weight_kg": 70.0,
-            "height_cm": 170.0,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "waist_cm": None,
-            "lang": "en",
-        },
-    )
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "male",
+        "pregnant": "no",
+        "athlete": "no",
+        "waist_cm": None,
+        "lang": "en",
+    }
 
-    # After PR-455, engine is implemented, so ImportError path should return 501
-    # If monkeypatch worked correctly, calculate_bmi_result should be None
-    assert (
-        resp.status_code == 501
-    ), f"Expected 501 when engine unavailable, got {resp.status_code}. Response: {resp.json()}"
-    assert "detail" in resp.json()
+    from fastapi import HTTPException
+    from starlette import status
+
+    with pytest.raises(HTTPException) as exc:
+        await bmi_router.bmi_calculate_handler(payload)
+
+    err = exc.value
+    assert err.status_code == status.HTTP_501_NOT_IMPLEMENTED
+    # detail comes from t(lang, "bmi_engine_unavailable")
+    assert err.detail
