@@ -12,7 +12,9 @@ PR-454: shim + thin adapter wiring.
 from __future__ import annotations
 
 import importlib
+import importlib.abc
 import sys
+from importlib.machinery import ModuleSpec
 from typing import Any
 
 import pytest
@@ -321,11 +323,13 @@ def test_normalize_bool_flag_edge_cases() -> None:
     from app.routers.bmi import _normalize_bool_flag
 
     # Test with None (not bool, not str)
-    assert _normalize_bool_flag(None) is False  # type: ignore[arg-type]
+    # type: ignore[arg-type]  # intentional: testing fail-soft behavior on invalid input types
+    assert _normalize_bool_flag(None) is False
 
     # Test with int (not bool, not str)
-    assert _normalize_bool_flag(0) is False  # type: ignore[arg-type]
-    assert _normalize_bool_flag(1) is False  # type: ignore[arg-type]
+    # type: ignore[arg-type]  # intentional: testing fail-soft behavior on invalid input types
+    assert _normalize_bool_flag(0) is False
+    assert _normalize_bool_flag(1) is False
 
 
 @pytest.mark.anyio
@@ -431,21 +435,35 @@ def test_importerror_sets_calculate_bmi_result_none_and_returns_501(
 
     Мы форсим ImportError только для 'core.bmi.engine', затем reload app.routers.bmi.
     """
-    import builtins
 
-    real_import = builtins.__import__
+    class _FailEngineImporter(importlib.abc.MetaPathFinder):
+        """MetaPathFinder that raises ImportError for core.bmi.engine."""
 
-    def _import_hook(name: str, *args: Any, **kwargs: Any) -> Any:
-        # Важно: "from core.bmi.engine import ..." вызывает __import__("core.bmi.engine", ...)
-        if name == "core.bmi.engine":
-            raise ImportError("forced for coverage")
-        return real_import(name, *args, **kwargs)
+        def find_spec(
+            self,
+            fullname: str,
+            path: object | None = None,
+            target: object | None = None,
+        ) -> ModuleSpec | None:
+            if fullname == "core.bmi.engine":
+                raise ImportError("forced for coverage")
+            return None
 
-    monkeypatch.setattr(builtins, "__import__", _import_hook)
+    # Remove module using monkeypatch API BEFORE setting blocker (repo-policy compliant)
+    for name in list(sys.modules.keys()):
+        if name == "app.routers.bmi" or name.startswith("app.routers.bmi."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
-    # Удаляем модуль роутера, чтобы при импорте сработал try/except ImportError
-    sys.modules.pop("app.routers.bmi", None)
+    # Also remove core.bmi.engine if already imported
+    for name in list(sys.modules.keys()):
+        if name == "core.bmi.engine" or name.startswith("core.bmi.engine."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
 
+    # Add finder to meta_path (repo-policy compliant)
+    blocker = _FailEngineImporter()
+    monkeypatch.setattr(sys, "meta_path", [blocker, *sys.meta_path])
+
+    # Now import will trigger ImportError path
     import app.routers.bmi as bmi_router
 
     importlib.reload(bmi_router)
