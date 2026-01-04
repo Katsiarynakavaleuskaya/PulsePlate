@@ -47,7 +47,7 @@ class TestAppComprehensive97:
         assert data["category"] is None
         assert "pregnancy" in data["note"].lower()
         assert data["athlete"] is False
-        assert data["group"] == "general"
+        assert data["group"] == "pregnant"  # Canonical engine: pregnant=True + adult age → group="pregnant"
 
     def test_bmi_endpoint_athlete_with_visualization(self):
         """Test /bmi endpoint for athlete with visualization (lines 680-714)"""

@@ -47,7 +47,7 @@ class TestAppReal97Coverage:
         assert data["category"] is None  # Pregnant case
         assert "pregnancy" in data["note"].lower() or "not valid" in data["note"].lower()
         assert data["athlete"] is False
-        assert data["group"] == "general"
+        assert data["group"] == "pregnant"  # Canonical engine: pregnant=True + adult age → group="pregnant"
         assert "bmi" in data
 
         # Check visualization handling (lines 666-677)
