@@ -10,11 +10,12 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+from core.i18n import Language, t
 
 
 # Import engine (will be available after PR-453 Commit 2)
@@ -63,7 +64,28 @@ def _normalize_bool_flag(value: str | bool) -> bool:
     return False
 
 
-async def bmi_calculate_handler(req_in: Any) -> dict[str, Any]:
+def _get_lang_from_request(req: BMICalculateRequest) -> Language:
+    """
+    RU: Извлекает язык из запроса (normalized).
+    EN: Extract language from request (normalized).
+
+    Args:
+        req: BMICalculateRequest with lang field
+
+    Returns:
+        Language: Normalized language code ("ru"/"en"/"es")
+    """
+    lang_str = str(req.lang).lower()
+    if lang_str == "ru":
+        return "ru"
+    if lang_str == "es":
+        return "es"
+    return "en"
+
+
+async def bmi_calculate_handler(
+    req_in: BMICalculateRequest | dict[str, Any],  # noqa: ANN401
+) -> dict[str, Any]:
     """
     RU: Канонический Free BMI handler (тонкий адаптер).
     EN: Canonical Free BMI handler (thin adapter).
@@ -92,9 +114,10 @@ async def bmi_calculate_handler(req_in: Any) -> dict[str, Any]:
             req = BMICalculateRequest.model_validate(req_in)
 
     if calculate_bmi_result is None:
+        lang = _get_lang_from_request(req)
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="BMI engine is not available",
+            detail=t(lang, "bmi_engine_unavailable"),
         )
 
     try:
@@ -137,25 +160,29 @@ async def bmi_calculate_handler(req_in: Any) -> dict[str, Any]:
         )
 
         # Return as dict for legacy compatibility
-        return resp.model_dump()
+        return cast(dict[str, Any], resp.model_dump())
 
     except NotImplementedError as e:
         # Engine stub: deterministic API response
+        lang = _get_lang_from_request(req)
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="BMI engine is not available",
+            detail=t(lang, "bmi_engine_unavailable"),
         ) from e
     except ValueError as e:
         # Domain validation errors (BMI out of bounds, etc.)
+        # Security: do not expose internal error details
+        lang = _get_lang_from_request(req)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=t(lang, "bmi_invalid_parameters"),
         ) from e
     except Exception as e:
         # Unexpected errors (engine failure, etc.)
+        lang = _get_lang_from_request(req)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="BMI calculation failed",
+            detail=t(lang, "bmi_calculation_failed"),
         ) from e
 
 

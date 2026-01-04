@@ -39,8 +39,8 @@ def calculate_bmi_result(
     height_cm: float,
     age: int,
     gender: str,
-    pregnant: str | bool,
-    athlete: str | bool,
+    pregnant: bool,
+    athlete: bool,
     waist_cm: float | None,
     lang: str,
 ) -> BMICalculateResult:
@@ -49,15 +49,15 @@ def calculate_bmi_result(
     EN: Calculate BMI via unified engine (stub).
 
     This is a placeholder implementation.
-    Full implementation will be added in PR-453 Commit 2.
+    Full implementation will be added in PR-455 (engine implementation).
 
     Args:
         weight_kg: Weight in kilograms
         height_cm: Height in centimeters
         age: Age in years
         gender: Gender ("male"/"female")
-        pregnant: Pregnant flag (str or bool)
-        athlete: Athlete flag (str or bool)
+        pregnant: Pregnant flag (bool, normalized by router)
+        athlete: Athlete flag (bool, normalized by router)
         waist_cm: Waist circumference in cm (optional)
         lang: Language code ("ru"/"en"/"es")
 

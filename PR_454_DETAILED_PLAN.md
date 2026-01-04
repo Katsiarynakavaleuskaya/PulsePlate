@@ -1,5 +1,9 @@
 # PR-454: BMI Calculate Endpoint (Commit 4)
 
+**Canonical: PR-454 (BMI endpoint wiring + shim)**
+**GitHub PR: #476**
+**Branch: `feat/pr-454-bmi-endpoint`**
+
 ## 🎯 Цель PR
 
 Создать **тонкий API endpoint** `POST /api/v1/bmi/calculate` (FREE tier), который:
@@ -131,7 +135,7 @@ app.include_router(bmi_router)
 
 **Проблема**: Engine пока stub, поэтому тесты будут падать на `NotImplementedError`
 
-**Решение**: 
+**Решение**:
 - Вариант A: Мокировать `calculate_bmi_result` в тестах
 - Вариант B: Оставить тесты, но пометить как `@pytest.mark.skip` до реализации engine
 - **Рекомендация**: Вариант A (мокировать)
@@ -148,7 +152,7 @@ __all__ = ["WaistRiskResult", "calculate_waist_risk"]
 ```python
 from core.bmi.engine import BMICalculateResult, calculate_bmi_result, AgeBand
 __all__ = [
-    "WaistRiskResult", 
+    "WaistRiskResult",
     "calculate_waist_risk",
     "BMICalculateResult",
     "calculate_bmi_result",
@@ -363,4 +367,3 @@ feat(api): add POST /api/v1/bmi/calculate endpoint (shim pattern)
 | Строк кода | ~200-300 (тесты) |
 | Тестов | ~15-20 |
 | Покрытие | 100% endpoint логики |
-
