@@ -48,6 +48,7 @@ from starlette.requests import Request
 
 from app.dependencies import validate_template_dir
 from app.routers.api_key import api_key_header
+from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
@@ -2194,8 +2195,23 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
 # Backward-compatible BMI calculate endpoint without API key
 @app.post("/api/v1/bmi/calculate")
 async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
-    """Legacy path for BMI calculation; delegates to v1 logic without API key dependency."""
-    return await bmi_endpoint_v1(req)
+    """
+    RU: Shim endpoint. Исторически этот путь жил в legacy_app.py.
+    Теперь это тонкий прокси в новый Free BMI handler (app/routers/bmi.py),
+    чтобы не было двух реализаций и чтобы API/клиенты не расходились.
+
+    EN: Shim endpoint. This path historically lived in legacy_app.py.
+    Now it is a thin proxy to the new Free BMI handler (app/routers/bmi.py)
+    to avoid duplicate implementations and client divergence.
+    """
+    # Local import to avoid import cycles on app startup.
+    from app.routers.bmi import bmi_calculate_handler
+
+    # Delegate to the canonical Free BMI handler.
+    # Keep request/response shape stable for clients.
+    # Convert BMIRequestV1 to dict for handler compatibility
+    payload: dict[str, Any] = req.model_dump()
+    return await bmi_calculate_handler(payload)
 
 
 def _ensure_insight_text_length(text: str) -> str:
@@ -5423,6 +5439,9 @@ _bmi_pro_flag = os.getenv("FEATURE_BMI_PRO_ENABLED")
 FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag) if _bmi_pro_flag is not None else False
 if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
     app.include_router(bmi_pro_router)
+
+# Include BMI router (FREE tier, no API key required)
+app.include_router(bmi_router)
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")

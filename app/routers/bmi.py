@@ -1,0 +1,212 @@
+# -*- coding: utf-8 -*-
+"""
+BMI Router
+
+RU: Роутер для расчета BMI через единый engine.
+EN: Router for BMI calculation via unified engine.
+
+FREE tier endpoint (no API key required).
+"""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+from fastapi import APIRouter, HTTPException, status
+
+from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+from core.i18n import Language, t
+
+
+# Import engine (will be available after PR-453 Commit 2)
+class CalculateBmiResult(Protocol):
+    def __call__(
+        self,
+        weight_kg: float,
+        height_cm: float,
+        age: int,
+        gender: str,
+        pregnant: bool,
+        athlete: bool,
+        waist_cm: float | None,
+        lang: str,
+    ) -> "BMICalculateResult": ...
+
+
+try:
+    from core.bmi.engine import BMICalculateResult, calculate_bmi_result as _calculate_bmi_result
+except ImportError:
+    # Fallback for development/testing when engine is not yet available
+    calculate_bmi_result: CalculateBmiResult | None = None
+else:
+    calculate_bmi_result = _calculate_bmi_result
+
+
+router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
+
+
+def _normalize_bool_flag(value: str | bool) -> bool:
+    """
+    RU: Конвертирует string/bool в bool (fail-soft).
+    EN: Convert string/bool to bool (fail-soft).
+
+    Args:
+        value: String ("yes"/"no") or bool
+
+    Returns:
+        bool: True if value indicates "yes", False otherwise
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        s = value.strip().lower()
+        return s in {"yes", "y", "да", "true", "1"}
+    return False
+
+
+def _get_lang_from_request(req: BMICalculateRequest) -> Language:
+    """
+    RU: Извлекает язык из запроса (normalized).
+    EN: Extract language from request (normalized).
+
+    Args:
+        req: BMICalculateRequest with lang field
+
+    Returns:
+        Language: Normalized language code ("ru"/"en"/"es")
+    """
+    lang_str = str(req.lang).lower()
+    if lang_str == "ru":
+        return "ru"
+    if lang_str == "es":
+        return "es"
+    return "en"
+
+
+async def bmi_calculate_handler(
+    req_in: BMICalculateRequest | dict[str, Any],  # noqa: ANN401
+) -> dict[str, Any]:
+    """
+    RU: Канонический Free BMI handler (тонкий адаптер).
+    EN: Canonical Free BMI handler (thin adapter).
+
+    Accepts legacy BMIRequestV1-shaped input or BMICalculateRequest; converts to BMICalculateRequest
+    and returns response as dict for legacy shim compatibility.
+
+    Args:
+        req_in: BMIRequestV1 (legacy) or BMICalculateRequest (new)
+
+    Returns:
+        dict[str, Any]: Response as dict (for legacy compatibility)
+
+    Raises:
+        HTTPException: 400 if domain validation fails, 500 if engine fails, 501 if engine unavailable
+    """
+    # Convert to BMICalculateRequest if needed
+    if isinstance(req_in, BMICalculateRequest):
+        req = req_in
+    else:
+        # Legacy BMIRequestV1 or dict-like input
+        # If it's a Pydantic model, convert to dict first
+        if hasattr(req_in, "model_dump"):
+            # Type guard: req_in has model_dump method (Pydantic model)
+            model_dump = getattr(req_in, "model_dump")
+            req = BMICalculateRequest.model_validate(model_dump())
+        else:
+            req = BMICalculateRequest.model_validate(req_in)
+
+    if calculate_bmi_result is None:
+        lang = _get_lang_from_request(req)
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=t(lang, "bmi_engine_unavailable"),
+        )
+
+    try:
+        # Normalize flags (string → bool)
+        pregnant_bool = _normalize_bool_flag(req.pregnant)
+        athlete_bool = _normalize_bool_flag(req.athlete)
+
+        # Call engine (domain logic)
+        result = calculate_bmi_result(
+            weight_kg=req.weight_kg,
+            height_cm=req.height_cm,
+            age=req.age,
+            gender=req.gender,
+            pregnant=pregnant_bool,
+            athlete=athlete_bool,
+            waist_cm=req.waist_cm,
+            lang=str(req.lang),
+        )
+
+        # Serialize waist_risk (dataclass → Pydantic schema)
+        waist_risk_schema: WaistRiskResultSchema | None = None
+        if result.waist_risk:
+            waist_risk_schema = WaistRiskResultSchema(
+                wht_ratio=result.waist_risk.wht_ratio,
+                risk_level=result.waist_risk.risk_level,
+                notes=result.waist_risk.notes,
+            )
+
+        # Map to API response
+        resp = BMICalculateResponse(
+            bmi=result.bmi,
+            category=result.category,  # Already str | None
+            group=result.group,
+            group_display=result.group_display,
+            interpretation=result.interpretation,
+            wht_ratio=result.wht_ratio,
+            waist_risk=waist_risk_schema,
+            notes=list(result.notes),  # Ensure list[str]
+            age_band=result.age_band,
+        )
+
+        # Return as dict for legacy compatibility
+        response_dict: dict[str, Any] = resp.model_dump()
+        return response_dict
+
+    except NotImplementedError as e:
+        # Engine stub: deterministic API response
+        lang = _get_lang_from_request(req)
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=t(lang, "bmi_engine_unavailable"),
+        ) from e
+    except ValueError as e:
+        # Domain validation errors (BMI out of bounds, etc.)
+        # Security: do not expose internal error details
+        lang = _get_lang_from_request(req)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=t(lang, "bmi_invalid_parameters"),
+        ) from e
+    except Exception as e:
+        # Unexpected errors (engine failure, etc.)
+        lang = _get_lang_from_request(req)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=t(lang, "bmi_calculation_failed"),
+        ) from e
+
+
+@router.post("/calculate", response_model=BMICalculateResponse)
+async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
+    """
+    RU: Рассчитывает BMI через единый engine.
+    EN: Calculate BMI via unified engine.
+
+    FREE tier endpoint (no API key required).
+
+    Args:
+        req: BMICalculateRequest with user parameters
+
+    Returns:
+        BMICalculateResponse with BMI calculation results
+
+    Raises:
+        HTTPException: 400 if domain validation fails (BMI out of bounds)
+                      422 if Pydantic validation fails (handled automatically)
+                      500 if engine is not available or other errors occur
+    """
+    data = await bmi_calculate_handler(req)
+    return BMICalculateResponse.model_validate(data)
