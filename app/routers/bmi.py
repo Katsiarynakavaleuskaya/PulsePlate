@@ -44,6 +44,7 @@ else:
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
+
 # Import canonical normalization from engine (removes duplication).
 # Keep a local fallback for partial checkouts / early-PR staging, but make it testable.
 # TODO(PR-456): Consider making this public API (remove underscore).
