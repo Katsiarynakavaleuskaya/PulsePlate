@@ -36,6 +36,8 @@ class TestNormalizeGender:
         assert _normalize_gender("male") == "male"
         assert _normalize_gender("муж") == "male"
         assert _normalize_gender("мужской") == "male"  # startswith parity
+        assert _normalize_gender("hombre") == "male"  # ES startswith parity
+        assert _normalize_gender("hombrecito") == "male"  # ES startswith parity
 
     def test_fallback_to_male(self) -> None:
         """Test fallback to 'male' for unknown values."""

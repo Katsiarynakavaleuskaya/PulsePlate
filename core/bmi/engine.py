@@ -52,8 +52,8 @@ def _normalize_gender(gender: str | None) -> str:
     if g == "female" or g.startswith("жен") or g.startswith("mujer"):
         return "female"
 
-    # Male variants
-    if g == "male" or g.startswith("муж"):
+    # Male variants (RU/ES startswith parity)
+    if g == "male" or g.startswith("муж") or g.startswith("hombre"):
         return "male"
 
     # Fallback: legacy-compatible default
@@ -100,7 +100,7 @@ def _age_band(age: int) -> AgeBand:
     """
     if age < 12:
         return "too_young"
-    if 12 <= age < 13:
+    if age == 12:
         return "child"
     if 13 <= age <= 19:
         return "teen"
@@ -148,7 +148,7 @@ def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
     try:
         ratio = (waist_cm / 100.0) / height_m
         return round(ratio, 2)
-    except (ZeroDivisionError, OverflowError):
+    except OverflowError:  # ZeroDivision impossible due to height_m > 0.5 guard
         return None
 
 
