@@ -65,24 +65,24 @@ pre-commit run --all-files
 
 ### Python Version
 
-- Закреплена версия Python: 3.13.5 (`.python-version`, `.tool-versions`).
+- Закреплена версия Python: 3.13.6 (`.python-version`, `.tool-versions`).
 - Рекомендуемая установка через `pyenv` или `asdf`.
 
 Setup (pyenv):
 
 ```bash
-pyenv install 3.13.5 -s
-pyenv local 3.13.5
-python -V  # Python 3.13.5
+pyenv install 3.13.6 -s
+pyenv local 3.13.6
+python -V  # Python 3.13.6
 ```
 
 Setup (asdf):
 
 ```bash
 asdf plugin add python || true
-asdf install python 3.13.5
-asdf local python 3.13.5
-python -V  # Python 3.13.5
+asdf install python 3.13.6
+asdf local python 3.13.6
+python -V  # Python 3.13.6
 ```
 
 Create venv and install deps:
@@ -504,7 +504,7 @@ make lint
 
 ## 🧪 CI & Coverage Policy
 
-- GitHub Actions runs on Python 3.13.5 with full coverage enforcement at 97%.
+- GitHub Actions runs on Python 3.13.6 with full coverage enforcement at 97%.
 - Coverage is enforced at 97% via `--cov-fail-under=97`.
 - Environment sets `APP_ENV=ci` to avoid auto-loading `.env` during tests.
 - Bandit & Safety run as non-blocking checks (artifacts available in CI logs).

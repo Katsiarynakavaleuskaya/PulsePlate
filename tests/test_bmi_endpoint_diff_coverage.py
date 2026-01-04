@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from fastapi import HTTPException
@@ -45,7 +45,8 @@ def test_normalize_bool_flag() -> None:
     assert bmi_router._normalize_bool_flag("1") is True
 
     assert bmi_router._normalize_bool_flag("no") is False
-    assert bmi_router._normalize_bool_flag(cast(Any, 123)) is False
+    # Fail-soft: non-boolean/non-string inputs return False rather than raising.
+    assert bmi_router._normalize_bool_flag(123) is False
 
 
 def test_get_lang_from_request() -> None:
