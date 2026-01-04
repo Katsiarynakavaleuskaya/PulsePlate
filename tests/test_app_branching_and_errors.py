@@ -1,6 +1,10 @@
+import importlib
 import os
+import sys
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 # Автофикстура для форсирования production env и API_KEY
@@ -18,15 +22,6 @@ def _force_prod_env():
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-
-
-import importlib
-import os
-import sys
-
-import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -204,15 +199,15 @@ def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:
         # Expected when modules are missing - app.py should handle this
         pass
 
-    assert app_module.calculate_all_bmr is None, (
-        "calculate_all_bmr is not None after reload; patching not supported in this environment"
-    )
-    assert app_module.calculate_all_tdee is None, (
-        "calculate_all_tdee is not None after reload; patching not supported in this environment"
-    )
-    assert getattr(app_module, "get_activity_descriptions", None) is None, (
-        "get_activity_descriptions is not None after reload; patching not supported in this environment"
-    )
+    assert (
+        app_module.calculate_all_bmr is None
+    ), "calculate_all_bmr is not None after reload; patching not supported in this environment"
+    assert (
+        app_module.calculate_all_tdee is None
+    ), "calculate_all_tdee is not None after reload; patching not supported in this environment"
+    assert (
+        getattr(app_module, "get_activity_descriptions", None) is None
+    ), "get_activity_descriptions is not None after reload; patching not supported in this environment"
 
 
 def test_no_bmi_pro_router(monkeypatch: pytest.MonkeyPatch) -> None:

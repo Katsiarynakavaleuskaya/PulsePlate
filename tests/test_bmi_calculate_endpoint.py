@@ -326,13 +326,11 @@ def test_normalize_bool_flag_edge_cases() -> None:
     from app.routers.bmi import _normalize_bool_flag
 
     # Test with None (not bool, not str)
-    # type: ignore[arg-type]  # intentional: testing fail-soft behavior on invalid input types
-    assert _normalize_bool_flag(None) is False
+    assert _normalize_bool_flag(None) is False  # type: ignore[arg-type]  # intentional fail-soft
 
     # Test with int (not bool, not str)
-    # type: ignore[arg-type]  # intentional: testing fail-soft behavior on invalid input types
-    assert _normalize_bool_flag(0) is False
-    assert _normalize_bool_flag(1) is False
+    assert _normalize_bool_flag(0) is False  # type: ignore[arg-type]  # intentional fail-soft
+    assert _normalize_bool_flag(1) is False  # type: ignore[arg-type]  # intentional fail-soft
 
 
 @pytest.mark.anyio
