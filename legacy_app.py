@@ -2191,13 +2191,6 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     bmi_logger.info(log_msg)
     return result_payload
 
-
-# Backward-compatible BMI calculate endpoint without API key
-# REMOVED: Legacy shim for /api/v1/bmi/calculate (PR-456 Commit 2)
-# Router endpoint in app/routers/bmi.py is now the canonical owner.
-# This eliminates duplicate ownership and ensures one path → one handler.
-
-
 def _ensure_insight_text_length(text: str) -> str:
     if len(text) > INSIGHT_TEXT_MAX_LENGTH:
         raise HTTPException(status_code=413, detail="Insight text too long")

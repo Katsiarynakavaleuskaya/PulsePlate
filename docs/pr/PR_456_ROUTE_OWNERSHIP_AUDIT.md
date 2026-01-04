@@ -54,8 +54,8 @@
 ### `/api/v1/bmi/calculate` — DUPLICATE FOUND
 
 **Defined in:**
-1. `legacy_app.py:2196` — `@app.post("/api/v1/bmi/calculate")` → `bmi_calculate_legacy()` (shim, search: `def bmi_calculate_legacy`)
-2. `app/routers/bmi.py:207` — `@router.post("/calculate")` with prefix `/api/v1/bmi` → `calculate_bmi()` (search: `def calculate_bmi`)
+1. ~~`legacy_app.py:2196` — `@app.post("/api/v1/bmi/calculate")` → `bmi_calculate_legacy()` (shim)~~ **REMOVED in Commit 2**
+2. `app/routers/bmi.py:192` — `@router.post("/calculate")` with prefix `/api/v1/bmi` → `calculate_bmi()` (search: `def calculate_bmi`) **✅ CANONICAL OWNER**
 
 **FastAPI behavior:**
 - FastAPI checks routes in **registration order**
@@ -65,9 +65,9 @@
 
 **Risk level:** 🟡 **LOW** (no functional issue, but confusing ownership)
 
-**Final decision (PR-456):**
-- **Final owner:** `app/routers/bmi.py:207` → `calculate_bmi()` (router layer)
-- **Legacy shim:** `legacy_app.py:2196` → `bmi_calculate_legacy()` will be **removed in Commit 2**
+**Final decision (PR-456) — IMPLEMENTED in Commit 2:**
+- **Final owner:** `app/routers/bmi.py:192` → `calculate_bmi()` (router layer) ✅
+- **Legacy shim:** `legacy_app.py:2196` → `bmi_calculate_legacy()` **REMOVED** ✅
 - **Rationale:**
   - Router-first architecture (thin clients align with router layer)
   - One path → one handler principle
@@ -78,19 +78,19 @@
 
 ## Handler call chain analysis
 
-### `/api/v1/bmi/calculate` (current owner: legacy shim → router in Commit 2)
+### `/api/v1/bmi/calculate` (owner: router — Commit 2)
 
 ```text
 HTTP Request
   ↓
-legacy_app.py:2196 (@app.post) → bmi_calculate_legacy() [shim]
+app/routers/bmi.py:192 (@router.post("/calculate")) → calculate_bmi()
   ↓
-app/routers/bmi.py:101 (bmi_calculate_handler)
+app/routers/bmi.py:86 (bmi_calculate_handler)
   ↓
 core/bmi/engine.py:calculate_bmi_result() ✅ CANONICAL
 ```
 
-**Status:** ✅ **Canonical path** (engine is source of truth)
+**Status:** ✅ **Canonical path** (engine is source of truth, one path → one handler)
 
 ---
 
