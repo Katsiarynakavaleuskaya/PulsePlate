@@ -44,24 +44,22 @@ else:
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
-
-def _normalize_bool_flag(value: str | bool) -> bool:
-    """
-    RU: Конвертирует string/bool в bool (fail-soft).
-    EN: Convert string/bool to bool (fail-soft).
-
-    Args:
-        value: String ("yes"/"no") or bool
-
-    Returns:
-        bool: True if value indicates "yes", False otherwise
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        s = value.strip().lower()
-        return s in {"yes", "y", "да", "true", "1"}
-    return False
+# Import canonical normalization from engine (removes duplication)
+# TODO(PR-456): Consider making this public API (remove underscore)
+try:
+    from core.bmi.engine import _normalize_bool_flag
+except ImportError:
+    # Fallback for development/testing when engine is not yet available
+    def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:  # noqa: F811
+        """Fallback: minimal normalization when engine not available."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            s = value.strip().lower()
+            if yes_values is not None:
+                return s in yes_values
+            return s in {"yes", "y", "да", "true", "1"}
+        return False
 
 
 def _get_lang_from_request(req: BMICalculateRequest) -> Language:
