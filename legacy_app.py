@@ -2025,64 +2025,54 @@ async def cleanup_expired_logs(
 
 @app.post("/bmi")
 async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
-    flags = normalize_flags(req.gender, req.pregnant, req.athlete)
-    bmi = calc_bmi(req.weight_kg, req.height_m)
+    """
+    RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).
+    Теперь это тонкий прокси в канонический handler (app/routers/bmi.py),
+    чтобы не было дублирования BMI-логики и чтобы результаты были идентичны.
 
-    if flags["is_pregnant"]:
-        note = t(req.lang, "bmi_not_valid_during_pregnancy")
-        result = {
-            "bmi": bmi,
-            "category": None,
-            "note": note,
-            "athlete": flags["is_athlete"],
-            "group": "athlete" if flags["is_athlete"] else "general",
-        }
+    EN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).
+    Now it is a thin proxy to the canonical handler (app/routers/bmi.py)
+    to avoid duplicate BMI logic and ensure identical results.
+    """
+    # Local import to avoid import cycles on app startup
+    from app.routers.bmi import bmi_calculate_handler
 
-        # Add visualization if requested and available
-        add_visualization_if_requested(result, req)
-        # Log without sensitive data - only generic message, no user data
-        # Note: req object contains sensitive data (weight, height, pregnancy status) but is not logged
-        log_msg = "BMI calculation skipped due to pregnancy flag"
-        logger.info(log_msg)
-        bmi_logger.info(log_msg)
-
-        return result
-
-    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
-    notes = []
-    if flags["is_athlete"]:
-        notes.append(t(req.lang, "advice_athlete_bmi"))
-    if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
-        notes.append(wr)
-
-    bmi_result: Dict[str, Any] = {
-        "bmi": bmi,
-        "category": category,
-        "note": " | ".join(notes) if notes else "",
-        "athlete": flags["is_athlete"],
-        "group": "athlete" if flags["is_athlete"] else "general",
+    # Convert BMIRequest (height_m) to BMICalculateRequest format (height_cm)
+    shim_payload = {
+        "weight_kg": req.weight_kg,
+        "height_cm": req.height_m * 100.0,  # Convert meters to centimeters
+        "age": req.age,
+        "gender": req.gender,
+        "pregnant": req.pregnant,
+        "athlete": req.athlete,
+        "waist_cm": req.waist_cm,
+        "lang": str(req.lang),
     }
 
-    # Add visualization if requested and available
-    add_visualization_if_requested(bmi_result, req)
-    # Log without sensitive data (BMI values are personal health information)
-    # Only log non-sensitive metadata: group category and athlete flag
-    # Note: We explicitly avoid logging weight, height, age, BMI values, or pregnancy status
-    # Use req.athlete directly to avoid CodeQL false positives from flags dict (which contains sensitive data)
-    is_athlete = (
-        isinstance(req.athlete, bool)
-        and req.athlete
-        or (
-            isinstance(req.athlete, str)
-            and req.athlete.lower() in {"спортсмен", "да", "yes", "y", "athlete"}
-        )
-    )
-    group_category = "athlete" if is_athlete else "general"
+    # Call canonical handler
+    canonical_result = await bmi_calculate_handler(shim_payload)
+
+    # Adapt new format to legacy format for backward compatibility
+    # Legacy expects: bmi, category, note (str), athlete (bool), group
+    legacy_result: Dict[str, Any] = {
+        "bmi": canonical_result["bmi"],
+        "category": canonical_result["category"],
+        "note": canonical_result.get("interpretation", ""),  # Use interpretation as note
+        "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
+        "group": canonical_result["group"],
+    }
+
+    # Preserve visualization if requested (legacy feature)
+    add_visualization_if_requested(legacy_result, req)
+
+    # Log without sensitive data (preserve legacy logging behavior)
+    is_athlete = legacy_result["athlete"]
+    group_category = legacy_result["group"]
     log_msg = f"BMI calculation complete [group={group_category} athlete={is_athlete}]"
     logger.info(log_msg)
     bmi_logger.info(log_msg)
 
-    return bmi_result
+    return legacy_result
 
 
 @app.post("/plan")
@@ -2138,58 +2128,51 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
 @app.post("/api/v1/bmi")
 async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
-    """V1 BMI endpoint (public access)."""
-    # Convert height_cm to height_m
-    height_m = req.height_cm / 100.0
+    """
+    RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).
+    Теперь это тонкий прокси в канонический handler (app/routers/bmi.py),
+    чтобы не было дублирования BMI-логики и чтобы результаты были идентичны.
 
-    flags = normalize_flags(req.gender, req.pregnant, req.athlete)
-    bmi = calc_bmi(req.weight_kg, height_m)
+    EN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).
+    Now it is a thin proxy to the canonical handler (app/routers/bmi.py)
+    to avoid duplicate BMI logic and ensure identical results.
+    """
+    # Local import to avoid import cycles on app startup
+    from app.routers.bmi import bmi_calculate_handler
 
-    if flags["is_pregnant"]:
-        note = t(req.lang, "bmi_not_valid_during_pregnancy")
-        response_payload = {
-            "bmi": bmi,
-            "category": None,
-            "note": note,
-            "athlete": flags["is_athlete"],
-            "group": "athlete" if flags["is_athlete"] else "general",
-        }
-        # Log without sensitive data - only generic message, no user data
-        log_msg = "BMI v1 calculation skipped due to pregnancy flag"
-        logger.info(log_msg)
-        bmi_logger.info(log_msg)
-        return response_payload
-
-    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
-    notes = []
-    if flags["is_athlete"]:
-        notes.append(t(req.lang, "advice_athlete_bmi"))
-    if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
-        notes.append(wr)
-
-    result_payload = {
-        "bmi": bmi,
-        "category": category,
-        "note": " | ".join(notes) if notes else "",
-        "athlete": flags["is_athlete"],
-        "group": "athlete" if flags["is_athlete"] else "general",
+    # Convert BMIRequestV1 to BMICalculateRequest format (already has height_cm)
+    shim_payload = {
+        "weight_kg": req.weight_kg,
+        "height_cm": req.height_cm,  # Already in centimeters
+        "age": req.age,
+        "gender": req.gender,
+        "pregnant": req.pregnant,
+        "athlete": req.athlete,
+        "waist_cm": req.waist_cm,
+        "lang": str(req.lang),
     }
-    # Log without sensitive data - use direct computation, not result_payload dict access
-    # Note: We explicitly avoid logging BMI, weight, height, age, or pregnancy status
-    # Use req.athlete directly to avoid CodeQL false positives from flags dict (which contains sensitive data)
-    is_athlete = (
-        isinstance(req.athlete, bool)
-        and req.athlete
-        or (
-            isinstance(req.athlete, str)
-            and req.athlete.lower() in {"спортсмен", "да", "yes", "y", "athlete"}
-        )
-    )
-    group_category = "athlete" if is_athlete else "general"
+
+    # Call canonical handler
+    canonical_result = await bmi_calculate_handler(shim_payload)
+
+    # Adapt new format to legacy format for backward compatibility
+    # Legacy expects: bmi, category, note (str), athlete (bool), group
+    legacy_result: Dict[str, Any] = {
+        "bmi": canonical_result["bmi"],
+        "category": canonical_result["category"],
+        "note": canonical_result.get("interpretation", ""),  # Use interpretation as note
+        "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
+        "group": canonical_result["group"],
+    }
+
+    # Log without sensitive data (preserve legacy logging behavior)
+    is_athlete = legacy_result["athlete"]
+    group_category = legacy_result["group"]
     log_msg = f"BMI v1 calculation complete [group={group_category} athlete={is_athlete}]"
     logger.info(log_msg)
     bmi_logger.info(log_msg)
-    return result_payload
+
+    return legacy_result
 
 
 def _ensure_insight_text_length(text: str) -> str:
