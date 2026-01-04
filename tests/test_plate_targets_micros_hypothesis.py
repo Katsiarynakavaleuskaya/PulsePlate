@@ -93,7 +93,6 @@ class TestPlateTargetsMicrosHypothesis:
         common_micros = set(plate_micros.keys()) & set(target_micros.keys())
         assert len(common_micros) > 0, "No common micronutrients between plate and targets"
 
-    @settings(deadline=None)
     @given(
         sex=st.sampled_from(["male", "female"]),
         age=st.integers(min_value=18, max_value=65),
@@ -102,6 +101,7 @@ class TestPlateTargetsMicrosHypothesis:
         activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_fe_ca_mg_k_coverage_hypothesis(
         self,
         sex: str,

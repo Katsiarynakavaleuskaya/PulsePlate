@@ -93,7 +93,7 @@
 - `interpretation`: check that contains category string (if category not None)
 
 **Helper functions:**
-```python
+```text
 def assert_strict_fields_equal(engine_result, legacy_result):
     """Compare strict fields: bmi, group, category, wht_ratio, age_band."""
     assert engine_result.bmi == legacy_result["bmi"]

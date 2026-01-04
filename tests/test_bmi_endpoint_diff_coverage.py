@@ -38,7 +38,9 @@ def test_engine_returns_result_after_implementation() -> None:
     assert result.category == "normal"
 
 
-def test_normalize_bool_flag() -> None:
+def test_normalize_bool_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bmi_router, "_engine_normalize_bool_flag", None)
+
     assert bmi_router._normalize_bool_flag(True) is True
     assert bmi_router._normalize_bool_flag(False) is False
 
@@ -51,6 +53,8 @@ def test_normalize_bool_flag() -> None:
     assert bmi_router._normalize_bool_flag("no") is False
     # Fail-soft: non-boolean/non-string inputs return False rather than raising.
     assert bmi_router._normalize_bool_flag(123) is False
+    assert bmi_router._normalize_bool_flag("ok", yes_values={"ok"}) is True
+    assert bmi_router._normalize_bool_flag("yes", yes_values={"ok"}) is False
 
 
 def test_get_lang_from_request() -> None:

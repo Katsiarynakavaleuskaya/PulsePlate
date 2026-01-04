@@ -13,9 +13,11 @@ from core.bmi.engine import (
     _age_band,
     _compute_bmi,
     _compute_wht_ratio,
+    _group_display_name,
     _normalize_bool_flag,
     _normalize_gender,
     _normalize_lang,
+    calculate_bmi_result,
 )
 
 
@@ -243,3 +245,32 @@ class TestComputeWhtRatio:
     def test_normal_case_smoke(self) -> None:
         """Test normal WHtR scenario returns rounded ratio."""
         assert _compute_wht_ratio(1.0, 1.0) == 0.01
+
+
+def test_group_display_name_fallback_for_unknown_group() -> None:
+    assert _group_display_name("not_a_real_group", "en") == "not_a_real_group"  # type: ignore[arg-type]
+
+
+def test_waist_risk_fallback_signature_drift_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _legacy_calculate_waist_risk(a: float, b: float, c: str, d: str) -> object:
+        raise RuntimeError("legacy signature failure")
+
+    import core.bmi.risk as risk
+
+    monkeypatch.setattr(risk, "calculate_waist_risk", _legacy_calculate_waist_risk, raising=True)
+
+    result = calculate_bmi_result(
+        weight_kg=70.0,
+        height_cm=170.0,
+        age=30,
+        gender="male",
+        pregnant=False,
+        athlete=False,
+        waist_cm=80.0,
+        lang="en",
+    )
+
+    assert result.waist_risk is None
+    assert result.notes == ()

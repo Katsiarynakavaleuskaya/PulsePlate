@@ -10,9 +10,15 @@ This guard enforces the canonical BMI rule: all BMI math MUST live only in core/
 from __future__ import annotations
 
 import re
+import os
+import sys
 from pathlib import Path
+from typing import Final
 
 import pytest
+
+
+_DEBUG_GUARD: Final[bool] = bool(os.environ.get("REPO_POLICY_GUARD_DEBUG"))
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -93,7 +99,11 @@ def _scan(pattern: re.Pattern[str], description: str) -> list[str]:
     """
     hits: list[str] = []
     for path in REPO_ROOT.rglob("*.py"):
-        rel = path.as_posix().replace(REPO_ROOT.as_posix() + "/", "")
+        try:
+            rel = str(path.relative_to(REPO_ROOT))
+        except ValueError:
+            # Path not relative to REPO_ROOT (shouldn't happen, but defensive)
+            continue
         if _is_whitelisted(rel):
             continue
 
@@ -107,8 +117,12 @@ def _scan(pattern: re.Pattern[str], description: str) -> list[str]:
                     continue
                 if pattern.search(line):
                     hits.append(f"{rel}:{idx}: {line.strip()}")
-        except Exception:
-            # Skip files that can't be read (permissions, etc.)
+        except (OSError, UnicodeDecodeError) as e:
+            # Skip files that can't be read (permissions, etc.).
+            if _DEBUG_GUARD:
+                print(
+                    f"REPO_POLICY_GUARD_DEBUG: skip unreadable file {rel}: {e!r}", file=sys.stderr
+                )
             continue
 
     return hits

@@ -44,24 +44,28 @@ else:
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
-# Import canonical normalization from engine (removes duplication)
-# TODO(PR-456): Consider making this public API (remove underscore)
+# Import canonical normalization from engine (removes duplication).
+# Keep a local fallback for partial checkouts / early-PR staging, but make it testable.
+# TODO(PR-456): Consider making this public API (remove underscore).
 try:
-    from core.bmi.engine import _normalize_bool_flag
-except ImportError:
-    # Fallback for development/testing when engine is not yet available
-    def _normalize_bool_flag(
-        value: str | bool, yes_values: set[str] | None = None
-    ) -> bool:  # noqa: F811
-        """Fallback: minimal normalization when engine not available."""
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            s = value.strip().lower()
-            if yes_values is not None:
-                return s in yes_values
-            return s in {"yes", "y", "да", "true", "1"}
-        return False
+    from core.bmi.engine import _normalize_bool_flag as _engine_normalize_bool_flag
+except ImportError:  # pragma: no cover
+    _engine_normalize_bool_flag = None
+
+
+def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
+    """Normalize yes/no-ish flag (prefers core.bmi.engine, with local fallback)."""
+    if _engine_normalize_bool_flag is not None:
+        return _engine_normalize_bool_flag(value, yes_values=yes_values)
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        s = value.strip().lower()
+        if yes_values is not None:
+            return s in yes_values
+        return s in {"yes", "y", "да", "true", "1"}
+    return False
 
 
 def _get_lang_from_request(req: BMICalculateRequest) -> Language:

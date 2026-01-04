@@ -17,6 +17,16 @@ import pytest
 import bmi_core
 import legacy_app
 from core.bmi.engine import BMICalculateResult, calculate_bmi_result
+from core.i18n import Language
+
+# Canonical rule: groups that must have category=None (medical disclaimer)
+# This is a key domain axiom, not a local variable.
+_CANONICAL_NO_CATEGORY_GROUPS = frozenset({
+    "too_young",
+    "child",
+    "teen",
+    "pregnant",
+})
 
 
 @dataclass(frozen=True)
@@ -44,7 +54,13 @@ def _legacy_calculate(case: _Case) -> dict[str, Any]:
     height_m = case.height_cm / 100.0
     lang_norm = case.lang or "en"
     gender_norm = (case.gender or "").strip().lower()
-    gender_male = gender_norm.startswith("m") or gender_norm.startswith("муж")
+    # Use exact engine logic (canonical parity): male variants only
+    # NOTE: "mujer"/"mujeres" are female, so we cannot use startswith("m")
+    gender_male = (
+        gender_norm == "male"
+        or gender_norm.startswith("муж")
+        or gender_norm.startswith("hombre")
+    )
 
     # Use bmi_core functions (existing logic)
     bmi = bmi_core.bmi_value(case.weight_kg, height_m)  # legacy rounding
@@ -67,7 +83,9 @@ def _legacy_calculate(case: _Case) -> dict[str, Any]:
     # Legacy waist_risk returns string or empty string
     waist_risk_str = ""
     if case.waist_cm is not None:
-        waist_risk_str = legacy_app.waist_risk(case.waist_cm, gender_male, lang_norm)
+        # legacy_app.waist_risk expects Language type, normalize lang_norm
+        lang_for_waist: Language = "ru" if lang_norm == "ru" else ("es" if lang_norm == "es" else "en")
+        waist_risk_str = legacy_app.waist_risk(case.waist_cm, gender_male, lang_for_waist)
 
     return {
         "bmi": bmi,
@@ -87,15 +105,17 @@ def _assert_strict(engine: BMICalculateResult, legacy: dict[str, Any], case_id: 
     - Legacy may return categories for youth (this is divergence we're documenting)
     - For parity: we check that engine follows canonical rule (None for youth/pregnant)
     """
-    assert (
-        engine.bmi == legacy["bmi"]
-    ), f"{case_id}: bmi mismatch (engine={engine.bmi}, legacy={legacy['bmi']})"
-    assert (
-        engine.group == legacy["group"]
-    ), f"{case_id}: group mismatch (engine={engine.group}, legacy={legacy['group']})"
-    assert engine.wht_ratio == legacy.get(
-        "wht_ratio"
-    ), f"{case_id}: wht_ratio mismatch (engine={engine.wht_ratio}, legacy={legacy.get('wht_ratio')})"
+    bmi_msg = f"{case_id}: bmi mismatch (engine={engine.bmi}, legacy={legacy['bmi']})"
+    assert engine.bmi == legacy["bmi"], bmi_msg
+
+    group_msg = f"{case_id}: group mismatch (engine={engine.group}, legacy={legacy['group']})"
+    assert engine.group == legacy["group"], group_msg
+
+    legacy_wht_ratio = legacy.get("wht_ratio")
+    wht_ratio_msg = (
+        f"{case_id}: wht_ratio mismatch (engine={engine.wht_ratio}, legacy={legacy_wht_ratio})"
+    )
+    assert engine.wht_ratio == legacy_wht_ratio, wht_ratio_msg
 
     # Category: Engine canonical rule (category=None for youth/pregnant) vs legacy behavior
     # Legacy may return categories for youth, but engine correctly returns None
@@ -103,13 +123,13 @@ def _assert_strict(engine: BMICalculateResult, legacy: dict[str, Any], case_id: 
     engine_cat = engine.category
 
     # Canonical groups that should have category=None in engine
-    canonical_no_category_groups = {"too_young", "child", "teen", "pregnant"}
-
-    if engine.group in canonical_no_category_groups:
+    if engine.group in _CANONICAL_NO_CATEGORY_GROUPS:
         # Engine canonical: category must be None for these groups
-        assert (
-            engine_cat is None
-        ), f"{case_id}: category must be None for group={engine.group} (canonical rule, engine={engine_cat})"
+        category_msg = (
+            f"{case_id}: category must be None for group={engine.group} "
+            f"(canonical rule, engine={engine_cat})"
+        )
+        assert engine_cat is None, category_msg
         # Legacy may have category (divergence documented, but engine is canonical)
     else:
         # For other groups, both should have categories (or both None)
@@ -168,9 +188,10 @@ def _assert_semantic(engine: BMICalculateResult, legacy: dict[str, Any], case_id
     # Interpretation: if category exists, should contain category token
     if engine.category is not None:
         # Engine interpretation format: "{category}. {note}" or just "{category}"
+        category_token = engine.category.casefold()
+        interpretation_token = engine.interpretation.casefold()
         assert (
-            engine.category in engine.interpretation.lower()
-            or engine.category in engine.interpretation
+            category_token in interpretation_token
         ), f"{case_id}: interpretation should include category '{engine.category}'"
 
 
@@ -258,5 +279,7 @@ def test_golden_parity_language_normalization() -> None:
         lang=case.lang,
     )
     _assert_strict(res, legacy, case.case_id)
-    # Both should normalize en-US to en
-    assert res.group_display == "General"  # English display name
+    # NOTE: English display name "General" is part of current API contract.
+    # Any change must be accompanied by API versioning or migration.
+    # This is currently a hardcoded table in engine (Commit 2), not i18n.
+    assert res.group_display == "General"
