@@ -10,15 +10,33 @@ Currently provides a stub implementation for development/testing.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypeAlias
 
-from core.i18n import Language, normalize_lang
+from core.i18n import Language, normalize_lang, t
 
 if TYPE_CHECKING:
     from core.bmi.risk import WaistRiskResult
 
 AgeBand: TypeAlias = Literal["too_young", "child", "teen", "adult", "elderly"]
+BMIGroup: TypeAlias = Literal[
+    "too_young",
+    "child",
+    "teen",
+    "general",
+    "athlete",
+    "elderly",
+    "pregnant",
+]
+BMICategory: TypeAlias = Literal[
+    "underweight",
+    "normal",
+    "overweight",
+    "obesity_1",
+    "obesity_2",
+    "obesity_3",
+]
 
 # RU: Константы доменной валидации для WHtR (parity с legacy).
 # EN: Domain validation constants for WHtR (legacy parity).
@@ -150,6 +168,166 @@ def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
         return round(ratio, 2)
     except OverflowError:  # ZeroDivision impossible due to height_m > 0.5 guard
         return None
+
+
+# --- Commit 2: Group/Category/Interpretation helpers ---
+
+# RU/EN/ES display names — Commit 2 uses table (Commit 5 moves to i18n keys).
+# EN: Display names table (Commit 5: migrate to i18n).
+GROUP_DISPLAY_NAMES: dict[str, dict[Language, str]] = {
+    "too_young": {"ru": "Слишком малый возраст", "en": "Too young", "es": "Demasiado joven"},
+    "child": {"ru": "Ребёнок", "en": "Child", "es": "Niño/a"},
+    "teen": {"ru": "Подросток", "en": "Teen", "es": "Adolescente"},
+    "general": {"ru": "Общий", "en": "General", "es": "General"},
+    "athlete": {"ru": "Спортсмен", "en": "Athlete", "es": "Atleta"},
+    "elderly": {"ru": "Пожилой возраст", "en": "Elderly", "es": "Mayor"},
+    "pregnant": {"ru": "Беременность", "en": "Pregnancy", "es": "Embarazo"},
+}
+
+# Athlete string detection (legacy parity) — strict, NOT including "спорт".
+_ATHLETE_REGEX = re.compile(r"(спортсмен(ка)?|атлет(ка)?)", flags=re.IGNORECASE)
+
+
+def _auto_group(
+    *,
+    age: int,
+    gender: str,
+    pregnant: bool,
+    athlete: bool,
+    athlete_text: str | None = None,
+) -> BMIGroup:
+    """
+    RU: Вычисляет группу для интерпретации BMI (Commit 2).
+    EN: Compute BMI interpretation group (Commit 2).
+
+    Canonical priorities (decisions):
+    age-based bands > pregnant > athlete > general.
+    - pregnant does NOT override elderly (age priority).
+    - pregnant applies only to female.
+    - athlete detection: boolean OR text regex/athlete keyword.
+    """
+    band = _age_band(age)
+    if band == "too_young":
+        return "too_young"
+    if band == "child":
+        return "child"
+    if band == "teen":
+        return "teen"
+    if band == "elderly":
+        return "elderly"
+
+    # Adult path (20..59)
+    g = _normalize_gender(gender)
+
+    if pregnant and g == "female":
+        return "pregnant"
+
+    if athlete:
+        return "athlete"
+
+    if isinstance(athlete_text, str):
+        s = athlete_text.strip().lower()
+        if s == "athlete":
+            return "athlete"
+        if _ATHLETE_REGEX.search(s):
+            return "athlete"
+
+    return "general"
+
+
+def _bmi_category(
+    *,
+    bmi: float,
+    age: int,
+    group: BMIGroup,
+) -> BMICategory | None:
+    """
+    RU: Возвращает категорию BMI по каноническим порогам (decisions/Qoder).
+    EN: Return BMI category by canonical thresholds (decisions/Qoder).
+
+    Canon:
+    - category=None only for: too_young, child, teen, pregnant
+    - elderly thresholds are selected by age_band (elderly wins over athlete)
+    """
+    if group in {"too_young", "child", "teen", "pregnant"}:
+        return None
+
+    band = _age_band(age)
+
+    # Elderly wins by age (even if someone is "athlete" conceptually).
+    if band == "elderly":
+        # Elderly thresholds (from decisions): underweight < 17.5, normal < 26.0
+        if bmi < 17.5:
+            return "underweight"
+        if bmi < 26.0:
+            return "normal"
+        if bmi < 30.0:
+            return "overweight"
+        if bmi < 35.0:
+            return "obesity_1"
+        if bmi < 40.0:
+            return "obesity_2"
+        return "obesity_3"
+
+    if group == "athlete":
+        # Athlete thresholds (from decisions): underweight < 18.5, normal < 27.0
+        if bmi < 18.5:
+            return "underweight"
+        if bmi < 27.0:
+            return "normal"
+        if bmi < 30.0:
+            return "overweight"
+        if bmi < 35.0:
+            return "obesity_1"
+        if bmi < 40.0:
+            return "obesity_2"
+        return "obesity_3"
+
+    # General adult thresholds (WHO-like; from decisions)
+    # Adult: underweight < 18.5, normal 18.5-25.0, overweight 25.0-30.0,
+    #        obese_1 30.0-35.0, obese_2 35.0-40.0, obese_3 >= 40.0
+    if bmi < 18.5:
+        return "underweight"
+    if bmi < 25.0:
+        return "normal"
+    if bmi < 30.0:
+        return "overweight"
+    if bmi < 35.0:
+        return "obesity_1"
+    if bmi < 40.0:
+        return "obesity_2"
+    return "obesity_3"
+
+
+def _group_display_name(group: BMIGroup, lang: Language) -> str:
+    """
+    RU: Отображаемое имя группы (Commit 2: table; Commit 5: i18n).
+    EN: Human-readable group name (Commit 2: table; Commit 5: i18n).
+    """
+    table = GROUP_DISPLAY_NAMES.get(group)
+    if table is None:
+        # Defensive fallback: shouldn't happen
+        return group
+    return table.get(lang, table["en"])
+
+
+def _interpretation(
+    *,
+    category: BMICategory | None,
+    note: str | None,
+) -> str:
+    """
+    RU: Возвращает интерпретацию: "{category}. {note}" или только note если category=None.
+    EN: Interpretation: "{category}. {note}" or note only if category=None.
+    """
+    n = (note or "").strip()
+    if category is None:
+        return n
+
+    if not n:
+        return str(category)
+
+    return f"{category}. {n}"
 
 
 @dataclass(frozen=True)
