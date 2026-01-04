@@ -227,14 +227,17 @@ class BMICalculateResponse(BaseModel):
 # В endpoint (Commit 4):
 result = calculate_bmi_result(...)  # Returns BMICalculateResult (dataclass)
 
-# Serialize waist_risk (domain dataclass → API schema)
-waist_risk_schema = None
+# Serialize waist_risk (domain dataclass → API schema → dict)
+waist_risk_dict = None
 if result.waist_risk:
     waist_risk_schema = WaistRiskResultSchema(
         wht_ratio=result.waist_risk.wht_ratio,
         risk_level=result.waist_risk.risk_level,
         notes=result.waist_risk.notes,
     )
+
+    # Pydantic v2 explicit serialization
+    waist_risk_dict = waist_risk_schema.model_dump()
 
 return BMICalculateResponse(
     bmi=result.bmi,
@@ -243,7 +246,7 @@ return BMICalculateResponse(
     group_display=result.group_display,
     interpretation=result.interpretation,
     wht_ratio=result.wht_ratio,
-    waist_risk=waist_risk_schema,
+    waist_risk=waist_risk_dict,  # BMICalculateResponse will validate/parse dict into schema
     notes=list(result.notes),  # Convert tuple to list for JSON
     age_band=result.age_band,
 )

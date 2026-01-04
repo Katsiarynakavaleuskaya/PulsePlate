@@ -10,7 +10,7 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -63,25 +63,34 @@ def _normalize_bool_flag(value: str | bool) -> bool:
     return False
 
 
-@router.post("/calculate", response_model=BMICalculateResponse)
-async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
+async def bmi_calculate_handler(req_in: Any) -> dict[str, Any]:
     """
-    RU: Рассчитывает BMI через единый engine.
-    EN: Calculate BMI via unified engine.
+    RU: Канонический Free BMI handler (тонкий адаптер).
+    EN: Canonical Free BMI handler (thin adapter).
 
-    FREE tier endpoint (no API key required).
+    Accepts legacy BMIRequestV1-shaped input or BMICalculateRequest; converts to BMICalculateRequest
+    and returns response as dict for legacy shim compatibility.
 
     Args:
-        req: BMICalculateRequest with user parameters
+        req_in: BMIRequestV1 (legacy) or BMICalculateRequest (new)
 
     Returns:
-        BMICalculateResponse with BMI calculation results
+        dict[str, Any]: Response as dict (for legacy compatibility)
 
     Raises:
-        HTTPException: 400 if domain validation fails (BMI out of bounds)
-                      422 if Pydantic validation fails (handled automatically)
-                      500 if engine is not available or other errors occur
+        HTTPException: 400 if domain validation fails, 500 if engine fails, 501 if engine unavailable
     """
+    # Convert to BMICalculateRequest if needed
+    if isinstance(req_in, BMICalculateRequest):
+        req = req_in
+    else:
+        # Legacy BMIRequestV1 or dict-like input
+        # If it's a Pydantic model, convert to dict first
+        if hasattr(req_in, "model_dump"):
+            req = BMICalculateRequest.model_validate(req_in.model_dump())
+        else:
+            req = BMICalculateRequest.model_validate(req_in)
+
     if calculate_bmi_result is None:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -102,7 +111,7 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,
-            lang=req.lang,
+            lang=str(req.lang),
         )
 
         # Serialize waist_risk (dataclass → Pydantic schema)
@@ -115,7 +124,7 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             )
 
         # Map to API response
-        return BMICalculateResponse(
+        resp = BMICalculateResponse(
             bmi=result.bmi,
             category=result.category,  # Already str | None
             group=result.group,
@@ -127,6 +136,15 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             age_band=result.age_band,
         )
 
+        # Return as dict for legacy compatibility
+        return resp.model_dump()
+
+    except NotImplementedError as e:
+        # Engine stub: deterministic API response
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="BMI engine is not available",
+        ) from e
     except ValueError as e:
         # Domain validation errors (BMI out of bounds, etc.)
         raise HTTPException(
@@ -139,3 +157,26 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="BMI calculation failed",
         ) from e
+
+
+@router.post("/calculate", response_model=BMICalculateResponse)
+async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
+    """
+    RU: Рассчитывает BMI через единый engine.
+    EN: Calculate BMI via unified engine.
+
+    FREE tier endpoint (no API key required).
+
+    Args:
+        req: BMICalculateRequest with user parameters
+
+    Returns:
+        BMICalculateResponse with BMI calculation results
+
+    Raises:
+        HTTPException: 400 if domain validation fails (BMI out of bounds)
+                      422 if Pydantic validation fails (handled automatically)
+                      500 if engine is not available or other errors occur
+    """
+    data = await bmi_calculate_handler(req)
+    return BMICalculateResponse.model_validate(data)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 BMI Engine Orchestrator
 
@@ -12,12 +11,12 @@ Currently provides a stub implementation for development/testing.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
 if TYPE_CHECKING:
     from core.bmi.risk import WaistRiskResult
 
-AgeBand = Literal["too_young", "child", "teen", "adult", "elderly"]
+AgeBand: TypeAlias = Literal["too_young", "child", "teen", "adult", "elderly"]
 
 
 @dataclass(frozen=True)
