@@ -2205,11 +2205,13 @@ async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
     to avoid duplicate implementations and client divergence.
     """
     # Local import to avoid import cycles on app startup.
-    from app.routers.bmi import bmi_calculate_handler  # type: ignore[import-untyped]
+    from app.routers.bmi import bmi_calculate_handler
 
     # Delegate to the canonical Free BMI handler.
     # Keep request/response shape stable for clients.
-    return await bmi_calculate_handler(req)
+    # Convert BMIRequestV1 to dict for handler compatibility
+    payload: dict[str, Any] = req.model_dump()
+    return await bmi_calculate_handler(payload)
 
 
 def _ensure_insight_text_length(text: str) -> str:

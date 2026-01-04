@@ -10,7 +10,7 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -109,7 +109,9 @@ async def bmi_calculate_handler(
         # Legacy BMIRequestV1 or dict-like input
         # If it's a Pydantic model, convert to dict first
         if hasattr(req_in, "model_dump"):
-            req = BMICalculateRequest.model_validate(req_in.model_dump())
+            # Type guard: req_in has model_dump method (Pydantic model)
+            model_dump = getattr(req_in, "model_dump")
+            req = BMICalculateRequest.model_validate(model_dump())
         else:
             req = BMICalculateRequest.model_validate(req_in)
 
@@ -160,7 +162,8 @@ async def bmi_calculate_handler(
         )
 
         # Return as dict for legacy compatibility
-        return cast(dict[str, Any], resp.model_dump())
+        response_dict: dict[str, Any] = resp.model_dump()
+        return response_dict
 
     except NotImplementedError as e:
         # Engine stub: deterministic API response
