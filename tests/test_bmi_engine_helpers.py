@@ -77,6 +77,11 @@ class TestNormalizeBoolFlag:
         assert _normalize_bool_flag(True) is True
         assert _normalize_bool_flag(False) is False
 
+    def test_non_string_non_bool_returns_false(self) -> None:
+        """Test defensive behavior for non-str, non-bool inputs."""
+        assert _normalize_bool_flag(None) is False  # type: ignore[arg-type]
+        assert _normalize_bool_flag(123) is False  # type: ignore[arg-type]
+
     def test_custom_yes_values(self) -> None:
         """Test custom yes_values parameter."""
         custom = {"custom_yes", "ok"}
@@ -217,6 +222,16 @@ class TestComputeWhtRatio:
         assert _compute_wht_ratio(80.0, 0.51) == 1.57  # > 0.5, valid
         assert _compute_wht_ratio(80.0, 3.0) == 0.27  # <= 3.0, valid
         assert _compute_wht_ratio(80.0, 3.01) is None  # > 3.0
+
+    def test_overflow_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """
+        RU: OverflowError при приведении очень большого int к float → None (fail-soft).
+        EN: OverflowError during huge int→float conversion → None (fail-soft).
+        """
+        import core.bmi.engine as engine
+
+        monkeypatch.setattr(engine, "_MAX_WAIST_CM", 10**2000)
+        assert engine._compute_wht_ratio(10**1000, 1.0) is None  # type: ignore[arg-type]
 
     def test_fail_soft_waist_validation(self) -> None:
         """Test fail-soft behavior for invalid waist (legacy parity)."""
