@@ -25,7 +25,6 @@ bandit>=1.8.6
 # Dev tools - allow minor updates
 pre-commit>=4.3.0
 sourcery>=2.0.0
-asgi-lifespan>=2.1.0
 diff-cover>=9.7.2  # Updated to match requirements-dev.txt
 
 # Production runtime packages (mirror requirements.txt minimums)

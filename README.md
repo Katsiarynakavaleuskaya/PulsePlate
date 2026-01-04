@@ -71,18 +71,18 @@ pre-commit run --all-files
 Setup (pyenv):
 
 ```bash
-pyenv install 3.13.5 -s
-pyenv local 3.13.5
-python -V  # Python 3.13.5
+pyenv install 3.13.6 -s
+pyenv local 3.13.6
+python -V  # Python 3.13.6
 ```
 
 Setup (asdf):
 
 ```bash
 asdf plugin add python || true
-asdf install python 3.13.5
-asdf local python 3.13.5
-python -V  # Python 3.13.5
+asdf install python 3.13.6
+asdf local python 3.13.6
+python -V  # Python 3.13.6
 ```
 
 Create venv and install deps:
