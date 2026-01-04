@@ -10,7 +10,7 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -47,27 +47,35 @@ router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 # Import canonical normalization from engine (removes duplication).
 # Keep a local fallback for partial checkouts / early-PR staging, but make it testable.
 # TODO(PR-456): Consider making this public API (remove underscore).
-from typing import Callable
-
-try:
-    from core.bmi.engine import _normalize_bool_flag as _engine_normalize_bool_flag
-except ImportError:  # pragma: no cover
-    _engine_normalize_bool_flag: Callable[[str | bool, set[str] | None], bool] | None = None
-
-
-def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
-    """Normalize yes/no-ish flag (prefers core.bmi.engine, with local fallback)."""
-    if _engine_normalize_bool_flag is not None:
-        return _engine_normalize_bool_flag(value, yes_values=yes_values)
-
+def _fallback_normalize_bool_flag(
+    value: str | bool,
+    yes_values: set[str] | None = None,
+) -> bool:
+    """RU: Fallback на случай, если core недоступен. EN: Fallback if core is unavailable."""
     if isinstance(value, bool):
         return value
-    if isinstance(value, str):
-        s = value.strip().lower()
-        if yes_values is not None:
-            return s in yes_values
-        return s in {"yes", "y", "да", "true", "1"}
-    return False
+    if not isinstance(value, str):
+        return False
+    s = value.strip().lower()
+    if not s:
+        return False
+    allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    return s in allowed
+
+
+# RU: Тип фиксируем заранее → mypy всегда знает, что возвращается bool.
+# EN: Fix type upfront → mypy always knows return type is bool.
+# Note: Using ... for args to allow optional yes_values parameter
+_normalize_bool_flag: Callable[..., bool] = _fallback_normalize_bool_flag
+
+try:
+    # Импортируем в "временное" имя, потом присваиваем typed-callable
+    from core.bmi.engine import _normalize_bool_flag as _engine_normalize_bool_flag
+
+    _normalize_bool_flag = _engine_normalize_bool_flag
+except ImportError:  # pragma: no cover
+    # Fail-soft: используем fallback
+    pass
 
 
 def _get_lang_from_request(req: BMICalculateRequest) -> Language:
