@@ -21,12 +21,14 @@ from core.i18n import Language
 
 # Canonical rule: groups that must have category=None (medical disclaimer)
 # This is a key domain axiom, not a local variable.
-_CANONICAL_NO_CATEGORY_GROUPS = frozenset({
-    "too_young",
-    "child",
-    "teen",
-    "pregnant",
-})
+_CANONICAL_NO_CATEGORY_GROUPS = frozenset(
+    {
+        "too_young",
+        "child",
+        "teen",
+        "pregnant",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -57,9 +59,7 @@ def _legacy_calculate(case: _Case) -> dict[str, Any]:
     # Use exact engine logic (canonical parity): male variants only
     # NOTE: "mujer"/"mujeres" are female, so we cannot use startswith("m")
     gender_male = (
-        gender_norm == "male"
-        or gender_norm.startswith("муж")
-        or gender_norm.startswith("hombre")
+        gender_norm == "male" or gender_norm.startswith("муж") or gender_norm.startswith("hombre")
     )
 
     # Use bmi_core functions (existing logic)
@@ -84,7 +84,9 @@ def _legacy_calculate(case: _Case) -> dict[str, Any]:
     waist_risk_str = ""
     if case.waist_cm is not None:
         # legacy_app.waist_risk expects Language type, normalize lang_norm
-        lang_for_waist: Language = "ru" if lang_norm == "ru" else ("es" if lang_norm == "es" else "en")
+        lang_for_waist: Language = (
+            "ru" if lang_norm == "ru" else ("es" if lang_norm == "es" else "en")
+        )
         waist_risk_str = legacy_app.waist_risk(case.waist_cm, gender_male, lang_for_waist)
 
     return {

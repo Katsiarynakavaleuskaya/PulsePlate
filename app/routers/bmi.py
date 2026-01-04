@@ -47,10 +47,12 @@ router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 # Import canonical normalization from engine (removes duplication).
 # Keep a local fallback for partial checkouts / early-PR staging, but make it testable.
 # TODO(PR-456): Consider making this public API (remove underscore).
+from typing import Callable
+
 try:
     from core.bmi.engine import _normalize_bool_flag as _engine_normalize_bool_flag
 except ImportError:  # pragma: no cover
-    _engine_normalize_bool_flag = None
+    _engine_normalize_bool_flag: Callable[[str | bool, set[str] | None], bool] | None = None
 
 
 def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:

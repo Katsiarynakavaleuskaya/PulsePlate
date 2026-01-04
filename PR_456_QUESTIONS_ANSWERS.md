@@ -12,14 +12,14 @@
 
 **Q: Какие эндпоинты/роуты входят в PR-456?**
 
-**A:** 
+**A:**
 - ✅ `/api/v1/bmi/calculate` — уже shim (PR-454), но нужно проверить, что нет остатков логики
 - 🔄 `/api/v1/bmi` — **legacy endpoint** (`bmi_endpoint_v1` в `legacy_app.py:2139`), использует `bmi_core` напрямую
 - 🔄 `/bmi` — **legacy endpoint** (если существует, нужно найти)
 
 **Q: Есть ли "внутренние" legacy endpoints, которые продолжают дергать `bmi_core` напрямую?**
 
-**A:** 
+**A:**
 - ✅ **ДА**: `legacy_app.py:2139` (`bmi_endpoint_v1`) использует `bmi_core.bmi_category` (строка 67)
 - ✅ **ДА**: `legacy_app.py:1547` (`calc_bmi`) — локальная функция, дублирует `core/bmi/engine._compute_bmi`
 - ⚠️ **ПОТЕНЦИАЛЬНО**: `legacy_app.py:2099` содержит `healthy_bmi = {"min": 18.5, "max": 24.9}` — порог в legacy
@@ -295,4 +295,3 @@
 5. Commit 4: обновление тестов
 6. Commit 5: cleanup (удаление неиспользуемого кода)
 7. Commit 6: документация
-

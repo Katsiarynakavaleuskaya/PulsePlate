@@ -248,6 +248,7 @@ class TestComputeWhtRatio:
 
 
 def test_group_display_name_fallback_for_unknown_group() -> None:
+    """Verify unknown group names are returned unchanged."""
     assert _group_display_name("not_a_real_group", "en") == "not_a_real_group"  # type: ignore[arg-type]
 
 
