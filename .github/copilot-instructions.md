@@ -47,8 +47,8 @@ npm run test -- --coverage
 
 ### Environment Setup
 
-- **Python 3.13.5** (pinned in `.python-version`, `.tool-versions`)
-- Install via: `pyenv install 3.13.5 && pyenv local 3.13.5`
+- **Python 3.13.6** (pinned in `.python-version`, `.tool-versions`)
+- Install via: `pyenv install 3.13.6 && pyenv local 3.13.6`
 - Dependencies: `pip install -r requirements-dev.txt -r requirements.txt`
 
 - **Frontend prerequisites**

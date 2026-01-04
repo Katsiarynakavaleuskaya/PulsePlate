@@ -69,6 +69,17 @@ This script ensures:
 2. Review and merge PR
 3. Verify with `python verify_requirements.py`
 
+### Regenerate lockfiles (pip-tools)
+
+This repo uses `pip-compile` (pip-tools) to generate pinned `requirements*.txt`.
+To avoid environment drift, run this with the pinned Python from `.python-version` / `.tool-versions`.
+
+```bash
+pip-compile --output-file=requirements.txt requirements.in
+pip-compile --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
+pip-compile --output-file=requirements-lock.txt requirements-dev.in requirements.in
+```
+
 ### Update Dev Dependency
 1. Update version in `requirements-dev.txt`
 2. Update constraint in `constraints.txt` (if needed)
