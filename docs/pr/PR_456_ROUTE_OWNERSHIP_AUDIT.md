@@ -9,12 +9,10 @@
 
 ## Quick conclusion (TL;DR)
 
-- ✅ `/api/v1/bmi/calculate` → **DUPLICATE OWNERSHIP** (legacy shim + router endpoint)
+- ✅ `/api/v1/bmi/calculate` → **OWNER: router** (`calculate_bmi`) → **Engine: YES** (Commit 2: removed legacy shim)
 - 🔄 `/api/v1/bmi` → **OWNER: legacy** (`bmi_endpoint_v1`) → **Engine: NO** (needs shim in Commit 3)
 - 🔄 `/bmi` → **OWNER: legacy** (`bmi_endpoint`) → **Engine: NO** (needs shim in Commit 3)
-- ⚠️ **Duplicate found:** `/api/v1/bmi/calculate` defined in both `legacy_app.py:2196` (shim) and `app/routers/bmi.py:207` (router)
-
-**Decision:** Keep legacy shim as owner (registered first), router endpoint is redundant but harmless (FastAPI uses first match).
+- ✅ **Commit 2 applied:** Removed legacy `/api/v1/bmi/calculate` shim; router is the sole owner.
 
 ---
 

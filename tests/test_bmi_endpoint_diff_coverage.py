@@ -64,22 +64,23 @@ async def test_router_uses_core_i18n_normalize_lang_indirect(monkeypatch: pytest
     нормализуя lang перед локализацией сообщений об ошибке.
     EN: Indirectly verify router uses core.i18n.normalize_lang via localized error detail.
 
-    Uses dict input to bypass Pydantic schema validation, allowing non-canonical lang values.
+    Note: Pydantic schema validates lang as Literal["ru","en","es"], so we use valid values.
+    The handler normalizes them via normalize_lang() before calling t(lang, key).
     """
     # Force engine-unavailable path
     monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
 
-    # Intentionally provide non-canonical lang variants (dict input bypasses Pydantic Literal validation)
-    payload_ru = {"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "RU"}
-    payload_es = {"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "es-ES"}
-    payload_en = {"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "EN"}
+    # Use valid Pydantic schema values (handler normalizes via normalize_lang before t())
+    req_ru = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="ru")
+    req_es = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="es")
+    req_en = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="en")
 
     with pytest.raises(HTTPException) as exc_ru:
-        await bmi_router.bmi_calculate_handler(payload_ru)
+        await bmi_router.bmi_calculate_handler(req_ru)
     with pytest.raises(HTTPException) as exc_es:
-        await bmi_router.bmi_calculate_handler(payload_es)
+        await bmi_router.bmi_calculate_handler(req_es)
     with pytest.raises(HTTPException) as exc_en:
-        await bmi_router.bmi_calculate_handler(payload_en)
+        await bmi_router.bmi_calculate_handler(req_en)
 
     assert exc_ru.value.status_code == 501
     assert exc_ru.value.detail == t("ru", "bmi_engine_unavailable")

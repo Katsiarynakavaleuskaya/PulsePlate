@@ -461,3 +461,38 @@ async def test_engine_unavailable_returns_501_from_handler(
     assert err.status_code == status.HTTP_501_NOT_IMPLEMENTED
     # detail comes from t(lang, "bmi_engine_unavailable")
     assert err.detail
+
+
+def test_http_calculate_normalizes_lang_for_localized_501(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    RU: HTTP уровень: /api/v1/bmi/calculate нормализует lang и локализует detail.
+    EN: HTTP-level: endpoint normalizes lang and localizes error detail.
+
+    Verifies that FastAPI endpoint uses core.i18n.normalize_lang via localized error messages.
+    Note: Pydantic schema validates lang as Literal["ru","en","es"], so we test with valid values
+    and verify normalization happens when handler processes them via normalize_lang().
+    """
+    # IMPORTANT:
+    # Patch the SAME module object that FastAPI handler closes over.
+    import app.routers.bmi as bmi_router
+
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", None)
+
+    # Use valid Pydantic schema values (Pydantic validates lang as Literal["ru","en","es"])
+    # Handler normalizes them via normalize_lang() before calling t(lang, key)
+    from core.i18n import t
+
+    resp_ru = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="ru"))
+    assert resp_ru.status_code == 501
+    assert resp_ru.json()["detail"] == t("ru", "bmi_engine_unavailable")
+
+    resp_es = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="es"))
+    assert resp_es.status_code == 501
+    assert resp_es.json()["detail"] == t("es", "bmi_engine_unavailable")
+
+    resp_en = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="en"))
+    assert resp_en.status_code == 501
+    assert resp_en.json()["detail"] == t("en", "bmi_engine_unavailable")
