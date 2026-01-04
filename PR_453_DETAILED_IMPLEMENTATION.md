@@ -2,9 +2,9 @@
 
 ## 📋 Общая информация
 
-**PR номер:** 453  
-**Ветка:** `feat/pr-453-bmi-schemas`  
-**Цель:** Создать Pydantic-схемы для нового endpoint `/api/v1/bmi/calculate` (FREE tier)  
+**PR номер:** 453
+**Ветка:** `feat/pr-453-bmi-schemas`
+**Цель:** Создать Pydantic-схемы для нового endpoint `/api/v1/bmi/calculate` (FREE tier)
 **Статус:** Готов к ревью (schemas + тесты)
 
 ---
@@ -314,4 +314,3 @@ response = BMICalculateResponse(
    - Рефакторинг legacy endpoints
    - Использование engine вместо локальных вычислений
    - Golden tests для проверки идентичности поведения
-

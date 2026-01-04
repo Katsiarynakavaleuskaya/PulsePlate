@@ -114,4 +114,3 @@ All actionable review comments have been addressed:
 - ✅ Canonical reference document added
 
 **Test count:** 27 tests (up from 26), all passing ✅
-

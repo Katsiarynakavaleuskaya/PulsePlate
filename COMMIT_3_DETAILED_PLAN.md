@@ -54,10 +54,10 @@ class BMICalculateRequest(BaseModel):
     """
     RU: Запрос для расчета BMI через единый engine.
     EN: Request for BMI calculation via unified engine.
-    
+
     FREE tier endpoint (no API key required).
     """
-    
+
     # Обязательные поля
     weight_kg: float = Field(
         ...,
@@ -65,14 +65,14 @@ class BMICalculateRequest(BaseModel):
         description="Weight in kilograms. Must be positive.",
         examples=[65.5, 70.0, 80.3]
     )
-    
+
     height_cm: float = Field(
         ...,
         gt=0,
         description="Height in centimeters. Must be positive.",
         examples=[170.0, 175.5, 180.0]
     )
-    
+
     age: int = Field(
         ...,
         ge=1,
@@ -80,33 +80,33 @@ class BMICalculateRequest(BaseModel):
         description="Age in years. Range: 1-120.",
         examples=[25, 30, 45, 65]
     )
-    
+
     # Опциональные поля с дефолтами
     gender: str = Field(
         default="male",
         description="Gender: 'male' or 'female'. Will be normalized by engine.",
         examples=["male", "female", "муж", "жен"]
     )
-    
+
     pregnant: str | bool = Field(
         default="no",
         description="Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.",
         examples=["no", "yes", False, True]
     )
-    
+
     athlete: str | bool = Field(
         default="no",
         description="Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.",
         examples=["no", "yes", False, True]
     )
-    
+
     waist_cm: float | None = Field(
         None,
         gt=0,
         description="Waist circumference in centimeters (optional). If provided, enables WHtR and waist risk assessment.",
         examples=[80.0, 90.5, None]
     )
-    
+
     lang: Language = Field(
         default="en",
         description="Language for localized responses: 'ru', 'en', or 'es'.",
@@ -144,18 +144,18 @@ class BMICalculateResponse(BaseModel):
     """
     RU: Ответ с результатами расчета BMI через единый engine.
     EN: Response with BMI calculation results via unified engine.
-    
+
     Note: `category` может быть `None` для беременных и детей <12 лет
     (это не ошибка, а медицинский дисклеймер).
     """
-    
+
     # Основные результаты
     bmi: float = Field(
         ...,
         description="Calculated BMI value (weight_kg / (height_m ** 2)).",
         examples=[22.5, 25.3, 18.7]
     )
-    
+
     category: str | None = Field(
         None,
         description=(
@@ -165,32 +165,32 @@ class BMICalculateResponse(BaseModel):
         ),
         examples=["normal", "overweight", None]
     )
-    
+
     group: str = Field(
         ...,
         description="User group determined by auto_group(): 'general', 'athlete', 'elderly', 'child', 'too_young', 'pregnant'.",
         examples=["general", "athlete", "elderly"]
     )
-    
+
     group_display: str = Field(
         ...,
         description="Localized display name for the group.",
         examples=["General", "Athlete", "Elderly"]
     )
-    
+
     interpretation: str = Field(
         ...,
         description="Localized interpretation text for the BMI value in the context of the group.",
         examples=["Your BMI is within the normal range for your age group."]
     )
-    
+
     # Опциональные метрики
     wht_ratio: float | None = Field(
         None,
         description="Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.",
         examples=[0.47, 0.52, None]
     )
-    
+
     waist_risk: dict[str, Any] | None = Field(
         None,
         description=(
@@ -207,13 +207,13 @@ class BMICalculateResponse(BaseModel):
             None
         ]
     )
-    
+
     notes: list[str] = Field(
         default_factory=list,
         description="Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.",
         examples=[[], ["Increased waist-related risk"]]
     )
-    
+
     age_band: Literal["too_young", "child", "teen", "adult", "elderly"] = Field(
         ...,
         description="Age band for UI differentiation: 'too_young' (<12), 'child' (12-14), 'teen' (15-18), 'adult' (19-59), 'elderly' (>=60).",
@@ -266,7 +266,7 @@ return BMICalculateResponse(
 ```python
 def test_bmi_calculate_request_validation():
     """Test Pydantic validation for BMICalculateRequest."""
-    
+
     # ✅ Valid request
     valid = BMICalculateRequest(
         weight_kg=70.0,
@@ -276,26 +276,26 @@ def test_bmi_calculate_request_validation():
         lang="en"
     )
     assert valid.weight_kg == 70.0
-    
+
     # ❌ Negative weight
     with pytest.raises(ValidationError):
         BMICalculateRequest(weight_kg=-10, height_cm=175, age=30)
-    
+
     # ❌ Zero height
     with pytest.raises(ValidationError):
         BMICalculateRequest(weight_kg=70, height_cm=0, age=30)
-    
+
     # ❌ Age out of range
     with pytest.raises(ValidationError):
         BMICalculateRequest(weight_kg=70, height_cm=175, age=0)  # < 1
-    
+
     with pytest.raises(ValidationError):
         BMICalculateRequest(weight_kg=70, height_cm=175, age=121)  # > 120
-    
+
     # ❌ Negative waist_cm (if provided)
     with pytest.raises(ValidationError):
         BMICalculateRequest(weight_kg=70, height_cm=175, age=30, waist_cm=-10)
-    
+
     # ✅ Optional waist_cm = None (OK)
     valid_no_waist = BMICalculateRequest(
         weight_kg=70.0,
@@ -312,7 +312,7 @@ def test_bmi_calculate_request_validation():
 def test_bmi_calculate_request_defaults():
     """Test default values for optional fields."""
     req = BMICalculateRequest(weight_kg=70, height_cm=175, age=30)
-    
+
     assert req.gender == "male"
     assert req.pregnant == "no"
     assert req.athlete == "no"
@@ -329,7 +329,7 @@ def test_bmi_calculate_request_language():
     for lang in ["ru", "en", "es"]:
         req = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang=lang)
         assert req.lang == lang
-    
+
     # ❌ Invalid language (Pydantic will raise ValidationError)
     with pytest.raises(ValidationError):
         BMICalculateRequest(weight_kg=70, height_cm=175, age=30, lang="fr")
@@ -352,11 +352,11 @@ def test_bmi_calculate_response_structure():
         notes=[],
         age_band="adult"
     )
-    
+
     assert response.bmi == 22.5
     assert response.category == "normal"
     assert response.notes == []
-    
+
     # Full response (with waist risk)
     response_full = BMICalculateResponse(
         bmi=25.3,
@@ -373,7 +373,7 @@ def test_bmi_calculate_response_structure():
         notes=["Increased waist-related risk"],
         age_band="adult"
     )
-    
+
     assert response_full.waist_risk is not None
     assert response_full.waist_risk["risk_level"] == "moderate"
 ```
@@ -395,9 +395,9 @@ def test_bmi_calculate_response_category_none():
         notes=[],
         age_band="adult"
     )
-    
+
     assert response_pregnant.category is None
-    
+
     # Too young case
     response_child = BMICalculateResponse(
         bmi=18.5,
@@ -410,7 +410,7 @@ def test_bmi_calculate_response_category_none():
         notes=[],
         age_band="too_young"
     )
-    
+
     assert response_child.category is None
 ```
 
@@ -514,4 +514,3 @@ Commit 3 создает **чистый API контракт** для новог�
 - Тесты фиксируют контракт и предотвращают регрессии
 
 Этот коммит **не зависит от Commit 2** (engine), но **используется в Commit 4** (endpoint).
-

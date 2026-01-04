@@ -68,4 +68,3 @@
 | `BMIRequestV1` (legacy) | `height_cm` | `gender` | Optional | ❌ | ❌ |
 | `BMIProRequest` (PRO) | `height_cm` | `sex` (Literal) | **Required** | ❌ | ❌ |
 | **`BMICalculateRequest` (NEW)** | `height_cm` | `gender` | Optional | ❌ | ❌ |
-

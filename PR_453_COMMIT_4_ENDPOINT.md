@@ -171,4 +171,3 @@ feat(api): add POST /api/v1/bmi/calculate endpoint
 - Рефакторинг `legacy_app.py` endpoints (`bmi_endpoint`, `bmi_endpoint_v1`, `bmi_calculate_legacy`)
 - Использование `calculate_bmi_result()` вместо локальных вычислений
 - Сохранение формата ответа для обратной совместимости
-

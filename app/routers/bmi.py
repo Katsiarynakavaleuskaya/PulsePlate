@@ -22,7 +22,7 @@ try:
     from core.bmi.engine import calculate_bmi_result
 except ImportError:
     # Fallback for development/testing when engine is not yet available
-    calculate_bmi_result = None  # type: ignore[assignment, misc]
+    calculate_bmi_result = None  # type: ignore[assignment]
 
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
@@ -122,4 +122,3 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="BMI calculation failed",
         ) from e
-
