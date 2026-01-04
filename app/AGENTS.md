@@ -60,6 +60,7 @@
 
 - Routers and services must not re-implement domain logic.
 - If logic is needed in multiple endpoints, put it into `core/` and call it.
+- BMI math (formulas/thresholds/grouping/interpretation) MUST live only in `core/bmi/*`; `app/*` is adapters/rendering only.
 - `legacy_app.py` is compatibility-only: do not add new behavior there unless it is purely shim/bridge.
 
 ## Common pitfalls

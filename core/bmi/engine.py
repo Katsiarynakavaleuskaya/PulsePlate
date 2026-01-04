@@ -4,7 +4,7 @@ BMI Engine Orchestrator
 RU: Единый engine для расчета BMI (canonical source of truth).
 EN: Unified engine for BMI calculation (canonical source of truth).
 
-This module will be fully implemented in PR-453 Commit 2.
+This module will be fully implemented in PR-455.
 Currently provides a stub implementation for development/testing.
 """
 
@@ -68,5 +68,5 @@ def calculate_bmi_result(
         NotImplementedError: Always (stub implementation)
     """
     raise NotImplementedError(
-        "BMI engine is not yet implemented. This will be available after PR-453 Commit 2."
+        "BMI engine is not yet implemented. This will be available after PR-455."
     )
