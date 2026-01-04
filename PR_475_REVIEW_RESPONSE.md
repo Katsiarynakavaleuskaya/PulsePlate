@@ -19,4 +19,3 @@
 
 - Aligned local toolchain pinning by making `.python-version` match `.tool-versions` and CI/Docker (`3.13.6`).
 - Updated setup docs (`README.md`, `.github/copilot-instructions.md`) and added explicit `pip-compile` regeneration commands (`REQUIREMENTS.md`).
-
