@@ -7,10 +7,10 @@ pytest-asyncio~=1.3.0
 pytest-xdist~=3.8.0
 pytest-picked~=0.5.0
 pytest-split~=0.10.0
-hypothesis~=6.148.8
+hypothesis~=6.148.11
 faker~=38.2.0  # Test data generation
 # coverage and diff-cover: use compatible release for stability
-coverage~=7.13.0
+coverage~=7.13.1
 diff-cover~=10.0.0
 # Code quality tools: use compatible release for stability
 bandit>=1.8.6  # Security tool - keep >= for vulnerability updates
