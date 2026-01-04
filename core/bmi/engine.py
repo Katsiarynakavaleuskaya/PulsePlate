@@ -101,10 +101,12 @@ def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) 
     return s in allowed
 
 
-def _normalize_lang(lang: str) -> Language:
+def _normalize_lang(lang: str | None) -> Language:
     """
     RU: Используем canonical normalize_lang из core.i18n (не дублируем).
     EN: Use canonical core.i18n.normalize_lang() (no duplication).
+
+    Wrapper must not be more restrictive than delegate (core.i18n.normalize_lang accepts Optional[str]).
     """
     return normalize_lang(lang)
 
