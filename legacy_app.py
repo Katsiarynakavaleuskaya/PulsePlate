@@ -157,14 +157,16 @@ if VIP_MODULE_ENABLED:
         vip_router = None
 
 
-def _resolve_scheduler_starter(
-    pkg: Any, alias_pkg: Any, globs: dict[str, Any]
+def _resolve_scheduler_starter(  # noqa: ANN401
+    pkg: Any, alias_pkg: Any, globs: dict[str, Any]  # noqa: ANN401
 ) -> Callable[[int], Any]:
     """Backward-compatible wrapper for scheduler starter resolution."""
     return resolve_scheduler_starter(pkg, alias_pkg, globs, _scheduler_start_background_updates)
 
 
-def _resolve_stop_callable(pkg: Any, alias_pkg: Any) -> Callable[[], Any]:
+def _resolve_stop_callable(  # noqa: ANN401
+    pkg: Any, alias_pkg: Any  # noqa: ANN401
+) -> Callable[[], Any]:
     """Backward-compatible wrapper for scheduler stop callable resolution."""
     return resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
 
@@ -556,7 +558,7 @@ def _check_production_constraints(
     )
 
 
-def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:
+def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  # noqa: ANN401
     """Create and initialize fallback SQLAlchemy engine.
 
     Creates engine with correct connect_args, runs Base.metadata.create_all.
@@ -583,7 +585,7 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:
 
 
 def _configure_session_bindings(
-    engine: Any, is_production: bool, fallback_url: str, env_name: Optional[str]
+    engine: Any, is_production: bool, fallback_url: str, env_name: Optional[str]  # noqa: ANN401
 ) -> None:
     """Configure core.db session bindings and environment variables.
 
@@ -2044,7 +2046,9 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # Convert BMIRequest (height_m) to BMICalculateRequest format (height_cm)
     shim_payload = {
         "weight_kg": req.weight_kg,
-        "height_cm": round(float(req.height_m) * 100.0, 1),  # Convert meters to centimeters, round to 1 decimal
+        "height_cm": round(
+            float(req.height_m) * 100.0, 1
+        ),  # Convert meters to centimeters, round to 1 decimal
         "age": req.age,
         "gender": req.gender,
         "pregnant": req.pregnant,
@@ -2065,6 +2069,9 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # Call canonical handler
     canonical_result = await bmi_calculate_handler(canonical_req)
 
+    # Normalize language once for all i18n calls
+    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
+
     # Localize category (engine returns slug, legacy expects localized display)
     category_slug = canonical_result.get("category")
     category_display: str | None = None
@@ -2080,7 +2087,6 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
         }
         i18n_key = category_i18n_map.get(category_slug)
         if i18n_key:
-            lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
             category_display = t(lang_norm, i18n_key)
         else:
             category_display = category_slug  # Fallback to slug if unknown
@@ -2090,7 +2096,6 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     notes_list = canonical_result.get("notes", [])
     interpretation = canonical_result.get("interpretation") or ""
 
-    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
     legacy_note = ""
     if group == "pregnant":
         legacy_note = t(lang_norm, "bmi_not_valid_during_pregnancy")

@@ -76,11 +76,16 @@ def test_bmi_endpoint_v1_uses_canonical_handler_via_shim(
     assert data["athlete"] is False  # Derived from group != "athlete"
     assert "note" in data  # Legacy field (waist risk notes or interpretation)
     # Note should contain waist risk notes (from fixed_result.notes)
-    assert "Low waist-related risk" in data["note"] or data["note"] == "Your BMI is within the normal range."
+    assert (
+        "Low waist-related risk" in data["note"]
+        or data["note"] == "Your BMI is within the normal range."
+    )
 
     # Verify no extra fields that would break legacy clients
     expected_keys = {"bmi", "category", "note", "athlete", "group"}
-    assert set(data.keys()).issuperset(expected_keys), f"Missing legacy keys. Got: {set(data.keys())}"
+    assert set(data.keys()).issuperset(
+        expected_keys
+    ), f"Missing legacy keys. Got: {set(data.keys())}"
 
 
 def test_bmi_endpoint_uses_canonical_handler_via_shim(
@@ -144,9 +149,10 @@ def test_bmi_endpoint_uses_canonical_handler_via_shim(
 
     # Verify no extra fields that would break legacy clients
     expected_keys = {"bmi", "category", "note", "athlete", "group"}
-    assert set(data.keys()).issuperset(expected_keys), f"Missing legacy keys. Got: {set(data.keys())}"
+    assert set(data.keys()).issuperset(
+        expected_keys
+    ), f"Missing legacy keys. Got: {set(data.keys())}"
 
     # Verify visualization gate: with include_chart=False, visualization should not be added
     # (or if added, it should be gracefully handled)
     # This is a smoke test - full visualization testing is in test_bmi_visualization.py
-
