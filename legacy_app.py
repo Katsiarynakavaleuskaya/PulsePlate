@@ -160,14 +160,24 @@ if VIP_MODULE_ENABLED:
 def _resolve_scheduler_starter(  # noqa: ANN401
     pkg: Any, alias_pkg: Any, globs: dict[str, Any]  # noqa: ANN401
 ) -> Callable[[int], Any]:
-    """Backward-compatible wrapper for scheduler starter resolution."""
+    """
+    Backward-compatible wrapper for scheduler starter resolution.
+
+    NOTE: Legacy infra glue; uses Any for dynamic module/package resolution.
+    Type hints intentionally relaxed to support runtime introspection.
+    """
     return resolve_scheduler_starter(pkg, alias_pkg, globs, _scheduler_start_background_updates)
 
 
 def _resolve_stop_callable(  # noqa: ANN401
     pkg: Any, alias_pkg: Any  # noqa: ANN401
 ) -> Callable[[], Any]:
-    """Backward-compatible wrapper for scheduler stop callable resolution."""
+    """
+    Backward-compatible wrapper for scheduler stop callable resolution.
+
+    NOTE: Legacy infra glue; uses Any for dynamic module/package resolution.
+    Type hints intentionally relaxed to support runtime introspection.
+    """
     return resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
 
 
@@ -559,10 +569,14 @@ def _check_production_constraints(
 
 
 def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  # noqa: ANN401
-    """Create and initialize fallback SQLAlchemy engine.
+    """
+    Create and initialize fallback SQLAlchemy engine.
 
     Creates engine with correct connect_args, runs Base.metadata.create_all.
     Returns the initialized engine or raises db_err on failure.
+
+    NOTE: Legacy infra glue; engine type depends on runtime backend (SQLite/Postgres).
+    Type hint intentionally relaxed (Any) to support multiple SQLAlchemy engine variants.
     """
     from sqlalchemy import create_engine
     import core.models  # noqa: F401
@@ -587,7 +601,11 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  #
 def _configure_session_bindings(
     engine: Any, is_production: bool, fallback_url: str, env_name: Optional[str]  # noqa: ANN401
 ) -> None:
-    """Configure core.db session bindings and environment variables.
+    """
+    Configure core.db session bindings and environment variables.
+
+    NOTE: Legacy infra glue; engine type depends on runtime backend.
+    Type hint intentionally relaxed (Any) to support multiple SQLAlchemy engine variants.
 
     Sets SessionLocal, _RAW_ENGINE, engine wrapper, _db_fallback_active flag,
     and updates os.environ with appropriate markers.
@@ -2228,6 +2246,9 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     # Call canonical handler
     canonical_result = await bmi_calculate_handler(canonical_req)
 
+    # Normalize language once for all i18n calls
+    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
+
     # Localize category (engine returns slug, legacy expects localized display)
     category_slug = canonical_result.get("category")
     category_display: str | None = None
@@ -2243,7 +2264,6 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         }
         i18n_key = category_i18n_map.get(category_slug)
         if i18n_key:
-            lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
             category_display = t(lang_norm, i18n_key)
         else:
             category_display = category_slug  # Fallback to slug if unknown
@@ -2252,8 +2272,6 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     group = canonical_result.get("group", "")
     notes_list = canonical_result.get("notes", [])
     interpretation = canonical_result.get("interpretation") or ""
-
-    lang_norm: Language = normalize_lang(str(req.lang))  # type: ignore[assignment]
     legacy_note = ""
     if group == "pregnant":
         legacy_note = t(lang_norm, "bmi_not_valid_during_pregnancy")
