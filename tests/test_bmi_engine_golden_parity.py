@@ -87,11 +87,15 @@ def _assert_strict(engine: BMICalculateResult, legacy: dict[str, Any], case_id: 
     - Legacy may return categories for youth (this is divergence we're documenting)
     - For parity: we check that engine follows canonical rule (None for youth/pregnant)
     """
-    assert engine.bmi == legacy["bmi"], f"{case_id}: bmi mismatch (engine={engine.bmi}, legacy={legacy['bmi']})"
-    assert engine.group == legacy["group"], f"{case_id}: group mismatch (engine={engine.group}, legacy={legacy['group']})"
-    assert engine.wht_ratio == legacy.get("wht_ratio"), (
-        f"{case_id}: wht_ratio mismatch (engine={engine.wht_ratio}, legacy={legacy.get('wht_ratio')})"
-    )
+    assert (
+        engine.bmi == legacy["bmi"]
+    ), f"{case_id}: bmi mismatch (engine={engine.bmi}, legacy={legacy['bmi']})"
+    assert (
+        engine.group == legacy["group"]
+    ), f"{case_id}: group mismatch (engine={engine.group}, legacy={legacy['group']})"
+    assert engine.wht_ratio == legacy.get(
+        "wht_ratio"
+    ), f"{case_id}: wht_ratio mismatch (engine={engine.wht_ratio}, legacy={legacy.get('wht_ratio')})"
 
     # Category: Engine canonical rule (category=None for youth/pregnant) vs legacy behavior
     # Legacy may return categories for youth, but engine correctly returns None
@@ -103,9 +107,9 @@ def _assert_strict(engine: BMICalculateResult, legacy: dict[str, Any], case_id: 
 
     if engine.group in canonical_no_category_groups:
         # Engine canonical: category must be None for these groups
-        assert engine_cat is None, (
-            f"{case_id}: category must be None for group={engine.group} (canonical rule, engine={engine_cat})"
-        )
+        assert (
+            engine_cat is None
+        ), f"{case_id}: category must be None for group={engine.group} (canonical rule, engine={engine_cat})"
         # Legacy may have category (divergence documented, but engine is canonical)
     else:
         # For other groups, both should have categories (or both None)
@@ -113,9 +117,18 @@ def _assert_strict(engine: BMICalculateResult, legacy: dict[str, Any], case_id: 
             assert engine_cat is None, f"{case_id}: category expected None (engine={engine_cat})"
         else:
             # Legacy has localized string, engine has category key
-            assert engine_cat is not None, f"{case_id}: category expected non-None (legacy={legacy_cat})"
+            assert (
+                engine_cat is not None
+            ), f"{case_id}: category expected non-None (legacy={legacy_cat})"
             # Category key should be valid
-            assert engine_cat in {"underweight", "normal", "overweight", "obesity_1", "obesity_2", "obesity_3"}
+            assert engine_cat in {
+                "underweight",
+                "normal",
+                "overweight",
+                "obesity_1",
+                "obesity_2",
+                "obesity_3",
+            }
 
 
 def _assert_semantic(engine: BMICalculateResult, legacy: dict[str, Any], case_id: str) -> None:
@@ -128,11 +141,17 @@ def _assert_semantic(engine: BMICalculateResult, legacy: dict[str, Any], case_id
         assert engine_wr is None, f"{case_id}: waist_risk expected None (legacy='', engine present)"
     else:
         # Legacy has risk string, engine should have risk object
-        assert engine_wr is not None, f"{case_id}: waist_risk expected present (legacy='{legacy_wr_str}')"
+        assert (
+            engine_wr is not None
+        ), f"{case_id}: waist_risk expected present (legacy='{legacy_wr_str}')"
         # Check risk_level exists
         risk_level = getattr(engine_wr, "risk_level", None)
         assert risk_level is not None, f"{case_id}: waist_risk object missing risk_level"
-        assert risk_level in {"low", "moderate", "high"}, f"{case_id}: invalid risk_level={risk_level}"
+        assert risk_level in {
+            "low",
+            "moderate",
+            "high",
+        }, f"{case_id}: invalid risk_level={risk_level}"
 
     # Notes: only assert deterministic properties (not exact strings)
     if engine_wr is None:
@@ -142,14 +161,17 @@ def _assert_semantic(engine: BMICalculateResult, legacy: dict[str, Any], case_id
         assert isinstance(engine.notes, tuple), f"{case_id}: notes must be tuple"
         # If legacy has risk string, engine notes should be non-empty
         if legacy_wr_str:
-            assert len(engine.notes) > 0, f"{case_id}: notes should be non-empty when waist_risk present"
+            assert (
+                len(engine.notes) > 0
+            ), f"{case_id}: notes should be non-empty when waist_risk present"
 
     # Interpretation: if category exists, should contain category token
     if engine.category is not None:
         # Engine interpretation format: "{category}. {note}" or just "{category}"
-        assert engine.category in engine.interpretation.lower() or engine.category in engine.interpretation, (
-            f"{case_id}: interpretation should include category '{engine.category}'"
-        )
+        assert (
+            engine.category in engine.interpretation.lower()
+            or engine.category in engine.interpretation
+        ), f"{case_id}: interpretation should include category '{engine.category}'"
 
 
 # --- Golden matrix (12-15 cases covering all critical paths) ---
@@ -160,19 +182,37 @@ CASES: list[_Case] = [
     _Case("age_12_child", 40.0, 150.0, 12, "female", False, False, None, "en"),
     _Case("age_13_teen", 45.0, 155.0, 13, "male", False, False, None, "en"),
     _Case("age_19_teen", 55.0, 165.0, 19, "male", False, False, None, "en"),
-    _Case("age_20_adult_normal", 70.0, 170.0, 20, "male", False, False, None, "en"),  # BMI ~24.2 (normal)
-    _Case("age_60_elderly_normal", 70.0, 170.0, 60, "male", False, False, None, "en"),  # BMI ~24.2 (normal, elderly threshold)
+    _Case(
+        "age_20_adult_normal", 70.0, 170.0, 20, "male", False, False, None, "en"
+    ),  # BMI ~24.2 (normal)
+    _Case(
+        "age_60_elderly_normal", 70.0, 170.0, 60, "male", False, False, None, "en"
+    ),  # BMI ~24.2 (normal, elderly threshold)
     # Groups
     _Case("pregnant_female", 65.0, 170.0, 30, "female", True, False, None, "en"),
-    _Case("athlete_threshold_26_9", 80.0, 173.0, 30, "male", False, True, None, "en"),  # BMI ~26.7 (normal for athlete)
-    _Case("elderly_pregnant_priority", 65.0, 170.0, 65, "female", True, False, None, "en"),  # Age priority
+    _Case(
+        "athlete_threshold_26_9", 80.0, 173.0, 30, "male", False, True, None, "en"
+    ),  # BMI ~26.7 (normal for athlete)
+    _Case(
+        "elderly_pregnant_priority", 65.0, 170.0, 65, "female", True, False, None, "en"
+    ),  # Age priority
     # BMI categories (adult)
-    _Case("adult_underweight", 50.0, 170.0, 30, "male", False, False, None, "en"),  # BMI ~17.3 (underweight)
-    _Case("adult_overweight", 80.0, 170.0, 30, "male", False, False, None, "en"),  # BMI ~27.7 (overweight)
-    _Case("adult_obesity_1", 90.0, 170.0, 30, "male", False, False, None, "en"),  # BMI ~31.1 (obesity_1)
+    _Case(
+        "adult_underweight", 50.0, 170.0, 30, "male", False, False, None, "en"
+    ),  # BMI ~17.3 (underweight)
+    _Case(
+        "adult_overweight", 80.0, 170.0, 30, "male", False, False, None, "en"
+    ),  # BMI ~27.7 (overweight)
+    _Case(
+        "adult_obesity_1", 90.0, 170.0, 30, "male", False, False, None, "en"
+    ),  # BMI ~31.1 (obesity_1)
     # Waist risk
-    _Case("waist_risk_male_moderate", 90.0, 180.0, 30, "male", False, False, 95.0, "en"),  # waist >= 94 (moderate)
-    _Case("waist_risk_female_high", 65.0, 170.0, 30, "female", False, False, 88.0, "en"),  # waist >= 88 (high)
+    _Case(
+        "waist_risk_male_moderate", 90.0, 180.0, 30, "male", False, False, 95.0, "en"
+    ),  # waist >= 94 (moderate)
+    _Case(
+        "waist_risk_female_high", 65.0, 170.0, 30, "female", False, False, 88.0, "en"
+    ),  # waist >= 88 (high)
     # Language normalization
     _Case("lang_alias_en_us", 70.0, 170.0, 30, "male", False, False, None, "en-US"),
 ]
@@ -220,4 +260,3 @@ def test_golden_parity_language_normalization() -> None:
     _assert_strict(res, legacy, case.case_id)
     # Both should normalize en-US to en
     assert res.group_display == "General"  # English display name
-

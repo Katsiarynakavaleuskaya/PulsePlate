@@ -50,7 +50,9 @@ try:
     from core.bmi.engine import _normalize_bool_flag
 except ImportError:
     # Fallback for development/testing when engine is not yet available
-    def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:  # noqa: F811
+    def _normalize_bool_flag(
+        value: str | bool, yes_values: set[str] | None = None
+    ) -> bool:  # noqa: F811
         """Fallback: minimal normalization when engine not available."""
         if isinstance(value, bool):
             return value
