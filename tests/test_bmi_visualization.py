@@ -563,9 +563,9 @@ def test_bmi_visualization_endpoint_with_api_key():
         )
 
         # Should return 200 with mocked visualization
-        assert response.status_code == 200, (
-            f"Expected 200, got {response.status_code}. Response: {response.content.decode()}"
-        )
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}. Response: {response.content.decode()}"
         data = response.json()
         assert "bmi" in data
         assert "visualization" in data

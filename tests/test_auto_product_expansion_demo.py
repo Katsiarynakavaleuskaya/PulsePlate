@@ -63,12 +63,12 @@ class TestAutoProductExpansionDemo:
                     "USDA",
                     "OFF",
                 ], f"Unexpected source: {result.source}"
-                assert 0 <= result.confidence <= 1, (
-                    f"Confidence should be between 0 and 1, got {result.confidence}"
-                )
-                assert result.food_record is not None, (
-                    "Food record should be present when found=True"
-                )
+                assert (
+                    0 <= result.confidence <= 1
+                ), f"Confidence should be between 0 and 1, got {result.confidence}"
+                assert (
+                    result.food_record is not None
+                ), "Food record should be present when found=True"
 
     @pytest.mark.demo
     def test_auto_expansion_demo(self) -> None:
@@ -155,9 +155,9 @@ class TestAutoProductExpansionDemo:
                 for food_name in food_names
             )
             # Продукт должен быть действительно отсутствующим
-            assert not found_in_db, (
-                f"Product {missing_product} should be missing but found in database"
-            )
+            assert (
+                not found_in_db
+            ), f"Product {missing_product} should be missing but found in database"
 
     def test_product_search_workflow(self) -> None:
         """Test complete product search workflow."""

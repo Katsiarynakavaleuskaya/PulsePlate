@@ -135,7 +135,9 @@ def test_engine_zero_quantity_flows(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
         return list(specs)
 
-    def fake_package(lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:  # noqa: ARG001
+    def fake_package(
+        lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]
+    ) -> _Result:  # noqa: ARG001
         # если qty=0 дошло — тест пройдёт
         assert any(s.qty == 0 for s in lines)
         return _Result(packed=tuple(lines), unpacked=())
@@ -175,7 +177,9 @@ def test_engine_never_catches_packager_errors(monkeypatch: pytest.MonkeyPatch) -
     def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
         return list(specs)
 
-    def fake_package(_: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:  # noqa: ARG001
+    def fake_package(
+        _: Sequence[_Spec], packaging_rules: Sequence[_Rule]
+    ) -> _Result:  # noqa: ARG001
         raise PackError("packager failed")
 
     monkeypatch.setattr("core.shoplist_engine.engine.normalize_specs", fake_normalize)
@@ -197,7 +201,9 @@ def test_engine_empty_specs(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_aggregate(specs: Sequence[_Spec]) -> list[_Spec]:
         return list(specs)
 
-    def fake_package(lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]) -> _Result:  # noqa: ARG001
+    def fake_package(
+        lines: Sequence[_Spec], packaging_rules: Sequence[_Rule]
+    ) -> _Result:  # noqa: ARG001
         return _Result(packed=tuple(lines), unpacked=())
 
     monkeypatch.setattr("core.shoplist_engine.engine.normalize_specs", fake_normalize)

@@ -31,9 +31,9 @@ def test_single_base_instance() -> None:
 
     # 4) Assert they share the same Base instance
     try:
-        assert ev.Base is core.db.Base, (
-            f"app.models.events.Base ({id(ev.Base)}) is not core.db.Base ({id(core.db.Base)})"
-        )
+        assert (
+            ev.Base is core.db.Base
+        ), f"app.models.events.Base ({id(ev.Base)}) is not core.db.Base ({id(core.db.Base)})"
     finally:
         # Close any connections opened during import
         if hasattr(core.db, "engine") and core.db.engine is not None:

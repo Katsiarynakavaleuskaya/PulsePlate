@@ -62,9 +62,9 @@ def test_food_to_dict_variants() -> None:
         "source",
         "source_id",
     }
-    assert set(fallback_result.keys()) == expected_keys, (
-        f"Expected keys {expected_keys}, got {fallback_result.keys()}"
-    )
+    assert (
+        set(fallback_result.keys()) == expected_keys
+    ), f"Expected keys {expected_keys}, got {fallback_result.keys()}"
 
     # Assert expected default values
     assert fallback_result["name"] == "unknown"

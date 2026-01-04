@@ -2,15 +2,15 @@
 
 **Canonical: PR-455 (BMI Engine Implementation)**
 **GitHub PR: #468**
-**Дата:** 2026-01-04  
+**Дата:** 2026-01-04
 **Статус:** Pre-implementation review
 
 ---
 
 ## 🎯 Общая оценка Commit 1
 
-**Безопасность:** ✅ Высокая (изолированные helpers, легко тестировать)  
-**Риски:** 🟡 Средние (несколько тонких мест требуют внимания)  
+**Безопасность:** ✅ Высокая (изолированные helpers, легко тестировать)
+**Риски:** 🟡 Средние (несколько тонких мест требуют внимания)
 **Готовность:** ✅ Можно начинать после учёта рисков
 
 ---
@@ -36,7 +36,7 @@ or (lang == "es" and g.startswith("mujer") and p in yes_vals)
 ```python
 def _normalize_gender(gender: str) -> str:
     g = (gender or "").strip().lower()
-    
+
     # Russian: "жен", "женский", "женщина" → "female"
     if g.startswith("жен"):
         return "female"
@@ -49,7 +49,7 @@ def _normalize_gender(gender: str) -> str:
     # Male variants
     if g.startswith("муж") or g == "male":
         return "male"
-    
+
     # Fallback: "male" (как в legacy)
     return "male"
 ```
@@ -80,7 +80,7 @@ def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) 
         return value
     if isinstance(value, str):
         s = value.strip().lower()
-        
+
         # Standard yes values
         if yes_values:
             if s in yes_values:
@@ -89,14 +89,14 @@ def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) 
             # Default yes values
             if s in {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}:
                 return True
-        
+
         # For athlete: also check regex patterns
         if yes_values is None:  # Default mode
             import re
             athlete_pattern = re.search(r"спортсмен(ка)?|атлет(ка)?", s)
             if athlete_pattern:
                 return True
-    
+
     return False
 ```
 
@@ -177,7 +177,7 @@ def _compute_bmi(weight_kg: float, height_m: float) -> float:
         raise ValueError("Weight must be positive")
     if height_m <= 0:
         raise ValueError("Height must be positive")
-    
+
     bmi = weight_kg / (height_m ** 2)
     # Round to 1 decimal (legacy parity)
     return round(bmi, 1)
@@ -214,17 +214,17 @@ if waist_cm > Config.MAX_WAIST_CM:  # 300.0
 def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
     if waist_cm is None:
         return None
-    
+
     # Height validation (legacy parity)
     if height_m <= 0.5 or height_m > 3.0:
         return None
-    
+
     # Waist validation (legacy parity)
     if waist_cm <= 0:
         return None
     if waist_cm > 300.0:  # Config.MAX_WAIST_CM
         return None
-    
+
     try:
         wht_ratio = (waist_cm / 100.0) / height_m
         return round(wht_ratio, 2)
@@ -296,18 +296,18 @@ def _age_band(age: int) -> AgeBand:
 def _normalize_gender(gender: str) -> str:
     """
     Normalize gender string to 'male' or 'female'.
-    
+
     Supports:
     - Russian: "муж", "мужской" → "male"; "жен", "женский" → "female"
     - English: "male" → "male"; "female" → "female"
     - Spanish: "mujer", "mujeres" → "female"
-    
+
     Args:
         gender: Gender string (any case)
-    
+
     Returns:
         Normalized gender: "male" or "female" (default: "male")
-    
+
     Examples:
         >>> _normalize_gender("жен")
         'female'
@@ -364,4 +364,3 @@ def _normalize_gender(gender: str) -> str:
 3. `_age_band()` — проверить границу age=19
 
 **Остальное:** Можно реализовать по чеклисту, риски низкие.
-

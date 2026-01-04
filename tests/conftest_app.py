@@ -24,24 +24,24 @@ def assert_vip_response(response, expected_status_codes=None, expected_data_fiel
     if expected_status_codes is None:
         expected_status_codes = [200, 403]
 
-    assert response.status_code in expected_status_codes, (
-        f"Expected status code in {expected_status_codes}, got {response.status_code}"
-    )
+    assert (
+        response.status_code in expected_status_codes
+    ), f"Expected status code in {expected_status_codes}, got {response.status_code}"
 
     if response.status_code == 200 and expected_data_fields:
         # Safely parse JSON response
         try:
             data = response.json()
         except Exception as e:
-            assert False, (
-                f"Failed to parse JSON response: {e}. Response text: {response.text[:200]}"
-            )
+            assert (
+                False
+            ), f"Failed to parse JSON response: {e}. Response text: {response.text[:200]}"
 
         for field, expected_value in expected_data_fields.items():
             # Check that the field exists in the response data
-            assert field in data, (
-                f"Expected field '{field}' not found in response data. Available fields: {list(data.keys())}"
-            )
+            assert (
+                field in data
+            ), f"Expected field '{field}' not found in response data. Available fields: {list(data.keys())}"
 
             if expected_value == "exists":
                 # Just check that the field exists (already verified above)
@@ -55,13 +55,13 @@ def assert_vip_response(response, expected_status_codes=None, expected_data_fiel
                 if not isinstance(field_value, str):
                     field_value = str(field_value)
 
-                assert search_text in field_value, (
-                    f"Expected '{search_text}' to be contained in field '{field}' (value: '{field_value}')"
-                )
+                assert (
+                    search_text in field_value
+                ), f"Expected '{search_text}' to be contained in field '{field}' (value: '{field_value}')"
             else:
-                assert data[field] == expected_value, (
-                    f"Expected field '{field}' to equal {expected_value}, got {data[field]}"
-                )
+                assert (
+                    data[field] == expected_value
+                ), f"Expected field '{field}' to equal {expected_value}, got {data[field]}"
 
 
 @pytest.fixture

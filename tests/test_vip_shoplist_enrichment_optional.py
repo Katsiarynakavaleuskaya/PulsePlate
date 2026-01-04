@@ -63,16 +63,16 @@ def _assert_catalog_fields(
     store_id: str,
     sku: str | None = None,
 ) -> None:
-    assert catalog["region_id"] == region_id, (
-        f"catalog['region_id'] expected {region_id!r}, got {catalog.get('region_id')!r}"
-    )
-    assert catalog["store_id"] == store_id, (
-        f"catalog['store_id'] expected {store_id!r}, got {catalog.get('store_id')!r}"
-    )
+    assert (
+        catalog["region_id"] == region_id
+    ), f"catalog['region_id'] expected {region_id!r}, got {catalog.get('region_id')!r}"
+    assert (
+        catalog["store_id"] == store_id
+    ), f"catalog['store_id'] expected {store_id!r}, got {catalog.get('store_id')!r}"
     if sku is not None:
-        assert "sku" in catalog, (
-            f"catalog missing 'sku' key; expected sku={sku!r} (catalog keys={list(catalog.keys())})"
-        )
+        assert (
+            "sku" in catalog
+        ), f"catalog missing 'sku' key; expected sku={sku!r} (catalog keys={list(catalog.keys())})"
         assert catalog["sku"] == sku, f"catalog['sku'] expected {sku!r}, got {catalog.get('sku')!r}"
 
 

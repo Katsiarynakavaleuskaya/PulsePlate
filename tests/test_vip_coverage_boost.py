@@ -124,9 +124,9 @@ class TestVIPCoverageBoost:
         assert "regions" in data, f"Expected 'regions' key in response, got: {data}"
         assert isinstance(data["regions"], list), f"Expected regions to be a list, got: {data}"
         if data["regions"]:
-            assert all(isinstance(r, str) for r in data["regions"]), (
-                "Expected all regions to be strings"
-            )
+            assert all(
+                isinstance(r, str) for r in data["regions"]
+            ), "Expected all regions to be strings"
         # Verify response structure matches API contract
         if "total_regions" in data:
             assert data["total_regions"] == len(data["regions"])

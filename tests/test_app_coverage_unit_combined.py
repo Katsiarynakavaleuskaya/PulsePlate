@@ -47,16 +47,16 @@ class TestAppCoverage:
         # Should contain required environment variables (based on actual debug endpoint response)
         required_keys = ["FEATURE_INSIGHT", "LLM_PROVIDER", "insight_enabled"]
         missing_keys = [key for key in required_keys if key not in data]
-        assert not missing_keys, (
-            f"Missing required environment keys: {missing_keys}. Available keys: {list(data.keys())}"
-        )
+        assert (
+            not missing_keys
+        ), f"Missing required environment keys: {missing_keys}. Available keys: {list(data.keys())}"
 
         # Check for optional but expected keys
         optional_keys = ["GROK_MODEL", "GROK_ENDPOINT"]
         found_optional = [key for key in optional_keys if key in data]
-        assert found_optional, (
-            f"Expected at least one optional key from {optional_keys} in response data: {list(data.keys())}"
-        )
+        assert (
+            found_optional
+        ), f"Expected at least one optional key from {optional_keys} in response data: {list(data.keys())}"
 
 
 class TestAppUnitTests:

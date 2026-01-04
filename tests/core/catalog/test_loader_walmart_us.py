@@ -36,9 +36,9 @@ def test_walmart_loader_aliases_are_non_empty_and_unique(fixtures_dir: Path) -> 
     # Validate aliases after stripping to catch whitespace-only aliases
     stripped_aliases = [a.strip() for a in alias_values]
     assert all(stripped_aliases), "All aliases must be non-empty after stripping"
-    assert len(stripped_aliases) == len(set(stripped_aliases)), (
-        "All aliases must be unique after stripping"
-    )
+    assert len(stripped_aliases) == len(
+        set(stripped_aliases)
+    ), "All aliases must be unique after stripping"
     assert all(sku.name.strip() for sku in snap.skus), "All SKU names must be non-empty"
 
 

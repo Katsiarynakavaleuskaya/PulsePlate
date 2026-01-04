@@ -181,22 +181,22 @@ def calculate_bmi_result(
         raise ValueError("height_cm must be positive")
     if age < 1 or age > 120:
         raise ValueError("age must be between 1 and 120")
-    
+
     # Step 2: Normalization
     lang_norm = _normalize_lang(lang)
     gender_norm = _normalize_gender(gender)
     height_m = height_cm / 100.0
-    
+
     # Step 3: BMI calculation
     bmi = _compute_bmi(weight_kg, height_m)
-    
+
     # Step 4: BMI bounds validation
     if bmi < 10.0 or bmi > 100.0:
         raise ValueError("BMI out of valid range (10-100)")
-    
+
     # Step 5: Age band
     age_band = _age_band(age)
-    
+
     # Step 6: Group determination
     group = _auto_group(
         age=age,
@@ -205,16 +205,16 @@ def calculate_bmi_result(
         athlete=athlete,
         athlete_text=None,  # Commit 3: no text input yet
     )
-    
+
     # Step 7: Category determination
     category = _bmi_category(bmi=bmi, age=age, group=group)
-    
+
     # Step 8: Group display name
     group_display = _group_display_name(group, lang_norm)
-    
+
     # Step 9: WHtR calculation (fail-soft)
     wht_ratio = _compute_wht_ratio(waist_cm, height_m)
-    
+
     # Step 10: Waist risk calculation (fail-soft)
     waist_risk = None
     if waist_cm is not None:
@@ -229,20 +229,20 @@ def calculate_bmi_result(
         except Exception:
             # Fail-soft: any error → None
             waist_risk = None
-    
+
     # Step 11: Notes aggregation
     notes: list[str] = []
     if waist_risk and waist_risk.notes:
         notes.extend(waist_risk.notes)
     # Commit 3: no other notes yet (Commit 5 will add i18n keys)
-    
+
     # Step 12: Interpretation
     note_str = ". ".join(notes) if notes else None
     interpretation = _interpretation(category=category, note=note_str)
-    
+
     # Step 13: Category string conversion
     category_str: str | None = str(category) if category else None
-    
+
     # Step 14: Return result
     return BMICalculateResult(
         bmi=bmi,
@@ -420,4 +420,3 @@ PR-455 (GitHub #468) Commit 3
 ## ✅ Готово к реализации
 
 Все вопросы решены, решения зафиксированы. Можно приступать к коду.
-

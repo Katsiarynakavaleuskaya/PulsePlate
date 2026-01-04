@@ -47,9 +47,9 @@ MAX_MICRO_NUTRIENTS = 100
 # nh3 strips all dangerous HTML/JS/XSS (event handlers, javascript: URIs, data: URIs, etc.)
 # Output is safe for HTML context; additional escaping should be done at render time if needed
 NH3_ALLOWED_TAGS = {"b", "i", "em", "strong", "u", "br", "p", "span"}
-NH3_ALLOWED_ATTRS: Dict[
-    str, Set[str]
-] = {}  # No attributes allowed at all (no href, src, onclick, etc.)
+NH3_ALLOWED_ATTRS: Dict[str, Set[str]] = (
+    {}
+)  # No attributes allowed at all (no href, src, onclick, etc.)
 
 
 def _require_nh3() -> _NH3Protocol:
