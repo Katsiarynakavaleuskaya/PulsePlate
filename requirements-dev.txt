@@ -68,7 +68,7 @@ defusedxml==0.7.1
     # via py-serializable
 detect-secrets==1.5.0
     # via -r requirements-dev.in
-diff-cover==10.0.0
+diff-cover==10.1.0
     # via -r requirements-dev.in
 distlib==0.4.0
     # via virtualenv
