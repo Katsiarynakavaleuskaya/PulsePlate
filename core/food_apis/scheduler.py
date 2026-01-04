@@ -78,8 +78,7 @@ class DatabaseUpdateScheduler:
             loop = self._loop
             if loop is None or loop.is_closed() or not loop.is_running():
                 logger.warning(
-                    "Scheduler shutdown requested but no running event loop is available "
-                    "(loop=%r)",
+                    "Scheduler shutdown requested but no running event loop is available (loop=%r)",
                     loop,
                 )
                 return

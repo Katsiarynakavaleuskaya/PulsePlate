@@ -44,17 +44,20 @@ def _valid_payload(**overrides: Any) -> dict[str, Any]:
     return base
 
 
-def test_bmi_calculate_returns_501_when_engine_not_implemented(
+def test_bmi_calculate_returns_200_when_engine_implemented(
     client: TestClient,
 ) -> None:
     """
-    RU: Пока engine = stub, endpoint должен быть детерминированно 501.
-    EN: While engine is a stub, the endpoint must deterministically return 501.
+    RU: После PR-455 engine реализован, endpoint возвращает 200 с результатом.
+    EN: After PR-455 engine is implemented, endpoint returns 200 with result.
     """
     resp = client.post("/api/v1/bmi/calculate", json=_valid_payload())
-    assert resp.status_code == 501
-    # Default FastAPI HTTPException shape
-    assert resp.json() == {"detail": "BMI engine is not available"}
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "bmi" in data
+    assert "group" in data
+    assert "category" in data
+    assert data["bmi"] > 0
 
 
 def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
@@ -323,13 +326,11 @@ def test_normalize_bool_flag_edge_cases() -> None:
     from app.routers.bmi import _normalize_bool_flag
 
     # Test with None (not bool, not str)
-    # type: ignore[arg-type]  # intentional: testing fail-soft behavior on invalid input types
-    assert _normalize_bool_flag(None) is False
+    assert _normalize_bool_flag(None) is False  # type: ignore[arg-type]  # intentional fail-soft
 
     # Test with int (not bool, not str)
-    # type: ignore[arg-type]  # intentional: testing fail-soft behavior on invalid input types
-    assert _normalize_bool_flag(0) is False
-    assert _normalize_bool_flag(1) is False
+    assert _normalize_bool_flag(0) is False  # type: ignore[arg-type]  # intentional fail-soft
+    assert _normalize_bool_flag(1) is False  # type: ignore[arg-type]  # intentional fail-soft
 
 
 @pytest.mark.anyio

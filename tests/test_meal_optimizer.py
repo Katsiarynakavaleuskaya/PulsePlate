@@ -460,7 +460,9 @@ class TestCoverageEdgeCases:
 
         # Temporarily add a non-vegan booster to test the rejection path
         test_booster = BoosterFood(
-            name="Beef liver", compatible_diets=set(), allergens=set()  # NOT vegan - empty set
+            name="Beef liver",
+            compatible_diets=set(),
+            allergens=set(),  # NOT vegan - empty set
         )
 
         with patch.dict(BOOSTER_FOODS, {"vitamin_b12_mcg": [test_booster]}):

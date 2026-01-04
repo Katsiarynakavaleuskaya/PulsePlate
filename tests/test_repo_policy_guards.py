@@ -129,9 +129,9 @@ def test_tests_have_no_dynamic_imports_except_whitelist() -> None:
             if rel not in ALLOWED_TEST_FILES_FOR_DYNAMIC_IMPORT:
                 offenders.append(rel)
 
-    assert not offenders, (
-        "Dynamic imports are forbidden in tests except whitelist. " f"Offenders: {offenders}"
-    )
+    assert (
+        not offenders
+    ), f"Dynamic imports are forbidden in tests except whitelist. Offenders: {offenders}"
 
 
 def test_tests_have_no_sys_path_insert_except_whitelist() -> None:
@@ -146,9 +146,9 @@ def test_tests_have_no_sys_path_insert_except_whitelist() -> None:
             if rel not in ALLOWED_TEST_FILES_FOR_SYS_PATH_INSERT:
                 offenders.append(rel)
 
-    assert not offenders, (
-        "sys.path.insert is forbidden in tests except whitelist. " f"Offenders: {offenders}"
-    )
+    assert (
+        not offenders
+    ), f"sys.path.insert is forbidden in tests except whitelist. Offenders: {offenders}"
 
 
 def test_app_init_is_import_shim_not_dynamic_loader() -> None:

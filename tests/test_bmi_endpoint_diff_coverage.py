@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from fastapi import HTTPException
@@ -20,32 +20,41 @@ class _WaistRisk:
     notes: list[str]
 
 
-def test_engine_stub_raises_not_implemented() -> None:
-    with pytest.raises(NotImplementedError):
-        calculate_bmi_result(
-            weight_kg=70.0,
-            height_cm=175.0,
-            age=30,
-            gender="male",
-            pregnant=False,
-            athlete=False,
-            waist_cm=None,
-            lang="en",
-        )
+def test_engine_returns_result_after_implementation() -> None:
+    """Test that engine is now implemented and returns BMICalculateResult."""
+    result = calculate_bmi_result(
+        weight_kg=70.0,
+        height_cm=175.0,
+        age=30,
+        gender="male",
+        pregnant=False,
+        athlete=False,
+        waist_cm=None,
+        lang="en",
+    )
+    assert isinstance(result, BMICalculateResult)
+    assert result.bmi > 0
+    assert result.group == "general"
+    assert result.category == "normal"
 
 
-def test_normalize_bool_flag() -> None:
-    assert bmi_router._normalize_bool_flag(True) is True
-    assert bmi_router._normalize_bool_flag(False) is False
+def test_fallback_normalize_bool_flag() -> None:
+    assert bmi_router._fallback_normalize_bool_flag(True) is True
+    assert bmi_router._fallback_normalize_bool_flag(False) is False
 
-    assert bmi_router._normalize_bool_flag("yes") is True
-    assert bmi_router._normalize_bool_flag("Y") is True
-    assert bmi_router._normalize_bool_flag("да") is True
-    assert bmi_router._normalize_bool_flag("true") is True
-    assert bmi_router._normalize_bool_flag("1") is True
+    # Fail-soft: non-boolean/non-string inputs return False rather than raising.
+    assert bmi_router._fallback_normalize_bool_flag(123) is False  # type: ignore[arg-type]
 
-    assert bmi_router._normalize_bool_flag("no") is False
-    assert bmi_router._normalize_bool_flag(cast(Any, 123)) is False
+    # Empty/whitespace string → False
+    assert bmi_router._fallback_normalize_bool_flag("   ") is False
+
+    # Default allowed values
+    assert bmi_router._fallback_normalize_bool_flag("да") is True
+    assert bmi_router._fallback_normalize_bool_flag("no") is False
+
+    # Custom allowlist
+    assert bmi_router._fallback_normalize_bool_flag("ok", yes_values={"ok"}) is True
+    assert bmi_router._fallback_normalize_bool_flag("yes", yes_values={"ok"}) is False
 
 
 def test_get_lang_from_request() -> None:

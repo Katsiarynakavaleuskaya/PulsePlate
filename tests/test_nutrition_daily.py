@@ -509,6 +509,6 @@ def test_daily_nutrition_localizes_segment_names(
     segment_names = [s["name"] for s in data["segments"]]
 
     # Verify first segment (vegetables) is localized correctly
-    assert expected_name in segment_names, (
-        f"Expected '{expected_name}' in segment names for lang={lang}, " f"got: {segment_names}"
-    )
+    assert (
+        expected_name in segment_names
+    ), f"Expected '{expected_name}' in segment names for lang={lang}, got: {segment_names}"

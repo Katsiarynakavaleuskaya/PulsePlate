@@ -175,9 +175,8 @@ class TestPlateTargetsMicrosHypothesis:
             if any(alias in plate_micros for alias in micro_aliases[micro])
             and any(alias in target_micros for alias in micro_aliases[micro])
         )
-        assert (
-            common_found >= 2
-        ), f"Expected at least 2 key micronutrients in both datasets, found {common_found}"
+        common_found_msg = f"Expected >=2 key micros in both datasets, found {common_found}"
+        assert common_found >= 2, common_found_msg
 
     @given(
         sex=st.sampled_from(["male", "female"]),
@@ -448,12 +447,13 @@ class TestPlateTargetsMicrosHypothesis:
             target_micros = targets_data["priority_micros"]
 
             # Should have substantial micros data
-            assert (
-                len(plate_micros) >= 5
-            ), f"Plate should have at least 5 micronutrients, got {len(plate_micros)}"
-            assert (
-                len(target_micros) >= 5
-            ), f"Targets should have at least 5 micronutrients, got {len(target_micros)}"
+            plate_micros_count = len(plate_micros)
+            plate_micros_msg = f"Plate should have >=5 micros, got {plate_micros_count}"
+            assert plate_micros_count >= 5, plate_micros_msg
+
+            target_micros_count = len(target_micros)
+            target_micros_msg = f"Targets should have >=5 micros, got {target_micros_count}"
+            assert target_micros_count >= 5, target_micros_msg
 
             # Check for key micronutrients
             key_micros = [

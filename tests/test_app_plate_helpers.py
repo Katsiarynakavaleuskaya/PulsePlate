@@ -370,25 +370,25 @@ async def test_api_premium_plate_fallback_handles_target_error(
     expected_kcal = 2400
     assert (
         expected_kcal * 0.9 <= response.kcal <= expected_kcal * 1.1
-    ), f"Expected kcal ≈{expected_kcal}±10% ({expected_kcal*0.9:.0f}-{expected_kcal*1.1:.0f}), got {response.kcal}"
+    ), f"Expected kcal ≈{expected_kcal}±10% ({expected_kcal * 0.9:.0f}-{expected_kcal * 1.1:.0f}), got {response.kcal}"
 
     # Protein: ~1.6 g/kg = 1.6 * 80 = 128g ±10%
     expected_protein = 128
     assert (
         expected_protein * 0.9 <= response.macros["protein_g"] <= expected_protein * 1.1
-    ), f"Expected protein_g ≈{expected_protein}±10% ({expected_protein*0.9:.0f}-{expected_protein*1.1:.0f}), got {response.macros['protein_g']}"
+    ), f"Expected protein_g ≈{expected_protein}±10% ({expected_protein * 0.9:.0f}-{expected_protein * 1.1:.0f}), got {response.macros['protein_g']}"
 
     # Fat: 25-30% of kcal = 0.275 * 2400 / 9 ≈ 73g ±10%
     expected_fat = 73
     assert (
         expected_fat * 0.9 <= response.macros["fat_g"] <= expected_fat * 1.1
-    ), f"Expected fat_g ≈{expected_fat}±10% ({expected_fat*0.9:.0f}-{expected_fat*1.1:.0f}), got {response.macros['fat_g']}"
+    ), f"Expected fat_g ≈{expected_fat}±10% ({expected_fat * 0.9:.0f}-{expected_fat * 1.1:.0f}), got {response.macros['fat_g']}"
 
     # Carbs: remaining calories (2400 - 128*4 - 73*9) / 4 ≈ 295g ±10%
     expected_carbs = 295
     assert (
         expected_carbs * 0.9 <= response.macros["carbs_g"] <= expected_carbs * 1.1
-    ), f"Expected carbs_g ≈{expected_carbs}±10% ({expected_carbs*0.9:.0f}-{expected_carbs*1.1:.0f}), got {response.macros['carbs_g']}"
+    ), f"Expected carbs_g ≈{expected_carbs}±10% ({expected_carbs * 0.9:.0f}-{expected_carbs * 1.1:.0f}), got {response.macros['carbs_g']}"
 
     # Fiber: FIBER_MIN_G as lower bound, reasonable upper bound +10%
     assert (

@@ -1,5 +1,7 @@
 # PR-455: Qoder Audit Report (BMI Engine Implementation)
 
+**Canonical: PR-455 (BMI Engine Implementation)**
+**GitHub PR: #468**
 **Дата:** 2026-01-04
 **Статус:** Аудит завершён, готов к реализации engine
 

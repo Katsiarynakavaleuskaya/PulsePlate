@@ -64,7 +64,7 @@ class AsyncDBNotConfigured(RuntimeError):
 
 
 _ASYNC_EXTRAS_NOT_AVAILABLE_MESSAGE = (
-    "SQLAlchemy async extras are not available. " "Install with 'pip install sqlalchemy[asyncio]'"
+    "SQLAlchemy async extras are not available. Install with 'pip install sqlalchemy[asyncio]'"
 )
 
 

@@ -1,6 +1,10 @@
+import importlib
 import os
+import sys
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 # Автофикстура для форсирования production env и API_KEY
@@ -18,15 +22,6 @@ def _force_prod_env():
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-
-
-import importlib
-import os
-import sys
-
-import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture

@@ -539,8 +539,7 @@ class NutritionBayesianAnalyzer:
                     nutrition_category=NutritionCategory.MACRONUTRIENT_BALANCE,
                     error_type=NutritionErrorType.MACRONUTRIENT_SUM_INVALID,
                     error_message=(
-                        f"Макронутриенты не могут быть отрицательными: "
-                        f"{', '.join(negative_macros)}"
+                        f"Макронутриенты не могут быть отрицательными: {', '.join(negative_macros)}"
                     ),
                     business_impact=(
                         "Отрицательные значения макронутриентов указывают на ошибки в данных, "

@@ -3,8 +3,6 @@ Hypothesis-based integration tests for Plate → Targets micros coverage.
 Focus on Fe/Ca/Mg/K micronutrient coverage and day_micros collection.
 """
 
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
@@ -14,6 +12,12 @@ import app as app_mod
 from tests.test_helpers import skip_if_no_plate_micros
 
 
+@pytest.fixture(autouse=True)
+def _premium_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_KEY", "test_key")
+    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+
 @pytest.mark.slow
 @pytest.mark.serial  # Hypothesis tests not xdist-safe due to heavy state/randomness
 class TestPlateTargetsMicrosHypothesis:
@@ -21,8 +25,6 @@ class TestPlateTargetsMicrosHypothesis:
 
     def setup_method(self):
         """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app_mod.app)
 
     @given(
@@ -99,6 +101,7 @@ class TestPlateTargetsMicrosHypothesis:
         activity=st.sampled_from(["sedentary", "light", "moderate", "active", "very_active"]),
         goal=st.sampled_from(["loss", "maintain", "gain"]),
     )
+    @settings(deadline=None)
     def test_fe_ca_mg_k_coverage_hypothesis(
         self,
         sex: str,

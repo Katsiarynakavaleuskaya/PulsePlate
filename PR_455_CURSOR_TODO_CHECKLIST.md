@@ -1,5 +1,7 @@
 # PR-455: Cursor TODO Checklist
 
+**Canonical: PR-455 (BMI Engine Implementation)**
+**GitHub PR: #468**
 **Ветка:** `feat/pr-455-bmi-engine`
 **Цель:** Реализовать `core/bmi/engine.py` (не stub)
 
@@ -26,6 +28,7 @@
   - `13 <= age <= 19` → `"teen"`
   - `19 < age < 60` → `"adult"`
   - `age >= 60` → `"elderly"`
+  - Note: Age 19 is inclusive in 'teen' band (13-19); 'adult' starts at 20
 - [ ] Добавить `_compute_bmi(weight_kg: float, height_m: float) -> float`
   - Формула: `weight_kg / (height_m ** 2)`
   - Округление: `round(bmi, 1)`
@@ -111,7 +114,7 @@ feat(bmi): add group and category logic with parity to legacy
 - `core/bmi/engine.py`
 
 ### Задачи
-- [ ] Реализовать `calculate_bmi_result(...) -> BMICalculateResult` (10 шагов):
+- [ ] Реализовать `calculate_bmi_result(...) -> BMICalculateResult` (11 шагов):
   1. Валидация входных данных
   2. Нормализация: gender, pregnant, athlete, lang
   3. Расчёт BMI через `_compute_bmi()`
@@ -135,7 +138,7 @@ feat(bmi): add group and category logic with parity to legacy
 ```
 feat(bmi): implement calculate_bmi_result orchestrator
 
-- Implement 10-step pipeline: validation → normalization → calculation
+- Implement 11-step pipeline: validation → normalization → calculation
 - Integrate waist risk from core/bmi/risk.py
 - Return BMICalculateResult with all fields populated
 - Domain validation: BMI must be 10-100 (raise ValueError)
@@ -280,7 +283,7 @@ def _interpretation(bmi: float, group: str, lang: Language, age: int) -> str:
     """Build interpretation string: '{category}. {note}'."""
 
 def calculate_bmi_result(...) -> BMICalculateResult:
-    """Main orchestrator: 10-step pipeline."""
+    """Main orchestrator: 11-step pipeline."""
 ```
 
 ---
