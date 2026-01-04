@@ -25,4 +25,3 @@ yamllint~=1.37.1
 black~=25.12.0
 ruff~=0.14.10
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)
-asgi-lifespan~=2.1.0

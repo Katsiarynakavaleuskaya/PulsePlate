@@ -22,8 +22,6 @@ anyio==4.12.0
     #   httpx
     #   openai
     #   starlette
-asgi-lifespan==2.1.0
-    # via -r requirements-dev.in
 authlib==1.6.5
     # via safety
 bandit==1.9.2
@@ -396,7 +394,6 @@ slowapi==0.1.9
 sniffio==1.3.1
     # via
     #   -c requirements.txt
-    #   asgi-lifespan
     #   openai
 sortedcontainers==2.4.0
     # via

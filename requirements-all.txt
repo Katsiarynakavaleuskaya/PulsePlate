@@ -12,6 +12,5 @@ mypy>=1.10
 pre-commit>=3.7
 bandit>=1.7
 # safety>=3.2  # Temporarily disabled due to typer compatibility issue
-asgi-lifespan>=2.1
 ruff>=0.13
 sourcery>=2.0
