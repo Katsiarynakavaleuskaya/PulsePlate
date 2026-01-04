@@ -81,7 +81,7 @@ def test_bmi_endpoint_v1_uses_canonical_handler_via_shim(
         or data["note"] == "Your BMI is within the normal range."
     )
 
-    # Verify no extra fields that would break legacy clients
+    # Verify required legacy fields are present; extra fields are allowed for forward compatibility
     expected_keys = {"bmi", "category", "note", "athlete", "group"}
     assert set(data.keys()).issuperset(
         expected_keys
@@ -147,7 +147,7 @@ def test_bmi_endpoint_uses_canonical_handler_via_shim(
     # Note should contain athlete disclaimer (priority over interpretation)
     assert "athlete" in data["note"].lower() or "BMI may overestimate" in data["note"]
 
-    # Verify no extra fields that would break legacy clients
+    # Verify required legacy fields are present; extra fields are allowed for forward compatibility
     expected_keys = {"bmi", "category", "note", "athlete", "group"}
     assert set(data.keys()).issuperset(
         expected_keys
