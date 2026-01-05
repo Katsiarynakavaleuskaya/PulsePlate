@@ -11,9 +11,36 @@
 Before any changes, read `AGENTS.md` in the repo root and in the relevant module
 (for example `app/AGENTS.md`, `core/AGENTS.md`) and follow those rules.
 
-## 📚 API Documentation
+## 📚 Documentation navigation
 
-- **VIP Shoplist API**: [`docs/VIP_Shoplist_API.md`](docs/VIP_Shoplist_API.md) — Contract freeze for generate/daily/weekly endpoints
+Quick links to the most important documentation sections:
+
+- 🧭 **Policy & invariants**
+  Architectural rules, hard constraints, and engineering lessons
+  → [`docs/policy/`](docs/policy/)
+
+- 🛠 **Runbooks (CI / Debug / Ops)**
+  How to run checks, debug failures, and operate the system safely
+  → [`docs/runbooks/`](docs/runbooks/)
+
+- 🚀 **Deployment**
+  Production, staging, infrastructure, Docker, secrets, and platform setup
+  → [`docs/deploy/`](docs/deploy/)
+
+- 📐 **Specs & API contracts**
+  Backend API, mobile integration, premium targets, formats, sources & units
+  → [`docs/specs/`](docs/specs/)
+
+- 🗺 **Roadmaps & plans**
+  Product and engineering roadmaps, rollout strategies
+  → [`docs/roadmap/`](docs/roadmap/)
+
+- 📊 **Reports & status**
+  Progress summaries, fix logs, coverage reports, historical snapshots
+  → [`docs/reports/`](docs/reports/)
+
+- 📋 **API Documentation**
+  - **VIP Shoplist API**: [`docs/VIP_Shoplist_API.md`](docs/VIP_Shoplist_API.md) — Contract freeze for generate/daily/weekly endpoints
 
 ## 🚀 Quick Start
 
@@ -472,7 +499,7 @@ pytest
 
 ## CRON Setup
 
-To automatically update the food database weekly, see [CRON_SETUP.md](CRON_SETUP.md)
+To automatically update the food database weekly, see [CRON.md](docs/runbooks/CRON.md)
 
 ### Advanced Testing
 
@@ -621,7 +648,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 
 ### Production Prerequisites
 
-- Production server configured (see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md))
+- Production server configured (see [[PRODUCTION.md](docs/deploy/PRODUCTION.md)]([PRODUCTION.md](docs/deploy/PRODUCTION.md)))
 - GitHub environment `production` configured with required secrets
 - Protection rules enabled for manual approval
 
@@ -659,13 +686,13 @@ Production deployments are automated via GitHub Actions with manual approval gat
 - ✅ **Security headers** (HSTS, CSP, X-Frame-Options, etc.)
 - ✅ **Server hardening** (UFW, fail2ban, SSH key-only access)
 - ✅ **Resource limits** and monitoring
-- ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md#monitoring)
+- ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [[PRODUCTION.md](docs/deploy/PRODUCTION.md)]([PRODUCTION.md](docs/deploy/PRODUCTION.md)#monitoring)
 
 For detailed setup instructions, see:
 
-- **[НАЧНИТЕ_ОТСЮДА.md](НАЧНИТЕ_ОТСЮДА.md)** - Главная точка входа для новичков
-- [DEPLOYMENT_FULL_GUIDE.md](DEPLOYMENT_FULL_GUIDE.md) - Полная пошаговая инструкция
-- [PRODUCTION_SETUP.md](PRODUCTION_SETUP.md) - Детальная настройка production
+- **[START_HERE_RU.md](docs/START_HERE_RU.md)** - Главная точка входа для новичков
+- [OVERVIEW.md](docs/deploy/OVERVIEW.md) - Полная пошаговая инструкция
+- [PRODUCTION.md](docs/deploy/PRODUCTION.md) - Детальная настройка production
 
 ## License
 

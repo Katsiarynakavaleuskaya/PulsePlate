@@ -66,7 +66,7 @@ Full test coverage for:
 ```bash
 # Set up environment
 export APP_ENV=development
-export TEST_API_KEY="your-api-key"
+export TEST_API_KEY="your-api-key"  # pragma: allowlist secret
 
 # Run the test script
 ./scripts/test_rate_limiting.sh

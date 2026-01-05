@@ -60,8 +60,8 @@
 | `STAGING_DOMAIN` | Домен для staging | `pulseplate-staging.duckdns.org` | После регистрации на DuckDNS |
 | `SSH_HOST_STAGING` | IP адрес или домен staging сервера | `123.45.67.89` или `staging.example.com` | IP вашего VPS/сервера |
 | `SSH_USER` | SSH username | `ubuntu` или `root` | Зависит от вашего сервера |
-| `SSH_KEY` | Приватный SSH ключ | `-----BEGIN OPENSSH PRIVATE KEY-----...` | См. раздел "Генерация SSH ключей" ниже |
-| `GHCR_READ_TOKEN` | GitHub Personal Access Token для чтения пакетов | `ghp_xxxxxxxxxxxxx` | См. раздел "GitHub Token" ниже |
+| `SSH_KEY` | Приватный SSH ключ | `-----BEGIN OPENSSH PRIVATE KEY-----...` | См. раздел "Генерация SSH ключей" ниже |  # pragma: allowlist secret
+| `GHCR_READ_TOKEN` | GitHub Personal Access Token для чтения пакетов | `ghp_xxxxxxxxxxxxx` | См. раздел "GitHub Token" ниже |  # pragma: allowlist secret
 
 ### Production Environment (`production`)
 
@@ -72,7 +72,7 @@
 | `PRODUCTION_DOMAIN` | Домен для production | `pulseplate.app` | После регистрации на Cloudflare |
 | `SSH_HOST_PRODUCTION` | IP адрес или домен production сервера | `123.45.67.89` или `prod.example.com` | IP вашего VPS/сервера |
 | `SSH_USER` | SSH username (можно переиспользовать из staging) | `ubuntu` или `root` | Зависит от вашего сервера |
-| `SSH_KEY` | Приватный SSH ключ (можно тот же) | `-----BEGIN OPENSSH PRIVATE KEY-----...` | См. раздел "Генерация SSH ключей" ниже |
+| `SSH_KEY` | Приватный SSH ключ (можно тот же) | `-----BEGIN OPENSSH PRIVATE KEY-----...` | См. раздел "Генерация SSH ключей" ниже |  # pragma: allowlist secret
 | `GHCR_READ_TOKEN` | GitHub Personal Access Token | `ghp_xxxxxxxxxxxxx` | См. раздел "GitHub Token" ниже |
 
 ## 🔐 Генерация SSH ключей
@@ -82,6 +82,8 @@
 ```bash
 # Генерируем новый SSH ключ
 ssh-keygen -t ed25519 -C "github-actions-pulseplate" -f ~/.ssh/pulseplate_deploy
+
+# При запросе passphrase: введите надёжный пароль (не оставляйте пустым)
 
 # Или если ed25519 не поддерживается:
 ssh-keygen -t rsa -b 4096 -C "github-actions-pulseplate" -f ~/.ssh/pulseplate_deploy
@@ -112,8 +114,10 @@ Get-Content ~/.ssh/pulseplate_deploy
 ```
 
 **Важно:**
-- Копируйте ВЕСЬ ключ, включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` и `-----END OPENSSH PRIVATE KEY-----`
+- Копируйте ВЕСЬ ключ, включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` и `-----END OPENSSH PRIVATE KEY-----`  # pragma: allowlist secret
 - Добавьте его как значение секрета `SSH_KEY` в оба environment (staging и production)
+
+- **Никогда не храните незащищённые (без passphrase) приватные ключи в GitHub Secrets.** Для CI/CD используйте `ssh-agent` (и `SSH_ASKPASS`/Keychain) или короткоживущие (ephemeral) ключи/менеджер секретов.
 
 ## 🎫 GitHub Personal Access Token (PAT)
 

@@ -41,10 +41,10 @@ pplint    # Run linting
 ppformat  # Format code
 ppcheck   # Full quality check
 
-# Specific test analysis
-pytest --maxfail=10 --junit-xml=test_results.xml --tb=short
-coverage run -m pytest --cov=app --cov-report=term-missing
-```
+	# Specific test analysis
+	pytest --maxfail=10 --junit-xml=test_results.xml --tb=short
+	pytest --cov=. --cov-fail-under=97 -q
+	```
 
 ## Key Issues Identified in Current Test Run
 

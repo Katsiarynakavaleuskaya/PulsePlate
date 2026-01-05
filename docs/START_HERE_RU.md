@@ -15,7 +15,7 @@
 
 ## 🚀 Главные документы (НАЧНИТЕ ОТСЮДА!)
 
-### 1. ⭐ **DEPLOYMENT_FULL_GUIDE.md** — **ЧИТАЙТЕ ПЕРВЫМ!**
+### 1. ⭐ **[OVERVIEW.md](deploy/OVERVIEW.md)** — **ЧИТАЙТЕ ПЕРВЫМ!**
 
 **Что внутри:**
 - Полная пошаговая инструкция от начала до конца
@@ -44,7 +44,7 @@
 
 ### 🌐 Домены и DNS
 
-1. **DOMAIN_SETUP.md**
+1. **[DOMAIN.md](deploy/DOMAIN.md)**
    - Как выбрать и зарегистрировать домены
    - Cloudflare для production
    - DuckDNS для staging
@@ -59,14 +59,14 @@
 
 ### 💻 Серверы
 
-3. **STAGING_SETUP.md**
+3. **[STAGING.md](deploy/STAGING.md)**
    - Детальная настройка staging сервера
    - Установка Docker
    - Настройка безопасности (UFW, fail2ban, SSH)
    - Настройка Caddy
    - **Читать:** При настройке staging сервера
 
-4. **PRODUCTION_SETUP.md**
+4. **[PRODUCTION.md](deploy/PRODUCTION.md)**
    - Детальная настройка production сервера
    - Security hardening (обязательно!)
    - Настройка бэкапов
@@ -89,7 +89,7 @@
 
 ### ⚙️ CI/CD
 
-7. **CI_SETUP.md**
+7. **[CI.md](runbooks/CI.md)**
    - Как работает CI (Continuous Integration)
    - Что проверяется при каждом коммите
    - Как читать результаты тестов
@@ -97,7 +97,7 @@
 
 ### 📦 Дополнительно (опционально)
 
-8. **CRON_SETUP.md**
+8. **[CRON.md](runbooks/CRON.md)**
    - Настройка периодических задач (cron jobs)
    - Автоматические обновления базы данных
    - **Читать:** Когда понадобятся автоматические задачи
@@ -112,13 +112,13 @@
 ## 🗺️ Быстрый маршрут (рекомендуемый порядок)
 
 ```
-ШАГ 1: DEPLOYMENT_FULL_GUIDE.md
+ШАГ 1: [OVERVIEW.md](deploy/OVERVIEW.md)
         ↓
-ШАГ 2: DOMAIN_SETUP.md
+ШАГ 2: [DOMAIN.md](deploy/DOMAIN.md)
         ↓
 ШАГ 3: CLOUDFLARE_SECURITY_SETUP.md
         ↓
-ШАГ 4: STAGING_SETUP.md или PRODUCTION_SETUP.md
+ШАГ 4: [STAGING.md](deploy/STAGING.md) или [PRODUCTION.md](deploy/PRODUCTION.md)
         ↓
 ШАГ 5: GITHUB_SECRETS_SETUP.md
         ↓
@@ -148,28 +148,28 @@
 ## 🔍 Если что-то не работает
 
 ### Проблема с доменами?
-→ `DOMAIN_SETUP.md` → раздел "Частые проблемы"
+→ [`DOMAIN.md`](deploy/DOMAIN.md) → раздел "Частые проблемы"
 
 ### Проблема с Cloudflare?
 → `CLOUDFLARE_SECURITY_SETUP.md`
 
 ### Проблема с сервером?
-→ `STAGING_SETUP.md` или `PRODUCTION_SETUP.md`
+→ [`STAGING.md`](deploy/STAGING.md) или [`PRODUCTION.md`](deploy/PRODUCTION.md)
 
 ### Проблема с GitHub Secrets?
 → `GITHUB_SECRETS_SETUP.md`
 
 ### Проблема с деплоем?
-→ `DEPLOYMENT_FULL_GUIDE.md` → раздел "Частые проблемы"
+→ [`OVERVIEW.md`](deploy/OVERVIEW.md) → раздел "Частые проблемы"
 
 ### CI/CD не работает?
-→ `CI_SETUP.md` или проверьте `.github/workflows/cd.yml`
+→ [`CI.md`](runbooks/CI.md) или проверьте `.github/workflows/cd.yml`
 
 ---
 
 ## 📞 Получить помощь
 
-1. Перечитайте соответствующий раздел в **`DEPLOYMENT_FULL_GUIDE.md`**
+1. Перечитайте соответствующий раздел в **`[OVERVIEW.md](deploy/OVERVIEW.md)`**
 2. Проверьте раздел "Частые проблемы" в нужном документе
 3. Посмотрите логи GitHub Actions
 4. Проверьте логи на сервере: `docker logs <container_name>`
@@ -191,23 +191,23 @@
 
 ```
 BMI-App_2025_clean/
-├── НАЧНИТЕ_ОТСЮДА.md                    ⭐ Этот файл
-├── DEPLOYMENT_FULL_GUIDE.md              ⭐ Главная инструкция
+├── [START_HERE_RU.md](../START_HERE_RU.md)                    ⭐ Этот файл
+├── [OVERVIEW.md](deploy/OVERVIEW.md)              ⭐ Главная инструкция
 ├── DEPLOYMENT_READING_LIST.md            Навигатор
 ├── ALL_DEPLOYMENT_DOCS.md                Полный список (справочно)
 │
-├── DOMAIN_SETUP.md                       Домены
-├── CLOUDFLARE_SECURITY_SETUP.md          Cloudflare безопасность
+├── [DOMAIN.md](deploy/DOMAIN.md)                       Домены
+├── [CLOUDFLARE.md](deploy/CLOUDFLARE.md)          Cloudflare безопасность
 │
-├── STAGING_SETUP.md                      Staging сервер
-├── PRODUCTION_SETUP.md                   Production сервер
+├── [STAGING.md](deploy/STAGING.md)                      Staging сервер
+├── [PRODUCTION.md](deploy/PRODUCTION.md)                   Production сервер
 ├── SOLO_DEPLOYMENT_SETUP.md              Соло-версия
 │
 ├── GITHUB_SECRETS_SETUP.md               GitHub секреты
 │
-├── CI_SETUP.md                           CI документация
+├── [CI.md](runbooks/CI.md)                           CI документация
 │
-├── CRON_SETUP.md                         Cron (опционально)
+├── [CRON.md](runbooks/CRON.md)                         Cron (опционально)
 └── TON_RFC.md                            TON (R&D)
 ```
 
@@ -215,6 +215,6 @@ BMI-App_2025_clean/
 
 ## 🚀 Готовы начать?
 
-**Откройте `DEPLOYMENT_FULL_GUIDE.md` и следуйте инструкциям!**
+**Откройте `[OVERVIEW.md](deploy/OVERVIEW.md)` и следуйте инструкциям!**
 
 Удачи с деплоем! 🎉

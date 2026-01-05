@@ -25,7 +25,8 @@ Content-Type: application/json
   "weight_kg": 70,
   "activity": "moderate",
   "goal": "maintain",
-  "life_stage": "adult"
+  "life_stage": "adult",
+  "lang": "en"
 }
 ```
 

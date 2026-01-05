@@ -157,4 +157,4 @@ PRODUCTION_DOMAIN: pulseplate.xyz  # $1/год через Cloudflare
 2. ✅ Зарегистрируйтесь на DuckDNS и создайте поддомен `pulseplate-staging`
 3. ✅ Добавьте секреты в GitHub Environments (см. `GITHUB_SECRETS_SETUP.md`)
 4. ✅ Настройте DNS записи на обоих сервисах
-5. ✅ После настройки разкомментируйте SSH deployment шаги в `.github/workflows/cd.yml`
+5. ✅ После настройки раскомментируйте SSH deployment шаги в `.github/workflows/cd.yml`

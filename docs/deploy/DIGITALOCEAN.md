@@ -278,4 +278,4 @@ sudo ufw status
 2. ✅ SSH настроен
 3. ✅ DuckDNS указывает на сервер
 4. ✅ GitHub Secrets обновлены
-5. ➡️ См. `DEPLOYMENT_FULL_GUIDE.md` для настройки деплоя
+5. ➡️ См. `[OVERVIEW.md](OVERVIEW.md)` для настройки деплоя

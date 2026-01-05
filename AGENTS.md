@@ -143,6 +143,46 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
+### 🛑 Docs-only PR Rule (Mandatory)
+
+**Docs-only PR** — это PR, который **строго ограничен документацией** и **не имеет права** изменять runtime, CI или поведение приложения.
+
+**Allowed changes (docs-only):**
+* `*.md` files
+* `README.md`
+* `AGENTS.md`, `RUNBOOK_AGENT.md`, `DEPLOYMENT.md`
+* `.github/*.md` (templates, instructions)
+
+**❌ Forbidden changes (docs-only):**
+* Any source code (`*.py`, `*.js`, `*.ts`, `*.swift`, etc.)
+* CI / infra (`*.yml`, `Dockerfile`, `Makefile`, `requirements*`)
+* Runtime configs or imports
+* **Any change to application behavior**, even if it is a "cleanup" or "revert"
+
+**Enforcement checklist (before push):**
+
+Before pushing a docs-only PR, **you MUST run**:
+
+```bash
+git diff --name-only origin/main...HEAD \
+  | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$"
+```
+
+* Output **must be empty**.
+* If any non-doc file appears → **STOP** and revert it from the PR.
+
+**Special note about legacy files:**
+* Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
+* If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
+* Code cleanup related to other PRs (e.g. PR-457) **belongs only to that PR**, never to docs PRs.
+
+**Rationale:**
+This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
+
+**Policy reference:** See `docs/policy/DOCS_ONLY_PR_POLICY.md` for the canonical policy source of truth.
+
+Violation of this rule blocks merge.
+
 ## Known pitfalls
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
   Import hygiene guards prevent regression.
@@ -250,3 +290,52 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - `deploy/AGENTS.md`
 - `providers/AGENTS.md`
 - `tests/AGENTS.md`
+
+## Deployment docs
+- `DEPLOYMENT.md` → `docs/deploy/README.md`
+
+---
+
+## AGENTS Update Rule (Canonical)
+
+### Purpose
+Prevent instruction drift, duplication, and conflicting rules across agents.
+There must be a **single source of truth** for each class of instruction.
+
+### Canonical rules
+
+1) **Global rules live ONLY in root `AGENTS.md`.**
+   - Architecture invariants
+   - Import hygiene
+   - CI / coverage gates
+   - Commit / PR process rules
+
+2) **Scoped rules live ONLY in the nearest `*/AGENTS.md`.**
+   - Module-specific commands
+   - Local setup or tooling
+   - Narrow exceptions explicitly scoped to that module
+
+3) **Do NOT duplicate identical text across multiple AGENTS files.**
+   - If a rule applies everywhere → root `AGENTS.md`
+   - If a rule applies to one module → that module's `AGENTS.md`
+
+4) **When new workflow, invariant, or command is introduced:**
+   - Update exactly **ONE** document:
+     - `AGENTS.md` (global), OR
+     - `X/AGENTS.md` (scoped)
+   - Never "broadcast" the same instruction into multiple AGENTS files.
+
+5) **PR requirement**
+   - Any PR that changes engineering workflow, guards, or agent behavior
+     MUST include a documentation commit:
+       `docs(agents): update instructions`
+
+6) **Escalation path**
+   - Long-term lessons → `docs/ENGINEERING_LESSONS.md`
+   - Operational/debug procedures → `RUNBOOK_AGENT.md`
+   - Do not overload AGENTS with runbook-level detail.
+
+### Non-goals
+- AGENTS files are NOT changelogs.
+- AGENTS files are NOT PR notes.
+- AGENTS files must remain stable and auditable.

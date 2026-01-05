@@ -27,7 +27,7 @@ Replace `"your_openai_api_key_here"` with your actual API key:
         "/Users/katsiaryna_kavaleuskaya/Documents/BMI-App_2025_clean/mcp_pulseplate_server.py"
       ],
       "env": {
-        "OPENAI_API_KEY": "sk-proj-YOUR_ACTUAL_KEY_HERE"
+        "OPENAI_API_KEY": "sk-proj-YOUR_ACTUAL_KEY_HERE"  # pragma: allowlist secret
       }
     }
   }
@@ -61,7 +61,7 @@ Replace `your_openai_api_key_here` with your actual API key:
   "cursor.ai.enabled": true,
   "cursor.ai.primaryModel": "gpt-4",
   "cursor.ai.secondaryModel": "gpt-3.5-turbo",
-  "cursor.ai.openaiApiKey": "sk-proj-YOUR_ACTUAL_KEY_HERE",
+  "cursor.ai.openaiApiKey": "sk-proj-YOUR_ACTUAL_KEY_HERE",  // pragma: allowlist secret
   "cursor.ai.openaiBaseUrl": "https://api.openai.com/v1",
   "mcp.enabled": true,
   "mcp.servers": ["pulseplate-chatgpt"]

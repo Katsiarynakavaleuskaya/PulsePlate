@@ -49,12 +49,14 @@ make dev
   ```bash
   mypy app/routers/vip_shoplist.py
   ```
+  _Note: file paths are examples. Run from the repository root (or via CI scripts) and adjust paths for your branch/layout._
 
 - [ ] **Black/Ruff**: No formatting issues
   ```bash
   black --check app/schemas/vip_shoplist.py app/routers/vip_shoplist.py
   ruff check app/schemas/vip_shoplist.py app/routers/vip_shoplist.py
   ```
+  _Note: file paths are examples. Run from the repository root (or via CI scripts) and adjust paths for your branch/layout._
 
 - [ ] **Pre-commit**: All hooks pass
   ```bash
