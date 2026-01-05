@@ -134,7 +134,7 @@ ssh-keygen -t ed25519 -C "pulseplate-deploy" -f ~/.ssh/pulseplate_deploy
 
 ## 🎯 Быстрый старт
 
-1. Регистрация доменов (см. `DOMAIN_SETUP.md`)
+1. Регистрация доменов (см. `[DOMAIN.md](DOMAIN.md)`)
 2. Добавьте секреты в GitHub (см. выше)
 3. Push в main → staging деплой
 4. Tag v1.0.0 → production деплой

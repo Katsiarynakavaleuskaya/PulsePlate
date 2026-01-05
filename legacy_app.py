@@ -64,7 +64,12 @@ from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.services import recipe_store
 from app.services.food_store import get_food
-from bmi_core import bmi_category
+# Legacy BMI helpers removed from request-path (PR-457=A)
+# /plan now delegates to canonical BMI engine via compat layer
+from decimal import Decimal
+
+from app.routers.bmi import bmi_calculate_handler
+from core.bmi.compat_plan import legacy_plan_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.fingerprint_security import compute_fingerprint
 from core.log_retention import (
@@ -2155,22 +2160,75 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
 @app.post("/plan")
 async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
-    """Generate a personal plan based on BMI and user profile."""
-    flags = normalize_flags(req.gender, req.pregnant, req.athlete)
-    bmi = calc_bmi(req.weight_kg, req.height_m)
-    category = (
-        None
-        if flags["is_pregnant"]
-        else bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
-    )
+    """
+    RU: Legacy endpoint /plan (contract must remain stable in PR-457=A).
+    EN: Legacy /plan endpoint (contract must remain stable in PR-457=A).
 
+    PR-457=A: Delegates to canonical BMI engine but preserves legacy response contract.
+    """
+    # 1) Delegate to canonical BMI handler (engine is SoT)
+    # Convert BMIRequest (height_m) to BMICalculateRequest (height_cm)
+    height_cm = req.height_m * 100.0
+    bmi_payload = {
+        "weight_kg": req.weight_kg,
+        "height_cm": height_cm,
+        "age": req.age,
+        "gender": req.gender,
+        "pregnant": req.pregnant,
+        "athlete": req.athlete,
+        "lang": req.lang,
+        "waist_cm": req.waist_cm,
+    }
+
+    # Call canonical handler (returns dict)
+    canonical = await bmi_calculate_handler(bmi_payload)
+
+    # 2) Extract BMI (as Decimal for compat mapping)
+    bmi_value = canonical.get("bmi")
+    bmi_dec = Decimal(str(bmi_value)) if bmi_value is not None else Decimal("0")
+
+    # 3) Preserve legacy /plan category behavior
+    # RU: minors должны получать строковую категорию, даже если engine.category=None.
+    # EN: minors must receive a string category even if engine.category=None.
+    # Normalize flags inline (no legacy helper in request-path, PR-457=A)
+    # Use same logic as canonical handler for consistency
+    def _normalize_bool_inline(value: str | bool) -> bool:
+        """Inline bool normalization (matches canonical handler logic)."""
+        if isinstance(value, bool):
+            return value
+        if not isinstance(value, str):
+            return False
+        s = value.strip().lower()
+        return s in {"yes", "y", "true", "1", "да", "д", "si", "sí", "спортсмен", "athlete"}
+
+    pregnant_bool = _normalize_bool_inline(req.pregnant)
+    athlete_bool = _normalize_bool_inline(req.athlete)
+    engine_category = canonical.get("category")
+    group = "athlete" if athlete_bool else "general"
+    # For pregnant, legacy /plan returns category=None (preserved)
+    if pregnant_bool:
+        cat = None
+    else:
+        cat_result = legacy_plan_category(
+            engine_category=engine_category,
+            bmi=bmi_dec,
+            age=req.age,
+            lang=req.lang,
+            group=group,
+        )
+        cat = cat_result.category
+
+    # 4) Build legacy /plan response shape (unchanged)
     healthy_bmi = {"min": 18.5, "max": 24.9}
 
-    if req.lang == "ru":
+    # ES fallback to EN (legacy behavior preserved)
+    lang_for_response = req.lang if req.lang in ("ru", "en") else "en"
+
+    if lang_for_response == "ru":
         base = {
             "summary": "Персональный план (MVP)",
-            "bmi": bmi,
-            "category": category,
+            "bmi": float(bmi_dec),
+            "category": cat,
             "premium": bool(req.premium),
             "next_steps": [
                 "Шаги: 7–10 тыс/день",
@@ -2188,8 +2246,8 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     else:
         base = {
             "summary": "Personal plan (MVP)",
-            "bmi": bmi,
-            "category": category,
+            "bmi": float(bmi_dec),
+            "category": cat,
             "premium": bool(req.premium),
             "next_steps": ["Steps: 7–10k/day", "Protein: 1.2–1.6 g/kg", "Sleep: 7–9 h"],
             "healthy_bmi": healthy_bmi,

@@ -615,7 +615,7 @@ git push origin v1.0.0
 The project includes cleanup scripts that can be scheduled via cron:
 
 - **Cache cleanup:** `scripts/clean-cache.sh` - Removes Python cache files and temporary data
-- **Food DB update:** `scripts/schedule_food_db_update.py` - Automated database updates (see `CRON_SETUP.md`)
+- **Food DB update:** `scripts/schedule_food_db_update.py` - Automated database updates (see [CRON.md](../runbooks/CRON.md))
 
 #### Setting Up Disk Space Alerts
 

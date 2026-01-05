@@ -1,7 +1,7 @@
 # PR-457=A Audit Questionnaire: Legacy BMI Helpers Cleanup
 
-**Date:** 2025-01-XX  
-**Status:** Pre-implementation audit  
+**Date:** 2025-01-XX
+**Status:** Pre-implementation audit
 **Scope:** Remove legacy BMI helpers from request-path, migrate `/plan` to canonical handler
 
 ---
@@ -187,7 +187,7 @@ def test_plan_endpoint_uses_canonical_handler_via_shim(
     EN: Proof test: /plan uses engine via handler (shim works).
     """
     import app.routers.bmi as bmi_router
-    
+
     # Fixed result to verify it "flows through" the shim
     fixed_result = BMICalculateResult(
         bmi=22.5,
@@ -200,12 +200,12 @@ def test_plan_endpoint_uses_canonical_handler_via_shim(
         notes=(),
         age_band="adult",
     )
-    
+
     def _fixed_engine(**_: Any) -> BMICalculateResult:
         return fixed_result
-    
+
     monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fixed_engine)
-    
+
     payload = {
         "weight_kg": 70.0,
         "height_m": 1.75,
@@ -216,7 +216,7 @@ def test_plan_endpoint_uses_canonical_handler_via_shim(
         "lang": "en",
         "premium": False,
     }
-    
+
     resp = client.post("/plan", json=payload)
     assert resp.status_code == 200
     data = resp.json()
@@ -248,17 +248,17 @@ def test_no_legacy_bmi_helpers_in_request_path() -> None:
     """
     import ast
     import inspect
-    
+
     # Forbidden function names
     FORBIDDEN = {"calc_bmi", "normalize_flags", "bmi_category", "waist_risk"}
-    
+
     # Whitelist (Pro endpoints)
     WHITELIST = {"app/routers/bmi_pro.py"}
-    
+
     # Scan legacy_app.py
     with open("legacy_app.py", "r") as f:
         tree = ast.parse(f.read())
-    
+
     violations = []
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
@@ -274,7 +274,7 @@ def test_no_legacy_bmi_helpers_in_request_path() -> None:
                     if isinstance(call, ast.Call):
                         if isinstance(call.func, ast.Name) and call.func.id in FORBIDDEN:
                             violations.append((node.name, call.func.id, call.lineno))
-    
+
     assert not violations, f"Legacy helpers found in request-path: {violations}"
 ```
 
@@ -283,14 +283,14 @@ def test_no_legacy_bmi_helpers_in_request_path() -> None:
 def test_no_legacy_bmi_helpers_in_request_path() -> None:
     """Guard: no legacy BMI helpers in request-path endpoints."""
     import subprocess
-    
+
     # Find all endpoint definitions
     result = subprocess.run(
         ["rg", "-n", r"@app\.(post|get|put|delete)\(.*\)", "legacy_app.py"],
         capture_output=True,
         text=True,
     )
-    
+
     # For each endpoint, check for forbidden calls
     # (Simpler but less precise than AST)
 ```
@@ -380,7 +380,7 @@ def calc_bmi(...):  # Local helper, acceptable
 
 **Risk 1: Backward compatibility (contract drift)**
 - **Impact:** High
-- **Mitigation:** 
+- **Mitigation:**
   - Preserve all contract fields (`summary`, `bmi`, `category`, `premium`, `next_steps`, `healthy_bmi`, `action`, `premium_reco`)
   - Run existing regression tests (`test_plan_endpoint_*` in `test_app_comprehensive_97_final.py`)
   - Verify `category=None` behavior for pregnant/teen/child (canonical matches legacy)
@@ -563,6 +563,5 @@ def calc_bmi(...):  # Local helper, acceptable
 
 ---
 
-**Audit completed:** 2025-01-XX  
+**Audit completed:** 2025-01-XX
 **Ready for implementation:** ✅ Yes
-

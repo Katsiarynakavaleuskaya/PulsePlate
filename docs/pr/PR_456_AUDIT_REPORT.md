@@ -1,7 +1,7 @@
 # PR-456 Audit Report: BMI Route Ownership & Legacy Migration
 
-**Date:** 2025-01-XX  
-**Status:** Pre-PR-457 Review  
+**Date:** 2025-01-XX
+**Status:** Pre-PR-457 Review
 **Scope:** BMI calculation logic migration to `core/bmi/*`
 
 ---
@@ -304,6 +304,5 @@ def test_no_legacy_bmi_helpers_in_request_path():
 
 ---
 
-**Audit completed:** 2025-01-XX  
+**Audit completed:** 2025-01-XX
 **Next step:** PR-457 planning and implementation
-

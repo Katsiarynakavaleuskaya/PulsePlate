@@ -250,3 +250,52 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - `deploy/AGENTS.md`
 - `providers/AGENTS.md`
 - `tests/AGENTS.md`
+
+## Deployment docs
+- `DEPLOYMENT.md` → `docs/deploy/README.md`
+
+---
+
+## AGENTS Update Rule (Canonical)
+
+### Purpose
+Prevent instruction drift, duplication, and conflicting rules across agents.
+There must be a **single source of truth** for each class of instruction.
+
+### Canonical rules
+
+1) **Global rules live ONLY in root `AGENTS.md`.**
+   - Architecture invariants
+   - Import hygiene
+   - CI / coverage gates
+   - Commit / PR process rules
+
+2) **Scoped rules live ONLY in the nearest `*/AGENTS.md`.**
+   - Module-specific commands
+   - Local setup or tooling
+   - Narrow exceptions explicitly scoped to that module
+
+3) **Do NOT duplicate identical text across multiple AGENTS files.**
+   - If a rule applies everywhere → root `AGENTS.md`
+   - If a rule applies to one module → that module's `AGENTS.md`
+
+4) **When new workflow, invariant, or command is introduced:**
+   - Update exactly **ONE** document:
+     - `AGENTS.md` (global), OR
+     - `X/AGENTS.md` (scoped)
+   - Never "broadcast" the same instruction into multiple AGENTS files.
+
+5) **PR requirement**
+   - Any PR that changes engineering workflow, guards, or agent behavior
+     MUST include a documentation commit:
+       `docs(agents): update instructions`
+
+6) **Escalation path**
+   - Long-term lessons → `docs/ENGINEERING_LESSONS.md`
+   - Operational/debug procedures → `RUNBOOK_AGENT.md`
+   - Do not overload AGENTS with runbook-level detail.
+
+### Non-goals
+- AGENTS files are NOT changelogs.
+- AGENTS files are NOT PR notes.
+- AGENTS files must remain stable and auditable.

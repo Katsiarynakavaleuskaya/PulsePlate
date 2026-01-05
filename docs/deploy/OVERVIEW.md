@@ -15,7 +15,7 @@
 - Что нужно будет настроить
 
 ### 🌐 Шаг 2: Домены (30 минут)
-**Файл:** `DOMAIN_SETUP.md`
+**Файл:** [`DOMAIN.md`](DOMAIN.md)
 - Регистрация на Cloudflare (production домен)
 - Регистрация на DuckDNS (staging домен)
 - Настройка DNS записей
@@ -28,8 +28,8 @@
 
 ### 💻 Шаг 4: Настройка сервера (60-90 минут)
 **Файлы:**
-- `STAGING_SETUP.md` — для staging сервера
-- `PRODUCTION_SETUP.md` — для production сервера
+- [`STAGING.md`](STAGING.md) — для staging сервера
+- [`PRODUCTION.md`](PRODUCTION.md) — для production сервера
 - Установка Docker, настройка безопасности (UFW, fail2ban, SSH)
 
 ### 🔐 Шаг 5: GitHub Secrets (30 минут)
@@ -689,8 +689,8 @@ sudo fail2ban-client status sshd
 
 ## 📚 Дополнительные файлы (для углубления)
 
-- `STAGING_SETUP.md` — детальная настройка staging окружения
-- `PRODUCTION_SETUP.md` — детальная настройка production окружения
+- [`STAGING.md`](STAGING.md) — детальная настройка staging окружения
+- [`PRODUCTION.md`](PRODUCTION.md) — детальная настройка production окружения
 - `CLOUDFLARE_SECURITY_SETUP.md` — детальная настройка безопасности Cloudflare
 - `GITHUB_SECRETS_SETUP.md` — детальная настройка секретов
 
