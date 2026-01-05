@@ -43,9 +43,13 @@ def _assert_plan_contract_shape(data: dict, lang: str, premium: bool) -> None:
         data["category"], str
     ), f"category must be str | None, got {type(data['category'])}"
     assert isinstance(data["premium"], bool), f"premium must be bool, got {type(data['premium'])}"
-    assert isinstance(data["next_steps"], list), f"next_steps must be list, got {type(data['next_steps'])}"
+    assert isinstance(
+        data["next_steps"], list
+    ), f"next_steps must be list, got {type(data['next_steps'])}"
     assert all(isinstance(step, str) for step in data["next_steps"]), "next_steps must be list[str]"
-    assert isinstance(data["healthy_bmi"], dict), f"healthy_bmi must be dict, got {type(data['healthy_bmi'])}"
+    assert isinstance(
+        data["healthy_bmi"], dict
+    ), f"healthy_bmi must be dict, got {type(data['healthy_bmi'])}"
     assert "min" in data["healthy_bmi"] and "max" in data["healthy_bmi"]
     assert isinstance(data["healthy_bmi"]["min"], (int, float))
     assert isinstance(data["healthy_bmi"]["max"], (int, float))
@@ -55,7 +59,9 @@ def _assert_plan_contract_shape(data: dict, lang: str, premium: bool) -> None:
     if premium:
         assert PREMIUM_KEY in data, "premium_reco must be present when premium=True"
         assert isinstance(data[PREMIUM_KEY], list), "premium_reco must be list"
-        assert all(isinstance(reco, str) for reco in data[PREMIUM_KEY]), "premium_reco must be list[str]"
+        assert all(
+            isinstance(reco, str) for reco in data[PREMIUM_KEY]
+        ), "premium_reco must be list[str]"
     else:
         # premium_reco may or may not be present when premium=False (backward compat)
         pass
@@ -175,4 +181,3 @@ def test_plan_contract_premium_reco_when_premium(client: TestClient) -> None:
     assert PREMIUM_KEY in data, "premium_reco must be present when premium=True"
     assert isinstance(data[PREMIUM_KEY], list)
     assert len(data[PREMIUM_KEY]) > 0
-

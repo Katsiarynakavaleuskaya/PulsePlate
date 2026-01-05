@@ -81,4 +81,3 @@ def test_plan_delegates_to_canonical_engine(
         f"Expected marker BMI {marker_bmi}, got {data['bmi']}. "
         "This means /plan is NOT delegating to canonical engine (yet)."
     )
-
