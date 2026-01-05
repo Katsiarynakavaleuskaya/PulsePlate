@@ -41,10 +41,7 @@ pplint    # Run linting
 ppformat  # Format code
 ppcheck   # Full quality check
 
-	# Specific test analysis
-	pytest --maxfail=10 --junit-xml=test_results.xml --tb=short
-	pytest --cov=. --cov-fail-under=97 -q
-	```
+### 4. Project-Specific Commands
 
 ## Key Issues Identified in Current Test Run
 

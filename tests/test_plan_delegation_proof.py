@@ -27,10 +27,12 @@ def test_plan_delegates_to_canonical_engine(
     Monkeypatch calculate_bmi_result to return fixed BMICalculateResult with marker BMI,
     then verify endpoint returns those exact values (proving shim delegation).
     """
-    import app.routers.bmi as bmi_router
+    # Patch the actual engine function (most reliable)
+    import core.bmi.engine as engine
 
     # Marker BMI to prove delegation (unlikely to occur naturally)
-    marker_bmi = 12.345
+    # Use value that survives rounding: 12.3 (1 decimal) or 12.35 (2 decimals)
+    marker_bmi = 12.35
 
     # Fixed result to verify it "flows through" the shim
     fixed_result = BMICalculateResult(
@@ -48,7 +50,16 @@ def test_plan_delegates_to_canonical_engine(
     def _fixed_engine(**kwargs: Any) -> BMICalculateResult:
         return fixed_result
 
-    monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fixed_engine)
+    # Patch engine at source (most reliable)
+    monkeypatch.setattr(engine, "calculate_bmi_result", _fixed_engine, raising=True)
+    # Optional fallback: patch module-level alias in router (if handler keeps ref)
+    try:
+        import app.routers.bmi as bmi_router
+
+        monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fixed_engine, raising=False)
+    except (AttributeError, ImportError):
+        # Router may not have module-level alias, that's OK
+        pass
 
     payload = {
         "weight_kg": 70.0,

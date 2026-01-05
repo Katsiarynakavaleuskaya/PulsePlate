@@ -648,7 +648,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 
 ### Production Prerequisites
 
-- Production server configured (see [[PRODUCTION.md](docs/deploy/PRODUCTION.md)]([PRODUCTION.md](docs/deploy/PRODUCTION.md)))
+- Production server configured (see [PRODUCTION.md](docs/deploy/PRODUCTION.md))
 - GitHub environment `production` configured with required secrets
 - Protection rules enabled for manual approval
 
@@ -686,7 +686,7 @@ Production deployments are automated via GitHub Actions with manual approval gat
 - ✅ **Security headers** (HSTS, CSP, X-Frame-Options, etc.)
 - ✅ **Server hardening** (UFW, fail2ban, SSH key-only access)
 - ✅ **Resource limits** and monitoring
-- ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [[PRODUCTION.md](docs/deploy/PRODUCTION.md)]([PRODUCTION.md](docs/deploy/PRODUCTION.md)#monitoring)
+- ✅ **Monitoring & alerting** (Prometheus, Grafana, PagerDuty) - see [PRODUCTION.md](docs/deploy/PRODUCTION.md#monitoring)
 
 For detailed setup instructions, see:
 

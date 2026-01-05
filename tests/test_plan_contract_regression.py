@@ -157,7 +157,9 @@ def test_plan_contract_minors_legacy_behavior_is_preserved(client: TestClient) -
     data = resp.json()
     # Legacy /plan contract: minors receive a string category (not None)
     assert "category" in data, "category field must exist"
-    # Note: category may be a string (legacy behavior preserved via compat_plan)
+    # Legacy contract: minors must get string category (not None)
+    assert isinstance(data["category"], str), "legacy /plan must return string category for minors"
+    assert len(data["category"]) > 0, "category string must not be empty"
 
 
 def test_plan_contract_premium_reco_when_premium(client: TestClient) -> None:
