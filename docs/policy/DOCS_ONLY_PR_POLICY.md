@@ -109,6 +109,19 @@ Mixing documentation restructuring with code changes:
 * makes reviews unreliable,
 * is considered a **policy violation**.
 
+### Documentation-only Pull Requests
+
+Documentation refactors **MUST NOT** include:
+
+* application runtime changes,
+* imports of code from unrelated PRs,
+* partial implementations of future features,
+* test or behavior changes.
+
+If documentation refactoring requires reverting accidental code changes, **only removal of out-of-scope dependencies is allowed**.
+
+All non-blocking documentation issues **MUST** be tracked in `docs/reports/DOCS_DEBT_BACKLOG.md` and **not addressed** in the same PR.
+
 ---
 
 ## 6. Rationale
