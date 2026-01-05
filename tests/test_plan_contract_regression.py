@@ -233,9 +233,7 @@ def test_plan_contract_teen_threshold_uses_canonical_group(
     # With teen threshold 24.5, BMI=24.7 should be "overweight" (not "normal")
     category_lower = data["category"].lower()
     # Check for overweight indicators (EN: "overweight", "избыточ" for RU)
-    assert (
-        "over" in category_lower or "избыточ" in category_lower or "избыт" in category_lower
-    ), (
+    assert "over" in category_lower or "избыточ" in category_lower or "избыт" in category_lower, (
         f"Expected overweight category for teen BMI=24.7 (threshold 24.5), "
         f"got '{data['category']}'. This indicates group was not taken from canonical engine."
     )
