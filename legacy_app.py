@@ -48,6 +48,7 @@ from starlette.requests import Request
 
 from app.dependencies import validate_template_dir
 from app.routers.api_key import api_key_header
+from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
@@ -73,7 +74,7 @@ from core.log_retention import (
     LogRetentionManager,
 )
 from core.db import get_session, init_db
-from core.i18n import Language, t
+from core.i18n import Language, normalize_lang, t
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 from core.data_sanitizer import MissingOptionalDependencyError
@@ -157,19 +158,26 @@ if VIP_MODULE_ENABLED:
 
 
 def _resolve_scheduler_starter(  # noqa: ANN401
-    pkg: Any,  # noqa: ANN401
-    alias_pkg: Any,  # noqa: ANN401
-    globs: dict[str, Any],  # noqa: ANN401
-) -> Callable[[int], Any]:  # noqa: ANN401
-    """Backward-compatible wrapper for scheduler starter resolution."""
+    pkg: Any, alias_pkg: Any, globs: dict[str, Any]  # noqa: ANN401
+) -> Callable[[int], Any]:
+    """
+    Backward-compatible wrapper for scheduler starter resolution.
+
+    NOTE: Legacy infra glue; uses Any for dynamic module/package resolution.
+    Type hints intentionally relaxed to support runtime introspection.
+    """
     return resolve_scheduler_starter(pkg, alias_pkg, globs, _scheduler_start_background_updates)
 
 
 def _resolve_stop_callable(  # noqa: ANN401
-    pkg: Any,  # noqa: ANN401
-    alias_pkg: Any,  # noqa: ANN401
-) -> Callable[[], Any]:  # noqa: ANN401
-    """Backward-compatible wrapper for scheduler stop callable resolution."""
+    pkg: Any, alias_pkg: Any  # noqa: ANN401
+) -> Callable[[], Any]:
+    """
+    Backward-compatible wrapper for scheduler stop callable resolution.
+
+    NOTE: Legacy infra glue; uses Any for dynamic module/package resolution.
+    Type hints intentionally relaxed to support runtime introspection.
+    """
     return resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
 
 
@@ -561,10 +569,14 @@ def _check_production_constraints(
 
 
 def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  # noqa: ANN401
-    """Create and initialize fallback SQLAlchemy engine.
+    """
+    Create and initialize fallback SQLAlchemy engine.
 
     Creates engine with correct connect_args, runs Base.metadata.create_all.
     Returns the initialized engine or raises db_err on failure.
+
+    NOTE: Legacy infra glue; engine type depends on runtime backend (SQLite/Postgres).
+    Type hint intentionally relaxed (Any) to support multiple SQLAlchemy engine variants.
     """
     from sqlalchemy import create_engine
     import core.models  # noqa: F401
@@ -586,13 +598,14 @@ def _initialize_fallback_engine(fallback_url: str, db_err: Exception) -> Any:  #
         raise db_err from fallback_err
 
 
-def _configure_session_bindings(  # noqa: ANN401
-    engine: Any,  # noqa: ANN401
-    is_production: bool,
-    fallback_url: str,
-    env_name: Optional[str],
+def _configure_session_bindings(
+    engine: Any, is_production: bool, fallback_url: str, env_name: Optional[str]  # noqa: ANN401
 ) -> None:
-    """Configure core.db session bindings and environment variables.
+    """
+    Configure core.db session bindings and environment variables.
+
+    NOTE: Legacy infra glue; engine type depends on runtime backend.
+    Type hint intentionally relaxed (Any) to support multiple SQLAlchemy engine variants.
 
     Sets SessionLocal, _RAW_ENGINE, engine wrapper, _db_fallback_active flag,
     and updates os.environ with appropriate markers.
@@ -2032,64 +2045,112 @@ async def cleanup_expired_logs(
 
 @app.post("/bmi")
 async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
-    flags = normalize_flags(req.gender, req.pregnant, req.athlete)
-    bmi = calc_bmi(req.weight_kg, req.height_m)
+    """
+    RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).
+    Теперь это тонкий прокси в канонический handler (app/routers/bmi.py),
+    чтобы не было дублирования BMI-логики и чтобы результаты были идентичны.
 
-    if flags["is_pregnant"]:
-        note = t(req.lang, "bmi_not_valid_during_pregnancy")
-        result = {
-            "bmi": bmi,
-            "category": None,
-            "note": note,
-            "athlete": flags["is_athlete"],
-            "group": "athlete" if flags["is_athlete"] else "general",
-        }
+    EN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).
+    Now it is a thin proxy to the canonical handler (app/routers/bmi.py)
+    to avoid duplicate BMI logic and ensure identical results.
+    """
+    # Local import to avoid import cycles on app startup
+    from app.routers.bmi import bmi_calculate_handler
+    from app.schemas.bmi import BMICalculateRequest
+    from fastapi import HTTPException
+    from pydantic import ValidationError
+    from starlette import status
 
-        # Add visualization if requested and available
-        add_visualization_if_requested(result, req)
-        # Log without sensitive data - only generic message, no user data
-        # Note: req object contains sensitive data (weight, height, pregnancy status) but is not logged
-        log_msg = "BMI calculation skipped due to pregnancy flag"
-        logger.info(log_msg)
-        bmi_logger.info(log_msg)
-
-        return result
-
-    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
-    notes = []
-    if flags["is_athlete"]:
-        notes.append(t(req.lang, "advice_athlete_bmi"))
-    if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
-        notes.append(wr)
-
-    bmi_result: Dict[str, Any] = {
-        "bmi": bmi,
-        "category": category,
-        "note": " | ".join(notes) if notes else "",
-        "athlete": flags["is_athlete"],
-        "group": "athlete" if flags["is_athlete"] else "general",
+    # Convert BMIRequest (height_m) to BMICalculateRequest format (height_cm)
+    shim_payload = {
+        "weight_kg": req.weight_kg,
+        "height_cm": round(
+            float(req.height_m) * 100.0, 1
+        ),  # Convert meters to centimeters, round to 1 decimal
+        "age": req.age,
+        "gender": req.gender,
+        "pregnant": req.pregnant,
+        "athlete": req.athlete,
+        "waist_cm": req.waist_cm,
+        "lang": str(req.lang),
     }
 
-    # Add visualization if requested and available
-    add_visualization_if_requested(bmi_result, req)
-    # Log without sensitive data (BMI values are personal health information)
-    # Only log non-sensitive metadata: group category and athlete flag
-    # Note: We explicitly avoid logging weight, height, age, BMI values, or pregnancy status
-    # Use req.athlete directly to avoid CodeQL false positives from flags dict (which contains sensitive data)
-    is_athlete = (
-        isinstance(req.athlete, bool)
-        and req.athlete
-        or (
-            isinstance(req.athlete, str)
-            and req.athlete.lower() in {"спортсмен", "да", "yes", "y", "athlete"}
-        )
-    )
-    group_category = "athlete" if is_athlete else "general"
+    # Validate and convert to BMICalculateRequest (handles ValidationError → 422)
+    try:
+        canonical_req = BMICalculateRequest.model_validate(shim_payload)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=e.errors(),
+        ) from e
+
+    # Call canonical handler
+    canonical_result = await bmi_calculate_handler(canonical_req)
+
+    # Normalize language once for all i18n calls
+    lang_norm: Language = normalize_lang(str(req.lang))
+
+    # Localize category (engine returns slug, legacy expects localized display)
+    category_slug = canonical_result.get("category")
+    category_display: str | None = None
+    if category_slug:
+        # Map slug to i18n key and localize
+        category_i18n_map = {
+            "underweight": "bmi_underweight",
+            "normal": "bmi_normal",
+            "overweight": "bmi_overweight",
+            "obesity_1": "bmi_obese_1",
+            "obesity_2": "bmi_obese_2",
+            "obesity_3": "bmi_obese_3",
+        }
+        i18n_key = category_i18n_map.get(category_slug)
+        if i18n_key:
+            category_display = t(lang_norm, i18n_key)
+        else:
+            category_display = category_slug  # Fallback to slug if unknown
+
+    # Build legacy note (priority: pregnancy > athlete > waist risk > interpretation)
+    group = canonical_result.get("group", "")
+    notes_list = canonical_result.get("notes", [])
+    interpretation = canonical_result.get("interpretation") or ""
+
+    legacy_note = ""
+    if group == "pregnant":
+        legacy_note = t(lang_norm, "bmi_not_valid_during_pregnancy")
+    elif group == "athlete":
+        legacy_note = t(lang_norm, "advice_athlete_bmi")
+        # Append waist risk notes if present
+        if notes_list:
+            waist_notes = " | ".join(notes_list)
+            legacy_note = f"{legacy_note} | {waist_notes}" if waist_notes else legacy_note
+    else:
+        # For general/elderly: use waist risk notes if present, else interpretation
+        if notes_list:
+            legacy_note = " | ".join(notes_list)
+        else:
+            legacy_note = interpretation or ""
+
+    # Adapt new format to legacy format for backward compatibility
+    # Legacy expects: bmi, category, note (str), athlete (bool), group
+    legacy_result: Dict[str, Any] = {
+        "bmi": canonical_result["bmi"],
+        "category": category_display,  # Localized display name (or None)
+        "note": legacy_note,
+        "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
+        "group": canonical_result["group"],
+    }
+
+    # Preserve visualization if requested (legacy feature)
+    add_visualization_if_requested(legacy_result, req)
+
+    # Log without sensitive data (preserve legacy logging behavior)
+    is_athlete = legacy_result["athlete"]
+    group_category = legacy_result["group"]
     log_msg = f"BMI calculation complete [group={group_category} athlete={is_athlete}]"
     logger.info(log_msg)
     bmi_logger.info(log_msg)
 
-    return bmi_result
+    return legacy_result
 
 
 @app.post("/plan")
@@ -2124,25 +2185,6 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
                 "Дефицит 300–500 ккал",
                 "2–3 силовые тренировки/нед",
             ]
-    elif req.lang == "es":
-        base = {
-            "summary": "Plan personal (MVP)",
-            "bmi": bmi,
-            "category": category,
-            "premium": bool(req.premium),
-            "next_steps": [
-                "Pasos: 7–10 mil/día",
-                "Proteína: 1.2–1.6 g/kg",
-                "Sueño: 7–9 h",
-            ],
-            "healthy_bmi": healthy_bmi,
-            "action": "Haz hoy una caminata rápida de 20 min",
-        }
-        if req.premium:
-            base["premium_reco"] = [
-                "Déficit 300–500 kcal",
-                "2–3 sesiones de fuerza/semana",
-            ]
     else:
         base = {
             "summary": "Personal plan (MVP)",
@@ -2164,65 +2206,106 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
 @app.post("/api/v1/bmi")
 async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
-    """V1 BMI endpoint (public access)."""
-    # Convert height_cm to height_m
-    height_m = req.height_cm / 100.0
+    """
+    RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).
+    Теперь это тонкий прокси в канонический handler (app/routers/bmi.py),
+    чтобы не было дублирования BMI-логики и чтобы результаты были идентичны.
 
-    flags = normalize_flags(req.gender, req.pregnant, req.athlete)
-    bmi = calc_bmi(req.weight_kg, height_m)
+    EN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).
+    Now it is a thin proxy to the canonical handler (app/routers/bmi.py)
+    to avoid duplicate BMI logic and ensure identical results.
+    """
+    # Local import to avoid import cycles on app startup
+    from app.routers.bmi import bmi_calculate_handler
+    from app.schemas.bmi import BMICalculateRequest
+    from fastapi import HTTPException
+    from pydantic import ValidationError
+    from starlette import status
 
-    if flags["is_pregnant"]:
-        note = t(req.lang, "bmi_not_valid_during_pregnancy")
-        response_payload = {
-            "bmi": bmi,
-            "category": None,
-            "note": note,
-            "athlete": flags["is_athlete"],
-            "group": "athlete" if flags["is_athlete"] else "general",
-        }
-        # Log without sensitive data - only generic message, no user data
-        log_msg = "BMI v1 calculation skipped due to pregnancy flag"
-        logger.info(log_msg)
-        bmi_logger.info(log_msg)
-        return response_payload
-
-    category = bmi_category(bmi, req.lang, req.age, "athlete" if flags["is_athlete"] else "general")
-    notes = []
-    if flags["is_athlete"]:
-        notes.append(t(req.lang, "advice_athlete_bmi"))
-    if wr := waist_risk(req.waist_cm, flags["gender_male"], req.lang):
-        notes.append(wr)
-
-    result_payload = {
-        "bmi": bmi,
-        "category": category,
-        "note": " | ".join(notes) if notes else "",
-        "athlete": flags["is_athlete"],
-        "group": "athlete" if flags["is_athlete"] else "general",
+    # Convert BMIRequestV1 to BMICalculateRequest format (already has height_cm)
+    shim_payload = {
+        "weight_kg": req.weight_kg,
+        "height_cm": req.height_cm,  # Already in centimeters
+        "age": req.age,
+        "gender": req.gender,
+        "pregnant": req.pregnant,
+        "athlete": req.athlete,
+        "waist_cm": req.waist_cm,
+        "lang": str(req.lang),
     }
-    # Log without sensitive data - use direct computation, not result_payload dict access
-    # Note: We explicitly avoid logging BMI, weight, height, age, or pregnancy status
-    # Use req.athlete directly to avoid CodeQL false positives from flags dict (which contains sensitive data)
-    is_athlete = (
-        isinstance(req.athlete, bool)
-        and req.athlete
-        or (
-            isinstance(req.athlete, str)
-            and req.athlete.lower() in {"спортсмен", "да", "yes", "y", "athlete"}
-        )
-    )
-    group_category = "athlete" if is_athlete else "general"
+
+    # Validate and convert to BMICalculateRequest (handles ValidationError → 422)
+    try:
+        canonical_req = BMICalculateRequest.model_validate(shim_payload)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=e.errors(),
+        ) from e
+
+    # Call canonical handler
+    canonical_result = await bmi_calculate_handler(canonical_req)
+
+    # Normalize language once for all i18n calls
+    lang_norm: Language = normalize_lang(str(req.lang))
+
+    # Localize category (engine returns slug, legacy expects localized display)
+    category_slug = canonical_result.get("category")
+    category_display: str | None = None
+    if category_slug:
+        # Map slug to i18n key and localize
+        category_i18n_map = {
+            "underweight": "bmi_underweight",
+            "normal": "bmi_normal",
+            "overweight": "bmi_overweight",
+            "obesity_1": "bmi_obese_1",
+            "obesity_2": "bmi_obese_2",
+            "obesity_3": "bmi_obese_3",
+        }
+        i18n_key = category_i18n_map.get(category_slug)
+        if i18n_key:
+            category_display = t(lang_norm, i18n_key)
+        else:
+            category_display = category_slug  # Fallback to slug if unknown
+
+    # Build legacy note (priority: pregnancy > athlete > waist risk > interpretation)
+    group = canonical_result.get("group", "")
+    notes_list = canonical_result.get("notes", [])
+    interpretation = canonical_result.get("interpretation") or ""
+    legacy_note = ""
+    if group == "pregnant":
+        legacy_note = t(lang_norm, "bmi_not_valid_during_pregnancy")
+    elif group == "athlete":
+        legacy_note = t(lang_norm, "advice_athlete_bmi")
+        # Append waist risk notes if present
+        if notes_list:
+            waist_notes = " | ".join(notes_list)
+            legacy_note = f"{legacy_note} | {waist_notes}" if waist_notes else legacy_note
+    else:
+        # For general/elderly: use waist risk notes if present, else interpretation
+        if notes_list:
+            legacy_note = " | ".join(notes_list)
+        else:
+            legacy_note = interpretation or ""
+
+    # Adapt new format to legacy format for backward compatibility
+    # Legacy expects: bmi, category, note (str), athlete (bool), group
+    legacy_result: Dict[str, Any] = {
+        "bmi": canonical_result["bmi"],
+        "category": category_display,  # Localized display name (or None)
+        "note": legacy_note,
+        "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
+        "group": canonical_result["group"],
+    }
+
+    # Log without sensitive data (preserve legacy logging behavior)
+    is_athlete = legacy_result["athlete"]
+    group_category = legacy_result["group"]
     log_msg = f"BMI v1 calculation complete [group={group_category} athlete={is_athlete}]"
     logger.info(log_msg)
     bmi_logger.info(log_msg)
-    return result_payload
 
-
-# Backward-compatible BMI calculate endpoint without API key
-@app.post("/api/v1/bmi/calculate")
-async def bmi_calculate_legacy(req: BMIRequestV1) -> Dict[str, Any]:
-    """Legacy path for BMI calculation; delegates to v1 logic without API key dependency."""
-    return await bmi_endpoint_v1(req)
+    return legacy_result
 
 
 def _ensure_insight_text_length(text: str) -> str:
@@ -3715,7 +3798,7 @@ async def aggregate_day_micros(
         return cast(Dict[str, float] | None, result) or {}
     else:
         logger.warning(
-            "premium_plate: _aggregate_day_micronutrients not callable (%s), " "using empty micros",
+            "premium_plate: _aggregate_day_micronutrients not callable (%s), using empty micros",
             type(_aggregate_func),
         )
         return {}
@@ -4140,7 +4223,6 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     Uses a lenient schema to avoid pydantic 422s in error-path tests.
     """
     try:
-
         # Resolve wrappers at call time so test-time patches on app._calculate_all_* apply
         import sys as _sys
 
@@ -5450,6 +5532,9 @@ _bmi_pro_flag = os.getenv("FEATURE_BMI_PRO_ENABLED")
 FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag) if _bmi_pro_flag is not None else False
 if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
     app.include_router(bmi_pro_router)
+
+# Include BMI router (FREE tier, no API key required)
+app.include_router(bmi_router)
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
