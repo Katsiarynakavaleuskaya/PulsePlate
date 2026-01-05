@@ -143,6 +143,46 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
+### 🛑 Docs-only PR Rule (Mandatory)
+
+**Docs-only PR** — это PR, который **строго ограничен документацией** и **не имеет права** изменять runtime, CI или поведение приложения.
+
+**Allowed changes (docs-only):**
+* `*.md` files
+* `README.md`
+* `AGENTS.md`, `RUNBOOK_AGENT.md`, `DEPLOYMENT.md`
+* `.github/*.md` (templates, instructions)
+
+**❌ Forbidden changes (docs-only):**
+* Any source code (`*.py`, `*.js`, `*.ts`, `*.swift`, etc.)
+* CI / infra (`*.yml`, `Dockerfile`, `Makefile`, `requirements*`)
+* Runtime configs or imports
+* **Any change to application behavior**, even if it is a "cleanup" or "revert"
+
+**Enforcement checklist (before push):**
+
+Before pushing a docs-only PR, **you MUST run**:
+
+```bash
+git diff --name-only origin/main...HEAD \
+  | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$"
+```
+
+* Output **must be empty**.
+* If any non-doc file appears → **STOP** and revert it from the PR.
+
+**Special note about legacy files:**
+* Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
+* If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
+* Code cleanup related to other PRs (e.g. PR-457) **belongs only to that PR**, never to docs PRs.
+
+**Rationale:**
+This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
+
+**Policy reference:** See `docs/policy/DOCS_ONLY_PR_POLICY.md` for the canonical policy source of truth.
+
+Violation of this rule blocks merge.
+
 ## Known pitfalls
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
   Import hygiene guards prevent regression.
