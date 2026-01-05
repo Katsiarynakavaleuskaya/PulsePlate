@@ -1591,6 +1591,37 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     return round(bmi, 1)
 
 
+def normalize_flags(
+    gender: str, pregnant: Union[str, bool], athlete: Union[str, bool]
+) -> Dict[str, bool]:
+    """
+    COMPAT: legacy public API.
+    Kept for backward compatibility (import surface), not used in request-path.
+
+    Normalizes gender, pregnant, and athlete flags to boolean dict.
+    Uses canonical normalization logic (policy-compliant: no duplicate logic).
+    """
+    # Import here to avoid circular dependencies
+    from core.bmi.engine import _normalize_gender, _normalize_bool_flag
+
+    gender_norm = _normalize_gender(gender)
+    gender_male = gender_norm == "male"
+
+    # Normalize pregnant (default yes values only - athlete keywords must NOT imply pregnant)
+    _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    is_pregnant = _normalize_bool_flag(pregnant, yes_values=_YES_VALUES_DEFAULT) and not gender_male
+
+    # Normalize athlete (includes sport keywords)
+    _YES_VALUES_ATHLETE = _YES_VALUES_DEFAULT | {"спортсмен", "athlete"}
+    is_athlete = _normalize_bool_flag(athlete, yes_values=_YES_VALUES_ATHLETE)
+
+    return {
+        "gender_male": gender_male,
+        "is_pregnant": is_pregnant,
+        "is_athlete": is_athlete,
+    }
+
+
 def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
     if waist_cm is None:
         return ""
