@@ -405,20 +405,21 @@ ssh-keygen -t ed25519 -C "pulseplate-deploy" -f ~/.ssh/pulseplate_deploy
 # Если ed25519 не поддерживается:
 # ssh-keygen -t rsa -b 4096 -C "pulseplate-deploy" -f ~/.ssh/pulseplate_deploy
 
-# Нажмите Enter на всех вопросах (можно установить пароль, но не обязательно)
+# При запросе passphrase: введите надёжный пароль (не оставляйте пустым)
 ```
 
 > **🔒 Security Note: SSH Key Passphrase Best Practices**
 >
 > **For interactive/production access:**
-> - **Recommended:** Use a passphrase to protect your SSH key. This prevents unauthorized access if the private key is compromised.
+> - **Required:** Use a strong passphrase to protect your SSH key. This prevents unauthorized access if the private key is compromised.
 > - Store the passphrase securely using a password manager or SSH agent.
 > - Use `ssh-agent` or a credential manager (e.g., macOS Keychain via `ssh-add --apple-use-keychain`) to avoid repeatedly entering the passphrase.
 > - **Always prefer passphrase-protected keys for any human-accessible servers.**
 >
 > **For fully automated CI/CD:**
-> - You may omit the passphrase for automation purposes, but this increases security risk.
-> - **Must do:** Restrict key permissions (`chmod 600 ~/.ssh/pulseplate_deploy`) and store the private key in a secrets manager (e.g., GitHub Secrets, AWS Secrets Manager, HashiCorp Vault).
+> - Do not remove the passphrase to “make CI easier”. Instead, use `ssh-agent` with non-interactive unlock (e.g., `SSH_ASKPASS`) or short-lived (ephemeral) keys fetched at runtime from a secrets manager (Vault/AWS/GCP) via OIDC.
+> - **Never store unprotected (no-passphrase) private keys in GitHub Secrets.**
+> - Restrict key permissions (`chmod 600 ~/.ssh/pulseplate_deploy`) and prefer a secrets manager over long-lived keys stored in CI.
 > - Never commit private keys to version control, even without passphrases.
 > - Consider using deploy keys with limited permissions instead of full user keys.
 
