@@ -8,8 +8,12 @@ PR-457 Commit 2: Verify that /plan contract is preserved after migration to cano
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
+
+from core.bmi.engine import BMICalculateResult
 
 # Required keys for /plan contract (from legacy_app.py and test_app_comprehensive_97_final.py)
 REQUIRED_KEYS = {
@@ -181,3 +185,57 @@ def test_plan_contract_premium_reco_when_premium(client: TestClient) -> None:
     assert PREMIUM_KEY in data, "premium_reco must be present when premium=True"
     assert isinstance(data[PREMIUM_KEY], list)
     assert len(data[PREMIUM_KEY]) > 0
+
+
+def test_plan_contract_teen_threshold_uses_canonical_group(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    RU: Проверка, что /plan использует canonical group для пороговых значений.
+    EN: Verify /plan uses canonical group for threshold values.
+
+    Regression test: teen (age=15) с BMI=24.7 должен использовать teen threshold 24.5,
+    а не adult threshold 25.0. Если group пересчитывается локально, teen будет классифицирован
+    как "normal" вместо "overweight".
+    """
+    # Patch engine to return teen group and BMI=24.7
+    import core.bmi.engine as engine
+
+    fixed_result = BMICalculateResult(
+        bmi=24.7,
+        category=None,  # Canonical engine returns None for minors
+        group="teen",  # Engine decides group based on age
+        group_display="Teen",
+        interpretation="Test teen threshold regression.",
+        wht_ratio=None,
+        waist_risk=None,
+        notes=(),
+        age_band="teen",
+    )
+
+    def _fixed_engine(**kwargs: Any) -> BMICalculateResult:
+        return fixed_result
+
+    monkeypatch.setattr(engine, "calculate_bmi_result", _fixed_engine, raising=True)
+
+    # Request for 15-year-old (teen)
+    payload = _base_payload(age=15, weight_kg=70.0, height_m=1.70)  # BMI ≈ 24.7
+    resp = client.post("/plan", json=payload)
+    assert resp.status_code == 200
+
+    data = resp.json()
+
+    # Legacy /plan must return string category for minors
+    assert isinstance(data["category"], str), "legacy /plan must return string category for minors"
+    assert len(data["category"]) > 0
+
+    # With teen threshold 24.5, BMI=24.7 should be "overweight" (not "normal")
+    category_lower = data["category"].lower()
+    # Check for overweight indicators (EN: "overweight", "избыточ" for RU)
+    assert (
+        "over" in category_lower or "избыточ" in category_lower or "избыт" in category_lower
+    ), (
+        f"Expected overweight category for teen BMI=24.7 (threshold 24.5), "
+        f"got '{data['category']}'. This indicates group was not taken from canonical engine."
+    )

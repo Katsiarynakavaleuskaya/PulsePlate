@@ -2193,8 +2193,12 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # 3) Preserve legacy /plan category behavior
     # RU: minors должны получать строковую категорию, даже если engine.category=None.
     # EN: minors must receive a string category even if engine.category=None.
-    # Normalize flags inline (no legacy helper in request-path, PR-457=A)
-    # Use same logic as canonical handler for consistency
+    # Use canonical group (engine is SoT for group determination)
+    canonical_group = canonical.get("group") or "general"
+    engine_category = canonical.get("category")
+
+    # For pregnant, legacy /plan returns category=None (preserved)
+    # Normalize pregnant flag inline for category=None check only
     def _normalize_bool_inline(value: str | bool) -> bool:
         """Inline bool normalization (matches canonical handler logic)."""
         if isinstance(value, bool):
@@ -2205,10 +2209,6 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
         return s in {"yes", "y", "true", "1", "да", "д", "si", "sí", "спортсмен", "athlete"}
 
     pregnant_bool = _normalize_bool_inline(req.pregnant)
-    athlete_bool = _normalize_bool_inline(req.athlete)
-    engine_category = canonical.get("category")
-    group = "athlete" if athlete_bool else "general"
-    # For pregnant, legacy /plan returns category=None (preserved)
     if pregnant_bool:
         cat = None
     else:
@@ -2217,7 +2217,7 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
             bmi=bmi_dec,
             age=req.age,
             lang=req.lang,
-            group=group,
+            group=canonical_group,  # Use engine-decided group (child/teen/elderly/athlete/pregnant/general)
         )
         cat = cat_result.category
 
