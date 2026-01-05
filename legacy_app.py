@@ -1425,14 +1425,21 @@ class BMIRequest(BaseModel):
             }
             values["gender"] = mapping.get(s, s)
         # Normalize string booleans for pregnant/athlete
-        for k in ("pregnant", "athlete"):
-            v = values.get(k)
-            if isinstance(v, str):
-                vs = v.strip().lower()
-                if vs in {"yes", "y", "да", "si", "sí", "true"}:
-                    values[k] = True
-                elif vs in {"no", "n", "нет", "false"}:
-                    values[k] = False
+        # IMPORTANT: athlete keywords must NEVER imply pregnant=True
+        _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+        _YES_VALUES_ATHLETE = _YES_VALUES_DEFAULT | {"спортсмен", "athlete"}
+
+        # Normalize pregnant (default yes values only)
+        v_pregnant = values.get("pregnant")
+        if isinstance(v_pregnant, str):
+            vs = v_pregnant.strip().lower()
+            values["pregnant"] = vs in _YES_VALUES_DEFAULT
+
+        # Normalize athlete (includes sport keywords)
+        v_athlete = values.get("athlete")
+        if isinstance(v_athlete, str):
+            vs = v_athlete.strip().lower()
+            values["athlete"] = vs in _YES_VALUES_ATHLETE
         if "with_visualization" in values:
             raw_visualization = values.get("with_visualization")
             include_chart = False
@@ -1567,6 +1574,21 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 
 
 # ---------- Core logic ----------
+
+
+def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
+    """
+    COMPAT: legacy public API.
+    Kept for backward compatibility (import surface), not used in request-path.
+
+    Uses canonical engine for calculation (policy-compliant: no duplicate BMI math).
+    """
+    # Import here to avoid circular dependencies
+    from core.bmi.engine import _compute_bmi  # compat import (core-only)
+
+    # Canonical compute returns float; legacy surface returns float rounded to 1dp
+    bmi = _compute_bmi(weight_kg=weight_kg, height_m=height_m)
+    return round(bmi, 1)
 
 
 def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
@@ -2162,16 +2184,21 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
     # For pregnant, legacy /plan returns category=None (preserved)
     # Normalize pregnant flag inline for category=None check only
-    def _normalize_bool_inline(value: str | bool) -> bool:
+    # IMPORTANT: athlete keywords must NEVER imply pregnant=True
+    _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    _YES_VALUES_ATHLETE = _YES_VALUES_DEFAULT | {"спортсмен", "athlete"}
+
+    def _normalize_bool_inline(value: str | bool, *, yes_values: set[str]) -> bool:
         """Inline bool normalization (matches canonical handler logic)."""
         if isinstance(value, bool):
             return value
         if not isinstance(value, str):
             return False
         s = value.strip().lower()
-        return s in {"yes", "y", "true", "1", "да", "д", "si", "sí", "спортсмен", "athlete"}
+        return s in yes_values
 
-    pregnant_bool = _normalize_bool_inline(req.pregnant)
+    # IMPORTANT: athlete keywords must NEVER imply pregnant=True
+    pregnant_bool = _normalize_bool_inline(req.pregnant, yes_values=_YES_VALUES_DEFAULT)
     if pregnant_bool:
         cat = None
     else:
