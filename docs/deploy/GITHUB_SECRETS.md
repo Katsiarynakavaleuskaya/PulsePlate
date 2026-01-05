@@ -83,6 +83,8 @@
 # Генерируем новый SSH ключ
 ssh-keygen -t ed25519 -C "github-actions-pulseplate" -f ~/.ssh/pulseplate_deploy
 
+# При запросе passphrase: введите надёжный пароль (не оставляйте пустым)
+
 # Или если ed25519 не поддерживается:
 ssh-keygen -t rsa -b 4096 -C "github-actions-pulseplate" -f ~/.ssh/pulseplate_deploy
 ```
@@ -114,6 +116,8 @@ Get-Content ~/.ssh/pulseplate_deploy
 **Важно:**
 - Копируйте ВЕСЬ ключ, включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` и `-----END OPENSSH PRIVATE KEY-----`  # pragma: allowlist secret
 - Добавьте его как значение секрета `SSH_KEY` в оба environment (staging и production)
+
+- **Никогда не храните незащищённые (без passphrase) приватные ключи в GitHub Secrets.** Для CI/CD используйте `ssh-agent` (и `SSH_ASKPASS`/Keychain) или короткоживущие (ephemeral) ключи/менеджер секретов.
 
 ## 🎫 GitHub Personal Access Token (PAT)
 

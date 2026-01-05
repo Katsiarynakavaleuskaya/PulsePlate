@@ -160,7 +160,7 @@
 → `GITHUB_SECRETS_SETUP.md`
 
 ### Проблема с деплоем?
-→ `[OVERVIEW.md](deploy/OVERVIEW.md)` → раздел "Частые проблемы"
+→ [`OVERVIEW.md`](deploy/OVERVIEW.md) → раздел "Частые проблемы"
 
 ### CI/CD не работает?
 → [`CI.md`](runbooks/CI.md) или проверьте `.github/workflows/cd.yml`

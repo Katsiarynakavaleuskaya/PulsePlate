@@ -33,11 +33,14 @@ python -m pip install --upgrade pip setuptools wheel
 pip install -r requirements-dev.txt
 pip install -r requirements.txt
 
-# Заменить старое окружение
-deactivate
-rm -rf .venv
-mv .venv_new .venv
-```
+	# Заменить старое окружение
+	deactivate
+	rm -rf .venv
+	mv .venv_new .venv
+
+	# Активировать новое окружение
+	source .venv/bin/activate  # Windows: .venv\Scripts\activate
+	```
 
 ### 3. Обновление Node.js зависимостей
 
