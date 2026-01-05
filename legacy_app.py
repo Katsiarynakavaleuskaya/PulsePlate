@@ -64,10 +64,11 @@ from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.services import recipe_store
 from app.services.food_store import get_food
-from decimal import Decimal
 
 # Legacy BMI helpers removed from request-path (PR-457=A)
 # /plan now delegates to canonical BMI engine via compat layer
+from decimal import Decimal
+
 from app.routers.bmi import bmi_calculate_handler
 from core.bmi.compat_plan import legacy_plan_category
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
