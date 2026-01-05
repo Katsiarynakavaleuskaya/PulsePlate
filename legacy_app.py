@@ -1569,43 +1569,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 # ---------- Core logic ----------
 
 
-def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
-    return round(float(weight_kg) / (height_m**2), 1)
-
-
-def normalize_flags(
-    gender: str, pregnant: Union[str, bool], athlete: Union[str, bool]
-) -> Dict[str, bool]:
-    gender_norm = {
-        "male": "male",
-        "муж": "male",
-        "м": "male",
-        "female": "female",
-        "жен": "female",
-        "ж": "female",
-    }.get(gender, gender)
-
-    # Handle boolean values directly, otherwise parse strings
-    if isinstance(pregnant, bool):
-        is_pregnant = pregnant and gender_norm == "female"
-    else:
-        preg_true = pregnant in {"да", "беременна", "pregnant", "yes", "y"}
-        preg_false = pregnant in {"нет", "no", "not", "n"}
-        is_pregnant = preg_true and gender_norm == "female" and not preg_false
-
-    # Handle boolean values directly, otherwise parse strings
-    if isinstance(athlete, bool):
-        is_athlete = athlete
-    else:
-        is_athlete = athlete in {"спортсмен", "да", "yes", "y", "athlete"}
-
-    return {
-        "gender_male": gender_norm == "male",
-        "is_pregnant": is_pregnant,
-        "is_athlete": is_athlete,
-    }
-
-
 def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
     if waist_cm is None:
         return ""
