@@ -55,8 +55,7 @@ def test_no_legacy_bmi_imports_in_request_path() -> None:
                 for alias in node.names:
                     if alias.name in FORBIDDEN_IMPORT_MODULES:
                         violations.append(
-                            f"Forbidden import '{alias.name}' in {path} "
-                            f"(line {node.lineno})"
+                            f"Forbidden import '{alias.name}' in {path} " f"(line {node.lineno})"
                         )
 
             # Check: from bmi_core import ...
@@ -64,12 +63,11 @@ def test_no_legacy_bmi_imports_in_request_path() -> None:
                 mod = node.module or ""
                 if mod in FORBIDDEN_IMPORT_FROM:
                     violations.append(
-                        f"Forbidden import-from '{mod}' in {path} "
-                        f"(line {node.lineno})"
+                        f"Forbidden import-from '{mod}' in {path} " f"(line {node.lineno})"
                     )
 
-    assert not violations, (
-        "Legacy BMI helper imports found in request-path files:\n" + "\n".join(violations)
+    assert not violations, "Legacy BMI helper imports found in request-path files:\n" + "\n".join(
+        violations
     )
 
 
@@ -91,8 +89,7 @@ def test_no_legacy_bmi_calls_in_request_path() -> None:
                 if isinstance(fn, ast.Name):
                     if fn.id in FORBIDDEN_CALL_NAMES:
                         violations.append(
-                            f"Forbidden call '{fn.id}()' in {path} "
-                            f"(line {node.lineno})"
+                            f"Forbidden call '{fn.id}()' in {path} " f"(line {node.lineno})"
                         )
 
                 # Check: legacy_app.calc_bmi(...) or bmi_core.bmi_category(...)
@@ -103,7 +100,6 @@ def test_no_legacy_bmi_calls_in_request_path() -> None:
                             f"(line {node.lineno})"
                         )
 
-    assert not violations, (
-        "Legacy BMI helper calls found in request-path files:\n" + "\n".join(violations)
+    assert not violations, "Legacy BMI helper calls found in request-path files:\n" + "\n".join(
+        violations
     )
-
