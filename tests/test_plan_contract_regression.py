@@ -187,6 +187,31 @@ def test_plan_contract_premium_reco_when_premium(client: TestClient) -> None:
     assert len(data[PREMIUM_KEY]) > 0
 
 
+def test_plan_pregnant_flag_does_not_accept_athlete_keywords(client: TestClient) -> None:
+    """
+    RU: pregnant не должен принимать athlete/спортсмен как truthy.
+    EN: pregnant must not treat athlete keywords as truthy.
+
+    Regression test: если pregnant="athlete", это НЕ должно давать pregnant=True.
+    """
+    payload = _base_payload(
+        pregnant="athlete",  # BUG bait: must be treated as False
+        athlete="no",
+        age=30,
+        lang="en",
+    )
+    resp = client.post("/plan", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # If pregnant was mis-normalized to True, legacy contract would return category=None
+    assert data["category"] is not None, (
+        "pregnant='athlete' must NOT normalize to True. "
+        "If category is None, pregnant was incorrectly normalized."
+    )
+    assert isinstance(data["category"], str), "category must be string (not None)"
+
+
 def test_plan_contract_teen_threshold_uses_canonical_group(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
