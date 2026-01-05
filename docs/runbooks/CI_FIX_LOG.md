@@ -42,7 +42,7 @@ Object.defineProperty(window, 'location', {
 ```yaml
 env:
   VITE_API_BASE: "http://localhost:8000/api/v1"
-  VITE_API_KEY: "test_key"
+  VITE_API_KEY: "test_key"  # pragma: allowlist secret
   VITE_DEV_MODE: "true"
   VITE_ANALYTICS_ENABLED: "false"
 ```

@@ -516,9 +516,9 @@ ssh -i ~/.ssh/pulseplate_deploy user@YOUR_SERVER_IP
 
      Чтобы получить приватный ключ:
      ```bash
-     cat ~/.ssh/pulseplate_deploy
-     ```
-     Скопируйте ВСЁ, включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` и `-----END OPENSSH PRIVATE KEY-----`
+    cat ~/.ssh/pulseplate_deploy
+    ```
+    Скопируйте ВСЁ, включая строки `-----BEGIN OPENSSH PRIVATE KEY-----` и `-----END OPENSSH PRIVATE KEY-----`  # pragma: allowlist secret
 
      ```text
      Name: GHCR_READ_TOKEN
