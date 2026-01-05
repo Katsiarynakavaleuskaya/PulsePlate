@@ -81,7 +81,7 @@ def _assert_plan_contract_shape(data: dict, lang: str, premium: bool) -> None:
         assert len(data["action"]) > 0
 
 
-def _base_payload(**overrides: dict) -> dict:
+def _base_payload(**overrides: Any) -> dict:
     """Helper to build base /plan payload."""
     base = {
         "weight_kg": 70.0,
