@@ -7,6 +7,11 @@ set -euo pipefail
 
 export IMAGE_REF TAG PRODUCTION_DOMAIN
 
+# Healthcheck configuration
+HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-12}"
+HEALTH_SLEEP_S="${HEALTH_SLEEP_S:-2}"
+HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
+
 COMPOSE_FILE="${COMPOSE_FILE:-}"
 DEPLOY_DIR="${DEPLOY_DIR:-}"
 
@@ -84,29 +89,27 @@ dc up -d --remove-orphans
 DOMAIN="${PRODUCTION_DOMAIN}"
 HEALTH_URL="https://${DOMAIN}/health"
 attempt=1
-max_attempts=12
-sleep_s=2
 
 # Quick smoke check on HTTP (should return 308 redirect to HTTPS)
 echo "Smoke check HTTP..."
 curl -sS -o /dev/null -w "HTTP:%{http_code}\n" \
-  "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time 10 || true
+  "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time "${HEALTH_CURL_MAX_TIME_S}" || true
 
 # Main healthcheck on HTTPS (does not depend on external DNS)
-echo "Healthcheck HTTPS (attempt ${attempt}/${max_attempts})..."
-until curl -fsS --max-time 10 "$HEALTH_URL" \
+echo "Healthcheck HTTPS (attempt ${attempt}/${HEALTH_MAX_ATTEMPTS})..."
+until curl -fsS --max-time "${HEALTH_CURL_MAX_TIME_S}" "$HEALTH_URL" \
     --resolve "${DOMAIN}:443:127.0.0.1" > /dev/null; do
-  if [ "$attempt" -ge "$max_attempts" ]; then
-    echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
+  if [ "$attempt" -ge "$HEALTH_MAX_ATTEMPTS" ]; then
+    echo "❌ Healthcheck failed after ${HEALTH_MAX_ATTEMPTS} attempts: $HEALTH_URL" >&2
     echo "Container status:"
     dc ps || true
     echo "Container logs (last 200 lines):"
     dc logs --tail=200 || true
     exit 1
   fi
-  echo "Healthcheck not ready (attempt ${attempt}/${max_attempts}), retrying in ${sleep_s}s..."
+  echo "Healthcheck not ready (attempt ${attempt}/${HEALTH_MAX_ATTEMPTS}), retrying in ${HEALTH_SLEEP_S}s..."
   attempt=$((attempt + 1))
-  sleep "$sleep_s"
+  sleep "${HEALTH_SLEEP_S}"
 done
 
 echo "✅ Healthcheck OK"
