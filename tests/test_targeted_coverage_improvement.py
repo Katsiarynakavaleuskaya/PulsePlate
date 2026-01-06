@@ -16,13 +16,9 @@ class TestTargetedCoverageImprovement:
     """Targeted tests to improve coverage for uncovered lines."""
 
     def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def setup_method(self):
         """Set up test environment."""
         os.environ["API_KEY"] = "test-key"
+        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(app)
 
     def teardown_method(self):
@@ -77,6 +73,32 @@ class TestTargetedCoverageImprovement:
 
         result = normalize_flags("male", "no", "athlete")
         assert result["is_athlete"] is True
+
+    @pytest.mark.parametrize("pregnant_value", ["pregnant", "беременна", "беременная"])
+    def test_normalize_flags_pregnant_synonyms_are_true_for_female(
+        self, pregnant_value: str
+    ) -> None:
+        """
+        RU: Legacy public API: беременность должна распознаваться по строковым синонимам.
+        EN: Legacy public API: pregnancy synonyms must be treated as true.
+        """
+        from app import normalize_flags
+
+        result = normalize_flags(gender="female", pregnant=pregnant_value, athlete="no")
+        assert result["is_pregnant"] is True
+
+    @pytest.mark.parametrize("bad_pregnant_value", ["athlete", "спортсмен"])
+    def test_normalize_flags_pregnant_must_not_accept_athlete_keywords(
+        self, bad_pregnant_value: str
+    ) -> None:
+        """
+        RU: Athlete keywords MUST NOT imply pregnant=True.
+        EN: Athlete keywords MUST NOT imply pregnant=True.
+        """
+        from app import normalize_flags
+
+        result = normalize_flags(gender="female", pregnant=bad_pregnant_value, athlete="no")
+        assert result["is_pregnant"] is False
 
     def test_waist_risk_edge_cases(self):
         """Test edge cases for waist_risk function."""
