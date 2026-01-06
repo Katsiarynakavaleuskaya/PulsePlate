@@ -17,7 +17,6 @@ D18_5 = Decimal("18.5")
 D24_5 = Decimal("24.5")
 D25_0 = Decimal("25.0")
 D26_0 = Decimal("26.0")
-D27_0 = Decimal("27.0")
 D30_0 = Decimal("30.0")
 D35_0 = Decimal("35.0")
 D40_0 = Decimal("40.0")
@@ -72,10 +71,19 @@ def _category_slug_from_bmi(*, bmi: Decimal, group: str) -> str | None:
 
     # Legacy thresholds (from bmi_core.py and legacy_app.py)
     if group == "athlete":
-        # Athlete threshold: 27.0
-        if bmi < D27_0:
+        # Legacy /plan parity: athlete still uses full adult BMI buckets.
+        # Underweight/obesity tiers must remain reachable.
+        if bmi < D18_5:
+            return "underweight"
+        elif bmi < D25_0:
             return "normal"
-        return "overweight"
+        elif bmi < D30_0:
+            return "overweight"
+        elif bmi < D35_0:
+            return "obesity_1"
+        elif bmi < D40_0:
+            return "obesity_2"
+        return "obesity_3"
     elif group == "elderly":
         # Elderly thresholds: 17.5 / 26.0
         if bmi < D17_5:

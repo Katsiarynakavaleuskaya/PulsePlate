@@ -315,3 +315,49 @@ def test_plan_contract_too_young_returns_category_none(
         f"Expected category=None for too_young (age < 12), "
         f"got '{data['category']}'. This indicates adult thresholds were incorrectly applied."
     )
+
+
+def test_plan_contract_athlete_minor_allows_obesity_tiers_via_compat(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    RU: Для minors athlete compat-категоризация должна уметь underweight/obesity tiers.
+    EN: Athlete minors must be able to hit underweight/obesity tiers via compat mapping.
+
+    Regression: previously athlete mapping only returned normal/overweight, which broke legacy parity
+    for minors when engine_category=None.
+    """
+    import app.routers.bmi as bmi_router
+    import core.bmi.engine as engine
+    from core.i18n import t
+
+    fixed_result = BMICalculateResult(
+        bmi=35.1,  # should map to obesity_2 (adult buckets)
+        category=None,  # force compat mapping for minors
+        group="athlete",
+        group_display="Athlete",
+        interpretation="Athlete minor obesity-tier regression marker.",
+        wht_ratio=None,
+        waist_risk=None,
+        notes=(),
+        age_band="teen",
+    )
+
+    def _fixed_engine(**kwargs: Any) -> BMICalculateResult:
+        return fixed_result
+
+    # Patch canonical engine entrypoint + router reference (handler wiring)
+    monkeypatch.setattr(engine, "calculate_bmi_result", _fixed_engine, raising=True)
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fixed_engine, raising=True)
+
+    payload = _base_payload(
+        age=15,  # minor => compat mapping active when category=None
+        athlete="yes",
+        lang="en",
+    )
+    resp = client.post("/plan", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["category"] == t("en", "bmi_obese_2")
