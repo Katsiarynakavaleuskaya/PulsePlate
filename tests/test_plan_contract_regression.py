@@ -139,12 +139,13 @@ def test_plan_contract_shape_es_falls_back_to_en(client: TestClient) -> None:
     assert es_data["action"] == en_data["action"], "ES should fallback to EN action"
 
 
-def test_plan_contract_category_none_for_pregnant(client: TestClient) -> None:
+@pytest.mark.parametrize("pregnant_value", ["yes", "pregnant", "беременна", "беременная"])
+def test_plan_contract_category_none_for_pregnant(client: TestClient, pregnant_value: str) -> None:
     """
     RU: Проверка, что category=None для pregnant пользователей (canonical поведение).
     EN: Verify category=None for pregnant users (canonical behavior).
     """
-    payload = _base_payload(pregnant="yes")
+    payload = _base_payload(pregnant=pregnant_value)
     resp = client.post("/plan", json=payload)
     assert resp.status_code == 200
 

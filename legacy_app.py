@@ -416,7 +416,7 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
         from core.food_apis.scheduler import get_update_scheduler as _late_getter
 
         result = await _late_getter()
-        return result
+        return cast(DatabaseUpdateScheduler, result)
     result = await _scheduler_getter()
     return cast(DatabaseUpdateScheduler, result)
 
@@ -1427,14 +1427,15 @@ class BMIRequest(BaseModel):
             values["gender"] = mapping.get(s, s)
         # Normalize string booleans for pregnant/athlete
         # IMPORTANT: athlete keywords must NEVER imply pregnant=True
-        _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-        _YES_VALUES_ATHLETE = _YES_VALUES_DEFAULT | {"спортсмен", "athlete"}
+        _YES_VALUES_BASE = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+        _YES_VALUES_PREGNANT = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
+        _YES_VALUES_ATHLETE = _YES_VALUES_BASE | {"спортсмен", "athlete"}
 
-        # Normalize pregnant (default yes values only)
+        # Normalize pregnant (pregnancy synonyms supported)
         v_pregnant = values.get("pregnant")
         if isinstance(v_pregnant, str):
             vs = v_pregnant.strip().lower()
-            values["pregnant"] = vs in _YES_VALUES_DEFAULT
+            values["pregnant"] = vs in _YES_VALUES_PREGNANT
 
         # Normalize athlete (includes sport keywords)
         v_athlete = values.get("athlete")
@@ -1496,7 +1497,7 @@ class BMIRequestV1(BaseModel):
         """Validate that weight and height are realistic."""
         # Check for unrealistic weight (too low for height)
         height_m = self.height_cm / 100.0
-        bmi = self.weight_kg / (height_m**2)
+        bmi = float(self.weight_kg) / (height_m**2)
 
         if bmi < 10:  # Unrealistically low BMI
             raise ValueError("Weight is unrealistically low for the given height")
@@ -2240,16 +2241,12 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     engine_category = canonical.get("category")
 
     # For pregnant, legacy /plan returns category=None (preserved)
-    # Normalize pregnant flag inline for category=None check only
+    # Normalize pregnant for category=None decision (legacy parity + synonym support).
     # IMPORTANT: athlete keywords must NEVER imply pregnant=True
-    _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    _YES_VALUES_BASE = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    _YES_VALUES_PREGNANT = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
 
-    def _normalize_bool_inline(value: str | bool, *, yes_values: set[str]) -> bool:
-        """Thin wrapper over canonical bool normalization (no duplication)."""
-        return _normalize_bool_flag(value, yes_values=yes_values)
-
-    # IMPORTANT: athlete keywords must NEVER imply pregnant=True
-    pregnant_bool = _normalize_bool_inline(req.pregnant, yes_values=_YES_VALUES_DEFAULT)
+    pregnant_bool = _normalize_bool_flag(req.pregnant, yes_values=_YES_VALUES_PREGNANT)
     if pregnant_bool:
         cat = None
     else:
