@@ -90,7 +90,7 @@ DOMAIN="${PRODUCTION_DOMAIN}"
 HEALTH_URL="https://${DOMAIN}/health"
 attempt=1
 
-# Quick smoke check on HTTP (should return 308 redirect to HTTPS)
+# Quick non-blocking HTTP smoke check (diagnostic only; expected 308 -> HTTPS redirect)
 echo "Smoke check HTTP..."
 curl -sS -o /dev/null -w "HTTP:%{http_code}\n" \
   "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time "${HEALTH_CURL_MAX_TIME_S}" || true
