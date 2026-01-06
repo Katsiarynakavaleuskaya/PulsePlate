@@ -409,16 +409,16 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
 
     if active_override is not None:
         logger.debug(f"Using test scheduler override: {active_override}")
-        result = await active_override()
-        return cast(DatabaseUpdateScheduler, result)
+        override_scheduler = await active_override()
+        return cast(DatabaseUpdateScheduler, override_scheduler)
 
     if _scheduler_getter is None:
         from core.food_apis.scheduler import get_update_scheduler as _late_getter
 
-        result = await _late_getter()
-        return cast(DatabaseUpdateScheduler, result)
-    result = await _scheduler_getter()
-    return cast(DatabaseUpdateScheduler, result)
+        scheduler = await _late_getter()
+        return scheduler
+    scheduler = await _scheduler_getter()
+    return cast(DatabaseUpdateScheduler, scheduler)
 
 
 # Stable reference to the original getter for comparisons when monkeypatched in tests
@@ -2246,7 +2246,10 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     _YES_VALUES_BASE = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
     _YES_VALUES_PREGNANT = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
 
-    pregnant_bool = _normalize_bool_flag(req.pregnant, yes_values=_YES_VALUES_PREGNANT)
+    # Legacy parity: pregnancy only applies to female gender.
+    pregnant_bool = _normalize_bool_flag(req.pregnant, yes_values=_YES_VALUES_PREGNANT) and (
+        req.gender == "female"
+    )
     if pregnant_bool:
         cat = None
     else:

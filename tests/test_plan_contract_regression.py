@@ -142,15 +142,29 @@ def test_plan_contract_shape_es_falls_back_to_en(client: TestClient) -> None:
 @pytest.mark.parametrize("pregnant_value", ["yes", "pregnant", "беременна", "беременная"])
 def test_plan_contract_category_none_for_pregnant(client: TestClient, pregnant_value: str) -> None:
     """
-    RU: Проверка, что category=None для pregnant пользователей (canonical поведение).
-    EN: Verify category=None for pregnant users (canonical behavior).
+    RU: Проверка, что category=None для pregnant пользователей (legacy parity: только female).
+    EN: Verify category=None for pregnant users (legacy parity: female only).
     """
-    payload = _base_payload(pregnant=pregnant_value)
+    payload = _base_payload(gender="female", pregnant=pregnant_value)
     resp = client.post("/plan", json=payload)
     assert resp.status_code == 200
 
     data = resp.json()
     assert data["category"] is None, "category must be None for pregnant users"
+
+
+def test_plan_contract_male_pregnant_flag_does_not_clear_category(client: TestClient) -> None:
+    """
+    RU: Legacy parity: pregnant=True не должен работать для male (category остаётся строкой).
+    EN: Legacy parity: pregnant=True must not apply to male (category remains a string).
+    """
+    payload = _base_payload(gender="male", pregnant="yes", age=30, lang="en")
+    resp = client.post("/plan", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["category"] is not None, "male + pregnant=yes must NOT force category=None"
+    assert isinstance(data["category"], str)
 
 
 def test_plan_contract_minors_legacy_behavior_is_preserved(client: TestClient) -> None:
