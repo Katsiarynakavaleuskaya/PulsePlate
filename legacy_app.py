@@ -2217,7 +2217,6 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # Normalize pregnant flag inline for category=None check only
     # IMPORTANT: athlete keywords must NEVER imply pregnant=True
     _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-    _YES_VALUES_ATHLETE = _YES_VALUES_DEFAULT | {"спортсмен", "athlete"}
 
     def _normalize_bool_inline(value: str | bool, *, yes_values: set[str]) -> bool:
         """Inline bool normalization (matches canonical handler logic)."""
