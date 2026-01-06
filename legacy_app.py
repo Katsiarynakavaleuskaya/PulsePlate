@@ -1367,6 +1367,14 @@ if _is_rate_limiting_available():
 
 INSIGHT_TEXT_MAX_LENGTH = 2000
 
+# Shared boolean normalization vocabulary for legacy endpoints / compat helpers.
+# Keep synonyms in one place to avoid drift across models/endpoints/public-API wrappers.
+#
+# IMPORTANT: athlete keywords must NEVER imply pregnant=True (and vice versa).
+_YES_VALUES_BASE: set[str] = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+_YES_VALUES_PREGNANT: set[str] = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
+_YES_VALUES_ATHLETE: set[str] = _YES_VALUES_BASE | {"спортсмен", "athlete"}
+
 
 class InsightRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=INSIGHT_TEXT_MAX_LENGTH)
@@ -1433,10 +1441,6 @@ class BMIRequest(BaseModel):
             values["gender"] = mapping.get(s, s)
         # Normalize string booleans for pregnant/athlete
         # IMPORTANT: athlete keywords must NEVER imply pregnant=True
-        _YES_VALUES_BASE = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-        _YES_VALUES_PREGNANT = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
-        _YES_VALUES_ATHLETE = _YES_VALUES_BASE | {"спортсмен", "athlete"}
-
         # Normalize pregnant (pregnancy synonyms supported)
         v_pregnant = values.get("pregnant")
         if isinstance(v_pregnant, str):
@@ -1601,7 +1605,7 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
 
     # Canonical compute returns float; legacy surface returns float rounded to 1dp
     bmi = _compute_bmi(weight_kg=weight_kg, height_m=height_m)
-    return round(bmi, 1)
+    return bmi
 
 
 def normalize_flags(
@@ -1620,38 +1624,13 @@ def normalize_flags(
     gender_norm = _normalize_gender(gender)
     gender_male = gender_norm == "male"
 
-    # Pregnant yes-values: includes pregnancy synonyms, but NOT athlete keywords
-    _PREGNANT_YES_VALUES = {
-        "yes",
-        "y",
-        "true",
-        "1",
-        "да",
-        "д",
-        "si",
-        "sí",
-        "pregnant",
-        "беременна",
-        "беременная",  # legacy pregnancy synonyms
-    }
-    is_pregnant = (
-        _normalize_bool_flag(pregnant, yes_values=_PREGNANT_YES_VALUES) and not gender_male
+    # Legacy policy: pregnant applies to female only.
+    is_pregnant = _normalize_bool_flag(pregnant, yes_values=_YES_VALUES_PREGNANT) and (
+        gender_norm == "female"
     )
 
-    # Athlete yes-values: includes athlete keywords, but NOT pregnancy synonyms
-    _ATHLETE_YES_VALUES = {
-        "yes",
-        "y",
-        "true",
-        "1",
-        "да",
-        "д",
-        "si",
-        "sí",
-        "athlete",
-        "спортсмен",  # athlete-only keywords
-    }
-    is_athlete = _normalize_bool_flag(athlete, yes_values=_ATHLETE_YES_VALUES)
+    # Athlete has no gender-gate (male/female allowed).
+    is_athlete = _normalize_bool_flag(athlete, yes_values=_YES_VALUES_ATHLETE)
 
     return {
         "gender_male": gender_male,
@@ -2256,9 +2235,6 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     # For pregnant, legacy /plan returns category=None (preserved)
     # Normalize pregnant for category=None decision (legacy parity + synonym support).
     # IMPORTANT: athlete keywords must NEVER imply pregnant=True
-    _YES_VALUES_BASE = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-    _YES_VALUES_PREGNANT = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
-
     # Legacy parity: pregnancy only applies to female gender.
     pregnant_bool = _normalize_bool_flag(req.pregnant, yes_values=_YES_VALUES_PREGNANT) and (
         req.gender == "female"
