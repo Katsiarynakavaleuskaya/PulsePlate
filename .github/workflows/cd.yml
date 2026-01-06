@@ -2,12 +2,13 @@
 # CD Workflow - Continuous Deployment
 #
 # Simplified CD workflow: Build and push Docker images only.
-# SSH deployment steps are commented out until staging/production servers are available.
+# SSH deployment steps are available. Production deploy runs on semver tags `v*`
+# when required production environment secrets are configured.
 #
-# When servers are ready:
-# 1. Enable deploy job(s)
-# 2. Add secrets to GitHub environments (staging, production)
-# 3. Configure SSH_HOST_STAGING, SSH_HOST_PRODUCTION, SSH_KEY, etc.
+# To enable production auto-deploy:
+# - Configure `production` environment secrets: SSH_HOST_PRODUCTION, SSH_USER, SSH_KEY,
+#   PRODUCTION_DOMAIN, GHCR_READ_TOKEN (if needed)
+# - Ensure the server has the deploy directory and docker compose files (see deploy/PRODUCTION.md)
 
 name: CD
 
@@ -210,7 +211,7 @@ jobs:
           target: production
 
   deploy-production:
-    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE == 'ssh'
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     environment:
