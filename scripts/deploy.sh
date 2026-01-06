@@ -7,6 +7,11 @@ STAGING_DOMAIN=${STAGING_DOMAIN:?"STAGING_DOMAIN not set"}
 GHCR_TOKEN=${GHCR_TOKEN:?"GHCR_TOKEN not set"}
 GHCR_USER=${GHCR_USER:?"GHCR_USER not set"}
 
+# Healthcheck configuration
+HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-30}"
+HEALTH_SLEEP_S="${HEALTH_SLEEP_S:-2}"
+HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
+
 IMG_REF="${1:-latest}"         # тег/диджест образа
 COMPOSE="docker compose -f /srv/pulseplate-staging/docker-compose.staging.yaml"
 
@@ -102,14 +107,25 @@ else
 fi
 
 echo "[post] Smoke check with retry"
-max_attempts=30
+# Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)
+# This checks locally via 127.0.0.1 but uses the domain for Host/SNI headers (TLS works correctly)
+DOMAIN="${STAGING_DOMAIN}"
+HEALTH_URL="https://${DOMAIN}/health"
 attempt=0
-while [ $attempt -lt $max_attempts ]; do
-  attempt=$((attempt + 1))
-  echo "Health check attempt $attempt/$max_attempts..."
 
-  # Capture curl output and errors
-  curl_output=$(curl -fsS "https://${STAGING_DOMAIN}/health" 2>&1)
+# Quick non-blocking HTTP smoke check (diagnostic only; expected 308 -> HTTPS redirect)
+echo "Smoke check HTTP..."
+curl -sS -o /dev/null -w "HTTP:%{http_code}\n" \
+  "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time "${HEALTH_CURL_MAX_TIME_S}" || true
+
+# Main healthcheck on HTTPS (does not depend on external DNS)
+while [ $attempt -lt "$HEALTH_MAX_ATTEMPTS" ]; do
+  attempt=$((attempt + 1))
+  echo "Health check attempt $attempt/$HEALTH_MAX_ATTEMPTS..."
+
+  # Use --resolve to avoid DNS dependency
+  curl_output=$(curl -fsS --max-time "${HEALTH_CURL_MAX_TIME_S}" "${HEALTH_URL}" \
+    --resolve "${DOMAIN}:443:127.0.0.1" 2>&1)
   curl_exit_code=$?
 
   if [ $curl_exit_code -eq 0 ]; then
@@ -119,15 +135,17 @@ while [ $attempt -lt $max_attempts ]; do
     echo "❌ Health check failed (exit code: $curl_exit_code)" >&2
     echo "Error details: $curl_output" >&2
 
-    if [ $attempt -eq $max_attempts ]; then
-      echo "❌ Health check failed after ${max_attempts} attempts" >&2
+    if [ $attempt -eq "$HEALTH_MAX_ATTEMPTS" ]; then
+      echo "❌ Health check failed after ${HEALTH_MAX_ATTEMPTS} attempts" >&2
       echo "Final error: $curl_output" >&2
       exit 1
     fi
 
-    echo "Waiting 2 seconds before retry..."
-    sleep 2
+    echo "Waiting ${HEALTH_SLEEP_S} seconds before retry..."
+    sleep "${HEALTH_SLEEP_S}"
   fi
 done
+
+echo "✅ Healthcheck OK"
 
 echo "✅ Staging deployed: $IMG_REF"
