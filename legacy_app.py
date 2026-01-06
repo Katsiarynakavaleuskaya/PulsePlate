@@ -70,6 +70,7 @@ from app.services.food_store import get_food
 from decimal import Decimal
 
 from core.bmi.compat_plan import legacy_plan_category
+from core.bmi.engine import _normalize_bool_flag
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.fingerprint_security import compute_fingerprint
 from core.log_retention import (
@@ -2219,13 +2220,8 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     _YES_VALUES_DEFAULT = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
 
     def _normalize_bool_inline(value: str | bool, *, yes_values: set[str]) -> bool:
-        """Inline bool normalization (matches canonical handler logic)."""
-        if isinstance(value, bool):
-            return value
-        if not isinstance(value, str):
-            return False
-        s = value.strip().lower()
-        return s in yes_values
+        """Thin wrapper over canonical bool normalization (no duplication)."""
+        return _normalize_bool_flag(value, yes_values=yes_values)
 
     # IMPORTANT: athlete keywords must NEVER imply pregnant=True
     pregnant_bool = _normalize_bool_inline(req.pregnant, yes_values=_YES_VALUES_DEFAULT)
