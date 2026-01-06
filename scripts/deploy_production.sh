@@ -79,13 +79,28 @@ dc() {
 dc pull
 dc up -d --remove-orphans
 
-HEALTH_URL="https://${PRODUCTION_DOMAIN}/health"
+# Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)
+# This checks locally via 127.0.0.1 but uses the domain for Host/SNI headers (TLS works correctly)
+DOMAIN="${PRODUCTION_DOMAIN}"
+HEALTH_URL="https://${DOMAIN}/health"
 attempt=1
 max_attempts=12
 sleep_s=2
-until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
+
+# Quick smoke check on HTTP (should return 308 redirect to HTTPS)
+echo "Smoke check HTTP..."
+curl -sS -o /dev/null -w "HTTP:%{http_code}\n" \
+  "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time 10 || true
+
+# Main healthcheck on HTTPS (does not depend on external DNS)
+echo "Healthcheck HTTPS (attempt ${attempt}/${max_attempts})..."
+until curl -fsS --max-time 10 "$HEALTH_URL" \
+    --resolve "${DOMAIN}:443:127.0.0.1" > /dev/null; do
   if [ "$attempt" -ge "$max_attempts" ]; then
     echo "❌ Healthcheck failed after ${max_attempts} attempts: $HEALTH_URL" >&2
+    echo "Container status:"
+    dc ps || true
+    echo "Container logs (last 200 lines):"
     dc logs --tail=200 || true
     exit 1
   fi
@@ -93,5 +108,7 @@ until curl -fsS --max-time 10 "$HEALTH_URL" > /dev/null; do
   attempt=$((attempt + 1))
   sleep "$sleep_s"
 done
+
+echo "✅ Healthcheck OK"
 
 docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | head -n 20

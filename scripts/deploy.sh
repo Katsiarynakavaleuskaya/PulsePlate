@@ -102,14 +102,26 @@ else
 fi
 
 echo "[post] Smoke check with retry"
+# Healthcheck using --resolve to avoid DNS dependency (works even if DNS is temporarily unavailable)
+# This checks locally via 127.0.0.1 but uses the domain for Host/SNI headers (TLS works correctly)
+DOMAIN="${STAGING_DOMAIN}"
+HEALTH_URL="https://${DOMAIN}/health"
 max_attempts=30
 attempt=0
+
+# Quick smoke check on HTTP (should return 308 redirect to HTTPS)
+echo "Smoke check HTTP..."
+curl -sS -o /dev/null -w "HTTP:%{http_code}\n" \
+  "http://${DOMAIN}/health" --resolve "${DOMAIN}:80:127.0.0.1" --max-time 10 || true
+
+# Main healthcheck on HTTPS (does not depend on external DNS)
 while [ $attempt -lt $max_attempts ]; do
   attempt=$((attempt + 1))
   echo "Health check attempt $attempt/$max_attempts..."
 
-  # Capture curl output and errors
-  curl_output=$(curl -fsS "https://${STAGING_DOMAIN}/health" 2>&1)
+  # Use --resolve to avoid DNS dependency
+  curl_output=$(curl -fsS --max-time 10 "${HEALTH_URL}" \
+    --resolve "${DOMAIN}:443:127.0.0.1" 2>&1)
   curl_exit_code=$?
 
   if [ $curl_exit_code -eq 0 ]; then
