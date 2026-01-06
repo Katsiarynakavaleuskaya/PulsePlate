@@ -226,6 +226,7 @@ def test_plan_contract_teen_threshold_uses_canonical_group(
     """
     # Patch engine to return teen group and BMI=24.7
     import core.bmi.engine as engine
+    import app.routers.bmi as bmi_router
 
     fixed_result = BMICalculateResult(
         bmi=24.7,
@@ -242,7 +243,10 @@ def test_plan_contract_teen_threshold_uses_canonical_group(
     def _fixed_engine(**kwargs: Any) -> BMICalculateResult:
         return fixed_result
 
+    # Patch at source (engine module)
     monkeypatch.setattr(engine, "calculate_bmi_result", _fixed_engine, raising=True)
+    # Patch the already-imported reference in bmi_router (required for runtime)
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fixed_engine, raising=True)
 
     # Request for 15-year-old (teen)
     payload = _base_payload(age=15, weight_kg=70.0, height_m=1.70)  # BMI ≈ 24.7
