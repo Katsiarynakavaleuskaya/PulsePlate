@@ -1371,7 +1371,12 @@ INSIGHT_TEXT_MAX_LENGTH = 2000
 # Keep synonyms in one place to avoid drift across models/endpoints/public-API wrappers.
 #
 # IMPORTANT: athlete keywords must NEVER imply pregnant=True (and vice versa).
-_YES_VALUES_BASE: set[str] = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+#
+# NOTE: We intentionally reuse canonical base vocabulary from core to avoid drift
+# (e.g. includes "истина"). Extensions remain legacy-specific.
+from core.bmi.engine import _DEFAULT_YES_VALUES as _CANONICAL_YES_VALUES_BASE  # noqa: E402
+
+_YES_VALUES_BASE: set[str] = set(_CANONICAL_YES_VALUES_BASE)
 _YES_VALUES_PREGNANT: set[str] = _YES_VALUES_BASE | {"pregnant", "беременна", "беременная"}
 _YES_VALUES_ATHLETE: set[str] = _YES_VALUES_BASE | {"спортсмен", "athlete"}
 
@@ -1603,9 +1608,9 @@ def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
     # Import here to avoid circular dependencies
     from core.bmi.engine import _compute_bmi  # compat import (core-only)
 
-    # Canonical compute returns float; legacy surface returns float rounded to 1dp
+    # Legacy contract: float rounded to 1 decimal (guarded explicitly).
     bmi = _compute_bmi(weight_kg=weight_kg, height_m=height_m)
-    return bmi
+    return round(bmi, 1)
 
 
 def normalize_flags(
