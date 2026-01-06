@@ -2127,7 +2127,7 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=e.errors(),
         ) from e
 
@@ -2341,7 +2341,7 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=e.errors(),
         ) from e
 
