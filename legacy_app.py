@@ -1610,15 +1610,34 @@ def normalize_flags(
 
     # Pregnant yes-values: includes pregnancy synonyms, but NOT athlete keywords
     _PREGNANT_YES_VALUES = {
-        "yes", "y", "true", "1", "да", "д", "si", "sí",
-        "pregnant", "беременна", "беременная",  # legacy pregnancy synonyms
+        "yes",
+        "y",
+        "true",
+        "1",
+        "да",
+        "д",
+        "si",
+        "sí",
+        "pregnant",
+        "беременна",
+        "беременная",  # legacy pregnancy synonyms
     }
-    is_pregnant = _normalize_bool_flag(pregnant, yes_values=_PREGNANT_YES_VALUES) and not gender_male
+    is_pregnant = (
+        _normalize_bool_flag(pregnant, yes_values=_PREGNANT_YES_VALUES) and not gender_male
+    )
 
     # Athlete yes-values: includes athlete keywords, but NOT pregnancy synonyms
     _ATHLETE_YES_VALUES = {
-        "yes", "y", "true", "1", "да", "д", "si", "sí",
-        "athlete", "спортсмен",  # athlete-only keywords
+        "yes",
+        "y",
+        "true",
+        "1",
+        "да",
+        "д",
+        "si",
+        "sí",
+        "athlete",
+        "спортсмен",  # athlete-only keywords
     }
     is_athlete = _normalize_bool_flag(athlete, yes_values=_ATHLETE_YES_VALUES)
 
