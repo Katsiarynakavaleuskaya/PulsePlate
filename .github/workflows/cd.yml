@@ -211,7 +211,9 @@ jobs:
           target: production
 
   deploy-production:
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Default deploy mode is SSH from GitHub-hosted runners unless explicitly set to self-hosted.
+    # This prevents both prod deploy jobs from being eligible at the same time.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PROD_DEPLOY_MODE != 'self-hosted'
     needs: [production-gates, build-production]
     runs-on: ubuntu-latest
     environment:
