@@ -131,7 +131,7 @@ except ImportError:
 slowapi_available = Limiter is not None
 
 vip_router: Optional[APIRouter] = None
-_scheduler_getter: Optional[Callable[[], Awaitable[Any]]] = None
+_scheduler_getter: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = None
 
 # Track whether the app is running on a degraded/fallback database so /health/db
 # can report an accurate status (used by tests simulating DB failures).
@@ -396,7 +396,7 @@ def _calculate_all_tdee_wrapper(
 
 
 # Test hook for overriding get_update_scheduler (used by rollback endpoint tests)
-_test_scheduler_override: Optional[Callable[[], Awaitable[Any]]] = None
+_test_scheduler_override: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = None
 
 
 async def get_update_scheduler() -> DatabaseUpdateScheduler:
@@ -404,13 +404,19 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
     # Check test override first (for FastAPI endpoint testing via TestClient)
     import sys as _sys
 
-    pkg_override = getattr(_sys.modules.get("app"), "_test_scheduler_override", None)
-    active_override = pkg_override if pkg_override is not None else _test_scheduler_override
+    pkg_override_raw = getattr(_sys.modules.get("app"), "_test_scheduler_override", None)
+    pkg_override = cast(
+        Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]],
+        pkg_override_raw,
+    )
+    active_override: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = (
+        pkg_override if pkg_override is not None else _test_scheduler_override
+    )
 
     if active_override is not None:
         logger.debug(f"Using test scheduler override: {active_override}")
         override_scheduler = await active_override()
-        return cast(DatabaseUpdateScheduler, override_scheduler)
+        return override_scheduler
 
     if _scheduler_getter is None:
         from core.food_apis.scheduler import get_update_scheduler as _late_getter
