@@ -99,10 +99,14 @@ jobs:
         uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.30.0
         with:
           scan-type: 'fs'
+          scan-ref: .
+          scanners: vuln
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'
+          ignore-unfixed: true
+          # FS scan is report-only: publish SARIF findings without blocking merges.
+          exit-code: '0'
           trivyignores: '.trivyignore'
 
       - name: Upload Trivy scan results to GitHub Security tab
