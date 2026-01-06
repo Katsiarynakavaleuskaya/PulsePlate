@@ -418,7 +418,7 @@ async def get_update_scheduler() -> DatabaseUpdateScheduler:
         scheduler = await _late_getter()
         return scheduler
     scheduler = await _scheduler_getter()
-    return cast(DatabaseUpdateScheduler, scheduler)
+    return scheduler
 
 
 # Stable reference to the original getter for comparisons when monkeypatched in tests
@@ -2213,8 +2213,9 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     from app.routers.bmi import bmi_calculate_handler
 
     # 1) Delegate to canonical BMI handler (engine is SoT)
-    # Convert BMIRequest (height_m) to BMICalculateRequest (height_cm)
-    height_cm = req.height_m * 100.0
+    # Convert BMIRequest (height_m) to BMICalculateRequest (height_cm).
+    # Keep rounding consistent with /bmi shim to avoid boundary drift.
+    height_cm = round(req.height_m * 100.0, 1)
     bmi_payload = {
         "weight_kg": req.weight_kg,
         "height_cm": height_cm,
@@ -2226,7 +2227,8 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
         "waist_cm": req.waist_cm,
     }
 
-    # Call canonical handler (returns dict)
+    # Call canonical handler (returns dict).
+    # NOTE: /plan now inherits canonical validation (e.g., BMI bounds) from the handler.
     canonical = await bmi_calculate_handler(bmi_payload)
 
     # 2) Extract BMI (as Decimal for compat mapping)

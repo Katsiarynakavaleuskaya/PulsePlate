@@ -375,4 +375,5 @@ def test_plan_contract_athlete_minor_allows_obesity_tiers_via_compat(
     assert resp.status_code == 200
     data = resp.json()
 
+    # BMI=35.1 maps to obesity_2 tier (adult bucket: 35.0–40.0).
     assert data["category"] == t("en", "bmi_obese_2")
