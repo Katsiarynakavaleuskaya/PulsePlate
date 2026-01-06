@@ -66,6 +66,10 @@ def _category_slug_from_bmi(*, bmi: Decimal, group: str) -> str | None:
     Used for minors when canonical engine returns category=None.
     Uses Decimal comparisons (policy-compliant: no float in core/).
     """
+    # too_young (age < 12): no category classification (canonical policy)
+    if group == "too_young":
+        return None
+
     # Legacy thresholds (from bmi_core.py and legacy_app.py)
     if group == "athlete":
         # Athlete threshold: 27.0

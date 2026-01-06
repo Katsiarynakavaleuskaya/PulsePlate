@@ -32,8 +32,8 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _parse(path: Path) -> ast.AST:
-    """Parse Python source file into AST."""
+def _parse(path: Path) -> ast.Module:
+    """Parse Python source file into AST Module."""
     full_path = _repo_root() / path
     src = full_path.read_text(encoding="utf-8")
     return ast.parse(src, filename=str(full_path))

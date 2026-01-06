@@ -33,6 +33,7 @@ pytest-report --xml=test_results.xml
 - Save results to files instead of piping to commands
 
 ### 4. Project-Specific Commands
+
 ```bash
 # Project CLI commands
 pptest    # Run all tests
@@ -40,8 +41,7 @@ ppcov     # Run tests with coverage
 pplint    # Run linting
 ppformat  # Format code
 ppcheck   # Full quality check
-
-### 4. Project-Specific Commands
+```
 
 ## Key Issues Identified in Current Test Run
 

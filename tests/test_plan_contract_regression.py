@@ -266,3 +266,52 @@ def test_plan_contract_teen_threshold_uses_canonical_group(
         f"Expected overweight category for teen BMI=24.7 (threshold 24.5), "
         f"got '{data['category']}'. This indicates group was not taken from canonical engine."
     )
+
+
+def test_plan_contract_too_young_returns_category_none(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    RU: Проверка, что group="too_young" (age < 12) возвращает category=None.
+    EN: Verify group="too_young" (age < 12) returns category=None.
+
+    Regression test: canonical engine returns group="too_young" for children under 12.
+    The compat layer must NOT apply adult thresholds and must return category=None.
+    """
+    import core.bmi.engine as engine
+    import app.routers.bmi as bmi_router
+
+    # Fixed result for too_young child (age < 12)
+    fixed_result = BMICalculateResult(
+        bmi=18.8,  # Would be "Normal" with adult thresholds (18.5-25.0)
+        category=None,  # Canonical engine returns None for too_young
+        group="too_young",  # Engine returns too_young for age < 12
+        group_display="Too young",
+        interpretation="Too young for standard BMI classification.",
+        wht_ratio=None,
+        waist_risk=None,
+        notes=(),
+        age_band="too_young",
+    )
+
+    def _fixed_engine(**kwargs: Any) -> BMICalculateResult:
+        return fixed_result
+
+    # Patch at source (engine module)
+    monkeypatch.setattr(engine, "calculate_bmi_result", _fixed_engine, raising=True)
+    # Patch the already-imported reference in bmi_router (required for runtime)
+    monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fixed_engine, raising=True)
+
+    # Request for 10-year-old (too_young)
+    payload = _base_payload(age=10, weight_kg=30.0, height_m=1.30)
+    resp = client.post("/plan", json=payload)
+    assert resp.status_code == 200
+
+    data = resp.json()
+
+    # too_young should return category=None (no adult thresholds applied)
+    assert data["category"] is None, (
+        f"Expected category=None for too_young (age < 12), "
+        f"got '{data['category']}'. This indicates adult thresholds were incorrectly applied."
+    )
