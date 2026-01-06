@@ -377,3 +377,21 @@ def test_plan_contract_athlete_minor_allows_obesity_tiers_via_compat(
 
     # BMI=35.1 maps to obesity_2 tier (adult bucket: 35.0–40.0).
     assert data["category"] == t("en", "bmi_obese_2")
+
+
+def test_plan_contract_allows_bmi_above_50_without_422(client: TestClient) -> None:
+    """
+    RU: Регрессия: legacy /plan не должен внезапно ужесточаться (BMI>50 → 422).
+    EN: Regression: legacy /plan must not unexpectedly tighten validation (BMI>50 → 422).
+
+    Canonical engine allows BMI up to 100.0; /plan should accept BMI≈50.1.
+    """
+    payload = _base_payload(
+        height_m=1.6,
+        weight_kg=128.3,  # BMI ~= 50.12
+        lang="en",
+    )
+    resp = client.post("/plan", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    _assert_plan_contract_shape(data, lang="en", premium=False)
