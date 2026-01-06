@@ -228,6 +228,28 @@ def test_bmi_endpoint_v1_validation_error_maps_to_422(client: TestClient) -> Non
     assert isinstance(detail, list)
 
 
+def test_bmi_endpoint_v1_unrealistic_bmi_is_422(client: TestClient) -> None:
+    """
+    RU: BMIRequestV1 должен отклонять нереалистичный BMI > 100.
+    EN: BMIRequestV1 must reject unrealistic BMI > 100.
+
+    Regression: V1 validation now delegates BMI computation to core.bmi.engine._compute_bmi.
+    """
+    payload = {
+        "weight_kg": 320.0,  # BMI ~ 125 for 160cm
+        "height_cm": 160.0,
+        "age": 30,
+        "gender": "male",
+        "pregnant": "no",
+        "athlete": "no",
+        "waist_cm": 84.0,
+        "lang": "en",
+    }
+
+    resp = client.post("/api/v1/bmi", json=payload)
+    assert resp.status_code == 422
+
+
 def test_bmi_endpoint_v1_athlete_note_appends_waist_risk_notes_and_unknown_category_fallback(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

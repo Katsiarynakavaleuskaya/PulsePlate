@@ -1503,13 +1503,16 @@ class BMIRequestV1(BaseModel):
     @model_validator(mode="after")
     def validate_realistic_values(self) -> "BMIRequestV1":
         """Validate that weight and height are realistic."""
-        # Check for unrealistic weight (too low for height)
-        height_m = self.height_cm / 100.0
-        bmi = float(self.weight_kg) / (height_m**2)
+        # Check for unrealistic BMI values.
+        # Delegate BMI computation to canonical engine to avoid duplicate BMI math here.
+        from core.bmi.engine import _compute_bmi  # local import to avoid import-time cycles
 
-        if bmi < 10:  # Unrealistically low BMI
+        height_m = self.height_cm / 100.0
+        bmi = _compute_bmi(weight_kg=self.weight_kg, height_m=height_m)
+
+        if bmi < 10.0:  # Unrealistically low BMI
             raise ValueError("Weight is unrealistically low for the given height")
-        if bmi > 100:  # Unrealistically high BMI
+        if bmi > 100.0:  # Unrealistically high BMI
             raise ValueError("Weight is unrealistically high for the given height")
 
         return self
