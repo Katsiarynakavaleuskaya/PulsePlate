@@ -36,8 +36,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app"
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
-RUN apt-get update && apt-get install -y \
+# Security: upgrade libc6 in-image to pick up Debian security fixes even when the base image lags.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
+    libc6 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
