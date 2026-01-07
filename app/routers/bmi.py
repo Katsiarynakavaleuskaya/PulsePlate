@@ -172,7 +172,8 @@ async def bmi_calculate_handler(
         except Exception:
             # Visualization is optional; don't break the endpoint if builder fails
             # Log the error for debugging while preserving graceful fallback
-            logger.exception("Failed to build BMI visualization spec")
+            # Security: log only BMI value (numeric), not user input data
+            logger.exception("Failed to build BMI visualization spec (BMI=%.1f)", result.bmi)
             resp.visualization = None
 
         # Return as dict for legacy compatibility

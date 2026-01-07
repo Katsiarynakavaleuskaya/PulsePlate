@@ -175,3 +175,28 @@ def test_range_constructor_accepts_from_():
     assert dumped["from"] == 18.5
     assert "from_" not in dumped
     assert dumped["to"] == 25.0
+
+
+def test_bmi_calculate_graceful_fallback_when_visualization_builder_fails(monkeypatch):
+    """Test that endpoint gracefully handles visualization builder failure."""
+    from app import app
+    from fastapi.testclient import TestClient
+    import app.routers.bmi as bmi_router
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(bmi_router, "build_bmi_scale_v1", _boom)
+
+    client = TestClient(app)
+    resp = client.post(
+        "/api/v1/bmi/calculate",
+        json={"weight_kg": 70.0, "height_cm": 175.0, "age": 30, "gender": "male", "lang": "en"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "visualization" in data
+    assert data["visualization"] is None
+    # Verify other fields are still present
+    assert "bmi" in data
+    assert data["bmi"] > 0
