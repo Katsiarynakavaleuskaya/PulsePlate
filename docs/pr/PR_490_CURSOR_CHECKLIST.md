@@ -138,9 +138,8 @@ resp = BMICalculateResponse(...)
 # Добавить visualization
 resp.visualization = build_bmi_scale_v1(result.bmi)
 
-# Return as dict for legacy compatibility
-response_dict: dict[str, Any] = resp.model_dump()
-return response_dict
+# Return model; alias ensured via response_model_by_alias=True in decorator
+return resp
 ```
 
 ⚠️ **Не трогаем** `legacy_app.py` и `include_chart`.
@@ -315,7 +314,7 @@ pnpm lint  # или npm run lint
 ## F) Commit Strategy (рекомендуемый порядок)
 
 ### Commit 1: Backend schema
-```
+```text
 feat(bmi): add BMIScaleV1Spec schema for visualization
 
 - Add BMIRangeSpec, BMIMarkerSpec, BMIScaleV1Spec models
@@ -324,7 +323,7 @@ feat(bmi): add BMIScaleV1Spec schema for visualization
 ```
 
 ### Commit 2: Backend builder
-```
+```text
 feat(bmi): add build_bmi_scale_v1 spec builder
 
 - Create app/services/bmi_visualization.py
@@ -333,7 +332,7 @@ feat(bmi): add build_bmi_scale_v1 spec builder
 ```
 
 ### Commit 3: Backend integration
-```
+```text
 feat(bmi): integrate visualization spec in calculate endpoint
 
 - Add visualization to bmi_calculate_handler response
@@ -342,7 +341,7 @@ feat(bmi): integrate visualization spec in calculate endpoint
 ```
 
 ### Commit 4: Backend tests
-```
+```text
 test(bmi): add visualization spec tests
 
 - Test spec structure and ranges monotonicity
@@ -351,7 +350,7 @@ test(bmi): add visualization spec tests
 ```
 
 ### Commit 5: Frontend i18n (если в этом PR)
-```
+```text
 feat(web): add BMI i18n keys for visualization
 
 - Add bmi.underweight|normal|overweight|obesity to locales
@@ -359,7 +358,7 @@ feat(web): add BMI i18n keys for visualization
 ```
 
 ### Commit 6: Frontend component (если в этом PR)
-```
+```text
 feat(web): add BmiScaleV1 SVG component
 
 - SVG rendering with zones and marker
@@ -368,7 +367,7 @@ feat(web): add BmiScaleV1 SVG component
 ```
 
 ### Commit 7: Frontend integration (если в этом PR)
-```
+```text
 feat(web): integrate BMI visualization in result view
 
 - Render BmiScaleV1 if visualization.kind === "bmi_scale_v1"
@@ -376,7 +375,7 @@ feat(web): integrate BMI visualization in result view
 ```
 
 ### Commit 8: Frontend tests (если в этом PR)
-```
+```text
 test(web): add BmiScaleV1 snapshot tests
 
 - Snapshot test for SVG rendering

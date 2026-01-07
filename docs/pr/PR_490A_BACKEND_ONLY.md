@@ -92,7 +92,7 @@ visualization: BMIScaleV1Spec | None = Field(
 ```
 
 **Message:**
-```
+```text
 feat(bmi): add BMIScaleV1Spec schema for visualization
 
 - Add BMIRangeSpec, BMIMarkerSpec, BMIScaleV1Spec models
@@ -156,7 +156,7 @@ def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
 ```
 
 **Message:**
-```
+```text
 feat(bmi): add build_bmi_scale_v1 spec builder
 
 - Create app/services/bmi_visualization.py
@@ -184,16 +184,14 @@ resp = BMICalculateResponse(...)
 # Добавить:
 resp.visualization = build_bmi_scale_v1(result.bmi)
 
-# Return as dict for legacy compatibility
-# IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON
-response_dict: dict[str, Any] = resp.model_dump(by_alias=True)
-return response_dict
+# Return model; alias ensured via response_model_by_alias=True in decorator
+return resp
 ```
 
-**⚠️ Критично:** `by_alias=True` обязателен, иначе в JSON будет `from_` вместо `from`.
+**⚠️ Критично:** В декораторе роута добавить `response_model_by_alias=True` для сохранения alias `"from"` в JSON.
 
 **Message:**
-```
+```text
 feat(bmi): integrate visualization spec in calculate endpoint
 
 - Add visualization to bmi_calculate_handler response
@@ -318,7 +316,7 @@ def test_bmi_calculate_returns_visualization():
 ```
 
 **Message:**
-```
+```text
 test(bmi): add visualization spec tests
 
 - Test spec structure and ranges monotonicity

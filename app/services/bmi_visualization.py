@@ -12,12 +12,8 @@ from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
 
 
 def _range(key: str, start: float, end: float) -> BMIRangeSpec:
-    """Create BMIRangeSpec using direct constructor.
-
-    Pydantic v2 with populate_by_name=True accepts from_= parameter at runtime.
-    Type checkers may not fully understand this, but mypy doesn't flag it as an error.
-    """
-    return BMIRangeSpec(key=key, from_=start, to=end)
+    """Create BMIRangeSpec using model_validate for type-checker compatibility."""
+    return BMIRangeSpec.model_validate({"key": key, "from": start, "to": end})
 
 
 def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
