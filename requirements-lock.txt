@@ -5,470 +5,147 @@
 #    pip-compile --output-file=requirements-lock.txt requirements-dev.in requirements.in
 #
 alembic==1.17.2
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 annotated-doc==0.0.4
-    # via
-    #   -c requirements.txt
-    #   fastapi
+    # via fastapi
 annotated-types==0.7.0
-    # via
-    #   -c requirements.txt
-    #   pydantic
+    # via pydantic
 anyio==4.12.0
     # via
-    #   -c requirements.txt
     #   httpx
     #   openai
     #   starlette
-authlib==1.6.5
-    # via safety
-bandit==1.9.2
-    # via -r requirements-dev.in
-black==25.12.0
-    # via -r requirements-dev.in
-boolean-py==5.0
-    # via license-expression
-build==1.3.0
-    # via pip-tools
-cachecontrol[filecache]==0.14.4
-    # via
-    #   cachecontrol
-    #   pip-audit
 certifi==2026.1.4
     # via
-    #   -c requirements.txt
     #   httpcore
     #   httpx
-    #   requests
 cffi==2.0.0
-    # via
-    #   -c requirements.txt
-    #   cryptography
-cfgv==3.5.0
-    # via pre-commit
-chardet==5.2.0
-    # via diff-cover
+    # via cryptography
 charset-normalizer==3.4.4
-    # via
-    #   -c requirements.txt
-    #   reportlab
-    #   requests
+    # via reportlab
 click==8.3.1
-    # via
-    #   -c requirements.txt
-    #   black
-    #   nltk
-    #   pip-tools
-    #   safety
-    #   typer
-    #   uvicorn
+    # via uvicorn
 contourpy==1.3.3
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-coverage[toml]==7.13.1
-    # via
-    #   -r requirements-dev.in
-    #   pytest-cov
+    # via matplotlib
 cryptography==46.0.3
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-    #   authlib
+    # via -r requirements.in
 cycler==0.12.1
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-cyclonedx-python-lib==11.6.0
-    # via pip-audit
-defusedxml==0.7.1
-    # via py-serializable
+    # via matplotlib
 deprecated==1.3.1
-    # via
-    #   -c requirements.txt
-    #   limits
-detect-secrets==1.5.0
-    # via -r requirements-dev.in
-diff-cover==10.1.0
-    # via -r requirements-dev.in
-distlib==0.4.0
-    # via virtualenv
+    # via limits
 distro==1.9.0
-    # via
-    #   -c requirements.txt
-    #   openai
+    # via openai
 dnspython==2.8.0
-    # via
-    #   -c requirements.txt
-    #   email-validator
-dparse==0.6.4
-    # via
-    #   safety
-    #   safety-schemas
+    # via email-validator
 email-validator==2.3.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-execnet==2.1.2
-    # via pytest-xdist
-faker==38.2.0
-    # via -r requirements-dev.in
+    # via -r requirements.in
 fastapi==0.128.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-filelock==3.20.1
-    # via
-    #   cachecontrol
-    #   safety
-    #   virtualenv
+    # via -r requirements.in
 fonttools==4.61.1
-    # via
-    #   -c requirements.txt
-    #   matplotlib
+    # via matplotlib
+greenlet==3.3.0
+    # via sqlalchemy
 h11==0.16.0
     # via
-    #   -c requirements.txt
     #   httpcore
     #   uvicorn
 httpcore==1.0.9
-    # via
-    #   -c requirements.txt
-    #   httpx
+    # via httpx
 httpx==0.28.1
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   openai
-    #   safety
-hypothesis==6.148.11
-    # via -r requirements-dev.in
-identify==2.6.15
-    # via pre-commit
 idna==3.11
     # via
-    #   -c requirements.txt
     #   anyio
     #   email-validator
     #   httpx
-    #   requests
-iniconfig==2.3.0
-    # via pytest
-jinja2==3.1.6
-    # via
-    #   diff-cover
-    #   safety
 jiter==0.12.0
-    # via
-    #   -c requirements.txt
-    #   openai
-joblib==1.5.2
-    # via nltk
+    # via openai
 kiwisolver==1.4.9
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-librt==0.7.7
-    # via mypy
-license-expression==30.4.4
-    # via cyclonedx-python-lib
+    # via matplotlib
 limits==5.6.0
-    # via
-    #   -c requirements.txt
-    #   slowapi
+    # via slowapi
 mako==1.3.10
-    # via
-    #   -c requirements.txt
-    #   alembic
-markdown-it-py==4.0.0
-    # via rich
+    # via alembic
 markupsafe==3.0.3
-    # via
-    #   -c requirements.txt
-    #   jinja2
-    #   mako
-marshmallow==4.1.2
-    # via safety
+    # via mako
 matplotlib==3.10.8
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-mdurl==0.1.2
-    # via markdown-it-py
-msgpack==1.1.2
-    # via cachecontrol
-mypy==1.19.1
-    # via -r requirements-dev.in
-mypy-extensions==1.1.0
-    # via
-    #   black
-    #   mypy
+    # via -r requirements.in
 nh3==0.3.2
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   -r requirements.in
-nltk==3.9.2
-    # via safety
-nodeenv==1.9.1
-    # via pre-commit
+    # via -r requirements.in
 numpy==2.4.0
     # via
-    #   -c requirements.txt
     #   contourpy
     #   matplotlib
 openai==2.14.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-packageurl-python==0.17.6
-    # via cyclonedx-python-lib
+    # via -r requirements.in
 packaging==25.0
     # via
-    #   -c requirements.txt
-    #   black
-    #   build
-    #   dparse
     #   limits
     #   matplotlib
-    #   pip-audit
-    #   pip-requirements-parser
-    #   pytest
-    #   safety
-    #   safety-schemas
-pathspec==0.12.1
-    # via
-    #   black
-    #   mypy
-    #   yamllint
 pillow==12.1.0
     # via
-    #   -c requirements.txt
     #   matplotlib
     #   reportlab
-pip-api==0.0.34
-    # via pip-audit
-pip-audit==2.10.0
-    # via -r requirements-dev.in
-pip-requirements-parser==32.0.1
-    # via pip-audit
-pip-tools==7.5.2
-    # via -r requirements-dev.in
-platformdirs==4.5.1
-    # via
-    #   black
-    #   pip-audit
-    #   virtualenv
-pluggy==1.6.0
-    # via
-    #   diff-cover
-    #   pytest
-    #   pytest-cov
-pre-commit==4.5.1
-    # via -r requirements-dev.in
 prometheus-client==0.23.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 psycopg[binary]==3.3.2
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 psycopg-binary==3.3.2
-    # via
-    #   -c requirements.txt
-    #   psycopg
-py-serializable==2.1.0
-    # via cyclonedx-python-lib
+    # via psycopg
 pyarrow==22.0.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 pycparser==2.23
-    # via
-    #   -c requirements.txt
-    #   cffi
+    # via cffi
 pydantic==2.12.5
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   fastapi
     #   openai
-    #   safety
-    #   safety-schemas
 pydantic-core==2.41.5
-    # via
-    #   -c requirements.txt
-    #   pydantic
-pygments==2.19.2
-    # via
-    #   diff-cover
-    #   pytest
-    #   rich
+    # via pydantic
 pyparsing==3.2.5
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-    #   pip-requirements-parser
-pyproject-hooks==1.2.0
-    # via
-    #   build
-    #   pip-tools
-pytest==8.4.2
-    # via
-    #   -r requirements-dev.in
-    #   pytest-asyncio
-    #   pytest-cov
-    #   pytest-picked
-    #   pytest-split
-    #   pytest-xdist
-pytest-asyncio==1.3.0
-    # via -r requirements-dev.in
-pytest-cov==7.0.0
-    # via -r requirements-dev.in
-pytest-picked==0.5.1
-    # via -r requirements-dev.in
-pytest-split==0.10.0
-    # via -r requirements-dev.in
-pytest-xdist==3.8.0
-    # via -r requirements-dev.in
+    # via matplotlib
 python-dateutil==2.9.0.post0
-    # via
-    #   -c requirements.txt
-    #   matplotlib
+    # via matplotlib
 python-dotenv==1.2.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 python-multipart==0.0.21
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-pytokens==0.3.0
-    # via black
-pyyaml==6.0.3
-    # via
-    #   bandit
-    #   detect-secrets
-    #   pre-commit
-    #   yamllint
-regex==2025.11.3
-    # via nltk
+    # via -r requirements.in
 reportlab==4.4.7
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-requests==2.32.5
-    # via
-    #   cachecontrol
-    #   detect-secrets
-    #   pip-audit
-    #   safety
-rich==14.2.0
-    # via
-    #   bandit
-    #   pip-audit
-    #   typer
-ruamel-yaml==0.19.1
-    # via
-    #   safety
-    #   safety-schemas
-ruff==0.14.10
-    # via -r requirements-dev.in
-safety==3.7.0
-    # via -r requirements-dev.in
-safety-schemas==0.0.16
-    # via safety
-shellingham==1.5.4
-    # via typer
+    # via -r requirements.in
 six==1.17.0
-    # via
-    #   -c requirements.txt
-    #   python-dateutil
+    # via python-dateutil
 slowapi==0.1.9
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 sniffio==1.3.1
-    # via
-    #   -c requirements.txt
-    #   openai
-sortedcontainers==2.4.0
-    # via
-    #   cyclonedx-python-lib
-    #   hypothesis
+    # via openai
 sqlalchemy==2.0.45
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   alembic
 starlette==0.50.0
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   fastapi
-stevedore==5.6.0
-    # via bandit
 tenacity==9.1.2
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-    #   safety
-tomli==2.3.0
-    # via pip-audit
-tomli-w==1.2.0
-    # via pip-audit
-tomlkit==0.13.3
-    # via safety
+    # via -r requirements.in
 tqdm==4.67.1
-    # via
-    #   -c requirements.txt
-    #   nltk
-    #   openai
-typer==0.20.0
-    # via safety
-types-pyyaml==6.0.12.20250915
-    # via -r requirements-dev.in
+    # via openai
 typing-extensions==4.15.0
     # via
-    #   -c requirements.txt
     #   alembic
     #   fastapi
     #   limits
-    #   mypy
     #   openai
     #   pydantic
     #   pydantic-core
-    #   safety
-    #   safety-schemas
     #   sqlalchemy
-    #   typer
     #   typing-inspection
 typing-inspection==0.4.2
-    # via
-    #   -c requirements.txt
-    #   pydantic
-tzdata==2025.2
-    # via faker
-urllib3==2.6.2
-    # via requests
+    # via pydantic
 uvicorn==0.40.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-virtualenv==20.35.4
-    # via pre-commit
-wheel==0.45.1
-    # via pip-tools
+    # via -r requirements.in
 wrapt==2.0.1
-    # via
-    #   -c requirements.txt
-    #   deprecated
-yamllint==1.37.1
-    # via -r requirements-dev.in
-
-# The following packages are considered to be unsafe in a requirements file:
-# pip
-# setuptools
+    # via deprecated
