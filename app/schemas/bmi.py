@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.i18n import Language
 
@@ -22,6 +22,8 @@ RiskLevel = Literal["low", "moderate", "high"]
 
 class BMIRangeSpec(BaseModel):
     """BMI range with i18n key."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     key: str = Field(..., description="i18n key for range label")
     from_: float = Field(..., alias="from", description="Range start (inclusive)")

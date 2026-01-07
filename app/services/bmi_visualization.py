@@ -25,13 +25,12 @@ def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
         BMIScaleV1Spec with fixed scale 0-60 and WHO standard thresholds
     """
     # Fixed thresholds (WHO standard)
-    # Use model_validate with dict to handle alias "from" correctly
-    # (alias appears in JSON via model_dump(by_alias=True) in router)
+    # Use direct constructors with from_= (alias "from" appears in JSON via model_dump(by_alias=True))
     ranges = [
-        BMIRangeSpec.model_validate({"key": "bmi.underweight", "from": 0.0, "to": 18.5}),
-        BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0}),
-        BMIRangeSpec.model_validate({"key": "bmi.overweight", "from": 25.0, "to": 30.0}),
-        BMIRangeSpec.model_validate({"key": "bmi.obesity", "from": 30.0, "to": 60.0}),
+        BMIRangeSpec(key="bmi.underweight", from_=0.0, to=18.5),
+        BMIRangeSpec(key="bmi.normal", from_=18.5, to=25.0),
+        BMIRangeSpec(key="bmi.overweight", from_=25.0, to=30.0),
+        BMIRangeSpec(key="bmi.obesity", from_=30.0, to=60.0),
     ]
 
     rounded_bmi = round(bmi, 1)
