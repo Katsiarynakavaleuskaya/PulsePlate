@@ -15,6 +15,7 @@ from typing import Any, Callable, Protocol
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+from app.services.bmi_visualization import build_bmi_scale_v1
 from core.i18n import normalize_lang, t
 
 
@@ -161,8 +162,12 @@ async def bmi_calculate_handler(
             age_band=result.age_band,
         )
 
+        # Add visualization spec
+        resp.visualization = build_bmi_scale_v1(result.bmi)
+
         # Return as dict for legacy compatibility
-        response_dict: dict[str, Any] = resp.model_dump()
+        # IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON
+        response_dict: dict[str, Any] = resp.model_dump(by_alias=True)
         return response_dict
 
     except NotImplementedError as e:
