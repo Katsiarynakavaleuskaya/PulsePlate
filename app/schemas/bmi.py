@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from core.i18n import Language
 
@@ -26,22 +26,56 @@ class BMIRangeSpec(BaseModel):
     from_: float = Field(..., alias="from", description="Range start (inclusive)")
     to: float = Field(..., description="Range end (exclusive)")
 
+    @model_validator(mode="after")
+    def validate_range(self) -> "BMIRangeSpec":
+        if self.from_ >= self.to:
+            raise ValueError(f"Range start ({self.from_}) must be less than end ({self.to})")
+        return self
+
 
 class BMIMarkerSpec(BaseModel):
     """BMI marker position."""
 
-    value: float = Field(..., description="Current BMI value")
+    value: float = Field(..., description="Current BMI value", examples=[23.4, 25.0, 18.5])
 
 
 class BMIScaleV1Spec(BaseModel):
     """BMI scale visualization spec v1."""
 
     kind: Literal["bmi_scale_v1"] = "bmi_scale_v1"
-    bmi: float = Field(..., description="BMI value")
-    min: float = Field(0.0, description="Scale minimum")
-    max: float = Field(60.0, description="Scale maximum")
-    ranges: list[BMIRangeSpec] = Field(..., description="BMI ranges with i18n keys")
-    marker: BMIMarkerSpec = Field(..., description="Current BMI marker")
+    bmi: float = Field(..., description="BMI value", examples=[23.4, 25.0, 18.5])
+    min: float = Field(0.0, description="Scale minimum", examples=[0.0])
+    max: float = Field(60.0, description="Scale maximum", examples=[60.0])
+    ranges: list[BMIRangeSpec] = Field(
+        ...,
+        description="BMI ranges with i18n keys",
+        examples=[
+            [
+                {"key": "bmi.underweight", "from": 0, "to": 18.5},
+                {"key": "bmi.normal", "from": 18.5, "to": 25},
+                {"key": "bmi.overweight", "from": 25, "to": 30},
+                {"key": "bmi.obesity", "from": 30, "to": 60},
+            ]
+        ],
+    )
+    marker: BMIMarkerSpec = Field(..., description="Current BMI marker", examples=[{"value": 23.4}])
+
+    @model_validator(mode="after")
+    def validate_scale(self) -> "BMIScaleV1Spec":
+        """Validate scale constraints and consistency."""
+        # Ensure min < max
+        if self.min >= self.max:
+            raise ValueError(f"Scale minimum ({self.min}) must be less than maximum ({self.max})")
+
+        # Ensure bmi is within scale bounds
+        if not (self.min <= self.bmi <= self.max):
+            raise ValueError(f"BMI value ({self.bmi}) must be between min ({self.min}) and max ({self.max})")
+
+        # Ensure marker.value equals bmi (consistency check)
+        if self.marker.value != self.bmi:
+            raise ValueError(f"Marker value ({self.marker.value}) must equal BMI ({self.bmi})")
+
+        return self
 
 
 class WaistRiskResultSchema(BaseModel):

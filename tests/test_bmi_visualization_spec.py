@@ -99,3 +99,62 @@ def test_bmi_calculate_returns_visualization():
     assert "from" in first_range, "Range should use 'from' alias (not 'from_')"
     assert "from_" not in first_range, "Range should not contain 'from_' field"
 
+
+def test_bmi_scale_v1_spec_validation():
+    """Test that BMIScaleV1Spec validation works correctly."""
+    from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
+    from pydantic import ValidationError
+
+    # Valid spec
+    valid_spec = BMIScaleV1Spec(
+        kind="bmi_scale_v1",
+        bmi=23.4,
+        min=0.0,
+        max=60.0,
+        ranges=[
+            BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0}),
+        ],
+        marker=BMIMarkerSpec(value=23.4),
+    )
+    assert valid_spec.bmi == 23.4
+    assert valid_spec.marker.value == 23.4
+
+    # Invalid: min >= max
+    with pytest.raises(ValidationError, match="must be less than maximum"):
+        BMIScaleV1Spec(
+            kind="bmi_scale_v1",
+            bmi=23.4,
+            min=60.0,
+            max=0.0,
+            ranges=[
+                BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0}),
+            ],
+            marker=BMIMarkerSpec(value=23.4),
+        )
+
+    # Invalid: bmi outside bounds
+    with pytest.raises(ValidationError, match="must be between min"):
+        BMIScaleV1Spec(
+            kind="bmi_scale_v1",
+            bmi=70.0,  # > max
+            min=0.0,
+            max=60.0,
+            ranges=[
+                BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0}),
+            ],
+            marker=BMIMarkerSpec(value=70.0),
+        )
+
+    # Invalid: marker.value != bmi
+    with pytest.raises(ValidationError, match="must equal BMI"):
+        BMIScaleV1Spec(
+            kind="bmi_scale_v1",
+            bmi=23.4,
+            min=0.0,
+            max=60.0,
+            ranges=[
+                BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0}),
+            ],
+            marker=BMIMarkerSpec(value=25.0),  # != bmi
+        )
+
