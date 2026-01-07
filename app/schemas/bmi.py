@@ -19,6 +19,31 @@ from core.i18n import Language
 RiskLevel = Literal["low", "moderate", "high"]
 
 
+class BMIRangeSpec(BaseModel):
+    """BMI range with i18n key."""
+
+    key: str = Field(..., description="i18n key for range label")
+    from_: float = Field(..., alias="from", description="Range start (inclusive)")
+    to: float = Field(..., description="Range end (exclusive)")
+
+
+class BMIMarkerSpec(BaseModel):
+    """BMI marker position."""
+
+    value: float = Field(..., description="Current BMI value")
+
+
+class BMIScaleV1Spec(BaseModel):
+    """BMI scale visualization spec v1."""
+
+    kind: Literal["bmi_scale_v1"] = "bmi_scale_v1"
+    bmi: float = Field(..., description="BMI value")
+    min: float = Field(0.0, description="Scale minimum")
+    max: float = Field(60.0, description="Scale maximum")
+    ranges: list[BMIRangeSpec] = Field(..., description="BMI ranges with i18n keys")
+    marker: BMIMarkerSpec = Field(..., description="Current BMI marker")
+
+
 class WaistRiskResultSchema(BaseModel):
     """
     RU: API-схема для сериализованного WaistRiskResult (domain dataclass).
@@ -199,4 +224,9 @@ class BMICalculateResponse(BaseModel):
             "'adult' (19-59), 'elderly' (>=60)."
         ),
         examples=["adult", "teen", "elderly"],
+    )
+
+    visualization: BMIScaleV1Spec | None = Field(
+        None,
+        description="Optional BMI scale visualization spec (v1). Frontend should render this if available.",
     )
