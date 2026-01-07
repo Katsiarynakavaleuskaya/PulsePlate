@@ -72,7 +72,9 @@ class BMIScaleV1Spec(BaseModel):
 
         # Ensure bmi is within scale bounds
         if not (self.min <= self.bmi <= self.max):
-            raise ValueError(f"BMI value ({self.bmi}) must be between min ({self.min}) and max ({self.max})")
+            raise ValueError(
+                f"BMI value ({self.bmi}) must be between min ({self.min}) and max ({self.max})"
+            )
 
         # Ensure marker.value equals bmi (consistency check)
         # Use math.isclose to handle float precision artifacts

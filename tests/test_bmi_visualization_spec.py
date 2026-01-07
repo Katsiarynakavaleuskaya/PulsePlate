@@ -43,7 +43,9 @@ def test_marker_equals_bmi():
 
     for bmi in test_cases:
         spec = build_bmi_scale_v1(bmi)
-        assert spec.marker.value == round(bmi, 1), f"Marker value {spec.marker.value} != rounded BMI {round(bmi, 1)}"
+        assert spec.marker.value == round(
+            bmi, 1
+        ), f"Marker value {spec.marker.value} != rounded BMI {round(bmi, 1)}"
         assert spec.bmi == round(bmi, 1), f"Spec BMI {spec.bmi} != rounded BMI {round(bmi, 1)}"
 
 
@@ -88,7 +90,9 @@ def test_bmi_calculate_returns_visualization():
 
     assert "visualization" in data, "Response should contain visualization field"
     assert data["visualization"] is not None, "Visualization should not be None"
-    assert data["visualization"]["kind"] == "bmi_scale_v1", "Visualization kind should be bmi_scale_v1"
+    assert (
+        data["visualization"]["kind"] == "bmi_scale_v1"
+    ), "Visualization kind should be bmi_scale_v1"
     assert "ranges" in data["visualization"], "Visualization should contain ranges"
     assert "marker" in data["visualization"], "Visualization should contain marker"
     assert len(data["visualization"]["ranges"]) == 4, "Should have 4 ranges"
@@ -171,4 +175,3 @@ def test_range_constructor_accepts_from_():
     assert dumped["from"] == 18.5
     assert "from_" not in dumped
     assert dumped["to"] == 25.0
-

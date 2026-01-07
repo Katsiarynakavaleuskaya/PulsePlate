@@ -14,11 +14,10 @@ from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
 def _range(key: str, start: float, end: float) -> BMIRangeSpec:
     """Create BMIRangeSpec using direct constructor.
 
-    Pyright/mypy may not understand alias + populate_by_name in Pydantic v2,
-    so we suppress the type checker warning here (localized to this helper).
-    Runtime correctly uses populate_by_name=True to accept from_= parameter.
+    Pydantic v2 with populate_by_name=True accepts from_= parameter at runtime.
+    Type checkers may not fully understand this, but mypy doesn't flag it as an error.
     """
-    return BMIRangeSpec(key=key, from_=start, to=end)  # type: ignore[call-arg]
+    return BMIRangeSpec(key=key, from_=start, to=end)
 
 
 def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:

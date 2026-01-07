@@ -80,4 +80,3 @@
 
 * `docs/pr/PR_BMI_VISUALIZATION_SPEC.md` - детальная спецификация
 * `app/AGENTS.md` - архитектурные инварианты
-

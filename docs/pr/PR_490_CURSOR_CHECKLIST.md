@@ -92,7 +92,7 @@ from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
 def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
     """
     Build BMI scale v1 spec for frontend rendering.
-    
+
     Uses fixed thresholds (0-60) regardless of group.
     Group-specific interpretation is handled separately in category/interpretation fields.
     """
@@ -103,7 +103,7 @@ def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
         BMIRangeSpec(key="bmi.overweight", from_=25.0, to=30.0),
         BMIRangeSpec(key="bmi.obesity", from_=30.0, to=60.0),
     ]
-    
+
     return BMIScaleV1Spec(
         kind="bmi_scale_v1",
         bmi=round(bmi, 1),
@@ -406,4 +406,3 @@ test(web): add BmiScaleV1 snapshot tests
 - [ ] Spec builder в `app/services/` (не в `core/`, не в router)
 - [ ] Тесты покрывают основные случаи
 - [ ] Документация обновлена (если нужно)
-

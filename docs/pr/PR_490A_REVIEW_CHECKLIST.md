@@ -205,4 +205,3 @@ curl -X POST http://localhost:8000/api/v1/bmi/calculate \
 - `docs/pr/PR_490A_BACKEND_ONLY.md` - полный план PR-490A
 - `docs/pr/PR_BMI_VISUALIZATION_SPEC.md` - спецификация
 - `app/AGENTS.md` - архитектурные инварианты
-
