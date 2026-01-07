@@ -162,8 +162,12 @@ async def bmi_calculate_handler(
             age_band=result.age_band,
         )
 
-        # Add visualization spec
-        resp.visualization = build_bmi_scale_v1(result.bmi)
+        # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
+        try:
+            resp.visualization = build_bmi_scale_v1(result.bmi)
+        except Exception:
+            # Visualization is optional; don't break the endpoint if builder fails
+            resp.visualization = None
 
         # Return as dict for legacy compatibility
         # IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON
