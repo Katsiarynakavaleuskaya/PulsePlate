@@ -158,3 +158,17 @@ def test_bmi_scale_v1_spec_validation():
             marker=BMIMarkerSpec(value=25.0),  # != bmi
         )
 
+
+def test_range_constructor_accepts_from_():
+    """Test that BMIRangeSpec accepts from_= in direct constructor."""
+    from app.schemas.bmi import BMIRangeSpec
+
+    r = BMIRangeSpec(key="bmi.normal", from_=18.5, to=25.0)
+    assert r.from_ == 18.5
+    assert r.to == 25.0
+    # Verify alias works in serialization
+    dumped = r.model_dump(by_alias=True)
+    assert dumped["from"] == 18.5
+    assert "from_" not in dumped
+    assert dumped["to"] == 25.0
+

@@ -163,6 +163,7 @@ async def bmi_calculate_handler(
             waist_risk=waist_risk_schema,
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
+            visualization=None,  # Will be set below if builder succeeds
         )
 
         # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
@@ -204,7 +205,7 @@ async def bmi_calculate_handler(
 
 
 @router.post("/calculate", response_model=BMICalculateResponse)
-async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
+async def calculate_bmi(req: BMICalculateRequest) -> dict[str, Any]:
     """
     RU: Рассчитывает BMI через единый engine.
     EN: Calculate BMI via unified engine.
@@ -215,12 +216,15 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
         req: BMICalculateRequest with user parameters
 
     Returns:
-        BMICalculateResponse with BMI calculation results
+        dict with BMI calculation results (already serialized with by_alias=True)
 
     Raises:
         HTTPException: 400 if domain validation fails (BMI out of bounds)
                       422 if Pydantic validation fails (handled automatically)
                       500 if engine is not available or other errors occur
     """
-    data = await bmi_calculate_handler(req)
-    return BMICalculateResponse.model_validate(data)
+    # Handler already returns dict with by_alias=True, so we return it directly.
+    # FastAPI passes through dict responses as-is (doesn't re-serialize via jsonable_encoder),
+    # so the "from" alias from model_dump(by_alias=True) is preserved in the final JSON response.
+    # This ensures clients receive "from" (not "from_") in visualization.ranges[].
+    return await bmi_calculate_handler(req)

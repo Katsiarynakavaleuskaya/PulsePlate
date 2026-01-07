@@ -11,6 +11,16 @@ This is an API adapter, not domain logic.
 from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
 
 
+def _range(key: str, start: float, end: float) -> BMIRangeSpec:
+    """Create BMIRangeSpec using direct constructor.
+
+    Pyright/mypy may not understand alias + populate_by_name in Pydantic v2,
+    so we suppress the type checker warning here (localized to this helper).
+    Runtime correctly uses populate_by_name=True to accept from_= parameter.
+    """
+    return BMIRangeSpec(key=key, from_=start, to=end)  # type: ignore[call-arg]
+
+
 def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
     """
     Build BMI scale v1 spec for frontend rendering.
@@ -25,12 +35,12 @@ def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
         BMIScaleV1Spec with fixed scale 0-60 and WHO standard thresholds
     """
     # Fixed thresholds (WHO standard)
-    # Use direct constructors with from_= (alias "from" appears in JSON via model_dump(by_alias=True))
+    # Use helper function to create ranges (alias "from" appears in JSON via model_dump(by_alias=True))
     ranges = [
-        BMIRangeSpec(key="bmi.underweight", from_=0.0, to=18.5),
-        BMIRangeSpec(key="bmi.normal", from_=18.5, to=25.0),
-        BMIRangeSpec(key="bmi.overweight", from_=25.0, to=30.0),
-        BMIRangeSpec(key="bmi.obesity", from_=30.0, to=60.0),
+        _range("bmi.underweight", 0.0, 18.5),
+        _range("bmi.normal", 18.5, 25.0),
+        _range("bmi.overweight", 25.0, 30.0),
+        _range("bmi.obesity", 30.0, 60.0),
     ]
 
     rounded_bmi = round(bmi, 1)
@@ -43,4 +53,3 @@ def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
         ranges=ranges,
         marker=BMIMarkerSpec(value=rounded_bmi),
     )
-
