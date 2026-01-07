@@ -10,6 +10,7 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
@@ -17,6 +18,8 @@ from fastapi import APIRouter, HTTPException, status
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
 from app.services.bmi_visualization import build_bmi_scale_v1
 from core.i18n import normalize_lang, t
+
+logger = logging.getLogger(__name__)
 
 
 # Import engine (will be available after PR-453 Commit 2)
@@ -165,8 +168,10 @@ async def bmi_calculate_handler(
         # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
         try:
             resp.visualization = build_bmi_scale_v1(result.bmi)
-        except Exception:
+        except Exception as e:
             # Visualization is optional; don't break the endpoint if builder fails
+            # Log the error for debugging while preserving graceful fallback
+            logger.error("Failed to build BMI visualization spec", exc_info=e)
             resp.visualization = None
 
         # Return as dict for legacy compatibility

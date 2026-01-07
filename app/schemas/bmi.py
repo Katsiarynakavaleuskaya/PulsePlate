@@ -10,6 +10,7 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
+import math
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -72,7 +73,8 @@ class BMIScaleV1Spec(BaseModel):
             raise ValueError(f"BMI value ({self.bmi}) must be between min ({self.min}) and max ({self.max})")
 
         # Ensure marker.value equals bmi (consistency check)
-        if self.marker.value != self.bmi:
+        # Use math.isclose to handle float precision artifacts
+        if not math.isclose(self.marker.value, self.bmi, rel_tol=0.0, abs_tol=1e-6):
             raise ValueError(f"Marker value ({self.marker.value}) must equal BMI ({self.bmi})")
 
         return self

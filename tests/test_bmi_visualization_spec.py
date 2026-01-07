@@ -6,7 +6,6 @@ Tests for BMI visualization spec builder and endpoint integration.
 import pytest
 
 from app.services.bmi_visualization import build_bmi_scale_v1
-from app.schemas.bmi import BMIScaleV1Spec
 
 
 def test_build_bmi_scale_v1_structure():
@@ -106,6 +105,7 @@ def test_bmi_scale_v1_spec_validation():
     from pydantic import ValidationError
 
     # Valid spec
+    # Note: ranges completeness (full 0-60 coverage) not validated in v1
     valid_spec = BMIScaleV1Spec(
         kind="bmi_scale_v1",
         bmi=23.4,
