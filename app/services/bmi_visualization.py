@@ -25,7 +25,8 @@ def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
         BMIScaleV1Spec with fixed scale 0-60 and WHO standard thresholds
     """
     # Fixed thresholds (WHO standard)
-    # Use model_validate with dict to properly handle alias "from"
+    # Use model_validate with dict to handle alias "from" correctly
+    # (alias appears in JSON via model_dump(by_alias=True) in router)
     ranges = [
         BMIRangeSpec.model_validate({"key": "bmi.underweight", "from": 0.0, "to": 18.5}),
         BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0}),
