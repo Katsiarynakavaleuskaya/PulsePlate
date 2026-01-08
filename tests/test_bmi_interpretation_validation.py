@@ -323,9 +323,9 @@ class TestSchemaEngineContractParity:
             "lang": "en",
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
-        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, (
-            f"Male token '{male_token}' + pregnant must return 422, got {resp.status_code}"
-        )
+        assert (
+            resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        ), f"Male token '{male_token}' + pregnant must return 422, got {resp.status_code}"
 
     def test_schema_engine_exact_tokens_parity(self) -> None:
         """
