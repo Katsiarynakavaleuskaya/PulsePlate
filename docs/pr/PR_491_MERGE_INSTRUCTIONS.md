@@ -65,4 +65,3 @@ git branch -d chore/pr-491-move-core-tests
 - ✅ Merge strategy определена (Squash)
 - ⏳ Ожидание merge на GitHub
 - ⏳ Post-merge cleanup
-

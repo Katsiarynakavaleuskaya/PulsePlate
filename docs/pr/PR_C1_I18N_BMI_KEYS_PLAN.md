@@ -4,7 +4,7 @@
 
 Add BMI visualization i18n keys to iOS `Localizable.strings` (RU/EN/ES) for rendering BMI scale ranges.
 
-**Type:** i18n (iOS only, minimal scope)  
+**Type:** i18n (iOS only, minimal scope)
 **Branch:** `feat/pr-c1-i18n-bmi-keys`
 
 ---
@@ -97,7 +97,7 @@ After adding keys, verify:
 
 Add BMI visualization i18n keys to iOS localization files.
 
-**Type:** i18n (iOS only)  
+**Type:** i18n (iOS only)
 **Minimal scope:** Only 4 keys, no backend refactoring.
 
 ---
@@ -172,4 +172,3 @@ git push -u origin feat/pr-c1-i18n-bmi-keys
 - **No backend changes** in this PR (i18n registry refactoring can be separate PR)
 - **Keys match API contract** from PR-492 (`docs/bmi/visualization.md`)
 - **Minimal scope** — only 4 keys, 3 files
-

@@ -2,8 +2,8 @@
 
 ## Summary
 
-**Type:** Documentation + Contract Tests  
-**Branch:** `docs/pr-492-bmi-visualization-contract`  
+**Type:** Documentation + Contract Tests
+**Branch:** `docs/pr-492-bmi-visualization-contract`
 **Goal:** Document BMI visualization contract for iOS/Web + add contract tests to prevent regressions.
 
 ---
@@ -137,11 +137,11 @@ class TestBMIVisualizationContract:
         )
         assert resp.status_code == 200
         data = resp.json()
-        
+
         # Contract: visualization exists for adult
         assert "visualization" in data
         assert data["visualization"] is not None
-        
+
         viz = data["visualization"]
         assert viz["kind"] == "bmi_scale_v1"
         assert "bmi" in viz
@@ -149,12 +149,12 @@ class TestBMIVisualizationContract:
         assert "max" in viz
         assert "ranges" in viz
         assert "marker" in viz
-        
+
         # Contract: ranges structure
         ranges = viz["ranges"]
         assert len(ranges) == 4
         assert all("key" in r and "from" in r and "to" in r for r in ranges)
-        
+
         # Contract: ranges monotonic (no gaps)
         assert ranges[0]["from"] == viz["min"]
         assert ranges[-1]["to"] == viz["max"]
@@ -176,7 +176,7 @@ class TestBMIVisualizationContract:
         )
         assert resp.status_code == 200
         data = resp.json()
-        
+
         # Contract: visualization is null for category=None groups
         assert "visualization" in data
         assert data["visualization"] is None
@@ -197,7 +197,7 @@ class TestBMIVisualizationContract:
         )
         assert resp.status_code == 200
         data = resp.json()
-        
+
         # Contract: athlete normal range extends to 27.0
         assert data["visualization"] is not None
         ranges = data["visualization"]["ranges"]
@@ -219,7 +219,7 @@ class TestBMIVisualizationContract:
         )
         assert resp.status_code == 200
         data = resp.json()
-        
+
         # Contract: elderly underweight threshold is 17.5
         assert data["visualization"] is not None
         ranges = data["visualization"]["ranges"]
@@ -276,7 +276,7 @@ git diff main -- app/ core/
 
 Document BMI visualization contract and add contract tests to prevent regressions.
 
-**Type:** Documentation + Contract Tests  
+**Type:** Documentation + Contract Tests
 **No production code changes.**
 
 ---
@@ -353,4 +353,3 @@ Document BMI visualization contract and add contract tests to prevent regression
 - Sprint C.1: `ios/PulsePlate/*/Localizable.strings` (iOS files) + possibly `core/i18n/keys.py` (new file)
 
 **Files don't overlap** → safe to work in parallel.
-

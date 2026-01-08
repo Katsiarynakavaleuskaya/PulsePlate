@@ -6,7 +6,7 @@
 
 **Goal:** Align backend i18n with visualization contract without breaking existing code.
 
-**Type:** Backend refactoring (i18n)  
+**Type:** Backend refactoring (i18n)
 **Priority:** After Sprint C.1/C.2 (iOS bootstrap first)
 
 ---
@@ -148,12 +148,12 @@ def t_with_fallback(lang: Language, key: str, fallback_key: str | None = None) -
     """
     RU: Перевод с fallback на альтернативный ключ.
     EN: Translation with fallback to alternative key.
-    
+
     Args:
         lang: Language code
         key: Primary key (e.g., "bmi.underweight")
         fallback_key: Alternative key if primary not found (e.g., "bmi_underweight")
-    
+
     Returns:
         Translated string or key if not found
     """
@@ -206,10 +206,10 @@ def test_normalize_lang_ru_es_maps_to_self() -> None:
 def test_bmi_visualization_keys_map_to_translations() -> None:
     """RU: Ключи из visualization ranges мапятся на переводы без KeyError."""
     from core.bmi.engine import get_bmi_visual_ranges
-    
+
     ranges_data = get_bmi_visual_ranges("general", "adult", 0.0, 60.0)
     assert ranges_data is not None
-    
+
     for _, _, i18n_key in ranges_data:
         # Should not raise KeyError
         for lang in ["ru", "en", "es"]:
@@ -275,4 +275,3 @@ def test_bmi_visualization_keys_map_to_translations() -> None:
 - ✅ Sprint C.2 (iOS BMI bootstrap) — merged
 
 **Reason:** Don't block iOS bootstrap with backend refactoring.
-

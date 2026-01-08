@@ -237,4 +237,3 @@ spec = build_bmi_scale_v1(
 See `docs/roadmap/SPRINT_ROADMAP_2026_Q1.md` for full sprint plan.
 
 **Immediate next PR:** PR-492 — Verify urllib3 2.6.3 in Docker image (Sprint A)
-

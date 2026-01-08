@@ -155,4 +155,3 @@ def test_upper_for_raises_when_missing_category() -> None:
 - `tests/test_bmi_engine_helpers.py`: +73 lines (2 new test classes)
 - `tests/test_bmi_visualization_spec.py`: -73 lines (removed core-internal tests)
 - Net change: 0 lines (pure reorganization)
-

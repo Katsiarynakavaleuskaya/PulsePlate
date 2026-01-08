@@ -148,4 +148,3 @@ git merge --abort
 ✅ **Parallel work is safe** — files don't overlap, no conflicts possible.
 
 **Proceed with confidence!**
-

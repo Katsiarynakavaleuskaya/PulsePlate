@@ -283,4 +283,3 @@
 - `docs/pr/HANDOFF_PR_490_491.md` — Current context
 - `docs/pr/RELEASE_NOTES_PR_490_491.md` — Recent changes
 - `docs/pr/PR_487_REVIEW_CHECKLIST.md` — Security update
-

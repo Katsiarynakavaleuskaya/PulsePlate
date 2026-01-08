@@ -344,4 +344,3 @@ ios/PulsePlate/Models/StoreKitManager.swift  // ✅
 - **Sprint D:** Do last — needs iOS foundation
 
 **Total Time:** 13-18 hours (sequential) or 11-16 hours (B+C.1 parallel)
-

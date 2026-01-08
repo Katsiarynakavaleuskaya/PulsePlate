@@ -1,7 +1,7 @@
 # 🧾 PulsePlate — CONTEXT HANDOFF (после PR-492, старт Sprint C)
 
-**Дата:** 8 января 2026 (America/New_York)  
-**Статус:** Backend стабилен, контракт BMI visualization закреплён docs+tests, начинаем подтягивать iOS/i18n  
+**Дата:** 8 января 2026 (America/New_York)
+**Статус:** Backend стабилен, контракт BMI visualization закреплён docs+tests, начинаем подтягивать iOS/i18n
 **Фаза:** Cleanups + contract → i18n → iOS/Web bootstrap
 
 ---
@@ -372,7 +372,7 @@ feat(i18n): add BMI visualization range keys (RU/EN/ES)
 
 Add BMI visualization i18n keys to iOS localization files.
 
-**Type:** i18n (iOS only)  
+**Type:** i18n (iOS only)
 **Minimal scope:** Only 4 keys, no backend refactoring.
 
 ---
@@ -427,7 +427,7 @@ Add BMI visualization i18n keys to iOS localization files.
 
 Bootstrap iOS BMI screen with API client and visualization component.
 
-**Type:** Feature (iOS)  
+**Type:** Feature (iOS)
 **Scope:** Thin client, no backend changes.
 
 ---
@@ -474,4 +474,3 @@ Bootstrap iOS BMI screen with API client and visualization component.
 ---
 
 **Ready for Sprint C!** 🚀
-

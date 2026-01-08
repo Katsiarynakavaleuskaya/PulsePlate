@@ -43,7 +43,9 @@ def test_get_bmi_breakpoints_fallback_to_age_band_general(monkeypatch: pytest.Mo
         pass
 
 
-def test_get_bmi_breakpoints_final_fallback_to_adult_general(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_bmi_breakpoints_final_fallback_to_adult_general(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     RU: Покрывает финальный fallback ("adult","general") в _get_bmi_breakpoints().
     EN: Covers final ("adult","general") fallback branch in _get_bmi_breakpoints().
@@ -68,4 +70,3 @@ def test_get_bmi_breakpoints_final_fallback_to_adult_general(monkeypatch: pytest
     assert len(bp) == 6
     # Verify it's actually adult/general thresholds (25.0 normal_max)
     assert bp[1][0] == 25.0  # adult normal_max
-

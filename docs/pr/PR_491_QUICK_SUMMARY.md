@@ -2,8 +2,8 @@
 
 ## Status: ✅ Ready to Open
 
-**Branch:** `chore/pr-491-move-core-tests`  
-**Type:** Test-only reorganization  
+**Branch:** `chore/pr-491-move-core-tests`
+**Type:** Test-only reorganization
 **Files Changed:** 2 (test files only)
 
 ---
@@ -82,4 +82,3 @@ git branch -d chore/pr-491-move-core-tests
 - [x] Ветка удалена (если предложено GitHub)
 - [x] Локальный main обновлён
 - [x] Тесты проходят
-

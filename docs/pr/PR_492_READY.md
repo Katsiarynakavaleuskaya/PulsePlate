@@ -82,7 +82,7 @@ git push -u origin docs/pr-492-bmi-visualization-contract
 
 Document BMI visualization contract and add contract tests to prevent regressions.
 
-**Type:** Documentation + Contract Tests  
+**Type:** Documentation + Contract Tests
 **No production code changes.**
 
 ---
@@ -149,4 +149,3 @@ Document BMI visualization contract and add contract tests to prevent regression
 - [ ] Open PR on GitHub
 
 **Ready to push!** 🚀
-

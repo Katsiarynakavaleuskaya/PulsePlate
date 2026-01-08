@@ -58,4 +58,3 @@ pytest -q
 - Local environment may still have urllib3 2.6.2 (needs `pip install -r requirements-lock.txt`)
 - Docker image verification is the key goal
 - CI guard check is optional but recommended
-

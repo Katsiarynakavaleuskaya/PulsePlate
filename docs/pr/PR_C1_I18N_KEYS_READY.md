@@ -108,4 +108,3 @@ After adding keys:
 
 - Follow-up to PR-492 (BMI visualization contract)
 - Enables Sprint C.2 (iOS BMI bootstrap)
-

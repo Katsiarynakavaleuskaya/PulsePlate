@@ -2,7 +2,7 @@
 
 ## PR-490B: BMI Visualization Group-Aware
 
-**Type:** Feature  
+**Type:** Feature
 **Status:** ✅ Merged
 
 ### Summary
@@ -47,7 +47,7 @@ Made BMI visualization group-aware by deriving ranges from core BMI thresholds i
 
 ## PR-491: Test Reorganization
 
-**Type:** Chore (Test-only)  
+**Type:** Chore (Test-only)
 **Status:** ⏳ Pending merge
 
 ### Summary
@@ -106,4 +106,3 @@ Pure test reorganization: moved core BMI engine internal tests from visualizatio
 
 - Consider adding visualization ranges for obesity_1/2/3 categories (currently aggregated as "obesity")
 - Potential i18n improvements for group-specific visualization labels
-

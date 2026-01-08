@@ -132,4 +132,3 @@ Dependabot PR для обновления `urllib3` с версии 2.6.2 до 2
 1. Merge PR-487 (security fix для urllib3)
 2. Если нужен массовый refresh — отдельный PR: `chore/deps-refresh-2026-01`
 3. Каждый Dependabot PR мержим отдельно (прозрачность, низкий риск)
-

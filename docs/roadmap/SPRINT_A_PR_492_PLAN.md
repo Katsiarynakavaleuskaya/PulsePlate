@@ -67,7 +67,7 @@ RUN python -c "import urllib3; assert urllib3.__version__ == '2.6.3', f'Expected
    # scripts/verify_docker_deps.py
    import re
    from pathlib import Path
-   
+
    def get_urllib3_version_from_lock():
        lock_file = Path("requirements-lock.txt")
        content = lock_file.read_text()
@@ -78,10 +78,10 @@ RUN python -c "import urllib3; assert urllib3.__version__ == '2.6.3', f'Expected
 2. **Check Docker image:**
    ```python
    import subprocess
-   
+
    def check_docker_image_version(expected_version):
        result = subprocess.run(
-           ["docker", "run", "--rm", "test-image", 
+           ["docker", "run", "--rm", "test-image",
             "python", "-c", f"import urllib3; print(urllib3.__version__)"],
            capture_output=True, text=True
        )
@@ -186,4 +186,3 @@ docker run test-image python -c "import urllib3; assert urllib3.__version__ == '
 - **Start simple:** Just verify urllib3 for now
 - **Expand later:** If needed, add general dependency guard
 - **Don't over-engineer:** Simple CI check is better than complex script if it solves the problem
-

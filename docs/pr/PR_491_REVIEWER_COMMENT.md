@@ -5,9 +5,9 @@
 ```text
 Pure test reorganization following PR-490B. No production code changes.
 
-These core BMI engine internal tests were temporarily colocated in 
-`test_bmi_visualization_spec.py` during PR-490B to ensure diff-cover visibility. 
-Now moving them to their canonical location in `test_bmi_engine_helpers.py` 
+These core BMI engine internal tests were temporarily colocated in
+`test_bmi_visualization_spec.py` during PR-490B to ensure diff-cover visibility.
+Now moving them to their canonical location in `test_bmi_engine_helpers.py`
 for better test discoverability and separation of concerns.
 
 **What changed:**
@@ -25,9 +25,8 @@ for better test discoverability and separation of concerns.
 ## Альтернативный вариант (ещё короче)
 
 ```text
-Test-only reorganization: moving core BMI engine internal tests from 
+Test-only reorganization: moving core BMI engine internal tests from
 visualization spec file to engine helpers file. No production code changes.
 
 Follow-up to PR-490B where these tests were temporarily placed for diff-cover.
 ```
-

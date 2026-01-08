@@ -4,7 +4,7 @@
 
 This document provides **exact code changes** for Sprint D i18n alignment. Copy-paste ready.
 
-**Status:** Planning document (not implementation)  
+**Status:** Planning document (not implementation)
 **When to use:** After Sprint C.1/C.2 are merged
 
 ---
@@ -466,7 +466,7 @@ make fmt-check  # or black --check
 
 Align backend i18n with BMI visualization contract and fix normalize_lang policy.
 
-**Type:** Backend refactoring (i18n)  
+**Type:** Backend refactoring (i18n)
 **Follow-up to:** PR-492 (BMI visualization contract)
 
 ---
@@ -621,4 +621,3 @@ No `pytest` import needed (not using fixtures or marks in this file).
 ---
 
 **Ready to implement!** Copy-paste the changes above in order (Commit 1 → Commit 2 → Commit 3).
-

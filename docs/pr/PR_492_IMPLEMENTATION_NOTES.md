@@ -250,4 +250,3 @@ git commit -m "test(bmi): add contract tests for visualization field"
 4. ✅ Graceful fallback (builder failure)
 
 **Total:** 7 contract tests, all adapted to real project structure.
-

@@ -67,4 +67,3 @@ See `docs/roadmap/SPRINT_ROADMAP_2026_Q1.md` for complete sprint plan:
 **Don't:** Expand backend unnecessarily — it's already feature-rich.
 
 **Do:** Focus on client integration, documentation, testing, i18n foundation.
-

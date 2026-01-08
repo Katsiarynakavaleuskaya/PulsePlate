@@ -177,7 +177,7 @@ class TestBMIUpperFor:
 
    ```markdown
    ## Follow-up
-   
+
    Follow-up: aligned `BMICalculateResult.group` typing with `BMIGroup` (core source of truth); removed cast/ignore in visualization adapter.
    ```
 

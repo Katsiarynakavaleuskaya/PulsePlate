@@ -70,4 +70,3 @@ chore(tests): move core bmi breakpoint fallback tests into dedicated file
 Follow-up to PR-490B where these tests were temporarily colocated
 for diff-cover visibility.
 ```
-

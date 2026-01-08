@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**Status:** Backend BMI features complete, clients need integration.  
+**Status:** Backend BMI features complete, clients need integration.
 **Recommendation:** Sprint B (BMI contract docs) → Sprint C (i18n + iOS) → Sprint D (PRO/VIP UI).
 
 **Rationale:** Document contract first, then bootstrap clients, then integrate existing PRO/VIP endpoints.
@@ -286,8 +286,8 @@ router = APIRouter(prefix="/shoplist", tags=["VIP Shoplist"])
 
 ### Recommendation 1: Sprint B First (BMI Contract Docs)
 
-**Priority:** HIGH  
-**Risk:** LOW  
+**Priority:** HIGH
+**Risk:** LOW
 **Value:** HIGH
 
 **Why:**
@@ -324,8 +324,8 @@ class BMICalculateResponse(BaseModel):
 
 ### Recommendation 2: Sprint C.1 (i18n Audit)
 
-**Priority:** MEDIUM-HIGH  
-**Risk:** LOW  
+**Priority:** MEDIUM-HIGH
+**Risk:** LOW
 **Value:** MEDIUM-HIGH
 
 **Why:**
@@ -368,8 +368,8 @@ ios/PulsePlate/es.lproj/Localizable.strings  // ✅ Exists
 
 ### Recommendation 3: Sprint C.2 (iOS BMI Bootstrap)
 
-**Priority:** HIGH  
-**Risk:** LOW  
+**Priority:** HIGH
+**Risk:** LOW
 **Value:** HIGH
 
 **Why:**
@@ -417,8 +417,8 @@ ios/PulsePlate/Screens/BMICalculateScreen.swift  // ❌
 
 ### Recommendation 4: Sprint D (PRO/VIP Integration)
 
-**Priority:** MEDIUM  
-**Risk:** LOW  
+**Priority:** MEDIUM
+**Risk:** LOW
 **Value:** HIGH (monetization)
 
 **Why:**
@@ -526,4 +526,3 @@ ios/PulsePlate/Services/ProKeyProvider.swift  # ✅ Exists
 4. **After C.2:** Start Sprint D — PRO/VIP integration
 
 **Skip:** PR-492 (Docker verification) — not needed, security alert resolved.
-

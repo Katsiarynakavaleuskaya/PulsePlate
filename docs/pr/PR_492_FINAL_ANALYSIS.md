@@ -367,4 +367,3 @@ git commit -m "test(bmi): add contract tests for visualization field"
 6. ✅ **Graceful fallback совпадает** с router implementation
 
 **Все адаптации аргументированы реальным кодом проекта.**
-

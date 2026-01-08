@@ -61,7 +61,7 @@ After opening PR, check:
 
 Document BMI visualization contract and add contract tests to prevent regressions.
 
-**Type:** Documentation + Contract Tests  
+**Type:** Documentation + Contract Tests
 **No production code changes.**
 
 ---
@@ -126,4 +126,3 @@ Document BMI visualization contract and add contract tests to prevent regression
 - [ ] Ready for review
 
 **Next:** Open PR and monitor CI! 🚀
-
