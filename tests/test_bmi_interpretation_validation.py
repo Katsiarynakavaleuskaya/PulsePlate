@@ -155,6 +155,39 @@ class TestGenderPregnantValidation:
         # Request succeeds with pregnant coerced to False
         assert data["group"] != "pregnant"  # Should not be pregnant group
 
+    def test_gender_none_pregnant_true_auto_sets_female(self) -> None:
+        """
+        RU: gender=None + pregnant=True автоматически устанавливает gender="female" (pregnant implies female).
+        EN: gender=None + pregnant=True auto-sets gender="female" (pregnant implies female).
+        """
+        req = BMICalculateRequest(
+            weight_kg=65.0,
+            height_cm=165.0,
+            age=28,
+            gender=None,
+            pregnant=True,
+            waist_cm=None,
+        )
+        assert req.gender == "female"  # Auto-set by _apply_pregnancy_invariant
+        assert req.pregnant is True
+
+    def test_gender_none_pregnant_true_api_returns_200(self, client: TestClient) -> None:
+        """
+        RU: API должен возвращать 200 для gender=None + pregnant=True (auto-sets gender="female").
+        EN: API must return 200 for gender=None + pregnant=True (auto-sets gender="female").
+        """
+        payload = {
+            "weight_kg": 65.0,
+            "height_cm": 165.0,
+            "age": 28,
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+        assert data["group"] == "pregnant"  # Should be pregnant group (gender auto-set to female)
+
     def test_female_pregnant_api_returns_200(self, client: TestClient) -> None:
         """
         RU: API должен возвращать 200 для female+pregnant.
@@ -170,6 +203,8 @@ class TestGenderPregnantValidation:
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
         assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+        assert data["group"] == "pregnant"  # Should be pregnant group
 
     def test_gender_normalization_ru_female_validation_ok(self) -> None:
         """

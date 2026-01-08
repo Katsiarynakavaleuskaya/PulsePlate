@@ -21,6 +21,21 @@
 - Keep API schema changes in sync with `app/schemas/` and tests.
 - Apply tier guards (`require_pro_tier`, VIP) consistently on gated endpoints.
 
+### Typing rule: Pydantic v2 `model_validate()` + mypy
+
+Pydantic v2 `BaseModel.model_validate()` is typed as returning `Any` for mypy in many cases.
+Therefore:
+
+- ❌ Do NOT: `return SomeModel.model_validate(x)` (can trigger `no-any-return`)
+- ✅ Do: assign to a typed local first:
+
+```py
+result: SomeModel = SomeModel.model_validate(x)
+return result
+```
+
+Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
+
 ## Export/PDF invariants (hard rules) (PR-8b / PR-8c)
 
 ### PDF export must be import-safe
