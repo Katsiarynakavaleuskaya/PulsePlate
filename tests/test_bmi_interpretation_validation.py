@@ -296,3 +296,73 @@ class TestGenderPregnantValidation:
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+class TestSchemaEngineContractParity:
+    """
+    RU: Guard-тесты на контракт schema ↔ engine (предотвращение расхождений).
+    EN: Guard tests for schema ↔ engine contract (prevent divergence).
+
+    Critical: schema and engine must agree on gender token interpretation.
+    """
+
+    @pytest.mark.parametrize("male_token", ["male", "m", "man", "м"])
+    def test_all_male_exact_tokens_block_pregnant(
+        self, client: TestClient, male_token: str
+    ) -> None:
+        """
+        RU: Контракт schema ↔ engine: все male exact токены + pregnant должны быть отклонены (422).
+        EN: Schema ↔ engine contract: all male exact tokens + pregnant must be rejected (422).
+        """
+        payload = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": male_token,
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, (
+            f"Male token '{male_token}' + pregnant must return 422, got {resp.status_code}"
+        )
+
+    def test_schema_engine_exact_tokens_parity(self) -> None:
+        """
+        RU: Guard-тест: exact токены в schema и engine должны совпадать (двусторонняя проверка).
+        EN: Guard test: exact tokens in schema and engine must match (bidirectional check).
+
+        Uses contract spec as source of truth to verify both schema and engine.
+        """
+        from app.schemas.bmi import _MALE_EXACT, _FEMALE_EXACT
+        from core.bmi.engine import _normalize_gender
+
+        # Contract spec: canonical exact token sets (source of truth)
+        CONTRACT_MALE_EXACT: set[str] = {"male", "m", "man", "м"}
+        CONTRACT_FEMALE_EXACT: set[str] = {"female", "f", "woman", "w", "ж"}
+
+        # Verify schema matches contract spec
+        assert _MALE_EXACT == CONTRACT_MALE_EXACT, (
+            f"Schema _MALE_EXACT must match contract spec. "
+            f"Expected: {CONTRACT_MALE_EXACT}, Got: {_MALE_EXACT}"
+        )
+        assert _FEMALE_EXACT == CONTRACT_FEMALE_EXACT, (
+            f"Schema _FEMALE_EXACT must match contract spec. "
+            f"Expected: {CONTRACT_FEMALE_EXACT}, Got: {_FEMALE_EXACT}"
+        )
+
+        # Verify engine recognizes all contract male tokens as male
+        for token in CONTRACT_MALE_EXACT:
+            result = _normalize_gender(token)
+            assert result == "male", (
+                f"Contract token '{token}' must be recognized as male by engine. "
+                f"Got: '{result}'"
+            )
+
+        # Verify engine recognizes all contract female tokens as female
+        for token in CONTRACT_FEMALE_EXACT:
+            result = _normalize_gender(token)
+            assert result == "female", (
+                f"Contract token '{token}' must be recognized as female by engine. "
+                f"Got: '{result}'"
+            )
