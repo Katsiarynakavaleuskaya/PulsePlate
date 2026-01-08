@@ -118,11 +118,10 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
     assert data["waist_risk"]["notes"] == ["Increased waist-related risk"]
 
     # Ensure bool normalization happened before engine call
-    # Note: pregnant="yes" is normalized to bool=True in schema, and if gender is not female,
-    # soft normalization may coerce it to False. This test uses default gender (None -> "male" fallback),
-    # so pregnant may be coerced. Check that normalization happened (bool value).
-    assert isinstance(captured["pregnant"], bool), "pregnant should be normalized to bool"
-    assert isinstance(captured["athlete"], bool), "athlete should be normalized to bool"
+    # This test explicitly sets gender="female" to avoid soft normalization, so pregnant should remain True
+    # after schema validation (pregnant="yes" -> bool=True, and gender="female" prevents coercion to False)
+    assert captured["pregnant"] is True, "pregnant should be True when gender='female'"
+    assert captured["athlete"] is True, "athlete should be normalized to bool=True"
 
 
 def test_bmi_calculate_validation_422(client: TestClient) -> None:
