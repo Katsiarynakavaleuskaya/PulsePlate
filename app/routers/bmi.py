@@ -127,8 +127,11 @@ async def bmi_calculate_handler(
         )
 
     try:
-        # Schema already normalizes pregnant to bool, but keep normalization for robustness
-        # (in case req comes from legacy path that bypasses schema)
+        # Schema already normalizes pregnant to bool via field_validator, but keep normalization
+        # for robustness (in case req comes from legacy path that bypasses schema)
+        # NOTE: Soft normalization (male+pregnant -> pregnant=False) is handled by schema's
+        # _apply_pregnancy_invariant model_validator. Handler remains thin and does not duplicate
+        # domain normalization logic.
         pregnant_bool = (
             req.pregnant if isinstance(req.pregnant, bool) else _normalize_bool_flag(req.pregnant)
         )
@@ -136,12 +139,10 @@ async def bmi_calculate_handler(
             req.athlete if isinstance(req.athlete, bool) else _normalize_bool_flag(req.athlete)
         )
 
-        # Apply soft normalization: if male+pregnant, coerce pregnant=False (pipeline robustness)
-        # This matches schema's _apply_pregnancy_invariant behavior
-        if pregnant_bool and req.gender == "male":
-            pregnant_bool = False
-
         # Call engine (domain logic)
+        # Schema's _apply_pregnancy_invariant already handled soft normalization:
+        # - gender=None + pregnant=True -> gender="female"
+        # - gender="male" + pregnant=True -> pregnant=False
         result = calculate_bmi_result(
             weight_kg=req.weight_kg,
             height_cm=req.height_cm,
@@ -241,5 +242,7 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     """
     # Handler returns dict for legacy compatibility; convert back to model for FastAPI serialization
     # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
+    # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
     data: dict[str, Any] = await bmi_calculate_handler(req)
-    return BMICalculateResponse.model_validate(data)
+    response = BMICalculateResponse.model_validate(data)
+    return response
