@@ -10,12 +10,16 @@ FREE tier endpoint (no API key required).
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+from app.services.bmi_visualization import build_bmi_scale_v1
 from core.i18n import normalize_lang, t
+
+logger = logging.getLogger(__name__)
 
 
 # Import engine (will be available after PR-453 Commit 2)
@@ -159,10 +163,22 @@ async def bmi_calculate_handler(
             waist_risk=waist_risk_schema,
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
+            visualization=None,  # Will be set below if builder succeeds
         )
 
+        # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
+        try:
+            resp.visualization = build_bmi_scale_v1(result.bmi)
+        except Exception:
+            # Visualization is optional; don't break the endpoint if builder fails
+            # Log the error for debugging while preserving graceful fallback
+            # Security: log only BMI value (numeric), not user input data
+            logger.exception("Failed to build BMI visualization spec (BMI=%.1f)", result.bmi)
+            resp.visualization = None
+
         # Return as dict for legacy compatibility
-        response_dict: dict[str, Any] = resp.model_dump()
+        # IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON
+        response_dict: dict[str, Any] = resp.model_dump(by_alias=True)
         return response_dict
 
     except NotImplementedError as e:
@@ -189,7 +205,11 @@ async def bmi_calculate_handler(
         ) from e
 
 
-@router.post("/calculate", response_model=BMICalculateResponse)
+@router.post(
+    "/calculate",
+    response_model=BMICalculateResponse,
+    response_model_by_alias=True,
+)
 async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     """
     RU: Рассчитывает BMI через единый engine.
@@ -201,12 +221,14 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
         req: BMICalculateRequest with user parameters
 
     Returns:
-        BMICalculateResponse with BMI calculation results
+        BMICalculateResponse with BMI calculation results (serialized with by_alias=True)
 
     Raises:
         HTTPException: 400 if domain validation fails (BMI out of bounds)
                       422 if Pydantic validation fails (handled automatically)
                       500 if engine is not available or other errors occur
     """
+    # Handler returns dict for legacy compatibility; convert back to model for FastAPI serialization
+    # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
     data = await bmi_calculate_handler(req)
     return BMICalculateResponse.model_validate(data)
