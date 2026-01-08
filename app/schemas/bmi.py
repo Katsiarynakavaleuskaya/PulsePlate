@@ -476,12 +476,12 @@ class BMICalculateResponse(BaseModel):
     )
 
     visualization: BMIScaleV1Spec | None = Field(
-        None,
+        default=None,
         description="Optional BMI scale visualization spec (v1). Frontend should render this if available.",
     )
 
     interpretation_v1: BMIInterpretationV1Schema | None = Field(
-        None,
+        default=None,
         description=(
             "Optional structured interpretation (v1). i18n keys only. "
             "Currently may be None while wiring is in progress. "
