@@ -19,6 +19,7 @@ from app.schemas.bmi import (
     BMICalculateRequest,
     BMICalculateResponse,
     BMIInterpretationV1Schema,
+    NumericRangeSchema,
     WaistRiskResultSchema,
 )
 from app.services.bmi_visualization import build_bmi_scale_v1
@@ -170,13 +171,13 @@ async def bmi_calculate_handler(
             if interp is not None:
                 # Convert dataclass to schema
                 # Handle target_range: NumericRange dict or qualitative string
-                target_range_value: dict[str, float] | str | None = None
+                target_range_value: NumericRangeSchema | str | None = None
                 if interp.target_range is not None:
                     if isinstance(interp.target_range, dict):
-                        target_range_value = {
-                            "min": interp.target_range["min"],
-                            "max": interp.target_range["max"],
-                        }
+                        target_range_value = NumericRangeSchema(
+                            min=interp.target_range["min"],
+                            max=interp.target_range["max"],
+                        )
                     else:
                         target_range_value = interp.target_range
 
