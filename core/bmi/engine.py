@@ -63,15 +63,31 @@ def _normalize_gender(gender: str | None) -> str:
     EN: Normalize gender to 'male'/'female' with legacy parity.
 
     Legacy nuance: uses startswith("жен") / startswith("mujer").
+
+    IMPORTANT: Must match schema's _MALE_EXACT/_FEMALE_EXACT tokens to prevent
+    contract mismatch (schema allows "woman" + pregnant, but engine treats "woman" as male).
     """
     g = (gender or "").strip().lower()
+    if not g:
+        # Fallback: legacy-compatible default
+        return "male"
 
-    # Female (RU/ES startswith parity)
-    if g == "female" or g.startswith("жен") or g.startswith("mujer"):
+    # Female exact tokens (must match schema's _FEMALE_EXACT)
+    female_exact = {"female", "f", "woman", "w", "ж"}
+    if g in female_exact:
         return "female"
 
-    # Male variants (RU/ES startswith parity)
-    if g == "male" or g.startswith("муж") or g.startswith("hombre"):
+    # Female prefixes (RU/ES startswith parity)
+    if g.startswith("жен") or g.startswith("mujer"):
+        return "female"
+
+    # Male exact tokens (must match schema's _MALE_EXACT)
+    male_exact = {"male", "m", "man", "м"}
+    if g in male_exact:
+        return "male"
+
+    # Male prefixes (RU/ES startswith parity)
+    if g.startswith("муж") or g.startswith("hombre"):
         return "male"
 
     # Fallback: legacy-compatible default

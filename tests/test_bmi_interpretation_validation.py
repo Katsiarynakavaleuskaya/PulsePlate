@@ -296,3 +296,76 @@ class TestGenderPregnantValidation:
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+class TestSchemaEngineContractParity:
+    """
+    RU: Guard-тесты на контракт schema ↔ engine (предотвращение расхождений).
+    EN: Guard tests for schema ↔ engine contract (prevent divergence).
+
+    Critical: schema and engine must agree on gender token interpretation.
+    If schema allows "woman" + pregnant, engine must also treat "woman" as female.
+    """
+
+    def test_schema_engine_contract_parity_woman_pregnant(self, client: TestClient) -> None:
+        """
+        RU: Контракт schema ↔ engine: "woman" + pregnant не должен быть отклонён как male.
+        EN: Schema ↔ engine contract: "woman" + pregnant must not be rejected as male.
+
+        Critical: schema treats "woman" as female, engine must also treat it as female.
+        """
+        payload = {
+            "weight_kg": 65.0,
+            "height_cm": 165.0,
+            "age": 28,
+            "gender": "woman",
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        # Must NOT be 422 (schema allows it, engine must also allow it)
+        assert resp.status_code == status.HTTP_200_OK
+        # Verify engine treated it as female (pregnant group)
+        body = resp.json()
+        assert body.get("group") == "pregnant"
+
+    def test_schema_engine_contract_parity_zh_pregnant(self, client: TestClient) -> None:
+        """
+        RU: Контракт schema ↔ engine: "ж" + pregnant не должен быть отклонён как male.
+        EN: Schema ↔ engine contract: "ж" + pregnant must not be rejected as male.
+
+        Critical: schema treats "ж" as female, engine must also treat it as female.
+        """
+        payload = {
+            "weight_kg": 65.0,
+            "height_cm": 165.0,
+            "age": 28,
+            "gender": "ж",
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        # Must NOT be 422 (schema allows it, engine must also allow it)
+        assert resp.status_code == status.HTTP_200_OK
+        # Verify engine treated it as female (pregnant group)
+        body = resp.json()
+        assert body.get("group") == "pregnant"
+
+    def test_schema_engine_contract_parity_man_pregnant_blocks(self, client: TestClient) -> None:
+        """
+        RU: Контракт schema ↔ engine: "man" + pregnant должен быть отклонён (оба слоя блокируют).
+        EN: Schema ↔ engine contract: "man" + pregnant must be rejected (both layers block).
+
+        Critical: schema treats "man" as male, engine must also treat it as male.
+        """
+        payload = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": "man",
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        # Must be 422 (both schema and engine block it)
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

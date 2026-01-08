@@ -27,6 +27,14 @@ class TestNormalizeGender:
     def test_female_variants(self) -> None:
         """Test female gender normalization with startswith parity."""
         assert _normalize_gender("female") == "female"
+        assert _normalize_gender("f") == "female"  # schema parity
+        assert (
+            _normalize_gender("woman") == "female"
+        )  # schema parity (critical: was falling back to male)
+        assert _normalize_gender("w") == "female"  # schema parity
+        assert (
+            _normalize_gender("ж") == "female"
+        )  # schema parity (critical: was falling back to male)
         assert _normalize_gender("жен") == "female"
         assert _normalize_gender("женский") == "female"  # startswith parity
         assert _normalize_gender("женщина") == "female"  # startswith parity
@@ -36,6 +44,9 @@ class TestNormalizeGender:
     def test_male_variants(self) -> None:
         """Test male gender normalization."""
         assert _normalize_gender("male") == "male"
+        assert _normalize_gender("m") == "male"  # schema parity
+        assert _normalize_gender("man") == "male"  # schema parity
+        assert _normalize_gender("м") == "male"  # schema parity
         assert _normalize_gender("муж") == "male"
         assert _normalize_gender("мужской") == "male"  # startswith parity
         assert _normalize_gender("hombre") == "male"  # ES startswith parity
