@@ -189,6 +189,77 @@ GROUP_DISPLAY_NAMES: dict[str, dict[Language, str]] = {
 # Athlete string detection (legacy parity) — strict, NOT including "спорт".
 _ATHLETE_REGEX = re.compile(r"(спортсмен(ка)?|атлет(ка)?)", flags=re.IGNORECASE)
 
+# BMI category breakpoints by (age_band, group)
+# Format: list of (upper_bound_exclusive, category) tuples
+# Used by both _bmi_category() and get_bmi_visual_ranges()
+# Key: (age_band, group) -> list[tuple[float, BMICategory]]
+# Note: elderly age_band normalizes group to "general" (elderly wins)
+_BMI_BREAKPOINTS: dict[tuple[AgeBand, BMIGroup], list[tuple[float, BMICategory]]] = {
+    # Elderly (age_band wins, group normalized to "general")
+    ("elderly", "general"): [
+        (17.5, "underweight"),
+        (26.0, "normal"),
+        (30.0, "overweight"),
+        (35.0, "obesity_1"),
+        (40.0, "obesity_2"),
+        (float("inf"), "obesity_3"),
+    ],
+    # Athlete (adult age_band)
+    ("adult", "athlete"): [
+        (18.5, "underweight"),
+        (27.0, "normal"),  # Key difference: 27.0 vs 25.0
+        (30.0, "overweight"),
+        (35.0, "obesity_1"),
+        (40.0, "obesity_2"),
+        (float("inf"), "obesity_3"),
+    ],
+    # General adult (default)
+    ("adult", "general"): [
+        (18.5, "underweight"),
+        (25.0, "normal"),
+        (30.0, "overweight"),
+        (35.0, "obesity_1"),
+        (40.0, "obesity_2"),
+        (float("inf"), "obesity_3"),
+    ],
+}
+
+
+def _get_bmi_breakpoints(age_band: AgeBand, group: BMIGroup) -> list[tuple[float, BMICategory]]:
+    """
+    RU: Возвращает breakpoints BMI для комбинации age_band и group.
+    EN: Return BMI breakpoints for age_band and group combination.
+
+    Returns list of (upper_bound_exclusive, category) tuples.
+
+    Fallback strategy (cascading):
+    1. Try (age_band, group)
+    2. Try (age_band, "general")
+    3. Fallback to ("adult", "general")
+
+    Elderly normalization: if age_band == "elderly", group is normalized to "general"
+    to enforce "elderly wins over group" invariant.
+    """
+    # Normalize: elderly age_band wins over group
+    if age_band == "elderly":
+        normalized_group: BMIGroup = "general"
+    else:
+        normalized_group = group
+
+    # Cascading fallback
+    key = (age_band, normalized_group)
+    if key in _BMI_BREAKPOINTS:
+        return _BMI_BREAKPOINTS[key]
+
+    # Fallback to age_band-specific general
+    general_group: BMIGroup = "general"
+    key_fallback = (age_band, general_group)
+    if key_fallback in _BMI_BREAKPOINTS:
+        return _BMI_BREAKPOINTS[key_fallback]
+
+    # Final fallback: adult general
+    return _BMI_BREAKPOINTS[("adult", "general")]
+
 
 def _auto_group(
     *,
@@ -255,50 +326,90 @@ def _bmi_category(
         return None
 
     band = _age_band(age)
+    breakpoints = _get_bmi_breakpoints(band, group)
 
-    # Elderly wins by age (even if someone is "athlete" conceptually).
-    if band == "elderly":
-        # Elderly thresholds (from decisions): underweight < 17.5, normal < 26.0
-        if bmi < 17.5:
-            return "underweight"
-        if bmi < 26.0:
-            return "normal"
-        if bmi < 30.0:
-            return "overweight"
-        if bmi < 35.0:
-            return "obesity_1"
-        if bmi < 40.0:
-            return "obesity_2"
-        return "obesity_3"
+    # Find category using breakpoints
+    for upper_bound, category in breakpoints:
+        if bmi < upper_bound:
+            return category
 
-    if group == "athlete":
-        # Athlete thresholds (from decisions): underweight < 18.5, normal < 27.0
-        if bmi < 18.5:
-            return "underweight"
-        if bmi < 27.0:
-            return "normal"
-        if bmi < 30.0:
-            return "overweight"
-        if bmi < 35.0:
-            return "obesity_1"
-        if bmi < 40.0:
-            return "obesity_2"
-        return "obesity_3"
-
-    # General adult thresholds (WHO-like; from decisions)
-    # Adult: underweight < 18.5, normal 18.5-25.0, overweight 25.0-30.0,
-    #        obese_1 30.0-35.0, obese_2 35.0-40.0, obese_3 >= 40.0
-    if bmi < 18.5:
-        return "underweight"
-    if bmi < 25.0:
-        return "normal"
-    if bmi < 30.0:
-        return "overweight"
-    if bmi < 35.0:
-        return "obesity_1"
-    if bmi < 40.0:
-        return "obesity_2"
+    # Should never reach here (last breakpoint is inf), but safety fallback
     return "obesity_3"
+
+
+def _upper_for(
+    breakpoints: list[tuple[float, BMICategory]],
+    target: BMICategory,
+) -> float:
+    """
+    RU: Извлекает верхнюю границу для указанной категории из breakpoints.
+    EN: Extract upper bound for specified category from breakpoints.
+
+    Args:
+        breakpoints: List of (upper_bound, category) tuples
+        target: Target category to find
+
+    Returns:
+        Upper bound (exclusive) for the target category
+
+    Raises:
+        ValueError: If target category not found in breakpoints
+    """
+    for upper, cat in breakpoints:
+        if cat == target:
+            return upper
+    raise ValueError(f"Missing breakpoint for {target!r}")
+
+
+def get_bmi_visual_ranges(
+    group: BMIGroup,
+    age_band: AgeBand,
+    scale_min: float = 0.0,
+    scale_max: float = 60.0,
+) -> list[tuple[float, float, str]] | None:
+    """
+    RU: Возвращает диапазоны BMI для визуализации на основе порогов группы.
+    EN: Return BMI ranges for visualization based on group thresholds.
+
+    Args:
+        group: BMI group (general, athlete, elderly, etc.)
+        age_band: Age band (adult, elderly, etc.)
+        scale_min: Minimum BMI for visualization scale (default 0.0)
+        scale_max: Maximum BMI for visualization scale (default 60.0)
+
+    Returns:
+        List of (start, end, i18n_key) tuples for visualization ranges, or None
+        if group should not have visualization (category=None groups).
+
+        Returns exactly 4 ranges:
+        - (scale_min, underweight_max, "bmi.underweight")
+        - (underweight_max, normal_max, "bmi.normal")
+        - (normal_max, overweight_max, "bmi.overweight")
+        - (overweight_max, scale_max, "bmi.obesity")
+
+        Note: obesity_1/2/3 are aggregated into single "bmi.obesity" range.
+        Obesity tiers (35.0, 40.0) are NOT used in visualization ranges.
+
+    Returns None for groups where category=None (checked by group, not category):
+    - too_young, child, teen, pregnant
+    """
+    # Groups without category should not have visualization (check by group, not category)
+    if group in {"too_young", "child", "teen", "pregnant"}:
+        return None
+
+    breakpoints = _get_bmi_breakpoints(age_band, group)
+
+    # Extract visualization breakpoints by category name (not index) for robustness
+    underweight_max = _upper_for(breakpoints, "underweight")
+    normal_max = _upper_for(breakpoints, "normal")
+    overweight_max = _upper_for(breakpoints, "overweight")
+
+    return [
+        (scale_min, underweight_max, "bmi.underweight"),
+        (underweight_max, normal_max, "bmi.normal"),
+        (normal_max, overweight_max, "bmi.overweight"),
+        (overweight_max, scale_max, "bmi.obesity"),
+    ]
 
 
 def _group_display_name(group: BMIGroup, lang: Language) -> str:
@@ -338,7 +449,7 @@ class BMICalculateResult:
 
     bmi: float
     category: str | None
-    group: str
+    group: BMIGroup  # Matches _auto_group() return type
     group_display: str
     interpretation: str
     wht_ratio: float | None

@@ -22,6 +22,16 @@
   Preferred placement: `tests/vip/test_<feature>_diff_coverage.py` for VIP features, or `tests/test_<feature>_diff_coverage.py` alongside the related unit tests.
   Example: `tests/vip/test_pdf_export_diff_coverage.py`.
 
+### Diff-cover file visibility rule
+**Problem**: CI runs all tests, but `diff-cover` attributes coverage only to **changed files** in the PR diff.
+A standalone new test file may not be included in diff-cover's comparison, causing "missing coverage" even when tests pass.
+
+**Rule**: When adding tests to cover lines in a **modified source file**, prefer adding them to an **already-modified test file** in the PR (or ensure the new test file is explicitly included in the diff).
+- ✅ **Preferred**: Add coverage-tail tests to `tests/test_<feature>.py` if that file is already modified in the PR.
+- ⚠️ **Alternative**: If creating a new test file, verify it appears in `git diff --name-only origin/main...HEAD` and that diff-cover includes it in the comparison.
+
+**Example (PR-490B)**: Coverage-tail tests for `core/bmi/engine.py` were moved from a standalone file into `tests/test_bmi_visualization_spec.py` (already modified in the PR) to ensure diff-cover correctly detects coverage.
+
 ### Reliable local diff-cover check (prevents phantom gaps)
 
 **Problem**: diff-cover may show "missing lines" if coverage.xml is stale or from wrong test session.

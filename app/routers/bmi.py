@@ -168,7 +168,7 @@ async def bmi_calculate_handler(
 
         # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
         try:
-            resp.visualization = build_bmi_scale_v1(result.bmi)
+            resp.visualization = build_bmi_scale_v1(result)  # Pass full result, not just bmi
         except Exception:
             # Visualization is optional; don't break the endpoint if builder fails
             # Log the error for debugging while preserving graceful fallback
