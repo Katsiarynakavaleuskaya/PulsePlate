@@ -109,11 +109,11 @@ class TestBMICalculateRequest:
         assert any(err["loc"] == ("lang",) and err["type"] == "literal_error" for err in errors)
 
     def test_pregnant_string_and_bool(self) -> None:
-        """Test that pregnant accepts both string and bool."""
-        req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant="yes")
+        """Test that pregnant accepts both string and bool (for female)."""
+        req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, gender="female", pregnant="yes")
         assert req_str.pregnant == "yes"
 
-        req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant=True)
+        req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, gender="female", pregnant=True)
         assert req_bool.pregnant is True
 
     def test_athlete_string_and_bool(self) -> None:

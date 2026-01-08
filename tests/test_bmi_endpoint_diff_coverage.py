@@ -193,7 +193,7 @@ async def test_handler_success_with_model_dump_input(monkeypatch: pytest.MonkeyP
         weight_kg: float
         height_cm: float
         age: int
-        gender: str = "male"
+        gender: str = "female"
         pregnant: str | bool = "yes"
         athlete: str | bool = "no"
         waist_cm: float | None = None
@@ -214,7 +214,7 @@ async def test_handler_success_with_model_dump_input(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(bmi_router, "calculate_bmi_result", _ok)
 
-    legacy = _LegacyReq(weight_kg=70, height_cm=175, age=30)
+    legacy = _LegacyReq(weight_kg=70, height_cm=175, age=30, gender="female")
     data = await bmi_router.bmi_calculate_handler(legacy)
 
     assert data["bmi"] == 23.0

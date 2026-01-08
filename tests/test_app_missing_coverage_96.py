@@ -279,20 +279,22 @@ class TestAppMissingCoverage96:
         # Should not have waist-related warnings
 
     def test_pregnant_male_combination(self):
-        """Test that pregnant flag is ignored for males."""
+        """Test that male + pregnant returns 422 (hard invariant)."""
         payload = {
             "weight_kg": 70.0,
             "height_m": 1.7,
             "age": 30,
             "gender": "male",
-            "pregnant": "yes",  # Should be ignored for male
+            "pregnant": "yes",  # Invalid: male cannot be pregnant
             "athlete": "no",
             "lang": "en",
         }
 
         response = self.client.post("/bmi", json=payload)
-        assert response.status_code == 200
-        # Should not have pregnancy-related warnings
+        assert response.status_code == 422
+        # Should have validation error about pregnancy
+        body = response.json()
+        assert "detail" in body
 
     def test_pregnant_female_yes_no_conflict(self):
         """Test pregnant flag when both yes and no indicators are present."""

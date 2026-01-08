@@ -177,6 +177,87 @@ class BMICalculateRequest(BaseModel):
         examples=["en", "ru", "es"],
     )
 
+    @model_validator(mode="after")
+    def validate_gender_pregnant(self) -> "BMICalculateRequest":
+        """
+        RU: Валидация: мужчина не может быть беременным (жёсткий инвариант).
+        EN: Validation: males cannot be pregnant (hard invariant).
+
+        Raises:
+            ValueError: If gender is male and pregnant is True
+        """
+        # Local gender normalization (no import from core.bmi.engine)
+        # Male synonyms
+        _MALE_VALUES = {"male", "m", "man", "м", "муж", "мужчина", "hombre"}
+
+        gender_str = (self.gender or "").strip().lower()
+        is_male = gender_str in _MALE_VALUES
+
+        # Local pregnant normalization (simple bool check)
+        pregnant_bool = False
+        if isinstance(self.pregnant, bool):
+            pregnant_bool = self.pregnant
+        elif isinstance(self.pregnant, str):
+            s = self.pregnant.strip().lower()
+            pregnant_bool = s in {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
+
+        # Hard invariant: male + pregnant → error (fail-loud)
+        if is_male and pregnant_bool:
+            raise ValueError("Pregnancy is only applicable to females")
+
+        return self
+
+
+class NumericRangeSchema(BaseModel):
+    """Numeric BMI target range schema."""
+
+    min: float = Field(..., description="Range minimum (inclusive)", examples=[18.5])
+    max: float = Field(..., description="Range maximum (inclusive)", examples=[25.0])
+
+
+# TargetRangeSchema: Union of NumericRangeSchema or qualitative string
+# We use a type alias for clarity, but Pydantic will handle Union validation
+TargetRangeSchema = NumericRangeSchema | Literal["age_appropriate_growth", "prenatal_guidelines"]
+
+
+class BMIInterpretationV1Schema(BaseModel):
+    """
+    BMI Interpretation v1 schema (i18n keys only).
+
+    RU: Схема интерпретации BMI v1 (только i18n ключи).
+    EN: BMI interpretation v1 schema (i18n keys only).
+    """
+
+    goal_direction: Literal["maintain", "reduce", "increase", "medical_review"] = Field(
+        ...,
+        description="Goal direction for BMI management.",
+        examples=["maintain"],
+    )
+
+    target_range: NumericRangeSchema | Literal["age_appropriate_growth", "prenatal_guidelines"] | None = Field(
+        None,
+        description="Target range (numeric or qualitative). None for medical_review cases.",
+        examples=[{"min": 18.5, "max": 25.0}, "age_appropriate_growth", None],
+    )
+
+    risk_flags: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Risk flags (i18n keys only).",
+        examples=[("bmi.interpretation.risk.extreme_value",)],
+    )
+
+    priority_notes: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Priority notes (i18n keys only).",
+        examples=[("bmi.interpretation.priority.stability_first",)],
+    )
+
+    disclaimers: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Disclaimers (i18n keys only).",
+        examples=[("bmi.interpretation.disclaimer.general",)],
+    )
+
 
 class BMICalculateResponse(BaseModel):
     """
@@ -269,4 +350,24 @@ class BMICalculateResponse(BaseModel):
     visualization: BMIScaleV1Spec | None = Field(
         None,
         description="Optional BMI scale visualization spec (v1). Frontend should render this if available.",
+    )
+
+    interpretation_v1: BMIInterpretationV1Schema | None = Field(
+        None,
+        description=(
+            "Optional structured interpretation (v1). i18n keys only. "
+            "None only for too_young. "
+            "Pregnancy always returns structured interpretation (goal=medical_review, target=prenatal_guidelines). "
+            "Pregnant+athlete includes additional athlete disclaimers."
+        ),
+        examples=[
+            {
+                "goal_direction": "maintain",
+                "target_range": {"min": 18.5, "max": 25.0},
+                "risk_flags": [],
+                "priority_notes": [],
+                "disclaimers": ["bmi.interpretation.disclaimer.general"],
+            },
+            None,
+        ],
     )

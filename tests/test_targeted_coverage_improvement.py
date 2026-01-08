@@ -133,24 +133,22 @@ class TestTargetedCoverageImprovement:
         assert "Повышенный" in result
 
     def test_bmi_endpoint_pregnant_male(self):
-        """Test BMI endpoint with pregnant male (should not be pregnant)."""
+        """Test BMI endpoint with pregnant male returns 422 (hard invariant)."""
         data = {
             "weight_kg": 70.0,
             "height_m": 1.75,
             "age": 30,
             "gender": "male",
-            "pregnant": "yes",  # Male can't be pregnant
+            "pregnant": "yes",  # Invalid: male cannot be pregnant
             "athlete": "no",
             "lang": "en",
         }
 
         response = self.client.post("/bmi", json=data)
-        assert response.status_code == 200
-
-        result = response.json()
-        assert result["bmi"] is not None
-        # Should not be marked as pregnant for male
-        assert "not valid during pregnancy" not in result.get("note", "")
+        assert response.status_code == 422
+        body = response.json()
+        assert "detail" in body
+        # Should not have BMI data in 422 response (validation error)
 
     def test_bmi_endpoint_extreme_values(self):
         """Test BMI endpoint with extreme but valid values."""

@@ -155,16 +155,14 @@ def test_plan_contract_category_none_for_pregnant(client: TestClient, pregnant_v
 
 def test_plan_contract_male_pregnant_flag_does_not_clear_category(client: TestClient) -> None:
     """
-    RU: Legacy parity: pregnant=True не должен работать для male (category остаётся строкой).
-    EN: Legacy parity: pregnant=True must not apply to male (category remains a string).
+    RU: Legacy parity: male + pregnant возвращает 422 (жёсткий инвариант).
+    EN: Legacy parity: male + pregnant returns 422 (hard invariant).
     """
     payload = _base_payload(gender="male", pregnant="yes", age=30, lang="en")
     resp = client.post("/plan", json=payload)
-    assert resp.status_code == 200
+    assert resp.status_code == 422
     data = resp.json()
-
-    assert data["category"] is not None, "male + pregnant=yes must NOT force category=None"
-    assert isinstance(data["category"], str)
+    assert "detail" in data, "422 response should have validation error detail"
 
 
 def test_plan_contract_minors_legacy_behavior_is_preserved(client: TestClient) -> None:

@@ -15,7 +15,12 @@ from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+from app.schemas.bmi import (
+    BMICalculateRequest,
+    BMICalculateResponse,
+    BMIInterpretationV1Schema,
+    WaistRiskResultSchema,
+)
 from app.services.bmi_visualization import build_bmi_scale_v1
 from core.i18n import normalize_lang, t
 
@@ -152,6 +157,37 @@ async def bmi_calculate_handler(
                 notes=result.waist_risk.notes,
             )
 
+        # Build interpretation_v1 (using request athlete flag, not from group)
+        interpretation_v1_schema: BMIInterpretationV1Schema | None = None
+        try:
+            from core.bmi.interpretation_rules import build_interpretation_v1
+
+            interp = build_interpretation_v1(
+                group=result.group,
+                bmi=result.bmi,
+                athlete=athlete_bool,
+            )
+            if interp is not None:
+                # Convert dataclass to schema
+                # Handle target_range: NumericRange dict or qualitative string
+                target_range_value: dict[str, float] | str | None = None
+                if interp.target_range is not None:
+                    if isinstance(interp.target_range, dict):
+                        target_range_value = {"min": interp.target_range["min"], "max": interp.target_range["max"]}
+                    else:
+                        target_range_value = interp.target_range
+
+                interpretation_v1_schema = BMIInterpretationV1Schema(
+                    goal_direction=interp.goal_direction,
+                    target_range=target_range_value,  # type: ignore[arg-type]
+                    risk_flags=interp.risk_flags,
+                    priority_notes=interp.priority_notes,
+                    disclaimers=interp.disclaimers,
+                )
+        except Exception as e:
+            # Fail-soft: if interpretation building fails, log and continue without interpretation_v1
+            logger.warning("Failed to build interpretation_v1: %s", e, exc_info=True)
+
         # Map to API response
         resp = BMICalculateResponse(
             bmi=result.bmi,
@@ -164,6 +200,7 @@ async def bmi_calculate_handler(
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
             visualization=None,  # Will be set below if builder succeeds
+            interpretation_v1=interpretation_v1_schema,
         )
 
         # Add visualization spec (graceful fallback: if builder fails, visualization remains None)

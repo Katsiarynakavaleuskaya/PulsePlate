@@ -2122,9 +2122,17 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     try:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
+        # Clean errors: remove non-serializable objects from ctx
+        errors = []
+        for err in e.errors():
+            cleaned = {k: v for k, v in err.items() if k != "ctx" or not isinstance(v.get("error"), Exception)}
+            if "ctx" in cleaned and "error" in cleaned["ctx"]:
+                # Convert Exception to string for JSON serialization
+                cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
+            errors.append(cleaned)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=e.errors(),
+            detail=errors,
         ) from e
 
     # Call canonical handler
@@ -2198,6 +2206,11 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
 @app.post("/plan")
 async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
+    # Local imports for ValidationError handling
+    from fastapi import HTTPException
+    from pydantic import ValidationError
+    from starlette import status
+
     """
     RU: Legacy endpoint /plan (contract must remain stable in PR-457=A).
     EN: Legacy /plan endpoint (contract must remain stable in PR-457=A).
@@ -2224,7 +2237,22 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
     # Call canonical handler (returns dict).
     # NOTE: /plan now inherits canonical validation (e.g., BMI bounds) from the handler.
-    canonical = await bmi_calculate_handler(bmi_payload)
+    # Handle ValidationError from BMICalculateRequest (e.g., male+pregnant → 422)
+    try:
+        canonical = await bmi_calculate_handler(bmi_payload)
+    except ValidationError as e:
+        # Clean errors: remove non-serializable objects from ctx
+        errors = []
+        for err in e.errors():
+            cleaned = {k: v for k, v in err.items() if k != "ctx" or not isinstance(v.get("error"), Exception)}
+            if "ctx" in cleaned and "error" in cleaned["ctx"]:
+                # Convert Exception to string for JSON serialization
+                cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
+            errors.append(cleaned)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=errors,
+        ) from e
 
     # 2) Extract BMI (as Decimal for compat mapping)
     bmi_value = canonical.get("bmi")
@@ -2334,9 +2362,17 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     try:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
+        # Clean errors: remove non-serializable objects from ctx
+        errors = []
+        for err in e.errors():
+            cleaned = {k: v for k, v in err.items() if k != "ctx" or not isinstance(v.get("error"), Exception)}
+            if "ctx" in cleaned and "error" in cleaned["ctx"]:
+                # Convert Exception to string for JSON serialization
+                cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
+            errors.append(cleaned)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=e.errors(),
+            detail=errors,
         ) from e
 
     # Call canonical handler

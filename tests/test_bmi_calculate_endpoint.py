@@ -95,7 +95,7 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
 
     resp = client.post(
         "/api/v1/bmi/calculate",
-        json=_valid_payload(pregnant="yes", athlete=True),
+        json=_valid_payload(gender="female", pregnant="yes", athlete=True),
     )
     assert resp.status_code == 200
 
