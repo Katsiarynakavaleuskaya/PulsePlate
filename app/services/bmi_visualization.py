@@ -43,7 +43,7 @@ def build_bmi_scale_v1(
         Aligns visualization availability with BMICategory semantics:
         category=None groups → visualization: null (not misleading adult ranges).
     """
-    from core.bmi.engine import BMICalculateResult, get_bmi_visual_ranges
+    from core.bmi.engine import get_bmi_visual_ranges
 
     # Get ranges from core (returns None for category=None groups)
     # Type narrowing: result.group and result.age_band are already validated by engine
