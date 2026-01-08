@@ -177,19 +177,25 @@ async def log_meal(
             # Other IntegrityError (FK, check, etc.) or no client_event_id - propagate
             raise
 
+    # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
+    response: AdherenceResponse
+
     if event_record is None:
         result = await run_in_threadpool(service.get, subject_id)
-        return AdherenceResponse.model_validate(result, from_attributes=True)
+        response = AdherenceResponse.model_validate(result, from_attributes=True)
+        return response
 
     if _is_event_applied(event_record.payload):
         result = await run_in_threadpool(service.get, subject_id)
-        return AdherenceResponse.model_validate(result, from_attributes=True)
+        response = AdherenceResponse.model_validate(result, from_attributes=True)
+        return response
 
     # Update adherence micro-model (async offload to threadpool)
     event = _event_from_meal_log(payload)
     result = await run_in_threadpool(service.record_domain_event, subject_id, event)
     _mark_event_applied(session, event_record)
-    return AdherenceResponse.model_validate(result, from_attributes=True)
+    response = AdherenceResponse.model_validate(result, from_attributes=True)
+    return response
 
 
 @router.post("/day-close", response_model=AdherenceResponse, summary="Close day (PRO)")
@@ -241,17 +247,23 @@ async def close_day(
             # Other IntegrityError (FK, check, etc.) - propagate
             raise
 
+    # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
+    response: AdherenceResponse
+
     if event_record is None:
         result = await run_in_threadpool(service.get, subject_id)
-        return AdherenceResponse.model_validate(result, from_attributes=True)
+        response = AdherenceResponse.model_validate(result, from_attributes=True)
+        return response
 
     if _is_event_applied(event_record.payload):
         result = await run_in_threadpool(service.get, subject_id)
-        return AdherenceResponse.model_validate(result, from_attributes=True)
+        response = AdherenceResponse.model_validate(result, from_attributes=True)
+        return response
 
     # Finalize adherence only if this is the first closure (async offload to threadpool)
     event = _event_from_day_close(payload)
     result = await run_in_threadpool(service.record_domain_event, subject_id, event)
     _mark_event_applied(session, event_record)
 
-    return AdherenceResponse.model_validate(result, from_attributes=True)
+    response = AdherenceResponse.model_validate(result, from_attributes=True)
+    return response
