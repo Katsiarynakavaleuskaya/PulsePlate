@@ -25,6 +25,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional, TypedDict, Union
 
+# Semantic i18n key type alias (exported)
+I18nKey = str
+
 # Goal direction types
 GoalDirection = Literal["maintain", "reduce", "increase", "medical_review"]
 
@@ -57,9 +60,9 @@ class BMIInterpretation:
 
     goal_direction: GoalDirection
     target_range: Optional[TargetRange]
-    risk_flags: tuple[str, ...]  # i18n keys
-    priority_notes: tuple[str, ...]  # i18n keys
-    disclaimers: tuple[str, ...]  # i18n keys
+    risk_flags: tuple[I18nKey, ...]
+    priority_notes: tuple[I18nKey, ...]
+    disclaimers: tuple[I18nKey, ...]
 ```
 
 ---
