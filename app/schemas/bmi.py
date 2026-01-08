@@ -281,6 +281,18 @@ class NumericRangeSchema(BaseModel):
     min: float = Field(..., description="Range minimum (inclusive)", examples=[18.5])
     max: float = Field(..., description="Range maximum (inclusive)", examples=[25.0])
 
+    @model_validator(mode="after")
+    def validate_range(self) -> "NumericRangeSchema":
+        """
+        RU: Валидация: min должен быть меньше или равен max.
+        EN: Validation: min must be less than or equal to max.
+        """
+        if self.min > self.max:
+            raise ValueError(
+                f"Range minimum ({self.min}) must be less than or equal to maximum ({self.max})"
+            )
+        return self
+
 
 # TargetRangeSchema: Union of NumericRangeSchema or qualitative string
 # We use a type alias for clarity, but Pydantic will handle Union validation
