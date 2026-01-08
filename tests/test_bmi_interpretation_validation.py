@@ -173,8 +173,8 @@ class TestGenderPregnantValidation:
 
     def test_gender_normalization_ru_female_validation_ok(self) -> None:
         """
-        RU: Нормализация gender "жен" должна работать.
-        EN: Gender normalization "жен" must work.
+        RU: Нормализация gender "жен" должна работать (нормализуется в "female").
+        EN: Gender normalization "жен" must work (normalized to "female").
         """
         req = BMICalculateRequest(
             weight_kg=65.0,
@@ -185,12 +185,12 @@ class TestGenderPregnantValidation:
             waist_cm=None,
         )
         # Validation should pass (not raise)
-        assert req.gender == "жен"
+        assert req.gender == "female"  # Normalized to "female" by field_validator
 
     def test_gender_normalization_es_female_validation_ok(self) -> None:
         """
-        RU: Нормализация gender "mujer" должна работать.
-        EN: Gender normalization "mujer" must work.
+        RU: Нормализация gender "mujer" должна работать (нормализуется в "female").
+        EN: Gender normalization "mujer" must work (normalized to "female").
         """
         req = BMICalculateRequest(
             weight_kg=65.0,
@@ -201,7 +201,7 @@ class TestGenderPregnantValidation:
             waist_cm=None,
         )
         # Validation should pass (not raise)
-        assert req.gender == "mujer"
+        assert req.gender == "female"  # Normalized to "female" by field_validator
 
     def test_gender_normalization_ru_male_pregnant_applies_soft_normalization(self) -> None:
         """

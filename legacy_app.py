@@ -2122,9 +2122,11 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     try:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
+        from fastapi.encoders import jsonable_encoder
+
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=e.errors(),
+            detail=jsonable_encoder(e.errors()),
         ) from e
 
     # Call canonical handler
@@ -2334,9 +2336,11 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     try:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
+        from fastapi.encoders import jsonable_encoder
+
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=e.errors(),
+            detail=jsonable_encoder(e.errors()),
         ) from e
 
     # Call canonical handler
@@ -4680,7 +4684,11 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     try:
         req = WHOTargetsRequest.model_validate(payload)
     except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+        from fastapi.encoders import jsonable_encoder
+
+        raise HTTPException(
+            status_code=422, detail=jsonable_encoder(exc.errors())
+        ) from exc
 
     return _generate_who_targets_response(req)
 
