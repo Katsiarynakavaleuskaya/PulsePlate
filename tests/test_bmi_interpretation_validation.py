@@ -333,7 +333,9 @@ class TestSchemaEngineContractParity:
             resp.status_code == status.HTTP_200_OK
         ), f"Male token '{male_token}' + pregnant must return 200 (soft normalization), got {resp.status_code}"
         data = resp.json()
-        assert data["group"] != "pregnant", f"Male token '{male_token}' + pregnant should not result in pregnant group"
+        assert (
+            data["group"] != "pregnant"
+        ), f"Male token '{male_token}' + pregnant should not result in pregnant group"
 
     def test_schema_engine_exact_tokens_parity(self) -> None:
         """

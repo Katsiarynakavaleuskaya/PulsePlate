@@ -4686,9 +4686,7 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
     except ValidationError as exc:
         from fastapi.encoders import jsonable_encoder
 
-        raise HTTPException(
-            status_code=422, detail=jsonable_encoder(exc.errors())
-        ) from exc
+        raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
 
     return _generate_who_targets_response(req)
 
