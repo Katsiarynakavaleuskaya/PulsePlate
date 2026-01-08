@@ -285,7 +285,7 @@ class BMICalculateRequest(BaseModel):
     )
 
     waist_cm: float | None = Field(
-        None,
+        default=None,
         gt=0,
         description=(
             "Waist circumference in centimeters (optional). "
