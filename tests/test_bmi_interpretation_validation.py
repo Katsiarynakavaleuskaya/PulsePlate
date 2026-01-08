@@ -24,50 +24,53 @@ def client() -> TestClient:
 class TestGenderPregnantValidation:
     """Tests for gender+pregnant validation (hard invariant)."""
 
-    def test_male_pregnant_raises_validation_error(self) -> None:
+    def test_male_pregnant_applies_soft_normalization(self) -> None:
         """
-        RU: Мужчина с pregnant=True должен вызывать ValueError.
-        EN: Male with pregnant=True must raise ValueError.
+        RU: Мужчина с pregnant=True применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Male with pregnant=True applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="male",
-                pregnant=True,
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="male",
+            pregnant=True,
+            waist_cm=None,
+        )
+        assert req.gender == "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
-    def test_male_pregnant_string_yes_raises_validation_error(self) -> None:
+    def test_male_pregnant_string_yes_applies_soft_normalization(self) -> None:
         """
-        RU: Мужчина с pregnant="yes" должен вызывать ValueError.
-        EN: Male with pregnant="yes" must raise ValueError.
+        RU: Мужчина с pregnant="yes" применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Male with pregnant="yes" applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="male",
-                pregnant="yes",
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="male",
+            pregnant="yes",
+            waist_cm=None,
+        )
+        assert req.gender == "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
-    def test_male_pregnant_string_da_raises_validation_error(self) -> None:
+    def test_male_pregnant_string_da_applies_soft_normalization(self) -> None:
         """
-        RU: Мужчина с pregnant="да" должен вызывать ValueError.
-        EN: Male with pregnant="да" must raise ValueError.
+        RU: Мужчина с pregnant="да" применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Male with pregnant="да" applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="male",
-                pregnant="да",
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="male",
+            pregnant="да",
+            waist_cm=None,
+        )
+        assert req.gender == "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
     def test_female_pregnant_validation_ok(self) -> None:
         """
@@ -87,8 +90,8 @@ class TestGenderPregnantValidation:
 
     def test_female_pregnant_string_yes_validation_ok(self) -> None:
         """
-        RU: Женщина с pregnant="yes" должна проходить валидацию.
-        EN: Female with pregnant="yes" must pass validation.
+        RU: Женщина с pregnant="yes" должна проходить валидацию (нормализуется в bool).
+        EN: Female with pregnant="yes" must pass validation (normalized to bool).
         """
         req = BMICalculateRequest(
             weight_kg=65.0,
@@ -99,7 +102,7 @@ class TestGenderPregnantValidation:
             waist_cm=None,
         )
         assert req.gender == "female"
-        assert req.pregnant == "yes"
+        assert req.pregnant is True  # Normalized to bool
 
     def test_male_pregnant_false_validation_ok(self) -> None:
         """
@@ -119,8 +122,8 @@ class TestGenderPregnantValidation:
 
     def test_male_pregnant_string_no_validation_ok(self) -> None:
         """
-        RU: Мужчина с pregnant="no" должен проходить валидацию.
-        EN: Male with pregnant="no" must pass validation.
+        RU: Мужчина с pregnant="no" должен проходить валидацию (нормализуется в bool).
+        EN: Male with pregnant="no" must pass validation (normalized to bool).
         """
         req = BMICalculateRequest(
             weight_kg=70.0,
@@ -131,12 +134,12 @@ class TestGenderPregnantValidation:
             waist_cm=None,
         )
         assert req.gender == "male"
-        assert req.pregnant == "no"
+        assert req.pregnant is False  # Normalized to bool
 
-    def test_male_pregnant_api_returns_422(self, client: TestClient) -> None:
+    def test_male_pregnant_api_applies_soft_normalization(self, client: TestClient) -> None:
         """
-        RU: API должен возвращать 422 для male+pregnant (контракт).
-        EN: API must return 422 for male+pregnant (contract).
+        RU: API применяет мягкую нормализацию для male+pregnant (не 422, pipeline robustness).
+        EN: API applies soft normalization for male+pregnant (no 422, pipeline robustness).
         """
         payload = {
             "weight_kg": 70.0,
@@ -147,15 +150,10 @@ class TestGenderPregnantValidation:
             "lang": "en",
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
-        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-        body = resp.json()
-        # Pydantic error structure: check that message is present
-        detail = body.get("detail", [])
-        if isinstance(detail, list) and len(detail) > 0:
-            msg = str(detail[0].get("msg", ""))
-        else:
-            msg = str(body)
-        assert "only applicable to females" in msg.lower()
+        assert resp.status_code == status.HTTP_200_OK  # Soft normalization: no 422
+        data = resp.json()
+        # Request succeeds with pregnant coerced to False
+        assert data["group"] != "pregnant"  # Should not be pregnant group
 
     def test_female_pregnant_api_returns_200(self, client: TestClient) -> None:
         """
@@ -205,70 +203,74 @@ class TestGenderPregnantValidation:
         # Validation should pass (not raise)
         assert req.gender == "mujer"
 
-    def test_gender_normalization_ru_male_pregnant_raises_error(self) -> None:
+    def test_gender_normalization_ru_male_pregnant_applies_soft_normalization(self) -> None:
         """
-        RU: Нормализация gender "муж" + pregnant должна вызывать ошибку.
-        EN: Gender normalization "муж" + pregnant must raise error.
+        RU: Нормализация gender "муж" + pregnant применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Gender normalization "муж" + pregnant applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="муж",
-                pregnant=True,
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="муж",
+            pregnant=True,
+            waist_cm=None,
+        )
+        assert req.gender == "male"  # Normalized to "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
-    def test_gender_normalization_es_male_pregnant_raises_error(self) -> None:
+    def test_gender_normalization_es_male_pregnant_applies_soft_normalization(self) -> None:
         """
-        RU: Нормализация gender "hombre" + pregnant должна вызывать ошибку.
-        EN: Gender normalization "hombre" + pregnant must raise error.
+        RU: Нормализация gender "hombre" + pregnant применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Gender normalization "hombre" + pregnant applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="hombre",
-                pregnant=True,
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="hombre",
+            pregnant=True,
+            waist_cm=None,
+        )
+        assert req.gender == "male"  # Normalized to "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
-    def test_gender_prefix_ru_male_blocks_pregnancy(self) -> None:
+    def test_gender_prefix_ru_male_applies_soft_normalization(self) -> None:
         """
-        RU: Префикс "муж" (например, "мужик") должен блокировать pregnant (prefix-based).
-        EN: Prefix "муж" (e.g., "мужик") must block pregnancy (prefix-based).
+        RU: Префикс "муж" (например, "мужик") применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Prefix "муж" (e.g., "мужик") applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="мужик",
-                pregnant=True,
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="мужик",
+            pregnant=True,
+            waist_cm=None,
+        )
+        assert req.gender == "male"  # Normalized to "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
-    def test_gender_prefix_es_male_blocks_pregnancy(self) -> None:
+    def test_gender_prefix_es_male_applies_soft_normalization(self) -> None:
         """
-        RU: Префикс "hombre" (например, "hombre_fullform") должен блокировать pregnant (prefix-based).
-        EN: Prefix "hombre" (e.g., "hombre_fullform") must block pregnancy (prefix-based).
+        RU: Префикс "hombre" (например, "hombre_fullform") применяет мягкую нормализацию (pregnant=False, не 422).
+        EN: Prefix "hombre" (e.g., "hombre_fullform") applies soft normalization (pregnant=False, no 422).
         """
-        with pytest.raises(ValueError, match="only applicable to females"):
-            BMICalculateRequest(
-                weight_kg=70.0,
-                height_cm=175.0,
-                age=30,
-                gender="hombre_fullform",
-                pregnant=True,
-                waist_cm=None,
-            )
+        req = BMICalculateRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            gender="hombre_fullform",
+            pregnant=True,
+            waist_cm=None,
+        )
+        assert req.gender == "male"  # Normalized to "male"
+        assert req.pregnant is False  # Soft normalization: coerced to False
 
-    def test_gender_prefix_ru_male_api_returns_422(self, client: TestClient) -> None:
+    def test_gender_prefix_ru_male_api_applies_soft_normalization(self, client: TestClient) -> None:
         """
-        RU: API должен возвращать 422 для "мужик"+pregnant (prefix-based, контракт).
-        EN: API must return 422 for "мужик"+pregnant (prefix-based, contract).
+        RU: API применяет мягкую нормализацию для "мужик"+pregnant (не 422, pipeline robustness).
+        EN: API applies soft normalization for "мужик"+pregnant (no 422, pipeline robustness).
         """
         payload = {
             "weight_kg": 70.0,
@@ -279,12 +281,14 @@ class TestGenderPregnantValidation:
             "lang": "en",
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
-        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert resp.status_code == status.HTTP_200_OK  # Soft normalization: no 422
+        data = resp.json()
+        assert data["group"] != "pregnant"  # Should not be pregnant group
 
-    def test_gender_prefix_es_male_api_returns_422(self, client: TestClient) -> None:
+    def test_gender_prefix_es_male_api_applies_soft_normalization(self, client: TestClient) -> None:
         """
-        RU: API должен возвращать 422 для "hombre_fullform"+pregnant (prefix-based, контракт).
-        EN: API must return 422 for "hombre_fullform"+pregnant (prefix-based, contract).
+        RU: API применяет мягкую нормализацию для "hombre_fullform"+pregnant (не 422, pipeline robustness).
+        EN: API applies soft normalization for "hombre_fullform"+pregnant (no 422, pipeline robustness).
         """
         payload = {
             "weight_kg": 70.0,
@@ -295,7 +299,9 @@ class TestGenderPregnantValidation:
             "lang": "en",
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
-        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+        assert resp.status_code == status.HTTP_200_OK  # Soft normalization: no 422
+        data = resp.json()
+        assert data["group"] != "pregnant"  # Should not be pregnant group
 
 
 class TestSchemaEngineContractParity:
@@ -307,12 +313,12 @@ class TestSchemaEngineContractParity:
     """
 
     @pytest.mark.parametrize("male_token", ["male", "m", "man", "м"])
-    def test_all_male_exact_tokens_block_pregnant(
+    def test_all_male_exact_tokens_apply_soft_normalization(
         self, client: TestClient, male_token: str
     ) -> None:
         """
-        RU: Контракт schema ↔ engine: все male exact токены + pregnant должны быть отклонены (422).
-        EN: Schema ↔ engine contract: all male exact tokens + pregnant must be rejected (422).
+        RU: Контракт schema ↔ engine: все male exact токены + pregnant применяют мягкую нормализацию (не 422).
+        EN: Schema ↔ engine contract: all male exact tokens + pregnant apply soft normalization (no 422).
         """
         payload = {
             "weight_kg": 70.0,
@@ -324,8 +330,10 @@ class TestSchemaEngineContractParity:
         }
         resp = client.post("/api/v1/bmi/calculate", json=payload)
         assert (
-            resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
-        ), f"Male token '{male_token}' + pregnant must return 422, got {resp.status_code}"
+            resp.status_code == status.HTTP_200_OK
+        ), f"Male token '{male_token}' + pregnant must return 200 (soft normalization), got {resp.status_code}"
+        data = resp.json()
+        assert data["group"] != "pregnant", f"Male token '{male_token}' + pregnant should not result in pregnant group"
 
     def test_schema_engine_exact_tokens_parity(self) -> None:
         """

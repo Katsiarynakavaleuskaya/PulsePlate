@@ -127,16 +127,26 @@ async def bmi_calculate_handler(
         )
 
     try:
-        # Normalize flags (string → bool)
-        pregnant_bool = _normalize_bool_flag(req.pregnant)
-        athlete_bool = _normalize_bool_flag(req.athlete)
+        # Schema already normalizes pregnant to bool, but keep normalization for robustness
+        # (in case req comes from legacy path that bypasses schema)
+        pregnant_bool = (
+            req.pregnant if isinstance(req.pregnant, bool) else _normalize_bool_flag(req.pregnant)
+        )
+        athlete_bool = (
+            req.athlete if isinstance(req.athlete, bool) else _normalize_bool_flag(req.athlete)
+        )
+
+        # Apply soft normalization: if male+pregnant, coerce pregnant=False (pipeline robustness)
+        # This matches schema's _apply_pregnancy_invariant behavior
+        if pregnant_bool and req.gender == "male":
+            pregnant_bool = False
 
         # Call engine (domain logic)
         result = calculate_bmi_result(
             weight_kg=req.weight_kg,
             height_cm=req.height_cm,
             age=req.age,
-            gender=req.gender,
+            gender=req.gender or "male",  # Engine expects non-None gender
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,
