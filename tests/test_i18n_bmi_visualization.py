@@ -34,7 +34,7 @@ def _post_bmi(client: TestClient, payload: dict[str, Any]) -> dict[str, Any]:
     """
     resp = client.post("/api/v1/bmi/calculate", json=payload)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
-    result: dict[str, Any] = resp.json()  # type: ignore[assignment]
+    result: dict[str, Any] = resp.json()
     return result
 
 
@@ -104,7 +104,8 @@ class TestBMIVisualizationKeys:
 
         # Verify all keys are translatable in all languages
         for key in i18n_keys:
-            for lang in SUPPORTED_LANGS:
+            for lang_str in SUPPORTED_LANGS:
+                lang: Language = lang_str  # type: ignore[assignment]
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 # Verify it's not just the key itself (actual translation)
