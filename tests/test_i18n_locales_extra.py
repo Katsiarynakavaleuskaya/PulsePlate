@@ -4,7 +4,7 @@ from core.i18n import normalize_lang
 
 
 @pytest.mark.parametrize(
-    "val,expected",
+    ("val", "expected"),
     [
         # Base languages
         ("ru", "ru"),
@@ -37,19 +37,19 @@ from core.i18n import normalize_lang
         ("de", "en"),  # German -> English default (not supported)
     ],
 )
-def test_normalize_lang_comprehensive(val, expected):
+def test_normalize_lang_comprehensive(val: str | None, expected: str) -> None:
     """Test normalize_lang with comprehensive edge cases and aliases."""
     assert normalize_lang(val) == expected
 
 
-def test_normalize_lang_with_underscores():
+def test_normalize_lang_with_underscores() -> None:
     """Test that underscores are converted to hyphens."""
     assert normalize_lang("en_US") == "en"
     assert normalize_lang("es_MX") == "es"
     assert normalize_lang("ru_RU") == "ru"  # Changed: product goal (RU/ES/EN localization)
 
 
-def test_normalize_lang_strip_whitespace():
+def test_normalize_lang_strip_whitespace() -> None:
     """Test that input is stripped of whitespace."""
     assert normalize_lang("  en  ") == "en"
     assert normalize_lang("\tru\n") == "ru"
