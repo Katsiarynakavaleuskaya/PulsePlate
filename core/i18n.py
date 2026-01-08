@@ -16,6 +16,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Ожирение I степени",
         "bmi_obese_2": "Ожирение II степени",
         "bmi_obese_3": "Ожирение III степени",
+        # BMI Visualization (dot-keys for contract)
+        "bmi.underweight": "Недостаточная масса",
+        "bmi.normal": "Норма",
+        "bmi.overweight": "Избыточная масса",
+        "bmi.obesity": "Ожирение",
         # Activity Levels
         "level_beginner": "Начинающий",
         "level_novice": "Новичок",
@@ -113,6 +118,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Obese Class I",
         "bmi_obese_2": "Obese Class II",
         "bmi_obese_3": "Obese Class III",
+        # BMI Visualization (dot-keys for contract)
+        "bmi.underweight": "Underweight",
+        "bmi.normal": "Normal",  # Short for scale label (not "Normal weight")
+        "bmi.overweight": "Overweight",
+        "bmi.obesity": "Obesity",
         # Activity Levels (English)
         "level_beginner": "Beginner",
         "level_novice": "Novice",
@@ -208,6 +218,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Obesidad Clase I",
         "bmi_obese_2": "Obesidad Clase II",
         "bmi_obese_3": "Obesidad Clase III",
+        # BMI Visualization (dot-keys for contract)
+        "bmi.underweight": "Bajo peso",
+        "bmi.normal": "Normal",
+        "bmi.overweight": "Sobrepeso",
+        "bmi.obesity": "Obesidad",
         # Activity Levels (Spanish)
         "level_beginner": "Principiante",
         "level_novice": "Novato",
