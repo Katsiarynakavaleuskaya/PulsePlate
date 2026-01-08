@@ -58,7 +58,7 @@ git diff --stat origin/main...HEAD
 1. **Does PR description say "and also..."?** → Split
 2. **Are there unrelated "cleanup" commits?** → Remove them
 3. **Are there "while we're here" changes?** → Remove them
-4. **Are there markdown lint fixes in runtime PR?** → Remove md files, don't fix lint
+4. **Are there markdown lint fixes in runtime PR?** → If in contract/spec md, OK; if in unrelated md, remove file
 
 ---
 
@@ -149,7 +149,8 @@ Does PR description say "and also..."?
 - ⚠️ File count 15-30
 - ⚠️ Diff 500-1000 lines
 - ⚠️ Unrelated cleanup commits
-- ⚠️ Markdown lint fixes in runtime PR
+- ⚠️ Markdown lint fixes in unrelated md (contract/spec md fixes are OK)
+- ⚠️ Diff-coverage < 100% on touched lines
 
 ---
 

@@ -1,12 +1,14 @@
 # PR Scope Rules (Runtime vs Docs Separation)
 
 **Status:** Mandatory
-**Last updated:** 2025-01-XX (after PR-494 analysis)
+**Last updated:** 2026-01-08 (after PR-494 analysis)
 **Applies to:** All contributors, agents, CI reviewers
+
+**CI Enforcement:** Runtime PRs that include planning docs or `docs/pr/*.py` will be blocked.
 
 ---
 
-## 1. Core Principle: One Thought = One PR
+## 1. Core Principle: One Thought = One PR, One Merge = One PR
 
 **Every PR must have a single, clear purpose.** If a PR tries to do multiple unrelated things, it will:
 - Bloat to 60+ files (like PR-494)
@@ -14,7 +16,9 @@
 - Fail CI due to mixed concerns
 - Become unreviewable
 
-**Rule:** If you find yourself saying "and also..." in the PR description, split it.
+**Rules:**
+- If you find yourself saying "and also..." in the PR description, split it.
+- **Do not open the next PR until the current runtime PR is merged** (except hotfix CI by agreement).
 
 ---
 
@@ -29,8 +33,9 @@
 
 **Minimal Docs (only if contract/spec for this runtime change):**
 - Maximum 1-2 `.md` files **only** if they define the contract/spec for this exact runtime change
+- **Contract/spec md definition:** A document that describes external API/DTO/invariants/edge-cases for this specific change and serves as source of truth for clients (iOS/Web) or as a checklist for contract tests.
 - Examples: `REQUEST_NORMALIZATION_SPEC.md` (if it's the spec for the normalization being implemented)
-- **Not allowed:** roadmap, handoff, audit, review checklist, "ready" status files
+- **Not allowed:** roadmap, handoff, audit, review checklist, "ready" status files (these are planning artifacts, not contracts)
 
 ### ❌ Forbidden in Runtime PR
 
@@ -45,7 +50,8 @@
 - `docs/pr/*.py` (tests belong in `tests/`)
 
 **Markdown lint fixes:**
-- If CodeRabbit complains about mdlint (MD040/034/036) in a runtime PR → **remove the md file**, don't fix lint
+- If a runtime PR includes 1-2 contract/spec `.md` files, markdownlint fixes are allowed **only within those contract/spec files**.
+- If CodeRabbit complains about mdlint (MD040/034/036) in **unrelated** `.md` files → **remove the md file**, don't fix lint (it's a scope smell).
 
 **Unrelated cleanup:**
 - "While we're here" changes
@@ -126,6 +132,7 @@ PR-495:
 - **200-500 lines added/modified**
 - Related changes (e.g., feature + tests + minimal docs)
 - Reviewable in 30-45 minutes
+- **Hard gate:** Runtime PR must achieve **100% diff-coverage** on touched lines (CI enforced)
 
 ### Large PR (Warning Sign)
 - **15-30 files changed**
@@ -141,6 +148,8 @@ PR-495:
 
 ## 6. Enforcement Checklist (Before Opening PR)
 
+**CI Guard:** The scope guard runs automatically in CI. See [`../../scripts/ci/pr_scope_guard.sh`](../../scripts/ci/pr_scope_guard.sh) for implementation.
+
 Run this before opening any PR:
 
 ```bash
@@ -151,27 +160,41 @@ git diff --name-only origin/main...HEAD | wc -l
 git diff --name-only origin/main...HEAD | grep -E "\.md$" | wc -l
 git diff --name-only origin/main...HEAD | grep -E "\.py$" | wc -l
 
-# 3. Check for forbidden patterns
-git diff --name-only origin/main...HEAD | grep -E "docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY)" || echo "OK: no planning docs"
+# 3. Check for forbidden patterns (machine-checkable)
+# Runtime PR must not contain planning docs
+git diff --name-only origin/main...HEAD \
+  | rg '^docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY|SCOPE|SUMMARY|PLAN|PATCH|NOTES)\.md$' \
+  && echo "BLOCK: planning docs in runtime PR" && exit 1 || true
 
-# 4. Check diff size
+# 4. Check for python files in docs/pr (forbidden always)
+git diff --name-only origin/main...HEAD | rg '^docs/pr/.*\.py$' \
+  && echo "BLOCK: python files under docs/pr" && exit 1 || true
+
+# 5. Check diff size
 git diff --stat origin/main...HEAD
+
+# 6. Check diff-coverage (runtime PRs only)
+# CI will enforce 100% diff-coverage on touched lines
 ```
 
 **Red flags:**
 - File count > 30 → **STOP, split PR**
 - Both `.md` and `.py` files + `.md` count > 2 → **Review scope**
 - Planning docs (`ROADMAP`, `HANDOFF`, etc.) in runtime PR → **Remove them**
+- Diff-coverage < 100% on touched lines → **Add tests or reduce scope**
 
 ---
 
 ## 7. When CodeRabbit Complains About Markdown Lint
 
-**If it's a runtime PR:**
-- **Don't fix mdlint** (MD040/034/036)
-- **Remove the md file** from the PR (or move it to a separate docs PR)
+**If it's a runtime PR with contract/spec md:**
+- Markdownlint fixes are allowed **only within the contract/spec md files** (they are part of the PR scope).
 
-**Rationale:** Markdown lint in runtime PRs is a symptom of scope bloat, not a real issue to fix.
+**If it's a runtime PR with unrelated md:**
+- **Don't fix mdlint** (MD040/034/036) in unrelated files
+- **Remove the unrelated md file** from the PR (or move it to a separate docs PR)
+
+**Rationale:** Markdown lint in unrelated md files is a symptom of scope bloat, not a real issue to fix.
 
 ---
 
@@ -229,10 +252,10 @@ This policy exists because:
 
 ## 11. Quick Reference
 
-| PR Type | Allowed Files | Max Files | Max Lines |
-|---------|--------------|-----------|-----------|
-| Runtime | `.py` (app/core/tests) + 1-2 contract `.md` | 15 | 500 |
-| Docs-only | `.md` only | 30 | 1000 |
-| Mixed | ❌ **Forbidden** | - | - |
+| PR Type | Allowed Files | Max Files | Max Lines | Diff-Coverage |
+|---------|--------------|-----------|-----------|---------------|
+| Runtime | `.py` (app/core/tests) + 1-2 contract `.md` | 15 (target: Small/Medium) | 500 | 100% (hard gate) |
+| Docs-only | `.md` only | 30 | 1000 | N/A |
+| Mixed | ❌ **Forbidden** | - | - | - |
 
 **If your PR doesn't fit these categories, split it.**
