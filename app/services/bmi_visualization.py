@@ -10,7 +10,7 @@ This is an API adapter, not domain logic.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
 
@@ -43,16 +43,11 @@ def build_bmi_scale_v1(
         Aligns visualization availability with BMICategory semantics:
         category=None groups → visualization: null (not misleading adult ranges).
     """
-    from core.bmi.engine import BMIGroup, get_bmi_visual_ranges
+    from core.bmi.engine import get_bmi_visual_ranges
 
     # Get ranges from core (returns None for category=None groups)
-    # Type narrowing: result.group and result.age_band are already validated by engine
-    # Note: BMICalculateResult.group is typed as str for compatibility, but runtime value is BMIGroup
-    # Assert validates runtime assumption (not for mypy, but for humans)
-    assert result.group in {"too_young", "child", "teen", "general", "athlete", "elderly", "pregnant"}
-    group = cast(BMIGroup, result.group)  # Runtime value is BMIGroup, but dataclass field is str
     ranges_data = get_bmi_visual_ranges(
-        group=group,
+        group=result.group,  # Now correctly typed as BMIGroup
         age_band=result.age_band,
         scale_min=scale_min,
         scale_max=scale_max,

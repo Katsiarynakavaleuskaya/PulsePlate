@@ -449,7 +449,7 @@ class BMICalculateResult:
 
     bmi: float
     category: str | None
-    group: str
+    group: BMIGroup  # Matches _auto_group() return type
     group_display: str
     interpretation: str
     wht_ratio: float | None
