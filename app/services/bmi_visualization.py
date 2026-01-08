@@ -46,8 +46,9 @@ def build_bmi_scale_v1(
     from core.bmi.engine import BMICalculateResult, get_bmi_visual_ranges
 
     # Get ranges from core (returns None for category=None groups)
+    # Type narrowing: result.group and result.age_band are already validated by engine
     ranges_data = get_bmi_visual_ranges(
-        group=result.group,
+        group=result.group,  # type: ignore[arg-type]  # BMICalculateResult.group is str, but validated as BMIGroup
         age_band=result.age_band,
         scale_min=scale_min,
         scale_max=scale_max,
@@ -57,10 +58,7 @@ def build_bmi_scale_v1(
         return None
 
     # Convert to BMIRangeSpec
-    ranges = [
-        _range(i18n_key, start, end)
-        for start, end, i18n_key in ranges_data
-    ]
+    ranges = [_range(i18n_key, start, end) for start, end, i18n_key in ranges_data]
 
     rounded_bmi = round(result.bmi, 1)
 
