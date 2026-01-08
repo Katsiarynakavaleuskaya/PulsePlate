@@ -153,6 +153,38 @@ class TestInterpretationV1API:
             msg = str(body)
         assert "only applicable to females" in msg.lower()
 
+    def test_pregnant_true_token_ru_istina_returns_pregnant_interpretation_v1(
+        self, client: TestClient
+    ) -> None:
+        """
+        Guard: pregnant="истина" (RU truthy token) must be normalized correctly.
+
+        RU: Проверка, что токен "истина" корректно нормализуется в router и даёт
+        pregnant interpretation_v1.
+        EN: Verify that "истина" token is correctly normalized in router and yields
+        pregnant interpretation_v1.
+        """
+        payload = {
+            "weight_kg": 65.0,
+            "height_cm": 165.0,
+            "age": 28,
+            "gender": "female",
+            "pregnant": "истина",  # RU truthy token (must match schema normalization)
+            "athlete": False,
+            "waist_cm": None,
+            "lang": "ru",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        assert resp.status_code == status.HTTP_200_OK
+
+        data = resp.json()
+        # Pregnant group should return interpretation_v1 (always, per contract)
+        assert data["interpretation_v1"] is not None
+        assert data["interpretation_v1"]["goal_direction"] == "medical_review"
+        assert data["interpretation_v1"]["target_range"] == "prenatal_guidelines"
+        # Verify group is pregnant
+        assert data.get("group") == "pregnant"
+
     def test_athlete_returns_interpretation_v1(self, client: TestClient) -> None:
         """Test that athlete group returns interpretation_v1."""
         payload = {

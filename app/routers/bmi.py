@@ -70,7 +70,7 @@ def _fallback_normalize_bool_flag(
     s = value.strip().lower()
     if not s:
         return False
-    allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
     return s in allowed
 
 
