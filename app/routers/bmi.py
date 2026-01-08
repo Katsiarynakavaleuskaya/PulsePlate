@@ -241,5 +241,5 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     """
     # Handler returns dict for legacy compatibility; convert back to model for FastAPI serialization
     # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
-    data = await bmi_calculate_handler(req)
+    data: dict[str, Any] = await bmi_calculate_handler(req)
     return BMICalculateResponse.model_validate(data)
