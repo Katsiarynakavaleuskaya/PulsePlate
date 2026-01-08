@@ -8,7 +8,14 @@ EN: Service for generating BMI visualization spec.
 This is an API adapter, not domain logic.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from app.schemas.bmi import BMIScaleV1Spec, BMIRangeSpec, BMIMarkerSpec
+
+if TYPE_CHECKING:
+    from core.bmi.engine import BMICalculateResult
 
 
 def _range(key: str, start: float, end: float) -> BMIRangeSpec:
@@ -16,35 +23,52 @@ def _range(key: str, start: float, end: float) -> BMIRangeSpec:
     return BMIRangeSpec.model_validate({"key": key, "from": start, "to": end})
 
 
-def build_bmi_scale_v1(bmi: float) -> BMIScaleV1Spec:
+def build_bmi_scale_v1(
+    result: BMICalculateResult,
+    scale_min: float = 0.0,
+    scale_max: float = 60.0,
+) -> BMIScaleV1Spec | None:
     """
-    Build BMI scale v1 spec for frontend rendering.
-
-    Uses fixed thresholds (0-60) regardless of group.
-    Group-specific interpretation is handled separately in category/interpretation fields.
+    Build BMI scale v1 spec using core thresholds for the user's group.
 
     Args:
-        bmi: BMI value (will be rounded to 1 decimal)
+        result: BMICalculateResult from core engine
+        scale_min: Minimum BMI for visualization scale (default 0.0)
+        scale_max: Maximum BMI for visualization scale (default 60.0)
 
     Returns:
-        BMIScaleV1Spec with fixed scale 0-60 and WHO standard thresholds
+        BMIScaleV1Spec if visualization should be shown, None for groups
+        where category=None (too_young, child, teen, pregnant).
+
+        Aligns visualization availability with BMICategory semantics:
+        category=None groups → visualization: null (not misleading adult ranges).
     """
-    # Fixed thresholds (WHO standard)
-    # Use helper function to create ranges (alias "from" appears in JSON via model_dump(by_alias=True))
+    from core.bmi.engine import BMICalculateResult, get_bmi_visual_ranges
+
+    # Get ranges from core (returns None for category=None groups)
+    ranges_data = get_bmi_visual_ranges(
+        group=result.group,
+        age_band=result.age_band,
+        scale_min=scale_min,
+        scale_max=scale_max,
+    )
+
+    if ranges_data is None:
+        return None
+
+    # Convert to BMIRangeSpec
     ranges = [
-        _range("bmi.underweight", 0.0, 18.5),
-        _range("bmi.normal", 18.5, 25.0),
-        _range("bmi.overweight", 25.0, 30.0),
-        _range("bmi.obesity", 30.0, 60.0),
+        _range(i18n_key, start, end)
+        for start, end, i18n_key in ranges_data
     ]
 
-    rounded_bmi = round(bmi, 1)
+    rounded_bmi = round(result.bmi, 1)
 
     return BMIScaleV1Spec(
         kind="bmi_scale_v1",
         bmi=rounded_bmi,
-        min=0.0,
-        max=60.0,
+        min=scale_min,
+        max=scale_max,
         ranges=ranges,
         marker=BMIMarkerSpec(value=rounded_bmi),
     )
