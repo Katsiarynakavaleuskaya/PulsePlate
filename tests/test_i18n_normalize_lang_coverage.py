@@ -64,8 +64,8 @@ class TestI18nNormalizeLangCoverage:
         try:
             from core.i18n import normalize_lang
 
-            # According to config, only "es" has exceptions: {"mx"}
-            # So es-MX should hit the exceptions path
+            # According to config (changed: product goal), all es-* map to es
+            # es-MX still returns "es" (but now via default, not exceptions)
             exception_locales = [
                 "es-MX",  # Should be in exceptions for Spanish
                 "es-mx",  # Lowercase version
@@ -107,17 +107,17 @@ class TestI18nNormalizeLangCoverage:
             from core.i18n import normalize_lang
 
             # Test cases where region is NOT in exceptions, should return default
-            # According to config:
+            # According to config (changed: product goal):
             # - en default: "en"
-            # - ru default: "en"
-            # - es default: "en"
+            # - ru default: "ru" (changed: was "en")
+            # - es default: "es" (changed: was "en")
             default_fallback_tests = [
                 ("en-US", "en"),  # English default
                 ("en-GB", "en"),  # English default
-                ("ru-RU", "en"),  # Russian default (falls to English)
-                ("ru-BY", "en"),  # Russian default (falls to English)
-                ("es-ES", "en"),  # Spanish default (ES not in exceptions)
-                ("es-AR", "en"),  # Spanish default (AR not in exceptions)
+                ("ru-RU", "ru"),  # Russian default → ru (changed: product goal)
+                ("ru-BY", "ru"),  # Russian default → ru (changed: product goal)
+                ("es-ES", "es"),  # Spanish default → es (changed: product goal)
+                ("es-AR", "es"),  # Spanish default → es (changed: product goal)
             ]
 
             for locale, expected in default_fallback_tests:
@@ -189,15 +189,15 @@ class TestI18nNormalizeLangCoverage:
                 ("en-GB", "en"),
                 ("en-CA", "en"),
                 ("en-AU", "en"),
-                # Russian locales (should use Russian config -> default to "en")
-                ("ru-RU", "en"),
-                ("ru-BY", "en"),
-                ("ru-UA", "en"),
+                # Russian locales (should use Russian config -> default to "ru")
+                ("ru-RU", "ru"),  # Changed: product goal
+                ("ru-BY", "ru"),  # Changed: product goal
+                ("ru-UA", "ru"),  # Changed: product goal
                 # Spanish locales
-                ("es-MX", "es"),  # Exception case
-                ("es-ES", "en"),  # Default case
-                ("es-AR", "en"),  # Default case
-                ("es-CO", "en"),  # Default case
+                ("es-MX", "es"),  # All es-* → es (changed: product goal)
+                ("es-ES", "es"),  # Changed: product goal
+                ("es-AR", "es"),  # Changed: product goal
+                ("es-CO", "es"),  # Changed: product goal
                 # Direct base languages
                 ("en", "en"),
                 ("ru", "ru"),
@@ -225,7 +225,7 @@ class TestI18nNormalizeLangCoverage:
                 ("en_US", "en"),  # Underscore
                 ("EN-US", "en"),  # Uppercase
                 ("Es-Mx", "es"),  # Mixed case
-                ("RU-ru", "en"),  # Mixed case
+                ("RU-ru", "ru"),  # Mixed case (changed: product goal)
                 # Empty and None
                 ("", "en"),
                 (None, "en"),

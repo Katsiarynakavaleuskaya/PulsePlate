@@ -120,7 +120,7 @@ class TestNormalizeLang:
         assert _normalize_lang("en-US") == "en"
         assert _normalize_lang("es-MX") == "es"
         # es-ES → "en" per core/i18n.py LANG_ALIASES (market-based strategy)
-        assert _normalize_lang("es-ES") == "en"
+        assert _normalize_lang("es-ES") == "es"  # Changed: product goal (RU/ES/EN localization)
 
     def test_unknown_language_fallback(self) -> None:
         """Test fallback to 'en' for unknown languages."""

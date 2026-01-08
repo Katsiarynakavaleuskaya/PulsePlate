@@ -16,6 +16,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Ожирение I степени",
         "bmi_obese_2": "Ожирение II степени",
         "bmi_obese_3": "Ожирение III степени",
+        # BMI Visualization (dot-keys for contract)
+        "bmi.underweight": "Недостаточная масса",
+        "bmi.normal": "Норма",
+        "bmi.overweight": "Избыточная масса",
+        "bmi.obesity": "Ожирение",
         # Activity Levels
         "level_beginner": "Начинающий",
         "level_novice": "Новичок",
@@ -113,6 +118,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Obese Class I",
         "bmi_obese_2": "Obese Class II",
         "bmi_obese_3": "Obese Class III",
+        # BMI Visualization (dot-keys for contract)
+        "bmi.underweight": "Underweight",
+        "bmi.normal": "Normal",  # Short for scale label (not "Normal weight")
+        "bmi.overweight": "Overweight",
+        "bmi.obesity": "Obesity",
         # Activity Levels (English)
         "level_beginner": "Beginner",
         "level_novice": "Novice",
@@ -208,6 +218,11 @@ TRANSLATIONS = {
         "bmi_obese_1": "Obesidad Clase I",
         "bmi_obese_2": "Obesidad Clase II",
         "bmi_obese_3": "Obesidad Clase III",
+        # BMI Visualization (dot-keys for contract)
+        "bmi.underweight": "Bajo peso",
+        "bmi.normal": "Normal",
+        "bmi.overweight": "Sobrepeso",
+        "bmi.obesity": "Obesidad",
         # Activity Levels (Spanish)
         "level_beginner": "Principiante",
         "level_novice": "Novato",
@@ -314,15 +329,17 @@ LOCALE_SPECIAL_CASES: dict[str, dict[str, Any]] = {
         "default": "en",
         "exceptions": set(),  # All English regions → English
     },
-    # Russian: Business requirement - all regions fallback to English
+    # Russian: Product goal - RU/ES/EN localization for iOS
+    # ru-RU and ru → ru (not en)
     "ru": {
-        "default": "en",
-        "exceptions": set(),  # No Russian regions map to Russian
+        "default": "ru",  # Changed: ru regions → ru (not en)
+        "exceptions": set(),  # All Russian regions → Russian
     },
-    # Spanish: Market-selective - only Mexico gets Spanish, rest get English
+    # Spanish: Product goal - Spain priority (not Mexico-only)
+    # es-ES and es → es (not en)
     "es": {
-        "default": "en",
-        "exceptions": {"mx"},  # Only Mexico gets Spanish
+        "default": "es",  # Changed: es regions → es (not en)
+        "exceptions": set(),  # All Spanish regions → Spanish
     },
 }
 
@@ -330,17 +347,16 @@ LOCALE_SPECIAL_CASES: dict[str, dict[str, Any]] = {
 #
 # FALLBACK STRATEGY EXPLAINED:
 # This is a market-based localization strategy, not purely linguistic.
-# The app supports 3 primary markets with different locale handling:
 #
-# 1. ENGLISH MARKETS: All English locales → English (universal support)
-# 2. RUSSIAN MARKET: Base Russian supported, but regional Russian locales → English
-#    (business decision for international consistency)
-# 3. SPANISH MARKETS: Selective support based on target markets
-#    - es-MX (Mexico): Primary Spanish market → Spanish
-#    - es-ES (Spain), es-AR (Argentina): Secondary markets → English fallback
+# Current product goal: RU/ES/EN native localization for iOS.
 #
-# This strategy allows controlled localization rollout while maintaining
-# a consistent user experience in non-primary markets.
+# 1) ENGLISH MARKETS: All English locales (en, en-US, en-GB, …) → English
+# 2) RUSSIAN MARKETS: All Russian locales (ru, ru-RU, ru-KZ, ru-BY, …) → Russian
+# 3) SPANISH MARKETS: All Spanish locales (es, es-ES, es-MX, es-AR, …) → Spanish
+#
+# Implementation note:
+# - Exact aliases are handled via LANG_ALIASES.
+# - Implicit regional variants are handled via LOCALE_SPECIAL_CASES.
 LANG_ALIASES: dict[str, Lang] = {
     # =================================================================
     # BASE LANGUAGES (core supported languages)
@@ -357,17 +373,12 @@ LANG_ALIASES: dict[str, Lang] = {
     "español": "es",
     "русский": "ru",
     # =================================================================
-    # LOCALE MAPPINGS (market-based strategy)
+    # LOCALE MAPPINGS (redundant - handled by LOCALE_SPECIAL_CASES)
     # =================================================================
-    # English markets (universal support)
-    "en-us": "en",
-    "en-gb": "en",
-    # Russian markets (selective support)
-    "ru-ru": "en",  # Regional Russian → English (business requirement)
-    # Spanish markets (selective support)
-    "es-mx": "es",  # Mexico → Spanish (primary market)
-    "es-es": "en",  # Spain → English (secondary market)
-    "es-ar": "en",  # Argentina → English (secondary market)
+    # Note: Regional locale mappings (ru-*, es-*, en-*) are handled by
+    # LOCALE_SPECIAL_CASES in normalize_lang() Step 2, so explicit aliases
+    # here are redundant. Removed to avoid "two sources of truth".
+    # Behavior unchanged: ru-ru/es-*/en-* → handled by LOCALE_SPECIAL_CASES
 }
 
 
@@ -435,9 +446,9 @@ def normalize_lang(lang: Optional[str]) -> Lang:
 
     Examples:
         >>> normalize_lang("en-US")    # → "en" (en default)
-        >>> normalize_lang("es-MX")    # → "es" (mx in es exceptions)
-        >>> normalize_lang("es-ES")    # → "en" (es default, ES not in exceptions)
-        >>> normalize_lang("ru-RU")    # → "en" (ru default, no exceptions)
+        >>> normalize_lang("es-MX")    # → "es" (es default)
+        >>> normalize_lang("es-ES")    # → "es" (es default, changed: not en)
+        >>> normalize_lang("ru-RU")    # → "ru" (ru default, changed: not en)
         >>> normalize_lang("français") # → "en" (unsupported)
     """
     if not lang:
