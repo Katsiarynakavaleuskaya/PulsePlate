@@ -374,17 +374,12 @@ LANG_ALIASES: dict[str, Lang] = {
     "español": "es",
     "русский": "ru",
     # =================================================================
-    # LOCALE MAPPINGS (market-based strategy)
+    # LOCALE MAPPINGS (redundant - handled by LOCALE_SPECIAL_CASES)
     # =================================================================
-    # English markets (universal support)
-    "en-us": "en",
-    "en-gb": "en",
-    # Russian markets (product goal: RU/ES/EN localization)
-    "ru-ru": "ru",  # Regional Russian → Russian (changed: not en)
-    # Spanish markets (product goal: Spain priority)
-    "es-mx": "es",  # Mexico → Spanish
-    "es-es": "es",  # Spain → Spanish (changed: not en)
-    "es-ar": "es",  # Argentina → Spanish (changed: not en)
+    # Note: Regional locale mappings (ru-*, es-*, en-*) are handled by
+    # LOCALE_SPECIAL_CASES in normalize_lang() Step 2, so explicit aliases
+    # here are redundant. Removed to avoid "two sources of truth".
+    # Behavior unchanged: ru-ru/es-*/en-* → handled by LOCALE_SPECIAL_CASES
 }
 
 

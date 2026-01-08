@@ -9,10 +9,22 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import app
-from core.i18n import TRANSLATIONS, normalize_lang, t
+from core.i18n import Language, TRANSLATIONS, normalize_lang, t
+
+# Constants to avoid duplication
+SUPPORTED_LANGS = ("ru", "en", "es")
+BMI_VIZ_KEYS = ("bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity")
+EXPECTED_VIZ_KEYS = set(BMI_VIZ_KEYS)
+
+
+@pytest.fixture()
+def client() -> TestClient:
+    """TestClient fixture for BMI API tests."""
+    return TestClient(app)
 
 
 def _post_bmi(client: TestClient, payload: dict[str, Any]) -> dict[str, Any]:
@@ -22,7 +34,8 @@ def _post_bmi(client: TestClient, payload: dict[str, Any]) -> dict[str, Any]:
     """
     resp = client.post("/api/v1/bmi/calculate", json=payload)
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
-    return resp.json()
+    result: dict[str, Any] = resp.json()  # type: ignore[assignment]
+    return result
 
 
 def _valid_payload(**overrides: Any) -> dict[str, Any]:
@@ -56,13 +69,15 @@ class TestBMIVisualizationKeys:
         RU: Все ключи visualization присутствуют во всех языках.
         EN: All visualization keys exist in all languages.
         """
-        keys = ["bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity"]
-        for lang in ["ru", "en", "es"]:
-            for key in keys:
+        for lang_str in SUPPORTED_LANGS:
+            lang: Language = lang_str  # type: ignore[assignment]
+            for key in BMI_VIZ_KEYS:
                 assert key in TRANSLATIONS[lang], f"Missing {key} in {lang}"
                 assert TRANSLATIONS[lang][key], f"Empty {key} in {lang}"
 
-    def test_bmi_visualization_keys_map_to_translations_via_api_adult(self) -> None:
+    def test_bmi_visualization_keys_map_to_translations_via_api_adult(
+        self, client: TestClient
+    ) -> None:
         """
         RU: Ключи из visualization ranges (adult group, через API) мапятся на переводы без KeyError.
         EN: Visualization range keys (adult group, via API) map to translations without KeyError.
@@ -70,8 +85,6 @@ class TestBMIVisualizationKeys:
         Contract-first approach: uses actual API endpoint to get ranges,
         then verifies i18n keys are translatable. Tests adult baseline group.
         """
-        client = TestClient(app)
-
         # Adult group (baseline, has visualization)
         payload = _valid_payload(age=25, athlete="no")
         data = _post_bmi(client, payload)
@@ -85,26 +98,27 @@ class TestBMIVisualizationKeys:
         i18n_keys = [r["key"] for r in ranges if "key" in r]
 
         # Verify all keys are exactly the 4 expected keys
-        expected_keys = {"bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity"}
-        assert set(i18n_keys) == expected_keys, f"Expected {expected_keys}, got {set(i18n_keys)}"
+        assert (
+            set(i18n_keys) == EXPECTED_VIZ_KEYS
+        ), f"Expected {EXPECTED_VIZ_KEYS}, got {set(i18n_keys)}"
 
         # Verify all keys are translatable in all languages
         for key in i18n_keys:
-            for lang in ["ru", "en", "es"]:
+            for lang in SUPPORTED_LANGS:
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 # Verify it's not just the key itself (actual translation)
                 assert translation != key, f"Translation missing for {key} in {lang}"
 
-    def test_bmi_visualization_keys_map_to_translations_via_api_athlete(self) -> None:
+    def test_bmi_visualization_keys_map_to_translations_via_api_athlete(
+        self, client: TestClient
+    ) -> None:
         """
         RU: Ключи из visualization ranges (athlete group, через API) мапятся на переводы.
         EN: Visualization range keys (athlete group, via API) map to translations.
 
         Tests athlete group (normal upper bound differs from adult).
         """
-        client = TestClient(app)
-
         # Athlete group (has visualization, different thresholds)
         payload = _valid_payload(age=25, athlete="yes")
         data = _post_bmi(client, payload)
@@ -118,24 +132,26 @@ class TestBMIVisualizationKeys:
         i18n_keys = [r["key"] for r in ranges if "key" in r]
 
         # Verify all keys are translatable
-        expected_keys = {"bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity"}
-        assert set(i18n_keys) == expected_keys, f"Expected {expected_keys}, got {set(i18n_keys)}"
+        assert (
+            set(i18n_keys) == EXPECTED_VIZ_KEYS
+        ), f"Expected {EXPECTED_VIZ_KEYS}, got {set(i18n_keys)}"
 
         for key in i18n_keys:
-            for lang in ["ru", "en", "es"]:
+            for lang_str in SUPPORTED_LANGS:
+                lang: Language = lang_str  # type: ignore[assignment]
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 assert translation != key, f"Translation missing for {key} in {lang}"
 
-    def test_bmi_visualization_keys_map_to_translations_via_api_elderly(self) -> None:
+    def test_bmi_visualization_keys_map_to_translations_via_api_elderly(
+        self, client: TestClient
+    ) -> None:
         """
         RU: Ключи из visualization ranges (elderly group, через API) мапятся на переводы.
         EN: Visualization range keys (elderly group, via API) map to translations.
 
         Tests elderly group (different underweight/normal thresholds).
         """
-        client = TestClient(app)
-
         # Elderly group (age >= 60, has visualization, different thresholds)
         payload = _valid_payload(age=75, athlete="no")
         data = _post_bmi(client, payload)
@@ -149,11 +165,13 @@ class TestBMIVisualizationKeys:
         i18n_keys = [r["key"] for r in ranges if "key" in r]
 
         # Verify all keys are translatable
-        expected_keys = {"bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity"}
-        assert set(i18n_keys) == expected_keys, f"Expected {expected_keys}, got {set(i18n_keys)}"
+        assert (
+            set(i18n_keys) == EXPECTED_VIZ_KEYS
+        ), f"Expected {EXPECTED_VIZ_KEYS}, got {set(i18n_keys)}"
 
         for key in i18n_keys:
-            for lang in ["ru", "en", "es"]:
+            for lang_str in SUPPORTED_LANGS:
+                lang: Language = lang_str  # type: ignore[assignment]
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 assert translation != key, f"Translation missing for {key} in {lang}"
