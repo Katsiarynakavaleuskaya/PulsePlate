@@ -39,7 +39,7 @@ class TestBMICategoryLocalized:
         assert normalize_lang("ES") == "es"
 
         # Test locale-specific codes
-        assert normalize_lang("es-ES") == "en"
+        assert normalize_lang("es-ES") == "es"  # Changed: product goal (RU/ES/EN localization)
         assert normalize_lang("ES-AR") == "en"
         assert normalize_lang("en-US") == "en"
         assert normalize_lang("ru-RU") == "en"
