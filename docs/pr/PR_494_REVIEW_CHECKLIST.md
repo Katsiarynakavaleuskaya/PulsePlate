@@ -47,6 +47,7 @@ This PR adds a canonical BMI interpretation layer (`interpretation_v1`) with str
 - `pregnant` always returns structured interpretation (not `None`)
 - `too_young` is the only group returning `None`
 - Numeric ranges are strict (no UI tricks like `-0.1`)
+- Athlete nuance: maintain guidance applies for `18.5 ≤ BMI < 30.0`, but numeric target_range uses `max=27.0` (engine breakpoint)
 
 **Test coverage:**
 - `tests/test_bmi_interpretation_rules.py` — all groups, boundary values, `_numeric` validation
@@ -163,4 +164,3 @@ A: Pydantic `ValidationError.errors()` can contain non-JSON objects in `ctx` (e.
 - Comprehensive test coverage (60+ tests)
 - Guard tests for critical paths (divergence, JSON-serializability)
 - Audit report with verification commands
-

@@ -138,4 +138,3 @@ Must ensure legacy endpoints return JSON-serializable error envelopes for valida
 - `core/bmi/engine.py` — Engine normalization implementation
 - `tests/test_bmi_interpretation_validation.py` — Validation tests
 - `tests/test_legacy_bmi_validation_json_serialization.py` — JSON-serializability guards
-

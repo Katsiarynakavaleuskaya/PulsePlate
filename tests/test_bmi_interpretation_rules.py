@@ -126,6 +126,20 @@ def test_athlete_rules(bmi: float, expected_goal: str, expect_extreme: bool) -> 
     assert "bmi.interpretation.disclaimer.athlete_body_composition" in got.disclaimers
 
 
+def test_athlete_target_range_uses_engine_breakpoint_27() -> None:
+    """
+    Guard: athlete numeric target_range uses the engine breakpoint (max=27.0),
+    while maintain guidance applies up to BMI < 30.0.
+    """
+    got = build_interpretation_v1(group="athlete", bmi=22.0, athlete=True)
+    assert got is not None
+    assert got.goal_direction == "maintain"
+    assert got.target_range is not None
+    assert isinstance(got.target_range, dict)
+    assert got.target_range["min"] == 18.5
+    assert got.target_range["max"] == 27.0
+
+
 @pytest.mark.parametrize(
     ("bmi", "expected_goal"),
     [

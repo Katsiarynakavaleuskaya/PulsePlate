@@ -48,6 +48,7 @@ type QualitativeTarget = "age_appropriate_growth" | "prenatal_guidelines";
 - **Backend returns mathematically correct boundaries** (e.g., `{"min": 18.5, "max": 25.0}`)
 - **UI is responsible for rendering labels** (e.g., "≤ 24.9" for `max=25.0`)
 - **Backend never adjusts numbers for UI display** (no `-0.1` tricks)
+- **Clients must compare raw numbers** (UI display may round/format, but comparisons use the payload values)
 
 ### Examples
 
@@ -128,7 +129,7 @@ This ensures that interpretation failures do not break the BMI calculation endpo
 | `child` | Present | Qualitative targets |
 | `teen` | Present | Qualitative targets |
 | `general` | Present | Numeric targets |
-| `athlete` | Present | Numeric targets (18.5-30 range) |
+| `athlete` | Present | Maintain guidance for `18.5 ≤ BMI < 30.0`; numeric target_range uses `max=27.0` (engine breakpoint) |
 | `elderly` | Present | Stability-first, numeric targets |
 
 ---

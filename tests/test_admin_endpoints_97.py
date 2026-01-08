@@ -284,10 +284,14 @@ class TestRemainingBlocks:
                 # Verify response is valid JSON and contains expected fields
                 data = response.json()
                 assert "bmi" in data, f"Response should contain 'bmi' field for lang={lang}"
-                assert isinstance(data["bmi"], (int, float)), f"BMI should be numeric for lang={lang}"
-                assert "category" in data, f"Response should contain 'category' field for lang={lang}"
+                assert isinstance(
+                    data["bmi"], (int, float)
+                ), f"BMI should be numeric for lang={lang}"
+                assert (
+                    "category" in data
+                ), f"Response should contain 'category' field for lang={lang}"
                 # Verify language is accepted (response should be valid JSON)
                 # Note: category can be None for pregnant group (this is expected)
-                assert data.get("category") is None or isinstance(data.get("category"), str), (
-                    f"Category should be None or string for lang={lang}, got {type(data.get('category'))}"
-                )
+                assert data.get("category") is None or isinstance(
+                    data.get("category"), str
+                ), f"Category should be None or string for lang={lang}, got {type(data.get('category'))}"

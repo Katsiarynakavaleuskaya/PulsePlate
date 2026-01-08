@@ -19,7 +19,7 @@ Adds a canonical BMI interpretation layer (`interpretation_v1`) that provides st
    - **Pregnant**: Always returns interpretation (with or without athlete)
    - **Child/Teen**: Qualitative targets with growth monitoring
    - **Elderly**: Stability-first, allow `increase` on low BMI
-   - **Athlete**: Maintain in 18.5-30 range, `medical_review` at extremes
+   - **Athlete**: Maintain guidance applies for `18.5 ≤ BMI < 30.0`; numeric target_range is `18.5–27.0` (engine breakpoint)
    - **General**: `increase`/`maintain`/`reduce`/`medical_review` per BMI (≥30 → `medical_review`)
    - **Too_young**: Only group that returns `None` (no interpretation)
 3. **Request Validation** — `male + pregnant` → `422` (hard invariant)
@@ -55,10 +55,12 @@ Adds a canonical BMI interpretation layer (`interpretation_v1`) that provides st
 
 ## Commits
 
-1. `feat(bmi): add interpretation models and request validation`
-2. `feat(bmi): add interpretation rules by group`
-3. `feat(bmi): wire interpretation_v1 into bmi calculate response`
-4. `fix(legacy): handle ValidationError serialization in legacy endpoints`
+This PR contains **11 commits**, grouped by intent:
+
+- Feature: interpretation_v1 models/rules + API wiring
+- Fixes: schema ↔ engine normalization sync, legacy shim hardening, numeric-range validation, router fallback normalization
+- Guards/tests: regression and drift-prevention tests
+- Docs: contract/spec/checklist/audit updates
 
 ## Breaking Changes
 

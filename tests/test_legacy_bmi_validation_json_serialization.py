@@ -160,4 +160,3 @@ def test_canonical_bmi_male_pregnant_422_is_json_serializable(client: TestClient
     assert "detail" in body
 
     _assert_jsonable(body["detail"])
-

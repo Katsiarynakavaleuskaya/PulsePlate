@@ -2,7 +2,7 @@
 
 ## ✅ Audit Status: PASSED
 
-**Date:** 2026-01-XX  
+**Date:** 2026-01-XX
 **Scope:** interpretation_v1 layer + hard invariant male+pregnant 422 + legacy shim hardening
 
 ---
@@ -254,4 +254,3 @@ pytest -q tests/test_repo_policy_guards.py
 ## Ready for Merge ✅
 
 All audit checks passed. PR is ready for review and merge.
-
