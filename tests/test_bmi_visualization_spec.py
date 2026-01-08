@@ -362,7 +362,7 @@ def test_visualization_elderly_ranges_match_core():
     "group_input",
     [
         ("too_young", 10, "male"),
-        ("child", 13, "male"),
+        ("child", 12, "male"),  # age 12 maps to "child" age_band, not 13
         ("teen", 16, "male"),
         ("pregnant", 25, "female"),
     ],
