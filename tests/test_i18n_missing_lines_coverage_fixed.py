@@ -43,11 +43,8 @@ class TestI18nMissingLines:
             elif locale.startswith("en"):
                 assert result == "en", f"Expected 'en' for {locale}, got {result}"
             elif locale.startswith("es"):
-                # es-MX returns 'es' (mx in exceptions), others return 'en' (default)
-                if locale == "es-MX":
-                    assert result == "es", f"Expected 'es' for {locale}, got {result}"
-                else:
-                    assert result == "en", f"Expected 'en' (default) for {locale}, got {result}"
+                # All es-* locales return 'es' (changed: product goal, es default = es)
+                assert result == "es", f"Expected 'es' for {locale}, got {result}"
             elif locale.startswith("pt"):
                 assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
             elif locale.startswith("fr"):
@@ -79,8 +76,8 @@ class TestI18nMissingLines:
             elif locale.startswith("en"):
                 assert result == "en", f"Expected 'en' for {locale}, got {result}"
             elif locale.startswith("es"):
-                # es-ES returns 'en' (default, ES not in exceptions)
-                assert result == "en", f"Expected 'en' (default) for {locale}, got {result}"
+                # es-ES returns 'es' (changed: product goal, es default = es)
+                assert result == "es", f"Expected 'es' for {locale}, got {result}"
             elif locale.startswith("pt"):
                 assert result == "en", f"Expected 'en' (fallback) for {locale}, got {result}"
             elif locale.startswith("fr"):
@@ -168,8 +165,8 @@ class TestI18nMissingLines:
         # Test various case and format variations
         normalization_tests = [
             ("EN-US", "en"),  # Uppercase
-            ("Es-Es", "en"),  # Mixed case - es-ES returns 'en' (default, ES not in exceptions)
-            ("RU-ru", "en"),  # Mixed case - ru-RU returns 'en' (ru default)
+            ("Es-Es", "es"),  # Mixed case - es-ES returns 'es' (changed: product goal)
+            ("RU-ru", "ru"),  # Mixed case - ru-RU returns 'ru' (changed: product goal)
             ("zh_CN", "en"),  # Underscore separator - zh not supported, fallback to 'en'
             ("zh_TW", "en"),  # Underscore separator - zh not supported, fallback to 'en'
             ("en_GB", "en"),  # Underscore separator

@@ -129,9 +129,9 @@ class TestI18nLinesCoverage:
                 default_cases = [
                     ("en-US", "en"),  # English default
                     ("en-GB", "en"),  # English default
-                    ("ru-RU", "en"),  # Russian default (falls to English)
-                    ("es-ES", "en"),  # Spanish default (ES not in exceptions)
-                    ("es-AR", "en"),  # Spanish default (AR not in exceptions)
+                    ("ru-RU", "ru"),  # Russian default → ru (changed: product goal)
+                    ("es-ES", "es"),  # Spanish default → es (changed: product goal)
+                    ("es-AR", "es"),  # Spanish default → es (changed: product goal)
                 ]
 
                 for locale, expected in default_cases:
