@@ -66,6 +66,13 @@ def _numeric(min_v: float, max_v: float) -> NumericRange:
     - UI is responsible for rendering labels (e.g., "≤ 24.9" for max=25.0).
     - Backend never adjusts numbers for UI display (no -0.1 tricks).
     """
+    import math
+
+    if not math.isfinite(min_v) or not math.isfinite(max_v):
+        raise ValueError(f"Invalid numeric range bounds: min_v={min_v} max_v={max_v}")
+    if min_v >= max_v:
+        raise ValueError(f"Invalid numeric range bounds: min_v={min_v} max_v={max_v}")
+
     return NumericRange(min=min_v, max=max_v)
 
 

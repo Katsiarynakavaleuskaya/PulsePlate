@@ -10,9 +10,11 @@ All outputs are i18n keys only.
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
-from core.bmi.interpretation_rules import build_interpretation_v1
+from core.bmi.interpretation_rules import _numeric, build_interpretation_v1
 
 
 @pytest.mark.parametrize(
@@ -192,3 +194,27 @@ def test_interpretation_does_not_mutate_bmi() -> None:
     assert got2 is not None
     assert got.goal_direction == got2.goal_direction
     assert got.target_range == got2.target_range
+
+
+def test_numeric_rejects_inverted_bounds() -> None:
+    """Test that _numeric rejects min_v > max_v."""
+    with pytest.raises(ValueError, match="Invalid numeric range bounds"):
+        _numeric(30.0, 25.0)
+
+
+def test_numeric_rejects_equal_bounds() -> None:
+    """Test that _numeric rejects min_v == max_v (zero-width range)."""
+    with pytest.raises(ValueError, match="Invalid numeric range bounds"):
+        _numeric(25.0, 25.0)
+
+
+def test_numeric_rejects_nan_inf() -> None:
+    """Test that _numeric rejects NaN and inf values."""
+    with pytest.raises(ValueError, match="Invalid numeric range bounds"):
+        _numeric(math.nan, 25.0)
+    with pytest.raises(ValueError, match="Invalid numeric range bounds"):
+        _numeric(0.0, math.inf)
+    with pytest.raises(ValueError, match="Invalid numeric range bounds"):
+        _numeric(math.inf, 25.0)
+    with pytest.raises(ValueError, match="Invalid numeric range bounds"):
+        _numeric(-math.inf, 25.0)
