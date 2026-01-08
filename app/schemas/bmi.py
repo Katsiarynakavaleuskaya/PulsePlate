@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.i18n import Language
 
@@ -212,20 +212,68 @@ class BMICalculateRequest(BaseModel):
         examples=[25, 30, 45, 65],
     )
 
-    gender: str = Field(
-        default="male",
+    gender: str | None = Field(
+        default=None,
         description="Gender: 'male' or 'female'. Will be normalized by engine.",
-        examples=["male", "female", "муж", "жен"],
+        examples=["male", "female", "муж", "жен", None],
     )
 
     pregnant: str | bool = Field(
-        default="no",
+        default=False,
         description=(
             "Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). "
             "Will be normalized to bool by engine."
         ),
         examples=["no", "yes", False, True],
     )
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _normalize_gender_token(cls, v: str | None) -> str | None:
+        """
+        RU: Нормализует gender токены в "male" | "female" | None.
+        EN: Normalizes gender tokens to "male" | "female" | None.
+
+        Exact tokens are normalized before invariant checks to ensure schema↔engine parity.
+        """
+        if v is None:
+            return None
+        s = _normalize_ws_lower(v)
+        if not s:
+            return None
+        # Exact tokens (must match engine contract)
+        if s in _FEMALE_EXACT:
+            return "female"
+        if s in _MALE_EXACT:
+            return "male"
+        # Prefix-based tokens (RU/ES startswith parity)
+        if any(s.startswith(prefix) for prefix in _FEMALE_PREFIXES):
+            return "female"
+        if any(s.startswith(prefix) for prefix in _MALE_PREFIXES):
+            return "male"
+        # Unknown token: return as-is (will be handled by engine fallback)
+        return s
+
+    @field_validator("pregnant", mode="before")
+    @classmethod
+    def _normalize_pregnant(cls, v: str | bool | None) -> bool:
+        """
+        RU: Нормализует pregnant в bool.
+        EN: Normalizes pregnant to bool.
+        """
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = _normalize_ws_lower(v if isinstance(v, str) else None)
+        if not s:
+            return False
+        if s in _TRUE_STRINGS:
+            return True
+        if s in _FALSE_STRINGS:
+            return False
+        # Unknown token -> treat as False (safe default)
+        return False
 
     athlete: str | bool = Field(
         default="no",
@@ -253,25 +301,24 @@ class BMICalculateRequest(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_gender_pregnant(self) -> "BMICalculateRequest":
+    def _apply_pregnancy_invariant(self) -> "BMICalculateRequest":
         """
-        RU: Валидация: мужчина не может быть беременным (жёсткий инвариант).
-        EN: Validation: males cannot be pregnant (hard invariant).
+        RU: Применяет инвариант беременности: мягкая нормализация (не 422).
+        EN: Applies pregnancy invariant: soft normalization (no 422).
 
-        Gender normalization matches engine's _normalize_gender() logic:
-        - Exact matches: "male", "m", "man", "м"
-        - Prefix-based: "муж*" (RU), "hombre*" (ES) - matches engine's startswith()
+        Rules:
+        - If pregnant=True and gender=None → auto-set gender="female" (pregnant implies female)
+        - If pregnant=True and gender="male" → coerce pregnant=False (pipeline robustness)
 
-        Raises:
-            ValueError: If gender is male and pregnant is True
+        This keeps the BMI pipeline robust: male+pregnant doesn't break /plan or /bmi endpoints.
         """
-        pregnant_bool = _normalize_bool_flag_local(self.pregnant)
-
-        # We intentionally use "male detection" rather than "female detection":
-        # If the token looks male (including prefixes), pregnancy must be rejected.
-        if _is_male_gender_token(self.gender) and pregnant_bool:
-            raise ValueError("Pregnancy is only applicable to females")
-
+        if self.pregnant:
+            if self.gender is None:
+                # pregnant задаёт смысл пола
+                self.gender = "female"
+            elif self.gender == "male":
+                # устойчивость пайплайна: не 422, а мягкая нормализация
+                self.pregnant = False
         return self
 
 

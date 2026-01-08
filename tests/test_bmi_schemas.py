@@ -38,9 +38,9 @@ class TestBMICalculateRequest:
         """Test default values for optional fields."""
         req = BMICalculateRequest(weight_kg=70, height_cm=175, age=30)
 
-        assert req.gender == "male"
-        assert req.pregnant == "no"
-        assert req.athlete == "no"
+        assert req.gender is None  # Changed: gender default is None (normalized in router/engine)
+        assert req.pregnant is False  # Changed: pregnant default is False (normalized to bool)
+        assert req.athlete == "no"  # athlete still accepts string
         assert req.waist_cm is None
         assert req.lang == "en"
 
@@ -109,17 +109,18 @@ class TestBMICalculateRequest:
         assert any(err["loc"] == ("lang",) and err["type"] == "literal_error" for err in errors)
 
     def test_pregnant_string_and_bool(self) -> None:
-        """Test that pregnant accepts both string and bool."""
+        """Test that pregnant accepts both string and bool, normalized to bool."""
         req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant="yes")
-        assert req_str.pregnant == "yes"
+        assert req_str.pregnant is True  # Normalized to bool
 
         req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant=True)
         assert req_bool.pregnant is True
 
     def test_athlete_string_and_bool(self) -> None:
-        """Test that athlete accepts both string and bool."""
+        """Test that athlete accepts both string and bool (not normalized in schema, normalized in router)."""
+        # Note: athlete normalization happens in router, not schema
         req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete="yes")
-        assert req_str.athlete == "yes"
+        assert req_str.athlete == "yes"  # Schema keeps original value
 
         req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete=True)
         assert req_bool.athlete is True
