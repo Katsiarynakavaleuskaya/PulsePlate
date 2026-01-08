@@ -377,12 +377,12 @@ LANG_ALIASES: dict[str, Lang] = {
     # English markets (universal support)
     "en-us": "en",
     "en-gb": "en",
-    # Russian markets (selective support)
-    "ru-ru": "en",  # Regional Russian → English (business requirement)
-    # Spanish markets (selective support)
-    "es-mx": "es",  # Mexico → Spanish (primary market)
-    "es-es": "en",  # Spain → English (secondary market)
-    "es-ar": "en",  # Argentina → English (secondary market)
+    # Russian markets (product goal: RU/ES/EN localization)
+    "ru-ru": "ru",  # Regional Russian → Russian (changed: not en)
+    # Spanish markets (product goal: Spain priority)
+    "es-mx": "es",  # Mexico → Spanish
+    "es-es": "es",  # Spain → Spanish (changed: not en)
+    "es-ar": "es",  # Argentina → Spanish (changed: not en)
 }
 
 
@@ -450,9 +450,9 @@ def normalize_lang(lang: Optional[str]) -> Lang:
 
     Examples:
         >>> normalize_lang("en-US")    # → "en" (en default)
-        >>> normalize_lang("es-MX")    # → "es" (mx in es exceptions)
-        >>> normalize_lang("es-ES")    # → "en" (es default, ES not in exceptions)
-        >>> normalize_lang("ru-RU")    # → "en" (ru default, no exceptions)
+        >>> normalize_lang("es-MX")    # → "es" (es default)
+        >>> normalize_lang("es-ES")    # → "es" (es default, changed: not en)
+        >>> normalize_lang("ru-RU")    # → "ru" (ru default, changed: not en)
         >>> normalize_lang("français") # → "en" (unsupported)
     """
     if not lang:
