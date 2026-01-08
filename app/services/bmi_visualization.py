@@ -47,8 +47,9 @@ def build_bmi_scale_v1(
 
     # Get ranges from core (returns None for category=None groups)
     # Type narrowing: result.group and result.age_band are already validated by engine
+    # Note: BMICalculateResult.group is typed as str for compatibility, but runtime value is BMIGroup
     ranges_data = get_bmi_visual_ranges(
-        group=result.group,
+        group=result.group,  # type: ignore[arg-type]  # Runtime value is BMIGroup, but dataclass field is str
         age_band=result.age_band,
         scale_min=scale_min,
         scale_max=scale_max,
