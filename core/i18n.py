@@ -345,12 +345,18 @@ LOCALE_SPECIAL_CASES: dict[str, dict[str, Any]] = {
 
 # Aliases mapping for language normalization
 #
-# NOTE: Regional locale mappings (ru-*, es-*, en-*) are handled by
-# LOCALE_SPECIAL_CASES in normalize_lang() Step 2. This dict contains only:
-# - Base language codes (ru, en, es)
-# - Word aliases (russian, english, spanish, etc.)
+# FALLBACK STRATEGY EXPLAINED:
+# This is a market-based localization strategy, not purely linguistic.
 #
-# For regional locale policy, see LOCALE_SPECIAL_CASES above.
+# Current product goal: RU/ES/EN native localization for iOS.
+#
+# 1) ENGLISH MARKETS: All English locales (en, en-US, en-GB, …) → English
+# 2) RUSSIAN MARKETS: All Russian locales (ru, ru-RU, ru-KZ, ru-BY, …) → Russian
+# 3) SPANISH MARKETS: All Spanish locales (es, es-ES, es-MX, es-AR, …) → Spanish
+#
+# Implementation note:
+# - Exact aliases are handled via LANG_ALIASES.
+# - Implicit regional variants are handled via LOCALE_SPECIAL_CASES.
 LANG_ALIASES: dict[str, Lang] = {
     # =================================================================
     # BASE LANGUAGES (core supported languages)

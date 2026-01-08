@@ -16,7 +16,7 @@ from app import app
 from core.i18n import Language, TRANSLATIONS, normalize_lang, t
 
 # Constants to avoid duplication
-SUPPORTED_LANGS = ("ru", "en", "es")
+SUPPORTED_LANGS: tuple[Language, ...] = ("ru", "en", "es")
 BMI_VIZ_KEYS = ("bmi.underweight", "bmi.normal", "bmi.overweight", "bmi.obesity")
 EXPECTED_VIZ_KEYS = set(BMI_VIZ_KEYS)
 
@@ -69,8 +69,7 @@ class TestBMIVisualizationKeys:
         RU: Все ключи visualization присутствуют во всех языках.
         EN: All visualization keys exist in all languages.
         """
-        for lang_str in SUPPORTED_LANGS:
-            lang: Language = lang_str  # type: ignore[assignment]
+        for lang in SUPPORTED_LANGS:
             for key in BMI_VIZ_KEYS:
                 assert key in TRANSLATIONS[lang], f"Missing {key} in {lang}"
                 assert TRANSLATIONS[lang][key], f"Empty {key} in {lang}"
@@ -104,8 +103,7 @@ class TestBMIVisualizationKeys:
 
         # Verify all keys are translatable in all languages
         for key in i18n_keys:
-            for lang_str in SUPPORTED_LANGS:
-                lang: Language = lang_str  # type: ignore[assignment]
+            for lang in SUPPORTED_LANGS:
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 # Verify it's not just the key itself (actual translation)
@@ -138,8 +136,7 @@ class TestBMIVisualizationKeys:
         ), f"Expected {EXPECTED_VIZ_KEYS}, got {set(i18n_keys)}"
 
         for key in i18n_keys:
-            for lang_str in SUPPORTED_LANGS:
-                lang: Language = lang_str  # type: ignore[assignment]
+            for lang in SUPPORTED_LANGS:
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 assert translation != key, f"Translation missing for {key} in {lang}"
@@ -171,8 +168,7 @@ class TestBMIVisualizationKeys:
         ), f"Expected {EXPECTED_VIZ_KEYS}, got {set(i18n_keys)}"
 
         for key in i18n_keys:
-            for lang_str in SUPPORTED_LANGS:
-                lang: Language = lang_str  # type: ignore[assignment]
+            for lang in SUPPORTED_LANGS:
                 translation = t(lang, key)
                 assert translation, f"Empty translation for {key} in {lang}"
                 assert translation != key, f"Translation missing for {key} in {lang}"
