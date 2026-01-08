@@ -21,7 +21,7 @@ Nothing before this file needs to be reread.
 - One BMI Engine
 - child ≠ teen
 - visualization optional
-- Free BMI is first-class feature
+- Free BMI is a first-class feature.
 - coverage ≥97%
 
 ---
@@ -31,7 +31,7 @@ Nothing before this file needs to be reread.
 ### Before Every PR
 1. Read REQUIRED docs (ENGINEERING_LESSONS.md, RUNBOOK_AGENT.md, nearest AGENTS.md)
 2. Short plan discussion (goal, scope, non-goals)
-3. Audit pass (Qoder mindset)
+3. Audit pass (Qoder mindset — pre-implementation audit of invariants, risks, and scope; see ENGINEERING_LESSONS.md / RUNBOOK_AGENT.md)
 4. Confirm no invariant violations
 
 ### During Implementation
