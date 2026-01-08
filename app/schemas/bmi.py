@@ -112,7 +112,7 @@ class WaistRiskResultSchema(BaseModel):
 # without creating import cycles.
 
 _MALE_EXACT: Final[set[str]] = {"male", "m", "man", "м"}
-_FEMALE_EXACT: Final[set[str]] = {"female", "f", "woman", "ж"}
+_FEMALE_EXACT: Final[set[str]] = {"female", "f", "woman", "w", "ж"}
 
 # Keep prefixes aligned with engine semantics: "starts with" for common language stems
 _MALE_PREFIXES: Final[tuple[str, ...]] = ("муж", "hombre")
