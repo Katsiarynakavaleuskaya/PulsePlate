@@ -337,6 +337,81 @@ def _bmi_category(
     return "obesity_3"
 
 
+def _upper_for(
+    breakpoints: list[tuple[float, BMICategory]],
+    target: BMICategory,
+) -> float:
+    """
+    RU: Извлекает верхнюю границу для указанной категории из breakpoints.
+    EN: Extract upper bound for specified category from breakpoints.
+
+    Args:
+        breakpoints: List of (upper_bound, category) tuples
+        target: Target category to find
+
+    Returns:
+        Upper bound (exclusive) for the target category
+
+    Raises:
+        ValueError: If target category not found in breakpoints
+    """
+    for upper, cat in breakpoints:
+        if cat == target:
+            return upper
+    raise ValueError(f"Missing breakpoint for {target!r}")
+
+
+def get_bmi_visual_ranges(
+    group: BMIGroup,
+    age_band: AgeBand,
+    scale_min: float = 0.0,
+    scale_max: float = 60.0,
+) -> list[tuple[float, float, str]] | None:
+    """
+    RU: Возвращает диапазоны BMI для визуализации на основе порогов группы.
+    EN: Return BMI ranges for visualization based on group thresholds.
+
+    Args:
+        group: BMI group (general, athlete, elderly, etc.)
+        age_band: Age band (adult, elderly, etc.)
+        scale_min: Minimum BMI for visualization scale (default 0.0)
+        scale_max: Maximum BMI for visualization scale (default 60.0)
+
+    Returns:
+        List of (start, end, i18n_key) tuples for visualization ranges, or None
+        if group should not have visualization (category=None groups).
+
+        Returns exactly 4 ranges:
+        - (scale_min, underweight_max, "bmi.underweight")
+        - (underweight_max, normal_max, "bmi.normal")
+        - (normal_max, overweight_max, "bmi.overweight")
+        - (overweight_max, scale_max, "bmi.obesity")
+
+        Note: obesity_1/2/3 are aggregated into single "bmi.obesity" range.
+        Obesity tiers (35.0, 40.0) are NOT used in visualization ranges.
+
+    Returns None for groups where category=None (checked by group, not category):
+    - too_young, child, teen, pregnant
+    """
+    # Groups without category should not have visualization (check by group, not category)
+    if group in {"too_young", "child", "teen", "pregnant"}:
+        return None
+
+    breakpoints = _get_bmi_breakpoints(age_band, group)
+
+    # Extract visualization breakpoints by category name (not index) for robustness
+    underweight_max = _upper_for(breakpoints, "underweight")
+    normal_max = _upper_for(breakpoints, "normal")
+    overweight_max = _upper_for(breakpoints, "overweight")
+
+    return [
+        (scale_min, underweight_max, "bmi.underweight"),
+        (underweight_max, normal_max, "bmi.normal"),
+        (normal_max, overweight_max, "bmi.overweight"),
+        (overweight_max, scale_max, "bmi.obesity"),
+    ]
+
+
 def _group_display_name(group: BMIGroup, lang: Language) -> str:
     """
     RU: Отображаемое имя группы (Commit 2: table; Commit 5: i18n).
