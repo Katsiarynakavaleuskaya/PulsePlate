@@ -5,6 +5,11 @@
 This document is the **starting context for the next chat**.
 Nothing before this file needs to be reread.
 
+**Related handoff documents:**
+- [HANDOFF_PROJECT_STATUS_2026-01.md](./HANDOFF_PROJECT_STATUS_2026-01.md) — Canonical project state snapshot
+- [NEXT_PR_BOOTSTRAP.md](./NEXT_PR_BOOTSTRAP.md) — Process for starting the next PR
+- [PR_493_SUMMARY.md](./PR_493_SUMMARY.md) — Summary of this handoff PR
+
 ---
 
 ## 🟢 Starting Assumptions
@@ -29,7 +34,10 @@ Nothing before this file needs to be reread.
 ## 🛠️ Working Process (MANDATORY)
 
 ### Before Every PR
-1. Read REQUIRED docs (ENGINEERING_LESSONS.md, RUNBOOK_AGENT.md, nearest AGENTS.md)
+1. Read REQUIRED docs:
+   - ENGINEERING_LESSONS.md — project lessons and hard-won invariants
+   - RUNBOOK_AGENT.md — agent workflow and CI/debug playbooks
+   - AGENTS.md — nearest context-specific agent guidance
 2. Short plan discussion (goal, scope, non-goals)
 3. Audit pass (Qoder mindset — pre-implementation audit of invariants, risks, and scope; see ENGINEERING_LESSONS.md / RUNBOOK_AGENT.md)
 4. Confirm no invariant violations
@@ -54,7 +62,7 @@ Nothing before this file needs to be reread.
 
 ❌ Not allowed:
 - Reopening BMI architecture decisions
-- Rewriting merged logic
+- Rewriting merged logic (functional rewrites; refactoring or optimizations require explicit justification and a dedicated PR)
 
 ---
 

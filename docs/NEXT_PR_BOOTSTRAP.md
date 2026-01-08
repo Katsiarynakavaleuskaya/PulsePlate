@@ -40,8 +40,8 @@ Start the next development PR
 
 - Overall coverage ≥97%
 - Diff-cover: 100% for PR-touched lines (hard gate)
-- No new type: ignore without explanation (per CodeRabbit guidelines)
-- No new test ignores (skip/xfail) without justification
+- No new type: ignore without explanation (mandatory per project CI)
+- No new test ignores (skip/xfail) without justification (mandatory per project CI)
 - No flaky tests
 - No test-only logic leaks
 
