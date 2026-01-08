@@ -164,6 +164,7 @@ async def bmi_calculate_handler(
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
             visualization=None,  # Will be set below if builder succeeds
+            interpretation_v1=None,  # Optional structured interpretation (not implemented yet)
         )
 
         # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
@@ -231,4 +232,4 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     # Handler returns dict for legacy compatibility; convert back to model for FastAPI serialization
     # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
     data = await bmi_calculate_handler(req)
-    return BMICalculateResponse.model_validate(data)
+    return BMICalculateResponse.model_validate(data)  # type: ignore[no-any-return]
