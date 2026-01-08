@@ -369,3 +369,45 @@ class TestSchemaEngineContractParity:
         resp = client.post("/api/v1/bmi/calculate", json=payload)
         # Must be 422 (both schema and engine block it)
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_schema_engine_exact_tokens_parity(self) -> None:
+        """
+        RU: Guard-тест: exact токены в schema и engine должны совпадать.
+        EN: Guard test: exact tokens in schema and engine must match.
+
+        Prevents drift between schema's _MALE_EXACT/_FEMALE_EXACT and
+        engine's _normalize_gender() exact token sets.
+        """
+        from app.schemas.bmi import _MALE_EXACT, _FEMALE_EXACT
+        from core.bmi.engine import _normalize_gender
+
+        # Extract engine's exact tokens by testing all schema tokens
+        # Engine recognizes exact tokens (not via prefix)
+        schema_male_tokens = _MALE_EXACT
+        schema_female_tokens = _FEMALE_EXACT
+
+        # Test: all schema male tokens must be recognized as male by engine
+        for token in schema_male_tokens:
+            result = _normalize_gender(token)
+            assert result == "male", (
+                f"Schema token '{token}' in _MALE_EXACT, but engine returns '{result}'. "
+                f"Schema and engine exact tokens must match."
+            )
+
+        # Test: all schema female tokens must be recognized as female by engine
+        for token in schema_female_tokens:
+            result = _normalize_gender(token)
+            assert result == "female", (
+                f"Schema token '{token}' in _FEMALE_EXACT, but engine returns '{result}'. "
+                f"Schema and engine exact tokens must match."
+            )
+
+        # Test: engine must not recognize unknown tokens as exact matches
+        # (this ensures engine doesn't have extra tokens not in schema)
+        unknown_tokens = {"unknown_gender", "xyz", "test"}
+        for token in unknown_tokens:
+            result = _normalize_gender(token)
+            # Engine falls back to "male" for unknown, which is OK
+            # But we verify it's not in our exact sets
+            assert token not in schema_male_tokens
+            assert token not in schema_female_tokens

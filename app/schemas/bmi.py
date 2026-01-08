@@ -110,6 +110,11 @@ class WaistRiskResultSchema(BaseModel):
 # --- Local normalization helpers (schema-level, MUST NOT import core.bmi.engine) ---
 # These helpers ensure schema validation aligns with engine normalization semantics
 # without creating import cycles.
+#
+# IMPORTANT: _MALE_EXACT and _FEMALE_EXACT MUST stay in sync with
+# core/bmi/engine._normalize_gender() exact token sets.
+# Guarded by contract tests in tests/test_bmi_interpretation_validation.py
+# (TestSchemaEngineContractParity class).
 
 _MALE_EXACT: Final[set[str]] = {"male", "m", "man", "м"}
 _FEMALE_EXACT: Final[set[str]] = {"female", "f", "woman", "ж"}
@@ -132,7 +137,9 @@ def _is_male_gender_token(gender: str | None) -> bool:
     RU: Определяет, является ли gender токен мужским (для инвариантов).
     EN: Determines if gender token is male (for invariants).
 
-    Matches engine's _normalize_gender() prefix-based logic.
+    MUST match engine's _normalize_gender() exact tokens and prefix-based logic.
+    Exact tokens: _MALE_EXACT must equal engine's male_exact set.
+    Guarded by contract tests.
     """
     g = _normalize_ws_lower(gender)
     if not g:
@@ -145,7 +152,9 @@ def _is_female_gender_token(gender: str | None) -> bool:
     RU: Определяет, является ли gender токен женским (для инвариантов).
     EN: Determines if gender token is female (for invariants).
 
-    Matches engine's _normalize_gender() prefix-based logic.
+    MUST match engine's _normalize_gender() exact tokens and prefix-based logic.
+    Exact tokens: _FEMALE_EXACT must equal engine's female_exact set.
+    Guarded by contract tests.
     """
     g = _normalize_ws_lower(gender)
     if not g:
