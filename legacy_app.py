@@ -2083,7 +2083,65 @@ async def cleanup_expired_logs(
     }
 
 
+def sanitize_validation_errors(exc: ValidationError) -> list[dict[str, Any]]:
+    """
+    Sanitize Pydantic ValidationError for JSON serialization.
+
+    RU: Очищает ValidationError от non-serializable объектов для JSON.
+    EN: Sanitizes ValidationError by removing non-serializable objects for JSON.
+
+    Removes or converts non-serializable values in ctx (e.g., Exception objects).
+    """
+    errors: list[dict[str, Any]] = []
+    for err in exc.errors():
+        cleaned = dict(err)
+        ctx = cleaned.get("ctx")
+        if isinstance(ctx, dict):
+            # Remove or stringify all non-serializable values in ctx
+            cleaned_ctx: dict[str, Any] = {}
+            for key, value in ctx.items():
+                if isinstance(value, (str, int, float, bool, type(None))):
+                    cleaned_ctx[key] = value
+                else:
+                    # Convert non-serializable to string
+                    cleaned_ctx[key] = str(value)
+            cleaned["ctx"] = cleaned_ctx
+        elif ctx is not None:
+            # ctx is not a dict but exists - remove it to avoid serialization issues
+            cleaned.pop("ctx", None)
+        errors.append(cleaned)
+    return errors
+
+
 # ---------- v0 endpoints (bmi/plan) ----------
+
+# Centralized category i18n mapping (single source of truth for legacy endpoints)
+_CATEGORY_I18N_MAP: dict[str, str] = {
+    "underweight": "bmi_underweight",
+    "normal": "bmi_normal",
+    "overweight": "bmi_overweight",
+    "obesity_1": "bmi_obese_1",
+    "obesity_2": "bmi_obese_2",
+    "obesity_3": "bmi_obese_3",
+}
+
+
+def _normalize_canonical_result(result: Any) -> dict[str, Any]:  # noqa: ANN401
+    """
+    Normalize canonical handler result to dict for safe access.
+
+    RU: Нормализует результат canonical handler в dict для безопасного доступа.
+    EN: Normalizes canonical handler result to dict for safe access.
+
+    Args:
+        result: Result from bmi_calculate_handler (dict or Pydantic model)
+
+    Returns:
+        dict[str, Any]: Normalized dict result
+    """
+    if hasattr(result, "model_dump"):
+        return result.model_dump(by_alias=True)
+    return result
 
 
 @app.post("/bmi")
@@ -2122,25 +2180,16 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     try:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
-        # Clean errors: remove non-serializable objects from ctx
-        errors = []
-        for err in e.errors():
-            cleaned = {
-                k: v
-                for k, v in err.items()
-                if k != "ctx" or not isinstance(v.get("error"), Exception)
-            }
-            if "ctx" in cleaned and "error" in cleaned["ctx"]:
-                # Convert Exception to string for JSON serialization
-                cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
-            errors.append(cleaned)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=errors,
+            detail=sanitize_validation_errors(e),
         ) from e
 
     # Call canonical handler
-    canonical_result = await bmi_calculate_handler(canonical_req)
+    canonical_result_raw = await bmi_calculate_handler(canonical_req)
+
+    # Normalize result to dict (safety: handler returns dict, but normalize for type safety)
+    canonical_result = _normalize_canonical_result(canonical_result_raw)
 
     # Normalize language once for all i18n calls
     lang_norm: Language = normalize_lang(str(req.lang))
@@ -2149,16 +2198,8 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
     category_slug = canonical_result.get("category")
     category_display: str | None = None
     if category_slug:
-        # Map slug to i18n key and localize
-        category_i18n_map = {
-            "underweight": "bmi_underweight",
-            "normal": "bmi_normal",
-            "overweight": "bmi_overweight",
-            "obesity_1": "bmi_obese_1",
-            "obesity_2": "bmi_obese_2",
-            "obesity_3": "bmi_obese_3",
-        }
-        i18n_key = category_i18n_map.get(category_slug)
+        # Map slug to i18n key and localize (use centralized mapping)
+        i18n_key = _CATEGORY_I18N_MAP.get(category_slug)
         if i18n_key:
             category_display = t(lang_norm, i18n_key)
         else:
@@ -2187,12 +2228,13 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
     # Adapt new format to legacy format for backward compatibility
     # Legacy expects: bmi, category, note (str), athlete (bool), group
+    # Use .get() for all accesses to avoid KeyError if handler contract changes
     legacy_result: Dict[str, Any] = {
-        "bmi": canonical_result["bmi"],
+        "bmi": canonical_result.get("bmi"),
         "category": category_display,  # Localized display name (or None)
         "note": legacy_note,
-        "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
-        "group": canonical_result["group"],
+        "athlete": canonical_result.get("group") == "athlete",  # Extract athlete flag from group
+        "group": canonical_result.get("group", ""),
     }
 
     # Preserve visualization if requested (legacy feature)
@@ -2210,11 +2252,6 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
 
 @app.post("/plan")
 async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
-    # Local imports for ValidationError handling
-    from fastapi import HTTPException
-    from pydantic import ValidationError
-    from starlette import status
-
     """
     RU: Legacy endpoint /plan (contract must remain stable in PR-457=A).
     EN: Legacy /plan endpoint (contract must remain stable in PR-457=A).
@@ -2245,21 +2282,9 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
     try:
         canonical = await bmi_calculate_handler(bmi_payload)
     except ValidationError as e:
-        # Clean errors: remove non-serializable objects from ctx
-        errors = []
-        for err in e.errors():
-            cleaned = {
-                k: v
-                for k, v in err.items()
-                if k != "ctx" or not isinstance(v.get("error"), Exception)
-            }
-            if "ctx" in cleaned and "error" in cleaned["ctx"]:
-                # Convert Exception to string for JSON serialization
-                cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
-            errors.append(cleaned)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=errors,
+            status_code=fastapi_status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=sanitize_validation_errors(e),
         ) from e
 
     # 2) Extract BMI (as Decimal for compat mapping)
@@ -2370,25 +2395,16 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     try:
         canonical_req = BMICalculateRequest.model_validate(shim_payload)
     except ValidationError as e:
-        # Clean errors: remove non-serializable objects from ctx
-        errors = []
-        for err in e.errors():
-            cleaned = {
-                k: v
-                for k, v in err.items()
-                if k != "ctx" or not isinstance(v.get("error"), Exception)
-            }
-            if "ctx" in cleaned and "error" in cleaned["ctx"]:
-                # Convert Exception to string for JSON serialization
-                cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
-            errors.append(cleaned)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=errors,
+            detail=sanitize_validation_errors(e),
         ) from e
 
     # Call canonical handler
-    canonical_result = await bmi_calculate_handler(canonical_req)
+    canonical_result_raw = await bmi_calculate_handler(canonical_req)
+
+    # Normalize result to dict (safety: handler returns dict, but normalize for type safety)
+    canonical_result = _normalize_canonical_result(canonical_result_raw)
 
     # Normalize language once for all i18n calls
     lang_norm: Language = normalize_lang(str(req.lang))
@@ -2397,16 +2413,8 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
     category_slug = canonical_result.get("category")
     category_display: str | None = None
     if category_slug:
-        # Map slug to i18n key and localize
-        category_i18n_map = {
-            "underweight": "bmi_underweight",
-            "normal": "bmi_normal",
-            "overweight": "bmi_overweight",
-            "obesity_1": "bmi_obese_1",
-            "obesity_2": "bmi_obese_2",
-            "obesity_3": "bmi_obese_3",
-        }
-        i18n_key = category_i18n_map.get(category_slug)
+        # Map slug to i18n key and localize (use centralized mapping)
+        i18n_key = _CATEGORY_I18N_MAP.get(category_slug)
         if i18n_key:
             category_display = t(lang_norm, i18n_key)
         else:
@@ -2434,12 +2442,13 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
 
     # Adapt new format to legacy format for backward compatibility
     # Legacy expects: bmi, category, note (str), athlete (bool), group
+    # Use .get() for all accesses to avoid KeyError if handler contract changes
     legacy_result: Dict[str, Any] = {
-        "bmi": canonical_result["bmi"],
+        "bmi": canonical_result.get("bmi"),
         "category": category_display,  # Localized display name (or None)
         "note": legacy_note,
-        "athlete": canonical_result["group"] == "athlete",  # Extract athlete flag from group
-        "group": canonical_result["group"],
+        "athlete": canonical_result.get("group") == "athlete",  # Extract athlete flag from group
+        "group": canonical_result.get("group", ""),
     }
 
     # Log without sensitive data (preserve legacy logging behavior)
