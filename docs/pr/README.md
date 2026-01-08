@@ -2,6 +2,7 @@
 
 This directory contains all PR-related documentation, including:
 
+- **PR review checklist** (`PR_REVIEW_CHECKLIST.md`) — quick scope analysis to detect PR bloat
 - **Audit reports** (`*_AUDIT*.md`)
 - **Questionnaires** (`*_QUESTIONNAIRE*.md`)
 - **Implementation plans** (`*_PLAN*.md`, `*_IMPLEMENTATION*.md`)

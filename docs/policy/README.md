@@ -8,6 +8,7 @@ This folder contains project-level rules. If a change conflicts with a policy do
 
 ## Mandatory policies
 - [`DOCS_ONLY_PR_POLICY.md`](DOCS_ONLY_PR_POLICY.md) — strict separation of docs-only PRs from code changes
+- [`PR_SCOPE_RULES.md`](PR_SCOPE_RULES.md) — runtime vs docs separation, PR size guidelines, contract validation
 
 ## Typical contents
 - Import hygiene rules (no sys.modules mutation, no dynamic imports except allowed)
