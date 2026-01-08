@@ -1,5 +1,7 @@
 # PR-494: BMI Targets / Interpretation Layer
 
+> **Reviewer checklist:** `docs/pr/PR_494_REVIEW_CHECKLIST.md`
+
 ## Summary
 
 Adds a canonical BMI interpretation layer (`interpretation_v1`) that provides structured recommendations, targets, and disclaimers based on BMI results. The interpretation is group-aware (general, athlete, elderly, child, teen, pregnant) and uses i18n keys only (no translated strings).
