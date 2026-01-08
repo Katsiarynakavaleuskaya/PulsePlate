@@ -256,6 +256,9 @@ class TestBMICalculateResponse:
         assert response.waist_risk is None
         assert response.notes == []
         assert response.age_band == "adult"
+        # Guard: optional fields must default to None (Pydantic v2 default=None)
+        assert response.visualization is None
+        assert response.interpretation_v1 is None
 
     def test_full_response_with_waist_risk(self) -> None:
         """Test full response structure with waist risk."""
