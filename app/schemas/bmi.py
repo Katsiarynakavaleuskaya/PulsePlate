@@ -484,9 +484,10 @@ class BMICalculateResponse(BaseModel):
         None,
         description=(
             "Optional structured interpretation (v1). i18n keys only. "
-            "None only for too_young. "
-            "Pregnancy always returns structured interpretation (goal=medical_review, target=prenatal_guidelines). "
-            "Pregnant+athlete includes additional athlete disclaimers."
+            "Currently may be None while wiring is in progress. "
+            "Planned behavior: None only for too_young; pregnancy returns "
+            "structured interpretation (goal=medical_review, target=prenatal_guidelines), "
+            "and pregnant+athlete includes additional athlete disclaimers."
         ),
         examples=[
             {
