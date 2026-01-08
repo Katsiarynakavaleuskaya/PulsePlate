@@ -48,6 +48,8 @@ def build_bmi_scale_v1(
     # Get ranges from core (returns None for category=None groups)
     # Type narrowing: result.group and result.age_band are already validated by engine
     # Note: BMICalculateResult.group is typed as str for compatibility, but runtime value is BMIGroup
+    # Assert validates runtime assumption (not for mypy, but for humans)
+    assert result.group in {"too_young", "child", "teen", "general", "athlete", "elderly", "pregnant"}
     group = cast(BMIGroup, result.group)  # Runtime value is BMIGroup, but dataclass field is str
     ranges_data = get_bmi_visual_ranges(
         group=group,
