@@ -301,4 +301,3 @@ From `core/bmi/engine.py` → `_age_band()`:
 - `docs/pr/PR_490B_COVERAGE_NOTE.md` — PR-490B implementation notes
 - `docs/pr/HANDOFF_PR_490_491.md` — Architecture handoff
 - `docs/audit/PROJECT_AUDIT_2026_Q1.md` — Project audit
-
