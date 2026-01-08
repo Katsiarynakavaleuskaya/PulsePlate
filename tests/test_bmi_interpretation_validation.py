@@ -99,6 +99,7 @@ class TestGenderPregnantValidation:
             waist_cm=None,
         )
         assert req.gender == "female"
+        assert req.pregnant == "yes"
 
     def test_male_pregnant_false_validation_ok(self) -> None:
         """
@@ -130,6 +131,7 @@ class TestGenderPregnantValidation:
             waist_cm=None,
         )
         assert req.gender == "male"
+        assert req.pregnant == "no"
 
     def test_male_pregnant_api_returns_422(self, client: TestClient) -> None:
         """
@@ -232,3 +234,65 @@ class TestGenderPregnantValidation:
                 pregnant=True,
                 waist_cm=None,
             )
+
+    def test_gender_prefix_ru_male_blocks_pregnancy(self) -> None:
+        """
+        RU: Префикс "муж" (например, "мужик") должен блокировать pregnant (prefix-based).
+        EN: Prefix "муж" (e.g., "мужик") must block pregnancy (prefix-based).
+        """
+        with pytest.raises(ValueError, match="only applicable to females"):
+            BMICalculateRequest(
+                weight_kg=70.0,
+                height_cm=175.0,
+                age=30,
+                gender="мужик",
+                pregnant=True,
+                waist_cm=None,
+            )
+
+    def test_gender_prefix_es_male_blocks_pregnancy(self) -> None:
+        """
+        RU: Префикс "hombre" (например, "hombre_fullform") должен блокировать pregnant (prefix-based).
+        EN: Prefix "hombre" (e.g., "hombre_fullform") must block pregnancy (prefix-based).
+        """
+        with pytest.raises(ValueError, match="only applicable to females"):
+            BMICalculateRequest(
+                weight_kg=70.0,
+                height_cm=175.0,
+                age=30,
+                gender="hombre_fullform",
+                pregnant=True,
+                waist_cm=None,
+            )
+
+    def test_gender_prefix_ru_male_api_returns_422(self, client: TestClient) -> None:
+        """
+        RU: API должен возвращать 422 для "мужик"+pregnant (prefix-based, контракт).
+        EN: API must return 422 for "мужик"+pregnant (prefix-based, contract).
+        """
+        payload = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": "мужик",
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+    def test_gender_prefix_es_male_api_returns_422(self, client: TestClient) -> None:
+        """
+        RU: API должен возвращать 422 для "hombre_fullform"+pregnant (prefix-based, контракт).
+        EN: API must return 422 for "hombre_fullform"+pregnant (prefix-based, contract).
+        """
+        payload = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": "hombre_fullform",
+            "pregnant": True,
+            "lang": "en",
+        }
+        resp = client.post("/api/v1/bmi/calculate", json=payload)
+        assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

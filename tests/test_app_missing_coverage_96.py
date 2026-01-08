@@ -278,7 +278,7 @@ class TestAppMissingCoverage96:
         assert response.status_code == 200
         # Should not have waist-related warnings
 
-    def test_pregnant_male_combination(self):
+    def test_pregnant_male_combination(self) -> None:
         """Test that male + pregnant returns 422 (hard invariant)."""
         payload = {
             "weight_kg": 70.0,

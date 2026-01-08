@@ -11,7 +11,7 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -107,6 +107,81 @@ class WaistRiskResultSchema(BaseModel):
     )
 
 
+# --- Local normalization helpers (schema-level, MUST NOT import core.bmi.engine) ---
+# These helpers ensure schema validation aligns with engine normalization semantics
+# without creating import cycles.
+
+_MALE_EXACT: Final[set[str]] = {"male", "m", "man", "м"}
+_FEMALE_EXACT: Final[set[str]] = {"female", "f", "woman", "ж"}
+
+# Keep prefixes aligned with engine semantics: "starts with" for common language stems
+_MALE_PREFIXES: Final[tuple[str, ...]] = ("муж", "hombre")
+_FEMALE_PREFIXES: Final[tuple[str, ...]] = ("жен", "mujer")
+
+_TRUE_STRINGS: Final[set[str]] = {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
+_FALSE_STRINGS: Final[set[str]] = {"no", "n", "false", "0", "нет", "н", "ложь"}
+
+
+def _normalize_ws_lower(s: str | None) -> str:
+    """Normalize string: trim whitespace and convert to lowercase."""
+    return (s or "").strip().lower()
+
+
+def _is_male_gender_token(gender: str | None) -> bool:
+    """
+    RU: Определяет, является ли gender токен мужским (для инвариантов).
+    EN: Determines if gender token is male (for invariants).
+
+    Matches engine's _normalize_gender() prefix-based logic.
+    """
+    g = _normalize_ws_lower(gender)
+    if not g:
+        return False
+    return (g in _MALE_EXACT) or any(g.startswith(prefix) for prefix in _MALE_PREFIXES)
+
+
+def _is_female_gender_token(gender: str | None) -> bool:
+    """
+    RU: Определяет, является ли gender токен женским (для инвариантов).
+    EN: Determines if gender token is female (for invariants).
+
+    Matches engine's _normalize_gender() prefix-based logic.
+    """
+    g = _normalize_ws_lower(gender)
+    if not g:
+        return False
+    return (g in _FEMALE_EXACT) or any(g.startswith(prefix) for prefix in _FEMALE_PREFIXES)
+
+
+def _normalize_bool_flag_local(v: str | bool | None) -> bool:
+    """
+    Local boolean normalization for schema validation only.
+
+    RU: Локальная нормализация boolean для валидации схемы.
+    EN: Local boolean normalization for schema validation.
+
+    Goal: match engine's user-facing behavior enough to enforce hard invariants.
+    Unknown tokens are treated as False (safe default for invariant checks).
+
+    Args:
+        v: String, bool, or None
+
+    Returns:
+        bool: True if v is truthy (bool True or recognized truthy string), False otherwise
+    """
+    if isinstance(v, bool):
+        return v
+    s = _normalize_ws_lower(v if isinstance(v, str) else None)
+    if not s:
+        return False
+    if s in _TRUE_STRINGS:
+        return True
+    if s in _FALSE_STRINGS:
+        return False
+    # Unknown token -> treat as False (safe default for invariant checks)
+    return False
+
+
 class BMICalculateRequest(BaseModel):
     """
     RU: Запрос для расчета BMI через единый engine.
@@ -183,26 +258,18 @@ class BMICalculateRequest(BaseModel):
         RU: Валидация: мужчина не может быть беременным (жёсткий инвариант).
         EN: Validation: males cannot be pregnant (hard invariant).
 
+        Gender normalization matches engine's _normalize_gender() logic:
+        - Exact matches: "male", "m", "man", "м"
+        - Prefix-based: "муж*" (RU), "hombre*" (ES) - matches engine's startswith()
+
         Raises:
             ValueError: If gender is male and pregnant is True
         """
-        # Local gender normalization (no import from core.bmi.engine)
-        # Male synonyms
-        _MALE_VALUES = {"male", "m", "man", "м", "муж", "мужчина", "hombre"}
+        pregnant_bool = _normalize_bool_flag_local(self.pregnant)
 
-        gender_str = (self.gender or "").strip().lower()
-        is_male = gender_str in _MALE_VALUES
-
-        # Local pregnant normalization (simple bool check)
-        pregnant_bool = False
-        if isinstance(self.pregnant, bool):
-            pregnant_bool = self.pregnant
-        elif isinstance(self.pregnant, str):
-            s = self.pregnant.strip().lower()
-            pregnant_bool = s in {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
-
-        # Hard invariant: male + pregnant → error (fail-loud)
-        if is_male and pregnant_bool:
+        # We intentionally use "male detection" rather than "female detection":
+        # If the token looks male (including prefixes), pregnancy must be rejected.
+        if _is_male_gender_token(self.gender) and pregnant_bool:
             raise ValueError("Pregnancy is only applicable to females")
 
         return self
