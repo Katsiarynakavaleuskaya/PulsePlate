@@ -41,7 +41,12 @@ class TestInterpretationV1API:
         assert "interpretation_v1" in data
         assert data["interpretation_v1"] is not None
         assert "goal_direction" in data["interpretation_v1"]
-        assert data["interpretation_v1"]["goal_direction"] in {"maintain", "reduce", "increase", "medical_review"}
+        assert data["interpretation_v1"]["goal_direction"] in {
+            "maintain",
+            "reduce",
+            "increase",
+            "medical_review",
+        }
 
     def test_pregnant_female_no_athlete_returns_interpretation_v1(self, client: TestClient) -> None:
         """Test that pregnant (female, pregnant=yes, athlete=no) returns interpretation_v1 (not null)."""
@@ -205,13 +210,18 @@ class TestInterpretationV1API:
         # interpretation_v1 is separate field
         assert "interpretation_v1" in data
 
-    def test_fail_soft_on_interpretation_builder_failure(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_fail_soft_on_interpretation_builder_failure(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Guard: if build_interpretation_v1 fails, endpoint still returns 200 with interpretation_v1 null."""
+
         # Monkeypatch to simulate builder failure
         def failing_builder(*args: object, **kwargs: object) -> None:  # noqa: ARG001
             raise RuntimeError("Simulated builder failure")
 
-        monkeypatch.setattr("core.bmi.interpretation_rules.build_interpretation_v1", failing_builder)
+        monkeypatch.setattr(
+            "core.bmi.interpretation_rules.build_interpretation_v1", failing_builder
+        )
 
         payload = {
             "weight_kg": 70.0,

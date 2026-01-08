@@ -173,13 +173,16 @@ async def bmi_calculate_handler(
                 target_range_value: dict[str, float] | str | None = None
                 if interp.target_range is not None:
                     if isinstance(interp.target_range, dict):
-                        target_range_value = {"min": interp.target_range["min"], "max": interp.target_range["max"]}
+                        target_range_value = {
+                            "min": interp.target_range["min"],
+                            "max": interp.target_range["max"],
+                        }
                     else:
                         target_range_value = interp.target_range
 
                 interpretation_v1_schema = BMIInterpretationV1Schema(
                     goal_direction=interp.goal_direction,
-                    target_range=target_range_value,  # type: ignore[arg-type]
+                    target_range=target_range_value,
                     risk_flags=interp.risk_flags,
                     priority_notes=interp.priority_notes,
                     disclaimers=interp.disclaimers,
@@ -267,5 +270,5 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     """
     # Handler returns dict for legacy compatibility; convert back to model for FastAPI serialization
     # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
-    data = await bmi_calculate_handler(req)
+    data: dict[str, Any] = await bmi_calculate_handler(req)
     return BMICalculateResponse.model_validate(data)

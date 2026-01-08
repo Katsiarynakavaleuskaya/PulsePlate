@@ -234,7 +234,9 @@ class BMIInterpretationV1Schema(BaseModel):
         examples=["maintain"],
     )
 
-    target_range: NumericRangeSchema | Literal["age_appropriate_growth", "prenatal_guidelines"] | None = Field(
+    target_range: (
+        NumericRangeSchema | Literal["age_appropriate_growth", "prenatal_guidelines"] | None
+    ) = Field(
         None,
         description="Target range (numeric or qualitative). None for medical_review cases.",
         examples=[{"min": 18.5, "max": 25.0}, "age_appropriate_growth", None],

@@ -126,7 +126,11 @@ def build_interpretation_v1(
                 target_range=Q_PRENATAL,
                 risk_flags=(K_ATHLETE_BODY_COMP,),
                 priority_notes=(K_STABILITY_FIRST,),
-                disclaimers=(K_DISCLAIMER_PREGNANCY, K_DISCLAIMER_ATHLETE, K_DISCLAIMER_MEDICAL_REVIEW),
+                disclaimers=(
+                    K_DISCLAIMER_PREGNANCY,
+                    K_DISCLAIMER_ATHLETE,
+                    K_DISCLAIMER_MEDICAL_REVIEW,
+                ),
             )
         # pregnant (without athlete): also return interpretation
         # Conservative approach: medical_review with prenatal guidelines

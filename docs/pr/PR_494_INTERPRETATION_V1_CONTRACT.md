@@ -149,4 +149,3 @@ This ensures that interpretation failures do not break the BMI calculation endpo
 3. **Handle `null` gracefully** (only for `too_young`)
 4. **Render numeric ranges** as appropriate for your UI (backend provides clean boundaries)
 5. **Translate i18n keys** using your localization system
-

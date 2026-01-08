@@ -63,4 +63,3 @@ Adds a canonical BMI interpretation layer (`interpretation_v1`) that provides st
 **None** — This PR is backward compatible. The new `interpretation_v1` field is additive, and legacy `interpretation: str` field is preserved.
 
 **Note:** Some existing tests were updated to reflect the new `male + pregnant → 422` validation invariant (this is expected behavior, not a breaking change).
-

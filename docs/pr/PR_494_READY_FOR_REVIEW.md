@@ -142,4 +142,3 @@ print('✅ Pregnancy interpretation works')
 ## 🎯 Ready to Open PR
 
 All checks passed. PR-494 is ready for review.
-

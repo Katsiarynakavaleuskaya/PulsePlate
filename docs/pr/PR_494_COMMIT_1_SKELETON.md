@@ -324,4 +324,3 @@ feat(bmi): add interpretation models and request validation
 
 Part of PR-494: BMI targets / interpretation layer.
 ```
-

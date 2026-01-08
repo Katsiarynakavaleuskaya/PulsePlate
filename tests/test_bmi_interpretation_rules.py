@@ -40,6 +40,7 @@ def test_pregnant_without_athlete_returns_interpretation() -> None:
     # Should NOT have athlete disclaimer
     assert "bmi.interpretation.disclaimer.athlete_body_composition" not in got.disclaimers
 
+
 def test_pregnant_athlete_has_combined_disclaimers() -> None:
     """Test pregnant+athlete special case has combined disclaimers."""
     got = build_interpretation_v1(group="pregnant", bmi=24.0, athlete=True)
@@ -62,7 +63,9 @@ def test_pregnant_athlete_has_combined_disclaimers() -> None:
         ("child", 30.0, "medical_review", "age_appropriate_growth"),
     ],
 )
-def test_child_teen_qualitative(group: str, bmi: float, expected_goal: str, expected_target: str) -> None:
+def test_child_teen_qualitative(
+    group: str, bmi: float, expected_goal: str, expected_target: str
+) -> None:
     """Test child/teen qualitative targets and medical_review for out-of-range."""
     got = build_interpretation_v1(group=group, bmi=bmi, athlete=False)
     assert got is not None

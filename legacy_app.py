@@ -2125,7 +2125,11 @@ async def bmi_endpoint(req: BMIRequest) -> Dict[str, Any]:
         # Clean errors: remove non-serializable objects from ctx
         errors = []
         for err in e.errors():
-            cleaned = {k: v for k, v in err.items() if k != "ctx" or not isinstance(v.get("error"), Exception)}
+            cleaned = {
+                k: v
+                for k, v in err.items()
+                if k != "ctx" or not isinstance(v.get("error"), Exception)
+            }
             if "ctx" in cleaned and "error" in cleaned["ctx"]:
                 # Convert Exception to string for JSON serialization
                 cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
@@ -2244,7 +2248,11 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
         # Clean errors: remove non-serializable objects from ctx
         errors = []
         for err in e.errors():
-            cleaned = {k: v for k, v in err.items() if k != "ctx" or not isinstance(v.get("error"), Exception)}
+            cleaned = {
+                k: v
+                for k, v in err.items()
+                if k != "ctx" or not isinstance(v.get("error"), Exception)
+            }
             if "ctx" in cleaned and "error" in cleaned["ctx"]:
                 # Convert Exception to string for JSON serialization
                 cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])
@@ -2365,7 +2373,11 @@ async def bmi_endpoint_v1(req: BMIRequestV1) -> Dict[str, Any]:
         # Clean errors: remove non-serializable objects from ctx
         errors = []
         for err in e.errors():
-            cleaned = {k: v for k, v in err.items() if k != "ctx" or not isinstance(v.get("error"), Exception)}
+            cleaned = {
+                k: v
+                for k, v in err.items()
+                if k != "ctx" or not isinstance(v.get("error"), Exception)
+            }
             if "ctx" in cleaned and "error" in cleaned["ctx"]:
                 # Convert Exception to string for JSON serialization
                 cleaned["ctx"]["error"] = str(cleaned["ctx"]["error"])

@@ -43,7 +43,7 @@ def build_interpretation(
   def validate_gender_pregnant(self) -> "BMICalculateRequest":
       gender_norm = _normalize_gender(self.gender)
       pregnant_bool = _normalize_bool_flag(self.pregnant)
-      
+
       if gender_norm == "male" and pregnant_bool:
           raise ValueError("Pregnancy is only applicable to females")
       return self
@@ -140,4 +140,3 @@ def build_interpretation(
 - API: всегда возвращаем interpretation (может быть null)
 - **NEW:** Pregnant+athlete комбинация учитывается в interpretation
 - **NEW:** Gender+pregnant validation в схеме (fail-loud)
-

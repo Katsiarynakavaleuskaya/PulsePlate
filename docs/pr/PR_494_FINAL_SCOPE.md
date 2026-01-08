@@ -95,4 +95,3 @@ tests/
 ### Commit 4: API
 - Схемы response
 - Router wiring
-

@@ -131,4 +131,3 @@ Adds a canonical BMI interpretation layer (`interpretation_v1`) that provides st
 - iOS integration (Sprint C.2)
 - Frontend visualization of interpretation
 - Extended interpretation for premium tiers
-
