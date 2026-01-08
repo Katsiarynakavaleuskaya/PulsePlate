@@ -345,19 +345,12 @@ LOCALE_SPECIAL_CASES: dict[str, dict[str, Any]] = {
 
 # Aliases mapping for language normalization
 #
-# FALLBACK STRATEGY EXPLAINED:
-# This is a market-based localization strategy, not purely linguistic.
-# The app supports 3 primary markets with different locale handling:
+# NOTE: Regional locale mappings (ru-*, es-*, en-*) are handled by
+# LOCALE_SPECIAL_CASES in normalize_lang() Step 2. This dict contains only:
+# - Base language codes (ru, en, es)
+# - Word aliases (russian, english, spanish, etc.)
 #
-# 1. ENGLISH MARKETS: All English locales → English (universal support)
-# 2. RUSSIAN MARKET: Base Russian supported, but regional Russian locales → English
-#    (business decision for international consistency)
-# 3. SPANISH MARKETS: Selective support based on target markets
-#    - es-MX (Mexico): Primary Spanish market → Spanish
-#    - es-ES (Spain), es-AR (Argentina): Secondary markets → English fallback
-#
-# This strategy allows controlled localization rollout while maintaining
-# a consistent user experience in non-primary markets.
+# For regional locale policy, see LOCALE_SPECIAL_CASES above.
 LANG_ALIASES: dict[str, Lang] = {
     # =================================================================
     # BASE LANGUAGES (core supported languages)
