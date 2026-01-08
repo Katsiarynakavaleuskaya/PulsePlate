@@ -181,6 +181,11 @@ class TestNormalizeLangPolicy:
         # Mixed case
         assert normalize_lang("RU-ru") == "ru"
         assert normalize_lang("RU-RU") == "ru"
+        # Implicit locales (not in LANG_ALIASES, use LOCALE_SPECIAL_CASES)
+        assert normalize_lang("ru-KZ") == "ru"  # Kazakhstan → ru (not en)
+        assert normalize_lang("ru-BY") == "ru"  # Belarus → ru (not en)
+        assert normalize_lang("ru-kz") == "ru"
+        assert normalize_lang("ru-by") == "ru"
 
     def test_normalize_lang_es_maps_to_es(self) -> None:
         """
@@ -201,6 +206,11 @@ class TestNormalizeLangPolicy:
         # Mixed case
         assert normalize_lang("ES-es") == "es"
         assert normalize_lang("ES-ES") == "es"
+        # Implicit locales (not in LANG_ALIASES, use LOCALE_SPECIAL_CASES)
+        assert normalize_lang("es-CL") == "es"  # Chile → es (not en)
+        assert normalize_lang("es-CO") == "es"  # Colombia → es (not en)
+        assert normalize_lang("es-cl") == "es"
+        assert normalize_lang("es-co") == "es"
 
     def test_normalize_lang_en_maps_to_en(self) -> None:
         """

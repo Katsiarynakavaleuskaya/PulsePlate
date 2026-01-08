@@ -40,9 +40,9 @@ class TestBMICategoryLocalized:
 
         # Test locale-specific codes
         assert normalize_lang("es-ES") == "es"  # Changed: product goal (RU/ES/EN localization)
-        assert normalize_lang("ES-AR") == "en"
+        assert normalize_lang("ES-AR") == "es"  # Changed: product goal (RU/ES/EN localization)
         assert normalize_lang("en-US") == "en"
-        assert normalize_lang("ru-RU") == "en"
+        assert normalize_lang("ru-RU") == "ru"  # Changed: product goal (RU/ES/EN localization)
 
         # Test fallback to default
         assert normalize_lang("fr") == "en"  # French should fallback to English

@@ -329,15 +329,17 @@ LOCALE_SPECIAL_CASES: dict[str, dict[str, Any]] = {
         "default": "en",
         "exceptions": set(),  # All English regions → English
     },
-    # Russian: Business requirement - all regions fallback to English
+    # Russian: Product goal - RU/ES/EN localization for iOS
+    # ru-RU and ru → ru (not en)
     "ru": {
-        "default": "en",
-        "exceptions": set(),  # No Russian regions map to Russian
+        "default": "ru",  # Changed: ru regions → ru (not en)
+        "exceptions": set(),  # All Russian regions → Russian
     },
-    # Spanish: Market-selective - only Mexico gets Spanish, rest get English
+    # Spanish: Product goal - Spain priority (not Mexico-only)
+    # es-ES and es → es (not en)
     "es": {
-        "default": "en",
-        "exceptions": {"mx"},  # Only Mexico gets Spanish
+        "default": "es",  # Changed: es regions → es (not en)
+        "exceptions": set(),  # All Spanish regions → Spanish
     },
 }
 

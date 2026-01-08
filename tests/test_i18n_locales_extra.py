@@ -18,10 +18,10 @@ from core.i18n import normalize_lang
         ("en-US", "en"),
         ("en-GB", "en"),
         ("es-MX", "es"),
-        # Special cases required by tests
-        ("es-ES", "en"),  # Spanish Spain maps to English per test requirements
-        ("es-AR", "en"),  # Spanish Argentina maps to English per test requirements
-        ("ru-RU", "en"),  # Russian locale maps to English per test requirements
+        # Special cases (product goal: RU/ES/EN localization)
+        ("es-ES", "es"),  # Changed: product goal (RU/ES/EN localization)
+        ("es-AR", "es"),  # Changed: product goal (RU/ES/EN localization)
+        ("ru-RU", "ru"),  # Changed: product goal (RU/ES/EN localization)
         # Word aliases
         ("russian", "ru"),
         ("english", "en"),
@@ -46,11 +46,11 @@ def test_normalize_lang_with_underscores():
     """Test that underscores are converted to hyphens."""
     assert normalize_lang("en_US") == "en"
     assert normalize_lang("es_MX") == "es"
-    assert normalize_lang("ru_RU") == "en"
+    assert normalize_lang("ru_RU") == "ru"  # Changed: product goal (RU/ES/EN localization)
 
 
 def test_normalize_lang_strip_whitespace():
     """Test that input is stripped of whitespace."""
     assert normalize_lang("  en  ") == "en"
     assert normalize_lang("\tru\n") == "ru"
-    assert normalize_lang(" es-ES ") == "en"
+    assert normalize_lang(" es-ES ") == "es"  # Changed: product goal (RU/ES/EN localization)
