@@ -34,6 +34,16 @@ result: SomeModel = SomeModel.model_validate(x)
 return result
 ```
 
+For repeated patterns in a file, extract a helper:
+
+```py
+def _to_response(data: object) -> SomeResponse:
+    """Convert service result to response schema."""
+    resp: SomeResponse
+    resp = SomeResponse.model_validate(data, from_attributes=True)
+    return resp
+```
+
 Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 ## Export/PDF invariants (hard rules) (PR-8b / PR-8c)
