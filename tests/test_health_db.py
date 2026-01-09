@@ -1,9 +1,10 @@
-"""Database health endpoint tests."""
+"""Database health and readiness endpoint tests."""
 
 from __future__ import annotations
 
 from typing import cast
 
+import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -11,22 +12,34 @@ import app
 from core import db as db_module
 
 
-def test_health_db_ok() -> None:
-    """RU: Проверка, что /health/db возвращает 200. EN: Ensure /health/db succeeds."""
+# RU: /ready - alias для /health/db, тестируем оба пути.
+# EN: /ready is an alias for /health/db, test both paths.
+READINESS_PATHS = ["/health/db", "/ready"]
 
+
+@pytest.mark.parametrize("path", READINESS_PATHS)
+def test_readiness_ok(path: str) -> None:
+    """RU: Проверка, что readiness endpoints возвращают 200.
+
+    EN: Ensure readiness endpoints succeed when DB is available.
+    """
     with TestClient(cast(ASGIApp, app.app)) as client:
-        response = client.get("/health/db")
+        response = client.get(path)
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
-def test_health_db_failure(monkeypatch) -> None:
-    """RU: Ошибка БД приводит к 503. EN: DB failure surfaces as 503."""
+@pytest.mark.parametrize("path", READINESS_PATHS)
+def test_readiness_failure(monkeypatch, path: str) -> None:
+    """RU: Ошибка БД приводит к 503.
+
+    EN: DB failure surfaces as 503 on readiness endpoints.
+    """
     with TestClient(cast(ASGIApp, app.app)) as client:
         # legacy_app.lifespan clears DB_HEALTH_DEGRADED on successful init_db()
         # so we must set it AFTER startup to exercise the 503 branch.
         monkeypatch.setenv("DB_HEALTH_DEGRADED", "1")
-        response = client.get("/health/db")
+        response = client.get(path)
 
     assert response.status_code == 503
     assert response.json()["detail"].lower().startswith("database")

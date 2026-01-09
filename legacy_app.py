@@ -1325,6 +1325,18 @@ async def database_health(session: Session = Depends(get_session)) -> Dict[str, 
     return {"status": "ok"}
 
 
+@app.get("/ready")
+async def ready(session: Session = Depends(get_session)) -> Dict[str, str]:
+    """RU: Readiness probe (alias для /health/db).
+
+    EN: Readiness probe for orchestrators (alias for /health/db).
+
+    Returns 200 if DB is available, 503 otherwise.
+    Use this for Kubernetes/Docker readiness checks.
+    """
+    return await database_health(session)
+
+
 # ---------- Helpers ----------
 
 
