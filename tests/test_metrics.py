@@ -53,7 +53,11 @@ def test_metrics_endpoint_format(client: TestClient) -> None:
     """
     response = client.get("/metrics")
     assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/plain")
+    # Happy path: must return Prometheus text format (not JSON fallback)
+    assert response.headers["content-type"].startswith("text/plain"), (
+        "Expected Prometheus text format on happy path, got: "
+        f"{response.headers.get('content-type')}"
+    )
     # Prometheus format version may be in content-type or body
     content_type = response.headers.get("content-type", "")
     assert "text/plain" in content_type
@@ -69,8 +73,12 @@ def test_metrics_increments_on_request(client: TestClient) -> None:
     RU: Проверяет, что HTTP метрики собираются и отдаются.
     EN: Verifies HTTP metrics are collected and exposed.
     """
-    # Get baseline metrics
-    before = client.get("/metrics").text
+    # Get baseline metrics (happy path: must be Prometheus text, not JSON)
+    before_response = client.get("/metrics")
+    assert before_response.headers["content-type"].startswith("text/plain"), (
+        "Expected Prometheus text format on happy path"
+    )
+    before = before_response.text
 
     # Make a request to a non-excluded endpoint
     response = client.post(

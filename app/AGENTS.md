@@ -104,6 +104,11 @@ curl -fsS https://.../metrics | grep http_requests_total
 - App-level guards are forbidden for `/metrics` to preserve testability and backward compatibility.
 - If infrastructure-level protection is needed, implement it in a dedicated infra PR (e.g., PR-506).
 
+**Testing requirements:**
+- Tests MUST assert `/metrics` returns Prometheus text format (`text/plain`) on happy path.
+- JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
+- This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
+
 ---
 
 ## Conventions

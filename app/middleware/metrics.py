@@ -105,7 +105,7 @@ def _route_template(request: Request) -> str:
                         continue
 
                     r_path = getattr(r, "path", None)
-                    if not isinstance(r_path, str) or not r_path:
+                    if not isinstance(r_path, str) or not r_path or not r_path.startswith("/"):
                         continue
 
                     # Prefer the most specific endpoint-level path (by depth, not length)

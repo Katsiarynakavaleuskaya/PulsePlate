@@ -2001,7 +2001,7 @@ def metrics() -> Response:
 
     EN: Prometheus metrics endpoint (exposition format).
 
-    Returns Prometheus text format (text/plain; version=0.0.4) when available.
+    Returns Prometheus text format (CONTENT_TYPE_LATEST) when available.
     Falls back to JSON error envelope if Prometheus exporter is unavailable.
 
     Includes HTTP request metrics (http_requests_total, http_request_duration_seconds).
