@@ -12,9 +12,12 @@ Excluded paths: /metrics, /health, /ready, /health/db (to avoid noise)
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
 from importlib import import_module
-from time import perf_counter
+import logging
+from threading import Lock
+from time import monotonic, perf_counter
 from typing import Any, Callable, Protocol, cast
 
 from fastapi import Request
@@ -22,8 +25,16 @@ from fastapi.routing import APIRoute
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
+logger = logging.getLogger(__name__)
+
 # Always defined (even if Prometheus is unavailable)
 EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
+
+# Bounded route cache config.
+# Cache key is endpoint_id (id(endpoint)) to avoid holding strong refs to callables.
+ROUTE_CACHE_MAX_SIZE: int = 1024
+# If set (seconds), cached entries expire after TTL. None = no expiry.
+ROUTE_CACHE_TTL_S: float | None = None
 
 
 class _CounterChild(Protocol):
@@ -105,7 +116,10 @@ def _build_metrics() -> _Metrics | None:
             ),
         )
     except ValueError:
-        # Duplicate registration (module reload / already registered in registry)
+        logger.warning(
+            "Duplicate prometheus metric registration in _build_metrics (metrics disabled)",
+            exc_info=True,
+        )
         return None
 
     return _Metrics(
@@ -147,8 +161,55 @@ def _excluded_by_path(request: Request) -> bool:
     return path in EXCLUDED_ROUTE_TEMPLATES
 
 
-# Cache for endpoint -> route template mapping (avoids O(N routes) scan per request)
-_ROUTE_CACHE: dict[int, str] = {}
+_RouteCacheEntry = tuple[str, float]
+_ROUTE_CACHE: "OrderedDict[int, _RouteCacheEntry]" = OrderedDict()
+_ROUTE_CACHE_LOCK = Lock()
+_ROUTE_CACHE_EVICTIONS: int = 0
+_ROUTE_CACHE_EXPIRED: int = 0
+
+
+def _route_cache_get(endpoint_id: int) -> str | None:
+    ttl_s = ROUTE_CACHE_TTL_S
+    now = monotonic()
+    with _ROUTE_CACHE_LOCK:
+        entry = _ROUTE_CACHE.get(endpoint_id)
+        if entry is None:
+            return None
+        value, inserted_at = entry
+        if ttl_s is not None and (now - inserted_at) > ttl_s:
+            global _ROUTE_CACHE_EXPIRED
+            _ROUTE_CACHE.pop(endpoint_id, None)
+            _ROUTE_CACHE_EXPIRED += 1
+            return None
+
+        # Mark as most-recently-used.
+        _ROUTE_CACHE.move_to_end(endpoint_id, last=True)
+        return value
+
+
+def _route_cache_set(endpoint_id: int, value: str) -> None:
+    max_size = ROUTE_CACHE_MAX_SIZE
+    if max_size <= 0:
+        return
+
+    now = monotonic()
+    with _ROUTE_CACHE_LOCK:
+        _ROUTE_CACHE[endpoint_id] = (value, now)
+        _ROUTE_CACHE.move_to_end(endpoint_id, last=True)
+        if len(_ROUTE_CACHE) > max_size:
+            global _ROUTE_CACHE_EVICTIONS
+            _ROUTE_CACHE.popitem(last=False)
+            _ROUTE_CACHE_EVICTIONS += 1
+
+
+def _route_cache_stats() -> dict[str, int]:
+    """Return internal route-cache stats for debugging/monitoring."""
+    with _ROUTE_CACHE_LOCK:
+        return {
+            "size": len(_ROUTE_CACHE),
+            "evictions": _ROUTE_CACHE_EVICTIONS,
+            "expired": _ROUTE_CACHE_EXPIRED,
+        }
 
 
 def _route_template(request: Request) -> str:
@@ -175,8 +236,9 @@ def _route_template(request: Request) -> str:
 
     # Check cache first (key is endpoint object id for stability)
     endpoint_id = id(endpoint)
-    if endpoint_id in _ROUTE_CACHE:
-        return _ROUTE_CACHE[endpoint_id]
+    cached = _route_cache_get(endpoint_id)
+    if cached is not None:
+        return cached
 
     # Find the APIRoute that matches this endpoint
     router = getattr(request.app, "router", None)
@@ -186,7 +248,7 @@ def _route_template(request: Request) -> str:
 
     # Collect all candidate routes for this endpoint
     candidates: list[str] = []
-    for r in routes or []:
+    for r in routes:
         if not isinstance(r, APIRoute):
             continue
         # Match by endpoint function identity (most reliable for nested routers)
@@ -204,7 +266,7 @@ def _route_template(request: Request) -> str:
         result = max(candidates, key=len)
 
     # Cache result for future requests
-    _ROUTE_CACHE[endpoint_id] = result
+    _route_cache_set(endpoint_id, result)
     return result
 
 

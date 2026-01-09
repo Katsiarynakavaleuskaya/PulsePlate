@@ -10,11 +10,11 @@ import app as app_mod
 
 
 class TestAppMissingLinesExtra:
-    def setup_method(self):
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test_key"
         self.client = get_client()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         os.environ.pop("API_KEY", None)
 
     def test_get_update_scheduler_late_import_path(self):

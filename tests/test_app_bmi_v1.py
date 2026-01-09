@@ -17,15 +17,17 @@ from tests._client import get_client
 
 from fastapi.testclient import TestClient
 
-client: TestClient = get_client()
-
 
 class TestBMIv1API:
     """Test BMI v1 API endpoint with comprehensive coverage"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
+        self.client: TestClient = get_client()
+
+    def teardown_method(self) -> None:
+        self.client.close()
 
     def test_bmi_v1_happy_path_general(self):
         """Test BMI v1 API happy path for general population"""
@@ -37,7 +39,7 @@ class TestBMIv1API:
             "gender": "male",
             "lang": "en",
         }
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert "bmi" in data
@@ -56,7 +58,7 @@ class TestBMIv1API:
             "athlete": "yes",
             "lang": "en",
         }
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert data["athlete"] is True
@@ -73,7 +75,7 @@ class TestBMIv1API:
             "pregnant": "yes",
             "lang": "en",
         }
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert data["category"] is None  # BMI not valid during pregnancy
@@ -90,7 +92,7 @@ class TestBMIv1API:
             "waist_cm": 105.0,  # High risk for males (>102)
             "lang": "en",
         }
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         data = response.json()
         assert "risk" in data["note"].lower()
@@ -104,7 +106,7 @@ class TestBMIv1API:
         ]
 
         for payload in bad_payloads:
-            response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+            response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
             assert response.status_code == 422
 
     def test_bmi_v1_422_invalid_values(self):
@@ -117,7 +119,7 @@ class TestBMIv1API:
         ]
 
         for payload in bad_payloads:
-            response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+            response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
             assert response.status_code == 422
 
     def test_bmi_v1_realistic_validation(self):
@@ -128,7 +130,7 @@ class TestBMIv1API:
             "height_cm": 170.0,
             "group": "general",
         }
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 422
 
     def test_bmi_v1_public_access_no_key(self):
@@ -136,7 +138,7 @@ class TestBMIv1API:
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general"}
 
         # BMI endpoint is now public - should work without API key
-        response = client.post("/api/v1/bmi", json=payload)
+        response = self.client.post("/api/v1/bmi", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert "bmi" in data
@@ -145,11 +147,11 @@ class TestBMIv1API:
     def test_bmi_v1_localization_russian(self):
         """Test BMI v1 API with Russian localization"""
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general", "lang": "ru"}
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
 
     def test_bmi_v1_localization_spanish(self):
         """Test BMI v1 API with Spanish localization"""
         payload = {"weight_kg": 70.0, "height_cm": 170.0, "group": "general", "lang": "es"}
-        response = client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
         assert response.status_code == 200

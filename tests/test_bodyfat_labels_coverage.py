@@ -1,9 +1,7 @@
-from tests._client import get_client
-
-client = get_client()
+from fastapi.testclient import TestClient
 
 
-def test_bodyfat_labels_ru_and_es() -> None:
+def test_bodyfat_labels_ru_and_es(client: TestClient) -> None:
     """Verify bodyfat endpoint label translations for Russian and Spanish."""
     # Use male to avoid hip_cm requirement in US Navy branch
     base_payload = {

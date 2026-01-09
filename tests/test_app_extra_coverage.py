@@ -16,11 +16,11 @@ import app as app_module
 class TestAppHelperFunctions:
     """Test standalone helper functions in main.py."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test-key"
         self.client = get_client()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
@@ -77,11 +77,11 @@ class TestAppHelperFunctions:
 
 
 class TestEndpointsAndValidation:
-    def setup_method(self):
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test-key"
         self.client = get_client()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 

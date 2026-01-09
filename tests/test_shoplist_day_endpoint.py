@@ -81,7 +81,7 @@ def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access
         ]
     }
 
-    async def _fake_fetch_day_plan(day: str, pro_ctx: Any):  # type: ignore[no-untyped-def]
+    async def _fake_fetch_day_plan(day: str, pro_ctx: Any) -> dict[str, Any]:
         return day_plan
 
     monkeypatch.setattr(shoplist_day_module, "fetch_day_plan", _fake_fetch_day_plan)
@@ -132,7 +132,7 @@ def test_shoplist_day_missing_date_422(client_with_pro_access):
     assert r.status_code == 422
 
 
-def test_shoplist_day_requires_pro_tier(app_module: ModuleType):
+def test_shoplist_day_requires_pro_tier() -> None:
     """Test endpoint requires PRO tier authentication."""
     client = get_client()
 

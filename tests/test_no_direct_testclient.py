@@ -7,9 +7,10 @@ or conftest fixtures, preventing 404 on /metrics and missing observability.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 # Files allowed to create TestClient directly
-ALLOWLIST = {
+ALLOWLIST: Final[set[str]] = {
     "tests/conftest.py",  # Defines canonical fixtures
     "tests/_client.py",  # Canonical factory
     "tests/test_legacy_app_diff_coverage.py",  # Legacy suite (intentional)
@@ -22,7 +23,7 @@ ALLOWLIST = {
 # These files predate `tests/_client.get_client()` and may still construct TestClient directly.
 # Tracking: TODO(open issue / add URL) • Owner: TBD • Target: TBD
 # Once migrated, remove the relevant patterns from this allowlist.
-COVERAGE_BOOST_PATTERNS = (
+COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
     "test_coverage_97",
     "test_coverage_boost",
     "test_coverage_final",  # coverage final push files
@@ -58,7 +59,7 @@ COVERAGE_BOOST_PATTERNS = (
 )
 
 # Forbidden patterns (bypass canonical entrypoint)
-BAD_PATTERNS = (
+BAD_PATTERNS: Final[tuple[str, ...]] = (
     "TestClient(app.app)",
     "TestClient(app_module.app)",
     "TestClient(app_mod.app)",

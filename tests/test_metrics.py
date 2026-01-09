@@ -490,3 +490,81 @@ def test_normalized_path_root() -> None:
     assert _normalized_path("/health/") == "/health"
     assert _normalized_path("/api/v1/bmi/calculate") == "/api/v1/bmi/calculate"
     assert _normalized_path("/api/v1/bmi/calculate/") == "/api/v1/bmi/calculate"
+
+
+def test_route_cache_disabled_when_max_size_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test route cache is disabled when ROUTE_CACHE_MAX_SIZE=0.
+
+    RU: Проверяет, что route cache отключён при ROUTE_CACHE_MAX_SIZE=0.
+    EN: Verifies route cache is disabled when ROUTE_CACHE_MAX_SIZE=0.
+    """
+    import app.middleware.metrics as metrics_mod
+
+    # Clear cache and set size to 0
+    with metrics_mod._ROUTE_CACHE_LOCK:
+        metrics_mod._ROUTE_CACHE.clear()
+    monkeypatch.setattr(metrics_mod, "ROUTE_CACHE_MAX_SIZE", 0)
+
+    # Call _route_cache_set (should return early at line 193)
+    metrics_mod._route_cache_set(123, "/api/v1/test")
+
+    # Cache should remain empty
+    stats = metrics_mod._route_cache_stats()
+    assert stats["size"] == 0
+
+
+def test_route_cache_ttl_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test route cache entries expire after TTL.
+
+    RU: Проверяет, что записи в route cache истекают после TTL.
+    EN: Verifies route cache entries expire after TTL.
+    """
+    import app.middleware.metrics as metrics_mod
+    from time import monotonic
+
+    # Enable cache with TTL=0.01 (10ms)
+    monkeypatch.setattr(metrics_mod, "ROUTE_CACHE_MAX_SIZE", 10)
+    monkeypatch.setattr(metrics_mod, "ROUTE_CACHE_TTL_S", 0.01)
+
+    # Add entry
+    endpoint_id = 999
+    metrics_mod._route_cache_set(endpoint_id, "/api/v1/test")
+
+    # Should be cached
+    assert metrics_mod._route_cache_get(endpoint_id) == "/api/v1/test"
+
+    # Wait for expiry
+    import time
+    time.sleep(0.02)
+
+    # Should be expired (returns None, increments _ROUTE_CACHE_EXPIRED)
+    assert metrics_mod._route_cache_get(endpoint_id) is None
+    stats = metrics_mod._route_cache_stats()
+    assert stats["expired"] >= 1
+
+
+def test_route_cache_eviction_on_overflow(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test route cache evicts LRU entries when full.
+
+    RU: Проверяет, что route cache вытесняет LRU записи при переполнении.
+    EN: Verifies route cache evicts LRU entries when full.
+    """
+    import app.middleware.metrics as metrics_mod
+
+    # Set small cache size
+    monkeypatch.setattr(metrics_mod, "ROUTE_CACHE_MAX_SIZE", 2)
+    monkeypatch.setattr(metrics_mod, "ROUTE_CACHE_TTL_S", None)
+
+    # Clear cache state
+    with metrics_mod._ROUTE_CACHE_LOCK:
+        metrics_mod._ROUTE_CACHE.clear()
+
+    # Add 3 entries (should evict first)
+    metrics_mod._route_cache_set(1, "/route1")
+    metrics_mod._route_cache_set(2, "/route2")
+    metrics_mod._route_cache_set(3, "/route3")  # Should trigger eviction
+
+    # Check stats
+    stats = metrics_mod._route_cache_stats()
+    assert stats["size"] == 2  # Max size enforced
+    assert stats["evictions"] >= 1  # At least 1 eviction occurred

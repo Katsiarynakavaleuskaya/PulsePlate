@@ -4,6 +4,7 @@ Includes validation, edge cases, and coverage tests for BMI core functionality.
 """
 
 import pytest
+from fastapi.testclient import TestClient
 from tests._client import get_client
 
 from bmi_core import (
@@ -14,7 +15,7 @@ from bmi_core import (
     interpret_group,
 )
 
-client = get_client()
+client: TestClient = get_client()
 
 
 class TestBMICoreValidation:

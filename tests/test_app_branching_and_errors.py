@@ -26,9 +26,9 @@ def _force_prod_env():
 
 
 @pytest.fixture
-def client(app: FastAPI):
-    """Test client fixture using app from conftest"""
-    return TestClient(app)
+def client() -> TestClient:
+    """Canonical TestClient (app.main:app) with observability bootstrap."""
+    return get_client()
 
 
 def disable_optional_modules(monkeypatch: pytest.MonkeyPatch, *modules: str) -> None:
@@ -87,7 +87,7 @@ def test_export_pdf_no_reportlab_with_key(
 
 # Fixture for API key headers
 @pytest.fixture
-def api_key_headers():
+def api_key_headers() -> dict[str, str]:
     return {"X-API-Key": "test"}
 
 

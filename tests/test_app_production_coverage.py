@@ -5,10 +5,7 @@
 Uses canonical entrypoint (app.main:app) via conftest client fixture.
 """
 
-from typing import cast
-
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
 
 class TestAppProductionCoverage:
@@ -23,9 +20,7 @@ class TestAppProductionCoverage:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_app_production_api_key_validation_coverage(
-        self, client: TestClient, production_environment
-    ):
+    def test_app_production_api_key_validation_coverage(self, client: TestClient, production_environment):
         """Тест покрытия app.py production API key validation"""
         # Проверяем, что API key validation работает в production режиме
         response = client.post(
@@ -43,9 +38,7 @@ class TestAppProductionCoverage:
         )
         assert response.status_code == 200  # BMI is public now
 
-    def test_app_production_environment_variables_coverage(
-        self, client: TestClient, production_environment
-    ):
+    def test_app_production_environment_variables_coverage(self, client: TestClient, production_environment):
         """Тест покрытия app.py production environment variables"""
         # Проверяем, что environment variables работают в production режиме
         response = client.get("/health")
@@ -73,9 +66,7 @@ class TestAppProductionCoverage:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_app_production_error_handling_coverage(
-        self, client: TestClient, production_environment
-    ):
+    def test_app_production_error_handling_coverage(self, client: TestClient, production_environment):
         """Тест покрытия app.py production error handling"""
         # Проверяем, что error handling работает в production режиме
         response = client.get("/nonexistent")
