@@ -244,5 +244,5 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
     # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
     data: dict[str, Any] = await bmi_calculate_handler(req)
-    response = BMICalculateResponse.model_validate(data)
+    response: BMICalculateResponse = BMICalculateResponse.model_validate(data)
     return response
