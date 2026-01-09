@@ -10,4 +10,6 @@ FastAPI app instance (not in legacy_app.py).
 
 from __future__ import annotations
 
+from app.bootstrap.metrics import metrics_endpoint as metrics
+
 __all__ = ["metrics"]

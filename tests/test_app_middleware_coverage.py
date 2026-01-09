@@ -14,9 +14,9 @@ class TestAppMiddlewareCoverage:
 
     def setup_method(self):
         """Create a single TestClient for all tests to avoid duplication."""
-        import app
+        from app.main import app as main_app
 
-        self.client = TestClient(cast(ASGIApp, app.app))
+        self.client = TestClient(cast(ASGIApp, main_app))
 
     def test_app_middleware_execution_coverage(self, test_environment):
         """Тест покрытия app.py middleware execution (строки 1869-1870, 1872-1873)"""

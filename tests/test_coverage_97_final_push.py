@@ -109,9 +109,9 @@ class TestCoverage97FinalPush:
 
     def test_app_coverage_missing_lines_252_256(self, test_environment):
         """Тест покрытия app.py строк 252-256"""
-        import app
+        from app.main import app as main_app
 
-        client = TestClient(cast(ASGIApp, app.app))
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Тест различных статус кодов
         response = client.get("/health")
@@ -185,9 +185,9 @@ class TestCoverage97FinalPush:
 
     def test_app_coverage_missing_lines_1045_1049(self, test_environment):
         """Тест покрытия app.py строк 1045-1049"""
-        import app
+        from app.main import app as main_app
 
-        client = TestClient(cast(ASGIApp, app.app))
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Тест metrics endpoint
         response = client.get("/metrics")
