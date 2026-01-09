@@ -44,6 +44,11 @@ _MIN_HEIGHT_M = 0.5
 _MAX_HEIGHT_M = 3.0
 _MAX_WAIST_CM = 300.0
 
+# RU: "Здоровый" диапазон BMI для общего населения (WHO guidelines).
+# EN: "Healthy" BMI range for general population (WHO guidelines).
+# Used in legacy /plan response shape.
+HEALTHY_BMI_RANGE: dict[str, float] = {"min": 18.5, "max": 24.9}
+
 _DEFAULT_YES_VALUES: set[str] = {
     "yes",
     "y",

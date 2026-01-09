@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WHITELIST_PARTS = [
     "core/bmi/",  # Canonical location ✅ (permanent)
     "tests/",  # Test code allowed ✅ (permanent)
-    "legacy_app.py",  # TEMP: compatibility shim until PR-456 cleanup
+    # NOTE: legacy_app.py removed from whitelist (PR-502) — now uses core proxies only
     "docs/",  # Documentation formulas OK ✅ (permanent)
     "bmi_core.py",  # TEMP: legacy oracle for golden parity tests (PR-455 Commit 4)
     ".venv/",  # Virtual environment (exclude from scanning)

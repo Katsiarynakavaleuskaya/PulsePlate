@@ -65,6 +65,57 @@ def _norm_gender(gender: str) -> str:
     return "male"
 
 
+def _waist_thresholds(gender: str) -> tuple[float, float]:
+    """
+    RU: Каноничные пороги талии по полу (warn, high). Single source of truth.
+    EN: Canonical waist thresholds by gender (warn, high). Single source of truth.
+
+    Returns:
+        (warn_threshold, high_threshold) in cm
+    """
+    g = _norm_gender(gender)
+    return (94.0, 102.0) if g == "male" else (80.0, 88.0)
+
+
+def _waist_risk_level(waist_cm: float, gender: str) -> RiskLevel:
+    """
+    RU: Определяет уровень риска по талии (без WHtR).
+    EN: Determines waist risk level (no WHtR).
+    """
+    warn, high = _waist_thresholds(gender)
+    if waist_cm >= high:
+        return "high"
+    if waist_cm >= warn:
+        return "moderate"
+    return "low"
+
+
+def get_waist_risk_note(waist_cm: float | None, gender: str, lang: str) -> str:
+    """
+    RU: Возвращает локализованную строку риска по талии (без WHtR).
+    EN: Returns localized waist risk note string (no WHtR).
+
+    COMPAT: Used by legacy_app.waist_risk() proxy.
+
+    Args:
+        waist_cm: Waist circumference in cm. If None -> returns "".
+        gender: "male"/"female" (will be normalized).
+        lang: "ru"/"en"/"es" (will be normalized).
+
+    Returns:
+        Localized risk message or empty string if low/no risk.
+    """
+    if waist_cm is None:
+        return ""
+
+    level = _waist_risk_level(waist_cm, gender)
+    if level == "low":
+        return ""
+
+    lang_norm = _norm_lang(lang)
+    return _MESSAGES.get((level, lang_norm), _MESSAGES[(level, "en")])
+
+
 def calculate_waist_risk(
     waist_cm: float | None,
     height_m: float,
@@ -87,17 +138,8 @@ def calculate_waist_risk(
     if waist_cm is None:
         return None
 
-    g = _norm_gender(gender)
     lang_norm = _norm_lang(lang)
-
-    warn, high = (94.0, 102.0) if g == "male" else (80.0, 88.0)
-
-    if waist_cm >= high:
-        risk_level: RiskLevel = "high"
-    elif waist_cm >= warn:
-        risk_level = "moderate"
-    else:
-        risk_level = "low"
+    risk_level = _waist_risk_level(waist_cm, gender)
 
     # Get localized message for non-low risk levels
     if risk_level != "low":

@@ -1645,14 +1645,20 @@ def normalize_flags(
 
 
 def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
-    if waist_cm is None:
-        return ""
-    warn, high = (94, 102) if gender_male else (80, 88)
-    if waist_cm >= high:
-        return "Высокий риск по талии" if lang == "ru" else "High waist-related risk"
-    if waist_cm >= warn:
-        return "Повышенный риск по талии" if lang == "ru" else "Increased waist-related risk"
-    return ""
+    """
+    COMPAT: legacy wrapper for waist risk note.
+    Delegates to core/bmi/risk (waist-only, no WHtR).
+
+    RU: Совместимая обёртка для строки риска по талии.
+    EN: Compatibility wrapper for waist risk note string.
+    """
+    from core.bmi.risk import get_waist_risk_note
+
+    return get_waist_risk_note(
+        waist_cm=waist_cm,
+        gender="male" if gender_male else "female",
+        lang=lang,
+    )
 
 
 # ---------- Misc routes ----------
@@ -2259,7 +2265,10 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
         cat = cat_result.category
 
     # 4) Build legacy /plan response shape (unchanged)
-    healthy_bmi = {"min": 18.5, "max": 24.9}
+    # Import healthy BMI range from canonical source
+    from core.bmi.engine import HEALTHY_BMI_RANGE
+
+    healthy_bmi = HEALTHY_BMI_RANGE
 
     # ES fallback to EN (legacy behavior preserved)
     lang_for_response = req.lang if req.lang in ("ru", "en") else "en"
