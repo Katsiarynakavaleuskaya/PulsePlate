@@ -9,7 +9,6 @@ from tests._client import get_client
 from types import ModuleType
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.shopping_list import ShopAisle, ShopUnit
@@ -19,16 +18,18 @@ from app.schemas.shopping_list import ShopAisle, ShopUnit
 def client_with_pro_access(app_module: ModuleType):
     """Create test client with PRO tier access bypassed.
 
-    Uses app_module fixture from conftest for better test isolation.
+    Uses canonical entrypoint (app.main:app) with observability bootstrap.
     """
+    import app.main
+
     # Override PRO tier requirement for testing
-    app_module.app.dependency_overrides[require_pro_tier] = lambda: "test_api_key"
+    app.main.app.dependency_overrides[require_pro_tier] = lambda: "test_key"
 
     client = get_client()
     yield client
 
     # Cleanup: remove override after test
-    app_module.app.dependency_overrides.pop(require_pro_tier, None)
+    app.main.app.dependency_overrides.pop(require_pro_tier, None)
 
 
 def test_shoplist_day_no_day_plan_returns_warning(client_with_pro_access):

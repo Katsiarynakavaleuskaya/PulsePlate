@@ -10,8 +10,6 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-import app.main
-
 
 def get_client(**kwargs: Any) -> TestClient:
     """Create TestClient with canonical entrypoint (app.main:app).
@@ -32,5 +30,11 @@ def get_client(**kwargs: Any) -> TestClient:
         >>> client = get_client()
         >>> response = client.get("/metrics")
         >>> assert response.status_code == 200
+
+    IMPORTANT: Import app.main inside function (not module-level) to ensure
+    pytest_configure sets TESTING=true before app initialization.
     """
+    # Import inside function to respect pytest_configure TESTING env setup
+    import app.main
+
     return TestClient(app.main.app, **kwargs)
