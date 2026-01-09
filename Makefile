@@ -114,6 +114,26 @@ cov-check: ## Check coverage >= 97%
 	. .venv/bin/activate && coverage run -m pytest && coverage report --fail-under=97
 	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
+## Diff coverage check (PR gate, >=97% on changed lines)
+diff-cov: ## Check diff coverage >= 97% against origin/main
+	@echo "$(YELLOW)📊 Проверка diff-coverage >=97%...$(NC)"
+	. .venv/bin/activate && coverage erase && coverage run -m pytest -q && coverage xml
+	diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
+	@echo "$(GREEN)✅ Diff-coverage соответствует требованиям$(NC)"
+
+## Typecheck with mypy (no cache for clean runs)
+typecheck: ## Run mypy typecheck on app and core
+	@echo "$(YELLOW)🔬 Проверка типов (mypy)...$(NC)"
+	. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null app core
+	@echo "$(GREEN)✅ Типы корректны$(NC)"
+
+## Full verification gate (all checks must pass before push)
+## NOTE: Currently runs pytest twice (test-fast + diff-cov). Optimization possible via
+## single coverage run + diff-cover on existing XML. Keeping as-is for simplicity;
+## can be optimized in a follow-up PR if runtime becomes a bottleneck.
+verify: lint typecheck test-fast diff-cov ## Run all gates: lint + typecheck + tests + diff-coverage
+	@echo "$(GREEN)🎉 Все проверки пройдены! Ready for push.$(NC)"
+
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
@@ -269,4 +289,4 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify
