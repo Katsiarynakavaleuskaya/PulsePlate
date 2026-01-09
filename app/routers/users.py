@@ -24,7 +24,9 @@ T = TypeVar("T")
 
 def _to_user_read(model: User) -> UserRead:
     """Convert SQLAlchemy User model to Pydantic UserRead schema."""
-    return UserRead.model_validate(model)
+    # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
+    result: UserRead = UserRead.model_validate(model)
+    return result
 
 
 def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = None) -> T:

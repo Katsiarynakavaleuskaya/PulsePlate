@@ -12,6 +12,10 @@ from pydantic import ValidationError
 from app.schemas.bmi import (
     BMICalculateRequest,
     BMICalculateResponse,
+    BMIMarkerSpec,
+    BMIRangeSpec,
+    BMIScaleV1Spec,
+    NumericRangeSchema,
     WaistRiskResultSchema,
 )
 
@@ -38,9 +42,9 @@ class TestBMICalculateRequest:
         """Test default values for optional fields."""
         req = BMICalculateRequest(weight_kg=70, height_cm=175, age=30)
 
-        assert req.gender == "male"
-        assert req.pregnant == "no"
-        assert req.athlete == "no"
+        assert req.gender is None  # Changed: gender default is None (normalized in router/engine)
+        assert req.pregnant is False  # Changed: pregnant default is False (normalized to bool)
+        assert req.athlete is False  # Changed: athlete default is False (normalized to bool)
         assert req.waist_cm is None
         assert req.lang == "en"
 
@@ -109,20 +113,123 @@ class TestBMICalculateRequest:
         assert any(err["loc"] == ("lang",) and err["type"] == "literal_error" for err in errors)
 
     def test_pregnant_string_and_bool(self) -> None:
-        """Test that pregnant accepts both string and bool."""
+        """Test that pregnant accepts both string and bool, normalized to bool."""
         req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant="yes")
-        assert req_str.pregnant == "yes"
+        assert req_str.pregnant is True  # Normalized to bool
 
         req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant=True)
         assert req_bool.pregnant is True
 
     def test_athlete_string_and_bool(self) -> None:
-        """Test that athlete accepts both string and bool."""
+        """Test that athlete accepts both string and bool, normalized to bool."""
         req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete="yes")
-        assert req_str.athlete == "yes"
+        assert req_str.athlete is True  # Normalized to bool
 
         req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete=True)
         assert req_bool.athlete is True
+
+        req_no = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete="no")
+        assert req_no.athlete is False
+
+
+def test_schema_normalizes_gender_w_to_female() -> None:
+    """
+    Contract: schema and engine exact token sets MUST stay in sync.
+    'w' must normalize to 'female' at schema layer.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "height_cm": 170,
+            "weight_kg": 65,
+            "age": 30,
+            "gender": "w",
+            "pregnant": True,
+        }
+    )
+    # For female tokens pregnancy remains True (no coercion)
+    assert req.gender == "female"
+    assert req.pregnant is True
+
+
+@pytest.mark.parametrize(
+    "token, expected",
+    [
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ("W", "female"),  # Case-insensitive
+        ("woman", "female"),
+        ("F", "female"),
+        ("M", "male"),
+        ("man", "male"),
+        ("unknown_token", "unknown_token"),  # Passthrough for unknown
+    ],
+)
+def test_schema_gender_token_normalization_edges(token: str | None, expected: str | None) -> None:
+    """
+    Covers edge branches in schema token normalization:
+    - None/empty/whitespace handling
+    - casefold/lower
+    - passthrough for unknown tokens
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "height_cm": 170,
+            "weight_kg": 65,
+            "age": 30,
+            "gender": token,
+            "pregnant": False,
+        }
+    )
+    assert req.gender == expected
+
+
+@pytest.mark.parametrize("pregnant_value", ["yes", "да", "true", "1"])
+def test_schema_pregnant_string_yes_normalizes_to_bool_true(pregnant_value: str) -> None:
+    """Test that various truthy string values normalize to bool True."""
+    req = BMICalculateRequest.model_validate(
+        {
+            "height_cm": 170,
+            "weight_kg": 65,
+            "age": 30,
+            "gender": "female",
+            "pregnant": pregnant_value,
+        }
+    )
+    assert req.pregnant is True
+
+
+@pytest.mark.parametrize("pregnant_value", ["no", "нет", "false", "0", "unknown"])
+def test_schema_pregnant_non_yes_normalizes_to_bool_false(pregnant_value: str) -> None:
+    """Test that falsy or unknown string values normalize to bool False."""
+    req = BMICalculateRequest.model_validate(
+        {
+            "height_cm": 170,
+            "weight_kg": 65,
+            "age": 30,
+            "gender": "female",
+            "pregnant": pregnant_value,
+        }
+    )
+    assert req.pregnant is False
+
+
+def test_numeric_range_schema_rejects_inverted_range() -> None:
+    """Test that NumericRangeSchema validates min <= max."""
+    # Valid range
+    valid_range = NumericRangeSchema.model_validate({"min": 18.5, "max": 25.0})
+    assert valid_range.min == 18.5
+    assert valid_range.max == 25.0
+
+    # Equal values are allowed (both boundaries inclusive)
+    equal_range = NumericRangeSchema.model_validate({"min": 25.0, "max": 25.0})
+    assert equal_range.min == 25.0
+    assert equal_range.max == 25.0
+
+    # Inverted range should raise ValidationError
+    with pytest.raises(ValidationError) as exc_info:
+        NumericRangeSchema.model_validate({"min": 10, "max": 5})
+    assert "must be less than or equal to maximum" in str(exc_info.value)
 
 
 class TestBMICalculateResponse:
@@ -151,6 +258,9 @@ class TestBMICalculateResponse:
         assert response.waist_risk is None
         assert response.notes == []
         assert response.age_band == "adult"
+        # Guard: optional fields must default to None (Pydantic v2 default=None)
+        assert response.visualization is None
+        assert response.interpretation_v1 is None
 
     def test_full_response_with_waist_risk(self) -> None:
         """Test full response structure with waist risk."""
@@ -318,3 +428,215 @@ class TestBMICalculateResponse:
 
         assert response1.notes == ["some note"]
         assert response2.notes == []
+
+
+# --- Additional tests for diff-coverage on app/schemas/bmi.py ---
+
+
+def test_waist_cm_optional_with_gt_constraint() -> None:
+    """
+    waist_cm is optional (default=None), but gt=0 must apply
+    only when a value is provided (Pydantic v2 requirement).
+    """
+    # None is allowed (default)
+    req = BMICalculateRequest.model_validate({"height_cm": 170, "weight_kg": 65, "age": 25})
+    assert req.waist_cm is None
+
+    # Positive value is allowed
+    req = BMICalculateRequest.model_validate(
+        {"height_cm": 170, "weight_kg": 65, "age": 25, "waist_cm": 80}
+    )
+    assert req.waist_cm == 80
+
+    # Zero should fail (gt=0)
+    with pytest.raises(ValidationError):
+        BMICalculateRequest.model_validate(
+            {"height_cm": 170, "weight_kg": 65, "age": 25, "waist_cm": 0}
+        )
+
+    # Negative should fail (gt=0)
+    with pytest.raises(ValidationError):
+        BMICalculateRequest.model_validate(
+            {"height_cm": 170, "weight_kg": 65, "age": 25, "waist_cm": -10}
+        )
+
+
+def test_bmi_range_spec_rejects_invalid_range() -> None:
+    """BMIRangeSpec requires from < to."""
+    # Valid range
+    valid = BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 18.5, "to": 25.0})
+    assert valid.from_ == 18.5
+    assert valid.to == 25.0
+
+    # Inverted range should fail
+    with pytest.raises(ValidationError) as exc_info:
+        BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 25.0, "to": 18.5})
+    assert "must be less than end" in str(exc_info.value)
+
+    # Equal values should fail (from >= to)
+    with pytest.raises(ValidationError):
+        BMIRangeSpec.model_validate({"key": "bmi.normal", "from": 20.0, "to": 20.0})
+
+
+def test_bmi_scale_v1_spec_validates_marker_mismatch() -> None:
+    """BMIScaleV1Spec requires marker.value == bmi."""
+    with pytest.raises(ValidationError) as exc_info:
+        BMIScaleV1Spec.model_validate(
+            {
+                "kind": "bmi_scale_v1",
+                "bmi": 23.0,
+                "min": 0.0,
+                "max": 60.0,
+                "ranges": [{"key": "bmi.normal", "from": 18.5, "to": 25.0}],
+                "marker": {"value": 24.0},  # Mismatch with bmi
+            }
+        )
+    assert "Marker value" in str(exc_info.value) and "must equal BMI" in str(exc_info.value)
+
+
+def test_bmi_scale_v1_spec_validates_bmi_out_of_bounds() -> None:
+    """BMIScaleV1Spec requires bmi within [min, max]."""
+    with pytest.raises(ValidationError) as exc_info:
+        BMIScaleV1Spec.model_validate(
+            {
+                "kind": "bmi_scale_v1",
+                "bmi": 61.0,  # Out of bounds (max=60)
+                "min": 0.0,
+                "max": 60.0,
+                "ranges": [{"key": "bmi.normal", "from": 18.5, "to": 25.0}],
+                "marker": {"value": 61.0},
+            }
+        )
+    assert "must be between min" in str(exc_info.value)
+
+
+def test_bmi_scale_v1_spec_validates_min_max_order() -> None:
+    """BMIScaleV1Spec requires min < max."""
+    with pytest.raises(ValidationError) as exc_info:
+        BMIScaleV1Spec.model_validate(
+            {
+                "kind": "bmi_scale_v1",
+                "bmi": 23.0,
+                "min": 60.0,
+                "max": 0.0,  # Inverted
+                "ranges": [{"key": "bmi.normal", "from": 18.5, "to": 25.0}],
+                "marker": {"value": 23.0},
+            }
+        )
+    assert "must be less than maximum" in str(exc_info.value)
+
+
+def test_bmi_scale_v1_spec_valid() -> None:
+    """BMIScaleV1Spec accepts valid scale."""
+    scale = BMIScaleV1Spec.model_validate(
+        {
+            "kind": "bmi_scale_v1",
+            "bmi": 23.0,
+            "min": 0.0,
+            "max": 60.0,
+            "ranges": [{"key": "bmi.normal", "from": 18.5, "to": 25.0}],
+            "marker": {"value": 23.0},
+        }
+    )
+    assert scale.bmi == 23.0
+    assert scale.marker.value == 23.0
+    assert len(scale.ranges) == 1
+
+
+def test_schema_unknown_gender_token_is_preserved_lowercased() -> None:
+    """Unknown gender tokens pass through lowercased and stripped."""
+    req = BMICalculateRequest.model_validate(
+        {"weight_kg": 65, "height_cm": 170, "age": 25, "gender": "  XxX  "}
+    )
+    assert req.gender == "xxx"
+
+
+def test_bmi_marker_spec_valid() -> None:
+    """BMIMarkerSpec accepts valid marker value."""
+    marker = BMIMarkerSpec.model_validate({"value": 23.4})
+    assert marker.value == 23.4
+
+
+# --- Coverage-tail tests for _normalize_pregnant edge cases (diff-cover lines 267, 270) ---
+
+
+def test_pregnant_none_normalizes_to_false() -> None:
+    """
+    Edge case: pregnant=None → False.
+    Covers line 267 in _normalize_pregnant validator.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "gender": "female",
+            "pregnant": None,
+        }
+    )
+    assert req.pregnant is False
+
+
+def test_pregnant_whitespace_only_normalizes_to_false() -> None:
+    """
+    Edge case: pregnant="   " (whitespace only) → False after strip.
+    Covers line 270 in _normalize_pregnant validator.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "gender": "female",
+            "pregnant": "   ",
+        }
+    )
+    assert req.pregnant is False
+
+
+def test_athlete_none_normalizes_to_false() -> None:
+    """
+    Edge case: athlete=None → False.
+    Mirrors pregnant normalization behavior.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "athlete": None,
+        }
+    )
+    assert req.athlete is False
+
+
+def test_athlete_whitespace_only_normalizes_to_false() -> None:
+    """
+    Edge case: athlete="   " (whitespace only) → False after strip.
+    Mirrors pregnant normalization behavior.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "athlete": "   ",
+        }
+    )
+    assert req.athlete is False
+
+
+def test_athlete_unknown_token_normalizes_to_false() -> None:
+    """
+    Edge case: athlete="maybe" (unknown token) → False.
+    Mirrors pregnant normalization behavior.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "athlete": "maybe",
+        }
+    )
+    assert req.athlete is False

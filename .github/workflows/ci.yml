@@ -25,6 +25,19 @@ defaults:
     shell: bash
 
 jobs:
+  pr_scope_guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+
+      - name: PR Scope Guard
+        run: bash scripts/ci/pr_scope_guard.sh
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -82,6 +95,7 @@ jobs:
   # Fast testing for PRs (single Python version)
   test-pr:
     if: github.event_name == 'pull_request'
+    needs: pr_scope_guard
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -406,7 +420,7 @@ jobs:
   # Coverage reporting for PRs
   coverage-pr:
     if: github.event_name == 'pull_request'
-    needs: test-pr
+    needs: [pr_scope_guard, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

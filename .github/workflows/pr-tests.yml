@@ -12,7 +12,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  pr_scope_guard:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: PR Scope Guard
+        run: bash scripts/ci/pr_scope_guard.sh
+
   lint:
+    needs: pr_scope_guard
     permissions:
       contents: read
       pull-requests: read

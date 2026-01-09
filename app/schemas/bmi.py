@@ -11,9 +11,9 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import math
-from typing import Literal
+from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.i18n import Language
 
@@ -107,6 +107,26 @@ class WaistRiskResultSchema(BaseModel):
     )
 
 
+# --- Local normalization helpers (schema-level, MUST NOT import core.bmi.engine) ---
+# These helpers ensure schema validation aligns with engine normalization semantics
+# without creating import cycles.
+
+_MALE_EXACT: Final[set[str]] = {"male", "m", "man", "м"}
+_FEMALE_EXACT: Final[set[str]] = {"female", "f", "woman", "w", "ж"}
+
+# Keep prefixes aligned with engine semantics: "starts with" for common language stems
+_MALE_PREFIXES: Final[tuple[str, ...]] = ("муж", "hombre")
+_FEMALE_PREFIXES: Final[tuple[str, ...]] = ("жен", "mujer")
+
+_TRUE_STRINGS: Final[set[str]] = {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
+_FALSE_STRINGS: Final[set[str]] = {"no", "n", "false", "0", "нет", "н", "ложь"}
+
+
+def _normalize_ws_lower(s: str | None) -> str:
+    """Normalize string: trim whitespace and convert to lowercase."""
+    return (s or "").strip().lower()
+
+
 class BMICalculateRequest(BaseModel):
     """
     RU: Запрос для расчета BMI через единый engine.
@@ -137,14 +157,14 @@ class BMICalculateRequest(BaseModel):
         examples=[25, 30, 45, 65],
     )
 
-    gender: str = Field(
-        default="male",
+    gender: str | None = Field(
+        default=None,
         description="Gender: 'male' or 'female'. Will be normalized by engine.",
-        examples=["male", "female", "муж", "жен"],
+        examples=["male", "female", "муж", "жен", None],
     )
 
     pregnant: str | bool = Field(
-        default="no",
+        default=False,
         description=(
             "Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). "
             "Will be normalized to bool by engine."
@@ -152,17 +172,86 @@ class BMICalculateRequest(BaseModel):
         examples=["no", "yes", False, True],
     )
 
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _normalize_gender_token(cls, v: str | None) -> str | None:
+        """
+        RU: Нормализует gender токены в "male" | "female" | None.
+        EN: Normalizes gender tokens to "male" | "female" | None.
+
+        Exact tokens are normalized before invariant checks to ensure schema↔engine parity.
+        """
+        if v is None:
+            return None
+        s = _normalize_ws_lower(v)
+        if not s:
+            return None
+        # Exact tokens (must match engine contract)
+        if s in _FEMALE_EXACT:
+            return "female"
+        if s in _MALE_EXACT:
+            return "male"
+        # Prefix-based tokens (RU/ES startswith parity)
+        if any(s.startswith(prefix) for prefix in _FEMALE_PREFIXES):
+            return "female"
+        if any(s.startswith(prefix) for prefix in _MALE_PREFIXES):
+            return "male"
+        # Unknown token: return as-is (will be handled by engine fallback)
+        return s
+
+    @field_validator("pregnant", mode="before")
+    @classmethod
+    def _normalize_pregnant(cls, v: str | bool | None) -> bool:
+        """
+        RU: Нормализует pregnant в bool.
+        EN: Normalizes pregnant to bool.
+        """
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = _normalize_ws_lower(v if isinstance(v, str) else None)
+        if not s:
+            return False
+        if s in _TRUE_STRINGS:
+            return True
+        if s in _FALSE_STRINGS:
+            return False
+        # Unknown token -> treat as False (safe default)
+        return False
+
     athlete: str | bool = Field(
-        default="no",
+        default=False,
         description=(
             "Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). "
-            "Will be normalized to bool by engine."
+            "Will be normalized to bool by schema."
         ),
         examples=["no", "yes", False, True],
     )
 
+    @field_validator("athlete", mode="before")
+    @classmethod
+    def _normalize_athlete(cls, v: str | bool | None) -> bool:
+        """
+        RU: Нормализует athlete в bool.
+        EN: Normalizes athlete to bool.
+        """
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = _normalize_ws_lower(v if isinstance(v, str) else None)
+        if not s:
+            return False
+        if s in _TRUE_STRINGS:
+            return True
+        if s in _FALSE_STRINGS:
+            return False
+        # Unknown token -> treat as False (safe default)
+        return False
+
     waist_cm: float | None = Field(
-        None,
+        default=None,
         gt=0,
         description=(
             "Waist circumference in centimeters (optional). "
@@ -175,6 +264,92 @@ class BMICalculateRequest(BaseModel):
         default="en",
         description="Language for localized responses: 'ru', 'en', or 'es'.",
         examples=["en", "ru", "es"],
+    )
+
+    @model_validator(mode="after")
+    def _apply_pregnancy_invariant(self) -> "BMICalculateRequest":
+        """
+        RU: Применяет инвариант беременности: мягкая нормализация (не 422).
+        EN: Applies pregnancy invariant: soft normalization (no 422).
+
+        Rules:
+        - If pregnant=True and gender=None → auto-set gender="female" (pregnant implies female)
+        - If pregnant=True and gender="male" → coerce pregnant=False (pipeline robustness)
+
+        This keeps the BMI pipeline robust: male+pregnant doesn't break /plan or /bmi endpoints.
+        """
+        if self.pregnant:
+            if self.gender is None:
+                # pregnant задаёт смысл пола
+                self.gender = "female"
+            elif self.gender == "male":
+                # устойчивость пайплайна: не 422, а мягкая нормализация
+                self.pregnant = False
+        return self
+
+
+class NumericRangeSchema(BaseModel):
+    """Numeric BMI target range schema."""
+
+    min: float = Field(..., description="Range minimum (inclusive)", examples=[18.5])
+    max: float = Field(..., description="Range maximum (inclusive)", examples=[25.0])
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "NumericRangeSchema":
+        """
+        RU: Валидация: min должен быть меньше или равен max.
+        EN: Validation: min must be less than or equal to max.
+        """
+        if self.min > self.max:
+            raise ValueError(
+                f"Range minimum ({self.min}) must be less than or equal to maximum ({self.max})"
+            )
+        return self
+
+
+# TargetRangeSchema: Union of NumericRangeSchema or qualitative string
+# We use a type alias for clarity, but Pydantic will handle Union validation
+TargetRangeSchema = NumericRangeSchema | Literal["age_appropriate_growth", "prenatal_guidelines"]
+
+
+class BMIInterpretationV1Schema(BaseModel):
+    """
+    BMI Interpretation v1 schema (i18n keys only).
+
+    RU: Схема интерпретации BMI v1 (только i18n ключи).
+    EN: BMI interpretation v1 schema (i18n keys only).
+    """
+
+    goal_direction: Literal["maintain", "reduce", "increase", "medical_review"] = Field(
+        ...,
+        description="Goal direction for BMI management.",
+        examples=["maintain"],
+    )
+
+    target_range: (
+        NumericRangeSchema | Literal["age_appropriate_growth", "prenatal_guidelines"] | None
+    ) = Field(
+        None,
+        description="Target range (numeric or qualitative). None for medical_review cases.",
+        examples=[{"min": 18.5, "max": 25.0}, "age_appropriate_growth", None],
+    )
+
+    risk_flags: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Risk flags (i18n keys only).",
+        examples=[("bmi.interpretation.risk.extreme_value",)],
+    )
+
+    priority_notes: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Priority notes (i18n keys only).",
+        examples=[("bmi.interpretation.priority.stability_first",)],
+    )
+
+    disclaimers: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Disclaimers (i18n keys only).",
+        examples=[("bmi.interpretation.disclaimer.general",)],
     )
 
 
@@ -267,6 +442,27 @@ class BMICalculateResponse(BaseModel):
     )
 
     visualization: BMIScaleV1Spec | None = Field(
-        None,
+        default=None,
         description="Optional BMI scale visualization spec (v1). Frontend should render this if available.",
+    )
+
+    interpretation_v1: BMIInterpretationV1Schema | None = Field(
+        default=None,
+        description=(
+            "Optional structured interpretation (v1). i18n keys only. "
+            "Currently may be None while wiring is in progress. "
+            "Planned behavior: None only for too_young; pregnancy returns "
+            "structured interpretation (goal=medical_review, target=prenatal_guidelines), "
+            "and pregnant+athlete includes additional athlete disclaimers."
+        ),
+        examples=[
+            {
+                "goal_direction": "maintain",
+                "target_range": {"min": 18.5, "max": 25.0},
+                "risk_flags": [],
+                "priority_notes": [],
+                "disclaimers": ["bmi.interpretation.disclaimer.general"],
+            },
+            None,
+        ],
     )

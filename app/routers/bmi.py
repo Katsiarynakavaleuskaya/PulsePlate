@@ -127,16 +127,27 @@ async def bmi_calculate_handler(
         )
 
     try:
-        # Normalize flags (string → bool)
-        pregnant_bool = _normalize_bool_flag(req.pregnant)
-        athlete_bool = _normalize_bool_flag(req.athlete)
+        # Schema already normalizes pregnant to bool via field_validator, but keep normalization
+        # for robustness (in case req comes from legacy path that bypasses schema)
+        # NOTE: Soft normalization (male+pregnant -> pregnant=False) is handled by schema's
+        # _apply_pregnancy_invariant model_validator. Handler remains thin and does not duplicate
+        # domain normalization logic.
+        pregnant_bool = (
+            req.pregnant if isinstance(req.pregnant, bool) else _normalize_bool_flag(req.pregnant)
+        )
+        athlete_bool = (
+            req.athlete if isinstance(req.athlete, bool) else _normalize_bool_flag(req.athlete)
+        )
 
         # Call engine (domain logic)
+        # Schema's _apply_pregnancy_invariant already handled soft normalization:
+        # - gender=None + pregnant=True -> gender="female"
+        # - gender="male" + pregnant=True -> pregnant=False
         result = calculate_bmi_result(
             weight_kg=req.weight_kg,
             height_cm=req.height_cm,
             age=req.age,
-            gender=req.gender,
+            gender=req.gender or "male",  # Engine expects non-None gender
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,
@@ -164,6 +175,7 @@ async def bmi_calculate_handler(
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
             visualization=None,  # Will be set below if builder succeeds
+            interpretation_v1=None,  # Optional structured interpretation (not implemented yet)
         )
 
         # Add visualization spec (graceful fallback: if builder fails, visualization remains None)
@@ -230,5 +242,7 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     """
     # Handler returns dict for legacy compatibility; convert back to model for FastAPI serialization
     # response_model_by_alias=True ensures "from" (not "from_") in visualization.ranges[]
-    data = await bmi_calculate_handler(req)
-    return BMICalculateResponse.model_validate(data)
+    # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
+    data: dict[str, Any] = await bmi_calculate_handler(req)
+    response: BMICalculateResponse = BMICalculateResponse.model_validate(data)
+    return response

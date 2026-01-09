@@ -20,7 +20,9 @@ if TYPE_CHECKING:
 
 def _range(key: str, start: float, end: float) -> BMIRangeSpec:
     """Create BMIRangeSpec using model_validate for type-checker compatibility."""
-    return BMIRangeSpec.model_validate({"key": key, "from": start, "to": end})
+    # NOTE: model_validate() returns Any for mypy; assign to local to keep return type
+    result: BMIRangeSpec = BMIRangeSpec.model_validate({"key": key, "from": start, "to": end})
+    return result
 
 
 def build_bmi_scale_v1(

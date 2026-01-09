@@ -93,9 +93,10 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
 
     monkeypatch.setattr(bmi_router, "calculate_bmi_result", _fake_engine)
 
+    # Use gender="female" to avoid soft normalization of pregnant
     resp = client.post(
         "/api/v1/bmi/calculate",
-        json=_valid_payload(pregnant="yes", athlete=True),
+        json=_valid_payload(gender="female", pregnant="yes", athlete=True),
     )
     assert resp.status_code == 200
 
@@ -117,8 +118,10 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
     assert data["waist_risk"]["notes"] == ["Increased waist-related risk"]
 
     # Ensure bool normalization happened before engine call
-    assert captured["pregnant"] is True
-    assert captured["athlete"] is True
+    # This test explicitly sets gender="female" to avoid soft normalization, so pregnant should remain True
+    # after schema validation (pregnant="yes" -> bool=True, and gender="female" prevents coercion to False)
+    assert captured["pregnant"] is True, "pregnant should be True when gender='female'"
+    assert captured["athlete"] is True, "athlete should be normalized to bool=True"
 
 
 def test_bmi_calculate_validation_422(client: TestClient) -> None:
