@@ -32,6 +32,7 @@ from typing import (
 import dotenv
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import (
     BaseModel,
     Field,
@@ -61,6 +62,7 @@ from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
+from app.middleware.metrics import metrics_middleware
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.services import recipe_store
 from app.services.food_store import get_food
@@ -1302,6 +1304,10 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
     return response
 
 
+# Add Prometheus metrics middleware
+app.middleware("http")(metrics_middleware)
+
+
 @app.get("/health/db")
 async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
@@ -1989,12 +1995,17 @@ async def health_v1() -> Dict[str, Any]:
     return await health()
 
 
-@app.get("/metrics")
-async def metrics() -> Dict[str, str]:
-    """Prometheus metrics endpoint."""
-    # if generate_latest:
-    #     return Response(generate_latest(), media_type="text/plain")
-    return {"error": "Prometheus client not available"}
+@app.get("/metrics", include_in_schema=False)
+async def metrics() -> Response:
+    """RU: Prometheus metrics endpoint (exposition format).
+
+    EN: Prometheus metrics endpoint (exposition format).
+
+    Returns Prometheus text format (text/plain; version=0.0.4).
+    Includes HTTP request metrics (requests_total, request_duration_seconds).
+    """
+    data = generate_latest()
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/privacy")

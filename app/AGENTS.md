@@ -33,6 +33,41 @@
 curl -fsS https://.../health   # liveness
 curl -fsS https://.../ready    # readiness (503 if DB down)
 ```
+---
+
+## Metrics endpoint contract (PR-505)
+
+| Endpoint | Purpose | Format | OpenAPI |
+|----------|---------|--------|---------|
+| `/metrics` | Prometheus exposition | `text/plain; version=0.0.4` | ❌ Hidden |
+
+**Metrics collected:**
+- `http_requests_total{method, route, status}`: Total HTTP request count
+- `http_request_duration_seconds{method, route, status}`: Request latency histogram
+
+**Allowed labels:**
+- `method`: HTTP method (GET, POST, etc.)
+- `route`: Route template (e.g., `/api/v1/bmi/calculate`), **not raw path**
+- `status`: HTTP status code (200, 404, 500, etc.)
+
+**Forbidden (high-cardinality):**
+- ❌ Raw request path (e.g., `/api/v1/users/123`)
+- ❌ Query parameters
+- ❌ User IDs, IP addresses, User-Agent
+- ❌ Any dynamic path segments
+
+**Excluded paths** (not counted in metrics):
+- `/metrics` (self)
+- `/health`, `/ready`, `/health/db` (health checks)
+
+**Usage:**
+```bash
+curl -fsS https://.../metrics | grep http_requests_total
+```
+
+**Implementation:**
+- Middleware: `app/middleware/metrics.py`
+- Endpoint: `legacy_app.py` (hidden from OpenAPI via `include_in_schema=False`)
 
 ---
 

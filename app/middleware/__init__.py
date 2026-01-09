@@ -6,7 +6,7 @@ EN: Middleware for request processing and validation.
 
 from types import ModuleType
 
-__all__ = ["api_tiers"]
+__all__ = ["api_tiers", "metrics"]
 
 
 def __getattr__(name: str) -> ModuleType:
