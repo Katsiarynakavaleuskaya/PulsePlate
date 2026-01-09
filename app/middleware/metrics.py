@@ -13,6 +13,7 @@ Excluded paths: /metrics, /health, /ready, /health/db (to avoid noise)
 from __future__ import annotations
 
 from time import perf_counter
+from typing import Optional
 
 from fastapi import Request
 from fastapi.routing import APIRoute
@@ -26,13 +27,13 @@ EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/
 try:
     from prometheus_client import Counter, Histogram
 
-    HTTP_REQUESTS_TOTAL: Counter = Counter(
+    HTTP_REQUESTS_TOTAL: Optional[Counter] = Counter(
         "http_requests_total",
         "Total number of HTTP requests",
         labelnames=("method", "route", "status"),
     )
 
-    HTTP_REQUEST_DURATION_SECONDS: Histogram = Histogram(
+    HTTP_REQUEST_DURATION_SECONDS: Optional[Histogram] = Histogram(
         "http_request_duration_seconds",
         "HTTP request duration in seconds",
         labelnames=("method", "route", "status"),
@@ -40,8 +41,8 @@ try:
     )
 except ImportError:
     # Metrics unavailable: middleware becomes no-op (does not crash startup)
-    HTTP_REQUESTS_TOTAL = None  # type: ignore[assignment]
-    HTTP_REQUEST_DURATION_SECONDS = None  # type: ignore[assignment]
+    HTTP_REQUESTS_TOTAL: Optional[Counter] = None
+    HTTP_REQUEST_DURATION_SECONDS: Optional[Histogram] = None
 
 
 def _normalized_path(path: str) -> str:
