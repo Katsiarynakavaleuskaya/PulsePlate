@@ -39,14 +39,14 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 
 | Endpoint | Purpose | Format | OpenAPI |
 |----------|---------|--------|---------|
-| `/metrics` | Prometheus exposition | `text/plain; version=0.0.4` or JSON error | ❌ Hidden |
+| `/metrics` | Prometheus exposition | `text/plain` (Prometheus exposition; `CONTENT_TYPE_LATEST`) or JSON error | ❌ Hidden |
 
 **Metrics collected:**
 - `http_requests_total{method, route, status}`: Total HTTP request count
 - `http_request_duration_seconds{method, route, status}`: Request latency histogram
 
 **Response format:**
-- **Normal**: Prometheus text format (`text/plain; version=0.0.4`) when exporter is available
+- **Normal**: Prometheus exposition format (`text/plain`, uses `CONTENT_TYPE_LATEST`) when exporter is available
 - **Fallback**: JSON error envelope (`{"error": "Prometheus client not available", "detail": "..."}`) if exporter is unavailable
 - JSON fallback is required for testability and graceful degradation
 
@@ -105,7 +105,8 @@ curl -fsS https://.../metrics | grep http_requests_total
 - If infrastructure-level protection is needed, implement it in a dedicated infra PR (e.g., PR-506).
 
 **Testing requirements:**
-- Tests MUST assert `/metrics` returns Prometheus text format (`text/plain`) on happy path.
+- Tests MUST assert `/metrics` returns a Prometheus exposition response (`Content-Type` starts with `text/plain`) on happy path.
+- Tests MUST NOT assert an exact `Content-Type` version/charset value (implementation detail of `prometheus_client`).
 - JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
 - This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
 
