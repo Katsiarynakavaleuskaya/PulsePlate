@@ -63,6 +63,8 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 
 **Route extraction rules:**
 - Route label MUST come from `request.scope["route"].path` (route template) after router resolution.
+- For nested routers with prefix, find the most specific (endpoint-level) route by iterating `request.app.router.routes` and selecting the deepest FULL match.
+- Always use `request.app.router.routes` (never a module-level `app`) to resolve endpoint-level template paths for nested routers.
 - If route is unavailable → use `"unknown"` (forbidden to use `request.url.path` or normalized path as fallback for non-excluded requests).
 - This prevents high cardinality when routes with path parameters (e.g., `/api/v1/users/{id}`) are added.
 - **Prometheus route label policy**: Route label MUST be route template only. Raw/normalized path fallback is forbidden. If route template is unavailable → route="unknown".

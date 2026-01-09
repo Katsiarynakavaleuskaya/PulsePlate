@@ -86,25 +86,37 @@ def _route_template(request: Request) -> str:
         if isinstance(path, str) and path:
             # For nested routers, route.path may be just the prefix (e.g., "/api/v1/bmi")
             # Try to find the most specific route that matched
-            app = request.app
             matched_path = path
             # Check if there's a more specific route (endpoint-level, not just router prefix)
-            router = getattr(app, "router", None)
+            # Always use request.app (never module-level app) to avoid NameError/scope issues
+            router = getattr(request.app, "router", None)
             if router is None or not hasattr(router, "routes"):
                 return matched_path
+
+            best_path = matched_path
+            best_depth = matched_path.count("/")
+
             for r in router.routes or []:
                 if not hasattr(r, "path") or not hasattr(r, "matches"):
                     continue
                 try:
                     match, _ = r.matches(request.scope)
-                    if match == Match.FULL:
-                        r_path = getattr(r, "path", None)
-                        if isinstance(r_path, str) and r_path and len(r_path) > len(matched_path):
-                            # Found a more specific route (endpoint-level)
-                            matched_path = r_path
+                    if match != Match.FULL:
+                        continue
+
+                    r_path = getattr(r, "path", None)
+                    if not isinstance(r_path, str) or not r_path:
+                        continue
+
+                    # Prefer the most specific endpoint-level path (by depth, not length)
+                    r_depth = r_path.count("/")
+                    if r_depth > best_depth:
+                        best_path = r_path
+                        best_depth = r_depth
                 except Exception:
                     continue
-            return matched_path
+
+            return best_path
     # Route unavailable → return "unknown"
     # Forbidden: do NOT use request.url.path as fallback for non-excluded requests
     return "unknown"
