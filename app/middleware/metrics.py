@@ -18,6 +18,7 @@ from fastapi import Request
 from prometheus_client import Counter, Histogram
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
+from starlette.routing import Match
 
 HTTP_REQUESTS_TOTAL = Counter(
     "http_requests_total",
@@ -70,8 +71,8 @@ def _route_template(request: Request) -> str:
     """Extract route template (not raw path) to avoid high cardinality.
 
     Must be called AFTER call_next (when route is resolved by router).
-    For non-excluded requests, route MUST come from request.scope["route"].path.
-    Raw path is forbidden for route label to prevent high cardinality.
+    For nested routers with prefix, route.path may return only the prefix.
+    We need to find the most specific (endpoint-level) route path.
 
     Args:
         request: FastAPI request object (after route resolution)
@@ -83,7 +84,27 @@ def _route_template(request: Request) -> str:
     if route is not None:
         path = getattr(route, "path", None)
         if isinstance(path, str) and path:
-            return path
+            # For nested routers, route.path may be just the prefix (e.g., "/api/v1/bmi")
+            # Try to find the most specific route that matched
+            app = request.app
+            matched_path = path
+            # Check if there's a more specific route (endpoint-level, not just router prefix)
+            router = getattr(app, "router", None)
+            if router is None or not hasattr(router, "routes"):
+                return matched_path
+            for r in router.routes or []:
+                if not hasattr(r, "path") or not hasattr(r, "matches"):
+                    continue
+                try:
+                    match, _ = r.matches(request.scope)
+                    if match == Match.FULL:
+                        r_path = getattr(r, "path", None)
+                        if isinstance(r_path, str) and r_path and len(r_path) > len(matched_path):
+                            # Found a more specific route (endpoint-level)
+                            matched_path = r_path
+                except Exception:
+                    continue
+            return matched_path
     # Route unavailable → return "unknown"
     # Forbidden: do NOT use request.url.path as fallback for non-excluded requests
     return "unknown"

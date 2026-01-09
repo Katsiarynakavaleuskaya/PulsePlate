@@ -2001,7 +2001,9 @@ def metrics() -> Response:
 
     EN: Prometheus metrics endpoint (exposition format).
 
-    Returns Prometheus text format (text/plain; version=0.0.4).
+    Returns Prometheus text format (text/plain; version=0.0.4) when available.
+    Falls back to JSON error envelope if Prometheus exporter is unavailable.
+
     Includes HTTP request metrics (http_requests_total, http_request_duration_seconds).
 
     Note: Synchronous function (generate_latest() is CPU-bound, not I/O).
@@ -2009,8 +2011,18 @@ def metrics() -> Response:
     Application-level authentication is intentionally NOT enforced to preserve
     testability and backward compatibility.
     """
-    data = generate_latest()
-    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+    try:
+        data = generate_latest()
+        return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+    except Exception as exc:
+        # Graceful degradation: return JSON error if Prometheus exporter unavailable
+        return JSONResponse(
+            status_code=200,
+            content={
+                "error": "Prometheus client not available",
+                "detail": str(exc),
+            },
+        )
 
 
 @app.get("/privacy")

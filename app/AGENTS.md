@@ -39,11 +39,16 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 
 | Endpoint | Purpose | Format | OpenAPI |
 |----------|---------|--------|---------|
-| `/metrics` | Prometheus exposition | `text/plain; version=0.0.4` | ❌ Hidden |
+| `/metrics` | Prometheus exposition | `text/plain; version=0.0.4` or JSON error | ❌ Hidden |
 
 **Metrics collected:**
 - `http_requests_total{method, route, status}`: Total HTTP request count
 - `http_request_duration_seconds{method, route, status}`: Request latency histogram
+
+**Response format:**
+- **Normal**: Prometheus text format (`text/plain; version=0.0.4`) when exporter is available
+- **Fallback**: JSON error envelope (`{"error": "Prometheus client not available", "detail": "..."}`) if exporter is unavailable
+- JSON fallback is required for testability and graceful degradation
 
 **Allowed labels:**
 - `method`: HTTP method (GET, POST, etc.)
