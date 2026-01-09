@@ -13,10 +13,10 @@ Excluded paths: /metrics, /health, /ready, /health/db (to avoid noise)
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Awaitable, Callable
 
 from fastapi import Request
 from prometheus_client import Counter, Histogram
+from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
 HTTP_REQUESTS_TOTAL = Counter(
@@ -32,7 +32,7 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-EXCLUDED_PATHS: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
+EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
 
 
 def _normalized_path(path: str) -> str:
@@ -49,10 +49,12 @@ def _normalized_path(path: str) -> str:
     return path
 
 
-def _is_excluded(request: Request) -> bool:
-    """Check if request should be excluded from metrics collection.
+def _excluded_by_path(request: Request) -> bool:
+    """Check if request should be excluded from metrics collection (early fast-path).
 
     Uses normalized path (before route resolution) to handle trailing slashes.
+    This is a fast-path check before routing; late exclusion by route template
+    happens in finally block after route is resolved.
 
     Args:
         request: FastAPI request object
@@ -61,7 +63,7 @@ def _is_excluded(request: Request) -> bool:
         True if request should be excluded from metrics
     """
     path = _normalized_path(request.url.path)
-    return path in EXCLUDED_PATHS
+    return path in EXCLUDED_ROUTE_TEMPLATES
 
 
 def _route_template(request: Request) -> str:
@@ -87,20 +89,18 @@ def _route_template(request: Request) -> str:
     return "unknown"
 
 
-async def metrics_middleware(
-    request: Request, call_next: Callable[[Request], Awaitable[Response]]
-) -> Response:
+async def metrics_middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
     """Collect Prometheus metrics for HTTP requests.
 
     Args:
         request: FastAPI request
-        call_next: Next middleware/handler
+        call_next: Next middleware/handler (Starlette RequestResponseEndpoint)
 
     Returns:
         Response from downstream
     """
-    # Exclusion check: use normalized path BEFORE call_next
-    if _is_excluded(request):
+    # Fast path: skip obvious noise early (before timer)
+    if _excluded_by_path(request):
         return await call_next(request)
 
     start = perf_counter()
@@ -117,9 +117,14 @@ async def metrics_middleware(
         raise
     finally:
         # Route extraction: AFTER call_next (when route is resolved by router)
+        # Route is reliably available only after downstream routing ran
         route = _route_template(request)
-        elapsed = perf_counter() - start
-        HTTP_REQUESTS_TOTAL.labels(method=method, route=route, status=status).inc()
-        HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=route, status=status).observe(
-            elapsed
-        )
+
+        # Late exclusion: covers trailing slash / mounting / router behaviors
+        # If route is excluded or unavailable, skip metrics collection
+        if route not in EXCLUDED_ROUTE_TEMPLATES and route != "unknown":
+            elapsed = perf_counter() - start
+            HTTP_REQUESTS_TOTAL.labels(method=method, route=route, status=status).inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=route, status=status).observe(
+                elapsed
+            )

@@ -18,7 +18,8 @@ import app
 @pytest.fixture
 def client() -> TestClient:
     """Test client for metrics tests."""
-    return TestClient(app.app)
+    # /metrics requires API key; use test key for tests
+    return TestClient(app.app, headers={"X-API-Key": "test_key"})
 
 
 def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
@@ -94,9 +95,6 @@ def test_metrics_excludes_health_endpoints(client: TestClient) -> None:
     RU: Проверяет, что /health и /ready исключены из метрик.
     EN: Verifies /health and /ready are excluded from metrics.
     """
-    # Get baseline metrics
-    before = client.get("/metrics").text
-
     # Make requests to excluded endpoints
     client.get("/health")
     client.get("/ready")
@@ -105,18 +103,16 @@ def test_metrics_excludes_health_endpoints(client: TestClient) -> None:
     assert health_db_response.status_code in (200, 503)
 
     # Get metrics after requests
-    after = client.get("/metrics").text
+    metrics = client.get("/metrics").text
 
-    # Should not create/increment any series for excluded routes
-    # Check /health (200)
-    assert _metric_value(after, method="GET", route="/health", status="200") == _metric_value(
-        before, method="GET", route="/health", status="200"
-    ), "Excluded /health should not increment metrics"
-
-    # Check /ready (200 or 503)
-    v_before_200 = _metric_value(before, method="GET", route="/ready", status="200")
-    v_after_200 = _metric_value(after, method="GET", route="/ready", status="200")
-    assert v_after_200 == v_before_200, "Excluded /ready should not increment metrics"
+    # Excluded endpoints should not appear as route label values
+    # This is a stronger check than before/after comparison: we verify no series exist
+    assert 'route="/metrics"' not in metrics, "Excluded /metrics should not appear in route labels"
+    assert 'route="/health"' not in metrics, "Excluded /health should not appear in route labels"
+    assert 'route="/ready"' not in metrics, "Excluded /ready should not appear in route labels"
+    assert (
+        'route="/health/db"' not in metrics
+    ), "Excluded /health/db should not appear in route labels"
 
 
 def test_metrics_includes_route_template(client: TestClient) -> None:
@@ -126,10 +122,11 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
     EN: Verifies metrics include route template, not raw path.
     """
     # Make a request with query params to verify route template (not raw path)
-    client.post(
+    response = client.post(
         "/api/v1/bmi/calculate?foo=bar&baz=qux",
         json={"weight_kg": 70, "height_cm": 175, "lang": "en", "sex": "female", "age": 30},
     )
+    assert response.status_code == 200
 
     metrics_text = client.get("/metrics").text
 
@@ -147,6 +144,12 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
     route_value = match.group(1)
     assert route_value == "/api/v1/bmi/calculate", f"Route should be template, got: {route_value}"
     assert "?" not in route_value, f"Route label should not contain query params: {route_value}"
+
+    # Global guard: ensure no route label contains query params anywhere
+    route_label_pattern = re.compile(r'route="([^"]+)"')
+    all_routes = route_label_pattern.findall(metrics_text)
+    for route in all_routes:
+        assert "?" not in route, f"Route label should not contain query params: {route}"
 
 
 def test_metrics_content_type(client: TestClient) -> None:

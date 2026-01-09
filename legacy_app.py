@@ -1996,7 +1996,7 @@ async def health_v1() -> Dict[str, Any]:
 
 
 @app.get("/metrics", include_in_schema=False)
-def metrics() -> Response:
+def metrics(_: str = Depends(_get_api_key_dynamic)) -> Response:
     """RU: Prometheus metrics endpoint (exposition format).
 
     EN: Prometheus metrics endpoint (exposition format).
@@ -2005,6 +2005,7 @@ def metrics() -> Response:
     Includes HTTP request metrics (http_requests_total, http_request_duration_seconds).
 
     Note: Synchronous function (generate_latest() is CPU-bound, not I/O).
+    Protected by API key authentication (Prometheus can scrape with Authorization header).
     """
     data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
