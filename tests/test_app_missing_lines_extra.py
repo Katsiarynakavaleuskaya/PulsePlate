@@ -16,6 +16,9 @@ class TestAppMissingLinesExtra:
 
     def teardown_method(self) -> None:
         os.environ.pop("API_KEY", None)
+        client = getattr(self, "client", None)
+        if client is not None:
+            client.close()
 
     def test_get_update_scheduler_late_import_path(self):
         # Test the get_update_scheduler function exists and can be called

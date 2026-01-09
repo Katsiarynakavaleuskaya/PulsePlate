@@ -530,19 +530,18 @@ def test_route_cache_ttl_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
         metrics_mod._ROUTE_CACHE.clear()
 
     # Mock time source (deterministic, no sleep needed)
-    monkeypatch.setattr(metrics_mod, "monotonic", lambda: 1000.0)
+    t = {"v": 1000.0}
+    monkeypatch.setattr(metrics_mod, "_now_monotonic", lambda: t["v"])
 
-    # Add entry at t0
+    # Add entry at t=1000.0
     endpoint_id = 999
     metrics_mod._route_cache_set(endpoint_id, "/api/v1/test")
 
-    t0 = metrics_mod.monotonic()
-
-    # Should be cached (delta=0.0 < ttl)
+    # Should be cached (delta=0.0 < 0.01)
     assert metrics_mod._route_cache_get(endpoint_id) == "/api/v1/test"
 
-    # Advance time beyond TTL without sleeping (avoid flakiness)
-    monkeypatch.setattr(metrics_mod, "monotonic", lambda: t0 + 0.02)
+    # Advance time beyond TTL (delta=0.02 > 0.01)
+    t["v"] = 1000.02
 
     # Should be expired (returns None, increments _ROUTE_CACHE_EXPIRED)
     assert metrics_mod._route_cache_get(endpoint_id) is None

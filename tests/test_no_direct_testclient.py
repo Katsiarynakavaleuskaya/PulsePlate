@@ -21,7 +21,7 @@ ALLOWLIST: Final[set[str]] = {
 #
 # Tech-debt note:
 # These files predate `tests/_client.get_client()` and may still construct TestClient directly.
-# Tracking: TODO(open issue / add URL) • Owner: TBD • Target: TBD
+# Tracking: docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md • Owner: @Katsiarynakavaleuskaya • Target: 2026-03-31
 # Once migrated, remove the relevant patterns from this allowlist.
 COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
     "test_coverage_97",

@@ -316,7 +316,7 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
 
         # Late exclusion: covers trailing slash / mounting / router behaviors
         # Normalize template before compare to handle trailing slashes consistently
-        if route_norm not in EXCLUDED_ROUTE_TEMPLATES and route_norm != "unknown":
+        if route_norm not in EXCLUDED_ROUTE_TEMPLATES:
             elapsed = perf_counter() - start
             # Metrics must be best-effort only and must never mask/replace the
             # original response/exception from the try-block.
