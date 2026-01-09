@@ -1254,10 +1254,6 @@ def _client_fingerprint(request: Request) -> str | None:
     return compute_fingerprint(source)
 
 
-# Add Prometheus metrics middleware (must be outermost to capture all requests/exceptions)
-app.middleware("http")(metrics_middleware)
-
-
 # Add logging middleware with data classification
 @app.middleware("http")
 async def log_requests(request: Request, call_next: CallNextHandler) -> Response:
@@ -5699,6 +5695,15 @@ if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
 app.include_router(bmi_router)
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
+
+# Register Prometheus metrics middleware last so it is outermost and can
+# capture all requests/exceptions passing through other middleware.
+#
+# NOTE: FastAPI/Starlette builds middleware stack in reverse order, so the
+# last added middleware becomes the outermost wrapper.
+# This should ideally be in a proper app bootstrap module, but for now
+# we register it here after all routers to ensure correct ordering.
+app.middleware("http")(metrics_middleware)
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
 BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag) if _business_flag is not None else False
 if BUSINESS_MODULE_ENABLED and business_router:

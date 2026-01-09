@@ -31,8 +31,9 @@ def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
     """
     # Example line:
     # http_requests_total{method="GET",route="/api/v1/bmi/calculate",status="200"} 3.0
+    # Support scientific notation (e.g., 1e+06, 1.5e-3)
     pattern = re.compile(
-        rf'^http_requests_total\{{[^}}]*method="{re.escape(method)}"[^}}]*route="{re.escape(route)}"[^}}]*status="{re.escape(status)}"[^}}]*\}}\s+(?P<val>[0-9.]+)\s*$',
+        rf'^http_requests_total\{{[^}}]*method="{re.escape(method)}"[^}}]*route="{re.escape(route)}"[^}}]*status="{re.escape(status)}"[^}}]*\}}\s+(?P<val>[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*$',
         re.MULTILINE,
     )
     match = pattern.search(text)
@@ -196,7 +197,7 @@ def test_metrics_json_fallback_when_exporter_raises(
     RU: Проверяет JSON fallback при ошибке Prometheus exporter.
     EN: Verifies JSON fallback when Prometheus exporter raises.
     """
-    import prometheus_client
+    prometheus_client = pytest.importorskip("prometheus_client")
 
     # Force exporter failure to test JSON fallback
     def _boom() -> bytes:
@@ -363,8 +364,7 @@ async def test_metrics_middleware_noop_when_metrics_unavailable(
     assert resp.status_code == 204
 
 
-@pytest.mark.asyncio
-async def test_metrics_middleware_exception_path(client: TestClient) -> None:
+def test_metrics_middleware_exception_path(client: TestClient) -> None:
     """Test middleware records 500 status when exception occurs.
 
     RU: Проверяет, что middleware записывает статус 500 при исключении.

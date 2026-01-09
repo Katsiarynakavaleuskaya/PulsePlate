@@ -70,29 +70,43 @@ def _import_prometheus(importer: _Importer = import_module) -> tuple[Any, Any]:
 
 
 def _build_metrics() -> _Metrics | None:
+    """Initialize metrics objects.
+
+    Returns None if prometheus_client is unavailable OR if metric registration fails
+    (e.g., module reload causes duplicate names in the default registry).
+
+    Returns:
+        _Metrics instance or None if initialization fails
+    """
     try:
         Counter, Histogram = _import_prometheus()
     except ImportError:
         return None
 
-    requests_total: _Counter = cast(
-        _Counter,
-        Counter(
-            "http_requests_total",
-            "Total number of HTTP requests",
-            labelnames=("method", "route", "status"),
-        ),
-    )
+    # prometheus_client raises ValueError if metric name already registered
+    # in the default global REGISTRY (e.g., module reload in tests/dev).
+    try:
+        requests_total: _Counter = cast(
+            _Counter,
+            Counter(
+                "http_requests_total",
+                "Total number of HTTP requests",
+                labelnames=("method", "route", "status"),
+            ),
+        )
 
-    request_duration_seconds: _Histogram = cast(
-        _Histogram,
-        Histogram(
-            "http_request_duration_seconds",
-            "HTTP request duration in seconds",
-            labelnames=("method", "route", "status"),
-            buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
-        ),
-    )
+        request_duration_seconds: _Histogram = cast(
+            _Histogram,
+            Histogram(
+                "http_request_duration_seconds",
+                "HTTP request duration in seconds",
+                labelnames=("method", "route", "status"),
+                buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+            ),
+        )
+    except ValueError:
+        # Duplicate registration (module reload / already registered in registry)
+        return None
 
     return _Metrics(
         requests_total=requests_total, request_duration_seconds=request_duration_seconds
@@ -222,7 +236,14 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
         # Normalize template before compare to handle trailing slashes consistently
         if route_norm not in EXCLUDED_ROUTE_TEMPLATES and route_norm != "unknown":
             elapsed = perf_counter() - start
-            metrics.requests_total.labels(method=method, route=route_norm, status=status).inc()
-            metrics.request_duration_seconds.labels(
-                method=method, route=route_norm, status=status
-            ).observe(elapsed)
+            # Metrics must be best-effort only and must never mask/replace the
+            # original response/exception from the try-block.
+            try:
+                metrics.requests_total.labels(method=method, route=route_norm, status=status).inc()
+                metrics.request_duration_seconds.labels(
+                    method=method, route=route_norm, status=status
+                ).observe(elapsed)
+            except Exception:
+                # Metrics recording must never affect request handling.
+                # Optional: logger.exception("Prometheus metrics recording failed")
+                pass
