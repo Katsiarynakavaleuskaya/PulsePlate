@@ -124,10 +124,13 @@ diff-cov: ## Check diff coverage >= 97% against origin/main
 ## Typecheck with mypy (no cache for clean runs)
 typecheck: ## Run mypy typecheck on app and core
 	@echo "$(YELLOW)🔬 Проверка типов (mypy)...$(NC)"
-	mypy --no-incremental --cache-dir=/dev/null app core
+	. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null app core
 	@echo "$(GREEN)✅ Типы корректны$(NC)"
 
 ## Full verification gate (all checks must pass before push)
+## NOTE: Currently runs pytest twice (test-fast + diff-cov). Optimization possible via
+## single coverage run + diff-cover on existing XML. Keeping as-is for simplicity;
+## can be optimized in a follow-up PR if runtime becomes a bottleneck.
 verify: lint typecheck test-fast diff-cov ## Run all gates: lint + typecheck + tests + diff-coverage
 	@echo "$(GREEN)🎉 Все проверки пройдены! Ready for push.$(NC)"
 
