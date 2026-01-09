@@ -24,6 +24,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def metrics_endpoint() -> Response:
+    """Prometheus metrics endpoint (exposition format) with JSON fallback.
+
+    Returns Prometheus text format (CONTENT_TYPE_LATEST) when available.
+    Falls back to a JSON error envelope if the exporter is unavailable.
+
+    Security: Protected at infrastructure level (ingress ACLs, firewall, private networks).
+    Application-level authentication is intentionally NOT enforced to preserve
+    testability and backward compatibility.
+    """
+    try:
+        import prometheus_client
+
+        data = prometheus_client.generate_latest()
+        return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
+    except Exception:
+        logger.exception("Prometheus exporter unavailable")
+        return JSONResponse(
+            status_code=200,
+            content={
+                "error": "Prometheus client not available",
+                "detail": "Prometheus exporter unavailable",
+            },
+        )
+
+
 def register_metrics(app: FastAPI) -> None:
     """Register metrics middleware and /metrics endpoint on the primary app.
 
@@ -51,50 +77,5 @@ def register_metrics(app: FastAPI) -> None:
         getattr(r, "path", None) == "/metrics" and "GET" in (getattr(r, "methods", None) or set())
         for r in getattr(app, "routes", None) or []
     )
-    if has_metrics_route or not can_mutate:
-        return
-
-    @app.get("/metrics", include_in_schema=False)
-    def metrics() -> Response:
-        """RU: Prometheus metrics endpoint (exposition format).
-
-        EN: Prometheus metrics endpoint (exposition format).
-
-        Returns Prometheus text format (CONTENT_TYPE_LATEST) when available.
-        Falls back to JSON error envelope if Prometheus exporter is unavailable.
-
-        Includes HTTP request metrics (http_requests_total, http_request_duration_seconds).
-
-        Note: Synchronous function (generate_latest() is CPU-bound, not I/O).
-        Security: Protected at infrastructure level (ingress ACLs, firewall, private networks).
-        Application-level authentication is intentionally NOT enforced to preserve
-        testability and backward compatibility.
-
-        Note: Uses local import to keep endpoint patchable in tests (monkeypatch works).
-        """
-        try:
-            # Local import keeps endpoint patchable in tests (monkeypatch.setattr works)
-            import prometheus_client
-
-            data = prometheus_client.generate_latest()
-            return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
-        except (ImportError, ModuleNotFoundError):
-            # Prometheus client not installed or unavailable
-            logger.exception("Prometheus client not available")
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "error": "Prometheus client not available",
-                    "detail": "Prometheus exporter unavailable",
-                },
-            )
-        except Exception:
-            # Other exceptions during metrics export (e.g., registry errors)
-            logger.exception("Metrics export failed")
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "error": "Metrics export failed",
-                    "detail": "Metrics exporter unavailable",
-                },
-            )
+    if not has_metrics_route and can_mutate:
+        app.add_api_route("/metrics", metrics_endpoint, methods=["GET"], include_in_schema=False)

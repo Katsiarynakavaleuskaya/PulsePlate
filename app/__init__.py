@@ -36,6 +36,8 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "resolve_attr": ("core.utils", "resolve_attr"),
     "make_weekly_menu": ("core.menu_engine", "make_weekly_menu"),
     "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
+    # Expose the /metrics endpoint handler for patch-based tests
+    "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
 }
 
 
@@ -54,7 +56,7 @@ def _legacy() -> Any:
     return legacy
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> Any:  # noqa: ANN401
     """Resolve attribute lazily from local exports or legacy_app.
 
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.

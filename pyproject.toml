@@ -89,6 +89,7 @@ known-first-party = ["app", "bmi_core", "providers", "core"]
 "tests/*.py" = ["E402", "F811", "F401", "F841"]
 "scripts/*.py" = ["E402"]
 "releases/**/*.py" = ["E402"]
+"app/__init__.py" = ["ANN401"]  # PEP 562 __getattr__ requires Any return type
 
 [tool.pyright]
 pythonVersion = "3.13"
