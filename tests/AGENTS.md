@@ -22,6 +22,21 @@
   Preferred placement: `tests/vip/test_<feature>_diff_coverage.py` for VIP features, or `tests/test_<feature>_diff_coverage.py` alongside the related unit tests.
   Example: `tests/vip/test_pdf_export_diff_coverage.py`.
 
+### ❌ Anti-pattern: testing dead code for coverage
+
+**Rule**: If diff-cover shows uncovered code that has **zero call sites** → **delete it**, don't write tests.
+
+Tests must protect **behavior**, not "lines that exist". Writing tests for unused helpers:
+- Legitimizes dead code
+- Creates maintenance debt
+- Masks architectural drift
+
+**Before adding a test**, verify the code is actually used:
+```bash
+git grep -n "function_name" -- app core
+```
+If no call sites → delete the code, not cover it.
+
 ### Diff-cover file visibility rule
 **Problem**: CI runs all tests, but `diff-cover` attributes coverage only to **changed files** in the PR diff.
 A standalone new test file may not be included in diff-cover's comparison, causing "missing coverage" even when tests pass.
