@@ -18,8 +18,7 @@ import app
 @pytest.fixture
 def client() -> TestClient:
     """Test client for metrics tests."""
-    # /metrics requires API key; use test key for tests
-    return TestClient(app.app, headers={"X-API-Key": "test_key"})
+    return TestClient(app.app)
 
 
 def _metric_value(text: str, *, method: str, route: str, status: str) -> float:

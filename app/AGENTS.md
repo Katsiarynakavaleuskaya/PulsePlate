@@ -87,6 +87,16 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Raw/normalized path fallback is **forbidden** for non-excluded requests (prevents high cardinality).
 - If route template is unavailable → use `"unknown"` (never fallback to `request.url.path`).
 
+**Observability security policy:**
+- `/metrics` MUST NOT enforce application-level authentication (API keys, auth middleware).
+- Protection of `/metrics` is an infrastructure concern:
+  - ingress ACLs (Cloudflare, Caddy)
+  - firewall rules
+  - private networks
+  - Prometheus scrape configs
+- App-level guards are forbidden for `/metrics` to preserve testability and backward compatibility.
+- If infrastructure-level protection is needed, implement it in a dedicated infra PR (e.g., PR-506).
+
 ---
 
 ## Conventions
