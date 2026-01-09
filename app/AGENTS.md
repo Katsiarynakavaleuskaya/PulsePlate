@@ -56,9 +56,16 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 - ❌ User IDs, IP addresses, User-Agent
 - ❌ Any dynamic path segments
 
+**Route extraction rules:**
+- Route label MUST come from `request.scope["route"].path` (route template) after router resolution.
+- If route is unavailable → use `"unknown"` (forbidden to use `request.url.path` as fallback for non-excluded requests).
+- This prevents high cardinality when routes with path parameters (e.g., `/api/v1/users/{id}`) are added.
+
 **Excluded paths** (not counted in metrics):
 - `/metrics` (self)
 - `/health`, `/ready`, `/health/db` (health checks)
+
+**Note:** Exclusion uses normalized path (handles trailing slashes). The same set is used for both route template matching and raw path exclusion after normalization.
 
 **Usage:**
 ```bash

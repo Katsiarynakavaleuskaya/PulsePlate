@@ -133,15 +133,20 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
 
     metrics_text = client.get("/metrics").text
 
-    # Route should be template (no query params)
-    # Use regex to find route label and verify it doesn't contain query params
-    route_pattern = re.compile(r'route="([^"]+)"')
-    route_matches = route_pattern.findall(metrics_text)
-    bmi_routes = [r for r in route_matches if "/api/v1/bmi/calculate" in r]
-    assert len(bmi_routes) > 0, "Route /api/v1/bmi/calculate should appear in metrics"
-    # Verify no route label contains query params
-    for route in route_matches:
-        assert "?" not in route, f"Route label should not contain query params: {route}"
+    # Verify route label for specific labelset (method + route + status) doesn't contain query params
+    # Pattern: http_requests_total{method="POST",route="/api/v1/bmi/calculate",status="200"} ...
+    # Extract route value from the specific series we care about
+    labelset_pattern = re.compile(
+        r'http_requests_total\{[^}]*method="POST"[^}]*route="([^"]+)"[^}]*status="200"[^}]*\}'
+    )
+    match = labelset_pattern.search(metrics_text)
+    assert (
+        match is not None
+    ), "Expected series with method=POST, route=/api/v1/bmi/calculate, status=200"
+
+    route_value = match.group(1)
+    assert route_value == "/api/v1/bmi/calculate", f"Route should be template, got: {route_value}"
+    assert "?" not in route_value, f"Route label should not contain query params: {route_value}"
 
 
 def test_metrics_content_type(client: TestClient) -> None:
