@@ -451,8 +451,13 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
 
     RU: Создаёт тестовый клиент с обходом проверки VIP tier и API-key
     (включая route-level зависимости).
+
+    Uses canonical entrypoint (app.main:app) with observability bootstrap.
     """
+    import app.main
     import app.routers.vip_shoplist as vip_router
+
+    app_instance = app.main.app
 
     # ⚠️ NO *args/**kwargs — иначе FastAPI требует query args/kwargs
     async def mock_require_vip_tier() -> str:
@@ -462,25 +467,25 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
         return "test_api_key"
 
     # Override VIP tier dependency (bypass auth check)
-    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_require_vip_tier
+    app_instance.dependency_overrides[vip_router.require_vip_tier] = mock_require_vip_tier
     # NOTE: We do NOT override require_vip_module_enabled - it should check the feature flag
     # Tests can use monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", ...)
 
-    route = _find_route_by_endpoint_name(app_module.app, "vip_shoplist_generate")
+    route = _find_route_by_endpoint_name(app_instance, "vip_shoplist_generate")
     assert route is not None, "Route for endpoint 'vip_shoplist_generate' not found"
 
     # Route has API-key dependency applied at route level (via app.include_router);
     # override it here to avoid requiring headers/env in tests.
     route_level_deps = list(_iter_route_dependencies(route))
     for dep_fn in route_level_deps:
-        app_module.app.dependency_overrides[dep_fn] = mock_api_key
+        app_instance.dependency_overrides[dep_fn] = mock_api_key
 
-    client = TestClient(app_module.app)
+    client = TestClient(app_instance)
     yield client
 
-    app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
+    app_instance.dependency_overrides.pop(vip_router.require_vip_tier, None)
     for dep_fn in route_level_deps:
-        app_module.app.dependency_overrides.pop(dep_fn, None)
+        app_instance.dependency_overrides.pop(dep_fn, None)
 
 
 @pytest.fixture

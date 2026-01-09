@@ -26,7 +26,10 @@ class TestAppEndpoints1383_1401:
     def test_metrics_endpoint_prometheus_unavailable(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """/metrics returns error when Prometheus client not available."""
+        """/metrics returns error when Prometheus exporter fails at runtime.
+
+        Uses conftest client fixture (canonical entrypoint with observability bootstrap).
+        """
         import prometheus_client
 
         # Force exporter failure to test JSON fallback
@@ -40,7 +43,8 @@ class TestAppEndpoints1383_1401:
         assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "error" in data
-        assert "Prometheus client not available" in data["error"]
+        # RuntimeError during generate_latest() should return "Metrics export failed"
+        assert data["error"] == "Metrics export failed"
 
     def test_privacy_endpoint_structure(self, client: TestClient) -> None:
         """/privacy returns complete privacy policy structure."""

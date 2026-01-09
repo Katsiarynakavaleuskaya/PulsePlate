@@ -291,41 +291,12 @@ If CI is red:
 
 **Red CI means unfinished work. You either fix it in this PR or you don't push. "Tests are wrong" is only acceptable with a patch that updates the tests + documents the contract change.**
 
-## CI Recovery (hard)
+## Workflow rules (global)
 
-If CI is red:
-- Do NOT push refactors or drive-by cleanup.
-- First fix the failing test(s) or the production behavior in the same PR.
-- Rebase onto origin/main (preferred):
-  ```bash
-  git fetch origin
-  git rebase origin/main
-  make test-fast
-  make cov-check
-  git push --force-with-lease
-  ```
+Global workflow rules (CI recovery, Definition of Done, canonical commands) live in root `AGENTS.md`.
+Use: `make verify`, `make cov-check`, and `git push --force-with-lease` as described there.
 
-**Definition of Done before requesting review:**
-- `make test-fast` ✅
-- `make cov-check` ✅
-- `make lint` ✅
-- `make typecheck` ✅
-- PR CI green ✅
-
-**If `cov-check` is green locally but CI is red:** investigate environment differences, but do NOT merge until CI is green.
-
-## Definition of Done for PR (enforced)
-
-Before pushing or claiming "ready to merge", ALL must pass locally:
-
-- `make lint` ✅
-- `make typecheck` ✅
-- `make test-fast` ✅
-- `make cov-check` ✅ (diff-cover ≥97%)
-
-**Shortcut:** `make verify` runs all of the above.
-
-**If ANY fails:** fix it first, then re-run. Never push with red CI.
+This file (`tests/AGENTS.md`) contains ONLY test-specific rules (diff coverage, mocking constraints, forbidden patterns).
 
 ## Type hints policy (tests)
 

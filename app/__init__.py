@@ -36,6 +36,8 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "resolve_attr": ("core.utils", "resolve_attr"),
     "make_weekly_menu": ("core.menu_engine", "make_weekly_menu"),
     "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
+    # Expose metrics_endpoint for patch-based tests (patch("app.metrics"))
+    "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
 }
 
 

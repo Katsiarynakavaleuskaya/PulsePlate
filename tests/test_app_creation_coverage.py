@@ -241,14 +241,9 @@ class TestAppCreationCoverage:
         response = client.get("/docs")
         assert response.status_code == 200
 
-    def test_app_metrics_setup_coverage(self, test_environment):
+    def test_app_metrics_setup_coverage(self, client: TestClient):
         """Тест покрытия app.py metrics setup"""
-        import app
-
-        # Тестируем app metrics setup
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что metrics работает корректно
+        # Use conftest client fixture (canonical entrypoint with observability bootstrap)
         response = client.get("/metrics")
         assert response.status_code == 200
 
