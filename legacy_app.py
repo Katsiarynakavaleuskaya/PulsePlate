@@ -1255,6 +1255,10 @@ def _client_fingerprint(request: Request) -> str | None:
     return compute_fingerprint(source)
 
 
+# Add Prometheus metrics middleware (must be outermost to capture all requests/exceptions)
+app.middleware("http")(metrics_middleware)
+
+
 # Add logging middleware with data classification
 @app.middleware("http")
 async def log_requests(request: Request, call_next: CallNextHandler) -> Response:
@@ -1302,10 +1306,6 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
         )
 
     return response
-
-
-# Add Prometheus metrics middleware
-app.middleware("http")(metrics_middleware)
 
 
 @app.get("/health/db")
@@ -1996,13 +1996,15 @@ async def health_v1() -> Dict[str, Any]:
 
 
 @app.get("/metrics", include_in_schema=False)
-async def metrics() -> Response:
+def metrics() -> Response:
     """RU: Prometheus metrics endpoint (exposition format).
 
     EN: Prometheus metrics endpoint (exposition format).
 
     Returns Prometheus text format (text/plain; version=0.0.4).
     Includes HTTP request metrics (requests_total, request_duration_seconds).
+
+    Note: Synchronous function (generate_latest() is CPU-bound, not I/O).
     """
     data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)

@@ -69,6 +69,11 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Middleware: `app/middleware/metrics.py`
 - Endpoint: `legacy_app.py` (hidden from OpenAPI via `include_in_schema=False`)
 
+**Limitations:**
+- Multiprocess mode not enabled: `/metrics` returns per-process metrics only.
+- For multi-worker deployments (gunicorn/uvicorn workers), metrics are not aggregated across workers.
+- To enable multiprocess mode: configure `prometheus_client` multiprocess mode + `PROMETHEUS_MULTIPROC_DIR` (requires explicit infra decision).
+
 ---
 
 ## Conventions
