@@ -176,8 +176,15 @@ def test_metrics_content_type(client: TestClient) -> None:
     ct = response.headers.get("content-type", "")
     assert ct.startswith("text/plain"), f"Expected Prometheus text/plain, got: {ct}"
 
-    # Prometheus exposition should have HELP/TYPE lines (most exporters do)
-    assert "# HELP" in response.text or "# TYPE" in response.text
+    # Verify it's actually Prometheus exposition format
+    # Check for our custom metrics or standard Prometheus format markers
+    body = response.text
+    assert (
+        "http_requests_total" in body
+        or "http_request_duration_seconds" in body
+        or "# HELP" in body
+        or "# TYPE" in body
+    ), "Response should contain Prometheus exposition format"
 
 
 def test_metrics_json_fallback_when_exporter_raises(

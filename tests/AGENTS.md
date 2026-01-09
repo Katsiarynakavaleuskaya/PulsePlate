@@ -249,6 +249,14 @@ If you change a route template:
 - Never call `response.json()` unless `Content-Type` starts with `application/json`
   (prevents JSONDecodeError on text/plain endpoints like `/metrics`).
 
+**Forbidden:**
+- ❌ `assert response.headers["content-type"] == CONTENT_TYPE_LATEST` (exact equality)
+- ❌ `assert response.headers["content-type"] == "text/plain; version=0.0.4"` (version pinning)
+
+**Allowed:**
+- ✅ `assert response.headers["content-type"].startswith("text/plain")`
+- ✅ `assert response.headers["content-type"].startswith("application/json")`
+
 ## Forbidden in tests
 
 - Do not mutate `sys.modules` (no `del sys.modules[...]`, no `sys.modules[...] = ...`).
