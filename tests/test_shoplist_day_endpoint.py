@@ -23,7 +23,11 @@ def client_with_pro_access(app_module: ModuleType):
     import app.main
 
     # Override PRO tier requirement for testing
-    app.main.app.dependency_overrides[require_pro_tier] = lambda: "test_key"
+    # Must be async and match signature (no params needed for override)
+    async def _mock_pro_tier() -> str:
+        return "test_key"
+
+    app.main.app.dependency_overrides[require_pro_tier] = _mock_pro_tier
 
     client = get_client()
     yield client
@@ -60,7 +64,7 @@ def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access
 
     from app.routers import shoplist_day as shoplist_day_module
 
-    day_plan = {
+    day_plan: dict[str, Any] = {
         "daily_menus": [
             {
                 "meals": [
@@ -77,7 +81,7 @@ def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access
         ]
     }
 
-    async def _fake_fetch_day_plan(day: str, pro_ctx: Any) -> dict[str, Any]:  # type: ignore[unused-argument]
+    async def _fake_fetch_day_plan(day: str, pro_ctx: Any):  # type: ignore[no-untyped-def]
         return day_plan
 
     monkeypatch.setattr(shoplist_day_module, "fetch_day_plan", _fake_fetch_day_plan)

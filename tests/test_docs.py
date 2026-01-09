@@ -1,14 +1,8 @@
-# -*- coding: utf-8 -*-
-import importlib
 from tests._client import get_client
-
-from fastapi.testclient import TestClient
-
-app_module = importlib.import_module("app")
 client = get_client()
 
 
-def test_openapi_json_available():
+def test_openapi_json_available() -> None:
     r = client.get("/openapi.json")
     assert r.status_code == 200
     body = r.json()
@@ -16,6 +10,6 @@ def test_openapi_json_available():
     assert "/api/v1/bmi" in body["paths"]
 
 
-def test_docs_available():
+def test_docs_available() -> None:
     r = client.get("/docs")
     assert r.status_code == 200

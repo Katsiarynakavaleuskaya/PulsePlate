@@ -13,15 +13,11 @@ Tests cover:
 """
 
 import os
-from typing import cast
 from tests._client import get_client
 
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
 
-import app as app_mod
-
-client = get_client()
+client: TestClient = get_client()
 
 
 class TestBMIv1API:

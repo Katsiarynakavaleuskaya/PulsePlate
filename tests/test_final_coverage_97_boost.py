@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 from tests._client import get_client
 
 import pytest
-from fastapi.testclient import TestClient
 
 # Setup environment before importing
 os.environ.setdefault("API_KEY", "test-key")
@@ -18,8 +17,6 @@ os.environ.setdefault("FEATURE_PREMIUM_NUTRITION", "true")
 @pytest.fixture
 def client():
     """Test client with fresh app instance."""
-    import app
-
     return get_client()
 
 

@@ -1,12 +1,14 @@
-from fastapi.testclient import TestClient
 from tests._client import get_client
 
-import app as app_module
+from typing import TYPE_CHECKING
 
-client = get_client()
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+
+client: "TestClient" = get_client()
 
 
-def test_recipe_preview_basic():
+def test_recipe_preview_basic() -> None:
     payload = {
         "title": "Тост с йогуртом",
         "servings": 2,
