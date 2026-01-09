@@ -4,6 +4,9 @@
 
 Enforces the `male + pregnant` invariant at the schema level with soft normalization (no 422 errors), closes schema↔engine gender token parity gap, and ensures JSON-safe validation error serialization.
 
+**Scope:** pregnancy invariant + gender tokens + typing hygiene.
+**NOT in scope:** `athlete` normalization (deferred to separate contract decision PR).
+
 ## Changes
 
 ### 1. BMI Input Normalization
@@ -35,6 +38,13 @@ Enforces the `male + pregnant` invariant at the schema level with soft normaliza
 ### 6. Schema Validation
 - **`NumericRangeSchema`**: Added `min ≤ max` validation (consistent with `BMIRangeSpec`)
 
+## What's NOT in scope
+
+- **`athlete` normalization**: Field remains `str | bool` with default `"no"`. Normalization happens in **router** (via `_normalize_bool_flag`), not schema. Schema-level normalization deferred to separate PR requiring explicit contract decision:
+  - Type in OpenAPI: keep `str | bool` or change to `bool`?
+  - Supported tokens: include `1/0` or not?
+  - Migration path for clients expecting string default
+
 ## Testing
 
 ### Guard Tests Added
@@ -60,7 +70,7 @@ pytest -q tests/test_repo_policy_guards.py
 # Fast tests
 make test-fast
 
-# Type checking (with cache cleared if needed)
+# Type checking
 mypy --no-incremental --cache-dir=/dev/null app core
 
 # Lint/format
@@ -68,8 +78,7 @@ make lint
 make fmt-check
 
 # Specific guard tests
-pytest -q tests/test_bmi_interpretation_validation.py::TestGenderPregnantValidation -k "gender_none and pregnant_true"
-pytest -q tests/test_bmi_interpretation_validation.py::TestSchemaEngineContractParity::test_schema_engine_exact_tokens_parity
+pytest -q tests/test_bmi_interpretation_validation.py -k "gender_none and pregnant_true"
 ```
 
 ## Files Changed
