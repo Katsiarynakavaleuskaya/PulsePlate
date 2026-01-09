@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from importlib import import_module
 from time import perf_counter
-from typing import Any, Protocol, cast
+from typing import Any, Callable, Protocol, cast
 
 from fastapi import Request
 from fastapi.routing import APIRoute
@@ -48,8 +48,24 @@ class _Metrics:
     request_duration_seconds: _Histogram
 
 
-def _import_prometheus() -> tuple[Any, Any]:
-    prometheus_client = import_module("prometheus_client")
+# Type alias for dependency injection (testability)
+_Importer = Callable[[str], Any]
+
+
+def _import_prometheus(importer: _Importer = import_module) -> tuple[Any, Any]:
+    """Import prometheus_client module and return Counter, Histogram classes.
+
+    Args:
+        importer: Module importer function (default: importlib.import_module).
+                 Allows dependency injection for testing ImportError paths.
+
+    Returns:
+        Tuple of (Counter, Histogram) classes from prometheus_client
+
+    Raises:
+        ImportError: If prometheus_client module cannot be imported
+    """
+    prometheus_client = importer("prometheus_client")
     return prometheus_client.Counter, prometheus_client.Histogram
 
 
@@ -93,7 +109,7 @@ def _normalized_path(path: str) -> str:
         path: Raw request path
 
     Returns:
-        Normalized path (e.g., "/health/" -> "/health")
+        Normalized path (e.g., "/health/" -> "/health", "/" -> "/")
     """
     if path != "/" and path.endswith("/"):
         return path[:-1]
