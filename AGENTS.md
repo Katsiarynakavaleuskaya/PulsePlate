@@ -1,5 +1,36 @@
 # Agent instructions (scope: repo root and subdirectories)
 
+## 🚫 Hard Gates (Non-negotiable)
+
+An agent MUST NOT claim a PR is "green", "ready", or "mergeable" unless ALL pass locally:
+
+```bash
+make verify   # runs: lint → typecheck → test-fast → diff-cov (≥97%)
+```
+
+Or individually:
+- `make lint` — ruff/flake8 checks
+- `make typecheck` — mypy with no cache (`--no-incremental --cache-dir=/dev/null`)
+- `make test-fast` — pytest quick run
+- `make diff-cov` — diff-cover ≥97% against origin/main
+
+**If ANY command fails:**
+1. Paste raw output lines showing the failure
+2. Provide `file:line:error` pointers
+3. Do NOT write "готово", "green", "mergeable"
+4. Fix the issue first, then re-run `make verify`
+
+**❌ Forbidden:**
+- Saying "all checks pass" without showing command outputs
+- Using `|| true`, `continue-on-error`, or ignoring failures
+- Adding `# type: ignore` without explicit user approval
+- Testing dead code instead of deleting it
+
+**Dead code policy:**
+If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
+
+---
+
 ## REQUIRED READING (before any change)
 1) `docs/ENGINEERING_LESSONS.md` (project-level lessons and hard-won invariants)
 2) `RUNBOOK_AGENT.md` (CI/debug playbook)
