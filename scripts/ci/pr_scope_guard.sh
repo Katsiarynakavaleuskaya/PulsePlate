@@ -24,14 +24,35 @@ if [ -z "${GITHUB_BASE_REF:-}" ] && [ -z "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:
 fi
 
 BASE_REF="${GITHUB_BASE_REF:-${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}}"
-HEAD_REF="${GITHUB_HEAD_REF:-${CI_COMMIT_REF_NAME:-HEAD}}"
 
 echo "🔍 PR Scope Guard: Checking PR scope..."
-echo "   Base: ${BASE_REF}"
-echo "   Head: ${HEAD_REF}"
+echo "   Base ref: ${BASE_REF}"
+echo "   Head: HEAD ($(git rev-parse --short HEAD 2>/dev/null || echo 'unknown'))"
 
-# Get changed files
-CHANGED_FILES=$(git diff --name-only "origin/${BASE_REF}...${HEAD_REF}" 2>/dev/null || git diff --name-only "${BASE_REF}...${HEAD_REF}")
+# Ensure base ref exists locally as origin/<base>
+git fetch --no-tags --prune --depth=1 origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" 2>/dev/null || true
+
+# Fallback fetch if refspec didn't work
+if ! git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
+    echo "   WARN: origin/${BASE_REF} not found after fetch; trying fallback..."
+    git fetch --no-tags --prune origin "${BASE_REF}" --depth=1 2>/dev/null || true
+fi
+
+# Hard check: if base still not available, fail with diagnostic
+if ! git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
+    echo "ERROR: cannot resolve origin/${BASE_REF}. Checkout/fetch is misconfigured."
+    echo "Available refs:"
+    git show-ref | head -30
+    exit 128
+fi
+
+BASE_SHA="$(git rev-parse --short "origin/${BASE_REF}")"
+HEAD_SHA="$(git rev-parse --short HEAD)"
+echo "   Base sha: ${BASE_SHA}"
+echo "   Head sha: ${HEAD_SHA}"
+
+# Get changed files (use HEAD, not branch name)
+CHANGED_FILES=$(git diff --name-only "origin/${BASE_REF}"...HEAD)
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "⚠️  No changed files detected, skipping"
