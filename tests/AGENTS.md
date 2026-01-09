@@ -341,7 +341,7 @@ Before pushing or claiming "ready to merge", ALL must pass locally:
 
 - `Any` **only** in fake/stub objects
 - `Protocol` or `Callable[..., T]` preferred over `Any`
-- `cast(T, value)` allowed **only at test boundary**
+- `cast(T, value)` allowed at test boundaries
 - `Optional[T]` only if production code can actually return `None`
 
 ### SQLAlchemy / Pydantic specifics

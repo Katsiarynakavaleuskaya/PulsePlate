@@ -8,11 +8,10 @@ from __future__ import annotations
 
 from legacy_app import app  # re-export FastAPI instance from legacy root module
 
-# Register observability middleware (must be outermost to capture all requests/exceptions)
-# NOTE: FastAPI/Starlette builds middleware stack in reverse order, so the
-# last added middleware becomes the outermost wrapper.
-from app.middleware.metrics import metrics_middleware
+# Register observability infrastructure (middleware + /metrics endpoint)
+# This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
+from app.bootstrap.metrics import register_metrics
 
-app.middleware("http")(metrics_middleware)
+register_metrics(app)
 
 __all__ = ["app"]

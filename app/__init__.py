@@ -60,27 +60,14 @@ def __getattr__(name: str) -> Any:
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
     EN: First check local re-exports (core.*), then fall back to legacy_app.
 
-    Special handling for 'app': ensure metrics middleware is installed even if
-    callers import `app` package directly (without importing `app.main`) or if
-    `legacy_app` was reloaded (re-creating the FastAPI app object).
+    Special handling for 'app': ensure app.main is imported to trigger
+    bootstrap registration (middleware, routes) before returning legacy_app.app.
     """
     if name == "app":
-        legacy = _legacy()
-        fastapi_app = legacy.app
-
-        from app.middleware.metrics import metrics_middleware
-        from starlette.middleware.base import BaseHTTPMiddleware
-
-        user_middleware = getattr(fastapi_app, "user_middleware", None) or []
-        installed = any(
-            getattr(mw, "cls", None) is BaseHTTPMiddleware
-            and getattr(mw, "options", {}).get("dispatch") is metrics_middleware
-            for mw in user_middleware
-        )
-        if not installed:
-            fastapi_app.middleware("http")(metrics_middleware)
-
-        return fastapi_app
+        # Import app.main to trigger bootstrap registration (metrics middleware, /metrics endpoint)
+        # This ensures observability infrastructure is registered when app.app is accessed
+        importlib.import_module("app.main")
+        return _legacy().app
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)

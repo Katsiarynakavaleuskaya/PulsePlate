@@ -1302,6 +1302,11 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
     return response
 
 
+from app.middleware.metrics import install_metrics_middleware  # noqa: E402
+
+install_metrics_middleware(app)
+
+
 @app.get("/health/db")
 async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
@@ -1987,47 +1992,6 @@ async def health_v1() -> Dict[str, Any]:
     Returns the same extended payload as /health for consistency.
     """
     return await health()
-
-
-@app.get("/metrics", include_in_schema=False)
-def metrics() -> Response:
-    """RU: Prometheus metrics endpoint (exposition format).
-
-    EN: Prometheus metrics endpoint (exposition format).
-
-    Returns Prometheus text format (CONTENT_TYPE_LATEST) when available.
-    Falls back to JSON error envelope if Prometheus exporter is unavailable.
-
-    Includes HTTP request metrics (http_requests_total, http_request_duration_seconds).
-
-    Note: Synchronous function (generate_latest() is CPU-bound, not I/O).
-    Security: Protected at infrastructure level (ingress ACLs, firewall, private networks).
-    Application-level authentication is intentionally NOT enforced to preserve
-    testability and backward compatibility.
-
-    Note: Uses local import to keep endpoint patchable in tests (monkeypatch works).
-    """
-    try:
-        # Local import keeps endpoint patchable in tests (monkeypatch.setattr works)
-        import prometheus_client
-
-        data = prometheus_client.generate_latest()
-        return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
-    except Exception:
-        # Graceful degradation: return JSON error if Prometheus exporter unavailable
-        # Log exception server-side only (no error detail leakage in response)
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.exception("Prometheus metrics exporter failed")
-
-        return JSONResponse(
-            status_code=200,
-            content={
-                "error": "Prometheus client not available",
-                "detail": "Prometheus exporter unavailable",
-            },
-        )
 
 
 @app.get("/privacy")

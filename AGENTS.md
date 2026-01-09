@@ -73,8 +73,9 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 
 **legacy_app.py policy (hard):**
 - `legacy_app.py` is a thin compatibility proxy only.
-- Forbidden: registering middleware, observability/instrumentation, or any runtime behavior changes.
-- All middleware/observability registration must live in the primary app bootstrap (e.g., `app/main.py`).
+- Forbidden: registering middleware, observability/instrumentation, infra routes (/metrics), or any runtime behavior changes.
+- All middleware/observability registration must live in bootstrap modules (e.g., `app/bootstrap/metrics.py`) and be called from the primary app entrypoint (e.g., `app/main.py`).
+- `legacy_app.py` must only contain: thin proxies, response formatting, legacy endpoint shims.
 - This prevents drift and keeps legacy as a pure compatibility layer.
 
 ### 4) Lint/format

@@ -147,6 +147,10 @@ def _excluded_by_path(request: Request) -> bool:
     return path in EXCLUDED_ROUTE_TEMPLATES
 
 
+# Cache for endpoint -> route template mapping (avoids O(N routes) scan per request)
+_ROUTE_CACHE: dict[int, str] = {}
+
+
 def _route_template(request: Request) -> str:
     """Extract route template (not raw path) to avoid high cardinality.
 
@@ -155,6 +159,8 @@ def _route_template(request: Request) -> str:
 
     If multiple routes point to the same endpoint (e.g., alias/legacy routes),
     chooses the most specific (longest) route template to ensure consistency.
+
+    Uses caching to avoid scanning all routes on every request.
 
     Args:
         request: FastAPI request object (after route resolution)
@@ -166,6 +172,11 @@ def _route_template(request: Request) -> str:
     endpoint = request.scope.get("endpoint")
     if endpoint is None:
         return "unknown"
+
+    # Check cache first (key is endpoint object id for stability)
+    endpoint_id = id(endpoint)
+    if endpoint_id in _ROUTE_CACHE:
+        return _ROUTE_CACHE[endpoint_id]
 
     # Find the APIRoute that matches this endpoint
     router = getattr(request.app, "router", None)
@@ -185,12 +196,16 @@ def _route_template(request: Request) -> str:
                 candidates.append(path)
 
     if not candidates:
-        return "unknown"
+        result = "unknown"
+    else:
+        # Choose the most specific (longest) template
+        # This ensures that if both /api/v1/bmi and /api/v1/bmi/calculate point to the same
+        # endpoint, we always use the more specific /api/v1/bmi/calculate
+        result = max(candidates, key=len)
 
-    # Choose the most specific (longest) template
-    # This ensures that if both /api/v1/bmi and /api/v1/bmi/calculate point to the same
-    # endpoint, we always use the more specific /api/v1/bmi/calculate
-    return max(candidates, key=len)
+    # Cache result for future requests
+    _ROUTE_CACHE[endpoint_id] = result
+    return result
 
 
 async def metrics_middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -247,3 +262,25 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
                 # Metrics recording must never affect request handling.
                 # Optional: logger.exception("Prometheus metrics recording failed")
                 pass
+
+
+def install_metrics_middleware(fastapi_app: Any) -> None:
+    """Install metrics middleware on an app (idempotent).
+
+    This is safe to call multiple times. If the app has already started and
+    Starlette disallows adding middleware, this becomes a no-op.
+    """
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    user_middleware = getattr(fastapi_app, "user_middleware", None) or []
+    for mw in user_middleware:
+        if (
+            getattr(mw, "cls", None) is BaseHTTPMiddleware
+            and getattr(mw, "options", {}).get("dispatch") is metrics_middleware
+        ):
+            return
+
+    try:
+        fastapi_app.middleware("http")(metrics_middleware)
+    except RuntimeError:
+        return
