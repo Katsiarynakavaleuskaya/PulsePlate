@@ -15,6 +15,27 @@
 - Lint/format: `make lint`, `make fmt`, `make fmt-check`
 - Pre-commit: `make pre-commit`
 
+## Health endpoints contract (PR-504)
+
+| Endpoint | Purpose | DB I/O | Response |
+|----------|---------|--------|----------|
+| `/health` | Liveness probe | ❌ No | 200 + status/version/git_sha/timestamp |
+| `/health/db` | DB readiness | ✅ Yes | 200 or 503 |
+| `/ready` | Readiness alias (hidden from OpenAPI) | ✅ Yes | 200 or 503 |
+
+**Usage:**
+- Use `/health` for liveness checks (process alive, no dependencies).
+- Use `/ready` or `/health/db` for readiness checks (DB available).
+- Orchestrators (K8s, Docker, Caddy) should use `/ready` for traffic gating.
+
+**Verification:**
+```bash
+curl -fsS https://.../health   # liveness
+curl -fsS https://.../ready    # readiness (503 if DB down)
+```
+
+---
+
 ## Conventions
 
 - FastAPI + Pydantic v2 only; prefer `model_validator`/`field_validator`.
