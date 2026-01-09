@@ -97,6 +97,29 @@ grep "pipeline.py" coverage.xml | head
 - Test PDF generation only for basic validity (header + length).
 - Use `monkeypatch` to simulate `ImportError` for 501 tests (target `_lazy_reportlab`).
 
+## Optional dependencies testing rule (hard)
+
+CI may have optional deps installed (e.g. prometheus_client, reportlab).
+Therefore tests MUST NOT assume optional deps are missing.
+
+### Required pattern
+To test fallback paths for optional deps:
+- Use `monkeypatch` to force failure (preferred):
+  - patch `prometheus_client.generate_latest` to raise
+  - patch lazy import helper to raise ImportError
+- Do NOT rely on `response.json()` unless you have asserted JSON Content-Type.
+
+### Forbidden
+- Relying on ImportError in CI without monkeypatch
+- Using sys.modules purge / import hacks unless explicitly allowed by contract
+
+## Content-Type assertions
+
+- For Prometheus responses: assert `Content-Type` starts with `text/plain`
+  (do not assert exact version/charset).
+- For JSON error envelopes: assert `Content-Type` starts with `application/json`
+  before calling `response.json()`.
+
 ## Forbidden in tests
 - Do not mutate `sys.modules` (no `del sys.modules[...]`, no `sys.modules[...] = ...`).
   Use `patch()` / `monkeypatch.setattr()` instead.
@@ -104,6 +127,15 @@ grep "pipeline.py" coverage.xml | head
 
 To verify:
 - `pytest -q tests/test_repo_policy_sys_modules.py`
+
+## CI red rule (enforced)
+
+If CI is red:
+1) Identify failing test(s) and reproduce locally.
+2) Fix code or tests in the same PR.
+3) Update AGENTS.md if the fix changes/clarifies a contract.
+4) Re-run: `make test-fast` and `make cov-check`.
+Never claim "tests are wrong" without submitting the correcting patch.
 
 ## Type hints policy (tests)
 

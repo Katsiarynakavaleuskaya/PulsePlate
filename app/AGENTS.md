@@ -110,6 +110,18 @@ curl -fsS https://.../metrics | grep http_requests_total
 - JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
 - This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
 
+**Metrics fallback contract (testability):**
+- `/metrics` happy-path returns Prometheus exposition (`text/plain*`).
+- JSON fallback is ONLY for exporter failures (ImportError or runtime exception from exporter).
+- Tests that validate JSON fallback MUST force failure explicitly via monkeypatch
+  (e.g. patch `prometheus_client.generate_latest` to raise).
+- It is forbidden for tests to assume exporter is missing in CI.
+
+**Middleware route label rule (hard):**
+- The `route` label MUST be endpoint-level template path (APIRoute.path).
+- Router prefixes or mounts are NOT acceptable as `route` labels.
+- Implementation MUST match by `request.scope["endpoint"]` identity to APIRoute.endpoint.
+
 ---
 
 ## Conventions

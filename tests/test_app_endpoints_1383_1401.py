@@ -23,10 +23,19 @@ class TestAppEndpoints1383_1401:
         data = response.json()
         assert data["status"] == "ok"
 
-    def test_metrics_endpoint_prometheus_unavailable(self, client: TestClient) -> None:
+    def test_metrics_endpoint_prometheus_unavailable(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """/metrics returns error when Prometheus client not available."""
+        import prometheus_client
+
+        # Force exporter failure to test JSON fallback
+        def _boom() -> bytes:
+            raise RuntimeError("Prometheus exporter unavailable")
+
+        monkeypatch.setattr(prometheus_client, "generate_latest", _boom)
+
         response = client.get("/metrics")
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         assert "error" in data
         assert "Prometheus client not available" in data["error"]
