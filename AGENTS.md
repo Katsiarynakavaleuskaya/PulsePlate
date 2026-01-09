@@ -98,6 +98,35 @@ pytest -q --maxfail=20
 rg -n "COPY .*app\.py" Dockerfile
 ```
 
+## CI PR scope guard (scripts/ci/pr_scope_guard.sh)
+
+A repository-wide guard that runs early in CI to prevent PR bloat and mixed concerns.
+
+**When it runs**
+- In CI for PRs/MRs (GitHub Actions / GitLab).
+- Can be run locally: compares `origin/<base>` vs `HEAD` (base defaults to `main`, override via `PR_SCOPE_BASE_REF`).
+
+**Exit codes**
+- `0` — OK / skipped (e.g., cannot fetch base ref locally)
+- `1` — BLOCK (scope violation)
+- `128` — hard failure (base ref resolution/checkout misconfigured in CI)
+
+**Enforced checks**
+1. **Always BLOCK:** any `*.py` under `docs/pr/`
+2. **Runtime PRs only:** block planning docs in `docs/pr/`:
+   `PR_<n>_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST).md`
+3. **Warnings (non-blocking):**
+   - file count > ~15 (info), > ~30 (warning)
+   - runtime PRs with >2 markdown files (mixed-concern signal)
+
+**How to pass**
+- Put tests in `tests/`, never under `docs/pr/`.
+- Keep runtime PRs focused: aim for `<15 files`, and limit docs to 1–2 contract/spec markdown files.
+- If you need planning docs, move them to a separate docs-only PR.
+- For full rules and CI setup, see:
+  - `docs/policy/PR_SCOPE_GUARD_CI_SETUP.md`
+  - `docs/policy/PR_SCOPE_RULES.md`
+
 ## PR #403 specific invariants (Import Hygiene)
 
 ### Entrypoint

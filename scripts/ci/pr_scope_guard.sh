@@ -16,30 +16,62 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check if we're in a PR context
-if [ -z "${GITHUB_BASE_REF:-}" ] && [ -z "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-}" ]; then
-    # Not in CI PR context, skip (local dev)
-    echo "⚠️  Not in PR context, skipping scope guard"
-    exit 0
+# Prefer rg, but fall back to grep -E for portability (not all CI runners have ripgrep).
+if command -v rg >/dev/null 2>&1; then
+    _match() { rg -q "$1"; }
+    _filter() { rg "$1" || true; }
+    _count() { rg -c "$1" 2>/dev/null || echo 0; }
+else
+    _match() { grep -Eq "$1"; }
+    _filter() { grep -E "$1" || true; }
+    _count() { grep -Ec "$1" 2>/dev/null || echo 0; }
 fi
 
-BASE_REF="${GITHUB_BASE_REF:-${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}}"
+# Base ref resolution:
+# - GitHub Actions PRs: GITHUB_BASE_REF
+# - GitLab MRs: CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+# - Local/dev: PR_SCOPE_BASE_REF env var or "main" (default)
+BASE_REF="${GITHUB_BASE_REF:-${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-${PR_SCOPE_BASE_REF:-main}}}"
+
+# Detect local vs CI mode
+if [ -z "${GITHUB_BASE_REF:-}" ] && [ -z "${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-}" ]; then
+    LOCAL_MODE=1
+    echo "ℹ️  Not in CI PR context; running scope guard locally against origin/${BASE_REF}"
+else
+    LOCAL_MODE=0
+fi
 
 echo "🔍 PR Scope Guard: Checking PR scope..."
 echo "   Base ref: ${BASE_REF}"
 echo "   Head: HEAD ($(git rev-parse --short HEAD 2>/dev/null || echo 'unknown'))"
 
 # Ensure base ref exists locally as origin/<base>
-git fetch --no-tags --prune --depth=1 origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" 2>/dev/null || true
-
-# Fallback fetch if refspec didn't work
+# In local mode, attempt fetch; if it fails, skip gracefully (exit 0)
 if ! git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
-    echo "   WARN: origin/${BASE_REF} not found after fetch; trying fallback..."
-    git fetch --no-tags --prune origin "${BASE_REF}" --depth=1 2>/dev/null || true
+    echo "   Fetching origin/${BASE_REF}..."
+    if git fetch --no-tags --prune --depth=1 origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" 2>/dev/null; then
+        :
+    elif git fetch --no-tags --prune origin "${BASE_REF}" --depth=1 2>/dev/null; then
+        :
+    else
+        if [ "$LOCAL_MODE" -eq 1 ]; then
+            echo "⚠️  Could not fetch origin/${BASE_REF}; skipping scope guard (local mode)"
+            exit 0
+        fi
+        # In CI mode, fetch failure is a hard error
+        echo "ERROR: cannot resolve origin/${BASE_REF}. Checkout/fetch is misconfigured."
+        echo "Available refs:"
+        git show-ref | head -30
+        exit 128
+    fi
 fi
 
-# Hard check: if base still not available, fail with diagnostic
+# Final verification: base ref must exist
 if ! git show-ref --verify --quiet "refs/remotes/origin/${BASE_REF}"; then
+    if [ "$LOCAL_MODE" -eq 1 ]; then
+        echo "⚠️  origin/${BASE_REF} not available; skipping scope guard (local mode)"
+        exit 0
+    fi
     echo "ERROR: cannot resolve origin/${BASE_REF}. Checkout/fetch is misconfigured."
     echo "Available refs:"
     git show-ref | head -30
@@ -60,7 +92,7 @@ if [ -z "$CHANGED_FILES" ]; then
 fi
 
 # Determine if PR has runtime changes (app/ or core/ Python files)
-if echo "$CHANGED_FILES" | rg -q '^(app|core)/.*\.py$'; then
+if echo "$CHANGED_FILES" | _match '^(app|core)/.*\.py$'; then
     HAS_RUNTIME=1
     echo "   Runtime PR detected (app/ or core/ Python changes)"
 else
@@ -69,7 +101,7 @@ else
 fi
 
 # Check 1: Python files in docs/pr (ALWAYS BLOCK)
-PYTHON_IN_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/.*\.py$' || true)
+PYTHON_IN_DOCS=$(echo "$CHANGED_FILES" | _filter '^docs/pr/.*\.py$')
 
 if [ -n "$PYTHON_IN_DOCS" ]; then
     echo ""
@@ -87,7 +119,7 @@ fi
 # Check 2: Planning docs in runtime PR (BLOCK only if HAS_RUNTIME)
 if [ "$HAS_RUNTIME" -eq 1 ]; then
     # Regex aligned with Section 2 of docs/policy/PR_SCOPE_RULES.md
-    PLANNING_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/PR_[0-9]+_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST)\.md$' || true)
+    PLANNING_DOCS=$(echo "$CHANGED_FILES" | _filter '^docs/pr/PR_[0-9]+_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST)\.md$')
 
     if [ -n "$PLANNING_DOCS" ]; then
         echo ""
@@ -120,10 +152,8 @@ elif [ "$FILE_COUNT" -gt 15 ]; then
 fi
 
 # Check 4: Mixed concerns warning (INFO only, not blocking)
-PY_COUNT=$(echo "$CHANGED_FILES" | rg -c '\.py$' || echo 0)
-MD_COUNT=$(echo "$CHANGED_FILES" | rg -c '\.md$' || echo 0)
-PY_COUNT=$(echo "$PY_COUNT" | tr -d ' ')
-MD_COUNT=$(echo "$MD_COUNT" | tr -d ' ')
+PY_COUNT=$(echo "$CHANGED_FILES" | _count '\.py$' | tr -d ' ')
+MD_COUNT=$(echo "$CHANGED_FILES" | _count '\.md$' | tr -d ' ')
 
 if [ "$PY_COUNT" -gt 0 ] && [ "$MD_COUNT" -gt 2 ]; then
     echo ""
