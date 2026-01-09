@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, Final, Literal, NamedTuple, TypeAlias
 
 from core.i18n import Language, normalize_lang
 
@@ -43,6 +43,20 @@ BMICategory: TypeAlias = Literal[
 _MIN_HEIGHT_M = 0.5
 _MAX_HEIGHT_M = 3.0
 _MAX_WAIST_CM = 300.0
+
+# RU: "Здоровый" диапазон BMI для общего населения (WHO guidelines).
+# EN: "Healthy" BMI range for general population (WHO guidelines).
+# Used in legacy /plan response shape.
+
+
+class HealthyBMIRange(NamedTuple):
+    """Immutable BMI range with named fields (kg/m²)."""
+
+    min: float
+    max: float
+
+
+HEALTHY_BMI_RANGE: Final[HealthyBMIRange] = HealthyBMIRange(18.5, 24.9)
 
 _DEFAULT_YES_VALUES: set[str] = {
     "yes",

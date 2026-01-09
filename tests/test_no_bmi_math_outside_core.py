@@ -32,7 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WHITELIST_PARTS = [
     "core/bmi/",  # Canonical location ✅ (permanent)
     "tests/",  # Test code allowed ✅ (permanent)
-    "legacy_app.py",  # TEMP: compatibility shim until PR-456 cleanup
+    # NOTE: legacy_app.py removed from whitelist (PR-502) — now uses core proxies only
     "docs/",  # Documentation formulas OK ✅ (permanent)
     "bmi_core.py",  # TEMP: legacy oracle for golden parity tests (PR-455 Commit 4)
     ".venv/",  # Virtual environment (exclude from scanning)
@@ -49,6 +49,7 @@ WHITELIST_PARTS = [
     "tests_strict/",  # Strict test suite (test code)
     # Uses BMI for nutrition analysis context (not core BMI calculation logic)
     "core/nutrition_bayesian_analyzer.py",
+    # NOTE: bodyfat.py NOT whitelisted — guard regex excludes 94.42 via negative lookahead
 ]
 
 # Forbidden patterns (domain signatures for BMI math)
@@ -62,17 +63,29 @@ BMI_FORMULA_RE = re.compile(
 
 # Pattern 2: BMI thresholds (canonical values) - must be in BMI context
 # Look for BMI-related keywords nearby (bmi, category, threshold, etc.)
+# Includes 24.9 (healthy range max) per PR-502 enforcement
 BMI_THRESHOLDS_RE = re.compile(
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity).*"
-    r"\b(18\.5|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b|"
-    r"\b(18\.5|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b.*"
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity)",
+    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy).*"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b|"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b.*"
+    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy)",
     re.IGNORECASE,
 )
 
 # Pattern 3: WHtR formula (waist / 100 / height)
 WHTR_FORMULA_RE = re.compile(
     r"waist(_cm)?\s*/\s*100(\.0)?\s*/\s*height(_m)?|wht(r|_ratio)\s*=\s*.*waist.*height",
+    re.IGNORECASE,
+)
+
+# Pattern 4: Waist circumference thresholds (WHO/clinical values) - PR-502 enforcement
+# Detects hardcoded waist risk thresholds (80/88 female, 94/102 male)
+# Uses negative lookahead (?!\.) to avoid matching 94.42 (US Navy bodyfat constant)
+WAIST_THRESHOLDS_RE = re.compile(
+    r"(waist|risk|warn|high|threshold|central|abdominal).*"
+    r"\b(80|88|94|102)(?!\.)\b|"
+    r"\b(80|88|94|102)(?!\.)\b.*"
+    r"(waist|risk|warn|high|threshold|central|abdominal)",
     re.IGNORECASE,
 )
 
@@ -164,4 +177,19 @@ def test_no_whtr_formula_outside_core() -> None:
         "WHtR formula found outside core/bmi (violates canonical rule):\n"
         + "\n".join(f"  {hit}" for hit in hits)
         + "\n\nMove WHtR calculations to core/bmi/engine.py or core/bmi/risk.py"
+    )
+
+
+def test_no_waist_thresholds_outside_core() -> None:
+    """
+    RU: Проверяет, что пороги талии (80/88/94/102) не встречаются вне whitelist.
+    EN: Ensures waist thresholds (80/88/94/102) are not found outside whitelist.
+
+    PR-502: Prevents hardcoded waist risk constants from creeping back into legacy_app.py.
+    """
+    hits = _scan(WAIST_THRESHOLDS_RE, "waist thresholds")
+    assert not hits, (
+        "Waist thresholds found outside core/bmi (violates canonical rule):\n"
+        + "\n".join(f"  {hit}" for hit in hits)
+        + "\n\nMove waist threshold logic to core/bmi/risk.py"
     )

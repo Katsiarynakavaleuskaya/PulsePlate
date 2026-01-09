@@ -127,6 +127,31 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
   - `docs/policy/PR_SCOPE_GUARD_CI_SETUP.md`
   - `docs/policy/PR_SCOPE_RULES.md`
 
+## BMI anti-duplication guard (PR-502)
+
+**Guard test:** `tests/test_no_bmi_math_outside_core.py`
+
+**What it enforces:**
+- BMI formulas/thresholds/constants ONLY allowed in `core/bmi/*`
+- `legacy_app.py` is scanned (no longer whitelisted)
+- Any hardcoded thresholds (18.5/24.9/25/30 for BMI, 80/88/94/102 for waist) outside `core/bmi/` → FAIL
+
+**Canonical sources:**
+- Waist risk thresholds: `core/bmi/risk._waist_thresholds()`
+- Waist risk note (compat): `core/bmi/risk.get_waist_risk_note()`
+- Healthy BMI range: `core/bmi/engine.HEALTHY_BMI_RANGE`
+
+**❌ Forbidden in `legacy_app.py`:**
+- `warn, high = (94, 102)` or similar
+- `{"min": 18.5, "max": 24.9}` or similar BMI literals
+- Any BMI category logic (use `core/bmi/engine`)
+
+**✅ Allowed in `legacy_app.py`:**
+- Thin proxies that import and delegate to `core/bmi/*`
+- Response shape formatting (no domain logic)
+
+---
+
 ## PR #403 specific invariants (Import Hygiene)
 
 ### Entrypoint
