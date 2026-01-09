@@ -60,14 +60,15 @@ def __getattr__(name: str) -> Any:
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
     EN: First check local re-exports (core.*), then fall back to legacy_app.
 
-    Special handling for 'app': ensure app.main is imported to trigger
-    bootstrap registration (middleware, routes) before returning legacy_app.app.
+    Special handling for 'app': ensure observability bootstrap is applied to the
+    currently-active FastAPI instance (handles legacy_app reloads in tests).
     """
     if name == "app":
-        # Import app.main to trigger bootstrap registration (metrics middleware, /metrics endpoint)
-        # This ensures observability infrastructure is registered when app.app is accessed
-        importlib.import_module("app.main")
-        return _legacy().app
+        legacy = _legacy()
+        from app.bootstrap.metrics import register_metrics
+
+        register_metrics(legacy.app)
+        return legacy.app
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)

@@ -1302,8 +1302,6 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
     return response
 
 
-
-
 @app.get("/health/db")
 async def database_health(session: Session = Depends(get_session)) -> Dict[str, str]:
     """RU: Мини-проверка подключения к базе данных.
