@@ -36,10 +36,13 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app"
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
-# Security: upgrade libc6 in-image to pick up Debian security fixes even when the base image lags.
+# Security: upgrade system packages to pick up Debian security fixes even when the base image lags.
+# CVE-2025-13151: libtasn1-6 stack-based buffer overflow fix
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libc6 \
+    libtasn1-6 \
+    && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
