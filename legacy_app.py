@@ -32,7 +32,6 @@ from typing import (
 import dotenv
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import (
     BaseModel,
     Field,
@@ -2010,10 +2009,15 @@ def metrics() -> Response:
     Security: Protected at infrastructure level (ingress ACLs, firewall, private networks).
     Application-level authentication is intentionally NOT enforced to preserve
     testability and backward compatibility.
+
+    Note: Uses local import to keep endpoint patchable in tests (monkeypatch works).
     """
     try:
-        data = generate_latest()
-        return Response(content=data, media_type=CONTENT_TYPE_LATEST)
+        # Local import keeps endpoint patchable in tests (monkeypatch.setattr works)
+        import prometheus_client
+
+        data = prometheus_client.generate_latest()
+        return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
     except Exception as exc:
         # Graceful degradation: return JSON error if Prometheus exporter unavailable
         return JSONResponse(

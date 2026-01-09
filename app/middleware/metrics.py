@@ -15,10 +15,10 @@ from __future__ import annotations
 from time import perf_counter
 
 from fastapi import Request
+from fastapi.routing import APIRoute
 from prometheus_client import Counter, Histogram
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
-from starlette.routing import Match
 
 HTTP_REQUESTS_TOTAL = Counter(
     "http_requests_total",
@@ -71,8 +71,7 @@ def _route_template(request: Request) -> str:
     """Extract route template (not raw path) to avoid high cardinality.
 
     Must be called AFTER call_next (when route is resolved by router).
-    For nested routers with prefix, route.path may return only the prefix.
-    We need to find the most specific (endpoint-level) route path.
+    Uses endpoint mapping to find the exact APIRoute path (not router prefix).
 
     Args:
         request: FastAPI request object (after route resolution)
@@ -80,43 +79,25 @@ def _route_template(request: Request) -> str:
     Returns:
         Route template path (e.g., "/api/v1/bmi/calculate") or "unknown"
     """
-    route = request.scope.get("route")
-    if route is not None:
-        path = getattr(route, "path", None)
-        if isinstance(path, str) and path:
-            # For nested routers, route.path may be just the prefix (e.g., "/api/v1/bmi")
-            # Try to find the most specific route that matched
-            matched_path = path
-            # Check if there's a more specific route (endpoint-level, not just router prefix)
-            # Always use request.app (never module-level app) to avoid NameError/scope issues
-            router = getattr(request.app, "router", None)
-            if router is None or not hasattr(router, "routes"):
-                return matched_path
+    # Get the endpoint handler function from scope
+    endpoint = request.scope.get("endpoint")
+    if endpoint is None:
+        return "unknown"
 
-            best_path = matched_path
-            best_depth = matched_path.count("/")
+    # Find the APIRoute that matches this endpoint
+    router = getattr(request.app, "router", None)
+    if router is None or not hasattr(router, "routes"):
+        return "unknown"
 
-            for r in router.routes or []:
-                if not hasattr(r, "path") or not hasattr(r, "matches"):
-                    continue
-                try:
-                    match, _ = r.matches(request.scope)
-                    if match != Match.FULL:
-                        continue
+    for r in router.routes or []:
+        if not isinstance(r, APIRoute):
+            continue
+        # Match by endpoint function identity (most reliable for nested routers)
+        if getattr(r, "endpoint", None) is endpoint:
+            path = getattr(r, "path", None)
+            if isinstance(path, str) and path and path.startswith("/"):
+                return path
 
-                    r_path = getattr(r, "path", None)
-                    if not isinstance(r_path, str) or not r_path or not r_path.startswith("/"):
-                        continue
-
-                    # Prefer the most specific endpoint-level path (by depth, not length)
-                    r_depth = r_path.count("/")
-                    if r_depth > best_depth:
-                        best_path = r_path
-                        best_depth = r_depth
-                except Exception:
-                    continue
-
-            return best_path
     # Route unavailable → return "unknown"
     # Forbidden: do NOT use request.url.path as fallback for non-excluded requests
     return "unknown"

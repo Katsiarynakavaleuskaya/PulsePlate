@@ -75,9 +75,9 @@ def test_metrics_increments_on_request(client: TestClient) -> None:
     """
     # Get baseline metrics (happy path: must be Prometheus text, not JSON)
     before_response = client.get("/metrics")
-    assert before_response.headers["content-type"].startswith("text/plain"), (
-        "Expected Prometheus text format on happy path"
-    )
+    assert before_response.headers["content-type"].startswith(
+        "text/plain"
+    ), "Expected Prometheus text format on happy path"
     before = before_response.text
 
     # Make a request to a non-excluded endpoint
