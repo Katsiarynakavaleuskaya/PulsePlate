@@ -535,6 +535,7 @@ def test_route_cache_ttl_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Wait for expiry
     import time
+
     time.sleep(0.02)
 
     # Should be expired (returns None, increments _ROUTE_CACHE_EXPIRED)

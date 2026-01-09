@@ -106,7 +106,9 @@ class TestBMIv1API:
         ]
 
         for payload in bad_payloads:
-            response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+            response = self.client.post(
+                "/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"}
+            )
             assert response.status_code == 422
 
     def test_bmi_v1_422_invalid_values(self):
@@ -119,7 +121,9 @@ class TestBMIv1API:
         ]
 
         for payload in bad_payloads:
-            response = self.client.post("/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"})
+            response = self.client.post(
+                "/api/v1/bmi", json=payload, headers={"X-API-Key": "test_key"}
+            )
             assert response.status_code == 422
 
     def test_bmi_v1_realistic_validation(self):
