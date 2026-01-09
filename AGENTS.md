@@ -61,8 +61,15 @@ make test-fast
 
 ### 3) Coverage gate (only when preparing merge)
 ```bash
-make cov-check
+make cov-check  # Total coverage ≥97%
+make diff-cov   # Diff-coverage ≥97% on changed lines
 ```
+
+**Coverage rule (hard):**
+- Never use per-file coverage % as a readiness signal.
+- Only `make cov-check` (total ≥97%) + `make diff-cov` (diff-coverage ≥97%) count.
+- If CI is red, PR is not ready.
+- File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
 
 ### 4) Lint/format
 ```bash
