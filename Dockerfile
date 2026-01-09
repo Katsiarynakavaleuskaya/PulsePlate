@@ -36,12 +36,14 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app"
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
-# Security: explicit libtasn1-6 install for CVE-2025-13151 (stack-based buffer overflow)
+# NOTE: libtasn1-6 comes transitively via libgnutls30 (required for TLS/HTTPS).
+# CVE-2025-13151 is NOT fixed in Debian bookworm as of 2026-01 (no patched version available).
+# Tracking: https://security-tracker.debian.org/tracker/CVE-2025-13151
+# Revisit when bookworm publishes a fixed package.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         libc6 \
-        libtasn1-6 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

@@ -185,12 +185,8 @@ PY
 ### Dockerfile runtime stage
 
 - __No blanket `apt-get upgrade`__ in runtime — reduces drift and improves reproducibility.
-- For CVE fixes: install the affected package explicitly after `apt-get update`.
+- For CVE fixes with available patches: install the affected package explicitly after `apt-get update`.
 - After update, `apt-get install <pkg>` fetches the latest patched version from Debian repos.
-- Example (CVE-2025-13151):
-  ```dockerfile
-  apt-get install -y --no-install-recommends libtasn1-6
-  ```
 
 ### Frontend-generated artifacts
 
@@ -203,3 +199,17 @@ PY
 - Do not claim a CVE is "fixed" unless the distro security tracker shows a fixed version for our base distribution.
 - Check: [Debian Security Tracker](https://security-tracker.debian.org/) before claiming remediation.
 - If no fixed version exists yet: document as "unpatched/mitigation", add tracking issue, schedule base image bump once fixed lands.
+
+### No-fix-yet CVE policy
+
+When a CVE has no fix available in the base distro:
+
+1. **Do NOT** add fake "install/upgrade" commands — they don't help and add churn.
+2. **Document** in Dockerfile with tracking link.
+3. **Dismiss** GitHub alert with reason "Fix not available / vulnerable in distro".
+4. **Create tracking issue** to revisit on base image bump.
+
+Example (CVE-2025-13151 / libtasn1):
+- Package comes transitively via `libgnutls30` (required for TLS)
+- No patched version in Debian bookworm as of 2026-01
+- Documented in Dockerfile, tracking issue created, revisit monthly
