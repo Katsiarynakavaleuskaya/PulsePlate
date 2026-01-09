@@ -109,9 +109,9 @@ class TestCoverage97Simple:
         """Тест покрытия metrics endpoint"""
         from fastapi.testclient import TestClient
 
-        import app
+        from app.main import app as main_app
 
-        client = TestClient(cast(ASGIApp, app.app))
+        client = TestClient(cast(ASGIApp, main_app))
         response = client.get("/metrics")
         assert response.status_code == 200
 
