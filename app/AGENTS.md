@@ -1,11 +1,13 @@
 # Agent instructions (scope: app/ and subdirectories)
 
 ## Scope and layout
+
 - This AGENTS.md applies to: `app/` and below.
 - Key directories: `app/routers/`, `app/schemas/`, `app/models/`, `app/services/`,
   `app/middleware/`, `app/core/`, `app/dependencies.py`.
 
 ## Commands (run from repo root)
+
 - Install: `make venv`
 - Dev: `make dev`
 - Test: `make test`, `make test-fast`
@@ -14,6 +16,7 @@
 - Pre-commit: `make pre-commit`
 
 ## Conventions
+
 - FastAPI + Pydantic v2 only; prefer `model_validator`/`field_validator`.
 - Keep routers thin; push business logic into `core/` or `app/services/`.
 - Use dependency injection via `Depends`; keep side effects in services.
@@ -49,35 +52,41 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 ## Export/PDF invariants (hard rules) (PR-8b / PR-8c)
 
 ### PDF export must be import-safe
+
 - `reportlab` must be imported lazily (inside the handler/function), never at module import time.
 - Use `_lazy_reportlab()` helper in `app/services/shoplist_export/pdf_export.py` for lazy imports.
 - `ImportError` for optional PDF deps must return HTTP `501 Not Implemented` (no auto-install, no fallback hacks).
 - Export modules/routers must have no import-time side effects beyond normal router registration.
 
 ### Determinism and data preparation
+
 - PDF/CSV prepared output must be deterministic (use a canonical stable sort; e.g. `store_id → aisle → food_id`).
 - Keep data preparation in a pure function (no `reportlab`) so tests can validate determinism without rendering.
 - Use `build_pdf_lines()` in `pdf_export.py` to prepare `PdfLine` objects before rendering.
 - Sorting key: `(store_id == "", store_id, aisle == "", aisle, food_id)` (non-empty values first).
 
 ### Product layout (PR-8b)
+
 - PDF layout must group by `store → aisle` with clear visual hierarchy.
 - Include subtotals per aisle and grand total at the end.
 - Currency formatting: use `_fmt_money()` with quantize to 0.01, include currency code when available.
 - Do not include exception details in error messages (security: no info leak).
 
 ### Contract freeze
+
 - VIP auth behavior (`403`) and the VIP error response shape are contract-frozen; do not change without a dedicated PR.
 
 ## VIP contract + router invariants (PR-8c / #456)
 
 ### VIP error contract (frozen)
+
 - VIP tier denial is `403` (do not use `401` for “has auth but not VIP”).
 - VIP error responses must preserve the established envelope contract:
   - `status: "error"`, `code`, `message`
   - legacy aliases must remain: `detail == message`, `error == code` (see `app/contracts/vip_contract.py`).
 
 ### Router registration (centralized + idempotent)
+
 - VIP router registration must be centralized via `app/routers/vip_registration.py:register_vip_routes`.
 - Do not scatter conditional `include_router(...)` calls across modules; keep registration explicit and safe to call multiple times.
 
@@ -89,6 +98,7 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - `legacy_app.py` is compatibility-only: do not add new behavior there unless it is purely shim/bridge.
 
 ## Common pitfalls
+
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
 - `import app` is a PEP 562 shim: `app.app` MUST point to `legacy_app.app`, and
@@ -97,15 +107,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   `TESTING=true` before importing `app`/`legacy_app` (handled in `tests/conftest.py`).
 
 ## app package public surface contract
+
 `app/__init__.py` must remain an import shim/forwarder.
 It MUST NOT use dynamic module execution (spec/module_from_spec/exec_module).
 
 If tests import symbols from `app`, update:
+
 - `tests/test_app_public_surface.py`
 - `tests/test_repo_policy_guards.py` (required exports set)
 
 ### Required symbols (forwarded via PEP 562 __getattr__)
+
 Tests expect these symbols to exist in `app` namespace:
+
 - `app.app` (FastAPI instance)
 - `resolve_attr`
 - `make_weekly_menu`
@@ -113,6 +127,7 @@ Tests expect these symbols to exist in `app` namespace:
 - `get_update_scheduler`
 
 ### Quick verification
+
 ```bash
 # Check what tests require from app
 rg -n "from app import \(|from app import " tests -S
@@ -144,14 +159,17 @@ PY
 | LLM integration | backend | `llm.py`, `core/rag/`, `providers/` | `llm.py`, `mcp_pulseplate_server.py` | `tests/test_*rag*.py` | - |
 
 ## App Import Hygiene (quick checks)
+
 Run from repo root.
 
 ### No dynamic module loading in app package
+
 ```bash
 git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- app || true
 ```
 
 ### app shim contract must hold
+
 ```bash
 python - <<'PY'
 import os
@@ -161,3 +179,20 @@ assert app.app is legacy_app.app
 print("OK: app.app is legacy_app.app")
 PY
 ```
+
+## Security hotfix rules (PR-501)
+
+### Dockerfile runtime stage
+
+- **No blanket `apt-get upgrade`** in runtime — reduces drift and improves reproducibility.
+- For CVE fixes: use targeted `apt-get install --only-upgrade <pkg>`.
+- Example (CVE-2025-13151):
+  ```dockerfile
+  apt-get install -y --no-install-recommends --only-upgrade libtasn1-6
+  ```
+
+### Frontend generated artifacts
+
+- `frontend/public/mockServiceWorker.js` is **generated by MSW CLI** — never edit manually.
+- Regenerate via: `cd frontend && npx msw init public`
+- CI must use `npm ci` (lockfile enforced) to prevent version drift.
