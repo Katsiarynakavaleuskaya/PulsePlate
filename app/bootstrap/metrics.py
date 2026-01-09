@@ -10,16 +10,12 @@ not from legacy_app.py, to keep legacy as a thin compatibility proxy.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.middleware.metrics import metrics_middleware
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +35,31 @@ def metrics_endpoint() -> Response:
 
         data = prometheus_client.generate_latest()
         return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
-    except Exception:
-        logger.exception("Prometheus exporter unavailable")
+    except ImportError:
+        logger.warning("prometheus_client not installed")
         return JSONResponse(
             status_code=200,
             content={
                 "error": "Prometheus client not available",
-                "detail": "Prometheus exporter unavailable",
+                "detail": "prometheus_client package not installed",
+            },
+        )
+    except Exception:
+        logger.exception("Prometheus metrics export failed")
+        return JSONResponse(
+            status_code=200,
+            content={
+                "error": "Metrics export failed",
+                "detail": "Prometheus exporter raised an exception",
             },
         )
 
 
 def register_metrics(app: FastAPI) -> None:
     """Register metrics middleware and /metrics endpoint on the primary app.
+
+    Called once at startup from app/main.py (canonical entrypoint).
+    Idempotent: safe to call multiple times (guards against duplicate registration).
 
     NOTE: middleware stack is built in reverse order (last added = outermost).
     This ensures metrics middleware captures all requests/exceptions passing

@@ -36,8 +36,6 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "resolve_attr": ("core.utils", "resolve_attr"),
     "make_weekly_menu": ("core.menu_engine", "make_weekly_menu"),
     "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
-    # Expose the /metrics endpoint handler for patch-based tests
-    "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
 }
 
 
@@ -62,15 +60,9 @@ def __getattr__(name: str) -> Any:  # noqa: ANN401
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
     EN: First check local re-exports (core.*), then fall back to legacy_app.
 
-    Special handling for 'app': ensure observability bootstrap is applied to the
-    currently-active FastAPI instance (handles legacy_app reloads in tests).
+    PEP 562 forwarder: pure delegation, no side effects.
+    Observability bootstrap (register_metrics) is applied ONLY in app/main.py.
     """
-    if name == "app":
-        legacy = _legacy()
-        from app.bootstrap.metrics import register_metrics
-
-        register_metrics(legacy.app)
-        return legacy.app
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)

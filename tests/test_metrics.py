@@ -213,11 +213,8 @@ def test_metrics_json_fallback_when_exporter_raises(
     data = response.json()
     assert "error" in data
     # RuntimeError during generate_latest() should return "Metrics export failed"
-    # ImportError should return "Prometheus client not available"
-    assert data["error"] in ["Metrics export failed", "Prometheus client not available"]
-    assert (
-        "unavailable" in data.get("detail", "").lower() or "failed" in data.get("error", "").lower()
-    )
+    assert data["error"] == "Metrics export failed"
+    assert "detail" in data
 
 
 def test_metrics_hidden_from_openapi(client: TestClient) -> None:
