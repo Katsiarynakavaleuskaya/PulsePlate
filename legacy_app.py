@@ -61,7 +61,6 @@ from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
-from app.middleware.metrics import metrics_middleware
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.services import recipe_store
 from app.services.food_store import get_food
@@ -5696,14 +5695,6 @@ app.include_router(bmi_router)
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
 
-# Register Prometheus metrics middleware last so it is outermost and can
-# capture all requests/exceptions passing through other middleware.
-#
-# NOTE: FastAPI/Starlette builds middleware stack in reverse order, so the
-# last added middleware becomes the outermost wrapper.
-# This should ideally be in a proper app bootstrap module, but for now
-# we register it here after all routers to ensure correct ordering.
-app.middleware("http")(metrics_middleware)
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
 BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag) if _business_flag is not None else False
 if BUSINESS_MODULE_ENABLED and business_router:

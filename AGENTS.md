@@ -71,6 +71,12 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - If CI is red, PR is not ready.
 - File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
 
+**legacy_app.py policy (hard):**
+- `legacy_app.py` is a thin compatibility proxy only.
+- Forbidden: registering middleware, observability/instrumentation, or any runtime behavior changes.
+- All middleware/observability registration must live in the primary app bootstrap (e.g., `app/main.py`).
+- This prevents drift and keeps legacy as a pure compatibility layer.
+
 ### 4) Lint/format
 ```bash
 make lint

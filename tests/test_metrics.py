@@ -272,6 +272,27 @@ def test_metrics_build_metrics_returns_none_on_importerror(
     assert result is None, "Expected None when ImportError occurs"
 
 
+def test_metrics_build_metrics_returns_none_on_duplicate_metric_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that _build_metrics returns None when metric registration fails.
+
+    RU: Проверяет, что _build_metrics возвращает None при ValueError из prometheus_client
+    (дублирующая регистрация имени метрики).
+    EN: Verifies _build_metrics returns None when prometheus_client raises ValueError on duplicate.
+    """
+    import app.middleware.metrics as metrics_mod
+
+    def _counter(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicate metric name")
+
+    def _histogram(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("duplicate metric name")
+
+    monkeypatch.setattr(metrics_mod, "_import_prometheus", lambda: (_counter, _histogram))
+    assert metrics_mod._build_metrics() is None
+
+
 def test_metrics_route_template_unknown_without_router() -> None:
     """Test _route_template returns 'unknown' when router is missing or endpoint is None.
 
@@ -361,6 +382,56 @@ async def test_metrics_middleware_noop_when_metrics_unavailable(
     request = Request(scope)
     resp = await metrics_mod.metrics_middleware(request, call_next)
     assert called is True
+    assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_metrics_middleware_swallows_metrics_recording_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that metrics recording errors never affect request handling.
+
+    RU: Проверяет, что ошибки записи метрик не влияют на обработку запроса.
+    EN: Verifies metrics recording errors are swallowed and response is returned.
+    """
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    import app.middleware.metrics as metrics_mod
+
+    class _BadCounter:
+        def labels(self, *, method: str, route: str, status: str) -> object:
+            raise RuntimeError("boom")
+
+    class _BadHistogram:
+        def labels(self, *, method: str, route: str, status: str) -> object:
+            raise RuntimeError("boom")
+
+    class _BadMetrics:
+        requests_total = _BadCounter()
+        request_duration_seconds = _BadHistogram()
+
+    async def call_next(_request: Request) -> Response:
+        return Response(content=b"", status_code=204)
+
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", _BadMetrics())
+    monkeypatch.setattr(metrics_mod, "_route_template", lambda _request: "/api/v1/bmi/calculate")
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/bmi/calculate",
+        "raw_path": b"/api/v1/bmi/calculate",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 123),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "http_version": "1.1",
+        "app": app.app,
+    }
+    request = Request(scope)
+    resp = await metrics_mod.metrics_middleware(request, call_next)
     assert resp.status_code == 204
 
 
