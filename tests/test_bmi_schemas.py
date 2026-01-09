@@ -42,9 +42,10 @@ class TestBMICalculateRequest:
         """Test default values for optional fields."""
         req = BMICalculateRequest(weight_kg=70, height_cm=175, age=30)
 
-        assert req.gender is None  # Changed: gender default is None (normalized in router/engine)
-        assert req.pregnant is False  # Changed: pregnant default is False (normalized to bool)
-        assert req.athlete is False  # Changed: athlete default is False (normalized to bool)
+        # Defaults are normalized in schema field_validators (BMICalculateRequest), not router/engine
+        assert req.gender is None
+        assert req.pregnant is False
+        assert req.athlete is False
         assert req.waist_cm is None
         assert req.lang == "en"
 
