@@ -100,11 +100,9 @@ def test_metrics_excludes_health_endpoints(client: TestClient) -> None:
     # Make requests to excluded endpoints
     client.get("/health")
     client.get("/ready")
-    # /health/db may return 503 if DB unavailable, so check both statuses
-    try:
-        client.get("/health/db")
-    except Exception:
-        pass  # DB may be unavailable in tests
+    # /health/db may return 200 or 503 depending on DB availability
+    health_db_response = client.get("/health/db")
+    assert health_db_response.status_code in (200, 503)
 
     # Get metrics after requests
     after = client.get("/metrics").text
@@ -136,9 +134,14 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
     metrics_text = client.get("/metrics").text
 
     # Route should be template (no query params)
-    assert 'route="/api/v1/bmi/calculate"' in metrics_text
-    # Query string should NOT appear in route label
-    assert "?" not in metrics_text.split('route="')[1].split('"')[0]
+    # Use regex to find route label and verify it doesn't contain query params
+    route_pattern = re.compile(r'route="([^"]+)"')
+    route_matches = route_pattern.findall(metrics_text)
+    bmi_routes = [r for r in route_matches if "/api/v1/bmi/calculate" in r]
+    assert len(bmi_routes) > 0, "Route /api/v1/bmi/calculate should appear in metrics"
+    # Verify no route label contains query params
+    for route in route_matches:
+        assert "?" not in route, f"Route label should not contain query params: {route}"
 
 
 def test_metrics_content_type(client: TestClient) -> None:

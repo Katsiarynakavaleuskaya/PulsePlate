@@ -13,7 +13,7 @@ Excluded paths: /metrics, /health, /ready, /health/db (to avoid noise)
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Callable
+from typing import Awaitable, Callable
 
 from fastapi import Request
 from prometheus_client import Counter, Histogram
@@ -32,7 +32,7 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
+EXCLUDED_PATHS: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
 
 
 def _normalized_path(path: str) -> str:
@@ -49,36 +49,10 @@ def _normalized_path(path: str) -> str:
     return path
 
 
-def _route_template(request: Request) -> str:
-    """Extract route template (not raw path) to avoid high cardinality.
-
-    Args:
-        request: FastAPI request object
-
-    Returns:
-        Route template path (e.g., "/api/v1/bmi/calculate") or normalized path as fallback
-    """
-    route = request.scope.get("route")
-    if route is not None:
-        path = getattr(route, "path", None)
-        if isinstance(path, str) and path:
-            return path
-    # Fallback: use normalized path (but only for non-excluded paths to avoid cardinality)
-    # This handles cases where route is not yet resolved in middleware
-    normalized = _normalized_path(request.url.path)
-    # Only use raw path if it's not excluded (excluded paths are handled separately)
-    if normalized not in EXCLUDED_ROUTE_TEMPLATES:
-        # For API routes, try to extract template pattern
-        # E.g., "/api/v1/bmi/calculate" stays as-is (no path params)
-        return normalized
-    return "unknown"
-
-
 def _is_excluded(request: Request) -> bool:
     """Check if request should be excluded from metrics collection.
 
-    Uses route template first (most reliable), then normalized path as fallback
-    to handle trailing slashes, mounting, and redirects.
+    Uses normalized path (before route resolution) to handle trailing slashes.
 
     Args:
         request: FastAPI request object
@@ -86,16 +60,35 @@ def _is_excluded(request: Request) -> bool:
     Returns:
         True if request should be excluded from metrics
     """
-    route = _route_template(request)
-    if route in EXCLUDED_ROUTE_TEMPLATES:
-        return True
-    # Fallback: handle trailing slash / weird mounting cases
     path = _normalized_path(request.url.path)
-    return path in EXCLUDED_ROUTE_TEMPLATES
+    return path in EXCLUDED_PATHS
+
+
+def _route_template(request: Request) -> str:
+    """Extract route template (not raw path) to avoid high cardinality.
+
+    Must be called AFTER call_next (when route is resolved by router).
+    For non-excluded requests, route MUST come from request.scope["route"].path.
+    Raw path is forbidden for route label to prevent high cardinality.
+
+    Args:
+        request: FastAPI request object (after route resolution)
+
+    Returns:
+        Route template path (e.g., "/api/v1/bmi/calculate") or "unknown"
+    """
+    route = request.scope.get("route")
+    if route is not None:
+        path = getattr(route, "path", None)
+        if isinstance(path, str) and path:
+            return path
+    # Route unavailable → return "unknown"
+    # Forbidden: do NOT use request.url.path as fallback for non-excluded requests
+    return "unknown"
 
 
 async def metrics_middleware(
-    request: Request, call_next: Callable[[Request], Response]
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     """Collect Prometheus metrics for HTTP requests.
 
@@ -106,11 +99,11 @@ async def metrics_middleware(
     Returns:
         Response from downstream
     """
+    # Exclusion check: use normalized path BEFORE call_next
     if _is_excluded(request):
         return await call_next(request)
 
     start = perf_counter()
-    route = _route_template(request)
     method = request.method
 
     status = "500"
@@ -123,6 +116,8 @@ async def metrics_middleware(
         status = "500"
         raise
     finally:
+        # Route extraction: AFTER call_next (when route is resolved by router)
+        route = _route_template(request)
         elapsed = perf_counter() - start
         HTTP_REQUESTS_TOTAL.labels(method=method, route=route, status=status).inc()
         HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=route, status=status).observe(
