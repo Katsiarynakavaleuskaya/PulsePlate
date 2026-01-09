@@ -1,6 +1,8 @@
 """
 Тесты для покрытия app.py HTTP методы и endpoints
 Покрывает строки: 98, 105, 115, 130-132, 144→148, 147, 164→170, 169, 205→208, 210, 242→246, 247, 252-256
+
+Uses canonical entrypoint (app.main:app) via conftest client fixture.
 """
 
 from typing import cast
@@ -8,13 +10,6 @@ from typing import cast
 import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-
-
-@pytest.fixture()
-def client(test_environment):
-    import app
-
-    return TestClient(cast(ASGIApp, app.app))
 
 
 class TestAppEndpointsCoverage:
