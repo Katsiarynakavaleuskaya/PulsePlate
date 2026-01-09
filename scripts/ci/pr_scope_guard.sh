@@ -86,12 +86,13 @@ fi
 
 # Check 2: Planning docs in runtime PR (BLOCK only if HAS_RUNTIME)
 if [ "$HAS_RUNTIME" -eq 1 ]; then
-    PLANNING_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY|SCOPE|SUMMARY|PLAN|PATCH|NOTES)\.md$' || true)
+    # Regex aligned with Section 2 of docs/policy/PR_SCOPE_RULES.md
+    PLANNING_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/PR_[0-9]+_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST)\.md$' || true)
 
     if [ -n "$PLANNING_DOCS" ]; then
         echo ""
         echo -e "${RED}🛑 BLOCK: Planning docs found in runtime PR${NC}"
-        echo "   Planning docs (ROADMAP, HANDOFF, AUDIT, READY, etc.) are not allowed in runtime PRs."
+        echo "   Planning docs (READY, ROADMAP, HANDOFF, AUDIT_REPORT, REVIEW_CHECKLIST) are not allowed in runtime PRs."
         echo "   Move them to a separate docs-only PR."
         echo ""
         echo "   Found:"

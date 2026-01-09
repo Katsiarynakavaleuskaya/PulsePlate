@@ -161,9 +161,9 @@ git diff --name-only origin/main...HEAD | grep -E "\.md$" | wc -l
 git diff --name-only origin/main...HEAD | grep -E "\.py$" | wc -l
 
 # 3. Check for forbidden patterns (machine-checkable)
-# Runtime PR must not contain planning docs
+# Runtime PR must not contain planning docs (aligned with Section 2)
 git diff --name-only origin/main...HEAD \
-  | rg '^docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY|SCOPE|SUMMARY|PLAN|PATCH|NOTES)\.md$' \
+  | rg '^docs/pr/PR_[0-9]+_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST)\.md$' \
   && echo "BLOCK: planning docs in runtime PR" && exit 1 || true
 
 # 4. Check for Python files in docs/pr (forbidden always)
