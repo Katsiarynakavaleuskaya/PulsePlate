@@ -94,7 +94,9 @@ def register_metrics(app: FastAPI) -> None:
 
     # Register middleware last so it becomes outermost (idempotent).
     has_middleware = any(
-        mw.cls is BaseHTTPMiddleware and mw.kwargs.get("dispatch") is metrics_middleware
+        mw.cls is BaseHTTPMiddleware
+        and (getattr(mw, "options", None) or getattr(mw, "kwargs", None) or {}).get("dispatch")
+        is metrics_middleware
         for mw in getattr(app, "user_middleware", None) or []
     )
     if not has_middleware and can_mutate:
