@@ -59,23 +59,16 @@ if [ -z "$CHANGED_FILES" ]; then
     exit 0
 fi
 
-# Check 1: Planning docs in runtime PR (BLOCK)
-PLANNING_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY|SCOPE|SUMMARY|PLAN|PATCH|NOTES)\.md$' || true)
-
-if [ -n "$PLANNING_DOCS" ]; then
-    echo ""
-    echo -e "${RED}🛑 BLOCK: Planning docs found in runtime PR${NC}"
-    echo "   Planning docs (ROADMAP, HANDOFF, AUDIT, READY, etc.) are not allowed in runtime PRs."
-    echo "   Move them to a separate docs-only PR."
-    echo ""
-    echo "   Found:"
-    echo "$PLANNING_DOCS" | sed 's/^/     - /'
-    echo ""
-    echo "   See: docs/policy/PR_SCOPE_RULES.md"
-    exit 1
+# Determine if PR has runtime changes (app/ or core/ Python files)
+if echo "$CHANGED_FILES" | rg -q '^(app|core)/.*\.py$'; then
+    HAS_RUNTIME=1
+    echo "   Runtime PR detected (app/ or core/ Python changes)"
+else
+    HAS_RUNTIME=0
+    echo "   Docs-only PR detected (no app/ or core/ Python changes)"
 fi
 
-# Check 2: Python files in docs/pr (BLOCK)
+# Check 1: Python files in docs/pr (ALWAYS BLOCK)
 PYTHON_IN_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/.*\.py$' || true)
 
 if [ -n "$PYTHON_IN_DOCS" ]; then
@@ -89,6 +82,24 @@ if [ -n "$PYTHON_IN_DOCS" ]; then
     echo ""
     echo "   See: docs/policy/PR_SCOPE_RULES.md"
     exit 1
+fi
+
+# Check 2: Planning docs in runtime PR (BLOCK only if HAS_RUNTIME)
+if [ "$HAS_RUNTIME" -eq 1 ]; then
+    PLANNING_DOCS=$(echo "$CHANGED_FILES" | rg '^docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY|SCOPE|SUMMARY|PLAN|PATCH|NOTES)\.md$' || true)
+
+    if [ -n "$PLANNING_DOCS" ]; then
+        echo ""
+        echo -e "${RED}🛑 BLOCK: Planning docs found in runtime PR${NC}"
+        echo "   Planning docs (ROADMAP, HANDOFF, AUDIT, READY, etc.) are not allowed in runtime PRs."
+        echo "   Move them to a separate docs-only PR."
+        echo ""
+        echo "   Found:"
+        echo "$PLANNING_DOCS" | sed 's/^/     - /'
+        echo ""
+        echo "   See: docs/policy/PR_SCOPE_RULES.md"
+        exit 1
+    fi
 fi
 
 # Check 3: File count warning (INFO only, not blocking)

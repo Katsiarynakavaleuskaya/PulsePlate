@@ -166,9 +166,9 @@ git diff --name-only origin/main...HEAD \
   | rg '^docs/pr/.*_(ROADMAP|HANDOFF|AUDIT|READY|SCOPE|SUMMARY|PLAN|PATCH|NOTES)\.md$' \
   && echo "BLOCK: planning docs in runtime PR" && exit 1 || true
 
-# 4. Check for python files in docs/pr (forbidden always)
+# 4. Check for Python files in docs/pr (forbidden always)
 git diff --name-only origin/main...HEAD | rg '^docs/pr/.*\.py$' \
-  && echo "BLOCK: python files under docs/pr" && exit 1 || true
+  && echo "BLOCK: Python files under docs/pr" && exit 1 || true
 
 # 5. Check diff size
 git diff --stat origin/main...HEAD
