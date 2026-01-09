@@ -168,9 +168,14 @@ _ROUTE_CACHE_EVICTIONS: int = 0
 _ROUTE_CACHE_EXPIRED: int = 0
 
 
+def _now_monotonic() -> float:
+    """Return current monotonic time (test seam for deterministic TTL tests)."""
+    return monotonic()
+
+
 def _route_cache_get(endpoint_id: int) -> str | None:
     ttl_s = ROUTE_CACHE_TTL_S
-    now = monotonic()
+    now = _now_monotonic()
     with _ROUTE_CACHE_LOCK:
         entry = _ROUTE_CACHE.get(endpoint_id)
         if entry is None:
@@ -192,7 +197,7 @@ def _route_cache_set(endpoint_id: int, value: str) -> None:
     if max_size <= 0:
         return
 
-    now = monotonic()
+    now = _now_monotonic()
     with _ROUTE_CACHE_LOCK:
         _ROUTE_CACHE[endpoint_id] = (value, now)
         _ROUTE_CACHE.move_to_end(endpoint_id, last=True)
