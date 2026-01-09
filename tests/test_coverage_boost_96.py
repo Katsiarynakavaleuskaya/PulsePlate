@@ -19,11 +19,6 @@ class TestCoverageBoost96:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    def setup_method(self):
-        """Set up test environment."""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
     def test_get_update_scheduler_late_import(self):
         """Test get_update_scheduler with late import fallback."""
         # Test the case where _scheduler_getter is None and we need late import
@@ -200,10 +195,8 @@ class TestCoverageBoost96:
         response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 500, 503]
 
-    def test_metrics_endpoint_coverage(self):
+    def test_metrics_endpoint_coverage(self, client: TestClient):
         """Test metrics endpoint coverage."""
-        client = TestClient(app_mod.app)
-
         response = client.get("/metrics")
         assert response.status_code in [200, 500, 503]
         # If Prometheus is available, check for metrics

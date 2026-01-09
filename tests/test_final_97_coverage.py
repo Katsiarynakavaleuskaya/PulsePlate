@@ -13,14 +13,6 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
-@pytest.fixture
-def client():
-    """Test client для main.py"""
-    import app
-
-    return TestClient(cast(ASGIApp, app.app))
-
-
 class TestVIPImportErrorCoverage:
     """Покрытие VIP import error paths (строки 86-89)"""
 

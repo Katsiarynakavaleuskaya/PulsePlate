@@ -276,12 +276,10 @@ class TestCoverage97UltimateBoost:
             )
             assert response.status_code in [200, 422]
 
-    def test_app_coverage_ultimate_boost_missing_lines_1045_1049(self, test_environment):
+    def test_app_coverage_ultimate_boost_missing_lines_1045_1049(
+        self, client: TestClient, test_environment
+    ):
         """Тест покрытия app.py строк 1045-1049 - metrics endpoint с различными заголовками"""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
         # Тест metrics endpoint с различными заголовками
         headers_variants = [
             {},

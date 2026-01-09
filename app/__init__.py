@@ -56,7 +56,7 @@ def _legacy() -> Any:
     return legacy
 
 
-def __getattr__(name: str) -> Any:  # noqa: ANN401
+def __getattr__(name: str) -> Any:
     """Resolve attribute lazily from local exports or legacy_app.
 
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
