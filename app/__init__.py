@@ -59,7 +59,15 @@ def __getattr__(name: str) -> Any:
 
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
     EN: First check local re-exports (core.*), then fall back to legacy_app.
+    
+    Special handling for 'app': ensure app.main is imported to trigger
+    middleware registration before returning legacy_app.app.
     """
+    if name == "app":
+        # Import app.main to trigger middleware registration
+        # This ensures observability middleware is registered when app.app is accessed
+        importlib.import_module("app.main")
+        return _legacy().app
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]
         mod = importlib.import_module(mod_name)
