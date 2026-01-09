@@ -143,6 +143,15 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
         _metric_value(metrics_text, method="POST", route=route, status="200") >= 1.0
     ), f"Expected series with method=POST, route={route}, status=200"
 
+    # Verify histogram is also recorded for this route
+    # Histogram creates multiple series (_count, _sum, _bucket), check _count exists
+    histogram_count_pattern = re.compile(
+        rf'http_request_duration_seconds_count\{{[^}}]*method="POST"[^}}]*route="{re.escape(route)}"[^}}]*status="200"[^}}]*\}}'
+    )
+    assert (
+        histogram_count_pattern.search(metrics_text) is not None
+    ), f"Expected histogram _count series for method=POST, route={route}, status=200"
+
     # Guard: query params must never appear in route labels
     assert f'route="{route}?"' not in metrics_text, "Query params should not appear in route label"
 
@@ -215,3 +224,78 @@ def test_metrics_hidden_from_openapi(client: TestClient) -> None:
     paths = schema.get("paths", {})
     # /metrics should not be in OpenAPI paths (include_in_schema=False)
     assert "/metrics" not in paths
+
+
+def test_metrics_build_metrics_returns_none_on_importerror(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.middleware.metrics as metrics_mod
+
+    def _boom() -> tuple[object, object]:
+        raise ImportError("boom")
+
+    monkeypatch.setattr(metrics_mod, "_import_prometheus", _boom)
+    assert metrics_mod._build_metrics() is None
+
+
+def test_metrics_route_template_unknown_without_router() -> None:
+    from starlette.requests import Request
+
+    from app.middleware.metrics import _route_template
+
+    class _App:
+        pass
+
+    endpoint = object()
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/somewhere",
+        "raw_path": b"/somewhere",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 123),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "http_version": "1.1",
+        "app": _App(),
+        "endpoint": endpoint,
+    }
+    request = Request(scope)
+    assert _route_template(request) == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_metrics_middleware_noop_when_metrics_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    import app.middleware.metrics as metrics_mod
+
+    called = False
+
+    async def call_next(_request: Request) -> Response:
+        nonlocal called
+        called = True
+        return Response(content=b"", status_code=204)
+
+    monkeypatch.setattr(metrics_mod, "PROMETHEUS_METRICS", None)
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/not-excluded",
+        "raw_path": b"/not-excluded",
+        "query_string": b"",
+        "headers": [],
+        "client": ("testclient", 123),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "http_version": "1.1",
+        "app": app.app,
+    }
+    request = Request(scope)
+    resp = await metrics_mod.metrics_middleware(request, call_next)
+    assert called is True
+    assert resp.status_code == 204

@@ -12,8 +12,10 @@ Excluded paths: /metrics, /health, /ready, /health/db (to avoid noise)
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from importlib import import_module
 from time import perf_counter
-from typing import Optional
+from typing import Any, Protocol, cast
 
 from fastapi import Request
 from fastapi.routing import APIRoute
@@ -23,30 +25,65 @@ from starlette.responses import Response
 # Always defined (even if Prometheus is unavailable)
 EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
 
-# Graceful degradation: metrics become no-op if prometheus_client is unavailable
-# Declare as Optional to allow None when unavailable
-HTTP_REQUESTS_TOTAL: Optional[Counter]
-HTTP_REQUEST_DURATION_SECONDS: Optional[Histogram]
 
-try:
-    from prometheus_client import Counter, Histogram
+class _CounterChild(Protocol):
+    def inc(self, amount: float = 1.0) -> None: ...
 
-    HTTP_REQUESTS_TOTAL = Counter(
-        "http_requests_total",
-        "Total number of HTTP requests",
-        labelnames=("method", "route", "status"),
+
+class _Counter(Protocol):
+    def labels(self, *, method: str, route: str, status: str) -> _CounterChild: ...
+
+
+class _HistogramChild(Protocol):
+    def observe(self, amount: float) -> None: ...
+
+
+class _Histogram(Protocol):
+    def labels(self, *, method: str, route: str, status: str) -> _HistogramChild: ...
+
+
+@dataclass(frozen=True)
+class _Metrics:
+    requests_total: _Counter
+    request_duration_seconds: _Histogram
+
+
+def _import_prometheus() -> tuple[Any, Any]:
+    prometheus_client = import_module("prometheus_client")
+    return prometheus_client.Counter, prometheus_client.Histogram
+
+
+def _build_metrics() -> _Metrics | None:
+    try:
+        Counter, Histogram = _import_prometheus()
+    except ImportError:
+        return None
+
+    requests_total: _Counter = cast(
+        _Counter,
+        Counter(
+            "http_requests_total",
+            "Total number of HTTP requests",
+            labelnames=("method", "route", "status"),
+        ),
     )
 
-    HTTP_REQUEST_DURATION_SECONDS = Histogram(
-        "http_request_duration_seconds",
-        "HTTP request duration in seconds",
-        labelnames=("method", "route", "status"),
-        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+    request_duration_seconds: _Histogram = cast(
+        _Histogram,
+        Histogram(
+            "http_request_duration_seconds",
+            "HTTP request duration in seconds",
+            labelnames=("method", "route", "status"),
+            buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+        ),
     )
-except ImportError:
-    # Metrics unavailable: middleware becomes no-op (does not crash startup)
-    HTTP_REQUESTS_TOTAL = None
-    HTTP_REQUEST_DURATION_SECONDS = None
+
+    return _Metrics(
+        requests_total=requests_total, request_duration_seconds=request_duration_seconds
+    )
+
+
+PROMETHEUS_METRICS: _Metrics | None = _build_metrics()
 
 
 def _normalized_path(path: str) -> str:
@@ -139,7 +176,8 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
         Response from downstream
     """
     # If metrics are unavailable, behave as no-op (graceful degradation)
-    if HTTP_REQUESTS_TOTAL is None or HTTP_REQUEST_DURATION_SECONDS is None:
+    metrics = PROMETHEUS_METRICS
+    if metrics is None:
         return await call_next(request)
 
     # Fast path: skip obvious noise early (before timer)
@@ -168,7 +206,7 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
         # Normalize template before compare to handle trailing slashes consistently
         if route_norm not in EXCLUDED_ROUTE_TEMPLATES and route_norm != "unknown":
             elapsed = perf_counter() - start
-            HTTP_REQUESTS_TOTAL.labels(method=method, route=route_norm, status=status).inc()
-            HTTP_REQUEST_DURATION_SECONDS.labels(
+            metrics.requests_total.labels(method=method, route=route_norm, status=status).inc()
+            metrics.request_duration_seconds.labels(
                 method=method, route=route_norm, status=status
             ).observe(elapsed)

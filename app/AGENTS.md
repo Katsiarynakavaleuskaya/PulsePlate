@@ -140,6 +140,12 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Response `detail` field must be a stable, user-safe message (e.g., "Prometheus exporter unavailable").
 - Never expose `str(exc)` or stack traces in JSON responses.
 
+**Route template selection (hard):**
+- If multiple route templates map to the same endpoint (e.g., `/api/v1/bmi` and `/api/v1/bmi/calculate`),
+  metrics middleware MUST select the most specific template (longest `APIRoute.path`).
+- This ensures consistent metric labels and prevents route label drift when alias/legacy routes exist.
+- Route template must be normalized (trailing slash removed) before exclusion check and label usage.
+
 **Middleware route label rule (hard):**
 - The `route` label MUST be endpoint-level template path (APIRoute.path).
 - Router prefixes or mounts are NOT acceptable as `route` labels.
