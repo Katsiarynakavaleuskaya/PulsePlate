@@ -221,13 +221,34 @@ class BMICalculateRequest(BaseModel):
         return False
 
     athlete: str | bool = Field(
-        default="no",
+        default=False,
         description=(
             "Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). "
-            "Will be normalized to bool by engine."
+            "Will be normalized to bool by schema."
         ),
         examples=["no", "yes", False, True],
     )
+
+    @field_validator("athlete", mode="before")
+    @classmethod
+    def _normalize_athlete(cls, v: str | bool | None) -> bool:
+        """
+        RU: Нормализует athlete в bool.
+        EN: Normalizes athlete to bool.
+        """
+        if isinstance(v, bool):
+            return v
+        if v is None:
+            return False
+        s = _normalize_ws_lower(v if isinstance(v, str) else None)
+        if not s:
+            return False
+        if s in _TRUE_STRINGS:
+            return True
+        if s in _FALSE_STRINGS:
+            return False
+        # Unknown token -> treat as False (safe default)
+        return False
 
     waist_cm: float | None = Field(
         default=None,
