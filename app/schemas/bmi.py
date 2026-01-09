@@ -127,61 +127,6 @@ def _normalize_ws_lower(s: str | None) -> str:
     return (s or "").strip().lower()
 
 
-def _is_male_gender_token(gender: str | None) -> bool:
-    """
-    RU: Определяет, является ли gender токен мужским (для инвариантов).
-    EN: Determines if gender token is male (for invariants).
-
-    Matches engine's _normalize_gender() prefix-based logic.
-    """
-    g = _normalize_ws_lower(gender)
-    if not g:
-        return False
-    return (g in _MALE_EXACT) or any(g.startswith(prefix) for prefix in _MALE_PREFIXES)
-
-
-def _is_female_gender_token(gender: str | None) -> bool:
-    """
-    RU: Определяет, является ли gender токен женским (для инвариантов).
-    EN: Determines if gender token is female (for invariants).
-
-    Matches engine's _normalize_gender() prefix-based logic.
-    """
-    g = _normalize_ws_lower(gender)
-    if not g:
-        return False
-    return (g in _FEMALE_EXACT) or any(g.startswith(prefix) for prefix in _FEMALE_PREFIXES)
-
-
-def _normalize_bool_flag_local(v: str | bool | None) -> bool:
-    """
-    Local boolean normalization for schema validation only.
-
-    RU: Локальная нормализация boolean для валидации схемы.
-    EN: Local boolean normalization for schema validation.
-
-    Goal: match engine's user-facing behavior enough to enforce hard invariants.
-    Unknown tokens are treated as False (safe default for invariant checks).
-
-    Args:
-        v: String, bool, or None
-
-    Returns:
-        bool: True if v is truthy (bool True or recognized truthy string), False otherwise
-    """
-    if isinstance(v, bool):
-        return v
-    s = _normalize_ws_lower(v if isinstance(v, str) else None)
-    if not s:
-        return False
-    if s in _TRUE_STRINGS:
-        return True
-    if s in _FALSE_STRINGS:
-        return False
-    # Unknown token -> treat as False (safe default for invariant checks)
-    return False
-
-
 class BMICalculateRequest(BaseModel):
     """
     RU: Запрос для расчета BMI через единый engine.
