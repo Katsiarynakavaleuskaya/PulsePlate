@@ -296,6 +296,39 @@ Violation of this rule blocks merge.
 - Do NOT copy logic into a second place.
 - Move shared logic into `core/` and call it from both sides.
 
+## Git conflict resolution (canonical ritual)
+
+If `git push` fails with "failed to push some refs" (conflict):
+
+**Required steps (in order):**
+```bash
+# 1. Fetch latest from remote
+git fetch origin
+
+# 2. Rebase on top of main (preserves linear history)
+git rebase origin/main
+
+# 3. Resolve conflicts if any (edit files, then):
+git add <resolved-files>
+git rebase --continue
+
+# 4. Verify tests still pass after rebase
+make test-fast
+make cov-check
+
+# 5. Push with force-with-lease (safe force push)
+git push --force-with-lease
+```
+
+**Hard rules:**
+- ❌ Never use `git push -f` without `--force-with-lease` (unsafe, can overwrite others' work)
+- ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
+- ✅ Always rebase (don't merge main into feature branch) to keep history linear
+
+**Why force-with-lease:**
+- Prevents overwriting remote changes you haven't seen
+- Fails if someone else pushed to your branch (forces you to fetch first)
+
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 
 ### Goal

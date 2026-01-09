@@ -1,15 +1,18 @@
 # Agent instructions (scope: tests/ and subdirectories)
 
 ## Scope and layout
+
 - This AGENTS.md applies to: `tests/` and below.
 - Key directories: `tests/` (pytest suite), `conftest.py` (shared fixtures).
 
 ## Commands (run from repo root)
+
 - Test: `make test`, `make test-fast`
 - Coverage: `make cov`, `make cov-check`
 - Targeted: `pytest tests/<path> -q`, `pytest -k "<pattern>" -q`
 
 ## Conventions
+
 - Use pytest fixtures from `conftest.py`; keep tests isolated.
 - Maintain >=97% total coverage; add tests for new branches.
 - Never mock `builtins.__import__` or `builtins.float`.
@@ -17,6 +20,7 @@
 - Prefer `monkeypatch` over global mutations; avoid real sleeps.
 
 ## Coverage / diff-cover (process invariant)
+
 - CI uses diff coverage as a hard gate: PR-touched lines must reach 100% diff coverage (prefer small, targeted tests).
 - If CI reports diff-cover gaps, add focused `*_diff_coverage.py` tests rather than weakening production checks.
   Preferred placement: `tests/vip/test_<feature>_diff_coverage.py` for VIP features, or `tests/test_<feature>_diff_coverage.py` alongside the related unit tests.
@@ -27,21 +31,26 @@
 **Rule**: If diff-cover shows uncovered code that has **zero call sites** → **delete it**, don't write tests.
 
 Tests must protect **behavior**, not "lines that exist". Writing tests for unused helpers:
+
 - Legitimizes dead code
 - Creates maintenance debt
 - Masks architectural drift
 
 **Before adding a test**, verify the code is actually used:
+
 ```bash
 git grep -n "function_name" -- app core
 ```
+
 If no call sites → delete the code, not cover it.
 
 ### Diff-cover file visibility rule
+
 **Problem**: CI runs all tests, but `diff-cover` attributes coverage only to **changed files** in the PR diff.
 A standalone new test file may not be included in diff-cover's comparison, causing "missing coverage" even when tests pass.
 
 **Rule**: When adding tests to cover lines in a **modified source file**, prefer adding them to an **already-modified test file** in the PR (or ensure the new test file is explicitly included in the diff).
+
 - ✅ **Preferred**: Add coverage-tail tests to `tests/test_<feature>.py` if that file is already modified in the PR.
 - ⚠️ **Alternative**: If creating a new test file, verify it appears in `git diff --name-only origin/main...HEAD` and that diff-cover includes it in the comparison.
 
@@ -69,6 +78,7 @@ diff-cover coverage.xml --compare-branch=origin/main --fail-under=97
 ```
 
 **Sanity check** (if diff-cover still shows missing lines):
+
 ```bash
 # Verify coverage.xml matches current code
 ls -la coverage.xml
@@ -76,6 +86,7 @@ grep "pipeline.py" coverage.xml | head
 ```
 
 **Why this works**:
+
 - Fresh coverage.xml ensures no stale data
 - `origin/main` comparison ensures correct baseline
 - Clean working tree prevents diff-cover from seeing uncommitted changes
@@ -83,15 +94,18 @@ grep "pipeline.py" coverage.xml | head
 ## PDF export tests (PR-8b)
 
 ### Test structure
+
 - Unit tests for data preparation: test `build_pdf_lines()` without PDF rendering (no reportlab dependency).
 - API tests for PDF bytes: verify `%PDF` header and non-empty content (no snapshot comparisons).
 - ImportError → 501 tests: verify that missing reportlab raises 501 with frozen error contract.
 
 ### Key test files
+
 - `tests/vip/test_pdf_export_pr8b.py`: PR-8b specific tests (deterministic ordering, grouping, totals).
 - `tests/vip/test_pdf_export_diff_coverage.py`: diff-cover targeted tests.
 
 ### Test invariants
+
 - Do NOT compare PDF bytes directly (non-deterministic due to timestamps/metadata).
 - Test data preparation (`PdfLine` objects) for determinism and correctness.
 - Test PDF generation only for basic validity (header + length).
@@ -103,13 +117,16 @@ CI may have optional deps installed (e.g. prometheus_client, reportlab).
 Therefore tests MUST NOT assume optional deps are missing.
 
 ### Required pattern
+
 To test fallback paths for optional deps:
+
 - Use `monkeypatch` to force failure (preferred):
   - patch `prometheus_client.generate_latest` to raise
   - patch lazy import helper to raise ImportError
 - Do NOT rely on `response.json()` unless you have asserted JSON Content-Type.
 
 ### Forbidden
+
 - Relying on ImportError in CI without monkeypatch
 - Using sys.modules purge / import hacks unless explicitly allowed by contract
 
@@ -119,10 +136,12 @@ When production code uses optional dependencies (e.g. prometheus_client, reportl
 imports MUST remain patchable for tests.
 
 ### Required pattern (patchable)
+
 - `import prometheus_client`
 - use `prometheus_client.generate_latest()` and `prometheus_client.CONTENT_TYPE_LATEST`
 
 ### Forbidden pattern (breaks monkeypatch)
+
 - `from prometheus_client import generate_latest, CONTENT_TYPE_LATEST`
 
 **Why:** Direct imports break `monkeypatch.setattr()` because the symbol is already bound at module import time.
@@ -130,6 +149,7 @@ imports MUST remain patchable for tests.
 ## Metrics endpoint testing contract (hard)
 
 ### `/metrics` has two valid response modes
+
 1) **Happy path**: Prometheus exposition format  
    - `Content-Type` starts with `text/plain`
    - Response body is bytes/text (NOT JSON)
@@ -139,12 +159,14 @@ imports MUST remain patchable for tests.
    - Response body is JSON with `"error"` key (and optional `"detail"`)
 
 ### Hard test rule
+
 Tests MUST NOT assume that `/metrics` returns JSON by default.
 
 If a test expects JSON from `/metrics`, it MUST force exporter failure explicitly via `monkeypatch`,
 e.g. patch `prometheus_client.generate_latest` to raise.
 
 ### Required snippet (copy/paste)
+
 ```python
 import prometheus_client
 
@@ -161,8 +183,40 @@ assert "error" in data
 ```
 
 ### Forbidden
+
 - Calling `response.json()` on `/metrics` without asserting JSON `Content-Type` first
 - "Fixing" a red CI by changing `/metrics` to always return JSON
+
+## Metrics fallback tests (must be deterministic)
+
+If a test expects JSON from `/metrics`, it MUST follow this exact order:
+
+1. **Force exporter failure via monkeypatch** (before making request)
+2. **Make request** to `/metrics`
+3. **Assert status_code == 200**
+4. **Assert Content-Type starts with `application/json`** (prevents JSONDecodeError)
+5. **Call `response.json()`** and assert error keys
+
+**Required pattern:**
+```python
+import prometheus_client
+
+def _boom() -> bytes:
+    raise RuntimeError("Prometheus exporter unavailable")
+
+monkeypatch.setattr(prometheus_client, "generate_latest", _boom)
+
+response = client.get("/metrics")
+assert response.status_code == 200
+assert response.headers["content-type"].startswith("application/json")
+data = response.json()
+assert "error" in data
+```
+
+**Why this order matters:**
+- Monkeypatch must happen before request (otherwise exporter succeeds)
+- Content-Type check prevents JSONDecodeError if fallback didn't trigger
+- Never assume optional deps are missing in CI
 
 ## Content-Type assertions
 
@@ -174,16 +228,19 @@ assert "error" in data
   (prevents JSONDecodeError on text/plain endpoints like `/metrics`).
 
 ## Forbidden in tests
+
 - Do not mutate `sys.modules` (no `del sys.modules[...]`, no `sys.modules[...] = ...`).
   Use `patch()` / `monkeypatch.setattr()` instead.
   For FastAPI endpoints, prefer `tests/_route_patch.patch_route_dependency()`.
 
 To verify:
+
 - `pytest -q tests/test_repo_policy_sys_modules.py`
 
 ## CI red rule (enforced)
 
 If CI is red:
+
 - ❌ Do NOT push additional unrelated refactors.
 - ❌ Do NOT claim "tests are wrong" without committing the fixing patch.
 - ✅ Required steps:
@@ -193,9 +250,25 @@ If CI is red:
   4) Re-run: `make test-fast` and `make cov-check`.
 - **No green, no merge, no exceptions.**
 
+**Red CI means unfinished work. You either fix it in this PR or you don't push. "Tests are wrong" is only acceptable with a patch that updates the tests + documents the contract change.**
+
+## Definition of Done for PR (enforced)
+
+Before pushing or claiming "ready to merge", ALL must pass locally:
+
+- `make lint` ✅
+- `make typecheck` ✅
+- `make test-fast` ✅
+- `make cov-check` ✅ (diff-cover ≥97%)
+
+**Shortcut:** `make verify` runs all of the above.
+
+**If ANY fails:** fix it first, then re-run. Never push with red CI.
+
 ## Type hints policy (tests)
 
 ### Hard rules
+
 - ❌ Never "fix" a failing test by loosening type hints (e.g., `Optional[T]` → `Any`)
 - ❌ Never change production type hints to satisfy mocks
 - ❌ Never add `# type: ignore` unless:
@@ -203,18 +276,22 @@ If CI is red:
   - and comment explains why
 
 ### Allowed in tests
+
 - `Any` **only** in fake/stub objects
 - `Protocol` or `Callable[..., T]` preferred over `Any`
 - `cast(T, value)` allowed **only at test boundary**
 - `Optional[T]` only if production code can actually return `None`
 
 ### SQLAlchemy / Pydantic specifics
+
 - Never change `Mapped[T]` / `nullable` in models to satisfy tests
 - If relationship breaks typing → fix import order/model registration, not hints
 - Pydantic v2: prefer real validators over `# type: ignore`
 
 ### Smell checklist
+
 If tempted to:
+
 - add `Optional` "just to make mypy shut up"
 - replace concrete type with `Any`
 - add multiple `# type: ignore` in a row
@@ -247,6 +324,7 @@ If tempted to:
 ## No namespace duplication in tests (xdist stability)
 
 ### Forbidden in tests
+
 - Dynamic module loading:
   - `spec_from_file_location`, `module_from_spec`, `exec_module`
 - Path hacks:
@@ -255,27 +333,33 @@ If tempted to:
   - `sys.modules[...] = ...`, `del sys.modules[...]`
 
 ### Allowed exceptions (must be whitelisted)
+
 - `tests/conftest.py`
 - `tests/test_test_pro_access_coverage.py`
 - `tests/test_ensure_database_versions.py`
 
 ### Required import pattern
+
 - Import production modules by package path:
   - ✅ `import app.services.recipe_store as recipe_store`
   - ✅ `from app import app`
   - ❌ never load `app/services/X.py` by file path
 
 ### Import hygiene exceptions (intentional)
+
 Dynamic imports allowed only for script-style tests:
+
 - `tests/test_test_pro_access_coverage.py`
 - `tests/test_ensure_database_versions.py`
 - `tests/conftest.py` (xdist/db + env bootstrap)
 
 sys.path.insert allowed only in:
+
 - `tests/conftest.py`
 - `tests/test_test_pro_access_coverage.py`
 
 ### Pre-commit verification
+
 ```bash
 # 1. No dynamic imports (except whitelisted)
 git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" tests \
@@ -292,6 +376,7 @@ git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" tests
 ```
 
 ### Find violators (excluding guard tests)
+
 ```bash
 # Dynamic imports
 git grep -n "sys\.path\.insert" tests \

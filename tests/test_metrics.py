@@ -152,6 +152,8 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
     ), "Expected series with method=POST, route=/api/v1/bmi/calculate, status=200"
 
     route_value = match.group(1)
+    # Contract: route label must be endpoint-level template, not router prefix
+    # Changing this route is a breaking change for metrics label contract
     assert route_value == "/api/v1/bmi/calculate", f"Route should be template, got: {route_value}"
     assert "?" not in route_value, f"Route label should not contain query params: {route_value}"
 

@@ -121,6 +121,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 - The `route` label MUST be endpoint-level template path (APIRoute.path).
 - Router prefixes or mounts are NOT acceptable as `route` labels.
 - Implementation MUST match by `request.scope["endpoint"]` identity to APIRoute.endpoint.
+- **Breaking change policy:** Changing a route template (e.g., `/api/v1/bmi/calculate` → `/api/v2/bmi/calculate`) is a breaking change for metrics label contract. Update tests + AGENTS.md in the same PR.
 
 ---
 
