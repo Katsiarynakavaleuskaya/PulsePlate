@@ -146,6 +146,12 @@ imports MUST remain patchable for tests.
 
 **Why:** Direct imports break `monkeypatch.setattr()` because the symbol is already bound at module import time.
 
+**Monkeypatch target rule:**
+- Monkeypatch target must match the symbol used by production code.
+- If production uses `import prometheus_client` → patch `prometheus_client.generate_latest`.
+- If production uses `from X import Y` → patch at use-site: `app.middleware.metrics.Y` (if needed).
+- Always verify patch target matches production call site.
+
 ## Metrics endpoint testing contract (hard)
 
 ### `/metrics` has two valid response modes
@@ -258,7 +264,8 @@ To verify:
 If CI is red:
 
 - ❌ Do NOT push additional unrelated refactors.
-- ❌ Do NOT claim "tests are wrong" without committing the fixing patch.
+- ❌ Do NOT claim "tests are wrong" or "CI issue" without committing the fixing patch.
+- ❌ Do NOT label failures as "test problem" — submit the patch in the same PR.
 - ✅ Required steps:
   1) Identify failing test(s) and reproduce locally.
   2) Fix code or tests in the same PR.
@@ -267,6 +274,29 @@ If CI is red:
 - **No green, no merge, no exceptions.**
 
 **Red CI means unfinished work. You either fix it in this PR or you don't push. "Tests are wrong" is only acceptable with a patch that updates the tests + documents the contract change.**
+
+## CI Recovery (hard)
+
+If CI is red:
+- Do NOT push refactors or drive-by cleanup.
+- First fix the failing test(s) or the production behavior in the same PR.
+- Rebase onto origin/main (preferred):
+  ```bash
+  git fetch origin
+  git rebase origin/main
+  make test-fast
+  make cov-check
+  git push --force-with-lease
+  ```
+
+**Definition of Done before requesting review:**
+- `make test-fast` ✅
+- `make cov-check` ✅
+- `make lint` ✅
+- `make typecheck` ✅
+- PR CI green ✅
+
+**If `cov-check` is green locally but CI is red:** investigate environment differences, but do NOT merge until CI is green.
 
 ## Definition of Done for PR (enforced)
 

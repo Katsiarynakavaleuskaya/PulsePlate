@@ -10,7 +10,6 @@ import re
 
 import pytest
 from fastapi.testclient import TestClient
-from prometheus_client import CONTENT_TYPE_LATEST
 
 import app
 
@@ -172,10 +171,39 @@ def test_metrics_content_type(client: TestClient) -> None:
     """
     response = client.get("/metrics")
     assert response.status_code == 200
-    # Content-Type must match prometheus_client.CONTENT_TYPE_LATEST exactly
-    assert response.headers["content-type"] == CONTENT_TYPE_LATEST
-    # Prometheus format should have # HELP or # TYPE comments
+
+    # Content-Type must start with text/plain (do not assert exact version/charset)
+    ct = response.headers.get("content-type", "")
+    assert ct.startswith("text/plain"), f"Expected Prometheus text/plain, got: {ct}"
+
+    # Prometheus exposition should have HELP/TYPE lines (most exporters do)
     assert "# HELP" in response.text or "# TYPE" in response.text
+
+
+def test_metrics_json_fallback_when_exporter_raises(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test /metrics returns JSON fallback when Prometheus exporter raises.
+
+    RU: Проверяет JSON fallback при ошибке Prometheus exporter.
+    EN: Verifies JSON fallback when Prometheus exporter raises.
+    """
+    import prometheus_client
+
+    # Force exporter failure to test JSON fallback
+    def _boom() -> bytes:
+        raise RuntimeError("Prometheus exporter unavailable")
+
+    # Patch the exact symbol used by production code
+    monkeypatch.setattr(prometheus_client, "generate_latest", _boom)
+
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
+
+    data = response.json()
+    assert "error" in data
+    assert "Prometheus" in data["error"] or "prometheus" in data.get("detail", "").lower()
 
 
 def test_metrics_hidden_from_openapi(client: TestClient) -> None:

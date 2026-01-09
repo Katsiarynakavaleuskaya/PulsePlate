@@ -323,7 +323,9 @@ git push --force-with-lease
 **Hard rules:**
 - ❌ Never use `git push -f` without `--force-with-lease` (unsafe, can overwrite others' work)
 - ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
+- ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
 - ✅ Always rebase (don't merge main into feature branch) to keep history linear
+- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Why force-with-lease:**
 - Prevents overwriting remote changes you haven't seen
