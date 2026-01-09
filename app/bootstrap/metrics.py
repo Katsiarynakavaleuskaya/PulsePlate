@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.middleware.metrics import metrics_middleware
 
@@ -33,8 +34,25 @@ def register_metrics(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance
     """
-    # Register middleware last so it becomes outermost
-    app.middleware("http")(metrics_middleware)
+    # Starlette forbids adding middleware after the stack is built (first request).
+    # In that case, we must skip registration to avoid runtime errors in tests/teardown.
+    can_mutate = getattr(app, "middleware_stack", None) is None
+
+    # Register middleware last so it becomes outermost (idempotent).
+    has_middleware = any(
+        mw.cls is BaseHTTPMiddleware and mw.kwargs.get("dispatch") is metrics_middleware
+        for mw in getattr(app, "user_middleware", None) or []
+    )
+    if not has_middleware and can_mutate:
+        app.middleware("http")(metrics_middleware)
+
+    # Register /metrics endpoint (idempotent).
+    has_metrics_route = any(
+        getattr(r, "path", None) == "/metrics" and "GET" in (getattr(r, "methods", None) or set())
+        for r in getattr(app, "routes", None) or []
+    )
+    if has_metrics_route or not can_mutate:
+        return
 
     @app.get("/metrics", include_in_schema=False)
     def metrics() -> Response:

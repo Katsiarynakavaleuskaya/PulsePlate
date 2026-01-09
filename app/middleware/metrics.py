@@ -262,25 +262,3 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
                 # Metrics recording must never affect request handling.
                 # Optional: logger.exception("Prometheus metrics recording failed")
                 pass
-
-
-def install_metrics_middleware(fastapi_app: Any) -> None:
-    """Install metrics middleware on an app (idempotent).
-
-    This is safe to call multiple times. If the app has already started and
-    Starlette disallows adding middleware, this becomes a no-op.
-    """
-    from starlette.middleware.base import BaseHTTPMiddleware
-
-    user_middleware = getattr(fastapi_app, "user_middleware", None) or []
-    for mw in user_middleware:
-        if (
-            getattr(mw, "cls", None) is BaseHTTPMiddleware
-            and getattr(mw, "options", {}).get("dispatch") is metrics_middleware
-        ):
-            return
-
-    try:
-        fastapi_app.middleware("http")(metrics_middleware)
-    except RuntimeError:
-        return
