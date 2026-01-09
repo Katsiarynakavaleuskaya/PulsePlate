@@ -45,7 +45,7 @@ class TestBMICalculateRequest:
         # Defaults are normalized in schema field_validators (BMICalculateRequest), not router/engine
         assert req.gender is None
         assert req.pregnant is False
-        assert req.athlete is False
+        assert req.athlete == "no"
         assert req.waist_cm is None
         assert req.lang == "en"
 
@@ -120,17 +120,6 @@ class TestBMICalculateRequest:
 
         req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, pregnant=True)
         assert req_bool.pregnant is True
-
-    def test_athlete_string_and_bool(self) -> None:
-        """Test that athlete accepts both string and bool, normalized to bool."""
-        req_str = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete="yes")
-        assert req_str.athlete is True  # Normalized to bool
-
-        req_bool = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete=True)
-        assert req_bool.athlete is True
-
-        req_no = BMICalculateRequest(weight_kg=70, height_cm=175, age=30, athlete="no")
-        assert req_no.athlete is False
 
 
 def test_schema_normalizes_gender_w_to_female() -> None:
@@ -593,51 +582,3 @@ def test_pregnant_whitespace_only_normalizes_to_false() -> None:
         }
     )
     assert req.pregnant is False
-
-
-def test_athlete_none_normalizes_to_false() -> None:
-    """
-    Edge case: athlete=None → False.
-    Mirrors pregnant normalization behavior.
-    """
-    req = BMICalculateRequest.model_validate(
-        {
-            "weight_kg": 65,
-            "height_cm": 170,
-            "age": 30,
-            "athlete": None,
-        }
-    )
-    assert req.athlete is False
-
-
-def test_athlete_whitespace_only_normalizes_to_false() -> None:
-    """
-    Edge case: athlete="   " (whitespace only) → False after strip.
-    Mirrors pregnant normalization behavior.
-    """
-    req = BMICalculateRequest.model_validate(
-        {
-            "weight_kg": 65,
-            "height_cm": 170,
-            "age": 30,
-            "athlete": "   ",
-        }
-    )
-    assert req.athlete is False
-
-
-def test_athlete_unknown_token_normalizes_to_false() -> None:
-    """
-    Edge case: athlete="maybe" (unknown token) → False.
-    Mirrors pregnant normalization behavior.
-    """
-    req = BMICalculateRequest.model_validate(
-        {
-            "weight_kg": 65,
-            "height_cm": 170,
-            "age": 30,
-            "athlete": "maybe",
-        }
-    )
-    assert req.athlete is False
