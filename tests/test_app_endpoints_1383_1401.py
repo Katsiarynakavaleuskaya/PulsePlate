@@ -23,7 +23,9 @@ class TestAppEndpoints1383_1401:
         data = response.json()
         assert data["status"] == "ok"
 
-    def test_metrics_endpoint_prometheus_unavailable(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_metrics_endpoint_prometheus_unavailable(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """/metrics returns error when Prometheus client not available."""
         import prometheus_client
 

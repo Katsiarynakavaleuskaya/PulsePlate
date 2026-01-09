@@ -113,12 +113,65 @@ To test fallback paths for optional deps:
 - Relying on ImportError in CI without monkeypatch
 - Using sys.modules purge / import hacks unless explicitly allowed by contract
 
+## Patchability rule for optional deps (enforced)
+
+When production code uses optional dependencies (e.g. prometheus_client, reportlab),
+imports MUST remain patchable for tests.
+
+### Required pattern (patchable)
+- `import prometheus_client`
+- use `prometheus_client.generate_latest()` and `prometheus_client.CONTENT_TYPE_LATEST`
+
+### Forbidden pattern (breaks monkeypatch)
+- `from prometheus_client import generate_latest, CONTENT_TYPE_LATEST`
+
+**Why:** Direct imports break `monkeypatch.setattr()` because the symbol is already bound at module import time.
+
+## Metrics endpoint testing contract (hard)
+
+### `/metrics` has two valid response modes
+1) **Happy path**: Prometheus exposition format  
+   - `Content-Type` starts with `text/plain`
+   - Response body is bytes/text (NOT JSON)
+
+2) **Fallback**: JSON error envelope (when exporter fails at runtime)  
+   - `Content-Type` starts with `application/json`
+   - Response body is JSON with `"error"` key (and optional `"detail"`)
+
+### Hard test rule
+Tests MUST NOT assume that `/metrics` returns JSON by default.
+
+If a test expects JSON from `/metrics`, it MUST force exporter failure explicitly via `monkeypatch`,
+e.g. patch `prometheus_client.generate_latest` to raise.
+
+### Required snippet (copy/paste)
+```python
+import prometheus_client
+
+def _boom() -> bytes:
+    raise RuntimeError("boom")
+
+monkeypatch.setattr(prometheus_client, "generate_latest", _boom)
+
+resp = client.get("/metrics")
+assert resp.status_code == 200
+assert resp.headers["content-type"].startswith("application/json")
+data = resp.json()
+assert "error" in data
+```
+
+### Forbidden
+- Calling `response.json()` on `/metrics` without asserting JSON `Content-Type` first
+- "Fixing" a red CI by changing `/metrics` to always return JSON
+
 ## Content-Type assertions
 
 - For Prometheus responses: assert `Content-Type` starts with `text/plain`
   (do not assert exact version/charset).
 - For JSON error envelopes: assert `Content-Type` starts with `application/json`
   before calling `response.json()`.
+- Never call `response.json()` unless `Content-Type` starts with `application/json`
+  (prevents JSONDecodeError on text/plain endpoints like `/metrics`).
 
 ## Forbidden in tests
 - Do not mutate `sys.modules` (no `del sys.modules[...]`, no `sys.modules[...] = ...`).
@@ -131,11 +184,14 @@ To verify:
 ## CI red rule (enforced)
 
 If CI is red:
-1) Identify failing test(s) and reproduce locally.
-2) Fix code or tests in the same PR.
-3) Update AGENTS.md if the fix changes/clarifies a contract.
-4) Re-run: `make test-fast` and `make cov-check`.
-Never claim "tests are wrong" without submitting the correcting patch.
+- ❌ Do NOT push additional unrelated refactors.
+- ❌ Do NOT claim "tests are wrong" without committing the fixing patch.
+- ✅ Required steps:
+  1) Identify failing test(s) and reproduce locally.
+  2) Fix code or tests in the same PR.
+  3) Update AGENTS.md if the fix changes/clarifies a contract.
+  4) Re-run: `make test-fast` and `make cov-check`.
+- **No green, no merge, no exceptions.**
 
 ## Type hints policy (tests)
 
