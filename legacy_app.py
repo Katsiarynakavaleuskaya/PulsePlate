@@ -2018,13 +2018,19 @@ def metrics() -> Response:
 
         data = prometheus_client.generate_latest()
         return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
-    except Exception as exc:
+    except Exception:
         # Graceful degradation: return JSON error if Prometheus exporter unavailable
+        # Log exception server-side only (no error detail leakage in response)
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.exception("Prometheus metrics exporter failed")
+
         return JSONResponse(
             status_code=200,
             content={
                 "error": "Prometheus client not available",
-                "detail": str(exc),
+                "detail": "Prometheus exporter unavailable",
             },
         )
 

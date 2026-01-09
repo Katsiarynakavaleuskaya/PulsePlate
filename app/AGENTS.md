@@ -128,6 +128,18 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Do `import prometheus_client` and reference `prometheus_client.generate_latest()` / `prometheus_client.CONTENT_TYPE_LATEST`.
 - This keeps fallback paths testable (monkeypatch patches the same object used by production code).
 
+**Import-safety for observability (hard):**
+- Metrics instrumentation must not crash startup if optional deps are unavailable.
+- Wrap prometheus_client imports/init in `try/except ImportError` and degrade to no-op if unavailable.
+- Middleware becomes no-op (returns response without instrumentation) if metrics are unavailable.
+- This ensures graceful degradation: application starts even if observability deps are missing.
+
+**No error detail leakage (hard):**
+- JSON fallback for `/metrics` must not include raw exception messages/paths in response.
+- Log exceptions server-side only (use `logger.exception()`).
+- Response `detail` field must be a stable, user-safe message (e.g., "Prometheus exporter unavailable").
+- Never expose `str(exc)` or stack traces in JSON responses.
+
 **Middleware route label rule (hard):**
 - The `route` label MUST be endpoint-level template path (APIRoute.path).
 - Router prefixes or mounts are NOT acceptable as `route` labels.
@@ -135,7 +147,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 - **Breaking change policy:** Changing a route template (e.g., `/api/v1/bmi/calculate` → `/api/v2/bmi/calculate`) is a breaking change for metrics label contract. Update tests + AGENTS.md in the same PR.
 
 **CI red freeze (enforced):**
-- If CI is red: no refactors, no drive-by cleanup, no unrelated changes.
+- If CI is red: only allow commits that make CI green (no refactors / drive-by changes).
 - Only allowed commits: fixes for failing tests / lint / typecheck / coverage in the same PR.
 - If you believe a test is wrong: you MUST submit the patch that corrects it in this PR (no exceptions).
 - **No green, no push, no exceptions.**

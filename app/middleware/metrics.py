@@ -16,24 +16,32 @@ from time import perf_counter
 
 from fastapi import Request
 from fastapi.routing import APIRoute
-from prometheus_client import Counter, Histogram
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import Response
 
-HTTP_REQUESTS_TOTAL = Counter(
-    "http_requests_total",
-    "Total number of HTTP requests",
-    labelnames=("method", "route", "status"),
-)
-
-HTTP_REQUEST_DURATION_SECONDS = Histogram(
-    "http_request_duration_seconds",
-    "HTTP request duration in seconds",
-    labelnames=("method", "route", "status"),
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
-)
-
+# Always defined (even if Prometheus is unavailable)
 EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
+
+# Graceful degradation: metrics become no-op if prometheus_client is unavailable
+try:
+    from prometheus_client import Counter, Histogram
+
+    HTTP_REQUESTS_TOTAL: Counter = Counter(
+        "http_requests_total",
+        "Total number of HTTP requests",
+        labelnames=("method", "route", "status"),
+    )
+
+    HTTP_REQUEST_DURATION_SECONDS: Histogram = Histogram(
+        "http_request_duration_seconds",
+        "HTTP request duration in seconds",
+        labelnames=("method", "route", "status"),
+        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
+    )
+except ImportError:
+    # Metrics unavailable: middleware becomes no-op (does not crash startup)
+    HTTP_REQUESTS_TOTAL = None  # type: ignore[assignment]
+    HTTP_REQUEST_DURATION_SECONDS = None  # type: ignore[assignment]
 
 
 def _normalized_path(path: str) -> str:
@@ -106,6 +114,8 @@ def _route_template(request: Request) -> str:
 async def metrics_middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
     """Collect Prometheus metrics for HTTP requests.
 
+    If metrics are unavailable (prometheus_client not installed), middleware becomes no-op.
+
     Args:
         request: FastAPI request
         call_next: Next middleware/handler (Starlette RequestResponseEndpoint)
@@ -113,6 +123,10 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
     Returns:
         Response from downstream
     """
+    # If metrics are unavailable, behave as no-op (graceful degradation)
+    if HTTP_REQUESTS_TOTAL is None or HTTP_REQUEST_DURATION_SECONDS is None:
+        return await call_next(request)
+
     # Fast path: skip obvious noise early (before timer)
     if _excluded_by_path(request):
         return await call_next(request)

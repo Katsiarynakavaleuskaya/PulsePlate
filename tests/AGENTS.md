@@ -152,6 +152,14 @@ imports MUST remain patchable for tests.
 - If production uses `from X import Y` → patch at use-site: `app.middleware.metrics.Y` (if needed).
 - Always verify patch target matches production call site.
 
+**Prefer conftest fixtures:**
+- Don't define local `TestClient` fixture if repo already has canonical `app`/`client` fixture in `conftest.py`.
+- Local fixtures may bypass important test setup (environment variables, middleware, etc.).
+
+**Avoid flakey parsing:**
+- When asserting a metric series exists, prefer `_metric_value()` with exact labels over regex that matches "first POST/200".
+- Regex-based parsing can be fragile if metrics order changes or multiple series exist.
+
 ## Metrics endpoint testing contract (hard)
 
 ### `/metrics` has two valid response modes

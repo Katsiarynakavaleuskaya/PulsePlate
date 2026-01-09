@@ -14,10 +14,7 @@ from fastapi.testclient import TestClient
 import app
 
 
-@pytest.fixture
-def client() -> TestClient:
-    """Test client for metrics tests."""
-    return TestClient(app.app)
+# Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
 
 
 def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
@@ -139,28 +136,19 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
 
     metrics_text = client.get("/metrics").text
 
-    # Verify route label for specific labelset (method + route + status) doesn't contain query params
-    # Pattern: http_requests_total{method="POST",route="/api/v1/bmi/calculate",status="200"} ...
-    # Extract route value from the specific series we care about
-    labelset_pattern = re.compile(
-        r'http_requests_total\{[^}]*method="POST"[^}]*route="([^"]+)"[^}]*status="200"[^}]*\}'
-    )
-    match = labelset_pattern.search(metrics_text)
+    # Strong deterministic check: exact series exists with correct route template
+    route = "/api/v1/bmi/calculate"
     assert (
-        match is not None
-    ), "Expected series with method=POST, route=/api/v1/bmi/calculate, status=200"
+        _metric_value(metrics_text, method="POST", route=route, status="200") >= 1.0
+    ), f"Expected series with method=POST, route={route}, status=200"
 
-    route_value = match.group(1)
-    # Contract: route label must be endpoint-level template, not router prefix
-    # Changing this route is a breaking change for metrics label contract
-    assert route_value == "/api/v1/bmi/calculate", f"Route should be template, got: {route_value}"
-    assert "?" not in route_value, f"Route label should not contain query params: {route_value}"
-
+    # Guard: no query params ever appear in route labels
+    assert f'route="{route}?"' not in metrics_text, "Query params should not appear in route label"
     # Global guard: ensure no route label contains query params anywhere
     route_label_pattern = re.compile(r'route="([^"]+)"')
     all_routes = route_label_pattern.findall(metrics_text)
-    for route in all_routes:
-        assert "?" not in route, f"Route label should not contain query params: {route}"
+    for route_label in all_routes:
+        assert "?" not in route_label, f"Route label should not contain query params: {route_label}"
 
 
 def test_metrics_content_type(client: TestClient) -> None:
