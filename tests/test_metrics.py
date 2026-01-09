@@ -136,14 +136,16 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
 
     metrics_text = client.get("/metrics").text
 
-    # Strong deterministic check: exact series exists with correct route template
+    # Deterministic: exact series must exist with correct route template
+    # This ensures we check the specific series we care about, not just "any POST/200"
     route = "/api/v1/bmi/calculate"
     assert (
         _metric_value(metrics_text, method="POST", route=route, status="200") >= 1.0
     ), f"Expected series with method=POST, route={route}, status=200"
 
-    # Guard: no query params ever appear in route labels
+    # Guard: query params must never appear in route labels
     assert f'route="{route}?"' not in metrics_text, "Query params should not appear in route label"
+
     # Global guard: ensure no route label contains query params anywhere
     route_label_pattern = re.compile(r'route="([^"]+)"')
     all_routes = route_label_pattern.findall(metrics_text)

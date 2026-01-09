@@ -86,6 +86,9 @@ def _route_template(request: Request) -> str:
     Must be called AFTER call_next (when route is resolved by router).
     Uses endpoint mapping to find the exact APIRoute path (not router prefix).
 
+    If multiple routes point to the same endpoint (e.g., alias/legacy routes),
+    chooses the most specific (longest) route template to ensure consistency.
+
     Args:
         request: FastAPI request object (after route resolution)
 
@@ -99,21 +102,28 @@ def _route_template(request: Request) -> str:
 
     # Find the APIRoute that matches this endpoint
     router = getattr(request.app, "router", None)
-    if router is None or not hasattr(router, "routes"):
+    routes = getattr(router, "routes", None)
+    if routes is None:
         return "unknown"
 
-    for r in router.routes or []:
+    # Collect all candidate routes for this endpoint
+    candidates: list[str] = []
+    for r in routes or []:
         if not isinstance(r, APIRoute):
             continue
         # Match by endpoint function identity (most reliable for nested routers)
         if getattr(r, "endpoint", None) is endpoint:
             path = getattr(r, "path", None)
             if isinstance(path, str) and path and path.startswith("/"):
-                return path
+                candidates.append(path)
 
-    # Route unavailable → return "unknown"
-    # Forbidden: do NOT use request.url.path as fallback for non-excluded requests
-    return "unknown"
+    if not candidates:
+        return "unknown"
+
+    # Choose the most specific (longest) template
+    # This ensures that if both /api/v1/bmi and /api/v1/bmi/calculate point to the same
+    # endpoint, we always use the more specific /api/v1/bmi/calculate
+    return max(candidates, key=len)
 
 
 async def metrics_middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -152,12 +162,13 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
         # Route extraction: AFTER call_next (when route is resolved by router)
         # Route is reliably available only after downstream routing ran
         route = _route_template(request)
+        route_norm = _normalized_path(route)
 
         # Late exclusion: covers trailing slash / mounting / router behaviors
-        # If route is excluded or unavailable, skip metrics collection
-        if route not in EXCLUDED_ROUTE_TEMPLATES and route != "unknown":
+        # Normalize template before compare to handle trailing slashes consistently
+        if route_norm not in EXCLUDED_ROUTE_TEMPLATES and route_norm != "unknown":
             elapsed = perf_counter() - start
-            HTTP_REQUESTS_TOTAL.labels(method=method, route=route, status=status).inc()
-            HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=route, status=status).observe(
-                elapsed
-            )
+            HTTP_REQUESTS_TOTAL.labels(method=method, route=route_norm, status=status).inc()
+            HTTP_REQUEST_DURATION_SECONDS.labels(
+                method=method, route=route_norm, status=status
+            ).observe(elapsed)
