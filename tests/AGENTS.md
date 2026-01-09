@@ -150,11 +150,11 @@ imports MUST remain patchable for tests.
 
 ### `/metrics` has two valid response modes
 
-1) **Happy path**: Prometheus exposition format  
+1) **Happy path**: Prometheus exposition format
    - `Content-Type` starts with `text/plain`
    - Response body is bytes/text (NOT JSON)
 
-2) **Fallback**: JSON error envelope (when exporter fails at runtime)  
+2) **Fallback**: JSON error envelope (when exporter fails at runtime)
    - `Content-Type` starts with `application/json`
    - Response body is JSON with `"error"` key (and optional `"detail"`)
 
@@ -217,6 +217,22 @@ assert "error" in data
 - Monkeypatch must happen before request (otherwise exporter succeeds)
 - Content-Type check prevents JSONDecodeError if fallback didn't trigger
 - Never assume optional deps are missing in CI
+
+## Route template tests (breaking change policy)
+
+Tests that assert exact route template paths (e.g., `/api/v1/bmi/calculate`) are **intentional contract tests**.
+
+**Changing a route template is a breaking change for metrics label contract.**
+
+If you change a route template:
+- Update the test assertion in the same PR
+- Update `app/AGENTS.md` if the route label policy changes
+- Document the breaking change in PR description
+
+**Example:** If `/api/v1/bmi/calculate` becomes `/api/v2/bmi/calculate`, update:
+- `tests/test_metrics.py::test_metrics_includes_route_template` (assertion)
+- Any other tests that hardcode the route path
+- `app/AGENTS.md` if metrics contract changes
 
 ## Content-Type assertions
 
