@@ -553,3 +553,40 @@ def test_bmi_marker_spec_valid() -> None:
     """BMIMarkerSpec accepts valid marker value."""
     marker = BMIMarkerSpec.model_validate({"value": 23.4})
     assert marker.value == 23.4
+
+
+# --- Coverage-tail tests for _normalize_pregnant edge cases (diff-cover lines 267, 270) ---
+
+
+def test_pregnant_none_normalizes_to_false() -> None:
+    """
+    Edge case: pregnant=None → False.
+    Covers line 267 in _normalize_pregnant validator.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "gender": "female",
+            "pregnant": None,
+        }
+    )
+    assert req.pregnant is False
+
+
+def test_pregnant_whitespace_only_normalizes_to_false() -> None:
+    """
+    Edge case: pregnant="   " (whitespace only) → False after strip.
+    Covers line 270 in _normalize_pregnant validator.
+    """
+    req = BMICalculateRequest.model_validate(
+        {
+            "weight_kg": 65,
+            "height_cm": 170,
+            "age": 30,
+            "gender": "female",
+            "pregnant": "   ",
+        }
+    )
+    assert req.pregnant is False
