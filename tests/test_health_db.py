@@ -14,7 +14,7 @@ from core import db as db_module
 
 # RU: /ready - alias для /health/db, тестируем оба пути.
 # EN: /ready is an alias for /health/db, test both paths.
-READINESS_PATHS = ["/health/db", "/ready"]
+READINESS_PATHS: list[str] = ["/health/db", "/ready"]
 
 
 @pytest.mark.parametrize("path", READINESS_PATHS)
@@ -30,7 +30,7 @@ def test_readiness_ok(path: str) -> None:
 
 
 @pytest.mark.parametrize("path", READINESS_PATHS)
-def test_readiness_failure(monkeypatch, path: str) -> None:
+def test_readiness_failure(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
     """RU: Ошибка БД приводит к 503.
 
     EN: DB failure surfaces as 503 on readiness endpoints.
