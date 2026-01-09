@@ -1302,9 +1302,6 @@ async def log_requests(request: Request, call_next: CallNextHandler) -> Response
     return response
 
 
-from app.middleware.metrics import install_metrics_middleware  # noqa: E402
-
-install_metrics_middleware(app)
 
 
 @app.get("/health/db")
