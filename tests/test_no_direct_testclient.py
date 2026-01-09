@@ -16,7 +16,12 @@ ALLOWLIST = {
     "tests/test_no_direct_testclient.py",  # This guard test
 }
 
-# Patterns allowed in coverage boost files (tech debt, low priority)
+# Patterns allowed in coverage boost files (tech debt, low priority).
+#
+# Tech-debt note:
+# These files predate `tests/_client.get_client()` and may still construct TestClient directly.
+# Tracking: TODO(open issue / add URL) • Owner: TBD • Target: TBD
+# Once migrated, remove the relevant patterns from this allowlist.
 COVERAGE_BOOST_PATTERNS = (
     "test_coverage_97",
     "test_coverage_boost",

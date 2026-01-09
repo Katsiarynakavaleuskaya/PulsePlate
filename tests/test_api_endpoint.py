@@ -7,12 +7,8 @@ This script tests the /api/v1/premium/plan/week endpoint with different language
 import os
 from tests._client import get_client
 
-from fastapi.testclient import TestClient
 
-import app
-
-
-def test_api_endpoint_multilingual():
+def test_api_endpoint_multilingual() -> None:
     """Test the API endpoint with different languages."""
     # Set up test client
     client = get_client()
@@ -78,7 +74,7 @@ def test_api_endpoint_multilingual():
         print(f"✓ Language {lang} test passed")
 
 
-def test_api_endpoint_with_targets():
+def test_api_endpoint_with_targets() -> None:
     """Test the API endpoint with pre-calculated targets."""
     # Set up test client
     client = get_client()

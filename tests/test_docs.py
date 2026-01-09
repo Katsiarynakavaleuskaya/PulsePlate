@@ -1,4 +1,5 @@
 from tests._client import get_client
+
 client = get_client()
 
 
