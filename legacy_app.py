@@ -2265,10 +2265,10 @@ async def plan_endpoint(req: BMIRequest) -> Dict[str, Any]:
         cat = cat_result.category
 
     # 4) Build legacy /plan response shape (unchanged)
-    # Import healthy BMI range from canonical source
+    # Import healthy BMI range from canonical source (tuple: min, max)
     from core.bmi.engine import HEALTHY_BMI_RANGE
 
-    healthy_bmi = HEALTHY_BMI_RANGE
+    healthy_bmi = {"min": HEALTHY_BMI_RANGE[0], "max": HEALTHY_BMI_RANGE[1]}
 
     # ES fallback to EN (legacy behavior preserved)
     lang_for_response = req.lang if req.lang in ("ru", "en") else "en"
