@@ -58,8 +58,9 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 
 **Route extraction rules:**
 - Route label MUST come from `request.scope["route"].path` (route template) after router resolution.
-- If route is unavailable → use `"unknown"` (forbidden to use `request.url.path` as fallback for non-excluded requests).
+- If route is unavailable → use `"unknown"` (forbidden to use `request.url.path` or normalized path as fallback for non-excluded requests).
 - This prevents high cardinality when routes with path parameters (e.g., `/api/v1/users/{id}`) are added.
+- **Prometheus route label policy**: Route label MUST be route template only. Raw/normalized path fallback is forbidden. If route template is unavailable → route="unknown".
 
 **Excluded paths** (not counted in metrics):
 - `/metrics` (self)
@@ -80,6 +81,11 @@ curl -fsS https://.../metrics | grep http_requests_total
 - Multiprocess mode not enabled: `/metrics` returns per-process metrics only.
 - For multi-worker deployments (gunicorn/uvicorn workers), metrics are not aggregated across workers.
 - To enable multiprocess mode: configure `prometheus_client` multiprocess mode + `PROMETHEUS_MULTIPROC_DIR` (requires explicit infra decision).
+
+**Prometheus route label policy (enforced):**
+- Route label MUST be route template only (from `request.scope["route"].path` after router resolution).
+- Raw/normalized path fallback is **forbidden** for non-excluded requests (prevents high cardinality).
+- If route template is unavailable → use `"unknown"` (never fallback to `request.url.path`).
 
 ---
 

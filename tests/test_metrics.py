@@ -88,6 +88,9 @@ def test_metrics_increments_on_request(client: TestClient) -> None:
     v1 = _metric_value(after, method="POST", route="/api/v1/bmi/calculate", status="200")
     assert v1 >= v0 + 1, f"Expected counter to increase: {v0} -> {v1}"
 
+    # Verify histogram samples are also present
+    assert "http_request_duration_seconds" in after, "Histogram metric should be present"
+
 
 def test_metrics_excludes_health_endpoints(client: TestClient) -> None:
     """Test that /health and /ready are excluded from metrics.
