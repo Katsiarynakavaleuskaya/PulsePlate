@@ -32,7 +32,21 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
     buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 )
 
-EXCLUDED_PATHS: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
+EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
+
+
+def _normalized_path(path: str) -> str:
+    """Normalize path by removing trailing slash (except root).
+
+    Args:
+        path: Raw request path
+
+    Returns:
+        Normalized path (e.g., "/health/" -> "/health")
+    """
+    if path != "/" and path.endswith("/"):
+        return path[:-1]
+    return path
 
 
 def _route_template(request: Request) -> str:
@@ -42,15 +56,42 @@ def _route_template(request: Request) -> str:
         request: FastAPI request object
 
     Returns:
-        Route template path (e.g., "/api/v1/bmi/calculate") or "unknown"
+        Route template path (e.g., "/api/v1/bmi/calculate") or normalized path as fallback
     """
     route = request.scope.get("route")
     if route is not None:
         path = getattr(route, "path", None)
         if isinstance(path, str) and path:
             return path
-    # Avoid high cardinality: don't use request.url.path here
+    # Fallback: use normalized path (but only for non-excluded paths to avoid cardinality)
+    # This handles cases where route is not yet resolved in middleware
+    normalized = _normalized_path(request.url.path)
+    # Only use raw path if it's not excluded (excluded paths are handled separately)
+    if normalized not in EXCLUDED_ROUTE_TEMPLATES:
+        # For API routes, try to extract template pattern
+        # E.g., "/api/v1/bmi/calculate" stays as-is (no path params)
+        return normalized
     return "unknown"
+
+
+def _is_excluded(request: Request) -> bool:
+    """Check if request should be excluded from metrics collection.
+
+    Uses route template first (most reliable), then normalized path as fallback
+    to handle trailing slashes, mounting, and redirects.
+
+    Args:
+        request: FastAPI request object
+
+    Returns:
+        True if request should be excluded from metrics
+    """
+    route = _route_template(request)
+    if route in EXCLUDED_ROUTE_TEMPLATES:
+        return True
+    # Fallback: handle trailing slash / weird mounting cases
+    path = _normalized_path(request.url.path)
+    return path in EXCLUDED_ROUTE_TEMPLATES
 
 
 async def metrics_middleware(
@@ -65,7 +106,7 @@ async def metrics_middleware(
     Returns:
         Response from downstream
     """
-    if request.url.path in EXCLUDED_PATHS:
+    if _is_excluded(request):
         return await call_next(request)
 
     start = perf_counter()

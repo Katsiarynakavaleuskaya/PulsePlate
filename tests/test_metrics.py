@@ -10,6 +10,7 @@ import re
 
 import pytest
 from fastapi.testclient import TestClient
+from prometheus_client import CONTENT_TYPE_LATEST
 
 import app
 
@@ -18,6 +19,30 @@ import app
 def client() -> TestClient:
     """Test client for metrics tests."""
     return TestClient(app.app)
+
+
+def _metric_value(text: str, *, method: str, route: str, status: str) -> float:
+    """Extract metric value for specific labelset from Prometheus text format.
+
+    Args:
+        text: Prometheus exposition format text
+        method: HTTP method (e.g., "GET", "POST")
+        route: Route template (e.g., "/api/v1/bmi/calculate")
+        status: HTTP status code (e.g., "200", "404")
+
+    Returns:
+        Metric value (0.0 if not found)
+    """
+    # Example line:
+    # http_requests_total{method="GET",route="/api/v1/bmi/calculate",status="200"} 3.0
+    pattern = re.compile(
+        rf'^http_requests_total\{{[^}}]*method="{re.escape(method)}"[^}}]*route="{re.escape(route)}"[^}}]*status="{re.escape(status)}"[^}}]*\}}\s+(?P<val>[0-9.]+)\s*$',
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if match:
+        return float(match.group("val"))
+    return 0.0
 
 
 def test_metrics_endpoint_format(client: TestClient) -> None:
@@ -44,17 +69,23 @@ def test_metrics_increments_on_request(client: TestClient) -> None:
     RU: Проверяет, что HTTP метрики собираются и отдаются.
     EN: Verifies HTTP metrics are collected and exposed.
     """
-    # Make a request to a non-excluded endpoint
-    client.get("/health")
+    # Get baseline metrics
+    before = client.get("/metrics").text
 
-    # Check metrics
-    response = client.get("/metrics")
+    # Make a request to a non-excluded endpoint
+    response = client.post(
+        "/api/v1/bmi/calculate",
+        json={"weight_kg": 70, "height_cm": 175, "lang": "en", "sex": "female", "age": 30},
+    )
     assert response.status_code == 200
 
-    content = response.text
-    # Should contain http_requests_total after at least one request
-    # (may be 0 if /health is excluded, so check for the metric name)
-    assert "http_requests_total" in content or "http_request_duration_seconds" in content
+    # Get metrics after request
+    after = client.get("/metrics").text
+
+    # Verify counter increased
+    v0 = _metric_value(before, method="POST", route="/api/v1/bmi/calculate", status="200")
+    v1 = _metric_value(after, method="POST", route="/api/v1/bmi/calculate", status="200")
+    assert v1 >= v0 + 1, f"Expected counter to increase: {v0} -> {v1}"
 
 
 def test_metrics_excludes_health_endpoints(client: TestClient) -> None:
@@ -63,19 +94,31 @@ def test_metrics_excludes_health_endpoints(client: TestClient) -> None:
     RU: Проверяет, что /health и /ready исключены из метрик.
     EN: Verifies /health and /ready are excluded from metrics.
     """
+    # Get baseline metrics
+    before = client.get("/metrics").text
+
     # Make requests to excluded endpoints
     client.get("/health")
     client.get("/ready")
-    client.get("/health/db")
+    # /health/db may return 503 if DB unavailable, so check both statuses
+    try:
+        client.get("/health/db")
+    except Exception:
+        pass  # DB may be unavailable in tests
 
-    # Check metrics - excluded paths should not increment counters
-    response = client.get("/metrics")
-    assert response.status_code == 200
+    # Get metrics after requests
+    after = client.get("/metrics").text
 
-    content = response.text
-    # Metrics endpoint itself should not be counted
-    # (we can't easily verify exclusion without parsing Prometheus format,
-    # but we can verify the endpoint works)
+    # Should not create/increment any series for excluded routes
+    # Check /health (200)
+    assert _metric_value(after, method="GET", route="/health", status="200") == _metric_value(
+        before, method="GET", route="/health", status="200"
+    ), "Excluded /health should not increment metrics"
+
+    # Check /ready (200 or 503)
+    v_before_200 = _metric_value(before, method="GET", route="/ready", status="200")
+    v_after_200 = _metric_value(after, method="GET", route="/ready", status="200")
+    assert v_after_200 == v_before_200, "Excluded /ready should not increment metrics"
 
 
 def test_metrics_includes_route_template(client: TestClient) -> None:
@@ -84,22 +127,18 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
     RU: Проверяет, что метрики содержат route template, а не raw path.
     EN: Verifies metrics include route template, not raw path.
     """
-    # Make a request to a non-excluded endpoint (e.g., root or API endpoint)
-    # /health is excluded, so use a different endpoint
-    try:
-        client.get("/api/v1/bmi/calculate?weight=70&height=175")
-    except Exception:
-        # If endpoint requires auth or fails, that's ok - we just need to trigger middleware
-        pass
+    # Make a request with query params to verify route template (not raw path)
+    client.post(
+        "/api/v1/bmi/calculate?foo=bar&baz=qux",
+        json={"weight_kg": 70, "height_cm": 175, "lang": "en", "sex": "female", "age": 30},
+    )
 
-    response = client.get("/metrics")
-    assert response.status_code == 200
+    metrics_text = client.get("/metrics").text
 
-    content = response.text
-    # If http_requests_total is present, it should have labels
-    if "http_requests_total{" in content:
-        # Prometheus format: http_requests_total{method="GET",route="/api/v1/bmi/calculate",status="200"} 1.0
-        assert "method=" in content or "route=" in content or "status=" in content
+    # Route should be template (no query params)
+    assert 'route="/api/v1/bmi/calculate"' in metrics_text
+    # Query string should NOT appear in route label
+    assert "?" not in metrics_text.split('route="')[1].split('"')[0]
 
 
 def test_metrics_content_type(client: TestClient) -> None:
@@ -110,9 +149,9 @@ def test_metrics_content_type(client: TestClient) -> None:
     """
     response = client.get("/metrics")
     assert response.status_code == 200
-    content_type = response.headers.get("content-type", "")
-    assert "text/plain" in content_type
-    # Prometheus format should have # HELP comments
+    # Content-Type must match prometheus_client.CONTENT_TYPE_LATEST exactly
+    assert response.headers["content-type"] == CONTENT_TYPE_LATEST
+    # Prometheus format should have # HELP or # TYPE comments
     assert "# HELP" in response.text or "# TYPE" in response.text
 
 

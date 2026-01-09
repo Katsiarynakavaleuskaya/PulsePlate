@@ -2002,7 +2002,7 @@ def metrics() -> Response:
     EN: Prometheus metrics endpoint (exposition format).
 
     Returns Prometheus text format (text/plain; version=0.0.4).
-    Includes HTTP request metrics (requests_total, request_duration_seconds).
+    Includes HTTP request metrics (http_requests_total, http_request_duration_seconds).
 
     Note: Synchronous function (generate_latest() is CPU-bound, not I/O).
     """
