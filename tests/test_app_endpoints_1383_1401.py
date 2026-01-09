@@ -46,6 +46,30 @@ class TestAppEndpoints1383_1401:
         # RuntimeError during generate_latest() should return "Metrics export failed"
         assert data["error"] == "Metrics export failed"
 
+    def test_metrics_endpoint_prometheus_not_installed(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """/metrics returns error when prometheus_client package is not installed.
+
+        Tests ImportError branch (prometheus_client missing from environment).
+        Uses _import_prometheus_client() test seam to simulate ImportError
+        without sys.modules manipulation (forbidden by import hygiene guards).
+        """
+        import app.bootstrap.metrics as m
+
+        def _raise_import_error() -> None:
+            raise ImportError("no prometheus_client")
+
+        monkeypatch.setattr(m, "_import_prometheus_client", _raise_import_error)
+
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        data = response.json()
+        assert "error" in data
+        # ImportError should return "Prometheus client not available"
+        assert data["error"] == "Prometheus client not available"
+
     def test_privacy_endpoint_structure(self, client: TestClient) -> None:
         """/privacy returns complete privacy policy structure."""
         response = client.get("/privacy")

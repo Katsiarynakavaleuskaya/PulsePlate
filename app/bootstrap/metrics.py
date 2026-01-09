@@ -10,6 +10,9 @@ not from legacy_app.py, to keep legacy as a thin compatibility proxy.
 from __future__ import annotations
 
 import logging
+from importlib import import_module
+from types import ModuleType
+from typing import Callable
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
@@ -18,6 +21,24 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.middleware.metrics import metrics_middleware
 
 logger = logging.getLogger(__name__)
+
+_Importer = Callable[[str], ModuleType]
+
+
+def _import_prometheus_client(importer: _Importer = import_module) -> ModuleType:
+    """Import prometheus_client module (test seam for ImportError simulation).
+
+    Args:
+        importer: Function to import modules (default: importlib.import_module).
+                  Tests can override this to simulate ImportError without sys.modules hacks.
+
+    Returns:
+        The prometheus_client module.
+
+    Raises:
+        ImportError: If prometheus_client package is not installed.
+    """
+    return importer("prometheus_client")
 
 
 def metrics_endpoint() -> Response:
@@ -31,8 +52,7 @@ def metrics_endpoint() -> Response:
     testability and backward compatibility.
     """
     try:
-        import prometheus_client
-
+        prometheus_client = _import_prometheus_client()
         data = prometheus_client.generate_latest()
         return Response(content=data, media_type=prometheus_client.CONTENT_TYPE_LATEST)
     except ImportError:
