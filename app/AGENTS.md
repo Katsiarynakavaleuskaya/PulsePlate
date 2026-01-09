@@ -48,6 +48,7 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 **Response format:**
 - **Normal**: Prometheus exposition format (`text/plain`, uses `CONTENT_TYPE_LATEST`) when exporter is available
 - **Fallback**: JSON error envelope (`{"error": "Prometheus client not available", "detail": "..."}`) if exporter is unavailable
+- **Fallback status code:** MUST return HTTP 200 with JSON error envelope (preferred for scrape stability)
 - JSON fallback is required for testability and graceful degradation
 
 **Allowed labels:**
@@ -61,11 +62,15 @@ curl -fsS https://.../ready    # readiness (503 if DB down)
 - ❌ User IDs, IP addresses, User-Agent
 - ❌ Any dynamic path segments
 
-**Route extraction rules:**
-- Route label MUST come from `request.scope["route"].path` (route template) after router resolution.
-- For nested routers with prefix, find the most specific (endpoint-level) route by iterating `request.app.router.routes` and selecting the deepest FULL match.
-- Always use `request.app.router.routes` (never a module-level `app`) to resolve endpoint-level template paths for nested routers.
-- If route is unavailable → use `"unknown"` (forbidden to use `request.url.path` or normalized path as fallback for non-excluded requests).
+**Route extraction rules (canonical):**
+- Route label MUST be the endpoint-level template path (APIRoute.path).
+- Canonical resolution algorithm:
+  1) Read `endpoint = request.scope.get("endpoint")`
+  2) Iterate `request.app.router.routes` and find the `APIRoute` whose `.endpoint is endpoint`
+  3) Return `APIRoute.path` (string starting with `/`)
+- `request.scope["route"]` MUST NOT be treated as canonical (it may refer to mounts/prefixes).
+- Always use `request.app.router.routes` (never a module-level `app`) to resolve endpoint-level template paths.
+- If endpoint cannot be resolved → `route="unknown"` (raw path fallback is forbidden).
 - This prevents high cardinality when routes with path parameters (e.g., `/api/v1/users/{id}`) are added.
 - **Prometheus route label policy**: Route label MUST be route template only. Raw/normalized path fallback is forbidden. If route template is unavailable → route="unknown".
 
@@ -90,7 +95,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 - To enable multiprocess mode: configure `prometheus_client` multiprocess mode + `PROMETHEUS_MULTIPROC_DIR` (requires explicit infra decision).
 
 **Prometheus route label policy (enforced):**
-- Route label MUST be route template only (from `request.scope["route"].path` after router resolution).
+- Route label MUST be route template only (from `APIRoute.path` via endpoint identity matching).
 - Raw/normalized path fallback is **forbidden** for non-excluded requests (prevents high cardinality).
 - If route template is unavailable → use `"unknown"` (never fallback to `request.url.path`).
 
@@ -106,7 +111,8 @@ curl -fsS https://.../metrics | grep http_requests_total
 
 **Testing requirements:**
 - Tests MUST assert `/metrics` returns a Prometheus exposition response (`Content-Type` starts with `text/plain`) on happy path.
-- Tests MUST NOT assert an exact `Content-Type` version/charset value (implementation detail of `prometheus_client`).
+- Tests MUST NOT assert an exact `Content-Type` value (version/charset are implementation details of `prometheus_client`).
+- Only assert prefix: `text/plain` for Prometheus; `application/json` for fallback.
 - JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
 - This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
 
@@ -117,11 +123,28 @@ curl -fsS https://.../metrics | grep http_requests_total
   (e.g. patch `prometheus_client.generate_latest` to raise).
 - It is forbidden for tests to assume exporter is missing in CI.
 
+**Patchability rule for optional deps (hard):**
+- Do NOT `from prometheus_client import generate_latest, CONTENT_TYPE_LATEST` in modules that are tested via monkeypatch.
+- Do `import prometheus_client` and reference `prometheus_client.generate_latest()` / `prometheus_client.CONTENT_TYPE_LATEST`.
+- This keeps fallback paths testable (monkeypatch patches the same object used by production code).
+
 **Middleware route label rule (hard):**
 - The `route` label MUST be endpoint-level template path (APIRoute.path).
 - Router prefixes or mounts are NOT acceptable as `route` labels.
 - Implementation MUST match by `request.scope["endpoint"]` identity to APIRoute.endpoint.
 - **Breaking change policy:** Changing a route template (e.g., `/api/v1/bmi/calculate` → `/api/v2/bmi/calculate`) is a breaking change for metrics label contract. Update tests + AGENTS.md in the same PR.
+
+**CI red freeze (enforced):**
+- If CI is red: no refactors, no drive-by cleanup, no unrelated changes.
+- Only allowed commits: fixes for failing tests / lint / typecheck / coverage in the same PR.
+- If you believe a test is wrong: you MUST submit the patch that corrects it in this PR (no exceptions).
+- **No green, no push, no exceptions.**
+
+**Push hygiene (required):**
+- Before pushing: `git fetch origin`
+- Rebase before push: `git rebase origin/main` (preferred over merge)
+- After rebase: resolve conflicts locally, re-run `make test-fast` + `make lint` + `make cov-check`
+- Push with safety: `git push --force-with-lease` (never `git push -f` without `--force-with-lease`)
 
 ---
 
