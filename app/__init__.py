@@ -59,7 +59,7 @@ def __getattr__(name: str) -> Any:
 
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
     EN: First check local re-exports (core.*), then fall back to legacy_app.
-    
+
     Special handling for 'app': ensure app.main is imported to trigger
     middleware registration before returning legacy_app.app.
     """
