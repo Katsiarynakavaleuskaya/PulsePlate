@@ -1,8 +1,9 @@
 from fastapi.testclient import TestClient
+from tests._client import get_client
 
 import app as app_module
 
-client = TestClient(app_module.app)
+client = get_client()
 
 
 def test_recipe_preview_basic():

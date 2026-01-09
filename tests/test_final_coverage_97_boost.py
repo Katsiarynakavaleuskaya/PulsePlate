@@ -4,6 +4,7 @@ Final boost to reach 97% coverage by targeting specific uncovered lines.
 
 import os
 from unittest.mock import MagicMock, patch
+from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,7 +20,7 @@ def client():
     """Test client with fresh app instance."""
     import app
 
-    return TestClient(app.app)
+    return get_client()
 
 
 class TestAppInitCoverage:

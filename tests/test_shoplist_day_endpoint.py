@@ -4,6 +4,7 @@ RU: Тесты для эндпоинта списка покупок на ден
 """
 
 from __future__ import annotations
+from tests._client import get_client
 
 from types import ModuleType
 
@@ -23,7 +24,7 @@ def client_with_pro_access(app_module: ModuleType):
     # Override PRO tier requirement for testing
     app_module.app.dependency_overrides[require_pro_tier] = lambda: "test_api_key"
 
-    client = TestClient(app_module.app)
+    client = get_client()
     yield client
 
     # Cleanup: remove override after test
@@ -128,7 +129,7 @@ def test_shoplist_day_missing_date_422(client_with_pro_access):
 
 def test_shoplist_day_requires_pro_tier(app_module: ModuleType):
     """Test endpoint requires PRO tier authentication."""
-    client = TestClient(app_module.app)
+    client = get_client()
 
     # Request without PRO tier override should fail
     r = client.get("/api/v1/pro/shoplist/day?date=2025-12-17&lang=ru")

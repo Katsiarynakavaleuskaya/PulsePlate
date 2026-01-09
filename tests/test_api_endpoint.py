@@ -5,6 +5,7 @@ This script tests the /api/v1/premium/plan/week endpoint with different language
 """
 
 import os
+from tests._client import get_client
 
 from fastapi.testclient import TestClient
 
@@ -14,7 +15,7 @@ import app
 def test_api_endpoint_multilingual():
     """Test the API endpoint with different languages."""
     # Set up test client
-    client = TestClient(app.app)
+    client = get_client()
 
     # Mock API key
     api_key = "test_api_key"
@@ -80,7 +81,7 @@ def test_api_endpoint_multilingual():
 def test_api_endpoint_with_targets():
     """Test the API endpoint with pre-calculated targets."""
     # Set up test client
-    client = TestClient(app.app)
+    client = get_client()
 
     # Mock API key
     api_key = "test_api_key"

@@ -1,5 +1,6 @@
 import os
 from unittest.mock import patch
+from tests._client import get_client
 
 import pytest
 from fastapi import HTTPException
@@ -11,7 +12,7 @@ import app as app_mod
 class TestAppMissingLinesExtra:
     def setup_method(self):
         os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app_mod.app)
+        self.client = get_client()
 
     def teardown_method(self):
         os.environ.pop("API_KEY", None)
@@ -45,7 +46,7 @@ class TestAppMissingLinesExtra:
             patch.object(app_mod, "start_background_updates", _boom_start),
             patch.object(app_mod, "stop_background_updates", _boom_stop),
         ):
-            with TestClient(app_mod.app) as c:
+            with get_client() as c:
                 r = c.get("/health")
                 assert r.status_code == 200
 

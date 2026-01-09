@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from tests._client import get_client
 
 import pytest
 from fastapi import FastAPI
@@ -259,7 +260,7 @@ def test_vip_module_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
         raise RuntimeError("app_module.app is None or missing after reload.")
     if not isinstance(app_module.app, FastAPI):
         raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
-    test_client = TestClient(app_module.app)
+    test_client = get_client()
     response = test_client.get("/api/v1/vip/plan/week")
     assert response.status_code in (404, 422, 401)
 

@@ -170,7 +170,9 @@ class TestMetricsFallbacks:
     def test_metrics_without_prometheus(self):
         """Тест /metrics без prometheus_client"""
         # Test metrics endpoint - it may return error if Prometheus is not available
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
         response = client.get("/metrics")
         assert response.status_code == 200
         # Должен вернуть Prometheus metrics текст (не JSON)
@@ -180,12 +182,9 @@ class TestMetricsFallbacks:
     def test_metrics_with_prometheus(self):
         """Тест /metrics с prometheus_client"""
         # Просто проверим что эндпоинт работает
-        if "app" in sys.modules:
-            del sys.modules["app"]
+        from app.main import app as main_app
 
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
+        client = TestClient(cast(ASGIApp, main_app))
 
         response = client.get("/metrics")
         assert response.status_code == 200

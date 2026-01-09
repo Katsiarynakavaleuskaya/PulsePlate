@@ -7,6 +7,7 @@ EN: Tests for day shopping list database integration.
 from datetime import date
 from types import ModuleType
 from typing import Any, AsyncGenerator, Generator
+from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
@@ -76,7 +77,7 @@ def client_with_pro_access(app_module: ModuleType) -> Generator[TestClient, None
     # Override PRO tier to return dict with user_id (not just string)
     app_module.app.dependency_overrides[require_pro_tier] = lambda: {"user_id": TEST_USER_ID}
 
-    client = TestClient(app_module.app)
+    client = get_client()
     yield client
 
     # Cleanup: remove override after test

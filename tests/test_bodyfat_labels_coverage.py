@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 import importlib
+from tests._client import get_client
 
 from fastapi.testclient import TestClient
 
 app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
+client = get_client()
 
 
 def test_bodyfat_labels_ru_and_es():

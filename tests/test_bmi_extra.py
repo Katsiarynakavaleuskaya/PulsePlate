@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import importlib
+from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
 
 # Импортируем приложение единожды
 app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
+client = get_client()
 
 
 def _post_bmi(weight, height, group="general"):

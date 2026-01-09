@@ -11,12 +11,13 @@ import sys
 from types import ModuleType
 from typing import Optional
 from unittest.mock import Mock, patch
+from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
 
 app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
+client = get_client()
 
 # Test imports to ensure module can be imported
 matplotlib: ModuleType | None

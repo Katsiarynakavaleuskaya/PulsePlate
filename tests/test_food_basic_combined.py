@@ -4,6 +4,7 @@ Includes API smoke tests and basic food database tests.
 """
 
 from fastapi.testclient import TestClient
+from tests._client import get_client
 
 import pytest
 
@@ -18,7 +19,7 @@ class TestFoodAPIBasic:
 
     def setup_method(self) -> None:
         """Set up test client."""
-        self.client = TestClient(app_module.app)
+        self.client = get_client()
 
     def test_search_foods_smoke(self):
         """Test basic food search functionality."""

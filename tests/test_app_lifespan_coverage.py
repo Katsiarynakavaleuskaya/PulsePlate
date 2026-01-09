@@ -46,10 +46,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_context_manager_coverage(self, test_environment):
         """Тест покрытия app.py lifespan context manager (строки 1505→exit, 1508→exit)"""
-        import app
-
         # Тестируем lifespan context manager
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Context manager должен корректно обрабатывать startup и shutdown
         response = client.get("/health")
@@ -113,10 +113,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_resource_cleanup_coverage(self, test_environment):
         """Тест покрытия app.py lifespan resource cleanup"""
-        import app
-
         # Тестируем resource cleanup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Проверяем, что resource cleanup работает корректно
         response = client.get("/health")
@@ -158,10 +158,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_configuration_coverage(self, test_environment):
         """Тест покрытия app.py lifespan configuration"""
-        import app
-
         # Тестируем configuration в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Проверяем, что configuration работает корректно
         response = client.get("/health")
@@ -203,10 +203,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_graceful_shutdown_coverage(self, test_environment):
         """Тест покрытия app.py lifespan graceful shutdown"""
-        import app
-
         # Тестируем graceful shutdown в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Проверяем, что graceful shutdown работает корректно
         response = client.get("/health")
@@ -233,10 +233,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_metrics_collection_coverage(self, test_environment):
         """Тест покрытия app.py lifespan metrics collection"""
-        import app
-
         # Тестируем metrics collection в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Проверяем, что metrics collection работает корректно
         response = client.get("/health")
@@ -278,10 +278,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_security_setup_coverage(self, test_environment):
         """Тест покрытия app.py lifespan security setup"""
-        import app
-
         # Тестируем security setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = TestClient(cast(ASGIApp, main_app))
 
         # Проверяем, что security setup работает корректно
         response = client.get("/health")
