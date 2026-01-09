@@ -3,6 +3,8 @@
 Фокус: API key режимы, метрики, визуализация, импорт fallbacks
 """
 
+from __future__ import annotations
+
 import os
 import sys
 from typing import cast
@@ -19,149 +21,79 @@ import app
 class TestAPIKeyModes:
     """Тесты различных режимов API ключей"""
 
-    def test_api_key_strict_mode_valid_key(self):
+    def test_api_key_strict_mode_valid_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Строгий режим - правильный ключ"""
-        with patch.dict(os.environ, {"API_KEY": "test-secret-key"}, clear=False):
-            # Импортируем app модуль заново
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setenv("API_KEY", "test-secret-key")
+        # Тестируем функцию напрямую (env читается runtime)
+        result = app.get_api_key("test-secret-key")
+        assert result == "test-secret-key"
 
-            import app
-
-            # Тестируем функцию напрямую
-            result = app.get_api_key("test-secret-key")
-            assert result == "test-secret-key"
-
-    def test_api_key_strict_mode_invalid_key(self):
+    def test_api_key_strict_mode_invalid_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Строгий режим - неправильный ключ"""
-        with patch.dict(os.environ, {"API_KEY": "test-secret-key"}, clear=False):
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setenv("API_KEY", "test-secret-key")
+        with pytest.raises(HTTPException) as exc_info:
+            app.get_api_key("wrong-key")
+        assert exc_info.value.status_code == 403
 
-            import app
-
-            with pytest.raises(HTTPException) as exc_info:
-                app.get_api_key("wrong-key")
-            assert exc_info.value.status_code == 403
-
-    def test_api_key_strict_mode_missing_key(self):
+    def test_api_key_strict_mode_missing_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Строгий режим - отсутствующий ключ"""
-        with patch.dict(os.environ, {"API_KEY": "test-secret-key"}, clear=False):
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setenv("API_KEY", "test-secret-key")
+        with pytest.raises(HTTPException) as exc_info:
+            app.get_api_key(None)
+        assert exc_info.value.status_code == 403
 
-            import app
-
-            with pytest.raises(HTTPException) as exc_info:
-                app.get_api_key(None)
-            assert exc_info.value.status_code == 403
-
-    def test_api_key_required_mode_without_key(self):
+    def test_api_key_required_mode_without_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """API_KEY_REQUIRED=true но API_KEY не установлен"""
-        # Полная изоляция: сохраняем оригинальное окружение
-        original_env = dict(os.environ)
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.setenv("API_KEY_REQUIRED", "true")
 
-        try:
-            # Очищаем окружение и устанавливаем только нужные переменные
-            os.environ.clear()
-            os.environ["API_KEY_REQUIRED"] = "true"
+        with pytest.raises(HTTPException) as exc_info:
+            app.get_api_key("any-token")
+        assert exc_info.value.status_code == 403
+        # Проверим что сообщение правильное (ожидается "API key required but not configured")
+        assert (
+            "required" in exc_info.value.detail.lower()
+            and "configured" in exc_info.value.detail.lower()
+        )
 
-            # Убираем модуль полностью
-            if "app" in sys.modules:
-                del sys.modules["app"]
-
-            import app
-
-            with pytest.raises(HTTPException) as exc_info:
-                app.get_api_key("any-token")
-            assert exc_info.value.status_code == 403
-            # Проверим что сообщение правильное (ожидается "API key required but not configured")
-            assert (
-                "required" in exc_info.value.detail.lower()
-                and "configured" in exc_info.value.detail.lower()
-            )
-        finally:
-            # Восстанавливаем окружение
-            os.environ.clear()
-            os.environ |= original_env
-            # Переимпортируем модуль с восстановленным окружением
-            if "app" in sys.modules:
-                del sys.modules["app"]
-
-    def test_api_key_lenient_mode_missing_token(self):
+    def test_api_key_lenient_mode_missing_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Мягкий режим - отсутствующий токен"""
-        with patch.dict(os.environ, {}, clear=True):
-            # Убираем все API key переменные
-            os.environ.pop("API_KEY", None)
-            os.environ.pop("API_KEY_REQUIRED", None)
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
 
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        with pytest.raises(HTTPException) as exc_info:
+            app.get_api_key(None)
+        assert exc_info.value.status_code == 403
 
-            import app
-
-            with pytest.raises(HTTPException) as exc_info:
-                app.get_api_key(None)
-            assert exc_info.value.status_code == 403
-
-    def test_api_key_lenient_mode_short_token(self):
+    def test_api_key_lenient_mode_short_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Мягкий режим - слишком короткий токен"""
-        with patch.dict(os.environ, {}, clear=True):
-            os.environ.pop("API_KEY", None)
-            os.environ.pop("API_KEY_REQUIRED", None)
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
 
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        with pytest.raises(HTTPException) as exc_info:
+            app.get_api_key("x")  # Только 1 символ
+        assert exc_info.value.status_code == 403
 
-            import app
+    def test_api_key_lenient_mode_forbidden_tokens(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Мягкий режим - запрещённые токены"""
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
 
+        forbidden = ["invalid", "invalid_key", "wrong", "bad", "null"]
+
+        for token in forbidden:
             with pytest.raises(HTTPException) as exc_info:
-                app.get_api_key("x")  # Только 1 символ
+                app.get_api_key(token)
             assert exc_info.value.status_code == 403
 
-    def test_api_key_lenient_mode_forbidden_tokens(self):
-        """Мягкий режим - запрещённые токены"""
-        with patch.dict(os.environ, {}, clear=True):
-            os.environ.pop("API_KEY", None)
-            os.environ.pop("API_KEY_REQUIRED", None)
-
-            if "app" in sys.modules:
-                del sys.modules["app"]
-
-            import app
-
-            forbidden = ["invalid", "invalid_key", "wrong", "bad", "null"]
-
-            for token in forbidden:
-                with pytest.raises(HTTPException) as exc_info:
-                    app.get_api_key(token)
-                assert exc_info.value.status_code == 403
-
-    def test_api_key_lenient_mode_valid_token(self):
+    def test_api_key_lenient_mode_valid_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Мягкий режим - валидный токен"""
-        # Полная изоляция: сохраняем оригинальное окружение
-        original_env = dict(os.environ)
+        monkeypatch.delenv("API_KEY", raising=False)
+        monkeypatch.delenv("API_KEY_REQUIRED", raising=False)
 
-        try:
-            # Очищаем окружение полностью (без API_KEY и API_KEY_REQUIRED)
-            os.environ.clear()
-
-            # Убираем модуль полностью
-            if "app" in sys.modules:
-                del sys.modules["app"]
-
-            import app
-
-            # В мягком режиме без API_KEY должен принимать валидные токены (длиной >= 4)
-            result = app.get_api_key("valid-test-token")
-            assert result == "valid-test-token"
-        finally:
-            # Восстанавливаем окружение
-            os.environ.clear()
-            os.environ |= original_env
-            # Переимпортируем модуль с восстановленным окружением
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        # В мягком режиме без API_KEY должен принимать валидные токены (длиной >= 4)
+        result = app.get_api_key("valid-test-token")
+        assert result == "valid-test-token"
 
 
 class TestMetricsFallbacks:
