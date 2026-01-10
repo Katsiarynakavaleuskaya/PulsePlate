@@ -93,14 +93,6 @@ from app.scheduler_helpers import (
     safe_stop_with_cleanup,
 )
 
-_OPENAPI_SCHEMA_ONLY_MODE = (os.getenv("PULSEPLATE_OPENAPI") == "1") and (
-    (os.getenv("APP_ENV") or "").strip().lower() == "test"
-)
-
-premium_week_router: APIRouter | None = None
-if not _OPENAPI_SCHEMA_ONLY_MODE:
-    from app.routers.premium_week import router as premium_week_router
-
 # PRO router registration (explicit, no import-side-effects)
 # Moved to app/routers/pro_registration.py for centralized registration
 # See register_pro_routes() for schema-only mode guard and conditional imports
