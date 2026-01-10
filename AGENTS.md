@@ -248,6 +248,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
 - Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
 - Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
+- `frontend/AGENTS.md` should link to this section as the canonical OpenAPI workflow (AGENTS Update Rule); do not duplicate these bullets there.
 
 ### SQLAlchemy model import policy (critical)
 - **Forbidden**: Import SQLAlchemy models at module level in routers that are included in OpenAPI generation.
@@ -261,9 +262,9 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - This ensures schema generation does not load DB layer and prevents double-loading errors.
 
 ### Determinism requirement
-- `make openapi` run twice in a row **must** produce `git diff --exit-code` = 0.
+- Determinism is enforced by `pytest tests/test_openapi_determinism.py`.
 - If drift appears: fix **generator normalization** in `scripts/generate_openapi.py`, not "accept drift".
-- Test: `pytest tests/test_openapi_determinism.py` must pass.
+- Local verification: run `make openapi` and then `make openapi-check`.
 
 ### Response model policy
 - **Forbidden**: Endpoints returning `dict[str, Any]` or untyped responses.
@@ -275,7 +276,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 2. Commit changes to:
    - `frontend/src/api/openapi.json`
    - `frontend/src/api/schema.ts`
-3. CI will fail if generated artifacts are out of sync (see `openapi-sync` job in `ci.yml`).
+3. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
+4. CI will fail if generated artifacts are out of sync (see the CI check that verifies generated artifacts).
 
 ### Test requirement
 - `pytest tests/test_openapi_determinism.py` **must pass** and cannot be disabled/weakened.
