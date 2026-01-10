@@ -114,6 +114,22 @@ def main() -> int:
     schema = app.openapi()
     schema = normalize_openapi_schema(schema)
 
+    # Add explicit marker for schema-only mode (transparency for reviewers/consumers)
+    if "info" not in schema:
+        schema["info"] = {}
+    schema["info"]["x-openapi-mode"] = "schema-only"
+    schema["info"]["x-excluded-routers"] = ["premium_week", "pro"]
+    if "description" in schema["info"]:
+        schema["info"]["description"] += (
+            "\n\n⚠️ **Schema-only mode**: Premium/pro routers excluded due to import-time ORM dependencies. "
+            "Full schema will be restored in PR-509 after eliminating import-time ORM deps."
+        )
+    else:
+        schema["info"]["description"] = (
+            "⚠️ **Schema-only mode**: Premium/pro routers excluded due to import-time ORM dependencies. "
+            "Full schema will be restored in PR-509 after eliminating import-time ORM deps."
+        )
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(
         json.dumps(

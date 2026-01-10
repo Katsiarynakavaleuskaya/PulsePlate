@@ -4036,12 +4036,17 @@
       "name": "PulsePlate API Support",
       "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
     },
-    "description": "\n## PulsePlate - Nutrition & Meal Planning API\n\n**Mobile-first API** for iOS and web applications with tiered subscription access.\n\n### Subscription Tiers\n\n- **FREE**: BMI calculations, food/recipe search, user management\n- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking\n- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists\n\n### Authentication\n\nPremium endpoints require API key in `X-API-Key` header:\n- PRO tier: Use API key with PRO access level\n- VIP tier: Use API key with VIP access level\n\n### Test API Keys (Development Only)\n\n- PRO: `YOUR_PRO_TEST_KEY`\n- VIP: `YOUR_VIP_TEST_KEY`\n\n**Note**: Replace with actual test keys from your environment variables or Config.plist.\n**Production**: Test keys are disabled in production environments.\n\n### Documentation\n\n- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`\n- iOS Integration: `docs/IOS_API_INTEGRATION.md`\n",
+    "description": "\n## PulsePlate - Nutrition & Meal Planning API\n\n**Mobile-first API** for iOS and web applications with tiered subscription access.\n\n### Subscription Tiers\n\n- **FREE**: BMI calculations, food/recipe search, user management\n- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking\n- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists\n\n### Authentication\n\nPremium endpoints require API key in `X-API-Key` header:\n- PRO tier: Use API key with PRO access level\n- VIP tier: Use API key with VIP access level\n\n### Test API Keys (Development Only)\n\n- PRO: `YOUR_PRO_TEST_KEY`\n- VIP: `YOUR_VIP_TEST_KEY`\n\n**Note**: Replace with actual test keys from your environment variables or Config.plist.\n**Production**: Test keys are disabled in production environments.\n\n### Documentation\n\n- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`\n- iOS Integration: `docs/IOS_API_INTEGRATION.md`\n\n\n⚠️ **Schema-only mode**: Premium/pro routers excluded due to import-time ORM dependencies. Full schema will be restored in PR-509 after eliminating import-time ORM deps.",
     "license": {
       "name": "MIT"
     },
     "title": "PulsePlate",
-    "version": "0.1.0"
+    "version": "0.1.0",
+    "x-excluded-routers": [
+      "premium_week",
+      "pro"
+    ],
+    "x-openapi-mode": "schema-only"
   },
   "openapi": "3.1.0",
   "paths": {
