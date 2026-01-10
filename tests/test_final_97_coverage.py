@@ -290,7 +290,10 @@ class TestSpecificLineCoverage:
         """Тест prometheus metrics paths"""
         # Строки могут быть связаны с prometheus metrics
         response = client.get("/metrics")
-        assert response.status_code in [200, 404, 405]
+        if response.status_code == 200:
+            assert response.headers.get("Content-Type", "").startswith("text/plain")
+        else:
+            assert response.status_code in [404, 405]
 
         # Тест health endpoints
 
