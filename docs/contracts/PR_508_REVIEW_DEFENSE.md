@@ -1,8 +1,8 @@
 # PR-508: Review Defense Plan
 
-**Date:** 2026-01-11
+**Created:** 2026-01-10
+**Target Review:** 2026-01-11
 **Status:** Ready for review
-
 ---
 
 ## Scope & Invariants (for reviewers)

@@ -63,12 +63,25 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
         pytest.fail("\n".join(lines))
 
 
-def test_register_pro_routes_is_idempotent() -> None:
+def test_register_pro_routes_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure PRO route registration short-circuits when already registered."""
     from fastapi import FastAPI
+    from fastapi.routing import APIRouter
 
     from app.routers.pro_registration import register_pro_routes
 
+    monkeypatch.setenv("PULSEPLATE_OPENAPI", "1")
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("ENVIRONMENT", "test")
+
     app = FastAPI()
+    cached_pro = APIRouter()
+    cached_premium = APIRouter()
     app.state._pro_routes_registered = True
-    register_pro_routes(app)
+    app.state._pro_routes_registered_openapi_mode = True
+    app.state._cached_pro_router = cached_pro
+    app.state._cached_premium_week_router = cached_premium
+
+    pro_router, premium_week_router = register_pro_routes(app)
+    assert pro_router is cached_pro
+    assert premium_week_router is cached_premium
