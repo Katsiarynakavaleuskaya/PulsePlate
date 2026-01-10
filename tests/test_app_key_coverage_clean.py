@@ -99,21 +99,21 @@ class TestAPIKeyModes:
 class TestMetricsFallbacks:
     """Тесты fallback'ов метрик"""
 
-    def test_metrics_without_prometheus(self):
-        """Тест /metrics без prometheus_client"""
-        # Test metrics endpoint - it may return error if Prometheus is not available
+    def test_metrics_endpoint_responds(self):
+        """Тест, что /metrics эндпоинт отвечает (smoke test, не контролирует наличие prometheus)."""
+        # Smoke test: metrics endpoint should respond with 200
         from app.main import app as main_app
 
         client = TestClient(cast(ASGIApp, main_app))
         response = client.get("/metrics")
         assert response.status_code == 200
-        # Должен вернуть Prometheus metrics текст (не JSON)
+        # Should return Prometheus metrics text (not JSON)
         content = response.content.decode()
         assert "python_info" in content or "# HELP" in content or len(content) > 0
 
-    def test_metrics_with_prometheus(self):
-        """Тест /metrics с prometheus_client"""
-        # Просто проверим что эндпоинт работает
+    def test_metrics_endpoint_responds_in_current_env(self):
+        """Тест, что /metrics отвечает в текущей среде (smoke test, не контролирует prometheus availability)."""
+        # Smoke test: metrics endpoint should respond
         from app.main import app as main_app
 
         client = TestClient(cast(ASGIApp, main_app))
