@@ -2054,22 +2054,22 @@ export interface components {
              * Athlete
              * @description Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by schema.
              * @default false
-             * @example false
-             * @example true
              * @example no
              * @example yes
+             * @example false
+             * @example true
              */
-            athlete: boolean | string;
+            athlete: string | boolean;
             /**
              * Gender
              * @description Gender: 'male' or 'female'. Will be normalized by engine.
-             * @example null
-             * @example female
              * @example male
-             * @example жен
+             * @example female
              * @example муж
+             * @example жен
+             * @example null
              */
-            gender?: null | string;
+            gender?: string | null;
             /**
              * Height Cm
              * @description Height in centimeters. Must be positive.
@@ -2083,27 +2083,27 @@ export interface components {
              * @description Language for localized responses: 'ru', 'en', or 'es'.
              * @default en
              * @example en
-             * @example es
              * @example ru
+             * @example es
              * @enum {string}
              */
-            lang: "en" | "es" | "ru";
+            lang: "ru" | "en" | "es";
             /**
              * Pregnant
              * @description Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.
              * @default false
-             * @example false
-             * @example true
              * @example no
              * @example yes
+             * @example false
+             * @example true
              */
-            pregnant: boolean | string;
+            pregnant: string | boolean;
             /**
              * Waist Cm
              * @description Waist circumference in centimeters (optional). If provided, enables WHtR and waist risk assessment.
-             * @example null
              * @example 80
              * @example 90.5
+             * @example null
              */
             waist_cm?: number | null;
             /**
@@ -2128,41 +2128,41 @@ export interface components {
              * Age Band
              * @description Age band for UI differentiation: 'too_young' (<12), 'child' (12-14), 'teen' (15-18), 'adult' (19-59), 'elderly' (>=60).
              * @example adult
-             * @example elderly
              * @example teen
+             * @example elderly
              * @enum {string}
              */
-            age_band: "adult" | "child" | "elderly" | "teen" | "too_young";
+            age_band: "too_young" | "child" | "teen" | "adult" | "elderly";
             /**
              * Bmi
              * @description Calculated BMI value (weight_kg / (height_m ** 2)).
-             * @example 18.7
              * @example 22.5
              * @example 25.3
+             * @example 18.7
              */
             bmi: number;
             /**
              * Category
              * @description BMI category (localized). None for users in 'pregnant', 'too_young', 'child' or 'teen' age bands - not an error, medical disclaimer. BMI categories are not provided during pregnancy or for users in 'too_young', 'child' and 'teen' age bands.
-             * @example null
              * @example normal
              * @example overweight
+             * @example null
              */
-            category?: null | string;
+            category?: string | null;
             /**
              * Group
              * @description User group determined by auto_group(): 'general', 'athlete', 'elderly', 'child', 'teen', 'too_young', 'pregnant'.
+             * @example general
              * @example athlete
              * @example elderly
-             * @example general
              */
             group: string;
             /**
              * Group Display
              * @description Localized display name for the group.
+             * @example General
              * @example Athlete
              * @example Elderly
-             * @example General
              */
             group_display: string;
             /**
@@ -2214,11 +2214,11 @@ export interface components {
             /**
              * Wht Ratio
              * @description Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.
-             * @example null
              * @example 0.47
              * @example 0.52
+             * @example null
              */
-            wht_ratio?: null | number;
+            wht_ratio?: number | null;
         };
         /**
          * BMIInterpretationV1Schema
@@ -2242,7 +2242,7 @@ export interface components {
              * @example maintain
              * @enum {string}
              */
-            goal_direction: "increase" | "maintain" | "medical_review" | "reduce";
+            goal_direction: "maintain" | "reduce" | "increase" | "medical_review";
             /**
              * Priority Notes
              * @description Priority notes (i18n keys only).
@@ -2279,9 +2279,9 @@ export interface components {
             /**
              * Value
              * @description Current BMI value
-             * @example 18.5
              * @example 23.4
              * @example 25
+             * @example 18.5
              */
             value: number;
         };
@@ -2317,7 +2317,7 @@ export interface components {
              * Athlete
              * @default no
              */
-            athlete: boolean | string;
+            athlete: string | boolean;
             /**
              * Gender
              * @default male
@@ -2335,12 +2335,12 @@ export interface components {
              * @default ru
              * @enum {string}
              */
-            lang: "en" | "es" | "ru";
+            lang: "ru" | "en" | "es";
             /**
              * Pregnant
              * @default no
              */
-            pregnant: boolean | string;
+            pregnant: string | boolean;
             /**
              * Premium
              * @default false
@@ -2362,7 +2362,7 @@ export interface components {
              * Athlete
              * @default no
              */
-            athlete: boolean | string;
+            athlete: string | boolean;
             /**
              * Gender
              * @default male
@@ -2380,12 +2380,12 @@ export interface components {
              * @default en
              * @enum {string}
              */
-            lang: "en" | "es" | "ru";
+            lang: "ru" | "en" | "es";
             /**
              * Pregnant
              * @default no
              */
-            pregnant: boolean | string;
+            pregnant: string | boolean;
             /** Waist Cm */
             waist_cm?: number | null;
             /** Weight Kg */
@@ -2399,9 +2399,9 @@ export interface components {
             /**
              * Bmi
              * @description BMI value
-             * @example 18.5
              * @example 23.4
              * @example 25
+             * @example 18.5
              */
             bmi: number;
             /**
@@ -2477,7 +2477,7 @@ export interface components {
              * @default en
              * @enum {string}
              */
-            lang: "en" | "es" | "ru";
+            lang: "ru" | "en" | "es";
             /** Sex */
             sex: string;
             /** Weight Kg */
@@ -2496,7 +2496,7 @@ export interface components {
             /** Age */
             age: number;
             /** Bodyfat */
-            bodyfat?: null | number;
+            bodyfat?: number | null;
             /** Height Cm */
             height_cm: number;
             /**
@@ -2504,7 +2504,7 @@ export interface components {
              * @default en
              * @enum {string}
              */
-            lang: "en" | "es" | "ru";
+            lang: "ru" | "en" | "es";
             /** Sex */
             sex: string;
             /** Weight Kg */
@@ -2580,7 +2580,7 @@ export interface components {
              * Language
              * @default en
              */
-            language: null | string;
+            language: string | null;
             /**
              * Neck Cm
              * @description Neck circumference in cm, must be > 0
@@ -2609,17 +2609,17 @@ export interface components {
             /**
              * Aisle
              * @description Store aisle/category label
-             * @example Produce
              * @example Vegetables
+             * @example Produce
              */
-            aisle?: null | string;
+            aisle?: string | null;
             /**
              * Pack Label
              * @description Human-friendly pack label
-             * @example 1 lb bag
              * @example 500 g bag
+             * @example 1 lb bag
              */
-            pack_label?: null | string;
+            pack_label?: string | null;
             /** @description Optional price estimate (Decimal-as-string in JSON) */
             price?: components["schemas"]["MoneyDTO"] | null;
             /**
@@ -2677,7 +2677,7 @@ export interface components {
              * Aisle
              * @example Vegetables
              */
-            aisle?: null | string;
+            aisle?: string | null;
             /**
              * Barcode
              * @example 1234567890123
@@ -2702,12 +2702,12 @@ export interface components {
              * Pack Label
              * @example 500 g bag
              */
-            pack_label?: null | string;
+            pack_label?: string | null;
             /**
              * Price Currency
              * @example EUR
              */
-            price_currency?: null | string;
+            price_currency?: string | null;
             /**
              * Price Value
              * @description Decimal serialized as string in JSON (Pydantic v2).
@@ -2771,7 +2771,7 @@ export interface components {
          *     EN: Currency codes for price enrichment. Supports major regional currencies.
          * @enum {string}
          */
-        CurrencyDTO: "AUD" | "BYN" | "CAD" | "EUR" | "GBP" | "JPY" | "MXN" | "RUB" | "USD";
+        CurrencyDTO: "EUR" | "USD" | "GBP" | "CAD" | "MXN" | "AUD" | "JPY" | "BYN" | "RUB";
         /**
          * DayCloseRequest
          * @description Close a day with an adherence score.
@@ -2853,7 +2853,7 @@ export interface components {
              */
             B12_ug: number;
             /** Brand */
-            brand?: null | string;
+            brand?: string | null;
             /**
              * Ca Mg
              * @default 0
@@ -2872,7 +2872,7 @@ export interface components {
              */
             fat_g: number;
             /** Fdc Id */
-            fdc_id?: null | string;
+            fdc_id?: string | null;
             /**
              * Fe Mg
              * @default 0
@@ -2891,9 +2891,9 @@ export interface components {
              */
             Folate_ug: number;
             /** Group */
-            group?: null | string;
+            group?: string | null;
             /** Gtin */
-            gtin?: null | string;
+            gtin?: string | null;
             /** Id */
             id: string;
             /**
@@ -2983,9 +2983,9 @@ export interface components {
              * @default meal_logged
              * @enum {string}
              */
-            log_type: "meal_logged" | "partial" | "slip";
+            log_type: "meal_logged" | "slip" | "partial";
             /** Meal Type */
-            meal_type?: ("breakfast" | "dinner" | "lunch" | "snack") | null;
+            meal_type?: ("breakfast" | "lunch" | "dinner" | "snack") | null;
             /** Occurred At */
             occurred_at?: string | null;
         };
@@ -2997,8 +2997,8 @@ export interface components {
         MoneyDTO: {
             /**
              * @example EUR
-             * @example GBP
              * @example USD
+             * @example GBP
              */
             currency: components["schemas"]["CurrencyDTO"];
             /**
@@ -3120,11 +3120,11 @@ export interface components {
              * Reasons
              * @description Explainability reasons (stable order, deterministic)
              * @example [
+             *       "rounding=CEIL",
              *       "min_packs=1",
-             *       "overage=400 G",
-             *       "provided=500 G",
              *       "requested=100 G",
-             *       "rounding=CEIL"
+             *       "provided=500 G",
+             *       "overage=400 G"
              *     ]
              */
             reasons?: string[];
@@ -3147,7 +3147,7 @@ export interface components {
              * Activity
              * @enum {string}
              */
-            activity: "active" | "light" | "moderate" | "sedentary" | "very_active";
+            activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
             /** Age */
             age: number;
             /** Bodyfat */
@@ -3155,12 +3155,12 @@ export interface components {
             /** Deficit Pct */
             deficit_pct?: number | null;
             /** Diet Flags */
-            diet_flags?: ("DAIRY_FREE" | "GF" | "HIGH_PROTEIN" | "KETO" | "LOW_CARB" | "LOW_COST" | "MEDITERRANEAN" | "PALEO" | "VEG" | "VEGAN")[] | null;
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
             /**
              * Goal
              * @enum {string}
              */
-            goal: "gain" | "loss" | "maintain";
+            goal: "loss" | "maintain" | "gain";
             /** Height Cm */
             height_cm: number;
             /**
@@ -3173,7 +3173,7 @@ export interface components {
              * @default adult
              * @enum {string}
              */
-            life_stage: "adult" | "child" | "elderly" | "lactating" | "pregnant" | "teen";
+            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
             /**
              * Sex
              * @enum {string}
@@ -3225,13 +3225,13 @@ export interface components {
              * @example PCS
              * @enum {string}
              */
-            unit: "G" | "KG" | "L" | "ML" | "PCS";
+            unit: "G" | "ML" | "PCS" | "KG" | "L";
             /**
              * Value
              * @description Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'
-             * @example 0
              * @example 100
              * @example 150.5
+             * @example 0
              */
             value: number | string;
         };
@@ -3248,13 +3248,13 @@ export interface components {
              * @example PCS
              * @enum {string}
              */
-            unit: "G" | "KG" | "L" | "ML" | "PCS";
+            unit: "G" | "ML" | "PCS" | "KG" | "L";
             /**
              * Value
              * @description Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'
-             * @example 0
              * @example 100
              * @example 150.5
+             * @example 0
              */
             value: string;
         };
@@ -3346,7 +3346,7 @@ export interface components {
          *     RU: Категории для группировки списка покупок (не переименовывать).
          * @enum {string}
          */
-        ShopAisle: "Dairy" | "Frozen" | "Other" | "Pantry" | "Produce" | "Protein";
+        ShopAisle: "Produce" | "Protein" | "Dairy" | "Pantry" | "Frozen" | "Other";
         /**
          * ShopLang
          * @description Supported languages for shopping list localization.
@@ -3354,7 +3354,7 @@ export interface components {
          *     RU: Поддерживаемые языки для локализации списка покупок.
          * @enum {string}
          */
-        ShopLang: "en" | "es" | "ru";
+        ShopLang: "ru" | "en" | "es";
         /**
          * ShoplistAnalyticsDTO
          * @description Analytics summary for shoplist generation (deterministic, no prices).
@@ -3564,11 +3564,11 @@ export interface components {
              * Form
              * @description Food form
              * @default RAW
-             * @example COOKED
              * @example RAW
+             * @example COOKED
              * @enum {string}
              */
-            form: "CANNED" | "COOKED" | "DRIED" | "FROZEN" | "RAW";
+            form: "RAW" | "COOKED" | "FROZEN" | "DRIED" | "CANNED";
             /** @description Requested quantity */
             qty: components["schemas"]["QuantityDTO-Input"];
         };
@@ -3599,7 +3599,7 @@ export interface components {
          */
         ShoplistPreviewMeta: {
             /** Currency */
-            currency?: null | string;
+            currency?: string | null;
             /**
              * Preview
              * @default true
@@ -3628,13 +3628,13 @@ export interface components {
          */
         ShoplistSourceDTO: {
             /** Ref */
-            ref?: null | string;
+            ref?: string | null;
             /**
              * Type
              * @default plan
              * @enum {string}
              */
-            type: "import" | "manual" | "plan";
+            type: "plan" | "manual" | "import";
         };
         /**
          * ShoplistWeeklyDayRequest
@@ -3729,12 +3729,12 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "day_plan" | "inline_plan" | "weekly_plan_id";
+            source: "weekly_plan_id" | "inline_plan" | "day_plan";
             /**
              * Unit System
              * @enum {string}
              */
-            unit_system: "imperial" | "metric";
+            unit_system: "metric" | "imperial";
             /** Warnings */
             warnings?: string[];
         };
@@ -3768,7 +3768,7 @@ export interface components {
              * @default metric
              * @enum {string}
              */
-            unit_system: "imperial" | "metric";
+            unit_system: "metric" | "imperial";
         };
         /**
          * ShoppingListRequest
@@ -3783,7 +3783,7 @@ export interface components {
             } | null;
             preferences?: components["schemas"]["ShoppingListPreferences"];
             /** Weekly Plan Id */
-            weekly_plan_id?: null | string;
+            weekly_plan_id?: string | null;
         };
         /**
          * ShopUnit
@@ -3792,7 +3792,7 @@ export interface components {
          *     RU: Стабильные единицы измерения для iOS (не переименовывать, только расширять).
          * @enum {string}
          */
-        ShopUnit: "g" | "kg" | "l" | "ml" | "pcs";
+        ShopUnit: "g" | "kg" | "ml" | "l" | "pcs";
         /** SignRequest */
         SignRequest: {
             /** Path */
@@ -3808,7 +3808,7 @@ export interface components {
             /** Message */
             message: string;
             /** Request Id */
-            request_id?: null | string;
+            request_id?: string | null;
             /** Status */
             status: string;
             /** Timestamp */
@@ -3868,7 +3868,7 @@ export interface components {
         /** ValidationError */
         ValidationError: {
             /** Location */
-            loc: (number | string)[];
+            loc: (string | number)[];
             /** Message */
             msg: string;
             /** Error Type */
@@ -3886,7 +3886,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "bowl" | "marker" | "plate_sector";
+            kind: "plate_sector" | "bowl" | "marker";
             /** Label */
             label: string;
             /** Tooltip */
@@ -3912,15 +3912,15 @@ export interface components {
              * @example moderate
              * @enum {string}
              */
-            risk_level: "high" | "low" | "moderate";
+            risk_level: "low" | "moderate" | "high";
             /**
              * Wht Ratio
              * @description Waist-to-Height Ratio (WHtR) used for this assessment, if available.
-             * @example null
              * @example 0.47
              * @example 0.52
+             * @example null
              */
-            wht_ratio?: null | number;
+            wht_ratio?: number | null;
         };
         /**
          * WeeklyMenuResponse
@@ -3984,7 +3984,7 @@ export interface components {
          */
         WeekPlanRequest: {
             /** Activity */
-            activity?: ("active" | "light" | "moderate" | "sedentary" | "very_active") | null;
+            activity?: ("sedentary" | "light" | "moderate" | "active" | "very_active") | null;
             /** Age */
             age?: number | null;
             /** Bodyfat */
@@ -3992,13 +3992,13 @@ export interface components {
             /** Deficit Pct */
             deficit_pct?: number | null;
             /** Diet Flags */
-            diet_flags?: ("DAIRY_FREE" | "GF" | "HIGH_PROTEIN" | "KETO" | "LOW_CARB" | "LOW_COST" | "MEDITERRANEAN" | "PALEO" | "VEG" | "VEGAN")[] | null;
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
             /**
              * Goal
              * @default maintain
              * @enum {string}
              */
-            goal: "gain" | "loss" | "maintain";
+            goal: "loss" | "maintain" | "gain";
             /** Height Cm */
             height_cm?: number | null;
             /**
@@ -4011,7 +4011,7 @@ export interface components {
              * @default adult
              * @enum {string}
              */
-            life_stage: "adult" | "child" | "elderly" | "lactating" | "pregnant" | "teen";
+            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
             /** Sex */
             sex?: ("female" | "male") | null;
             /** Surplus Pct */
@@ -4038,7 +4038,7 @@ export interface components {
              * Activity
              * @enum {string}
              */
-            activity: "active" | "light" | "moderate" | "sedentary" | "very_active";
+            activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
             /** Age */
             age: number;
             /** Bodyfat */
@@ -4046,13 +4046,13 @@ export interface components {
             /** Deficit Pct */
             deficit_pct?: number | null;
             /** Diet Flags */
-            diet_flags?: ("DAIRY_FREE" | "GF" | "HIGH_PROTEIN" | "KETO" | "LOW_CARB" | "LOW_COST" | "MEDITERRANEAN" | "PALEO" | "VEG" | "VEGAN")[] | null;
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
             /**
              * Goal
              * @default maintain
              * @enum {string}
              */
-            goal: "gain" | "loss" | "maintain";
+            goal: "loss" | "maintain" | "gain";
             /** Height Cm */
             height_cm: number;
             /**
@@ -4065,7 +4065,7 @@ export interface components {
              * @default adult
              * @enum {string}
              */
-            life_stage: "adult" | "child" | "elderly" | "lactating" | "pregnant" | "teen";
+            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
             /**
              * Sex
              * @enum {string}
@@ -4141,7 +4141,7 @@ export interface operations {
     cleanup_expired_logs_admin_logs_cleanup_post: {
         parameters: {
             query?: {
-                data_class?: null | string;
+                data_class?: string | null;
             };
             header?: never;
             path?: never;
@@ -4260,7 +4260,7 @@ export interface operations {
     force_database_update_api_v1_admin_force_update_post: {
         parameters: {
             query?: {
-                source?: null | string;
+                source?: string | null;
             };
             header?: never;
             path?: never;
@@ -4348,7 +4348,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -4385,7 +4385,7 @@ export interface operations {
                 analyzer_key?: string;
             };
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5170,7 +5170,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5205,7 +5205,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5240,7 +5240,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -5280,7 +5280,7 @@ export interface operations {
                 lang?: components["schemas"]["ShopLang"];
             };
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6190,14 +6190,14 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Export format (export_format; csv or pdf) */
-                export_format?: null | string;
+                export_format?: string | null;
                 /** @description Optional region id (e.g. 'es', 'us') */
-                region_id?: null | string;
+                region_id?: string | null;
                 /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
-                store_id?: null | string;
+                store_id?: string | null;
             };
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6280,12 +6280,12 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description Optional region id (e.g. 'es', 'us') */
-                region_id?: null | string;
+                region_id?: string | null;
                 /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
-                store_id?: null | string;
+                store_id?: string | null;
             };
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6346,7 +6346,7 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                "x-api-key"?: null | string;
+                "x-api-key"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -6451,7 +6451,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"] | components["schemas"]["WeeklyPlanResponse"];
+                    "application/json": components["schemas"]["WeeklyPlanResponse"] | components["schemas"]["ErrorResponse"];
                 };
             };
         };

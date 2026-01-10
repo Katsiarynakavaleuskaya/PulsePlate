@@ -12,37 +12,46 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, cast, Union
+from typing import Any, Union
 
-
-def _sort_list_in_place(value: list[Any]) -> None:  # noqa: ANN401
-    """Sort simple scalar lists deterministically."""
-    if isinstance(value, list) and all(
-        isinstance(x, (str, int, float, bool, type(None))) for x in value
-    ):
-        value.sort(key=lambda x: (str(type(x)), str(x)))
+# Keys where list order is semantically significant (do not sort)
+_DO_NOT_SORT_LIST_KEYS = {
+    "required",
+    "enum",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "prefixItems",
+    "examples",
+}
 
 
 def _normalize_dict_recursive(  # noqa: ANN401, ANN101
     obj: Union[dict[str, Any], list[Any], Any],  # noqa: ANN401
+    *,
+    parent_key: str | None = None,
 ) -> Union[dict[str, Any], list[Any], Any]:  # noqa: ANN401
-    """Recursively normalize dicts and lists for deterministic output."""
+    """Recursively normalize dicts for deterministic OpenAPI JSON output.
+
+    Rules:
+    - Dict keys are always sorted.
+    - Lists are normalized recursively, but NOT re-ordered for semantically ordered keys
+      (required/enum/allOf/anyOf/oneOf/etc).
+    """
     if isinstance(obj, dict):
-        # Sort dict keys and normalize values recursively
-        result: dict[str, Any] = {k: _normalize_dict_recursive(v) for k, v in sorted(obj.items())}
+        result: dict[str, Any] = {
+            k: _normalize_dict_recursive(v, parent_key=k) for k, v in sorted(obj.items())
+        }
         return result
-    elif isinstance(obj, list):
-        # For lists, normalize items and try to sort if all are comparable
-        normalized: list[Any] = [_normalize_dict_recursive(item) for item in obj]
-        # Try to sort if all items are simple types
+    if isinstance(obj, list):
+        normalized: list[Any] = [_normalize_dict_recursive(x, parent_key=parent_key) for x in obj]
+        if parent_key in _DO_NOT_SORT_LIST_KEYS:
+            return normalized
+        # Optional: keep ONLY scalar-list sorting (safe-ish) for non-semantic keys
         if all(isinstance(x, (str, int, float, bool, type(None))) for x in normalized):
-            normalized.sort(key=lambda x: (str(type(x)), str(x)))
-        elif all(isinstance(x, dict) for x in normalized):
-            # Sort dicts by their string representation (for tags, etc.)
-            normalized.sort(key=lambda x: json.dumps(x, sort_keys=True))
+            normalized.sort(key=lambda x: (type(x).__name__, str(x)))
         return normalized
-    else:
-        return obj
+    return obj
 
 
 def normalize_openapi_schema(schema: dict[str, Any]) -> dict[str, Any]:

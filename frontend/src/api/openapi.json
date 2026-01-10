@@ -75,14 +75,14 @@
           }
         },
         "required": [
-          "alpha",
+          "user_id",
           "analyzer_key",
+          "alpha",
           "beta",
-          "confidence",
           "n",
-          "needs_more_data",
           "risk_slip",
-          "user_id"
+          "confidence",
+          "needs_more_data"
         ],
         "title": "AdherenceResponse",
         "type": "object"
@@ -106,38 +106,38 @@
           "athlete": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "boolean"
               }
             ],
             "default": false,
             "description": "Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by schema.",
             "examples": [
-              false,
-              true,
               "no",
-              "yes"
+              "yes",
+              false,
+              true
             ],
             "title": "Athlete"
           },
           "gender": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "description": "Gender: 'male' or 'female'. Will be normalized by engine.",
             "examples": [
-              null,
-              "female",
               "male",
+              "female",
+              "муж",
               "жен",
-              "муж"
+              null
             ],
             "title": "Gender"
           },
@@ -156,14 +156,14 @@
             "default": "en",
             "description": "Language for localized responses: 'ru', 'en', or 'es'.",
             "enum": [
+              "ru",
               "en",
-              "es",
-              "ru"
+              "es"
             ],
             "examples": [
               "en",
-              "es",
-              "ru"
+              "ru",
+              "es"
             ],
             "title": "Lang",
             "type": "string"
@@ -171,19 +171,19 @@
           "pregnant": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "boolean"
               }
             ],
             "default": false,
             "description": "Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.",
             "examples": [
-              false,
-              true,
               "no",
-              "yes"
+              "yes",
+              false,
+              true
             ],
             "title": "Pregnant"
           },
@@ -199,9 +199,9 @@
             ],
             "description": "Waist circumference in centimeters (optional). If provided, enables WHtR and waist risk assessment.",
             "examples": [
-              null,
               80.0,
-              90.5
+              90.5,
+              null
             ],
             "title": "Waist Cm"
           },
@@ -218,9 +218,9 @@
           }
         },
         "required": [
-          "age",
+          "weight_kg",
           "height_cm",
-          "weight_kg"
+          "age"
         ],
         "title": "BMICalculateRequest",
         "type": "object"
@@ -231,16 +231,16 @@
           "age_band": {
             "description": "Age band for UI differentiation: 'too_young' (<12), 'child' (12-14), 'teen' (15-18), 'adult' (19-59), 'elderly' (>=60).",
             "enum": [
-              "adult",
+              "too_young",
               "child",
-              "elderly",
               "teen",
-              "too_young"
+              "adult",
+              "elderly"
             ],
             "examples": [
               "adult",
-              "elderly",
-              "teen"
+              "teen",
+              "elderly"
             ],
             "title": "Age Band",
             "type": "string"
@@ -248,9 +248,9 @@
           "bmi": {
             "description": "Calculated BMI value (weight_kg / (height_m ** 2)).",
             "examples": [
-              18.7,
               22.5,
-              25.3
+              25.3,
+              18.7
             ],
             "title": "Bmi",
             "type": "number"
@@ -258,26 +258,26 @@
           "category": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "description": "BMI category (localized). None for users in 'pregnant', 'too_young', 'child' or 'teen' age bands - not an error, medical disclaimer. BMI categories are not provided during pregnancy or for users in 'too_young', 'child' and 'teen' age bands.",
             "examples": [
-              null,
               "normal",
-              "overweight"
+              "overweight",
+              null
             ],
             "title": "Category"
           },
           "group": {
             "description": "User group determined by auto_group(): 'general', 'athlete', 'elderly', 'child', 'teen', 'too_young', 'pregnant'.",
             "examples": [
+              "general",
               "athlete",
-              "elderly",
-              "general"
+              "elderly"
             ],
             "title": "Group",
             "type": "string"
@@ -285,9 +285,9 @@
           "group_display": {
             "description": "Localized display name for the group.",
             "examples": [
+              "General",
               "Athlete",
-              "Elderly",
-              "General"
+              "Elderly"
             ],
             "title": "Group Display",
             "type": "string"
@@ -375,27 +375,27 @@
           "wht_ratio": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "number"
               },
               {
-                "type": "number"
+                "type": "null"
               }
             ],
             "description": "Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.",
             "examples": [
-              null,
               0.47,
-              0.52
+              0.52,
+              null
             ],
             "title": "Wht Ratio"
           }
         },
         "required": [
-          "age_band",
           "bmi",
           "group",
           "group_display",
-          "interpretation"
+          "interpretation",
+          "age_band"
         ],
         "title": "BMICalculateResponse",
         "type": "object"
@@ -419,10 +419,10 @@
           "goal_direction": {
             "description": "Goal direction for BMI management.",
             "enum": [
-              "increase",
               "maintain",
-              "medical_review",
-              "reduce"
+              "reduce",
+              "increase",
+              "medical_review"
             ],
             "examples": [
               "maintain"
@@ -496,9 +496,9 @@
           "value": {
             "description": "Current BMI value",
             "examples": [
-              18.5,
               23.4,
-              25.0
+              25.0,
+              18.5
             ],
             "title": "Value",
             "type": "number"
@@ -530,8 +530,8 @@
           }
         },
         "required": [
-          "from",
           "key",
+          "from",
           "to"
         ],
         "title": "BMIRangeSpec",
@@ -549,10 +549,10 @@
           "athlete": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "boolean"
               }
             ],
             "default": "no",
@@ -583,9 +583,9 @@
           "lang": {
             "default": "ru",
             "enum": [
+              "ru",
               "en",
-              "es",
-              "ru"
+              "es"
             ],
             "title": "Lang",
             "type": "string"
@@ -593,10 +593,10 @@
           "pregnant": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "boolean"
               }
             ],
             "default": "no",
@@ -633,8 +633,8 @@
           }
         },
         "required": [
-          "height_m",
-          "weight_kg"
+          "weight_kg",
+          "height_m"
         ],
         "title": "BMIRequest",
         "type": "object"
@@ -651,10 +651,10 @@
           "athlete": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "boolean"
               }
             ],
             "default": "no",
@@ -678,9 +678,9 @@
           "lang": {
             "default": "en",
             "enum": [
+              "ru",
               "en",
-              "es",
-              "ru"
+              "es"
             ],
             "title": "Lang",
             "type": "string"
@@ -688,10 +688,10 @@
           "pregnant": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "boolean"
               }
             ],
             "default": "no",
@@ -716,8 +716,8 @@
           }
         },
         "required": [
-          "height_cm",
-          "weight_kg"
+          "weight_kg",
+          "height_cm"
         ],
         "title": "BMIRequestV1",
         "type": "object"
@@ -728,9 +728,9 @@
           "bmi": {
             "description": "BMI value",
             "examples": [
-              18.5,
               23.4,
-              25.0
+              25.0,
+              18.5
             ],
             "title": "Bmi",
             "type": "number"
@@ -803,8 +803,8 @@
         },
         "required": [
           "bmi",
-          "marker",
-          "ranges"
+          "ranges",
+          "marker"
         ],
         "title": "BMIScaleV1Spec",
         "type": "object"
@@ -844,9 +844,9 @@
           "lang": {
             "default": "en",
             "enum": [
+              "ru",
               "en",
-              "es",
-              "ru"
+              "es"
             ],
             "title": "Lang",
             "type": "string"
@@ -863,11 +863,11 @@
           }
         },
         "required": [
-          "activity",
-          "age",
+          "weight_kg",
           "height_cm",
+          "age",
           "sex",
-          "weight_kg"
+          "activity"
         ],
         "title": "BMRRequest",
         "type": "object"
@@ -886,10 +886,10 @@
           "bodyfat": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "number"
               },
               {
-                "type": "number"
+                "type": "null"
               }
             ],
             "title": "Bodyfat"
@@ -901,9 +901,9 @@
           "lang": {
             "default": "en",
             "enum": [
+              "ru",
               "en",
-              "es",
-              "ru"
+              "es"
             ],
             "title": "Lang",
             "type": "string"
@@ -918,11 +918,11 @@
           }
         },
         "required": [
-          "activity",
-          "age",
+          "weight_kg",
           "height_cm",
+          "age",
           "sex",
-          "weight_kg"
+          "activity"
         ],
         "title": "BMRRequestLegacy",
         "type": "object"
@@ -977,12 +977,12 @@
           }
         },
         "required": [
-          "activity_level",
           "bmr",
-          "formulas_used",
-          "notes",
+          "tdee",
+          "activity_level",
           "recommended_intake",
-          "tdee"
+          "formulas_used",
+          "notes"
         ],
         "title": "BMRResponse",
         "type": "object"
@@ -1050,10 +1050,10 @@
           "language": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "default": "en",
@@ -1111,32 +1111,32 @@
           "aisle": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "description": "Store aisle/category label",
             "examples": [
-              "Produce",
-              "Vegetables"
+              "Vegetables",
+              "Produce"
             ],
             "title": "Aisle"
           },
           "pack_label": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "description": "Human-friendly pack label",
             "examples": [
-              "1 lb bag",
-              "500 g bag"
+              "500 g bag",
+              "1 lb bag"
             ],
             "title": "Pack Label"
           },
@@ -1179,9 +1179,9 @@
           }
         },
         "required": [
-          "region_id",
           "sku",
-          "store_id"
+          "store_id",
+          "region_id"
         ],
         "title": "CatalogInfoDTO",
         "type": "object"
@@ -1223,10 +1223,10 @@
           "aisle": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "examples": [
@@ -1285,10 +1285,10 @@
           "pack_label": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "examples": [
@@ -1299,10 +1299,10 @@
           "price_currency": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "examples": [
@@ -1358,8 +1358,8 @@
           "id",
           "name",
           "region_id",
-          "source_id",
-          "store_id"
+          "store_id",
+          "source_id"
         ],
         "title": "CatalogSKU",
         "type": "object"
@@ -1407,8 +1407,8 @@
         },
         "required": [
           "id",
-          "name",
           "region_id",
+          "name",
           "source_id"
         ],
         "title": "CatalogStore",
@@ -1417,15 +1417,15 @@
       "CurrencyDTO": {
         "description": "Currency codes for price enrichment.\n\nRU: Коды валют для обогащения цен. Поддерживаются основные региональные валюты.\nEN: Currency codes for price enrichment. Supports major regional currencies.",
         "enum": [
-          "AUD",
-          "BYN",
-          "CAD",
           "EUR",
+          "USD",
           "GBP",
-          "JPY",
+          "CAD",
           "MXN",
-          "RUB",
-          "USD"
+          "AUD",
+          "JPY",
+          "BYN",
+          "RUB"
         ],
         "title": "CurrencyDTO",
         "type": "string"
@@ -1446,8 +1446,8 @@
           }
         },
         "required": [
-          "adherence_score",
-          "day"
+          "day",
+          "adherence_score"
         ],
         "title": "DayCloseRequest",
         "type": "object"
@@ -1512,8 +1512,8 @@
         },
         "required": [
           "id",
-          "kcal",
-          "name"
+          "name",
+          "kcal"
         ],
         "title": "FoodHit",
         "type": "object"
@@ -1564,10 +1564,10 @@
           "brand": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Brand"
@@ -1589,10 +1589,10 @@
           "fdc_id": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Fdc Id"
@@ -1612,10 +1612,10 @@
           "group": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Group"
@@ -1623,10 +1623,10 @@
           "gtin": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Gtin"
@@ -1670,8 +1670,8 @@
           }
         },
         "required": [
-          "canonical_name",
           "id",
+          "canonical_name",
           "kcal",
           "version_date"
         ],
@@ -1757,8 +1757,8 @@
             "default": "meal_logged",
             "enum": [
               "meal_logged",
-              "partial",
-              "slip"
+              "slip",
+              "partial"
             ],
             "title": "Log Type",
             "type": "string"
@@ -1768,8 +1768,8 @@
               {
                 "enum": [
                   "breakfast",
-                  "dinner",
                   "lunch",
+                  "dinner",
                   "snack"
                 ],
                 "type": "string"
@@ -1803,8 +1803,8 @@
             "$ref": "#/components/schemas/CurrencyDTO",
             "examples": [
               "EUR",
-              "GBP",
-              "USD"
+              "USD",
+              "GBP"
             ]
           },
           "value": {
@@ -1819,8 +1819,8 @@
           }
         },
         "required": [
-          "currency",
-          "value"
+          "value",
+          "currency"
         ],
         "title": "MoneyDTO",
         "type": "object"
@@ -1846,8 +1846,8 @@
           }
         },
         "required": [
-          "max",
-          "min"
+          "min",
+          "max"
         ],
         "title": "NumericRangeSchema",
         "type": "object"
@@ -1897,9 +1897,9 @@
           }
         },
         "required": [
-          "adherence_score",
+          "gaps",
           "food_recommendations",
-          "gaps"
+          "adherence_score"
         ],
         "title": "NutrientGapsResponse",
         "type": "object"
@@ -2004,11 +2004,11 @@
             "description": "Explainability reasons (stable order, deterministic)",
             "examples": [
               [
+                "rounding=CEIL",
                 "min_packs=1",
-                "overage=400 G",
-                "provided=500 G",
                 "requested=100 G",
-                "rounding=CEIL"
+                "provided=500 G",
+                "overage=400 G"
               ]
             ],
             "items": {
@@ -2034,13 +2034,13 @@
         },
         "required": [
           "food_id",
-          "min_packs",
-          "overage",
+          "requested",
           "pack_size",
           "packs",
           "provided",
-          "requested",
-          "rounding"
+          "overage",
+          "rounding",
+          "min_packs"
         ],
         "title": "PackedLineDTO",
         "type": "object"
@@ -2050,10 +2050,10 @@
         "properties": {
           "activity": {
             "enum": [
-              "active",
+              "sedentary",
               "light",
               "moderate",
-              "sedentary",
+              "active",
               "very_active"
             ],
             "title": "Activity",
@@ -2096,16 +2096,16 @@
               {
                 "items": {
                   "enum": [
-                    "DAIRY_FREE",
-                    "GF",
-                    "HIGH_PROTEIN",
-                    "KETO",
-                    "LOW_CARB",
-                    "LOW_COST",
-                    "MEDITERRANEAN",
-                    "PALEO",
                     "VEG",
-                    "VEGAN"
+                    "GF",
+                    "DAIRY_FREE",
+                    "LOW_COST",
+                    "HIGH_PROTEIN",
+                    "LOW_CARB",
+                    "MEDITERRANEAN",
+                    "VEGAN",
+                    "KETO",
+                    "PALEO"
                   ],
                   "type": "string"
                 },
@@ -2120,9 +2120,9 @@
           },
           "goal": {
             "enum": [
-              "gain",
               "loss",
-              "maintain"
+              "maintain",
+              "gain"
             ],
             "title": "Goal",
             "type": "string"
@@ -2140,12 +2140,12 @@
           "life_stage": {
             "default": "adult",
             "enum": [
-              "adult",
               "child",
-              "elderly",
-              "lactating",
+              "teen",
+              "adult",
               "pregnant",
-              "teen"
+              "lactating",
+              "elderly"
             ],
             "title": "Life Stage",
             "type": "string"
@@ -2178,12 +2178,12 @@
           }
         },
         "required": [
-          "activity",
-          "age",
-          "goal",
-          "height_cm",
           "sex",
-          "weight_kg"
+          "age",
+          "height_cm",
+          "weight_kg",
+          "activity",
+          "goal"
         ],
         "title": "PlateRequest",
         "type": "object"
@@ -2238,10 +2238,10 @@
         },
         "required": [
           "kcal",
-          "layout",
           "macros",
-          "meals",
-          "portions"
+          "portions",
+          "layout",
+          "meals"
         ],
         "title": "PlateResponse",
         "type": "object"
@@ -2253,10 +2253,10 @@
             "description": "Measurement unit",
             "enum": [
               "G",
-              "KG",
-              "L",
               "ML",
-              "PCS"
+              "PCS",
+              "KG",
+              "L"
             ],
             "examples": [
               "G",
@@ -2279,16 +2279,16 @@
             ],
             "description": "Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'",
             "examples": [
-              "0",
               "100",
-              "150.5"
+              "150.5",
+              "0"
             ],
             "title": "Value"
           }
         },
         "required": [
-          "unit",
-          "value"
+          "value",
+          "unit"
         ],
         "title": "QuantityDTO",
         "type": "object"
@@ -2300,10 +2300,10 @@
             "description": "Measurement unit",
             "enum": [
               "G",
-              "KG",
-              "L",
               "ML",
-              "PCS"
+              "PCS",
+              "KG",
+              "L"
             ],
             "examples": [
               "G",
@@ -2316,9 +2316,9 @@
           "value": {
             "description": "Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'",
             "examples": [
-              "0",
               "100",
-              "150.5"
+              "150.5",
+              "0"
             ],
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Value",
@@ -2326,8 +2326,8 @@
           }
         },
         "required": [
-          "unit",
-          "value"
+          "value",
+          "unit"
         ],
         "title": "QuantityDTO",
         "type": "object"
@@ -2412,12 +2412,12 @@
           }
         },
         "required": [
-          "ingredients",
           "recipe_id",
-          "servings",
           "title",
-          "version_date",
-          "yield_total_g"
+          "servings",
+          "yield_total_g",
+          "ingredients",
+          "version_date"
         ],
         "title": "Recipe",
         "type": "object"
@@ -2443,8 +2443,8 @@
           }
         },
         "required": [
-          "ingredients",
-          "title"
+          "title",
+          "ingredients"
         ],
         "title": "RecipePreviewRequest",
         "type": "object"
@@ -2472,10 +2472,10 @@
           }
         },
         "required": [
-          "per_serving",
-          "servings",
           "title",
-          "total_g"
+          "servings",
+          "total_g",
+          "per_serving"
         ],
         "title": "RecipePreviewResponse",
         "type": "object"
@@ -2503,9 +2503,9 @@
           }
         },
         "required": [
-          "kcal_per_serv",
           "recipe_id",
-          "title"
+          "title",
+          "kcal_per_serv"
         ],
         "title": "RecipeQueryHit",
         "type": "object"
@@ -2513,12 +2513,12 @@
       "ShopAisle": {
         "description": "Stable aisle/category for iOS (do not rename; only extend).\n\nRU: Категории для группировки списка покупок (не переименовывать).",
         "enum": [
-          "Dairy",
-          "Frozen",
-          "Other",
-          "Pantry",
           "Produce",
-          "Protein"
+          "Protein",
+          "Dairy",
+          "Pantry",
+          "Frozen",
+          "Other"
         ],
         "title": "ShopAisle",
         "type": "string"
@@ -2526,9 +2526,9 @@
       "ShopLang": {
         "description": "Supported languages for shopping list localization.\n\nRU: Поддерживаемые языки для локализации списка покупок.",
         "enum": [
+          "ru",
           "en",
-          "es",
-          "ru"
+          "es"
         ],
         "title": "ShopLang",
         "type": "string"
@@ -2538,8 +2538,8 @@
         "enum": [
           "g",
           "kg",
-          "l",
           "ml",
+          "l",
           "pcs"
         ],
         "title": "ShopUnit",
@@ -2574,10 +2574,10 @@
             "propertyNames": {
               "enum": [
                 "G",
-                "KG",
-                "L",
                 "ML",
-                "PCS"
+                "PCS",
+                "KG",
+                "L"
               ]
             },
             "title": "Total Overage By Unit",
@@ -2591,8 +2591,8 @@
           }
         },
         "required": [
-          "packed_lines",
           "total_lines",
+          "packed_lines",
           "unpacked_lines"
         ],
         "title": "ShoplistAnalyticsDTO",
@@ -2681,8 +2681,8 @@
         },
         "required": [
           "key",
-          "qty",
           "title",
+          "qty",
           "unit"
         ],
         "title": "ShoplistDayItemDTO",
@@ -2871,15 +2871,15 @@
             "default": "RAW",
             "description": "Food form",
             "enum": [
-              "CANNED",
+              "RAW",
               "COOKED",
-              "DRIED",
               "FROZEN",
-              "RAW"
+              "DRIED",
+              "CANNED"
             ],
             "examples": [
-              "COOKED",
-              "RAW"
+              "RAW",
+              "COOKED"
             ],
             "title": "Form",
             "type": "string"
@@ -2935,10 +2935,10 @@
           "currency": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Currency"
@@ -2983,10 +2983,10 @@
           "ref": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Ref"
@@ -2994,9 +2994,9 @@
           "type": {
             "default": "plan",
             "enum": [
-              "import",
+              "plan",
               "manual",
-              "plan"
+              "import"
             ],
             "title": "Type",
             "type": "string"
@@ -3088,9 +3088,9 @@
           }
         },
         "required": [
-          "items",
           "key",
-          "title"
+          "title",
+          "items"
         ],
         "title": "ShoppingListCategory",
         "type": "object"
@@ -3120,9 +3120,9 @@
         },
         "required": [
           "categories",
+          "total_items",
           "generated_at",
-          "meta",
-          "total_items"
+          "meta"
         ],
         "title": "ShoppingListDTO",
         "type": "object"
@@ -3168,17 +3168,17 @@
         "properties": {
           "source": {
             "enum": [
-              "day_plan",
+              "weekly_plan_id",
               "inline_plan",
-              "weekly_plan_id"
+              "day_plan"
             ],
             "title": "Source",
             "type": "string"
           },
           "unit_system": {
             "enum": [
-              "imperial",
-              "metric"
+              "metric",
+              "imperial"
             ],
             "title": "Unit System",
             "type": "string"
@@ -3237,8 +3237,8 @@
           "unit_system": {
             "default": "metric",
             "enum": [
-              "imperial",
-              "metric"
+              "metric",
+              "imperial"
             ],
             "title": "Unit System",
             "type": "string"
@@ -3268,10 +3268,10 @@
           "weekly_plan_id": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Weekly Plan Id"
@@ -3314,10 +3314,10 @@
           "request_id": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "string"
               },
               {
-                "type": "string"
+                "type": "null"
               }
             ],
             "title": "Request Id"
@@ -3332,8 +3332,8 @@
           }
         },
         "required": [
-          "message",
           "status",
+          "message",
           "timestamp"
         ],
         "title": "TestResponse",
@@ -3421,8 +3421,8 @@
         },
         "required": [
           "email",
-          "id",
-          "name"
+          "name",
+          "id"
         ],
         "title": "UserRead",
         "type": "object"
@@ -3433,10 +3433,10 @@
             "items": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "integer"
                 }
               ]
             },
@@ -3469,9 +3469,9 @@
           },
           "kind": {
             "enum": [
+              "plate_sector",
               "bowl",
-              "marker",
-              "plate_sector"
+              "marker"
             ],
             "title": "Kind",
             "type": "string"
@@ -3486,8 +3486,8 @@
           }
         },
         "required": [
-          "fraction",
           "kind",
+          "fraction",
           "label",
           "tooltip"
         ],
@@ -3500,10 +3500,10 @@
         "properties": {
           "activity": {
             "enum": [
-              "active",
+              "sedentary",
               "light",
               "moderate",
-              "sedentary",
+              "active",
               "very_active"
             ],
             "title": "Activity",
@@ -3546,16 +3546,16 @@
               {
                 "items": {
                   "enum": [
-                    "DAIRY_FREE",
-                    "GF",
-                    "HIGH_PROTEIN",
-                    "KETO",
-                    "LOW_CARB",
-                    "LOW_COST",
-                    "MEDITERRANEAN",
-                    "PALEO",
                     "VEG",
-                    "VEGAN"
+                    "GF",
+                    "DAIRY_FREE",
+                    "LOW_COST",
+                    "HIGH_PROTEIN",
+                    "LOW_CARB",
+                    "MEDITERRANEAN",
+                    "VEGAN",
+                    "KETO",
+                    "PALEO"
                   ],
                   "type": "string"
                 },
@@ -3571,9 +3571,9 @@
           "goal": {
             "default": "maintain",
             "enum": [
-              "gain",
               "loss",
-              "maintain"
+              "maintain",
+              "gain"
             ],
             "title": "Goal",
             "type": "string"
@@ -3591,12 +3591,12 @@
           "life_stage": {
             "default": "adult",
             "enum": [
-              "adult",
               "child",
-              "elderly",
-              "lactating",
+              "teen",
+              "adult",
               "pregnant",
-              "teen"
+              "lactating",
+              "elderly"
             ],
             "title": "Life Stage",
             "type": "string"
@@ -3641,11 +3641,11 @@
           }
         },
         "required": [
-          "activity",
+          "sex",
           "age",
           "height_cm",
-          "sex",
-          "weight_kg"
+          "weight_kg",
+          "activity"
         ],
         "title": "WHOTargetsRequest",
         "type": "object"
@@ -3698,12 +3698,12 @@
           }
         },
         "required": [
-          "activity_weekly",
-          "calculation_date",
           "kcal_daily",
           "macros",
+          "water_ml",
           "priority_micros",
-          "water_ml"
+          "activity_weekly",
+          "calculation_date"
         ],
         "title": "WHOTargetsResponse",
         "type": "object"
@@ -3727,9 +3727,9 @@
           "risk_level": {
             "description": "Waist-related risk level derived from the WHtR.",
             "enum": [
-              "high",
               "low",
-              "moderate"
+              "moderate",
+              "high"
             ],
             "examples": [
               "moderate"
@@ -3740,17 +3740,17 @@
           "wht_ratio": {
             "anyOf": [
               {
-                "type": "null"
+                "type": "number"
               },
               {
-                "type": "number"
+                "type": "null"
               }
             ],
             "description": "Waist-to-Height Ratio (WHtR) used for this assessment, if available.",
             "examples": [
-              null,
               0.47,
-              0.52
+              0.52,
+              null
             ],
             "title": "Wht Ratio"
           }
@@ -3769,10 +3769,10 @@
             "anyOf": [
               {
                 "enum": [
-                  "active",
+                  "sedentary",
                   "light",
                   "moderate",
-                  "sedentary",
+                  "active",
                   "very_active"
                 ],
                 "type": "string"
@@ -3827,16 +3827,16 @@
               {
                 "items": {
                   "enum": [
-                    "DAIRY_FREE",
-                    "GF",
-                    "HIGH_PROTEIN",
-                    "KETO",
-                    "LOW_CARB",
-                    "LOW_COST",
-                    "MEDITERRANEAN",
-                    "PALEO",
                     "VEG",
-                    "VEGAN"
+                    "GF",
+                    "DAIRY_FREE",
+                    "LOW_COST",
+                    "HIGH_PROTEIN",
+                    "LOW_CARB",
+                    "MEDITERRANEAN",
+                    "VEGAN",
+                    "KETO",
+                    "PALEO"
                   ],
                   "type": "string"
                 },
@@ -3852,9 +3852,9 @@
           "goal": {
             "default": "maintain",
             "enum": [
-              "gain",
               "loss",
-              "maintain"
+              "maintain",
+              "gain"
             ],
             "title": "Goal",
             "type": "string"
@@ -3879,12 +3879,12 @@
           "life_stage": {
             "default": "adult",
             "enum": [
-              "adult",
               "child",
-              "elderly",
-              "lactating",
+              "teen",
+              "adult",
               "pregnant",
-              "teen"
+              "lactating",
+              "elderly"
             ],
             "title": "Life Stage",
             "type": "string"
@@ -3985,12 +3985,12 @@
           }
         },
         "required": [
-          "adherence_score",
+          "week_summary",
           "daily_menus",
+          "weekly_coverage",
           "shopping_list",
           "total_cost",
-          "week_summary",
-          "weekly_coverage"
+          "adherence_score"
         ],
         "title": "WeeklyMenuResponse",
         "type": "object"
@@ -4078,10 +4078,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "Data Class"
@@ -4126,14 +4126,23 @@
         "operationId": "get_daily_nutrition_legacy_api_nutrition__date_str__get",
         "parameters": [
           {
-            "description": "Activity level",
+            "in": "path",
+            "name": "date_str",
+            "required": true,
+            "schema": {
+              "title": "Date Str",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Biological sex (female/male)",
             "in": "query",
-            "name": "activity",
+            "name": "sex",
             "required": false,
             "schema": {
-              "default": "moderate",
-              "description": "Activity level",
-              "title": "Activity",
+              "default": "female",
+              "description": "Biological sex (female/male)",
+              "title": "Sex",
               "type": "string"
             }
           },
@@ -4152,18 +4161,6 @@
             }
           },
           {
-            "description": "Biological sex (female/male)",
-            "in": "query",
-            "name": "sex",
-            "required": false,
-            "schema": {
-              "default": "female",
-              "description": "Biological sex (female/male)",
-              "title": "Sex",
-              "type": "string"
-            }
-          },
-          {
             "description": "Height in cm",
             "in": "query",
             "name": "height_cm",
@@ -4175,18 +4172,6 @@
               "exclusiveMinimum": 100,
               "title": "Height Cm",
               "type": "number"
-            }
-          },
-          {
-            "description": "Nutrition goal",
-            "in": "query",
-            "name": "goal",
-            "required": false,
-            "schema": {
-              "default": "maintain",
-              "description": "Nutrition goal",
-              "title": "Goal",
-              "type": "string"
             }
           },
           {
@@ -4204,11 +4189,26 @@
             }
           },
           {
-            "in": "path",
-            "name": "date_str",
-            "required": true,
+            "description": "Activity level",
+            "in": "query",
+            "name": "activity",
+            "required": false,
             "schema": {
-              "title": "Date Str",
+              "default": "moderate",
+              "description": "Activity level",
+              "title": "Activity",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nutrition goal",
+            "in": "query",
+            "name": "goal",
+            "required": false,
+            "schema": {
+              "default": "maintain",
+              "description": "Nutrition goal",
+              "title": "Goal",
               "type": "string"
             }
           }
@@ -4305,10 +4305,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "Source"
@@ -4439,10 +4439,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -4493,22 +4493,6 @@
         "operationId": "get_risk_api_v1_bayes_adherence_risk_get",
         "parameters": [
           {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "type": "string"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          },
-          {
             "in": "query",
             "name": "analyzer_key",
             "required": false,
@@ -4518,6 +4502,22 @@
               "minLength": 3,
               "title": "Analyzer Key",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
             }
           }
         ],
@@ -4705,18 +4705,6 @@
         "parameters": [
           {
             "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "maximum": 50,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
             "name": "q",
             "required": true,
             "schema": {
@@ -4753,6 +4741,18 @@
                 }
               ],
               "title": "Store Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           }
         ],
@@ -4935,6 +4935,17 @@
         "parameters": [
           {
             "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 64,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -4951,17 +4962,6 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": false,
-            "schema": {
-              "default": "",
-              "maxLength": 64,
-              "title": "Query",
-              "type": "string"
             }
           }
         ],
@@ -5003,6 +5003,17 @@
         "parameters": [
           {
             "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 64,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -5019,17 +5030,6 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": false,
-            "schema": {
-              "default": "",
-              "maxLength": 64,
-              "title": "Query",
-              "type": "string"
             }
           }
         ],
@@ -5651,10 +5651,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -5712,10 +5712,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -5773,10 +5773,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -5828,17 +5828,6 @@
         "operationId": "get_shoplist_day_api_v1_pro_shoplist_day_get",
         "parameters": [
           {
-            "description": "Language code",
-            "in": "query",
-            "name": "lang",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/ShopLang",
-              "default": "en",
-              "description": "Language code"
-            }
-          },
-          {
             "description": "YYYY-MM-DD",
             "in": "query",
             "name": "date",
@@ -5851,16 +5840,27 @@
             }
           },
           {
+            "description": "Language code",
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ShopLang",
+              "default": "en",
+              "description": "Language code"
+            }
+          },
+          {
             "in": "header",
             "name": "x-api-key",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -5902,6 +5902,17 @@
         "parameters": [
           {
             "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 64,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -5918,17 +5929,6 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": false,
-            "schema": {
-              "default": "",
-              "maxLength": 64,
-              "title": "Query",
-              "type": "string"
             }
           }
         ],
@@ -6011,6 +6011,17 @@
         "parameters": [
           {
             "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 64,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -6027,17 +6038,6 @@
               "default": 0,
               "title": "Offset",
               "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": false,
-            "schema": {
-              "default": "",
-              "maxLength": 64,
-              "title": "Query",
-              "type": "string"
             }
           }
         ],
@@ -7010,6 +7010,15 @@
           },
           {
             "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "category",
             "required": false,
             "schema": {
@@ -7026,15 +7035,6 @@
               "default": 20,
               "title": "Max Results",
               "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "query",
-            "required": true,
-            "schema": {
-              "title": "Query",
-              "type": "string"
             }
           }
         ],
@@ -7187,10 +7187,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "description": "Export format (export_format; csv or pdf)",
@@ -7205,10 +7205,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "description": "Optional region id (e.g. 'es', 'us')",
@@ -7223,10 +7223,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
@@ -7240,10 +7240,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -7339,10 +7339,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "description": "Optional region id (e.g. 'es', 'us')",
@@ -7357,10 +7357,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
@@ -7374,10 +7374,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -7445,10 +7445,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "null"
+                  "type": "string"
                 },
                 {
-                  "type": "string"
+                  "type": "null"
                 }
               ],
               "title": "X-Api-Key"
@@ -7557,10 +7557,10 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/ErrorResponse"
+                      "$ref": "#/components/schemas/WeeklyPlanResponse"
                     },
                     {
-                      "$ref": "#/components/schemas/WeeklyPlanResponse"
+                      "$ref": "#/components/schemas/ErrorResponse"
                     }
                   ],
                   "title": "Response Weekly Menu Plan Alias Api V1 Vip Weekly Plan Post"
