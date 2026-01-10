@@ -242,6 +242,45 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
+## OpenAPI generation (determinism requirement)
+
+### Canonical source
+- **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
+- Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
+- Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
+
+### SQLAlchemy model import policy (critical)
+- **Forbidden**: Import SQLAlchemy models at module level in routers that are included in OpenAPI generation.
+- Routers that import `app.models.*` must be conditionally imported when `PULSEPLATE_OPENAPI=1` to prevent SQLAlchemy "Table already defined" errors.
+- **Allowed**: Import models inside endpoint functions or dependencies (lazy loading).
+- **Rationale**: OpenAPI generation must not trigger SQLAlchemy table creation to ensure deterministic schema generation.
+
+### OpenAPI generation mode
+- Generator sets `PULSEPLATE_OPENAPI=1` before importing app.
+- Routers that import SQLAlchemy models (e.g., `premium_week`, `pro`) are skipped in this mode.
+- This ensures schema generation does not load DB layer and prevents double-loading errors.
+
+### Determinism requirement
+- `make openapi` run twice in a row **must** produce `git diff --exit-code` = 0.
+- If drift appears: fix **generator normalization** in `scripts/generate_openapi.py`, not "accept drift".
+- Test: `pytest tests/test_openapi_determinism.py` must pass.
+
+### Response model policy
+- **Forbidden**: Endpoints returning `dict[str, Any]` or untyped responses.
+- **Required**: All endpoints must use Pydantic `response_model` to ensure proper OpenAPI schema generation.
+- **Rationale**: Untyped responses degrade to `unknown` in generated TypeScript types, making frontend integration impossible.
+
+### Update flow
+1. From repo root: `make openapi` (generates OpenAPI + regenerates TS types).
+2. Commit changes to:
+   - `frontend/src/api/openapi.json`
+   - `frontend/src/api/schema.ts`
+3. CI will fail if generated artifacts are out of sync (see `openapi-sync` job in `ci.yml`).
+
+### Test requirement
+- `pytest tests/test_openapi_determinism.py` **must pass** and cannot be disabled/weakened.
+- Any changes to routers/schemas must preserve determinism.
+
 ### 🛑 Docs-only PR Rule (Mandatory)
 
 **Docs-only PR** — это PR, который **строго ограничен документацией** и **не имеет права** изменять runtime, CI или поведение приложения.

@@ -289,4 +289,19 @@ smoke-8000: ## Smoke against http://127.0.0.1:8000
 smoke-8001: ## Smoke against http://127.0.0.1:8001
 	bash ./scripts/smoke.sh http://127.0.0.1:8001
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify
+## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
+openapi: ## Generate OpenAPI schema and regenerate FE types (deterministic)
+	PYTHONPATH=. python3 scripts/generate_openapi.py
+	cd frontend && npm run generate-types
+
+## Install frontend dependencies (run once or when package.json changes)
+frontend-install: ## Install frontend dependencies
+	cd frontend && npm install --no-audit --no-fund
+
+## Verify OpenAPI schema + generated TypeScript types are in sync (no git diff)
+openapi-check: ## Verify OpenAPI + generated FE types are committed (fails on diff)
+	PYTHONPATH=. python3 scripts/generate_openapi.py
+	cd frontend && npm run generate-types
+	git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts
+
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi openapi-check

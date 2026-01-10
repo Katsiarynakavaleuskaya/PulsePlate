@@ -54,8 +54,18 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
-from app.routers.premium_week import router as premium_week_router
-from app.routers.pro import router as pro_router
+# Skip routers that import SQLAlchemy models in OpenAPI generation mode (schema-only)
+# These routers import app.models at module level, which triggers SQLAlchemy table creation
+# and causes "Table already defined" errors on repeated imports.
+# TEMPORARY: This is a workaround. Follow-up PR-509 will eliminate import-time ORM
+# dependencies by moving models to lazy imports or app/schemas, enabling full schema.
+OPENAPI_MODE = os.getenv("PULSEPLATE_OPENAPI") == "1"
+if not OPENAPI_MODE:
+    from app.routers.premium_week import router as premium_week_router
+    from app.routers.pro import router as pro_router
+else:
+    premium_week_router = None
+    pro_router = None
 from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
@@ -1071,7 +1081,9 @@ if _register_vip_routes is not None:
     _register_vip_routes(app)
 
 # Include PRO tier router (new standard structure for iOS)
-if pro_router is not None:
+# Skip in OpenAPI schema-only mode to avoid SQLAlchemy model double-loading
+# TEMPORARY: Will be re-enabled in PR-509 after eliminating import-time ORM dependencies
+if pro_router is not None and not OPENAPI_MODE:
     app.include_router(pro_router)
 
 # Include Bayesian adherence router (PRO/VIP tier)
