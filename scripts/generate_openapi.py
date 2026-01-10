@@ -12,10 +12,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast, Union
 
 
-def _sort_list_in_place(value: Any) -> None:
+def _sort_list_in_place(value: list[Any]) -> None:  # noqa: ANN401
     """Sort simple scalar lists deterministically."""
     if isinstance(value, list) and all(
         isinstance(x, (str, int, float, bool, type(None))) for x in value
@@ -23,14 +23,17 @@ def _sort_list_in_place(value: Any) -> None:
         value.sort(key=lambda x: (str(type(x)), str(x)))
 
 
-def _normalize_dict_recursive(obj: Any) -> Any:
+def _normalize_dict_recursive(  # noqa: ANN401, ANN101
+    obj: Union[dict[str, Any], list[Any], Any],  # noqa: ANN401
+) -> Union[dict[str, Any], list[Any], Any]:  # noqa: ANN401
     """Recursively normalize dicts and lists for deterministic output."""
     if isinstance(obj, dict):
         # Sort dict keys and normalize values recursively
-        return {k: _normalize_dict_recursive(v) for k, v in sorted(obj.items())}
+        result: dict[str, Any] = {k: _normalize_dict_recursive(v) for k, v in sorted(obj.items())}
+        return result
     elif isinstance(obj, list):
         # For lists, normalize items and try to sort if all are comparable
-        normalized = [_normalize_dict_recursive(item) for item in obj]
+        normalized: list[Any] = [_normalize_dict_recursive(item) for item in obj]
         # Try to sort if all items are simple types
         if all(isinstance(x, (str, int, float, bool, type(None))) for x in normalized):
             normalized.sort(key=lambda x: (str(type(x)), str(x)))
@@ -50,29 +53,31 @@ def normalize_openapi_schema(schema: dict[str, Any]) -> dict[str, Any]:
     to ensure identical output across runs.
     """
     # First pass: normalize structure recursively
-    normalized = _normalize_dict_recursive(schema)
+    normalized_raw = _normalize_dict_recursive(schema)
 
     # Second pass: special handling for OpenAPI-specific structures
-    if isinstance(normalized, dict):
-        # Sort paths by path string
-        paths = normalized.get("paths")
-        if isinstance(paths, dict):
-            normalized["paths"] = dict(sorted(paths.items()))
+    if not isinstance(normalized_raw, dict):
+        return schema  # Fallback if normalization failed
 
-        # Sort top-level tags by name
-        tags = normalized.get("tags")
-        if isinstance(tags, list):
-            tags.sort(
-                key=lambda t: (t.get("name") or "") if isinstance(t, dict) else str(t)
-            )
+    normalized: dict[str, Any] = normalized_raw
 
-        # Sort operations within each path
-        paths = normalized.get("paths")
-        if isinstance(paths, dict):
-            for path_key, ops in paths.items():
-                if isinstance(ops, dict):
-                    # Sort operations by method (get, post, etc.)
-                    normalized["paths"][path_key] = dict(sorted(ops.items()))
+    # Sort paths by path string
+    paths = normalized.get("paths")
+    if isinstance(paths, dict):
+        normalized["paths"] = dict(sorted(paths.items()))
+
+    # Sort top-level tags by name
+    tags = normalized.get("tags")
+    if isinstance(tags, list):
+        tags.sort(key=lambda t: (t.get("name") or "") if isinstance(t, dict) else str(t))
+
+    # Sort operations within each path
+    paths = normalized.get("paths")
+    if isinstance(paths, dict):
+        for path_key, ops in paths.items():
+            if isinstance(ops, dict):
+                # Sort operations by method (get, post, etc.)
+                normalized["paths"][path_key] = dict(sorted(ops.items()))
 
     return normalized
 
@@ -102,7 +107,9 @@ def main() -> int:
 
     # IMPORTANT: canonical entrypoint (applies register_metrics bootstrap)
     # PULSEPLATE_OPENAPI=1 must be set BEFORE importing app to prevent SQLAlchemy double-loading
-    from app.main import app  # noqa: WPS433 (intentional runtime import)
+    from app.main import (
+        app,
+    )  # noqa: WPS433, ANN401 (intentional runtime import, dynamic typing needed)
 
     schema = app.openapi()
     schema = normalize_openapi_schema(schema)

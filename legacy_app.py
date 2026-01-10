@@ -54,6 +54,7 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
+
 # Skip routers that import SQLAlchemy models in OpenAPI generation mode (schema-only)
 # These routers import app.models at module level, which triggers SQLAlchemy table creation
 # and causes "Table already defined" errors on repeated imports.

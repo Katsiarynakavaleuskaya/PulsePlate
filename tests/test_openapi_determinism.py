@@ -43,9 +43,13 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
     h2 = (_sha256(openapi_path), _sha256(schema_path))
 
     assert h1 == h2, (
-        f"Drift detected:\n"
-        f"  openapi.json: {h1[0]} != {h2[0]}\n" if h1[0] != h2[0] else ""
-        f"  schema.ts: {h1[1]} != {h2[1]}\n" if h1[1] != h2[1] else ""
-                "This indicates non-deterministic generation.\n"
-                "Check scripts/generate_openapi.py and frontend/package.json (openapi-typescript version/flags)."
+        f"Drift detected:\n" f"  openapi.json: {h1[0]} != {h2[0]}\n"
+        if h1[0] != h2[0]
+        else (
+            "" f"  schema.ts: {h1[1]} != {h2[1]}\n"
+            if h1[1] != h2[1]
+            else ""
+            "This indicates non-deterministic generation.\n"
+            "Check scripts/generate_openapi.py and frontend/package.json (openapi-typescript version/flags)."
+        )
     )
