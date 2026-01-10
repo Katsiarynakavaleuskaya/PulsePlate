@@ -54,7 +54,7 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
-from app.routers.pro_registration import register_pro_routes
+from app.routers.pro_registration import register_pro_routes as _register_pro_routes
 from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
@@ -168,7 +168,7 @@ if VIP_MODULE_ENABLED:
     except ImportError:
         vip_router = None
 
-# PRO router registration (explicit, no import-side-effects)
+
 def _resolve_scheduler_starter(  # noqa: ANN401
     pkg: Any, alias_pkg: Any, globs: dict[str, Any]  # noqa: ANN401
 ) -> Callable[[int], Any]:
@@ -1077,7 +1077,7 @@ if _register_vip_routes is not None:
     _register_vip_routes(app)
 
 # Register PRO routes (centralized, explicit registration)
-pro_router, premium_week_router = register_pro_routes(app)
+pro_router, premium_week_router = _register_pro_routes(app)
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:

@@ -3,6 +3,7 @@
 **Created:** 2026-01-10
 **Target Review:** 2026-01-11
 **Status:** Ready for review
+
 ---
 
 ## Scope & Invariants (for reviewers)

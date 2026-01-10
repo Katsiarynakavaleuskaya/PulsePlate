@@ -293,15 +293,15 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
 	PYTHONPATH=. python3 scripts/generate_openapi.py
 	cd frontend && npm run generate-types
-
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies
-		@if [ -d frontend/node_modules ] && [ -f frontend/node_modules/.package-lock.json ] \
-			&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
-			echo "Frontend dependencies already installed"; \
-		else \
-			cd frontend && npm install --no-audit --no-fund; \
-		fi
+	@if [ -d frontend/node_modules ] && [ -f frontend/node_modules/.package-lock.json ] \
+		&& cmp -s frontend/package-lock.json frontend/node_modules/.package-lock.json; then \
+		echo "Frontend dependencies already installed"; \
+	else \
+		cd frontend && npm install --no-audit --no-fund && \
+		cp package-lock.json node_modules/.package-lock.json; \
+	fi
 
 ## Verify OpenAPI schema + generated TypeScript types are in sync (no git diff)
 openapi-check: frontend-install ## Verify OpenAPI + generated FE types are committed (fails on diff)
