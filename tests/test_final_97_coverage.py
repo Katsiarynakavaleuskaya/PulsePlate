@@ -290,12 +290,22 @@ class TestSpecificLineCoverage:
         """Тест prometheus metrics paths"""
         # Строки могут быть связаны с prometheus metrics
         response = client.get("/metrics")
-        assert response.status_code in [200, 404, 405]
+        if response.status_code == 200:
+            assert response.headers.get("Content-Type", "").startswith("text/plain")
+        else:
+            assert response.status_code in [404, 405]
 
         # Тест health endpoints
-        for endpoint in ["/health", "/healthz", "/ready"]:
+
+        # /health and /healthz: liveness checks (must not depend on DB health)
+        for endpoint in ["/health", "/healthz"]:
             response = client.get(endpoint)
             assert response.status_code in [200, 404, 405]
+
+        # /ready is a DB-readiness probe (alias of /health/db).
+        # 503 is valid when DB is degraded or fallback is active.
+        response = client.get("/ready")
+        assert response.status_code in [200, 404, 405, 503]
 
 
 class TestEdgeCasesAndErrorPaths:
