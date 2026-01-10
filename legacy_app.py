@@ -99,9 +99,6 @@ from app.scheduler_helpers import (
 # Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
 premium_week_router: APIRouter | None = None
 pro_router: APIRouter | None = None
-# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
-premium_week_router: APIRouter | None = None
-pro_router: APIRouter | None = None
 
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
@@ -161,20 +158,6 @@ try:
 except ImportError:
     # VIP registration not available - VIP module disabled
     VIP_MODULE_ENABLED = False
-
-# PRO router registration (explicit, no import-side-effects)
-_register_pro_routes: Callable[[FastAPI], None] | None = None
-try:
-    from app.routers.pro_registration import register_pro_routes
-
-    _register_pro_routes = register_pro_routes
-except ImportError:
-    # PRO registration not available - should not happen in normal operation
-    pass
-
-# PRO router registration (explicit, no import-side-effects)
-# Use centralized registration function instead of importing routers directly.
-_register_pro_routes: Callable[[FastAPI], None] = register_pro_routes
 
 # Backward-compat: expose vip_router for tests/introspection.
 if VIP_MODULE_ENABLED:
@@ -1094,8 +1077,7 @@ if _register_vip_routes is not None:
     _register_vip_routes(app)
 
 # Register PRO routes (centralized, explicit registration)
-if _register_pro_routes is not None:
-    pro_router, premium_week_router = _register_pro_routes(app)
+pro_router, premium_week_router = register_pro_routes(app)
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:
@@ -1155,8 +1137,8 @@ async def get_daily_nutrition_legacy(
     return response.model_dump()
 
 
-# Premium week router registration is now handled in register_pro_routes()
-# (app/routers/pro_registration.py) for centralized registration
+# Premium week router registration is now handled in
+# app.routers.pro_registration.register_pro_routes() for centralized registration.
 
 # Conditionally include test router for non-production environments
 # Reuse _app_env defined earlier (line 302) to avoid duplication

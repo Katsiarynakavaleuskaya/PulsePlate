@@ -15,9 +15,10 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from fastapi.routing import APIRouter
+
 if TYPE_CHECKING:
     from fastapi import FastAPI
-    from fastapi.routing import APIRouter
 
 __all__ = ["register_pro_routes"]
 
@@ -26,14 +27,15 @@ def _is_openapi_schema_only_mode() -> bool:
     """Check if OpenAPI schema-only generation mode is active.
 
     Schema-only mode must never activate in production by accident.
-    We only honor it in generation/test context (PULSEPLATE_OPENAPI=1 AND APP_ENV=test).
+    We only honor it in generation/test context (PULSEPLATE_OPENAPI=1 AND APP_ENV=test AND ENVIRONMENT=test).
     """
     _openapi_flag = (os.getenv("PULSEPLATE_OPENAPI") or "").strip()
     _app_env = (os.getenv("APP_ENV") or "").strip().lower()
-    return (_openapi_flag == "1") and (_app_env == "test")
+    _env = (os.getenv("ENVIRONMENT") or "").strip().lower()
+    return (_openapi_flag == "1") and (_app_env == "test") and (_env == "test")
 
 
-def register_pro_routes(app: FastAPI) -> tuple[APIRouter | None, APIRouter | None]:
+def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | None]:
     """
     Register PRO and premium_week routes with the FastAPI application.
 
@@ -57,13 +59,16 @@ def register_pro_routes(app: FastAPI) -> tuple[APIRouter | None, APIRouter | Non
         This function has no side effects if in OpenAPI schema-only mode.
         It can be called multiple times safely (idempotent).
     """
-    if getattr(app.state, "_pro_routes_registered", False):
-        # Return cached values if already registered (idempotent)
+    openapi_mode = _is_openapi_schema_only_mode()
+
+    # Return cached values if already registered in the same mode (idempotent)
+    if (
+        getattr(app.state, "_pro_routes_registered", False)
+        and getattr(app.state, "_pro_routes_registered_openapi_mode", None) == openapi_mode
+    ):
         cached_pro = getattr(app.state, "_cached_pro_router", None)
         cached_premium = getattr(app.state, "_cached_premium_week_router", None)
         return cached_pro, cached_premium
-
-    openapi_mode = _is_openapi_schema_only_mode()
 
     pro_router_result: APIRouter | None = None
     premium_week_router_result: APIRouter | None = None
@@ -82,12 +87,12 @@ def register_pro_routes(app: FastAPI) -> tuple[APIRouter | None, APIRouter | Non
         # Check FEATURE_PREMIUM_WEEK_ENABLED feature flag
         from app.utils.feature_flags import is_vip_module_enabled
 
-        FEATURE_PREMIUM_WEEK_ENABLED = (
+        feature_premium_week_enabled = (
             os.getenv("FEATURE_PREMIUM_WEEK_ENABLED", "").strip().lower()
             in {"1", "true", "yes", "on"}
         ) or is_vip_module_enabled()  # Also enable if VIP module is enabled
 
-        if FEATURE_PREMIUM_WEEK_ENABLED:
+        if feature_premium_week_enabled:
             from app.routers.premium_week import router as premium_week_router_imported
 
             # premium_week endpoints enforce tier access internally via app.middleware.api_tiers
@@ -100,6 +105,7 @@ def register_pro_routes(app: FastAPI) -> tuple[APIRouter | None, APIRouter | Non
 
     # Cache routers for idempotent return
     app.state._pro_routes_registered = True
+    app.state._pro_routes_registered_openapi_mode = openapi_mode
     app.state._cached_pro_router = pro_router_result
     app.state._cached_premium_week_router = premium_week_router_result
 

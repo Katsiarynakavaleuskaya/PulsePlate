@@ -39,7 +39,7 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    h1 = (_sha256(openapi_path), _sha256(schema_path))
+    h1: tuple[str, str] = (_sha256(openapi_path), _sha256(schema_path))
 
     subprocess.check_call(
         ["make", "openapi"],
@@ -47,7 +47,7 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    h2 = (_sha256(openapi_path), _sha256(schema_path))
+    h2: tuple[str, str] = (_sha256(openapi_path), _sha256(schema_path))
 
     if h1 != h2:
         lines: list[str] = ["Drift detected:"]
@@ -61,3 +61,14 @@ def test_openapi_and_schema_ts_are_deterministic() -> None:
             "(openapi-typescript version/flags)."
         )
         pytest.fail("\n".join(lines))
+
+
+def test_register_pro_routes_is_idempotent() -> None:
+    """Ensure PRO route registration short-circuits when already registered."""
+    from fastapi import FastAPI
+
+    from app.routers.pro_registration import register_pro_routes
+
+    app = FastAPI()
+    app.state._pro_routes_registered = True
+    register_pro_routes(app)
