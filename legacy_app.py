@@ -54,8 +54,8 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
-from app.routers.recipes import router as recipes_router
 from app.routers.pro_registration import register_pro_routes
+from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
@@ -97,8 +97,8 @@ from app.scheduler_helpers import (
 # Moved to app/routers/pro_registration.py for centralized registration
 # See register_pro_routes() for schema-only mode guard and conditional imports
 # Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
-premium_week_router: APIRouter | None = None
-pro_router: APIRouter | None = None
+premium_week_router: Optional[APIRouter] = None
+pro_router: Optional[APIRouter] = None
 
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
@@ -168,7 +168,7 @@ if VIP_MODULE_ENABLED:
     except ImportError:
         vip_router = None
 
-
+# PRO router registration (explicit, no import-side-effects)
 def _resolve_scheduler_starter(  # noqa: ANN401
     pkg: Any, alias_pkg: Any, globs: dict[str, Any]  # noqa: ANN401
 ) -> Callable[[int], Any]:

@@ -70,18 +70,25 @@ def test_register_pro_routes_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> N
 
     from app.routers.pro_registration import register_pro_routes
 
-    monkeypatch.setenv("PULSEPLATE_OPENAPI", "1")
+    # Ensure we are NOT in schema-only mode so openapi_mode resolves to False
+    monkeypatch.delenv("PULSEPLATE_OPENAPI", raising=False)
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("ENVIRONMENT", "test")
 
     app = FastAPI()
-    cached_pro = APIRouter()
-    cached_premium = APIRouter()
-    app.state._pro_routes_registered = True
-    app.state._pro_routes_registered_openapi_mode = True
-    app.state._cached_pro_router = cached_pro
-    app.state._cached_premium_week_router = cached_premium
 
+    # Set cache to force idempotent early-return branch
+    sentinel_pro = APIRouter()
+    sentinel_week = APIRouter()
+    app.state._pro_routes_registered = True
+    app.state._pro_routes_registered_openapi_mode = False
+    app.state._cached_pro_router = sentinel_pro
+    app.state._cached_premium_week_router = sentinel_week
+
+    before = len(app.router.routes)
     pro_router, premium_week_router = register_pro_routes(app)
-    assert pro_router is cached_pro
-    assert premium_week_router is cached_premium
+    after = len(app.router.routes)
+
+    assert after == before
+    assert pro_router is sentinel_pro
+    assert premium_week_router is sentinel_week

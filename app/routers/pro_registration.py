@@ -103,10 +103,12 @@ def register_pro_routes(app: "FastAPI") -> tuple[APIRouter | None, APIRouter | N
                 app.include_router(premium_week_router_imported)
                 premium_week_router_result = premium_week_router_imported
 
-    # Cache routers for idempotent return
-    app.state._pro_routes_registered = True
-    app.state._pro_routes_registered_openapi_mode = openapi_mode
-    app.state._cached_pro_router = pro_router_result
-    app.state._cached_premium_week_router = premium_week_router_result
+    # Cache routers for idempotent return.
+    # Avoid "locking in" schema-only results in case the same app instance is reused.
+    if not openapi_mode:
+        app.state._pro_routes_registered = True
+        app.state._pro_routes_registered_openapi_mode = openapi_mode
+        app.state._cached_pro_router = pro_router_result
+        app.state._cached_premium_week_router = premium_week_router_result
 
     return pro_router_result, premium_week_router_result
