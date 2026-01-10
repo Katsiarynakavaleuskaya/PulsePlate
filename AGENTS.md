@@ -61,8 +61,22 @@ make test-fast
 
 ### 3) Coverage gate (only when preparing merge)
 ```bash
-make cov-check
+make cov-check  # Total coverage ≥97%
+make diff-cov   # Diff-coverage ≥97% on changed lines
 ```
+
+**Coverage rule (hard):**
+- Never use per-file coverage % as a readiness signal.
+- Only `make cov-check` (total ≥97%) + `make diff-cov` (diff-coverage ≥97%) count.
+- If CI is red, PR is not ready.
+- File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
+
+**legacy_app.py policy (hard):**
+- `legacy_app.py` is a thin compatibility proxy only.
+- Forbidden: registering middleware, observability/instrumentation, infra routes (/metrics), or any runtime behavior changes.
+- All middleware/observability registration must live in bootstrap modules (e.g., `app/bootstrap/metrics.py`) and be called from the primary app entrypoint (e.g., `app/main.py`).
+- `legacy_app.py` must only contain: thin proxies, response formatting, legacy endpoint shims.
+- This prevents drift and keeps legacy as a pure compatibility layer.
 
 ### 4) Lint/format
 ```bash
@@ -295,6 +309,41 @@ Violation of this rule blocks merge.
 ### If you see duplicate behavior
 - Do NOT copy logic into a second place.
 - Move shared logic into `core/` and call it from both sides.
+
+## Git conflict resolution (canonical ritual)
+
+If `git push` fails with "failed to push some refs" (conflict):
+
+**Required steps (in order):**
+```bash
+# 1. Fetch latest from remote
+git fetch origin
+
+# 2. Rebase on top of main (preserves linear history)
+git rebase origin/main
+
+# 3. Resolve conflicts if any (edit files, then):
+git add <resolved-files>
+git rebase --continue
+
+# 4. Verify tests still pass after rebase
+make test-fast
+make cov-check
+
+# 5. Push with force-with-lease (safe force push)
+git push --force-with-lease
+```
+
+**Hard rules:**
+- ❌ Never use `git push -f` without `--force-with-lease` (unsafe, can overwrite others' work)
+- ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
+- ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
+- ✅ Always rebase (don't merge main into feature branch) to keep history linear
+- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
+
+**Why force-with-lease:**
+- Prevents overwriting remote changes you haven't seen
+- Fails if someone else pushed to your branch (forces you to fetch first)
 
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 

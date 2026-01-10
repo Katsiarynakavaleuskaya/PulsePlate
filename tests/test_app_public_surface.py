@@ -37,6 +37,9 @@ def test_app_public_surface_smoke() -> None:
         app, "generate_bmi_visualization"
     ), "app.generate_bmi_visualization must be exported"
 
+    # Observability endpoints (for patch-based tests)
+    assert hasattr(app, "metrics"), "app.metrics must be exported (for patch('app.metrics'))"
+
 
 def test_no_dynamic_exec_module_in_app_package() -> None:
     """Prevent regression to dynamic import patterns (spec.loader.exec_module).

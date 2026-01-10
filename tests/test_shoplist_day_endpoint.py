@@ -4,11 +4,11 @@ RU: Тесты для эндпоинта списка покупок на ден
 """
 
 from __future__ import annotations
+from tests._client import get_client
 
 from types import ModuleType
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.shopping_list import ShopAisle, ShopUnit
@@ -18,16 +18,22 @@ from app.schemas.shopping_list import ShopAisle, ShopUnit
 def client_with_pro_access(app_module: ModuleType):
     """Create test client with PRO tier access bypassed.
 
-    Uses app_module fixture from conftest for better test isolation.
+    Uses canonical entrypoint (app.main:app) with observability bootstrap.
     """
-    # Override PRO tier requirement for testing
-    app_module.app.dependency_overrides[require_pro_tier] = lambda: "test_api_key"
+    import app.main
 
-    client = TestClient(app_module.app)
+    # Override PRO tier requirement for testing
+    # Must be async and match signature (no params needed for override)
+    async def _mock_pro_tier() -> str:
+        return "test_key"
+
+    app.main.app.dependency_overrides[require_pro_tier] = _mock_pro_tier
+
+    client = get_client()
     yield client
 
     # Cleanup: remove override after test
-    app_module.app.dependency_overrides.pop(require_pro_tier, None)
+    app.main.app.dependency_overrides.pop(require_pro_tier, None)
 
 
 def test_shoplist_day_no_day_plan_returns_warning(client_with_pro_access):
@@ -58,7 +64,7 @@ def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access
 
     from app.routers import shoplist_day as shoplist_day_module
 
-    day_plan = {
+    day_plan: dict[str, Any] = {
         "daily_menus": [
             {
                 "meals": [
@@ -75,7 +81,7 @@ def test_shoplist_day_generates_items_when_plan_available(client_with_pro_access
         ]
     }
 
-    async def _fake_fetch_day_plan(day: str, pro_ctx: Any) -> dict[str, Any]:  # type: ignore[unused-argument]
+    async def _fake_fetch_day_plan(day: str, pro_ctx: Any) -> dict[str, Any]:
         return day_plan
 
     monkeypatch.setattr(shoplist_day_module, "fetch_day_plan", _fake_fetch_day_plan)
@@ -126,9 +132,9 @@ def test_shoplist_day_missing_date_422(client_with_pro_access):
     assert r.status_code == 422
 
 
-def test_shoplist_day_requires_pro_tier(app_module: ModuleType):
+def test_shoplist_day_requires_pro_tier() -> None:
     """Test endpoint requires PRO tier authentication."""
-    client = TestClient(app_module.app)
+    client = get_client()
 
     # Request without PRO tier override should fail
     r = client.get("/api/v1/pro/shoplist/day?date=2025-12-17&lang=ru")

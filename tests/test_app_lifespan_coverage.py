@@ -3,10 +3,7 @@
 Покрывает строки: 1505→exit, 1508→exit, 1520-1527, 1606, 1657-1660
 """
 
-from typing import cast
-
-from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
+from tests._client import get_client
 
 
 class TestAppLifespanCoverage:
@@ -17,7 +14,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем startup события через TestClient
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Startup события выполняются при создании TestClient
         # Проверяем, что приложение работает корректно
@@ -33,7 +30,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем shutdown события
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Shutdown события выполняются при закрытии TestClient
         # Проверяем, что приложение работает до shutdown
@@ -46,10 +43,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_context_manager_coverage(self, test_environment):
         """Тест покрытия app.py lifespan context manager (строки 1505→exit, 1508→exit)"""
-        import app
-
         # Тестируем lifespan context manager
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = get_client()
 
         # Context manager должен корректно обрабатывать startup и shutdown
         response = client.get("/health")
@@ -64,7 +61,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем startup события без моков (так как они не существуют в app.py)
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что startup события вызываются
         response = client.get("/health")
@@ -75,7 +72,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем shutdown события без моков (так как они не существуют в app.py)
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что shutdown события вызываются
         response = client.get("/health")
@@ -86,7 +83,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем error handling в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что ошибки в lifespan не ломают приложение
         response = client.get("/health")
@@ -101,7 +98,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем async context в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что async context работает корректно
         response = client.get("/health")
@@ -113,10 +110,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_resource_cleanup_coverage(self, test_environment):
         """Тест покрытия app.py lifespan resource cleanup"""
-        import app
-
         # Тестируем resource cleanup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = get_client()
 
         # Проверяем, что resource cleanup работает корректно
         response = client.get("/health")
@@ -131,7 +128,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем database connection в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что database connection работает корректно
         response = client.get("/health")
@@ -146,7 +143,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем logging в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что logging работает корректно
         response = client.get("/health")
@@ -158,10 +155,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_configuration_coverage(self, test_environment):
         """Тест покрытия app.py lifespan configuration"""
-        import app
-
         # Тестируем configuration в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = get_client()
 
         # Проверяем, что configuration работает корректно
         response = client.get("/health")
@@ -176,7 +173,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем middleware setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что middleware setup работает корректно
         response = client.get("/health")
@@ -191,7 +188,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем router setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что router setup работает корректно
         response = client.get("/health")
@@ -203,10 +200,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_graceful_shutdown_coverage(self, test_environment):
         """Тест покрытия app.py lifespan graceful shutdown"""
-        import app
-
         # Тестируем graceful shutdown в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = get_client()
 
         # Проверяем, что graceful shutdown работает корректно
         response = client.get("/health")
@@ -221,7 +218,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем health check в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что health check работает корректно
         response = client.get("/health")
@@ -233,10 +230,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_metrics_collection_coverage(self, test_environment):
         """Тест покрытия app.py lifespan metrics collection"""
-        import app
-
         # Тестируем metrics collection в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = get_client()
 
         # Проверяем, что metrics collection работает корректно
         response = client.get("/health")
@@ -251,7 +248,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем error recovery в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что error recovery работает корректно
         response = client.get("/health")
@@ -266,7 +263,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем performance monitoring в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что performance monitoring работает корректно
         response = client.get("/health")
@@ -278,10 +275,10 @@ class TestAppLifespanCoverage:
 
     def test_app_lifespan_security_setup_coverage(self, test_environment):
         """Тест покрытия app.py lifespan security setup"""
-        import app
-
         # Тестируем security setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        from app.main import app as main_app
+
+        client = get_client()
 
         # Проверяем, что security setup работает корректно
         response = client.get("/health")
@@ -296,7 +293,7 @@ class TestAppLifespanCoverage:
         import app
 
         # Тестируем caching setup в lifespan
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Проверяем, что caching setup работает корректно
         response = client.get("/health")

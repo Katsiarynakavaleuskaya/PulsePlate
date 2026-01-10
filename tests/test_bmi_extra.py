@@ -1,15 +1,20 @@
-# -*- coding: utf-8 -*-
-import importlib
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import pytest
-from fastapi.testclient import TestClient
+from httpx import Response
 
-# Импортируем приложение единожды
-app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
+from tests._client import get_client
+
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
 
 
-def _post_bmi(weight, height, group="general"):
+client: TestClient = get_client()
+
+
+def _post_bmi(weight: float, height: float, group: str = "general") -> Response:
     return client.post(
         "/api/v1/bmi",
         json={"weight_kg": weight, "height_cm": height, "group": group},
@@ -18,7 +23,7 @@ def _post_bmi(weight, height, group="general"):
 
 
 @pytest.mark.parametrize("group", ["general", "athlete", "elderly", "teen", "pregnant"])
-def test_bmi_groups_smoke(group):
+def test_bmi_groups_smoke(group: str) -> None:
     r = _post_bmi(70, 170, group)
     assert r.status_code == 200
     data = r.json()
@@ -39,7 +44,7 @@ def test_bmi_groups_smoke(group):
         (95, 170, "Obese Class I"),  # ~32.87
     ],
 )
-def test_bmi_categories_boundaries(w, h, expected_category):
+def test_bmi_categories_boundaries(w: float, h: float, expected_category: str) -> None:
     r = _post_bmi(w, h)
     assert r.status_code == 200
     data = r.json()
@@ -54,13 +59,13 @@ def test_bmi_categories_boundaries(w, h, expected_category):
         (-10, 170),  # отрицательный вес
     ],
 )
-def test_bmi_invalid_inputs(w, h):
+def test_bmi_invalid_inputs(w: float, h: float) -> None:
     r = _post_bmi(w, h)
     # Валидация может отработать как 400 (наша) либо 422 (pydantic) — допускаем оба
     assert r.status_code in (400, 422)
 
 
-def test_bmi_missing_field_validation():
+def test_bmi_missing_field_validation() -> None:
     # Нет height_cm → 422 от pydantic
     r = client.post("/api/v1/bmi", json={"weight_kg": 70}, headers={"X-API-Key": "test_key"})
     assert r.status_code == 422

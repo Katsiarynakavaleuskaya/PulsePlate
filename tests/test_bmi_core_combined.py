@@ -3,9 +3,9 @@ Combined BMI core tests
 Includes validation, edge cases, and coverage tests for BMI core functionality.
 """
 
-import importlib
 import pytest
 from fastapi.testclient import TestClient
+from tests._client import get_client
 
 from bmi_core import (
     bmi_value,
@@ -15,8 +15,7 @@ from bmi_core import (
     interpret_group,
 )
 
-app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
+client: TestClient = get_client()
 
 
 class TestBMICoreValidation:

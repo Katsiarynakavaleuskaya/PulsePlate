@@ -11,12 +11,10 @@ import sys
 from types import ModuleType
 from typing import Optional
 from unittest.mock import Mock, patch
+from tests._client import get_client
 
 import pytest
 from fastapi.testclient import TestClient
-
-app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
 
 # Test imports to ensure module can be imported
 matplotlib: ModuleType | None
@@ -403,179 +401,181 @@ def test_bmi_visualization_language_support():
                 assert "category" in result
 
 
-def test_bmi_endpoint_with_visualization_request():
-    """Test BMI endpoint with include_chart parameter."""
-    payload = {
-        "weight_kg": 70,
-        "height_m": 1.75,
-        "age": 30,
-        "gender": "male",
-        "pregnant": "no",
-        "athlete": "no",
-        "lang": "en",
-        "include_chart": True,
-    }
+class TestBMIVisualizationAPI:
+    def setup_method(self) -> None:
+        self.client = get_client()
 
-    response = client.post("/bmi", json=payload)
-    assert response.status_code == 200
+    def teardown_method(self) -> None:
+        self.client.close()
 
-    data = response.json()
-    assert "bmi" in data
-    assert "category" in data
+    def test_bmi_endpoint_with_visualization_request(self) -> None:
+        """Test BMI endpoint with include_chart parameter."""
+        payload = {
+            "weight_kg": 70,
+            "height_m": 1.75,
+            "age": 30,
+            "gender": "male",
+            "pregnant": "no",
+            "athlete": "no",
+            "lang": "en",
+            "include_chart": True,
+        }
 
-    # Since matplotlib might not be installed, check graceful degradation
-    # Either visualization is present or it's not included due to matplotlib unavailability
-    if "visualization" in data:
-        viz = data["visualization"]
-        if viz.get("available"):
-            assert "chart_base64" in viz
-            assert "category" in viz
-            assert "group" in viz
-        else:
-            assert "error" in viz
-            assert not viz["available"]
-    # If visualization is not in data, that's also acceptable when matplotlib is not available
+        response = self.client.post("/bmi", json=payload)
+        assert response.status_code == 200
 
-
-def test_bmi_endpoint_without_visualization():
-    """Test BMI endpoint without visualization request."""
-    payload = {
-        "weight_kg": 70,
-        "height_m": 1.75,
-        "age": 30,
-        "gender": "male",
-        "pregnant": "no",
-        "athlete": "no",
-        "lang": "en",
-        "include_chart": False,
-    }
-
-    response = client.post("/bmi", json=payload)
-    assert response.status_code == 200
-
-    data = response.json()
-    assert "bmi" in data
-    assert "category" in data
-    assert "visualization" not in data
-
-
-def test_enhanced_teen_segmentation():
-    """Test enhanced teen segmentation in BMI calculation."""
-    payload = {
-        "weight_kg": 60,
-        "height_m": 1.70,
-        "age": 16,  # Teen age
-        "gender": "female",
-        "pregnant": "no",
-        "athlete": "no",
-        "lang": "en",
-    }
-
-    response = client.post("/bmi", json=payload)
-    assert response.status_code == 200
-
-    data = response.json()
-    assert "bmi" in data
-    assert "category" in data
-    # Teen category should be handled appropriately
-
-
-def test_enhanced_athlete_segmentation():
-    """Test enhanced athlete segmentation with adjusted BMI ranges."""
-    payload = {
-        "weight_kg": 85,
-        "height_m": 1.75,
-        "age": 25,
-        "gender": "male",
-        "pregnant": "no",
-        "athlete": "yes",
-        "lang": "en",
-    }
-
-    response = client.post("/bmi", json=payload)
-    assert response.status_code == 200
-
-    data = response.json()
-    assert "bmi" in data
-    assert "category" in data
-    assert data["athlete"] is True
-    assert "athlete" in data["group"]
-
-
-def test_bmi_visualization_endpoint_without_api_key():
-    """Test that visualization endpoint requires API key."""
-    payload = {
-        "weight_kg": 70,
-        "height_m": 1.75,
-        "age": 30,
-        "gender": "male",
-        "pregnant": "no",
-        "athlete": "no",
-        "lang": "en",
-    }
-
-    response = client.post("/api/v1/bmi/visualize", json=payload)
-    # Should return 403 for missing API key, but may return 503 if
-    # visualization module not available, or 404 if endpoint not found
-    assert response.status_code in [403, 503, 404]
-
-
-@pytest.mark.xfail(
-    strict=True,
-    reason="Test isolation issue in full suite - passes individually. TODO: Fix test isolation or use dependency override for API key",
-)
-def test_bmi_visualization_endpoint_with_api_key():
-    """Test visualization endpoint with API key."""
-    payload = {
-        "weight_kg": 70,
-        "height_m": 1.75,
-        "age": 30,
-        "gender": "male",
-        "pregnant": "no",
-        "athlete": "no",
-        "lang": "en",
-    }
-
-    # Mock the entire bmi_visualization module
-    mock_viz_result = {
-        "chart_base64": base64.b64encode(b"fake_data").decode("utf-8"),
-        "category": "Healthy weight",
-        "group": "general",
-        "group_display": "general",
-        "available": True,
-        "format": "png",
-        "encoding": "base64",
-    }
-
-    # Mock at the app level to bypass all the bmi_visualization internal checks
-    import app
-
-    original_generate_bmi_visualization = getattr(app, "generate_bmi_visualization", None)
-    original_matplotlib_available = getattr(app, "MATPLOTLIB_AVAILABLE", None)
-
-    # Temporarily replace the function and flag at the app module level
-    app.generate_bmi_visualization = Mock(return_value=mock_viz_result)
-    app.MATPLOTLIB_AVAILABLE = True
-
-    try:
-        response = client.post(
-            "/api/v1/bmi/visualize", json=payload, headers={"X-API-Key": "test_key"}
-        )
-
-        # Should return 200 with mocked visualization
-        assert (
-            response.status_code == 200
-        ), f"Expected 200, got {response.status_code}. Response: {response.content.decode()}"
         data = response.json()
         assert "bmi" in data
-        assert "visualization" in data
-        assert data["visualization"]["available"] is True
-    finally:
-        # Restore original values
-        if original_generate_bmi_visualization is not None:
-            app.generate_bmi_visualization = original_generate_bmi_visualization
-        if original_matplotlib_available is not None:
-            app.MATPLOTLIB_AVAILABLE = original_matplotlib_available
+        assert "category" in data
+
+        # Since matplotlib might not be installed, check graceful degradation
+        # Either visualization is present or it's not included due to matplotlib unavailability
+        if "visualization" in data:
+            viz = data["visualization"]
+            if viz.get("available"):
+                assert "chart_base64" in viz
+                assert "category" in viz
+                assert "group" in viz
+            else:
+                assert "error" in viz
+                assert not viz["available"]
+        # If visualization is not in data, that's also acceptable when matplotlib is not available
+
+    def test_bmi_endpoint_without_visualization(self) -> None:
+        """Test BMI endpoint without visualization request."""
+        payload = {
+            "weight_kg": 70,
+            "height_m": 1.75,
+            "age": 30,
+            "gender": "male",
+            "pregnant": "no",
+            "athlete": "no",
+            "lang": "en",
+            "include_chart": False,
+        }
+
+        response = self.client.post("/bmi", json=payload)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "bmi" in data
+        assert "category" in data
+        assert "visualization" not in data
+
+    def test_enhanced_teen_segmentation(self) -> None:
+        """Test enhanced teen segmentation in BMI calculation."""
+        payload = {
+            "weight_kg": 60,
+            "height_m": 1.70,
+            "age": 16,  # Teen age
+            "gender": "female",
+            "pregnant": "no",
+            "athlete": "no",
+            "lang": "en",
+        }
+
+        response = self.client.post("/bmi", json=payload)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "bmi" in data
+        assert "category" in data
+        # Teen category should be handled appropriately
+
+    def test_enhanced_athlete_segmentation(self) -> None:
+        """Test enhanced athlete segmentation with adjusted BMI ranges."""
+        payload = {
+            "weight_kg": 85,
+            "height_m": 1.75,
+            "age": 25,
+            "gender": "male",
+            "pregnant": "no",
+            "athlete": "yes",
+            "lang": "en",
+        }
+
+        response = self.client.post("/bmi", json=payload)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "bmi" in data
+        assert "category" in data
+        assert data["athlete"] is True
+        assert "athlete" in data["group"]
+
+    def test_bmi_visualization_endpoint_without_api_key(self) -> None:
+        """Test that visualization endpoint requires API key."""
+        payload = {
+            "weight_kg": 70,
+            "height_m": 1.75,
+            "age": 30,
+            "gender": "male",
+            "pregnant": "no",
+            "athlete": "no",
+            "lang": "en",
+        }
+
+        response = self.client.post("/api/v1/bmi/visualize", json=payload)
+        # Should return 403 for missing API key, but may return 503 if
+        # visualization module not available, or 404 if endpoint not found
+        assert response.status_code in [403, 503, 404]
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason="Test isolation issue in full suite - passes individually. TODO: Fix test isolation or use dependency override for API key",
+    )
+    def test_bmi_visualization_endpoint_with_api_key(self) -> None:
+        """Test visualization endpoint with API key."""
+        payload = {
+            "weight_kg": 70,
+            "height_m": 1.75,
+            "age": 30,
+            "gender": "male",
+            "pregnant": "no",
+            "athlete": "no",
+            "lang": "en",
+        }
+
+        # Mock the entire bmi_visualization module
+        mock_viz_result = {
+            "chart_base64": base64.b64encode(b"fake_data").decode("utf-8"),
+            "category": "Healthy weight",
+            "group": "general",
+            "group_display": "general",
+            "available": True,
+            "format": "png",
+            "encoding": "base64",
+        }
+
+        # Mock at the app level to bypass all the bmi_visualization internal checks
+        import app
+
+        original_generate_bmi_visualization = getattr(app, "generate_bmi_visualization", None)
+        original_matplotlib_available = getattr(app, "MATPLOTLIB_AVAILABLE", None)
+
+        # Temporarily replace the function and flag at the app module level
+        app.generate_bmi_visualization = Mock(return_value=mock_viz_result)
+        app.MATPLOTLIB_AVAILABLE = True
+
+        try:
+            response = self.client.post(
+                "/api/v1/bmi/visualize", json=payload, headers={"X-API-Key": "test_key"}
+            )
+
+            # Should return 200 with mocked visualization
+            assert (
+                response.status_code == 200
+            ), f"Expected 200, got {response.status_code}. Response: {response.content.decode()}"
+            data = response.json()
+            assert "bmi" in data
+            assert "visualization" in data
+            assert data["visualization"]["available"] is True
+        finally:
+            # Restore original values
+            if original_generate_bmi_visualization is not None:
+                app.generate_bmi_visualization = original_generate_bmi_visualization
+            if original_matplotlib_available is not None:
+                app.MATPLOTLIB_AVAILABLE = original_matplotlib_available
 
 
 def test_bmi_visualization_base64_encoding():

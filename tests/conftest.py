@@ -386,7 +386,15 @@ def _ensure_app_module(app_module: ModuleType) -> None:
 
 @pytest.fixture
 def app(app_module: ModuleType) -> FastAPI:
-    """Return the FastAPI app instance with API key mock."""
+    """Return the FastAPI app instance with observability bootstrap and API key mock.
+
+    Uses app.main:app (canonical entrypoint with metrics bootstrap),
+    not legacy_app.app directly.
+    """
+    # Import the canonical entrypoint with observability bootstrap
+    import app.main
+
+    app_instance = app.main.app
 
     # Apply lenient API key mode
     def mock_get_api_key(api_key: str = "") -> str:
@@ -396,10 +404,10 @@ def app(app_module: ModuleType) -> FastAPI:
             raise HTTPException(status_code=403, detail="Invalid API Key")
         return api_key
 
-    if hasattr(app_module.app, "dependency_overrides") and hasattr(app_module, "get_api_key"):
-        app_module.app.dependency_overrides[app_module.get_api_key] = mock_get_api_key
+    if hasattr(app_instance, "dependency_overrides") and hasattr(app_module, "get_api_key"):
+        app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
-    return cast(FastAPI, app_module.app)
+    return cast(FastAPI, app_instance)
 
 
 @pytest.fixture
@@ -443,8 +451,13 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
 
     RU: Создаёт тестовый клиент с обходом проверки VIP tier и API-key
     (включая route-level зависимости).
+
+    Uses canonical entrypoint (app.main:app) with observability bootstrap.
     """
+    import app.main
     import app.routers.vip_shoplist as vip_router
+
+    app_instance = app.main.app
 
     # ⚠️ NO *args/**kwargs — иначе FastAPI требует query args/kwargs
     async def mock_require_vip_tier() -> str:
@@ -454,25 +467,25 @@ def client_with_vip_access(app_module: ModuleType) -> Generator[TestClient, None
         return "test_api_key"
 
     # Override VIP tier dependency (bypass auth check)
-    app_module.app.dependency_overrides[vip_router.require_vip_tier] = mock_require_vip_tier
+    app_instance.dependency_overrides[vip_router.require_vip_tier] = mock_require_vip_tier
     # NOTE: We do NOT override require_vip_module_enabled - it should check the feature flag
     # Tests can use monkeypatch.setattr("app.routers.vip_shoplist.is_vip_module_enabled", ...)
 
-    route = _find_route_by_endpoint_name(app_module.app, "vip_shoplist_generate")
+    route = _find_route_by_endpoint_name(app_instance, "vip_shoplist_generate")
     assert route is not None, "Route for endpoint 'vip_shoplist_generate' not found"
 
     # Route has API-key dependency applied at route level (via app.include_router);
     # override it here to avoid requiring headers/env in tests.
     route_level_deps = list(_iter_route_dependencies(route))
     for dep_fn in route_level_deps:
-        app_module.app.dependency_overrides[dep_fn] = mock_api_key
+        app_instance.dependency_overrides[dep_fn] = mock_api_key
 
-    client = TestClient(app_module.app)
+    client = TestClient(app_instance)
     yield client
 
-    app_module.app.dependency_overrides.pop(vip_router.require_vip_tier, None)
+    app_instance.dependency_overrides.pop(vip_router.require_vip_tier, None)
     for dep_fn in route_level_deps:
-        app_module.app.dependency_overrides.pop(dep_fn, None)
+        app_instance.dependency_overrides.pop(dep_fn, None)
 
 
 @pytest.fixture

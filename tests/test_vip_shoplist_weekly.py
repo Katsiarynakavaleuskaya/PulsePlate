@@ -11,6 +11,7 @@ This test suite ensures weekly endpoint matches /generate contract:
 """
 
 from __future__ import annotations
+from tests._client import get_client
 
 from typing import Any
 
@@ -145,10 +146,8 @@ def test_weekly_insufficient_vip_tier_returns_403(
     """Valid API key but insufficient VIP tier must return 403."""
     _enable_vip(monkeypatch)
 
-    import app.main as app_module
-
     # Create client WITHOUT VIP access override (uses real tier check)
-    client = TestClient(app_module.app)
+    client = get_client()
 
     payload = _payload_one_day()
 
@@ -179,12 +178,10 @@ def test_weekly_missing_api_key_returns_401_or_403(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing API key should return 401 or 403."""
-    import app.main as app_main_module
-
     _enable_vip(monkeypatch)
 
     # Create client WITHOUT VIP access (no dependency override)
-    client = TestClient(app_main_module.app)
+    client = get_client()
 
     payload = _payload_one_day()
     r = client.post("/api/v1/vip/shoplist/weekly", json=payload)

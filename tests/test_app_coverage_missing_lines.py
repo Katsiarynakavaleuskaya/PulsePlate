@@ -156,13 +156,22 @@ class TestAppMissingLinesCoverage:
         response = client.get("/favicon.ico")
         assert response.status_code == 204
 
-    def test_metrics_endpoint(self, client):
-        """Test the metrics endpoint."""
-        client = client
+    def test_metrics_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test the metrics endpoint with Prometheus exporter unavailable."""
+        prometheus_client = pytest.importorskip("prometheus_client")
+
+        # Force exporter failure to test JSON fallback
+        def _boom() -> bytes:
+            raise RuntimeError("Prometheus exporter unavailable")
+
+        monkeypatch.setattr(prometheus_client, "generate_latest", _boom)
 
         response = client.get("/metrics")
         assert response.status_code == 200
-        assert "error" in response.json()
+        assert response.headers["content-type"].startswith("application/json")
+        data = response.json()
+        assert "error" in data
+        assert data["error"] == "Metrics export failed"
 
     def test_privacy_endpoint(self, client):
         """Test the privacy endpoint."""

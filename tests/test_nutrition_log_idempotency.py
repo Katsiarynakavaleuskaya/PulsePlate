@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Generator
+from typing import Generator, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -180,12 +181,9 @@ def test_meal_log_replay_applies_pending_event(test_client: TestClient) -> None:
 def test_meal_log_integrity_error_propagates(test_client: TestClient) -> None:
     api_key = "test_key_meal_integrity"
 
-    # NOTE: Import inside test to avoid pytest-xdist module/registry side effects during collection.
-    import app
-
-    assert app.app is not None
-    app.app.dependency_overrides[get_session] = _broken_session_dependency
-    app.app.dependency_overrides[nutrition_log.get_adherence_service] = lambda: object()
+    app_instance = cast(FastAPI, test_client.app)
+    app_instance.dependency_overrides[get_session] = _broken_session_dependency
+    app_instance.dependency_overrides[nutrition_log.get_adherence_service] = lambda: object()
     try:
         with pytest.raises(IntegrityError):
             test_client.post(
@@ -194,8 +192,8 @@ def test_meal_log_integrity_error_propagates(test_client: TestClient) -> None:
                 headers=_headers(api_key),
             )
     finally:
-        app.app.dependency_overrides.pop(get_session, None)
-        app.app.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
+        app_instance.dependency_overrides.pop(get_session, None)
+        app_instance.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
 
 
 def test_meal_log_idempotent_missing_event_returns_state(
@@ -204,10 +202,9 @@ def test_meal_log_idempotent_missing_event_returns_state(
     api_key = "test_key_meal_missing"
     client_event_id = "meal-idem-missing-1"
 
-    import app
-
-    app.app.dependency_overrides[get_session] = _idempotent_session_dependency
-    app.app.dependency_overrides[nutrition_log.get_adherence_service] = _ServiceStub
+    app_instance = cast(FastAPI, test_client.app)
+    app_instance.dependency_overrides[get_session] = _idempotent_session_dependency
+    app_instance.dependency_overrides[nutrition_log.get_adherence_service] = _ServiceStub
     monkeypatch.setattr(nutrition_log, "_fetch_existing_event", lambda *args, **kwargs: None)
     try:
         resp = test_client.post(
@@ -218,8 +215,8 @@ def test_meal_log_idempotent_missing_event_returns_state(
         assert resp.status_code == 200
         assert resp.json()["user_id"] == derive_subject_id_from_api_key(api_key)
     finally:
-        app.app.dependency_overrides.pop(get_session, None)
-        app.app.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
+        app_instance.dependency_overrides.pop(get_session, None)
+        app_instance.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
 
 
 def test_day_close_idempotent(test_client: TestClient) -> None:
@@ -258,10 +255,9 @@ def test_day_close_integrity_error_propagates(test_client: TestClient) -> None:
     api_key = "test_key_day_close_integrity"
     day = date(2025, 12, 21)
 
-    import app
-
-    app.app.dependency_overrides[get_session] = _broken_session_dependency
-    app.app.dependency_overrides[nutrition_log.get_adherence_service] = _ServiceStub
+    app_instance = cast(FastAPI, test_client.app)
+    app_instance.dependency_overrides[get_session] = _broken_session_dependency
+    app_instance.dependency_overrides[nutrition_log.get_adherence_service] = _ServiceStub
     try:
         with pytest.raises(IntegrityError):
             test_client.post(
@@ -270,8 +266,8 @@ def test_day_close_integrity_error_propagates(test_client: TestClient) -> None:
                 headers=_headers(api_key),
             )
     finally:
-        app.app.dependency_overrides.pop(get_session, None)
-        app.app.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
+        app_instance.dependency_overrides.pop(get_session, None)
+        app_instance.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
 
 
 def test_day_close_idempotent_missing_event_returns_state(
@@ -280,10 +276,9 @@ def test_day_close_idempotent_missing_event_returns_state(
     api_key = "test_key_day_close_missing"
     day = date(2025, 12, 22)
 
-    import app
-
-    app.app.dependency_overrides[get_session] = _idempotent_session_dependency
-    app.app.dependency_overrides[nutrition_log.get_adherence_service] = _ServiceStub
+    app_instance = cast(FastAPI, test_client.app)
+    app_instance.dependency_overrides[get_session] = _idempotent_session_dependency
+    app_instance.dependency_overrides[nutrition_log.get_adherence_service] = _ServiceStub
     monkeypatch.setattr(nutrition_log, "_fetch_existing_event", lambda *args, **kwargs: None)
     try:
         resp = test_client.post(
@@ -294,8 +289,8 @@ def test_day_close_idempotent_missing_event_returns_state(
         assert resp.status_code == 200
         assert resp.json()["user_id"] == derive_subject_id_from_api_key(api_key)
     finally:
-        app.app.dependency_overrides.pop(get_session, None)
-        app.app.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
+        app_instance.dependency_overrides.pop(get_session, None)
+        app_instance.dependency_overrides.pop(nutrition_log.get_adherence_service, None)
 
 
 def test_idempotency_violation_checks() -> None:

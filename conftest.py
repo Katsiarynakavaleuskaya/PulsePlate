@@ -310,10 +310,9 @@ def premium_disabled_environment():  # sourcery skip: dict-assign-update-to-unio
 @pytest.fixture
 def test_client():
     """Fixture for creating and properly closing TestClient instances."""
-    import app
+    from tests._client import get_client
 
-    # Create TestClient
-    client = TestClient(cast(ASGIApp, app.app))
+    client = get_client()
 
     try:
         yield client
@@ -329,10 +328,10 @@ def isolated_test_client():
     NOTE: Removed importlib.reload() to prevent dual-Base issues.
     Instead, create a fresh TestClient and clear dependency_overrides in teardown.
     """
-    import app
+    from app.main import app as main_app
 
     # Create TestClient with current app state (no reload to avoid dual-Base)
-    client = TestClient(cast(ASGIApp, app.app))
+    client = TestClient(cast(ASGIApp, main_app))
 
     try:
         yield client
@@ -340,8 +339,8 @@ def isolated_test_client():
         # Properly close the client to clean up resources
         client.close()
         # Clear dependency overrides to reset state
-        if hasattr(app.app, "dependency_overrides"):
-            app.app.dependency_overrides.clear()
+        if hasattr(main_app, "dependency_overrides"):
+            main_app.dependency_overrides.clear()
 
 
 @pytest.fixture

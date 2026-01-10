@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+from tests._client import get_client
 
 import pytest
 from fastapi import FastAPI
@@ -25,9 +26,9 @@ def _force_prod_env():
 
 
 @pytest.fixture
-def client(app: FastAPI):
-    """Test client fixture using app from conftest"""
-    return TestClient(app)
+def client() -> TestClient:
+    """Canonical TestClient (app.main:app) with observability bootstrap."""
+    return get_client()
 
 
 def disable_optional_modules(monkeypatch: pytest.MonkeyPatch, *modules: str) -> None:
@@ -86,7 +87,7 @@ def test_export_pdf_no_reportlab_with_key(
 
 # Fixture for API key headers
 @pytest.fixture
-def api_key_headers():
+def api_key_headers() -> dict[str, str]:
     return {"X-API-Key": "test"}
 
 
@@ -259,7 +260,7 @@ def test_vip_module_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
         raise RuntimeError("app_module.app is None or missing after reload.")
     if not isinstance(app_module.app, FastAPI):
         raise RuntimeError("app_module.app is not a FastAPI instance after reload.")
-    test_client = TestClient(app_module.app)
+    test_client = get_client()
     response = test_client.get("/api/v1/vip/plan/week")
     assert response.status_code in (404, 422, 401)
 

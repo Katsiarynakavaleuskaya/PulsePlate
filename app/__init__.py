@@ -36,6 +36,8 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "resolve_attr": ("core.utils", "resolve_attr"),
     "make_weekly_menu": ("core.menu_engine", "make_weekly_menu"),
     "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
+    # Expose metrics_endpoint for patch-based tests (patch("app.metrics"))
+    "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
 }
 
 
@@ -59,6 +61,9 @@ def __getattr__(name: str) -> Any:
 
     RU: Сначала проверяем локальные ре-экспорты (core.*), затем legacy_app.
     EN: First check local re-exports (core.*), then fall back to legacy_app.
+
+    PEP 562 forwarder: pure delegation, no side effects.
+    Observability bootstrap (register_metrics) is applied ONLY in app/main.py.
     """
     if name in _LOCAL_EXPORTS:
         mod_name, attr = _LOCAL_EXPORTS[name]

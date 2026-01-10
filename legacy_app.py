@@ -1989,14 +1989,6 @@ async def health_v1() -> Dict[str, Any]:
     return await health()
 
 
-@app.get("/metrics")
-async def metrics() -> Dict[str, str]:
-    """Prometheus metrics endpoint."""
-    # if generate_latest:
-    #     return Response(generate_latest(), media_type="text/plain")
-    return {"error": "Prometheus client not available"}
-
-
 @app.get("/privacy")
 async def privacy() -> Dict[str, Any]:
     """Privacy policy endpoint with explicit pseudonymous data disclosure.
@@ -5661,6 +5653,7 @@ if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
 app.include_router(bmi_router)
 
 # Include Business router (with feature flag). Defaults to disabled for safety.
+
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
 BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag) if _business_flag is not None else False
 if BUSINESS_MODULE_ENABLED and business_router:

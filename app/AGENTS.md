@@ -33,6 +33,136 @@
 curl -fsS https://.../health   # liveness
 curl -fsS https://.../ready    # readiness (503 if DB down)
 ```
+---
+
+## Metrics endpoint contract (PR-505)
+
+| Endpoint | Purpose | Format | OpenAPI |
+|----------|---------|--------|---------|
+| `/metrics` | Prometheus exposition | `text/plain` (Prometheus exposition; `CONTENT_TYPE_LATEST`) or JSON error | ❌ Hidden |
+
+**Metrics collected:**
+- `http_requests_total{method, route, status}`: Total HTTP request count
+- `http_request_duration_seconds{method, route, status}`: Request latency histogram
+
+**Response format:**
+- **Normal**: Prometheus exposition format (`text/plain`, uses `CONTENT_TYPE_LATEST`) when exporter is available
+- **Fallback**: JSON error envelope (`{"error": "Prometheus client not available", "detail": "..."}`) if exporter is unavailable
+- **Fallback status code:** MUST return HTTP 200 with JSON error envelope (preferred for scrape stability)
+- JSON fallback is required for testability and graceful degradation
+
+**Allowed labels:**
+- `method`: HTTP method (GET, POST, etc.)
+- `route`: Route template (e.g., `/api/v1/bmi/calculate`), **not raw path**
+- `status`: HTTP status code (200, 404, 500, etc.)
+
+**Forbidden (high-cardinality):**
+- ❌ Raw request path (e.g., `/api/v1/users/123`)
+- ❌ Query parameters
+- ❌ User IDs, IP addresses, User-Agent
+- ❌ Any dynamic path segments
+
+**Route extraction rules (canonical):**
+- Route label MUST be the endpoint-level template path (APIRoute.path).
+- Canonical resolution algorithm:
+  1) Read `endpoint = request.scope.get("endpoint")`
+  2) Iterate `request.app.router.routes` and find the `APIRoute` whose `.endpoint is endpoint`
+  3) Return `APIRoute.path` (string starting with `/`)
+- `request.scope["route"]` MUST NOT be treated as canonical (it may refer to mounts/prefixes).
+- Always use `request.app.router.routes` (never a module-level `app`) to resolve endpoint-level template paths.
+- If endpoint cannot be resolved → `route="unknown"` (raw path fallback is forbidden).
+- This prevents high cardinality when routes with path parameters (e.g., `/api/v1/users/{id}`) are added.
+- **Prometheus route label policy**: Route label MUST be route template only. Raw/normalized path fallback is forbidden. If route template is unavailable → route="unknown".
+
+**Excluded paths** (not counted in metrics):
+- `/metrics` (self)
+- `/health`, `/ready`, `/health/db` (health checks)
+
+**Note:** Exclusion uses normalized path (handles trailing slashes). The same set is used for both route template matching and raw path exclusion after normalization.
+
+**Usage:**
+```bash
+curl -fsS https://.../metrics | grep http_requests_total
+```
+
+**Implementation:**
+- Middleware: `app/middleware/metrics.py`
+- Endpoint: `legacy_app.py` (hidden from OpenAPI via `include_in_schema=False`)
+
+**Limitations:**
+- Multiprocess mode not enabled: `/metrics` returns per-process metrics only.
+- For multi-worker deployments (gunicorn/uvicorn workers), metrics are not aggregated across workers.
+- To enable multiprocess mode: configure `prometheus_client` multiprocess mode + `PROMETHEUS_MULTIPROC_DIR` (requires explicit infra decision).
+
+**Prometheus route label policy (enforced):**
+- Route label MUST be route template only (from `APIRoute.path` via endpoint identity matching).
+- Raw/normalized path fallback is **forbidden** for non-excluded requests (prevents high cardinality).
+- If route template is unavailable → use `"unknown"` (never fallback to `request.url.path`).
+
+**Observability security policy:**
+- `/metrics` MUST NOT enforce application-level authentication (API keys, auth middleware).
+- Protection of `/metrics` is an infrastructure concern:
+  - ingress ACLs (Cloudflare, Caddy)
+  - firewall rules
+  - private networks
+  - Prometheus scrape configs
+- App-level guards are forbidden for `/metrics` to preserve testability and backward compatibility.
+- If infrastructure-level protection is needed, implement it in a dedicated infra PR (e.g., PR-506).
+
+**Testing requirements:**
+- Tests MUST assert `/metrics` returns a Prometheus exposition response (`Content-Type` starts with `text/plain`) on happy path.
+- Tests MUST NOT assert an exact `Content-Type` value (version/charset are implementation details of `prometheus_client`).
+- Only assert prefix: `text/plain` for Prometheus; `application/json` for fallback.
+- JSON fallback should only be tested when exporter is explicitly unavailable (mocked/uninstalled).
+- This prevents regressions where fallback triggers incorrectly (e.g., import errors, missing dependencies).
+
+**Metrics fallback contract (testability):**
+- `/metrics` happy-path returns Prometheus exposition (`text/plain*`).
+- JSON fallback is ONLY for exporter failures (ImportError or runtime exception from exporter).
+- Tests that validate JSON fallback MUST force failure explicitly via monkeypatch
+  (e.g. patch `prometheus_client.generate_latest` to raise).
+- It is forbidden for tests to assume exporter is missing in CI.
+
+**Patchability rule for optional deps (hard):**
+- Do NOT `from prometheus_client import generate_latest, CONTENT_TYPE_LATEST` in modules that are tested via monkeypatch.
+- Do `import prometheus_client` and reference `prometheus_client.generate_latest()` / `prometheus_client.CONTENT_TYPE_LATEST`.
+- This keeps fallback paths testable (monkeypatch patches the same object used by production code).
+
+**Import-safety for observability (hard):**
+- Metrics instrumentation must not crash startup if optional deps are unavailable.
+- Wrap prometheus_client imports/init in `try/except ImportError` and degrade to no-op if unavailable.
+- Middleware becomes no-op (returns response without instrumentation) if metrics are unavailable.
+- This ensures graceful degradation: application starts even if observability deps are missing.
+
+**No error detail leakage (hard):**
+- JSON fallback for `/metrics` must not include raw exception messages/paths in response.
+- Log exceptions server-side only (use `logger.exception()`).
+- Response `detail` field must be a stable, user-safe message (e.g., "Prometheus exporter unavailable").
+- Never expose `str(exc)` or stack traces in JSON responses.
+
+**Route template selection (hard):**
+- If multiple route templates map to the same endpoint (e.g., `/api/v1/bmi` and `/api/v1/bmi/calculate`),
+  metrics middleware MUST select the most specific template (longest `APIRoute.path`).
+- This ensures consistent metric labels and prevents route label drift when alias/legacy routes exist.
+- Route template must be normalized (trailing slash removed) before exclusion check and label usage.
+
+**Middleware route label rule (hard):**
+- The `route` label MUST be endpoint-level template path (APIRoute.path).
+- Router prefixes or mounts are NOT acceptable as `route` labels.
+- Implementation MUST match by `request.scope["endpoint"]` identity to APIRoute.endpoint.
+- **Breaking change policy:** Changing a route template (e.g., `/api/v1/bmi/calculate` → `/api/v2/bmi/calculate`) is a breaking change for metrics label contract. Update tests + AGENTS.md in the same PR.
+
+**CI red freeze (enforced):**
+- If CI is red: only allow commits that make CI green (no refactors / drive-by changes).
+- Only allowed commits: fixes for failing tests / lint / typecheck / coverage in the same PR.
+- If you believe a test is wrong: you MUST submit the patch that corrects it in this PR (no exceptions).
+- **No green, no push, no exceptions.**
+
+**Push hygiene (required):**
+- Before pushing: `git fetch origin`
+- Rebase before push: `git rebase origin/main` (preferred over merge)
+- After rebase: resolve conflicts locally, re-run `make test-fast` + `make lint` + `make cov-check`
+- Push with safety: `git push --force-with-lease` (never `git push -f` without `--force-with-lease`)
 
 ---
 
@@ -117,6 +247,7 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - If logic is needed in multiple endpoints, put it into `core/` and call it.
 - BMI math (formulas/thresholds/grouping/interpretation) MUST live only in `core/bmi/*`; `app/*` is adapters/rendering only.
 - `legacy_app.py` is compatibility-only: do not add new behavior there unless it is purely shim/bridge.
+  - **Exception (approved)**: Observability endpoints (`/metrics`, `/health`, `/ready`, `/health/db`) are infrastructure concerns and may be added to `legacy_app.py` for operational visibility.
 
 ## Common pitfalls
 

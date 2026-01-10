@@ -7,6 +7,8 @@ from typing import cast
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from tests._client import get_client
+
 
 class TestCoverage97FinalPush:
     """Final behavioral coverage tests (no line numbers)."""
@@ -109,9 +111,7 @@ class TestCoverage97FinalPush:
 
     def test_app_coverage_missing_lines_252_256(self, test_environment):
         """Тест покрытия app.py строк 252-256"""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Тест различных статус кодов
         response = client.get("/health")
@@ -185,9 +185,7 @@ class TestCoverage97FinalPush:
 
     def test_app_coverage_missing_lines_1045_1049(self, test_environment):
         """Тест покрытия app.py строк 1045-1049"""
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
+        client = get_client()
 
         # Тест metrics endpoint
         response = client.get("/metrics")

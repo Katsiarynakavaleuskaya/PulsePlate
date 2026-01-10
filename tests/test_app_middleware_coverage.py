@@ -12,11 +12,11 @@ from starlette.types import ASGIApp
 class TestAppMiddlewareCoverage:
     """Тесты для покрытия app.py middleware цепочки"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Create a single TestClient for all tests to avoid duplication."""
-        import app
+        from tests._client import get_client
 
-        self.client = TestClient(cast(ASGIApp, app.app))
+        self.client = get_client()
 
     def test_app_middleware_execution_coverage(self, test_environment):
         """Тест покрытия app.py middleware execution (строки 1869-1870, 1872-1873)"""

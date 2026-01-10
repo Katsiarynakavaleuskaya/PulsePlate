@@ -6,6 +6,7 @@ but they help stabilize coverage across helper functions and simple endpoints.
 
 import os
 from unittest.mock import Mock
+from tests._client import get_client
 
 from fastapi.testclient import TestClient
 
@@ -15,11 +16,11 @@ import app as app_module
 class TestAppHelperFunctions:
     """Test standalone helper functions in main.py."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test-key"
-        self.client = TestClient(app_module.app)
+        self.client = get_client()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
@@ -76,11 +77,11 @@ class TestAppHelperFunctions:
 
 
 class TestEndpointsAndValidation:
-    def setup_method(self):
+    def setup_method(self) -> None:
         os.environ["API_KEY"] = "test-key"
-        self.client = TestClient(app_module.app)
+        self.client = get_client()
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 

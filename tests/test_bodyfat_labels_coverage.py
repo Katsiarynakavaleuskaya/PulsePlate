@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
-import importlib
-
 from fastapi.testclient import TestClient
 
-app_module = importlib.import_module("app")
-client = TestClient(app_module.app)
 
-
-def test_bodyfat_labels_ru_and_es():
+def test_bodyfat_labels_ru_and_es(client: TestClient) -> None:
+    """Verify bodyfat endpoint label translations for Russian and Spanish."""
     # Use male to avoid hip_cm requirement in US Navy branch
     base_payload = {
         "height_m": 1.75,
