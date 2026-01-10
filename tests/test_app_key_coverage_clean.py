@@ -197,7 +197,10 @@ class TestLifespanFallbacks:
     async def test_lifespan_start_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест обработки ошибки при запуске"""
         monkeypatch.setattr(
-            app, "start_background_updates", MagicMock(side_effect=Exception("Test error")), raising=False
+            app,
+            "start_background_updates",
+            MagicMock(side_effect=Exception("Test error")),
+            raising=False,
         )
         mock_app = MagicMock()
 
@@ -209,7 +212,10 @@ class TestLifespanFallbacks:
     async def test_lifespan_stop_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест обработки ошибки при остановке"""
         monkeypatch.setattr(
-            app, "stop_background_updates", MagicMock(side_effect=Exception("Test error")), raising=False
+            app,
+            "stop_background_updates",
+            MagicMock(side_effect=Exception("Test error")),
+            raising=False,
         )
         mock_app = MagicMock()
 
