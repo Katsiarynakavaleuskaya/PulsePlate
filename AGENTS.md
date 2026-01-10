@@ -248,6 +248,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
 - Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
 - Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
+- **OpenAPI generation policy**: OpenAPI must be generated via `make openapi` (never direct `python scripts/generate_openapi.py`). CI and local must use the same entrypoint.
 - `frontend/AGENTS.md` should link to this section as the canonical OpenAPI workflow (AGENTS Update Rule); do not duplicate these bullets there.
 
 ### SQLAlchemy model import policy (critical)
@@ -265,6 +266,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Determinism is enforced by `pytest tests/test_openapi_determinism.py`.
 - If drift appears: fix **generator normalization** in `scripts/generate_openapi.py`, not "accept drift".
 - Local verification: run `make openapi` and then `make openapi-check`.
+- **Normalization policy**: Never sort semantically meaningful OpenAPI list keys (`required`, `enum`, `allOf/anyOf/oneOf`, `prefixItems`, `examples`, etc.). Add to denylist before touching normalization.
+- **Determinism gate**: If OpenAPI artifacts are committed/compared, add a determinism test (hash compare) in the CI job that owns it.
 
 ### Response model policy
 - **Forbidden**: Endpoints returning `dict[str, Any]` or untyped responses.
