@@ -140,7 +140,7 @@ In PR-508, we can only:
 
 ## Pinned Comment for PR (GitHub)
 
-```
+```markdown
 ## Scope & Invariants
 
 **This PR fixes OpenAPI determinism and establishes baseline contract tooling.**

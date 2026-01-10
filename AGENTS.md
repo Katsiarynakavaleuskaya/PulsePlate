@@ -286,6 +286,9 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - `pytest tests/test_openapi_determinism.py` **must pass** and cannot be disabled/weakened.
 - Any changes to routers/schemas must preserve determinism.
 
+### Documentation requirement
+- If a PR changes workflow/agent behavior/tooling, include a `docs(agents): ...` commit in the same PR.
+
 ### 🛑 Docs-only PR Rule (Mandatory)
 
 **Docs-only PR** — это PR, который **строго ограничен документацией** и **не имеет права** изменять runtime, CI или поведение приложения.
