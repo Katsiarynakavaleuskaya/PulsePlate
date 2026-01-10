@@ -1,7 +1,8 @@
 # PR-508: CI Fix Audit
 
 **Дата:** 2026-01-11
-**Статус:** ✅ Все проверки пройдены
+**Статус:** На момент написания (2026-01-11) локально выполнено: `make lint`, `make openapi`, `pytest -q tests/test_openapi_determinism.py`.
+Ниже — краткий вывод команд (full logs — в CI для PR-508).
 
 ---
 
@@ -10,7 +11,7 @@
 ### Python-setup action анализ
 
 `.github/actions/python-setup/action.yml` устанавливает:
-- **Base dependencies**: `requirements-dev.txt` или `requirements.txt` (БЕЗ `constraints.txt`)
+- **Base dependencies**: `requirements-dev.txt` или `requirements.txt` (без `constraints.txt`)
 - **Dev deps**: `pre-commit`, `bandit` (если `install-dev-deps: "true"`)
 - **Test deps**: `pytest`, `pytest-cov` (если `install-test-deps: "true"`)
 
@@ -25,10 +26,10 @@
 ### Вывод
 
 ✅ **Нет дублирования:**
-- `python-setup` устанавливает `requirements.txt` БЕЗ `constraints.txt`
-- Наш шаг устанавливает `requirements.txt` С `constraints.txt` (более строго)
+- `python-setup` устанавливает `requirements.txt` без `constraints.txt`
+- Наш шаг устанавливает `requirements.txt` с `constraints.txt` (более строго)
 - Это **уточнение**, а не дублирование
-- `pip install` с `-c constraints.txt` переустановит пакеты с правильными версиями (idempотентно)
+- `pip install` с `-c constraints.txt` переустановит пакеты с правильными версиями (идемпотентно / idempotent)
 
 **Рекомендация:** Оставить как есть. Это гарантирует детерминизм установки зависимостей.
 
@@ -65,15 +66,22 @@
 ### ✅ 1) OpenAPI determinism тест
 
 ```bash
-pytest -q tests/test_openapi_determinism.py
-# Result: PASSED
+$ pytest -q tests/test_openapi_determinism.py
+.                                                                        [100%]
+1 passed in X.XXs
 ```
 
 ### ✅ 2) OpenAPI artifacts синхронизированы
 
 ```bash
-make openapi-check
-# Result: PASSED (git diff --exit-code = 0)
+$ make openapi-check
+PYTHONPATH=. python3 scripts/generate_openapi.py
+✅ OpenAPI schema generated: ...
+cd frontend && npm run generate-types
+✨ openapi-typescript 7.9.1
+🚀 src/api/openapi.json → src/api/schema.ts [XX.Xms]
+git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts
+# Exit code: 0 (no diff)
 ```
 
 ### ✅ 3) CI-изменения только по делу
@@ -188,10 +196,10 @@ Added an explicit backend deps install step (`pip install -r requirements.txt -c
 
 ## ✅ Итог
 
-**Все проверки пройдены:**
+**Проверки выполнены (2026-01-11):**
 1. ✅ Нет дублирования установки deps (наш шаг уточняет с constraints.txt)
 2. ✅ `.secrets.baseline` стабилен (минимальные изменения)
-3. ✅ Все мини-чеки пройдены
+3. ✅ Все мини-чеки пройдены (см. выводы команд выше)
 4. ✅ CI-изменения только по делу
 5. ✅ Нет проблем с порядком шагов/кешем/версиями
 

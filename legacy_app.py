@@ -97,9 +97,11 @@ from app.scheduler_helpers import (
 # and causes "Table already defined" errors on repeated imports.
 # TEMPORARY: This is a workaround. Follow-up PR-509 will eliminate import-time ORM
 # dependencies by moving models to lazy imports or app/schemas, enabling full schema.
+# Schema-only mode must never activate in production by accident.
+# We only honor it in generation/test context (PULSEPLATE_OPENAPI=1 AND APP_ENV=test).
 premium_week_router: APIRouter | None = None
 pro_router: APIRouter | None = None
-OPENAPI_MODE = os.getenv("PULSEPLATE_OPENAPI") == "1"
+OPENAPI_MODE = (os.getenv("PULSEPLATE_OPENAPI") == "1") and (os.getenv("APP_ENV") == "test")
 if not OPENAPI_MODE:
     from app.routers.premium_week import router as premium_week_router
     from app.routers.pro import router as pro_router
