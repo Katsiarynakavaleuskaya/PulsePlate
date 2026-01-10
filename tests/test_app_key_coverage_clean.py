@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 import app
+from tests._client import get_client
 
 
 class TestAPIKeyModes:
@@ -125,104 +126,66 @@ class TestMetricsFallbacks:
 class TestVisualizationFallbacks:
     """Тесты fallback'ов визуализации"""
 
-    def test_bmi_without_matplotlib(self):
+    def test_bmi_without_matplotlib(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест BMI без matplotlib"""
-        with patch("app.MATPLOTLIB_AVAILABLE", False):
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setattr(app, "MATPLOTLIB_AVAILABLE", False)
+        client = get_client()
 
-            import app
+        response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
+        assert response.status_code == 200
+        data = response.json()
+        assert "bmi" in data
 
-            client = TestClient(cast(ASGIApp, app.app))
-
-            response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
-            assert response.status_code == 200
-            data = response.json()
-            assert "bmi" in data
-
-    def test_bmi_without_visualization_function(self):
+    def test_bmi_without_visualization_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест BMI без функции визуализации"""
-        with patch("app.generate_bmi_visualization", None):
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setattr(app, "generate_bmi_visualization", None, raising=False)
+        client = get_client()
 
-            import app
+        response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
+        assert response.status_code == 200
+        data = response.json()
+        assert "bmi" in data
 
-            client = TestClient(cast(ASGIApp, app.app))
-
-            response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
-            assert response.status_code == 200
-            data = response.json()
-            assert "bmi" in data
-
-    def test_bmi_visualization_unavailable_result(self):
+    def test_bmi_visualization_unavailable_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест BMI когда визуализация возвращает unavailable"""
         mock_viz = MagicMock()
         mock_viz.return_value = {"available": False, "message": "Visualization unavailable"}
+        monkeypatch.setattr(app, "generate_bmi_visualization", mock_viz, raising=False)
 
-        with patch("app.generate_bmi_visualization", mock_viz):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-
-            import app
-
-            client = TestClient(cast(ASGIApp, app.app))
-
-            response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
-            assert response.status_code == 200
-            data = response.json()
-            assert "bmi" in data
+        client = get_client()
+        response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
+        assert response.status_code == 200
+        data = response.json()
+        assert "bmi" in data
 
 
 class TestImportFallbacks:
     """Тесты import fallback веток"""
 
-    def test_nutrition_core_missing_fallback(self):
+    def test_nutrition_core_missing_fallback(self) -> None:
         """Тест fallback когда nutrition_core недоступен"""
-        # Просто проверим что app загружается
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
-        # Проверим что fallback функции работают
+        # Проверим что app загружается и fallback функции работают
         assert hasattr(app, "get_activity_factor")
         assert app.get_activity_factor("moderate") == 1.55
 
-    def test_bmi_pro_router_fallback(self):
+    def test_bmi_pro_router_fallback(self) -> None:
         """Тест fallback для bmi_pro_router"""
         # Проверим что app работает даже если bmi_pro_router=None
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
-        # app должен быть создан успешно
         assert app.app is not None
 
-    def test_vip_router_fallback(self):
+    def test_vip_router_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест fallback для VIP router"""
-        with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "true"}, clear=False):
-            if "app" in sys.modules:
-                del sys.modules["app"]
-
-            import app
-
-            # app должен работать даже если VIP router недоступен
-            assert app.app is not None
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        # app должен работать даже если VIP router недоступен
+        assert app.app is not None
 
 
 class TestLifespanFallbacks:
     """Тесты lifespan startup/shutdown веток"""
 
     @pytest.mark.asyncio
-    async def test_lifespan_start_success(self):
+    async def test_lifespan_start_success(self) -> None:
         """Тест успешного запуска lifespan"""
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
         # Создаем mock app для lifespan
         mock_app = MagicMock()
 
@@ -231,72 +194,49 @@ class TestLifespanFallbacks:
             pass  # Просто проверяем что не падает
 
     @pytest.mark.asyncio
-    async def test_lifespan_start_error(self):
+    async def test_lifespan_start_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест обработки ошибки при запуске"""
-        with patch("app.start_background_updates", side_effect=Exception("Test error")):
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setattr(
+            app, "start_background_updates", MagicMock(side_effect=Exception("Test error")), raising=False
+        )
+        mock_app = MagicMock()
 
-            import app
-
-            mock_app = MagicMock()
-
-            # Должен перехватить ошибку и продолжить
-            async with app.lifespan(mock_app):
-                pass
+        # Должен перехватить ошибку и продолжить
+        async with app.lifespan(mock_app):
+            pass
 
     @pytest.mark.asyncio
-    async def test_lifespan_stop_error(self):
+    async def test_lifespan_stop_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест обработки ошибки при остановке"""
-        with patch("app.stop_background_updates", side_effect=Exception("Test error")):
-            if "app" in sys.modules:
-                del sys.modules["app"]
+        monkeypatch.setattr(
+            app, "stop_background_updates", MagicMock(side_effect=Exception("Test error")), raising=False
+        )
+        mock_app = MagicMock()
 
-            import app
-
-            mock_app = MagicMock()
-
-            # Должен перехватить ошибку при shutdown
-            async with app.lifespan(mock_app):
-                pass
+        # Должен перехватить ошибку при shutdown
+        async with app.lifespan(mock_app):
+            pass
 
 
 class TestEdgeCases:
     """Тесты edge cases для main.py"""
 
-    def test_root_endpoint(self):
+    def test_root_endpoint(self) -> None:
         """Тест корневого эндпоинта"""
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
+        client = get_client()
         response = client.get("/")
         assert response.status_code == 200
 
-    def test_health_endpoint(self):
+    def test_health_endpoint(self) -> None:
         """Тест health эндпоинта"""
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
+        client = get_client()
         response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
 
-    def test_legacy_category_label_function(self):
+    def test_legacy_category_label_function(self) -> None:
         """Тест legacy_category_label функции"""
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
         # Тест английского языка
         result = app.legacy_category_label("Normal weight", "en")
         assert result == "Healthy weight"
@@ -309,13 +249,8 @@ class TestEdgeCases:
         result = app.legacy_category_label("Other", "en")
         assert result == "Other"
 
-    def test_get_update_scheduler_wrapper(self):
+    def test_get_update_scheduler_wrapper(self) -> None:
         """Тест get_update_scheduler wrapper функции"""
-        if "app" in sys.modules:
-            del sys.modules["app"]
-
-        import app
-
         # Просто проверим что функция существует
         assert hasattr(app, "get_update_scheduler")
         assert callable(app.get_update_scheduler)
