@@ -28,4 +28,3 @@ Replace direct TestClient construction in excluded patterns with one of:
 
 - Keep changes mechanical and behavior-preserving.
 - Prefer per-test client creation/closure to avoid shared state.
-
