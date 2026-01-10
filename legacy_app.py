@@ -96,6 +96,12 @@ from app.scheduler_helpers import (
 # PRO router registration (explicit, no import-side-effects)
 # Moved to app/routers/pro_registration.py for centralized registration
 # See register_pro_routes() for schema-only mode guard and conditional imports
+# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
+premium_week_router: APIRouter | None = None
+pro_router: APIRouter | None = None
+# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
+premium_week_router: APIRouter | None = None
+pro_router: APIRouter | None = None
 
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
@@ -1089,7 +1095,7 @@ if _register_vip_routes is not None:
 
 # Register PRO routes (centralized, explicit registration)
 if _register_pro_routes is not None:
-    _register_pro_routes(app)
+    pro_router, premium_week_router = _register_pro_routes(app)
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:

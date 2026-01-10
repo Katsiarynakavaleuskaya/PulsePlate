@@ -33,7 +33,7 @@ def _is_openapi_schema_only_mode() -> bool:
     return (_openapi_flag == "1") and (_app_env == "test")
 
 
-def register_pro_routes(app: FastAPI) -> None:
+def register_pro_routes(app: FastAPI) -> tuple[APIRouter | None, APIRouter | None]:
     """
     Register PRO and premium_week routes with the FastAPI application.
 
@@ -49,27 +49,37 @@ def register_pro_routes(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance
 
+    Returns:
+        Tuple of (pro_router, premium_week_router) for backward compatibility.
+        Both may be None if in OpenAPI schema-only mode or feature flags disabled.
+
     Note:
         This function has no side effects if in OpenAPI schema-only mode.
         It can be called multiple times safely (idempotent).
     """
     if getattr(app.state, "_pro_routes_registered", False):
-        return
+        # Return cached values if already registered (idempotent)
+        cached_pro = getattr(app.state, "_cached_pro_router", None)
+        cached_premium = getattr(app.state, "_cached_premium_week_router", None)
+        return cached_pro, cached_premium
 
     openapi_mode = _is_openapi_schema_only_mode()
+
+    pro_router_result: APIRouter | None = None
+    premium_week_router_result: APIRouter | None = None
 
     if not openapi_mode:
         # Import routers only in non-schema-only mode to avoid import-time ORM hazards.
         # These routers import app.models at module level, which triggers SQLAlchemy
         # table creation and causes "Table already defined" errors on repeated imports.
-        from app.routers.pro import router as pro_router
+        from app.routers.pro import router as pro_router_imported
 
-        if pro_router is not None:
-            app.include_router(pro_router)
+        if pro_router_imported is not None:
+            app.include_router(pro_router_imported)
+            pro_router_result = pro_router_imported
 
         # Include premium_week router for backward compatibility (deprecated)
         # Check FEATURE_PREMIUM_WEEK_ENABLED feature flag
-        import os
         from app.utils.feature_flags import is_vip_module_enabled
 
         FEATURE_PREMIUM_WEEK_ENABLED = (
@@ -78,13 +88,19 @@ def register_pro_routes(app: FastAPI) -> None:
         ) or is_vip_module_enabled()  # Also enable if VIP module is enabled
 
         if FEATURE_PREMIUM_WEEK_ENABLED:
-            from app.routers.premium_week import router as premium_week_router
+            from app.routers.premium_week import router as premium_week_router_imported
 
             # premium_week endpoints enforce tier access internally via app.middleware.api_tiers
             # (e.g., require_pro_tier). Do not add the global API_KEY guard here, otherwise
             # PRO/VIP test keys (test_pro_key/test_vip_key) are rejected when API_KEY is set.
             # NOTE: This router is deprecated. Use /api/v1/pro/* endpoints instead.
-            if premium_week_router is not None:
-                app.include_router(premium_week_router)
+            if premium_week_router_imported is not None:
+                app.include_router(premium_week_router_imported)
+                premium_week_router_result = premium_week_router_imported
 
+    # Cache routers for idempotent return
     app.state._pro_routes_registered = True
+    app.state._cached_pro_router = pro_router_result
+    app.state._cached_premium_week_router = premium_week_router_result
+
+    return pro_router_result, premium_week_router_result
