@@ -54,7 +54,7 @@
 
 ## 2️⃣ PRO — Nutrition / Targets / Daily Plate
 
-_средний платный сегмент_
+### Средний платный сегмент
 
 ### Бизнес-смысл
 
@@ -93,7 +93,7 @@ _средний платный сегмент_
 | BMR            | `/premium_bmr`                  | ⚠️ legacy        | PRO          | `legacy_app.py:4148`                      |
 
 > ⚠️ **Примечание:** Endpoints под `/premium/*`, которые **фактически требуют VIP tier**, не относятся к PRO и перечислены в разделе VIP (см. секцию "Deprecated aliases with wrong namespace").
-
+>
 > ⚠️ **Ключевое понимание:**
 > `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`);
 > namespace `/premium/*` при этом **deprecated**, мигрирует на `/api/v1/pro/*`.
@@ -114,7 +114,7 @@ _средний платный сегмент_
 
 ## 3️⃣ VIP — Weekly / Micro / Shoplist
 
-_высший платный сегмент_
+### Высший платный сегмент
 
 ### Бизнес-смысл
 
