@@ -58,9 +58,7 @@ class TestVIPCoverageClean:
             elif module_name in sys.modules:
                 del sys.modules[module_name]
 
-    def test_vip_import_fallback_coverage(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_vip_import_fallback_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP import fallback coverage with proper isolation."""
         # Mock import failure to trigger fallback logic
         # Use monkeypatch.setattr/delattr for sys.modules (see AGENTS.md: sys.modules mutation forbidden)
@@ -79,7 +77,7 @@ class TestVIPCoverageClean:
 
         # Re-import the module to trigger fallback
         if "app.routers.vip" in sys.modules:
-            monkeypatch.delattr(sys.modules, "app.routers.vip", raising=False)
+            monkeypatch.delitem(sys.modules, "app.routers.vip", raising=False)
 
         from app.routers import vip
 
@@ -90,9 +88,9 @@ class TestVIPCoverageClean:
         assert vip.aggregate_ingredients is not None
         assert vip.round_to_packages is not None
 
-        # Restore modules via monkeypatch.setattr
+        # Restore modules via monkeypatch.setitem (sys.modules is a dict)
         for mod_name, mod_obj in modules_to_restore.items():
-            monkeypatch.setattr(sys.modules, mod_name, mod_obj)
+            monkeypatch.setitem(sys.modules, mod_name, mod_obj)
             assert vip.format_export is not None
             assert vip.get_region_catalog is not None
             assert vip.search_products is not None
