@@ -46,9 +46,7 @@ def test_deprecated_weekly_plan_handles_dict_plan(
         None,
     )
     assert deprecated_route is not None, "POST /api/v1/vip/weekly-plan route not found"
-    monkeypatch.setitem(
-        deprecated_route.endpoint.__globals__, "make_weekly_menu", fake_make_weekly_menu
-    )
+    monkeypatch.setitem(deprecated_route.endpoint.__globals__, "make_weekly_menu", fake_make_weekly_menu)
 
     payload = {
         "sex": "female",
