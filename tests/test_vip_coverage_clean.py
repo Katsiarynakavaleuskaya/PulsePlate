@@ -49,16 +49,21 @@ class TestVIPCoverageClean:
 
         # Restore original modules more carefully
         # Only restore modules that were modified by our test
+        # NOTE: This teardown uses direct sys.modules mutations for backward compatibility.
+        # The test method itself uses monkeypatch (see test_vip_import_fallback_coverage).
+        # New tests should use monkeypatch.delattr/setattr instead (see AGENTS.md).
         for module_name in self.modules_to_watch:
             if module_name in self.original_modules:
                 sys.modules[module_name] = self.original_modules[module_name]
             elif module_name in sys.modules:
                 del sys.modules[module_name]
 
-    def test_vip_import_fallback_coverage(self):
+    def test_vip_import_fallback_coverage(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test VIP import fallback coverage with proper isolation."""
         # Mock import failure to trigger fallback logic
-        # Remove modules instead of setting to None (prevents sys.modules None poisoning)
+        # Use monkeypatch.setattr/delattr for sys.modules (see AGENTS.md: sys.modules mutation forbidden)
         modules_to_restore = {}
         for mod_name in [
             "core.auto_repair",
@@ -69,25 +74,25 @@ class TestVIPCoverageClean:
         ]:
             if mod_name in sys.modules:
                 modules_to_restore[mod_name] = sys.modules[mod_name]
-                del sys.modules[mod_name]
+                # Use monkeypatch.delitem to remove from sys.modules dict
+                monkeypatch.delitem(sys.modules, mod_name, raising=False)
 
-        try:
-            # Re-import the module to trigger fallback
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
+        # Re-import the module to trigger fallback
+        if "app.routers.vip" in sys.modules:
+            monkeypatch.delattr(sys.modules, "app.routers.vip", raising=False)
 
-            from app.routers import vip
+        from app.routers import vip
 
-            # Verify fallback values are set to None
-            assert vip.make_weekly_menu is not None
-            assert vip.analyze_nutrient_gaps is not None
-            assert vip.ShoplistGenerator is not None
-            assert vip.aggregate_ingredients is not None
-            assert vip.round_to_packages is not None
-        finally:
-            # Restore modules
-            for mod_name, mod_obj in modules_to_restore.items():
-                sys.modules[mod_name] = mod_obj
+        # Verify fallback values are set to None
+        assert vip.make_weekly_menu is not None
+        assert vip.analyze_nutrient_gaps is not None
+        assert vip.ShoplistGenerator is not None
+        assert vip.aggregate_ingredients is not None
+        assert vip.round_to_packages is not None
+
+        # Restore modules via monkeypatch.setattr
+        for mod_name, mod_obj in modules_to_restore.items():
+            monkeypatch.setattr(sys.modules, mod_name, mod_obj)
             assert vip.format_export is not None
             assert vip.get_region_catalog is not None
             assert vip.search_products is not None

@@ -23,8 +23,9 @@ class TestVIPCoverageBoost:
         os.environ["API_KEY"] = "test_key"
 
     def teardown_method(self):
-        # Очищаем переменные окружения
+        # Очищаем переменные окружения (все, что были установлены в setup_method)
         os.environ.pop("API_KEY", None)
+        os.environ.pop("VIP_MODULE_ENABLED", None)
 
     def test_vip_health_endpoint(self, vip_headers: dict[str, str]):
         """Тест VIP health endpoint"""
