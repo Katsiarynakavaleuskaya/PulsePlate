@@ -55,21 +55,16 @@ def test_vip_guard_403_before_422_invalid_tier(client: TestClient) -> None:
 
 
 def test_vip_guard_422_after_valid_tier(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
+    client: TestClient,
 ) -> None:
     """Test that with valid VIP key, invalid payload returns 422 (validation error).
 
     RU: Тест, что с валидным VIP ключом невалидный payload возвращает 422 (ошибка валидации).
     EN: Test that with valid VIP key, invalid payload returns 422 (validation error).
     """
-    # Invalid payload
-    invalid_payload = {"invalid": "data", "missing_required_fields": True}
-
-    # Mock internal call to avoid 500
-    monkeypatch.setattr(
-        "app.routers.vip._safe_call_with_adapter",
-        lambda func_name, **kwargs: {"status": "error", "code": "validation_failed"},
-    )
+    # Invalid payload that fails Pydantic validation inside the endpoint.
+    # This should return 422 before any internal adapter call is attempted.
+    invalid_payload: dict[str, object] = {}
 
     # With valid VIP key
     response = client.post(

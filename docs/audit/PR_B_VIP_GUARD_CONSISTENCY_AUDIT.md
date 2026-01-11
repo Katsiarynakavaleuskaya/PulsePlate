@@ -19,7 +19,7 @@
 
 1. **`require_vip_tier()` implementation** (`app/middleware/api_tiers.py:203-239`):
    ```python
-   async def require_vip_tier(x_api_key: Optional[str] = Header(None)) -> str:
+   async def require_vip_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
        if not x_api_key:
            raise HTTPException(status_code=403, detail="VIP access required")
        if not _validate_api_key_tier(x_api_key, SubscriptionTier.VIP):

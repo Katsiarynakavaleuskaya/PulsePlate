@@ -794,10 +794,30 @@ async def weekly_menu_plan_alias(
         )
 
         plan = make_weekly_menu(profile=profile)
-        # Convert WeekMenu dataclass to dict for JSON serialization
-        plan_dict = {
-            "week_start": plan.week_start,
-            "daily_menus": [
+
+        week_start = getattr(plan, "week_start", None)
+        daily_menus = getattr(plan, "daily_menus", None)
+        weekly_coverage = getattr(plan, "weekly_coverage", None)
+        shopping_list = getattr(plan, "shopping_list", None)
+        total_cost = getattr(plan, "total_cost", None)
+        adherence_score = getattr(plan, "adherence_score", None)
+
+        if isinstance(plan, dict):
+            week_start = plan.get("week_start", week_start)
+            daily_menus = plan.get("daily_menus", daily_menus)
+            weekly_coverage = plan.get("weekly_coverage", weekly_coverage)
+            shopping_list = plan.get("shopping_list", shopping_list)
+            total_cost = plan.get("total_cost", total_cost)
+            adherence_score = plan.get("adherence_score", adherence_score)
+
+        # Convert WeekMenu dataclass (or dict fallback) to dict for JSON serialization
+        serialized_daily_menus: list[dict[str, Any]]
+        if not isinstance(daily_menus, list):
+            serialized_daily_menus = []
+        elif not daily_menus or isinstance(daily_menus[0], dict):
+            serialized_daily_menus = daily_menus
+        else:
+            serialized_daily_menus = [
                 {
                     "date": menu.date,
                     "meals": menu.meals,
@@ -805,12 +825,16 @@ async def weekly_menu_plan_alias(
                     "recommendations": menu.recommendations,
                     "estimated_cost": menu.estimated_cost,
                 }
-                for menu in plan.daily_menus
-            ],
-            "weekly_coverage": plan.weekly_coverage,
-            "shopping_list": plan.shopping_list,
-            "total_cost": plan.total_cost,
-            "adherence_score": plan.adherence_score,
+                for menu in daily_menus
+            ]
+
+        plan_dict = {
+            "week_start": week_start,
+            "daily_menus": serialized_daily_menus,
+            "weekly_coverage": weekly_coverage,
+            "shopping_list": shopping_list,
+            "total_cost": total_cost,
+            "adherence_score": adherence_score,
         }
         return WeeklyPlanResponse(
             status="success", data=plan_dict, message="Weekly plan generated successfully"

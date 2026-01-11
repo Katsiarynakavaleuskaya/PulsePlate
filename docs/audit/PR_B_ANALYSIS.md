@@ -21,7 +21,7 @@
 ### Стратегия для FREE tier в тестах
 - `require_vip_tier()` — это **feature-gate**, не auth-gate
 - Отсутствие ключа (`x_api_key = None`) → **403** "VIP access required"
-- Неверный/недостаточный tier → **403** "API key does not have VIP tier access"
+- Неверный/недостаточный tier → **403** `"API key does not have VIP tier access. Upgrade to VIP to access this feature."`
 - **Вывод:** Для FREE tier корректно использовать **пустые headers** (без `X-API-Key`), что даст 403
 
 ### Решение для FREE tier (каноничное)
