@@ -1,4 +1,4 @@
-# ✅ PulsePlate — API Alignment Checklist (VIP-first, premium=shim, zero-duplication)
+# ✅ PulsePlate — API Alignment Checklist (FREE/PRO/VIP tiers, deprecated premium namespace)
 
 **Status:** Canonical alignment protocol
 **Last updated:** 2026-01-11
@@ -6,22 +6,47 @@
 
 ---
 
-## 0) Принципы (инварианты, без которых не начинаем)
+## 0) Principles (invariants — do not start without them)
 
-* **Один источник правды по контрактам:** OpenAPI из `app.main.app` + `normalize_openapi_schema()`.
-* **VIP ≠ PRO:** VIP (неделя/микро/шоплист/авто-ремонт) и PRO (питание/планы) — **разные доменные контуры**, не смешиваем.
-* **BMI core — канон:** BMI calculation engine — единый источник; роутеры/legacy — thin adapters.
-* **premium = compat shim:** premium endpoints могут жить, но **не содержат бизнес-логики**, только делегирование/адаптация.
-* **Запрещено:** новые ручные типы на фронте, если тип уже есть в OpenAPI.
-* **Запрещено:** бизнес-логика в `legacy_app.py` (кроме compatibility endpoints и тонких адаптеров).
-* **OpenAPI determinism — gate:** любой контракт должен быть детерминированным и безопасным.
-* **Любой новый endpoint** → сразу решаем: он в schema публично или скрыт.
+### English
 
-**Gate (must pass):**
+* **Single source of truth for contracts:** OpenAPI from `app.main.app` + `normalize_openapi_schema()`.
+* **Product tiers are FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
+* **VIP ≠ PRO:** VIP (weekly/micro/shoplist/auto-repair) and PRO (nutrition/plans) are **different domain contours**; do not mix.
+* **BMI core is canonical:** the BMI calculation engine is the single source of truth; routers/legacy are thin adapters.
+* **`/premium/*` is a deprecated namespace** (aliases only), not a tier. All `/premium/*` endpoints must delegate to canonical `/pro/*` or `/vip/*`.
+* **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
+* **Forbidden:** adding manual frontend types when the type already exists in OpenAPI.
+* **Forbidden:** business logic in `legacy_app.py` (except compatibility endpoints and thin adapters).
+* **OpenAPI determinism is a gate:** every contract must be deterministic and safe.
+* **Any new endpoint** → decide immediately: is it public in the schema or intentionally hidden.
+* **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
+
+**Gates (must pass):**
 
 * `make openapi` → `git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts`
 * `pytest` + `diff-cover`
-* нет новых "тихих" feature-flag веток, которые меняют контракт без отражения в docs.
+* No new "silent" feature-flag branches that change the contract without being reflected in docs.
+
+### Русский
+
+* **Один источник правды по контрактам:** OpenAPI из `app.main.app` + `normalize_openapi_schema()`.
+* **Уровни продукта: FREE / PRO / VIP** (по `SubscriptionTier` enum в `app/middleware/api_tiers.py`).
+* **VIP ≠ PRO:** VIP (неделя/микро/шоплист/авто-ремонт) и PRO (питание/планы) — **разные доменные контуры**, не смешиваем.
+* **BMI core — канон:** движок расчёта BMI — единый источник; роутеры/legacy — тонкие адаптеры.
+* **`/premium/*` — deprecated namespace** (только aliases), не уровень подписки. Все `/premium/*` endpoints должны делегировать в канонические `/pro/*` или `/vip/*`.
+* **Канонические namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
+* **Запрещено:** новые ручные типы на фронте, если тип уже есть в OpenAPI.
+* **Запрещено:** бизнес-логика в `legacy_app.py` (кроме совместимых эндпоинтов и тонких адаптеров).
+* **Детерминизм OpenAPI — жёсткий гейт:** любой контракт должен быть детерминированным и безопасным.
+* **Любой новый эндпоинт** → сразу решаем: он в schema публично или скрыт.
+* **OpenAPI не должен показывать deprecated aliases по умолчанию** (скрыть `/premium/*` из схемы, чтобы фронт не генерировал типы для неправильных путей).
+
+**Гейт (должно пройти):**
+
+* `make openapi` → `git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts`
+* `pytest` + `diff-cover`
+* нет новых "тихих" веток с фича-флагами, которые меняют контракт без отражения в документации.
 
 ---
 
@@ -29,7 +54,7 @@
 
 ### 1.1 Public schema hygiene (обязательное)
 
-**Цель:** если `/openapi.json` публичный — он не должен палить internal surface.
+**Цель:** если `/openapi.json` публичный — он не должен палить internal surface и deprecated aliases.
 
 * [ ] Все admin endpoints → `include_in_schema=False`
   * `/api/v1/admin/*`, `/admin/*` (status/db-status/check-updates/rollback/force-update/logs/cleanup)
@@ -38,8 +63,11 @@
 * [ ] Export/demo endpoints → **не в schema**, пока не "productized"
   * `/api/v1/premium/exports/*`, `/api/v1/export/pdf` и т.п.
 * [ ] Debug endpoints (`/debug_env`) → не в schema
+* [ ] **Deprecated `/premium/*` aliases → скрыть из schema по умолчанию**
+  * чтобы фронт не генерил типы для deprecated путей
+  * оставить только canonical `/pro/*` и `/vip/*`
 
-**DoD:** в `frontend/src/api/openapi.json` нет `admin`, `test`, `debug`, `exports` путей.
+**DoD:** в `frontend/src/api/openapi.json` нет `admin`, `test`, `debug`, `exports` путей, и нет `/premium/*` (или они явно помечены deprecated).
 
 ---
 
@@ -71,39 +99,49 @@
 
 ---
 
-## 2) Контракт: "VIP ≠ PRO, premium=shim" (закрываем путаницу имен/эндпоинтов)
+## 2) Контракт: "FREE / PRO / VIP tiers, `/premium/*` deprecated namespace" (закрываем путаницу имен/эндпоинтов)
 
-### 2.1 Таблица контрактов (единый mapping)
+### 2.1 Канонические namespaces (единый mapping)
 
 **Важно:** VIP и PRO — **разные доменные контуры**. Не смешиваем логику.
+
+**Canonical namespaces (source of truth):**
+
+* `/api/v1/bmi/*` → FREE tier
+* `/api/v1/pro/*` → PRO tier
+* `/api/v1/vip/*` → VIP tier
+
+**Deprecated namespace (aliases only):**
+
+* `/api/v1/premium/*` → deprecated aliases, делегируют в `/pro/*` или `/vip/*`
 
 Составляем 1 каноническую таблицу:
 
 * [ ] **Weekly plan**
-  * VIP canonical: `/api/v1/vip/meal/weekly` (или фактический VIP endpoint)
-  * PRO canonical: `/api/v1/pro/meal/weekly` (если остаётся как отдельный контур)
-  * Premium shim: `/api/v1/premium/plan/week` → **делегирует** в VIP или PRO (по продуктовой логике)
+  * VIP canonical: `/api/v1/vip/menu/weekly/plan` (фактический VIP endpoint)
+  * PRO canonical: `/api/v1/pro/meal/weekly` (фактический PRO endpoint)
+  * Premium alias (deprecated): `/api/v1/premium/plan/week` → **делегирует** в VIP (по факту требует VIP_MODULE_ENABLED)
 * [ ] **Targets**
-  * VIP canonical: `/api/v1/vip/nutrition/targets` (если микро-constraints)
-  * PRO canonical: `/api/v1/pro/nutrition/targets` (если отдельный контур)
-  * Premium shim: `/api/v1/premium/targets` → делегирует в соответствующий canonical
+  * PRO canonical: `/api/v1/pro/nutrition/targets` (planned)
+  * Premium alias (deprecated): `/api/v1/premium/targets` → делегирует в PRO canonical
 * [ ] **Daily plate**
   * PRO canonical: `/api/v1/pro/nutrition/daily` (GET)
-  * Premium shim: `/api/v1/premium/plate` (если нужен) → делегирует / адаптирует
+  * Premium alias (deprecated): `/api/v1/premium/plate` → делегирует в PRO canonical
 
-**Правило:** VIP и PRO могут иметь **разную логику** (VIP = микро/регион/шоплист, PRO = питание/планы), но premium shim **не дублирует** ни одну из них.
+**Правило:** VIP и PRO могут иметь **разную логику** (VIP = микро/регион/шоплист, PRO = питание/планы), но `/premium/*` aliases **не дублируют** ни одну из них.
 
-**DoD:** в репо есть один файл-истина (например `docs/API_CONTRACT_MAP.md`) и он совпадает с OpenAPI.
+**DoD:** в репо есть один файл-истина (`docs/contracts/PRODUCT_TIER_MAP.md`) и он совпадает с OpenAPI.
 
 ---
 
-### 2.2 Premium endpoints — только shim, никакой логики
+### 2.2 `/premium/*` endpoints — только aliases, никакой логики
 
 * [ ] Любой `/api/v1/premium/*` endpoint:
   * не считает нутриенты сам
   * не строит неделю сам
   * не содержит "rules"
-  * только вызывает canonical handler и делает маппинг ответа (если надо)
+  * только вызывает canonical handler (`/pro/*` или `/vip/*`) и делает маппинг ответа (если надо)
+  * помечен `deprecated=True` и/или `include_in_schema=False`
 
 **DoD:** grep по `legacy_app.py`/premium endpoints — нет "тяжёлых" функций, только delegation/adapter.
 
@@ -158,17 +196,23 @@
 
 ### 5.1 Repo-policy guard tests
 
-* [ ] Тест/линт: "запрещено" импортировать/вычислять нутриенты в premium shim слоях
+* [ ] Тест/линт: "запрещено" импортировать/вычислять нутриенты в `/premium/*` alias слоях
 * [ ] Тест: "запрещено" объявлять ручные типы для схем, которые есть в OpenAPI
-* [ ] Документируем в `AGENTS.md` правила:
+* [ ] Документируем в `AGENTS.md` правила (✅ уже добавлено в секцию "Product tiers and API namespaces"):
+  * Tiers are: FREE / PRO / VIP (per `SubscriptionTier` enum)
+  * `/premium/*` is a deprecated namespace (aliases only), not a tier
+  * VIP endpoints MUST live under `/api/v1/vip/*`
+  * PRO endpoints MUST live under `/api/v1/pro/*`
+  * OpenAPI must not expose deprecated aliases by default
+  * File naming must not imply tier unless enforced
   * VIP ≠ PRO (разные доменные контуры)
   * BMI core — канон; роутеры — thin adapters
-  * premium=shim only (no business logic)
+  * `/premium/*` aliases = delegation only (no business logic)
   * schema-only guards required
   * admin/test/export hidden from schema
   * OpenAPI determinism — gate для любого контракта
 
-**DoD:** новый участник не сможет случайно "написать вторую реализацию".
+**DoD:** новый участник не сможет случайно "написать вторую реализацию" или использовать deprecated namespace как canonical.
 
 ---
 
@@ -193,5 +237,7 @@
 
 **See also:**
 - `docs/audit/PR_510_AUDIT_EVIDENCE_PACK.md` — детальный анализ legacy_app.py
+- `docs/contracts/PRODUCT_TIER_MAP.md` — canonical tier mapping (source of truth)
+- `docs/contracts/OPENAPI_PATHS_AUDIT.md` — фактический список путей из OpenAPI
 - `docs/contracts/API_CANONICAL_MAP.md` — текущий mapping (требует обновления)
-- `AGENTS.md` — правила репозитория
+- `AGENTS.md` — правила репозитория (секция "Product tiers and API namespaces")

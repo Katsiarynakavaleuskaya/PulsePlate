@@ -242,6 +242,28 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
+## Product tiers and API namespaces (canonical)
+
+### Product tiers (source of truth)
+- **Tiers are: FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
+- **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
+- **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
+- **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
+- **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
+
+### API namespace policy
+- **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
+- **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
+- **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
+- **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` is FREE tier, not PRO).
+
+### Tier enforcement
+- PRO tier: use `require_pro_tier()` middleware (from `app.middleware.api_tiers`).
+- VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
+- All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
+
+**See:** `docs/contracts/PRODUCT_TIER_MAP.md` for canonical tier mapping and namespace policy.
+
 ## OpenAPI generation (determinism requirement)
 
 ### Canonical source
