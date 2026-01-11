@@ -134,10 +134,10 @@
 | -------------------- | ---------------------------------- | ----------- | ------------ | ----------------------------------------- |
 | Weekly plan          | `/api/v1/vip/menu/weekly/plan`     | ✅ canonical | VIP          | `app/routers/vip.py` (main endpoint)      |
 | Weekly plan (legacy) | `/api/v1/vip/weekly-plan`         | ⚠️ deprecated | VIP        | `app/routers/vip.py:733` (deprecated)     |
-| Shoplist generate    | `/api/v1/vip/shoplist/generate`   | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:308`          |
-| Shoplist preview     | `/api/v1/vip/shoplist/preview`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:386`          |
-| Shoplist daily       | `/api/v1/vip/shoplist/daily`      | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:425`          |
-| Shoplist weekly      | `/api/v1/vip/shoplist/weekly`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:466`          |
+| Shoplist generate    | `/api/v1/vip/shoplist/generate`   | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:364`          |
+| Shoplist preview     | `/api/v1/vip/shoplist/preview`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:299`          |
+| Shoplist daily       | `/api/v1/vip/shoplist/daily`      | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:402`          |
+| Shoplist weekly      | `/api/v1/vip/shoplist/weekly`     | ✅ canonical | VIP          | `app/routers/vip_shoplist.py:442`          |
 | Recipe synthesize    | `/api/v1/vip/recipes/synthesize`  | ✅ canonical | VIP          | `app/routers/vip.py`                      |
 | Auto-repair          | `/api/v1/vip/auto-repair/*`        | ✅ canonical | VIP          | `app/routers/vip.py` (via core.auto_repair) |
 
