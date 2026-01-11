@@ -423,19 +423,20 @@ npm run build
 
 ### Автоматическая генерация OpenAPI
 
-**Вариант 1: Скрипт генерации**
+## Вариант 1: Скрипт генерации
+
 ```bash
 # В корне проекта
-python -c "from legacy_app import app; import json; print(json.dumps(app.openapi(), indent=2))" > frontend/src/api/openapi.json
+make openapi
 cd frontend && npm run generate-types
 ```
 
-**Вариант 2: CI/CD интеграция**
+## Вариант 2: CI/CD интеграция
+
 ```yaml
 # .github/workflows/sync-openapi.yml
 - name: Generate OpenAPI
-  run: |
-    python -c "from legacy_app import app; import json; print(json.dumps(app.openapi(), indent=2))" > frontend/src/api/openapi.json
+  run: make openapi
 - name: Generate Types
   run: |
     cd frontend && npm run generate-types

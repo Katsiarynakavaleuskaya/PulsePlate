@@ -3,7 +3,7 @@
 **Date:** 2026-01-10
 **Status:** Pending verification (do not merge until gates pass)
 
-### Merge gates (must be green)
+## Merge gates (must be green)
 - [ ] `make verify` locally (lint + mypy + tests + diff-cov ≥ 97%)
 - [ ] CI: tests/lint/typecheck/diff-coverage all green
 - [ ] Security tooling in CI green (pip-audit/bandit as configured)
