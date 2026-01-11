@@ -259,4 +259,3 @@ def test_vip_tier_guard_matrix(
         assert (
             200 <= resp.status_code < 300
         ), f"VIP expected 2xx but got {resp.status_code} for {case.method} {case.path}: {resp.text}"
-
