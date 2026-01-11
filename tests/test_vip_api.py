@@ -76,7 +76,7 @@ def test_vip_module_enabled(vip_headers):
     assert r.status_code == 200
 
 
-def test_vip_shoplist_weekly(monkeypatch):
+def test_vip_shoplist_weekly(monkeypatch, vip_headers):
     """Test VIP weekly shoplist endpoint"""
     import app
     from app.middleware import api_tiers
@@ -152,11 +152,7 @@ def test_vip_shoplist_weekly(monkeypatch):
             ]
         }
 
-        from app.middleware.api_tiers import TEST_KEY_VIP
-
-        r = client.post(
-            "/api/v1/vip/shoplist/weekly", json=payload, headers={"X-API-Key": TEST_KEY_VIP}
-        )
+        r = client.post("/api/v1/vip/shoplist/weekly", json=payload, headers=vip_headers)
         assert r.status_code == 200
         data = r.json()
         assert "days" in data
@@ -166,7 +162,7 @@ def test_vip_shoplist_weekly(monkeypatch):
         app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
 
-def test_vip_shoplist_daily(monkeypatch):
+def test_vip_shoplist_daily(monkeypatch, vip_headers):
     """Test VIP daily shoplist endpoint"""
     import app
     from app.middleware import api_tiers
@@ -219,11 +215,7 @@ def test_vip_shoplist_daily(monkeypatch):
             ],
         }
 
-        from app.middleware.api_tiers import TEST_KEY_VIP
-
-        r = client.post(
-            "/api/v1/vip/shoplist/daily", json=payload, headers={"X-API-Key": TEST_KEY_VIP}
-        )
+        r = client.post("/api/v1/vip/shoplist/daily", json=payload, headers=vip_headers)
         assert r.status_code == 200
         data = r.json()
         assert "packed" in data

@@ -7,6 +7,7 @@ import os
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 
 def _clear(keys):
@@ -37,7 +38,7 @@ def test_require_api_key_dev_fallback_returns_test_key():
     assert _require_api_key(None) == "test_key"
 
 
-def test_require_vip_tier_missing_key_returns_403(client):
+def test_require_vip_tier_missing_key_returns_403(client: TestClient):
     """Test that VIP endpoints return 403 when no API key is provided.
 
     RU: Тест, что VIP endpoints возвращают 403 при отсутствии API ключа.
@@ -49,19 +50,21 @@ def test_require_vip_tier_missing_key_returns_403(client):
     # Test without API key header
     response = client.get("/api/v1/vip/health", headers={})
     assert response.status_code == 403
-    assert "vip" in response.json().get("detail", "").lower() or "access" in response.json().get("detail", "").lower()
+    detail = str(response.json().get("detail", "")).lower()
+    assert any(k in detail for k in ("vip", "access"))
 
 
-def test_require_vip_tier_with_vip_key_returns_2xx(client):
+def test_require_vip_tier_with_vip_key_returns_2xx(
+    client: TestClient,
+    vip_headers: dict[str, str],
+):
     """Test that VIP endpoints return 2xx when valid VIP key is provided.
 
     RU: Тест, что VIP endpoints возвращают 2xx при валидном VIP ключе.
     EN: Test that VIP endpoints return 2xx when valid VIP key is provided.
     """
-    from app.middleware.api_tiers import TEST_KEY_VIP
-
-    response = client.get("/api/v1/vip/health", headers={"X-API-Key": TEST_KEY_VIP})
-    assert response.status_code < 400
+    response = client.get("/api/v1/vip/health", headers=vip_headers)
+    assert response.status_code == 200
 
 
 def test_require_api_key_dev_legacy_nonprod_and_prod_allow():
