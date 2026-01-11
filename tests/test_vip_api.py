@@ -76,7 +76,7 @@ def test_vip_module_enabled(vip_headers):
     assert r.status_code == 200
 
 
-def test_vip_shoplist_weekly(monkeypatch, vip_headers):
+def test_vip_shoplist_weekly(monkeypatch, vip_headers: dict[str, str]):
     """Test VIP weekly shoplist endpoint"""
     import app
     from app.middleware import api_tiers
@@ -162,7 +162,7 @@ def test_vip_shoplist_weekly(monkeypatch, vip_headers):
         app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
 
-def test_vip_shoplist_daily(monkeypatch, vip_headers):
+def test_vip_shoplist_daily(monkeypatch, vip_headers: dict[str, str]):
     """Test VIP daily shoplist endpoint"""
     import app
     from app.middleware import api_tiers
