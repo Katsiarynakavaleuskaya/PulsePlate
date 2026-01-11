@@ -254,6 +254,11 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
 - **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
 - **Tests must not mutate `os.environ` directly** — use `monkeypatch.setenv` (prefer an `autouse` fixture for class-level suites).
+- **Type hints required for all new or modified functions** (including tests).
+  - OK: `def test_x(vip_headers: dict[str, str]) -> None:`
+  - Not OK: `def test_x(vip_headers):` (missing types)
+  - When unsure: prefer explicit `-> None` for test functions.
+  - **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
 - **Forbidden:** Testing private `_require_*` functions from routers — use behavioral tests through `TestClient` + middleware.
 - **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
