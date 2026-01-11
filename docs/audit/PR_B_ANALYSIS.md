@@ -131,7 +131,7 @@
 @pytest.fixture
 def headers_for_tier():
     """Return headers dict for tier.
-    
+
     For FREE tier, returns empty dict (no API key header) - FREE = no key required.
     For PRO/VIP, returns X-API-Key header with respective test key.
     """
