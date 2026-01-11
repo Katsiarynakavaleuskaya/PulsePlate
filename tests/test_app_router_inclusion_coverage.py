@@ -62,7 +62,7 @@ class TestAppRouterInclusionCoverage:
         response = client.get("/api/v1/insight")
         assert response.status_code in [200, 405]
 
-    def test_app_router_inclusion_vip_coverage(self, client, vip_headers):
+    def test_app_router_inclusion_vip_coverage(self, client, vip_headers: dict[str, str]):
         """Тест покрытия app.py VIP router inclusion (строка 2153)"""
         # Тестируем VIP router inclusion
         response = client.post(

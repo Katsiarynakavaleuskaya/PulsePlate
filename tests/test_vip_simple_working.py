@@ -24,7 +24,7 @@ class TestVIPRouterWorking:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         yield
 
-    def test_vip_endpoints_with_environment_enabled(self, vip_headers):
+    def test_vip_endpoints_with_environment_enabled(self, vip_headers: dict[str, str]):
         """Тест VIP endpoints когда VIP_MODULE_ENABLED=true"""
         with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "true"}):
             # Мокаем VIP функции
@@ -77,7 +77,7 @@ class TestVIPRouterWorking:
             except ImportError:
                 pytest.skip("VIP module not available")
 
-    def test_vip_module_disabled_fallback(self, vip_headers):
+    def test_vip_module_disabled_fallback(self, vip_headers: dict[str, str]):
         """Тест fallback когда VIP модуль отключен"""
         with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "false"}):
             import app

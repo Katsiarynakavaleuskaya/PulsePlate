@@ -304,7 +304,11 @@ class TestCoverage97FinalPush:
         )
         assert response.status_code in [200, 422, 503, 404]
 
-    def test_app_coverage_missing_lines_1325_1326_1328_1329(self, test_environment, vip_headers):
+    def test_app_coverage_missing_lines_1325_1326_1328_1329(
+        self,
+        test_environment,
+        vip_headers: dict[str, str],
+    ):
         """Тест покрытия app.py строк 1325-1326, 1328-1329"""
         import app
 
@@ -339,7 +343,11 @@ class TestCoverage97FinalPush:
         )
         assert response.status_code == 200
 
-    def test_app_coverage_missing_lines_1342_1365(self, test_environment, vip_headers):
+    def test_app_coverage_missing_lines_1342_1365(
+        self,
+        test_environment,
+        vip_headers: dict[str, str],
+    ):
         """Тест покрытия app.py строк 1342-1365"""
         import app
 

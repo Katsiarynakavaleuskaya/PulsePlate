@@ -109,7 +109,7 @@ class TestVIPCoverageClean:
         result = _safe_call_with_adapter("unknown", {})
         assert isinstance(result, dict) and result.get("status") == "error"
 
-    def test_vip_weekly_menu_plan_coverage(self, vip_headers):
+    def test_vip_weekly_menu_plan_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly menu plan coverage with proper isolation."""
         import app
 
@@ -143,7 +143,11 @@ class TestVIPCoverageClean:
         assert "echo" in data
         assert "menu" in data
 
-    def test_vip_shoplist_weekly_coverage(self, monkeypatch, vip_headers):
+    def test_vip_shoplist_weekly_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ):
         """Test VIP shoplist weekly coverage with proper isolation."""
         import app
 
@@ -198,7 +202,7 @@ class TestVIPCoverageClean:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_coverage(self, vip_headers):
+    def test_vip_regions_coverage(self, vip_headers: dict[str, str]):
         """Test VIP regions coverage with proper isolation."""
         import app
 
@@ -211,7 +215,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "regions" in data
 
-    def test_vip_recipe_templates_coverage(self, vip_headers):
+    def test_vip_recipe_templates_coverage(self, vip_headers: dict[str, str]):
         """Test VIP recipe templates coverage with proper isolation."""
         import app
 
@@ -224,7 +228,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "templates" in data
 
-    def test_vip_auto_repair_strategies_coverage(self, vip_headers):
+    def test_vip_auto_repair_strategies_coverage(self, vip_headers: dict[str, str]):
         """Test VIP auto-repair strategies coverage with proper isolation."""
         import app
 
@@ -240,7 +244,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "strategies" in data
 
-    def test_vip_weekly_recipes_coverage(self, vip_headers):
+    def test_vip_weekly_recipes_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly recipes coverage with proper isolation."""
         import app
 
@@ -257,7 +261,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "weekly_recipes" in data
 
-    def test_vip_weekly_plan_coverage(self, vip_headers):
+    def test_vip_weekly_plan_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly plan coverage with proper isolation."""
         import app
 
