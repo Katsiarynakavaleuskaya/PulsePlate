@@ -97,6 +97,7 @@ def test_vip_shoplist_weekly(
     monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
 ) -> None:
     """Test VIP weekly shoplist endpoint"""
+
     # Enable VIP module
     def mock_is_vip_module_enabled() -> bool:
         return True
@@ -171,6 +172,7 @@ def test_vip_shoplist_daily(
     monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
 ) -> None:
     """Test VIP daily shoplist endpoint"""
+
     # Enable VIP module
     def mock_is_vip_module_enabled() -> bool:
         return True
