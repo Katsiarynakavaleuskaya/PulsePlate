@@ -1,6 +1,6 @@
 # PR-A Post-Merge Notes — Key Findings for PR-B/PR-C
 
-**PR-A merged:** 2026-01-11  
+**PR-A merged:** 2026-01-11
 **Purpose:** Document key findings from PR-A audit that inform subsequent runtime PRs
 
 ---
