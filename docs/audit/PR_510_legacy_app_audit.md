@@ -120,6 +120,16 @@
 
 ## 3. Router Registration Map
 
+### Router Registration Flow
+
+```python
+# Importing legacy_app triggers module-level orchestration:
+# - imports
+# - feature flag evaluation
+# - router registration wiring
+import legacy_app  # noqa: F401
+```
+
 ### Current Registration Flow
 
 ```text
@@ -222,7 +232,7 @@ Routers registered (scattered throughout file):
 1. **Router Registration Order**:
    - **Code Evidence:** Routers registered at module level (lines 1067-1102, 1146-1155, 5640-5657)
    - **Order affects OpenAPI `paths` ordering:**
-     ```
+     ```text
      1. Basic routers (foods, recipes, users, catalog) - lines 1067-1070
      2. Protected routers (export, plan, shoplist) - lines 1071-1073
      3. VIP routes - line 1076-1077
