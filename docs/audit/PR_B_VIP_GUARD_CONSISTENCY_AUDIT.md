@@ -201,14 +201,43 @@ from typing import Annotated
 
 ## 6) DoD Checklist
 
-- [ ] All user-facing VIP endpoints enforce VIP tier (17 endpoints migrated)
-- [ ] No accidental lockout of internal endpoints (if any) — **N/A** (no internal endpoints)
-- [ ] CI green: lint/typecheck/tests/diff-cov
-- [ ] `AGENTS.md` updated only if new canonical guard pattern introduced — **N/A** (using existing `require_vip_tier()`)
-- [ ] Unused `_require_api_key_strict` function removed
-- [ ] Tests: 403 for PRO/FREE tier on VIP endpoints
-- [ ] Tests: 200 for VIP tier on VIP endpoints
-- [ ] No breaking changes (same response shape for VIP users)
+- [x] All user-facing VIP endpoints enforce VIP tier (17 endpoints migrated)
+- [x] No accidental lockout of internal endpoints (if any) — **N/A** (no internal endpoints)
+- [x] CI green: lint/typecheck/tests/diff-cov
+- [x] `AGENTS.md` updated with Security() pattern (do not use Header() in tier deps)
+- [x] Unused `_require_api_key_strict` function removed
+- [x] Tests: 403 for PRO/FREE tier on VIP endpoints
+- [x] Tests: 200 for VIP tier on VIP endpoints
+- [x] No breaking changes (same response shape for VIP users)
+- [x] OpenAPI artifacts updated (security scheme instead of per-operation header params)
+- [x] Guard order test added (403 wins over 422)
+
+---
+
+## 7) Notes on Scope and File Changes
+
+**Why ~28 files changed:**
+
+This PR makes **one logical change** that affects multiple layers:
+
+1. **Backend auth layer:**
+   - `app/middleware/api_tiers.py` (Header → Security)
+   - Import of `api_key_header` security scheme
+
+2. **OpenAPI artifacts (required by CI):**
+   - `frontend/src/api/openapi.json` (removed per-operation `x-api-key` params, added security schemes)
+   - `frontend/src/api/schema.ts` (regenerated TypeScript types)
+
+3. **VIP tests (behaviorally affected):**
+   - Tests expecting 200/422/404 now correctly pass tier guard (403)
+   - All VIP endpoint tests use `vip_headers` fixture (valid VIP key)
+
+4. **Documentation:**
+   - `AGENTS.md` (new Security() pattern rule)
+   - `docs/audit/PR_B_VIP_GUARD_CONSISTENCY_AUDIT.md` (this file)
+
+**No unrelated refactors or mass updates included.**
+Only tests that are *behaviorally affected* by VIP tier enforcement and OpenAPI contract changes.
 
 ---
 
