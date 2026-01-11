@@ -19,14 +19,14 @@ from app.middleware import api_tiers
 class TestVIPCoverageClean:
     """Test class with proper isolation for VIP coverage."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test fixtures with proper isolation."""
         # Store original state
         self.original_api_key = os.environ.get("API_KEY")
         # Set test environment
         os.environ["API_KEY"] = "test-key"
 
-    def teardown_method(self):
+    def teardown_method(self) -> None:
         """Clean up test fixtures with proper isolation."""
         # Restore original environment
         if self.original_api_key is None:
@@ -68,14 +68,14 @@ class TestVIPCoverageClean:
             vip_module = sys.modules.get("app.routers.vip", vip)
             importlib.reload(vip_module)
 
-    def test_vip_safe_call_with_adapter_error(self):
+    def test_vip_safe_call_with_adapter_error(self) -> None:
         """Test VIP _safe_call_with_adapter structured error when adapter missing."""
         from app.routers.vip import _safe_call_with_adapter
 
         result = _safe_call_with_adapter("unknown", {})
         assert isinstance(result, dict) and result.get("status") == "error"
 
-    def test_vip_weekly_menu_plan_coverage(self, vip_headers: dict[str, str]):
+    def test_vip_weekly_menu_plan_coverage(self, vip_headers: dict[str, str]) -> None:
         """Test VIP weekly menu plan coverage with proper isolation."""
         import app
 
@@ -112,8 +112,7 @@ class TestVIPCoverageClean:
     def test_vip_shoplist_weekly_coverage(
         self,
         monkeypatch: pytest.MonkeyPatch,
-        vip_headers: dict[str, str],
-    ):
+    ) -> None:
         """Test VIP shoplist weekly coverage with proper isolation."""
         import app
 
@@ -159,7 +158,6 @@ class TestVIPCoverageClean:
                         }
                     ]
                 },
-                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -168,7 +166,7 @@ class TestVIPCoverageClean:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_coverage(self, vip_headers: dict[str, str]):
+    def test_vip_regions_coverage(self, vip_headers: dict[str, str]) -> None:
         """Test VIP regions coverage with proper isolation."""
         import app
 
@@ -181,7 +179,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "regions" in data
 
-    def test_vip_recipe_templates_coverage(self, vip_headers: dict[str, str]):
+    def test_vip_recipe_templates_coverage(self, vip_headers: dict[str, str]) -> None:
         """Test VIP recipe templates coverage with proper isolation."""
         import app
 
@@ -194,7 +192,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "templates" in data
 
-    def test_vip_auto_repair_strategies_coverage(self, vip_headers: dict[str, str]):
+    def test_vip_auto_repair_strategies_coverage(self, vip_headers: dict[str, str]) -> None:
         """Test VIP auto-repair strategies coverage with proper isolation."""
         import app
 
@@ -210,7 +208,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "strategies" in data
 
-    def test_vip_weekly_recipes_coverage(self, vip_headers: dict[str, str]):
+    def test_vip_weekly_recipes_coverage(self, vip_headers: dict[str, str]) -> None:
         """Test VIP weekly recipes coverage with proper isolation."""
         import app
 
@@ -227,7 +225,7 @@ class TestVIPCoverageClean:
         assert data["status"] == "success"
         assert "weekly_recipes" in data
 
-    def test_vip_weekly_plan_coverage(self, vip_headers: dict[str, str]):
+    def test_vip_weekly_plan_coverage(self, vip_headers: dict[str, str]) -> None:
         """Test VIP weekly plan coverage with proper isolation."""
         import app
 

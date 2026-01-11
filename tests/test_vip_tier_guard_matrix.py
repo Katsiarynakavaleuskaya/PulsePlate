@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
 
@@ -190,7 +191,7 @@ def _headers_for_key(api_key: str) -> dict[str, str]:
     return {"X-API-Key": api_key}
 
 
-def _assert_vip_denied(resp: Any) -> None:
+def _assert_vip_denied(resp: Response) -> None:
     """Assert VIP denial response (403).
 
     RU: Проверяет ответ об отказе в доступе VIP (403).
