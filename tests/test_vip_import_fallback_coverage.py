@@ -4,7 +4,7 @@
 
 
 class TestVIPImportFallbackCoverage:
-    def test_vip_import_fallback_scenarios(self, test_environment, test_client):
+    def test_vip_import_fallback_scenarios(self, test_environment, test_client, vip_headers):
         """Тест покрытия VIP import fallback сценариев"""
         client = test_client
 
@@ -22,7 +22,7 @@ class TestVIPImportFallbackCoverage:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=base_payload,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
@@ -38,7 +38,7 @@ class TestVIPImportFallbackCoverage:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=invalid_payload,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 422, 404]
 
@@ -46,6 +46,6 @@ class TestVIPImportFallbackCoverage:
         response = client.post(
             "/api/v1/vip/recipes",
             json=base_payload,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]

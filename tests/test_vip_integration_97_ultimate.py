@@ -13,7 +13,7 @@ from starlette.types import ASGIApp
 class TestVIPIntegration97Ultimate:
     """Ультимативные интеграционные тесты для VIP endpoints"""
 
-    def test_vip_weekly_menu_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_weekly_menu_integration_ultimate_scenarios(self, test_environment, vip_headers):
         """Ультимативные интеграционные тесты VIP weekly menu endpoint"""
         import app
 
@@ -75,7 +75,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -116,7 +116,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -154,7 +154,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -182,13 +182,13 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_recipes_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_recipes_integration_ultimate_scenarios(self, test_environment, vip_headers):
         """Ультимативные интеграционные тесты VIP recipes endpoint"""
         import app
 
@@ -285,7 +285,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -346,7 +346,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -399,13 +399,13 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_auto_repair_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_auto_repair_integration_ultimate_scenarios(self, test_environment, vip_headers):
         """Ультимативные интеграционные тесты VIP auto repair endpoint"""
         import app
 
@@ -470,7 +470,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -524,7 +524,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -586,13 +586,13 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] in ["success", "error"]
 
-    def test_vip_shoplist_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_shoplist_integration_ultimate_scenarios(self, test_environment, vip_headers):
         """Ультимативные интеграционные тесты VIP shoplist endpoint"""
         import app
 
@@ -679,7 +679,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/shoplist",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 404]
             if response.status_code == 200:
@@ -734,7 +734,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/shoplist",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 404]
 
@@ -767,11 +767,11 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/shoplist",
                 json=payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 404]
 
-    def test_vip_error_handling_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_error_handling_integration_ultimate_scenarios(self, test_environment, vip_headers):
         """Ультимативные интеграционные тесты обработки ошибок VIP endpoints"""
         import app
 
@@ -795,7 +795,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 422]
             if response.status_code == 200:
@@ -815,7 +815,7 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 422]
             if response.status_code == 200:
@@ -836,14 +836,16 @@ class TestVIPIntegration97Ultimate:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 422]
             if response.status_code == 200:
                 data = response.json()
                 assert data["status"] == "success"
 
-    def test_vip_api_key_validation_integration_ultimate_scenarios(self, production_environment):
+    def test_vip_api_key_validation_integration_ultimate_scenarios(
+        self, production_environment, vip_headers
+    ):
         """Ультимативные интеграционные тесты валидации API ключа в production"""
         import app
 
@@ -903,11 +905,13 @@ class TestVIPIntegration97Ultimate:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "production-secret-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
 
-    def test_vip_environment_switching_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_environment_switching_integration_ultimate_scenarios(
+        self, test_environment, vip_headers
+    ):
         """Ультимативные интеграционные тесты переключения окружений"""
         import app
 
@@ -924,11 +928,13 @@ class TestVIPIntegration97Ultimate:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
 
-    def test_vip_comprehensive_workflow_integration_ultimate_scenarios(self, test_environment):
+    def test_vip_comprehensive_workflow_integration_ultimate_scenarios(
+        self, test_environment, vip_headers
+    ):
         """Ультимативные интеграционные тесты полного workflow VIP функций"""
         import app
 
@@ -947,7 +953,7 @@ class TestVIPIntegration97Ultimate:
         menu_response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=menu_payload,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert menu_response.status_code == 200
         menu_data = menu_response.json()
@@ -960,7 +966,7 @@ class TestVIPIntegration97Ultimate:
             recipes_response = client.post(
                 "/api/v1/vip/recipes/weekly",
                 json=recipes_payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert recipes_response.status_code == 200
 
@@ -973,7 +979,7 @@ class TestVIPIntegration97Ultimate:
         repair_response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=repair_payload,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert repair_response.status_code == 200
 
@@ -986,6 +992,6 @@ class TestVIPIntegration97Ultimate:
         shoplist_response = client.post(
             "/api/v1/vip/shoplist",
             json=shoplist_payload,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert shoplist_response.status_code in [200, 404]

@@ -26,18 +26,18 @@ class TestVIPCoverageBoost:
         # Очищаем переменные окружения
         os.environ.pop("API_KEY", None)
 
-    def test_vip_health_endpoint(self):
+    def test_vip_health_endpoint(self, vip_headers):
         """Тест VIP health endpoint"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
+        response = client.get("/api/v1/vip/health", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
 
-    def test_vip_weekly_plan_missing_function(self):
+    def test_vip_weekly_plan_missing_function(self, vip_headers):
         """Тест VIP weekly plan когда make_weekly_menu недоступен"""
         with patch("app.routers.vip.make_weekly_menu", None):
             import app
@@ -47,13 +47,15 @@ class TestVIPCoverageBoost:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json={"user_id": "test", "preferences": {}, "calories": 2000},
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_shoplist_weekly_new_api_format(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vip_shoplist_weekly_new_api_format(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
+    ) -> None:
         """Тест VIP shoplist weekly endpoint with new API format"""
         import app
 
@@ -99,7 +101,7 @@ class TestVIPCoverageBoost:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -107,7 +109,7 @@ class TestVIPCoverageBoost:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_endpoint_success(self) -> None:
+    def test_vip_regions_endpoint_success(self, vip_headers) -> None:
         """Тест VIP regions endpoint: возвращает success и список регионов"""
         import app
 
@@ -115,7 +117,7 @@ class TestVIPCoverageBoost:
 
         response = client.get(
             "/api/v1/vip/regions",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -131,7 +133,7 @@ class TestVIPCoverageBoost:
         if "total_regions" in data:
             assert data["total_regions"] == len(data["regions"])
 
-    def test_vip_recipe_synthesis_missing_function(self):
+    def test_vip_recipe_synthesis_missing_function(self, vip_headers):
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""
         with patch("app.routers.vip.get_recipe_synthesizer", None):
             import app
@@ -149,13 +151,13 @@ class TestVIPCoverageBoost:
                     "difficulty_preference": "easy",
                     "servings": 2,
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_auto_repair_missing_function(self):
+    def test_vip_auto_repair_missing_function(self, vip_headers):
         """Тест VIP auto repair когда get_auto_repair_engine недоступен"""
         with patch("app.routers.vip.get_auto_repair_engine", None):
             import app
@@ -165,13 +167,15 @@ class TestVIPCoverageBoost:
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json={"plan_id": "test123"},
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "error"  # Exception handling path
 
-    def test_vip_with_all_functions_working(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vip_with_all_functions_working(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
+    ) -> None:
         """Тест VIP endpoints с функциональными мок-функциями"""
         # Моксим функции чтобы они возвращали данные
         mock_make_weekly_menu = MagicMock()
@@ -222,7 +226,7 @@ class TestVIPCoverageBoost:
                     "user_id": "test",
                     "preferences": {},
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 
@@ -265,7 +269,7 @@ class TestVIPCoverageBoost:
                             }
                         ]
                     },
-                    headers={"X-API-Key": "test_key"},
+                    headers=vip_headers,
                 )
                 assert response.status_code == 200
                 data = response.json()
@@ -276,7 +280,7 @@ class TestVIPCoverageBoost:
             # Тест regions
             response = client.get(
                 "/api/v1/vip/regions",
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 
@@ -292,7 +296,7 @@ class TestVIPCoverageBoost:
                     "difficulty_preference": "easy",
                     "servings": 2,
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 
@@ -300,11 +304,11 @@ class TestVIPCoverageBoost:
             response = client.post(
                 "/api/v1/vip/auto-repair/weekly",
                 json={"plan_id": "test123"},
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 
-    def test_vip_error_handling_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_vip_error_handling_paths(self, monkeypatch: pytest.MonkeyPatch, vip_headers) -> None:
         """Тест VIP error handling когда функции поднимают исключения"""
         # Моксим функции чтобы они поднимали исключения
         mock_make_weekly_menu = MagicMock()
@@ -335,7 +339,7 @@ class TestVIPCoverageBoost:
                     "user_id": "test",
                     "preferences": {},
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 
@@ -371,7 +375,7 @@ class TestVIPCoverageBoost:
                             }
                         ]
                     },
-                    headers={"X-API-Key": "test_key"},
+                    headers=vip_headers,
                 )
                 assert response.status_code == 422
             finally:

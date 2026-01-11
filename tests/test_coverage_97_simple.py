@@ -125,7 +125,7 @@ class TestCoverage97Simple:
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 500, 503]
 
-    def test_vip_weekly_menu_endpoint_coverage(self) -> None:
+    def test_vip_weekly_menu_endpoint_coverage(self, vip_headers) -> None:
         """Тест покрытия VIP weekly menu endpoint"""
         from fastapi.testclient import TestClient
 
@@ -141,12 +141,10 @@ class TestCoverage97Simple:
             "goal": "maintain",
         }
 
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
-    def test_vip_recipes_endpoint_coverage(self) -> None:
+    def test_vip_recipes_endpoint_coverage(self, vip_headers) -> None:
         """Тест покрытия VIP recipes endpoint"""
         from fastapi.testclient import TestClient
 
@@ -161,12 +159,10 @@ class TestCoverage97Simple:
             }
         }
 
-        response = client.post(
-            "/api/v1/vip/recipes/weekly", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/vip/recipes/weekly", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
-    def test_vip_auto_repair_endpoint_coverage(self) -> None:
+    def test_vip_auto_repair_endpoint_coverage(self, vip_headers) -> None:
         """Тест покрытия VIP auto repair endpoint"""
         from fastapi.testclient import TestClient
 
@@ -181,9 +177,7 @@ class TestCoverage97Simple:
             }
         }
 
-        response = client.post(
-            "/api/v1/vip/auto-repair/weekly", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
     def test_app_error_handling_coverage(self) -> None:

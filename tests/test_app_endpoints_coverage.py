@@ -95,7 +95,7 @@ class TestAppEndpointsCoverage:
         )
         assert response.status_code in [200, 404, 422]
 
-    def test_app_vip_endpoints_coverage(self, client):
+    def test_app_vip_endpoints_coverage(self, client, vip_headers):
         """Тест покрытия app.py VIP endpoints"""
         # Тестируем VIP endpoints
         response = client.post(
@@ -108,7 +108,7 @@ class TestAppEndpointsCoverage:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
 

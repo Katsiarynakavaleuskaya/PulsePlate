@@ -23,7 +23,7 @@ def _get_app():
 class TestVIPCoverageWorking:
     """VIP coverage tests for echo mode endpoints."""
 
-    def test_vip_weekly_plan_endpoint(self):
+    def test_vip_weekly_plan_endpoint(self, vip_headers):
         """Тест VIP weekly plan endpoint в echo режиме"""
         client = TestClient(_get_app())
 
@@ -40,7 +40,7 @@ class TestVIPCoverageWorking:
                 "preferences": {"diet": "balanced"},
                 "calories": 2000,
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -48,7 +48,7 @@ class TestVIPCoverageWorking:
         assert "echo" in data
         assert "menu" in data
 
-    def test_vip_shoplist_endpoint(self, monkeypatch):
+    def test_vip_shoplist_endpoint(self, monkeypatch, vip_headers):
         """Тест VIP shoplist endpoint"""
         import app
         from app.middleware import api_tiers
@@ -88,7 +88,7 @@ class TestVIPCoverageWorking:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -96,41 +96,41 @@ class TestVIPCoverageWorking:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_endpoint(self):
+    def test_vip_regions_endpoint(self, vip_headers):
         """Тест VIP regions endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "regions" in data
         assert "echo" in data
 
-    def test_vip_recipe_synthesis_endpoint(self):
+    def test_vip_recipe_synthesis_endpoint(self, vip_headers):
         """Тест VIP recipe synthesis endpoint в echo режиме"""
         client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/recipes/synthesize",
             json={"ingredients": ["chicken", "rice", "vegetables"]},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "echo" in data
 
-    def test_vip_auto_repair_endpoint(self):
+    def test_vip_auto_repair_endpoint(self, vip_headers):
         """Тест VIP auto repair endpoint в echo режиме"""
         client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json={"plan_id": "test123", "gaps": ["vitamin_d", "iron"]},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -140,7 +140,7 @@ class TestVIPCoverageWorking:
         ]  # Allow either status depending on module availability
         assert "echo" in data
 
-    def test_vip_daily_shoplist_endpoint(self, monkeypatch):
+    def test_vip_daily_shoplist_endpoint(self, monkeypatch, vip_headers):
         """Тест VIP daily shoplist endpoint"""
         import app
         from app.middleware import api_tiers
@@ -172,7 +172,7 @@ class TestVIPCoverageWorking:
                         }
                     ],
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -181,67 +181,67 @@ class TestVIPCoverageWorking:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_formats_endpoint(self):
+    def test_vip_shoplist_formats_endpoint(self, vip_headers):
         """Тест VIP shoplist formats endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/shoplist/formats",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "formats" in data
 
-    def test_vip_region_search_endpoint(self):
+    def test_vip_region_search_endpoint(self, vip_headers):
         """Тест VIP region search endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/BY/search?query=milk",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "products" in data
 
-    def test_vip_region_categories_endpoint(self):
+    def test_vip_region_categories_endpoint(self, vip_headers):
         """Тест VIP region categories endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/BY/categories",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "categories" in data
 
-    def test_vip_region_stores_endpoint(self):
+    def test_vip_region_stores_endpoint(self, vip_headers):
         """Тест VIP region stores endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/BY/stores",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "stores" in data
 
-    def test_vip_price_comparison_endpoint(self):
+    def test_vip_price_comparison_endpoint(self, vip_headers):
         """Тест VIP price comparison endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/regions/compare/milk",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "comparison" in data
 
-    def test_vip_weekly_recipes_endpoint(self):
+    def test_vip_weekly_recipes_endpoint(self, vip_headers):
         """Тест VIP weekly recipes endpoint"""
         client = TestClient(_get_app())
 
@@ -276,56 +276,56 @@ class TestVIPCoverageWorking:
                 },
                 "recipes_per_day": 1,
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_vip_recipe_templates_endpoint(self):
+    def test_vip_recipe_templates_endpoint(self, vip_headers):
         """Тест VIP recipe templates endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/recipes/templates",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "templates" in data
 
-    def test_vip_repair_suggestions_endpoint(self):
+    def test_vip_repair_suggestions_endpoint(self, vip_headers):
         """Тест VIP repair suggestions endpoint"""
         client = TestClient(_get_app())
 
         response = client.post(
             "/api/v1/vip/auto-repair/suggestions",
             json={"gaps": ["vitamin_d"], "preferences": {"vegetarian": True}},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_vip_repair_strategies_endpoint(self):
+    def test_vip_repair_strategies_endpoint(self, vip_headers):
         """Тест VIP repair strategies endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/auto-repair/strategies",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert "strategies" in data
 
-    def test_vip_health_endpoint(self):
+    def test_vip_health_endpoint(self, vip_headers):
         """Тест VIP health endpoint"""
         client = TestClient(_get_app())
 
         response = client.get(
             "/api/v1/vip/health",
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -349,7 +349,7 @@ class TestVIPCoverageWorking:
             )
             assert response.status_code in (401, 403)
 
-    def test_vip_endpoints_invalid_json(self):
+    def test_vip_endpoints_invalid_json(self, vip_headers):
         """Тест VIP endpoints с невалидным JSON"""
         client = TestClient(_get_app())
 
@@ -357,7 +357,7 @@ class TestVIPCoverageWorking:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json={"invalid": None, "calories": 2000},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         # Echo mode should still work
         assert response.status_code == 200

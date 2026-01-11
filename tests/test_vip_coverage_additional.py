@@ -121,7 +121,7 @@ class TestVIPCoverageAdditional:
         data = response.json()
         assert "vip access" in data["detail"].lower()
 
-    def test_vip_weekly_menu_plan_success_coverage_lines_172_178(self):
+    def test_vip_weekly_menu_plan_success_coverage_lines_172_178(self, vip_headers):
         """Test VIP weekly menu plan success coverage for lines 172-178."""
         import app
 
@@ -142,14 +142,14 @@ class TestVIPCoverageAdditional:
                     "goal": "maintain",
                     "calories": 2000,
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
             assert "menu" in data
 
-    def test_vip_weekly_menu_plan_safe_call_error_coverage_lines_188_190(self):
+    def test_vip_weekly_menu_plan_safe_call_error_coverage_lines_188_190(self, vip_headers):
         """Test VIP weekly menu plan _safe_call error coverage for lines 188-190."""
         import app
 
@@ -168,7 +168,7 @@ class TestVIPCoverageAdditional:
                     "goal": "maintain",
                     "calories": 2000,
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -176,7 +176,7 @@ class TestVIPCoverageAdditional:
             assert "menu" in data
 
     def test_vip_shoplist_weekly_success_coverage_lines_217_254(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
     ):
         """Test VIP shoplist weekly success coverage for lines 217-254."""
         import app
@@ -223,7 +223,7 @@ class TestVIPCoverageAdditional:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -233,7 +233,7 @@ class TestVIPCoverageAdditional:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
     def test_vip_shoplist_weekly_error_coverage_lines_254_266(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
     ):
         """Test VIP shoplist weekly error coverage for lines 254-266."""
         import app
@@ -272,13 +272,13 @@ class TestVIPCoverageAdditional:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 422
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_success_coverage_lines_293_300(self, monkeypatch):
+    def test_vip_shoplist_daily_success_coverage_lines_293_300(self, monkeypatch, vip_headers):
         """Test VIP shoplist daily success coverage for lines 293-300."""
         import app
 
@@ -316,7 +316,7 @@ class TestVIPCoverageAdditional:
                         }
                     ],
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -325,7 +325,9 @@ class TestVIPCoverageAdditional:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_error_coverage_lines_300_312(self, monkeypatch: pytest.MonkeyPatch):
+    def test_vip_shoplist_daily_error_coverage_lines_300_312(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
+    ):
         """Test VIP shoplist daily error coverage for lines 300-312."""
         import app
 
@@ -359,13 +361,13 @@ class TestVIPCoverageAdditional:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 422
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_formats_success_coverage_lines_304_348(self):
+    def test_vip_shoplist_formats_success_coverage_lines_304_348(self, vip_headers):
         """Test VIP shoplist formats success coverage for lines 304-348."""
         import app
 
@@ -373,13 +375,13 @@ class TestVIPCoverageAdditional:
 
         # Mock format_export to return success
         with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
-            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
+            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
             assert "formats" in data
 
-    def test_vip_shoplist_formats_error_coverage_lines_304_348(self):
+    def test_vip_shoplist_formats_error_coverage_lines_304_348(self, vip_headers):
         """Test VIP shoplist formats error coverage for lines 304-348."""
         import app
 
@@ -387,7 +389,7 @@ class TestVIPCoverageAdditional:
 
         # Mock format_export to raise exception
         with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):
-            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
+            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"  # Returns success in echo mode
