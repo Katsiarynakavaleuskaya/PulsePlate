@@ -49,7 +49,9 @@ def test_deprecated_weekly_plan_handles_dict_plan(
     # NOTE: String-based module patching (e.g. "app.routers.vip.make_weekly_menu") can be flaky
     # under dual-module / reload / shim-import behavior. Patch the registered route handler globals
     # for determinism (see docs/ENGINEERING_LESSONS.md).
-    monkeypatch.setitem(deprecated_route.endpoint.__globals__, "make_weekly_menu", fake_make_weekly_menu)
+    monkeypatch.setitem(
+        deprecated_route.endpoint.__globals__, "make_weekly_menu", fake_make_weekly_menu
+    )
     assert deprecated_route.endpoint.__globals__["make_weekly_menu"] is fake_make_weekly_menu
 
     payload = {
