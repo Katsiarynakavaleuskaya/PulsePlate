@@ -15,9 +15,8 @@
 | **VIP**     | канон  | продвинутые планы, микро-логика | `SubscriptionTier.VIP` (`app/middleware/api_tiers.py:49`), `require_vip_tier()` |
 
 > ⚠️ **Важно:**
-> `pro_*` в именах файлов/функций — **техническое legacy-название**,
-> но **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
->
+> `pro_*` в именах файлов/функций — **техническое legacy-название**.
+> При этом **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
 > `/premium/*` — **deprecated API namespace**, который требует PRO tier, но не является отдельным уровнем.
 
 ---
@@ -55,7 +54,7 @@
 
 ## 2️⃣ PRO — Nutrition / Targets / Daily Plate
 
-*(средний платный сегмент)*
+_средний платный сегмент_
 
 ### Бизнес-смысл
 
@@ -96,8 +95,8 @@
 > ⚠️ **Примечание:** Endpoints под `/premium/*`, которые **фактически требуют VIP tier**, не относятся к PRO и перечислены в разделе VIP (см. секцию "Deprecated aliases with wrong namespace").
 
 > ⚠️ **Ключевое понимание:**
-> `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`),
-> но namespace `/premium/*` — **deprecated**, мигрирует на `/api/v1/pro/*`.
+> `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`);
+> namespace `/premium/*` при этом **deprecated**, мигрирует на `/api/v1/pro/*`.
 
 ### Что НЕ входит
 
@@ -115,7 +114,7 @@
 
 ## 3️⃣ VIP — Weekly / Micro / Shoplist
 
-*(высший платный сегмент)*
+_высший платный сегмент_
 
 ### Бизнес-смысл
 
