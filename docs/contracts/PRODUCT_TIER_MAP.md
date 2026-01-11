@@ -88,11 +88,12 @@
 
 | Функция        | Endpoint                        | Статус           | Требует tier | Код-доказательство                        |
 | -------------- | ------------------------------- | ---------------- | ------------ | ----------------------------------------- |
-| Weekly plan    | `/api/v1/premium/plan/week`     | ⚠️ deprecated    | PRO          | `app/routers/premium_week.py:178`         |
 | Weekly plan    | `/api/v1/premium/plan/week-flexible` | ⚠️ deprecated | PRO          | `app/routers/premium_week.py:290`         |
 | Targets        | `/api/v1/premium/targets`       | ⚠️ legacy shim   | PRO          | `legacy_app.py:4685`                      |
 | Daily plate    | `/api/v1/premium/plate`         | ⚠️ legacy shim   | PRO          | `legacy_app.py:3980`                      |
 | BMR            | `/premium_bmr`                  | ⚠️ legacy        | PRO          | `legacy_app.py:4148`                      |
+
+> ⚠️ **Примечание:** Endpoints под `/premium/*`, которые **фактически требуют VIP tier**, не относятся к PRO и перечислены в разделе VIP (см. секцию "Deprecated aliases with wrong namespace").
 
 > ⚠️ **Ключевое понимание:**
 > `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`),
@@ -141,16 +142,16 @@
 | Recipe synthesize    | `/api/v1/vip/recipes/synthesize`  | ✅ canonical | VIP          | `app/routers/vip.py`                      |
 | Auto-repair          | `/api/v1/vip/auto-repair/*`        | ✅ canonical | VIP          | `app/routers/vip.py` (via core.auto_repair) |
 
-### Deprecated (но требует VIP tier)
+### Deprecated aliases with wrong namespace (требуют VIP tier)
 
-| Функция       | Endpoint                     | Статус        | Требует tier | Код-доказательство                |
-| ------------- | ---------------------------- | ------------- | ------------ | ---------------------------------- |
-| Weekly plan   | `/api/v1/premium/plan/week`  | ⚠️ legacy     | VIP (через VIP_MODULE_ENABLED) | `legacy_app.py:4706`               |
-| Exports       | `/api/v1/premium/exports/*`  | ⚠️ legacy     | VIP          | `legacy_app.py:5194, 5440, 5525`  |
+| Функция       | Endpoint                     | Статус        | Требует tier | Проблема | Канонический endpoint | Код-доказательство                |
+| ------------- | ---------------------------- | ------------- | ------------ | -------- | --------------------- | ---------------------------------- |
+| Weekly plan   | `/api/v1/premium/plan/week`  | 🔴 **broken naming** | VIP (через VIP_MODULE_ENABLED) | Wrong namespace (`/premium/*` вместо `/vip/*`) | `/api/v1/vip/menu/weekly/plan` | `legacy_app.py:4706`               |
+| Exports       | `/api/v1/premium/exports/*`  | ⚠️ legacy     | VIP          | Wrong namespace | `/api/v1/vip/shoplist/export` | `legacy_app.py:5194, 5440, 5525`  |
 
 > ⚠️ **Ключевая проблема:**
-> Некоторые VIP-функции живут под `/premium/*` namespace → **это источник путаницы**,
-> но пока **не ломаем**, а **фиксируем как debt**.
+> Эти endpoints требуют **VIP tier**, но живут под `/premium/*` namespace (deprecated PRO namespace) → **архитектурная путаница**.
+> Это фиксируется как known issue и будет исправлено в PR-C (delegation pattern).
 
 ### Правила
 
@@ -192,7 +193,7 @@
 | **PRO**         | продуктовый уровень (платный, средний)      | `SubscriptionTier.PRO` (`api_tiers.py:48`)             |
 | **VIP**         | продуктовый уровень (платный, высший)       | `SubscriptionTier.VIP` (`api_tiers.py:49`)            |
 | `pro_*`         | ❗ техническое legacy-название в коде       | `pro_registration.py`, `pro_router`, `shopping_list_pro.py` |
-| `/premium/*`    | ⚠️ deprecated API namespace (требует PRO)  | `premium_week.py:31`, `legacy_app.py:3980, 4685`     |
+| `/premium/*`    | ⚠️ deprecated API namespace (требует PRO или VIP, зависит от endpoint)  | `premium_week.py:31`, `legacy_app.py:3980, 4685, 4706`     |
 | `/api/v1/pro/*` | ✅ canonical PRO namespace                   | `app/routers/pro.py:37`                               |
 | `/api/v1/vip/*` | ✅ canonical VIP namespace                   | `app/routers/vip.py`, `app/routers/vip_shoplist.py`  |
 
