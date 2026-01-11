@@ -268,7 +268,9 @@ class TestVIPCoverage97Integration:
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_adapter_make_weekly_menu(self, test_environment, vip_headers):
+    def test_vip_coverage_simple_mocks_adapter_make_weekly_menu(
+        self, test_environment, vip_headers
+    ):
         """Тест покрытия VIP _adapter_make_weekly_menu с простыми моками"""
         import app
 

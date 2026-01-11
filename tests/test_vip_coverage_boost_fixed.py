@@ -96,7 +96,9 @@ class TestVIPCoverageBoostFixed:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_missing_function(self, monkeypatch: pytest.MonkeyPatch, vip_headers) -> None:
+    def test_vip_regions_missing_function(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
+    ) -> None:
         """Тест VIP regions когда get_available_regions недоступен.
 
         Patch the actual route endpoint globals (not just the module attribute) to avoid
@@ -154,7 +156,9 @@ class TestVIPCoverageBoostFixed:
             )
             assert response.status_code == 200
 
-    def test_vip_with_all_functions_working(self, monkeypatch: pytest.MonkeyPatch, vip_headers) -> None:
+    def test_vip_with_all_functions_working(
+        self, monkeypatch: pytest.MonkeyPatch, vip_headers
+    ) -> None:
         """Тест VIP endpoints с функциональными мок-функциями"""
         import app
 

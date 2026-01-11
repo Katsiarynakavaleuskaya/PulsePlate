@@ -360,9 +360,7 @@ class TestVIPCoveragePrecise:
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test region search endpoint
-        response = client.get(
-            "/api/v1/vip/regions/ES/search?query=test", headers=vip_headers
-        )
+        response = client.get("/api/v1/vip/regions/ES/search?query=test", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -375,9 +373,7 @@ class TestVIPCoveragePrecise:
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test region categories endpoint
-        response = client.get(
-            "/api/v1/vip/regions/ES/categories", headers=vip_headers
-        )
+        response = client.get("/api/v1/vip/regions/ES/categories", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -403,9 +399,7 @@ class TestVIPCoveragePrecise:
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test price comparison endpoint
-        response = client.get(
-            "/api/v1/vip/regions/compare/test-product", headers=vip_headers
-        )
+        response = client.get("/api/v1/vip/regions/compare/test-product", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"

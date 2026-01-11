@@ -483,7 +483,9 @@ class TestCoverage97UltimateBoost:
             )
             assert response.status_code == 200
 
-    def test_app_coverage_ultimate_boost_missing_lines_1342_1365(self, test_environment, vip_headers):
+    def test_app_coverage_ultimate_boost_missing_lines_1342_1365(
+        self, test_environment, vip_headers
+    ):
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
         import app
 
