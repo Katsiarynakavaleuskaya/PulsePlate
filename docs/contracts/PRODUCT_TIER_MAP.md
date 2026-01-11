@@ -16,7 +16,7 @@
 
 > ⚠️ **Важно:**
 > `pro_*` в именах файлов/функций — **техническое legacy-название**,
-> но, **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
+> но **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
 >
 > `/premium/*` — **deprecated API namespace**, который требует PRO tier, но не является отдельным уровнем.
 
@@ -97,7 +97,7 @@
 
 > ⚠️ **Ключевое понимание:**
 > `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`),
-> но, namespace `/premium/*` — **deprecated**, мигрирует на `/api/v1/pro/*`.
+> но namespace `/premium/*` — **deprecated**, мигрирует на `/api/v1/pro/*`.
 
 ### Что НЕ входит
 
