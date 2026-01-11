@@ -21,9 +21,9 @@ assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
 client = TestClient(cast(ASGIApp, app.app))
 
 
-def test_vip_health():
+def test_vip_health(vip_headers):
     """Test VIP health endpoint returns 200"""
-    r = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/health", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -31,7 +31,7 @@ def test_vip_health():
     assert "features" in data
 
 
-def test_vip_weekly_plan_echo():
+def test_vip_weekly_plan_echo(vip_headers):
     """Test VIP weekly plan endpoint returns echo structure"""
     payload = {
         "sex": "male",
@@ -45,7 +45,7 @@ def test_vip_weekly_plan_echo():
         "goals": {"calories": 2000, "protein": 150},
         "constraints": {"diet_flags": ["VEG"]},
     }
-    r = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"})
+    r = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -55,12 +55,10 @@ def test_vip_weekly_plan_echo():
     assert data["echo"]["constraints"] == payload["constraints"]
 
 
-def test_vip_weekly_repair_echo():
+def test_vip_weekly_repair_echo(vip_headers):
     """Test VIP weekly repair endpoint returns echo structure"""
     payload = {"menu": {"days": 7, "meals": []}, "deficits": {"Ca": 200, "VitD": 100}}
-    r = client.post(
-        "/api/v1/vip/menu/weekly/repair", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/menu/weekly/repair", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -68,12 +66,12 @@ def test_vip_weekly_repair_echo():
     assert data["echo"] == payload
 
 
-def test_vip_module_enabled():
+def test_vip_module_enabled(vip_headers):
     """Ensure VIP module is enabled and the health endpoint responds with 200."""
     # Confirm the FastAPI app is initialised with the VIP router
     assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
     client = TestClient(cast(ASGIApp, app.app))
-    r = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/health", headers=vip_headers)
     # VIP module is enabled, so expect 200
     assert r.status_code == 200
 
@@ -154,8 +152,10 @@ def test_vip_shoplist_weekly(monkeypatch):
             ]
         }
 
+        from app.middleware.api_tiers import TEST_KEY_VIP
+
         r = client.post(
-            "/api/v1/vip/shoplist/weekly", json=payload, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/shoplist/weekly", json=payload, headers={"X-API-Key": TEST_KEY_VIP}
         )
         assert r.status_code == 200
         data = r.json()
@@ -219,8 +219,10 @@ def test_vip_shoplist_daily(monkeypatch):
             ],
         }
 
+        from app.middleware.api_tiers import TEST_KEY_VIP
+
         r = client.post(
-            "/api/v1/vip/shoplist/daily", json=payload, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/shoplist/daily", json=payload, headers={"X-API-Key": TEST_KEY_VIP}
         )
         assert r.status_code == 200
         data = r.json()
@@ -231,9 +233,9 @@ def test_vip_shoplist_daily(monkeypatch):
         app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
 
-def test_vip_shoplist_formats():
+def test_vip_shoplist_formats(vip_headers):
     """Test VIP shoplist formats endpoint"""
-    r = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -247,9 +249,9 @@ def test_vip_shoplist_formats():
     assert "es" in data["locales"]
 
 
-def test_vip_regions():
+def test_vip_regions(vip_headers):
     """Test VIP regions endpoint"""
-    r = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -258,9 +260,9 @@ def test_vip_regions():
     assert isinstance(data["regions"], list)
 
 
-def test_vip_region_search():
+def test_vip_region_search(vip_headers):
     """Test VIP region search endpoint"""
-    r = client.get("/api/v1/vip/regions/es/search?query=tomato", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/es/search?query=tomato", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -271,9 +273,9 @@ def test_vip_region_search():
     assert data["query"] == "tomato"
 
 
-def test_vip_region_categories():
+def test_vip_region_categories(vip_headers):
     """Test VIP region categories endpoint"""
-    r = client.get("/api/v1/vip/regions/es/categories", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/es/categories", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -283,9 +285,9 @@ def test_vip_region_categories():
     assert data["region"] == "es"
 
 
-def test_vip_region_stores():
+def test_vip_region_stores(vip_headers):
     """Test VIP region stores endpoint"""
-    r = client.get("/api/v1/vip/regions/es/stores", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/es/stores", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -295,9 +297,9 @@ def test_vip_region_stores():
     assert data["region"] == "es"
 
 
-def test_vip_region_price_comparison():
+def test_vip_region_price_comparison(vip_headers):
     """Test VIP region price comparison endpoint"""
-    r = client.get("/api/v1/vip/regions/compare/tomato", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/compare/tomato", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -307,7 +309,7 @@ def test_vip_region_price_comparison():
     assert data["product_name"] == "tomato"
 
 
-def test_vip_recipe_synthesize():
+def test_vip_recipe_synthesize(vip_headers):
     """Test VIP recipe synthesis endpoint"""
     payload = {
         "ingredients": [
@@ -320,9 +322,7 @@ def test_vip_recipe_synthesize():
         "servings": 4,
     }
 
-    r = client.post(
-        "/api/v1/vip/recipes/synthesize", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/recipes/synthesize", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -334,7 +334,7 @@ def test_vip_recipe_synthesize():
     assert "steps" in data["recipe"]
 
 
-def test_vip_recipe_weekly():
+def test_vip_recipe_weekly(vip_headers):
     """Test VIP weekly recipe synthesis endpoint"""
     payload = {
         "week_plan": {
@@ -366,7 +366,7 @@ def test_vip_recipe_weekly():
         "recipes_per_day": 1,
     }
 
-    r = client.post("/api/v1/vip/recipes/weekly", json=payload, headers={"X-API-Key": "test_key"})
+    r = client.post("/api/v1/vip/recipes/weekly", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -375,9 +375,9 @@ def test_vip_recipe_weekly():
     assert data["total_recipes"] > 0
 
 
-def test_vip_recipe_templates():
+def test_vip_recipe_templates(vip_headers):
     """Test VIP recipe templates endpoint"""
-    r = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/recipes/templates", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -387,7 +387,7 @@ def test_vip_recipe_templates():
     assert data["total_templates"] > 0
 
 
-def test_vip_auto_repair_weekly():
+def test_vip_auto_repair_weekly(vip_headers):
     """Test VIP auto-repair weekly plan endpoint"""
     payload = {
         "week_plan": {
@@ -416,9 +416,7 @@ def test_vip_auto_repair_weekly():
         "user_preferences": {},
     }
 
-    r = client.post(
-        "/api/v1/vip/auto-repair/weekly", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -428,7 +426,7 @@ def test_vip_auto_repair_weekly():
     assert "iterations" in data["repair_result"]
 
 
-def test_vip_auto_repair_suggestions():
+def test_vip_auto_repair_suggestions(vip_headers):
     """Test VIP auto-repair suggestions endpoint"""
     payload = {
         "week_plan": {
@@ -455,9 +453,7 @@ def test_vip_auto_repair_suggestions():
         },
     }
 
-    r = client.post(
-        "/api/v1/vip/auto-repair/suggestions", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/auto-repair/suggestions", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -466,9 +462,9 @@ def test_vip_auto_repair_suggestions():
     assert isinstance(data["suggestions"], list)
 
 
-def test_vip_auto_repair_strategies():
+def test_vip_auto_repair_strategies(vip_headers):
     """Test VIP auto-repair strategies endpoint"""
-    r = client.get("/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/auto-repair/strategies", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"

@@ -37,20 +37,31 @@ def test_require_api_key_dev_fallback_returns_test_key():
     assert _require_api_key(None) == "test_key"
 
 
-def test_require_api_key_strict_missing_key_raises():
-    from app.routers.vip import _require_api_key_strict
-    from fastapi import Request
-    from unittest.mock import MagicMock
+def test_require_vip_tier_missing_key_returns_403(client):
+    """Test that VIP endpoints return 403 when no API key is provided.
 
-    os.environ["APP_ENV"] = "development"
-    os.environ["DEBUG"] = "true"
-    # Create a mock Request with no API key headers
-    mock_request = MagicMock(spec=Request)
-    mock_request.headers.get.return_value = None
-    with pytest.raises(HTTPException) as ei:
-        _require_api_key_strict(mock_request)
-    assert ei.value.status_code == 403  # VIP = feature-gate, returns 403
-    assert "vip" in ei.value.detail.lower() or "access" in ei.value.detail.lower()
+    RU: Тест, что VIP endpoints возвращают 403 при отсутствии API ключа.
+    EN: Test that VIP endpoints return 403 when no API key is provided.
+
+    This is a behavioral test through TestClient, not testing private router functions.
+    VIP guard (require_vip_tier) is a feature-gate: missing key yields 403.
+    """
+    # Test without API key header
+    response = client.get("/api/v1/vip/health", headers={})
+    assert response.status_code == 403
+    assert "vip" in response.json().get("detail", "").lower() or "access" in response.json().get("detail", "").lower()
+
+
+def test_require_vip_tier_with_vip_key_returns_2xx(client):
+    """Test that VIP endpoints return 2xx when valid VIP key is provided.
+
+    RU: Тест, что VIP endpoints возвращают 2xx при валидном VIP ключе.
+    EN: Test that VIP endpoints return 2xx when valid VIP key is provided.
+    """
+    from app.middleware.api_tiers import TEST_KEY_VIP
+
+    response = client.get("/api/v1/vip/health", headers={"X-API-Key": TEST_KEY_VIP})
+    assert response.status_code < 400
 
 
 def test_require_api_key_dev_legacy_nonprod_and_prod_allow():

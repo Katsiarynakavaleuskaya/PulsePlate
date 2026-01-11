@@ -248,6 +248,13 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Tiers are: FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
 - **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
 - **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
+
+### Testing tier guards (VIP/PRO endpoints)
+- **All tests that call VIP endpoints and expect 200/422/404 MUST use valid VIP key** (`vip_headers` fixture from `tests/conftest.py`).
+- **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
+- **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
+- **Forbidden:** Testing private `_require_*` functions from routers — use behavioral tests through `TestClient` + middleware.
+- **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
 - **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
 
