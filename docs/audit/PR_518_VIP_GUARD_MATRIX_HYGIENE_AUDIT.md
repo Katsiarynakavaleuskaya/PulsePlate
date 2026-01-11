@@ -1,7 +1,7 @@
 # PR-518 — VIP Guard Matrix + Test Hygiene Audit
 
-**Date:** 2026-01-11  
-**Scope:** Test hygiene improvements + canonical VIP guard matrix  
+**Date:** 2026-01-11
+**Scope:** Test hygiene improvements + canonical VIP guard matrix
 **Goal:** Fix test pollution, sys.modules violations, and create single source of truth for VIP tier guard matrix
 
 ---
@@ -107,7 +107,7 @@ def teardown_method(self):
 
 **Content:** Parametrized matrix test covering all 17 VIP endpoints:
 - FREE (empty headers) → 403 + error envelope
-- PRO (`TEST_KEY_PRO`) → 403 + error envelope  
+- PRO (`TEST_KEY_PRO`) → 403 + error envelope
 - VIP (`TEST_KEY_VIP`) → 2xx
 
 **DoD:** Single parametrized test covers all 17 endpoints with tier denial matrix.

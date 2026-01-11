@@ -17,9 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
 
-VIP_DENY_MESSAGE = (
-    "API key does not have VIP tier access. Upgrade to VIP to access this feature."
-)
+VIP_DENY_MESSAGE = "API key does not have VIP tier access. Upgrade to VIP to access this feature."
 
 
 @dataclass(frozen=True)
