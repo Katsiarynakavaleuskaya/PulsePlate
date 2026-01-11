@@ -103,14 +103,17 @@ def teardown_method(self):
 
 ### R3 — Create canonical VIP guard matrix test
 
-**File:** `tests/test_vip_api.py` (add at end)
+**File:** `tests/test_vip_tier_guard_matrix.py`
 
 **Content:** Parametrized matrix test covering all 17 VIP endpoints:
-- FREE (empty headers) → 403 + error envelope
-- PRO (`TEST_KEY_PRO`) → 403 + error envelope
+- Invalid key → 403 with canonical VIP denial message
+- PRO (`TEST_KEY_PRO`) → 403 with canonical VIP denial message
 - VIP (`TEST_KEY_VIP`) → 2xx
 
-**DoD:** Single parametrized test covers all 17 endpoints with tier denial matrix.
+**Note:** No API key (`{}` headers) is a different contract (`"VIP access required"`) and is covered
+separately in `tests/test_vip_no_api_key_403.py`.
+
+**DoD:** Single parametrized test covers all 17 endpoints with tier denial matrix (invalid/PRO/VIP).
 
 ---
 
@@ -156,7 +159,7 @@ def teardown_method(self):
 
 - [ ] Env cleanup: all vars set in setup are cleaned in teardown
 - [ ] sys.modules: all mutations via monkeypatch (no direct del/assign)
-- [ ] VIP guard matrix: single parametrized test in `test_vip_api.py` covers all 17
+- [ ] VIP guard matrix: single parametrized test in `tests/test_vip_tier_guard_matrix.py` covers all 17
 - [ ] AGENTS.md: rule added for dependency override pattern
 - [ ] CI green: `make verify` passes
 - [ ] No breaking changes: existing tests still pass
