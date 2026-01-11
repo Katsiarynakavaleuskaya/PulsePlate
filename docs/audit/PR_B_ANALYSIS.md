@@ -181,7 +181,7 @@ def headers_for_tier():
 ### Commit 2: Cleanup
 1. Проверить: `rg "_require_api_key_strict" app/routers/vip.py` → должно быть 0
 2. Удалить функцию `_require_api_key_strict()` (lines 403-434)
-3. Проверить: `rg "_require_api_key\(|_get_configured_api_key|_extract_api_key"` → если используется только в удаленной функции, удалить
+3. Проверить: `rg '_require_api_key|_get_configured_api_key|_extract_api_key'` → если используется только в удаленной функции, удалить
 
 ### Commit 3: Tests
 1. Создать `tests/test_vip_guard_consistency.py`

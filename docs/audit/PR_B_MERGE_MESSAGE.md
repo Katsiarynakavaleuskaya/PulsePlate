@@ -1,12 +1,12 @@
 # PR-B Merge Message (Squash & Merge)
 
 ## Title
-```
+```text
 feat(vip): enforce VIP tier guard consistency + OpenAPI security scheme
 ```
 
 ## Body
-```
+```text
 Move tier dependencies from Header() to Security(APIKeyHeader) to keep OpenAPI clean and prevent per-operation header parameters.
 
 Changes:

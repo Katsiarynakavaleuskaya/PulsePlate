@@ -8,6 +8,8 @@ from typing import cast
 import pytest
 from starlette.types import ASGIApp
 
+from app.main import app as main_app
+
 
 class TestCoverage97Simple:
     """Простые тесты для покрытия до 97%"""
@@ -109,13 +111,9 @@ class TestCoverage97Simple:
         """Тест покрытия metrics endpoint"""
         from fastapi.testclient import TestClient
 
-        from app.main import app as main_app
-
         client = TestClient(cast(ASGIApp, main_app))
         response = client.get("/metrics")
-        # /metrics may be conditionally registered depending on import order / env gating.
-        # This coverage test should not be flaky under xdist.
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
 
     def test_app_admin_status_endpoint_coverage(self) -> None:
         """Тест покрытия admin status endpoint"""
