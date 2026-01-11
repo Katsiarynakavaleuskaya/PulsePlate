@@ -2,10 +2,12 @@
 Clean VIP coverage tests with proper isolation.
 """
 
+from __future__ import annotations
+
+import importlib
 import os
 import sys
 from typing import cast
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,21 +23,6 @@ class TestVIPCoverageClean:
         """Set up test fixtures with proper isolation."""
         # Store original state
         self.original_api_key = os.environ.get("API_KEY")
-        # Store only the modules we might modify
-        self.modules_to_watch = [
-            "app.routers.vip",
-            "core.auto_repair",
-            "core.menu_engine",
-            "core.recipe_synth",
-            "core.region_catalog",
-            "core.shoplist",
-        ]
-
-        self.original_modules = {
-            module_name: sys.modules[module_name]
-            for module_name in self.modules_to_watch
-            if module_name in sys.modules
-        }
         # Set test environment
         os.environ["API_KEY"] = "test-key"
 
@@ -47,63 +34,39 @@ class TestVIPCoverageClean:
         else:
             os.environ["API_KEY"] = self.original_api_key
 
-        # Restore original modules more carefully
-        # Only restore modules that were modified by our test
-        # NOTE: This teardown uses direct sys.modules mutations for backward compatibility.
-        # The test method itself uses monkeypatch (see test_vip_import_fallback_coverage).
-        # New tests should use monkeypatch.delattr/setattr instead (see AGENTS.md).
-        for module_name in self.modules_to_watch:
-            if module_name in self.original_modules:
-                sys.modules[module_name] = self.original_modules[module_name]
-            elif module_name in sys.modules:
-                del sys.modules[module_name]
-
     def test_vip_import_fallback_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP import fallback coverage with proper isolation."""
-        # Mock import failure to trigger fallback logic
-        # Use monkeypatch.setattr/delattr for sys.modules (see AGENTS.md: sys.modules mutation forbidden)
-        modules_to_restore = {}
-        for mod_name in [
-            "core.auto_repair",
-            "core.menu_engine",
-            "core.recipe_synth",
-            "core.region_catalog",
-            "core.shoplist",
-        ]:
-            if mod_name in sys.modules:
-                modules_to_restore[mod_name] = sys.modules[mod_name]
-                # Use monkeypatch.delitem to remove from sys.modules dict
-                monkeypatch.delitem(sys.modules, mod_name, raising=False)
+        import app.routers.vip as vip
 
-        # Re-import the module to trigger fallback
-        if "app.routers.vip" in sys.modules:
-            monkeypatch.delitem(sys.modules, "app.routers.vip", raising=False)
+        from core import auto_repair
 
-        from app.routers import vip
+        try:
+            monkeypatch.delattr(auto_repair, "RepairStatus", raising=False)
+            vip_module = sys.modules.get("app.routers.vip", vip)
+            importlib.reload(vip_module)
 
-        # Verify fallback values are set to None
-        assert vip.make_weekly_menu is not None
-        assert vip.analyze_nutrient_gaps is not None
-        assert vip.ShoplistGenerator is not None
-        assert vip.aggregate_ingredients is not None
-        assert vip.round_to_packages is not None
-
-        # Restore modules via monkeypatch.setitem (sys.modules is a dict)
-        for mod_name, mod_obj in modules_to_restore.items():
-            monkeypatch.setitem(sys.modules, mod_name, mod_obj)
-            assert vip.format_export is not None
-            assert vip.get_region_catalog is not None
-            assert vip.search_products is not None
-            assert vip.get_available_regions is not None
-            assert vip.get_price_comparison is not None
-            assert vip.get_recipe_synthesizer is not None
-            assert vip.synthesize_recipe_from_ingredients is not None
-            assert vip.synthesize_recipes_for_week is not None
-            assert vip.get_auto_repair_engine is not None
-            assert vip.auto_repair_week_plan is not None
-            assert vip.suggest_manual_fixes is not None
-            assert vip.RepairStrategy is not None
-            assert vip.RepairStatus is not None
+            assert vip_module.make_weekly_menu is None
+            assert vip_module.analyze_nutrient_gaps is None
+            assert vip_module.ShoplistGenerator is None
+            assert vip_module.aggregate_ingredients is None
+            assert vip_module.round_to_packages is None
+            assert vip_module.format_export is None
+            assert vip_module.get_region_catalog is None
+            assert vip_module.search_products is None
+            assert vip_module.get_available_regions is None
+            assert vip_module.get_price_comparison is None
+            assert vip_module.get_recipe_synthesizer is None
+            assert vip_module.synthesize_recipe_from_ingredients is None
+            assert vip_module.synthesize_recipes_for_week is None
+            assert vip_module.get_auto_repair_engine is None
+            assert vip_module.auto_repair_week_plan is None
+            assert vip_module.suggest_manual_fixes is None
+            assert vip_module.RepairStrategy is None
+            assert vip_module.RepairStatus is None
+        finally:
+            monkeypatch.undo()
+            vip_module = sys.modules.get("app.routers.vip", vip)
+            importlib.reload(vip_module)
 
     def test_vip_safe_call_with_adapter_error(self):
         """Test VIP _safe_call_with_adapter structured error when adapter missing."""

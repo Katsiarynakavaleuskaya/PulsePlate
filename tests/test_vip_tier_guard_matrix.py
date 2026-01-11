@@ -32,7 +32,6 @@ class VipCase:
     path: str
     payload: dict[str, Any] | None = None
     params: dict[str, str] | None = None
-    vip_expected_status: int = 200
 
 
 # Canonical list of all 17 VIP endpoints
@@ -198,23 +197,19 @@ def _assert_vip_denied(resp: Any) -> None:
     EN: Asserts VIP denial response (403).
 
     Note: require_vip_tier() raises HTTPException which returns FastAPI default format:
-    {"detail": "..."}. We only check status code and that detail contains VIP denial message.
+    {"detail": "..."}.
     """
     assert resp.status_code == 403, f"Expected 403, got {resp.status_code}: {resp.text}"
     data = resp.json()
 
     # FastAPI HTTPException format: {"detail": "message"}
-    assert "detail" in data
-    detail = data["detail"]
-    assert isinstance(detail, str)
-    # Check that detail contains VIP denial message (case-insensitive)
-    assert "vip" in detail.lower() or "access" in detail.lower() or "upgrade" in detail.lower()
+    assert data.get("detail") == VIP_DENY_MESSAGE
 
 
 @pytest.mark.parametrize(
     "api_key,expect_denied",
     [
-        ("invalid_free_key", True),  # FREE tier: invalid key (not PRO/VIP)
+        ("invalid_key", True),  # Invalid key (not PRO/VIP)
         (TEST_KEY_PRO, True),  # PRO key
         (TEST_KEY_VIP, False),  # VIP key
     ],
@@ -240,6 +235,9 @@ def test_vip_tier_guard_matrix(
     """
     # Enable VIP module for test
     monkeypatch.setenv("VIP_MODULE_ENABLED", "1")
+    monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "false")
+    monkeypatch.setenv("APP_ENV", "local")
+    monkeypatch.setenv("DEBUG", "true")
 
     headers = _headers_for_key(api_key)
 
