@@ -13,7 +13,7 @@
 
 **If any "Yes":**
 - Link to `docs/audit/API_ALIGNMENT_CHECKLIST.md` section that applies
-- Link to `docs/contracts/API_CANONICAL_MAP.md` (or note if it needs update)
+- Link to `docs/contracts/PRODUCT_TIER_MAP.md` (or note if it needs update)
 
 ---
 

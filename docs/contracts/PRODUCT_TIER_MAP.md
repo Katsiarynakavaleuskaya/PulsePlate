@@ -2,7 +2,7 @@
 
 **Status:** Canonical (audit-driven, based on actual codebase)
 **Last updated:** 2026-01-11
-**Source of truth:** `app/middleware/api_tiers.py`, `app/routers/*.py`, `legacy_app.py`
+**Canonical reference (derived from code):** `app/middleware/api_tiers.py`, `app/routers/*.py`, `legacy_app.py`
 
 ---
 
@@ -76,7 +76,7 @@
 | Функция             | Endpoint                      | Статус      | Требует tier | Код-доказательство                    |
 | -------------------- | ----------------------------- | ----------- | ------------ | ------------------------------------- |
 | Weekly plan          | `/api/v1/pro/meal/weekly`     | ✅ canonical | PRO          | `app/routers/pro.py:245`              |
-| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | ✅ canonical | PRO          | `app/routers/pro.py` (planned)        |
+| Targets (WHO)       | `/api/v1/pro/nutrition/targets` | 📋 planned   | PRO          | `app/routers/pro.py` (planned)        |
 | Daily plate          | `/api/v1/pro/nutrition/daily` | ✅ canonical | PRO          | `app/routers/pro.py:369`              |
 | Shopping list (PRO)  | `/api/v1/pro/meal/shopping-list` | ✅ canonical | PRO          | `app/routers/shopping_list_pro.py:19` |
 | Shoplist day        | `/api/v1/pro/shoplist/*`      | ✅ canonical | PRO          | `app/routers/shoplist_day.py:22`      |
