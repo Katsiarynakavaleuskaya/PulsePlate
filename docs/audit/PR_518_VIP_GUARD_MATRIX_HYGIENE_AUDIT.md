@@ -18,10 +18,10 @@
 ```python
 def setup_method(self):
     os.environ["VIP_MODULE_ENABLED"] = "true"
-    os.environ["API_KEY"] = "test_key"
+    os.environ["API_KEY"] = "test_key"  # pragma: allowlist secret
 
 def teardown_method(self):
-    os.environ.pop("API_KEY", None)  # VIP_MODULE_ENABLED not cleaned
+    os.environ.pop("API_KEY", None)  # VIP_MODULE_ENABLED not cleaned  # pragma: allowlist secret
 ```
 
 **Impact:** Test pollution under xdist (env vars leak between workers).
@@ -81,7 +81,7 @@ response = client.post(..., headers=vip_headers)  # Guard is bypassed!
 **Change:**
 ```python
 def teardown_method(self):
-    os.environ.pop("API_KEY", None)
+    os.environ.pop("API_KEY", None)  # pragma: allowlist secret
     os.environ.pop("VIP_MODULE_ENABLED", None)  # ADD THIS
 ```
 

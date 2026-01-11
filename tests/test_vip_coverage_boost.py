@@ -27,7 +27,7 @@ class TestVIPCoverageBoost:
         os.environ.pop("API_KEY", None)
         os.environ.pop("VIP_MODULE_ENABLED", None)
 
-    def test_vip_health_endpoint(self, vip_headers: dict[str, str]):
+    def test_vip_health_endpoint(self, vip_headers: dict[str, str]) -> None:
         """Тест VIP health endpoint"""
         import app
 
@@ -38,7 +38,7 @@ class TestVIPCoverageBoost:
         data = response.json()
         assert "status" in data
 
-    def test_vip_weekly_plan_missing_function(self, vip_headers: dict[str, str]):
+    def test_vip_weekly_plan_missing_function(self, vip_headers: dict[str, str]) -> None:
         """Тест VIP weekly plan когда make_weekly_menu недоступен"""
         with patch("app.routers.vip.make_weekly_menu", None):
             import app
@@ -136,7 +136,7 @@ class TestVIPCoverageBoost:
         if "total_regions" in data:
             assert data["total_regions"] == len(data["regions"])
 
-    def test_vip_recipe_synthesis_missing_function(self, vip_headers: dict[str, str]):
+    def test_vip_recipe_synthesis_missing_function(self, vip_headers: dict[str, str]) -> None:
         """Тест VIP recipe synthesis когда get_recipe_synthesizer недоступен"""
         with patch("app.routers.vip.get_recipe_synthesizer", None):
             import app
@@ -160,7 +160,7 @@ class TestVIPCoverageBoost:
             data = response.json()
             assert data["status"] == "success"
 
-    def test_vip_auto_repair_missing_function(self, vip_headers: dict[str, str]):
+    def test_vip_auto_repair_missing_function(self, vip_headers: dict[str, str]) -> None:
         """Тест VIP auto repair когда get_auto_repair_engine недоступен"""
         with patch("app.routers.vip.get_auto_repair_engine", None):
             import app
