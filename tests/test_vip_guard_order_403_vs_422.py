@@ -26,9 +26,10 @@ def test_vip_guard_403_before_422_no_key(client: TestClient) -> None:
     # Without API key header
     response = client.post("/api/v1/vip/menu/weekly/plan", json=invalid_payload, headers={})
     assert response.status_code == 403, "Tier guard (403) should win over payload validation (422)"
-    assert "vip" in response.json().get("detail", "").lower() or "access" in response.json().get(
-        "detail", ""
-    ).lower()
+    assert (
+        "vip" in response.json().get("detail", "").lower()
+        or "access" in response.json().get("detail", "").lower()
+    )
 
 
 def test_vip_guard_403_before_422_invalid_tier(client: TestClient) -> None:
@@ -47,12 +48,15 @@ def test_vip_guard_403_before_422_invalid_tier(client: TestClient) -> None:
         headers={"X-API-Key": TEST_KEY_PRO},
     )
     assert response.status_code == 403, "Tier guard (403) should win over payload validation (422)"
-    assert "vip" in response.json().get("detail", "").lower() or "access" in response.json().get(
-        "detail", ""
-    ).lower()
+    assert (
+        "vip" in response.json().get("detail", "").lower()
+        or "access" in response.json().get("detail", "").lower()
+    )
 
 
-def test_vip_guard_422_after_valid_tier(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_vip_guard_422_after_valid_tier(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that with valid VIP key, invalid payload returns 422 (validation error).
 
     RU: Тест, что с валидным VIP ключом невалидный payload возвращает 422 (ошибка валидации).
