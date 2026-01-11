@@ -16,7 +16,7 @@
 
 > ⚠️ **Важно:**
 > `pro_*` в именах файлов/функций — **техническое legacy-название**,
-> но **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
+> но, **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
 >
 > `/premium/*` — **deprecated API namespace**, который требует PRO tier, но не является отдельным уровнем.
 
@@ -97,7 +97,7 @@
 
 > ⚠️ **Ключевое понимание:**
 > `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`),
-> но namespace `/premium/*` — **deprecated**, мигрирует на `/api/v1/pro/*`.
+> но, namespace `/premium/*` — **deprecated**, мигрирует на `/api/v1/pro/*`.
 
 ### Что НЕ входит
 
@@ -178,7 +178,7 @@
 
 ### Жёсткое правило
 
-> **Shim = delegation only**
+> #### Shim = delegation only
 > ❌ никакой бизнес-логики
 > ❌ никаких расчётов
 > ✅ только вызов канона + адаптация ответа
@@ -266,7 +266,7 @@
 FREE → PRO → VIP
 ```
 
-**Где определено:**
+#### Где определено
 - `app/middleware/api_tiers.py:40-49` — `SubscriptionTier` enum
 
 ### Технические термины (legacy)
@@ -276,7 +276,7 @@ pro_* = техническое имя (файлы, функции, переме�
 premium_* = deprecated namespace или legacy файлы
 ```
 
-**Где используется:**
+#### Где используется
 - `pro_registration.py` — регистрация PRO routes
 - `premium_week.py` — deprecated router (требует PRO tier)
 - `shopping_list_pro.py` — PRO shopping list (требует PRO tier)

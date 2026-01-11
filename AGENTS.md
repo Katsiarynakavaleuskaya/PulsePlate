@@ -348,6 +348,7 @@ git diff --name-only origin/main...HEAD \
 This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
 
 **Canonical policy:** This section in `AGENTS.md` is the source of truth.
+**Last updated:** 2026-01-11
 
 Violation of this rule blocks merge.
 

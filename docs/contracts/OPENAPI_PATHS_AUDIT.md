@@ -168,3 +168,5 @@
 **See also:**
 - `docs/contracts/PRODUCT_TIER_MAP.md` — canonical tier mapping
 - `docs/audit/API_ALIGNMENT_CHECKLIST.md` — alignment checklist
+- `docs/contracts/OPENAPI_VISIBILITY_MATRIX.md` — visibility rules for public/deprecated endpoints
+- `AGENTS.md` § "Product tiers and API namespaces (canonical)" — canonical tier policy and namespace governance
