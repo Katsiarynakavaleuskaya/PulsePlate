@@ -4431,24 +4431,6 @@
       "post": {
         "description": "Record an adherence event (meal_logged or slip).\n\nRU: Записать событие adherence (успех или срыв).\nEN: Record an adherence event (success or slip).\n\nArgs:\n    payload: Event data (event_type, weight)\n    current_user: Authenticated user context derived from API key\n    service: AdherenceService dependency\n\nReturns:\n    Updated adherence metrics\n\nSecurity:\n    user identity is derived from auth context to prevent horizontal privilege escalation.\n    Each API key has isolated Bayesian state.",
         "operationId": "record_event_api_v1_bayes_adherence_event_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4481,6 +4463,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Record adherence event (PRO/VIP)",
         "tags": [
           "bayes"
@@ -4502,22 +4489,6 @@
               "minLength": 3,
               "title": "Analyzer Key",
               "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
             }
           }
         ],
@@ -4543,6 +4514,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Get adherence slip risk (PRO/VIP)",
         "tags": [
           "bayes"
@@ -5643,24 +5619,6 @@
       "post": {
         "description": "Generate shopping list from weekly meal plan.\n\n**Input:**\n- `weekly_plan_id`: Optional ID of saved weekly plan (from DB)\n- `plan_data`: Optional inline weekly plan JSON\n- `preferences`: Shopping list generation preferences\n\n**Output:**\n- Categories with grouped items\n- Total item count\n- Generation metadata\n\n**Algorithm:**\n1. Validate input (XOR: weekly_plan_id OR plan_data)\n2. Extract ingredients from plan_data\n3. Normalize keys and aggregate quantities\n4. Group by categories\n5. Return structured DTO with warnings",
         "operationId": "generate_shopping_list_api_v1_pro_meal_shopping_list_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5693,6 +5651,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Generate Shopping List",
         "tags": [
           "pro",
@@ -5704,24 +5667,6 @@
       "post": {
         "description": "Close a day and finalize adherence via event collector.\n\nRU: Закрыть день и финализировать adherence через коллектор событий.\nEN: Close a day and finalize adherence via event collector.\n\nThis is the sole canonical trigger for adherence finalization.\nIdempotent: repeated calls for same day return existing state without re-finalization.",
         "operationId": "close_day_api_v1_pro_nutrition_day_close_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5754,6 +5699,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Close day (PRO)",
         "tags": [
           "nutrition-log",
@@ -5765,24 +5715,6 @@
       "post": {
         "description": "Log a meal event and update adherence micro-model.\n\nRU: Логировать событие приёма пищи и обновить микромодель adherence.\nEN: Log a meal event and update adherence micro-model.\n\nIdempotency: If client_event_id is provided and matches an existing event,\nreturns current state when the event is already applied.",
         "operationId": "log_meal_api_v1_pro_nutrition_meal_log_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5815,6 +5747,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Log meal event (PRO)",
         "tags": [
           "nutrition-log",
@@ -5849,22 +5786,6 @@
               "default": "en",
               "description": "Language code"
             }
-          },
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
           }
         ],
         "responses": {
@@ -5889,6 +5810,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
         "summary": "Shopping list suggestions for a day (MVP placeholder)",
         "tags": [
           "pro",
@@ -7232,22 +7158,6 @@
               "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
               "title": "Store Id"
             }
-          },
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
           }
         ],
         "requestBody": {
@@ -7366,22 +7276,6 @@
               "description": "Optional store id (e.g. 'carrefour_es', 'walmart_us')",
               "title": "Store Id"
             }
-          },
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
           }
         ],
         "requestBody": {
@@ -7437,24 +7331,6 @@
       "get": {
         "description": "Legacy preview endpoint. For new integrations, use /generate, /daily, or /weekly.",
         "operationId": "vip_shoplist_preview_api_v1_vip_shoplist_preview_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-api-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Api-Key"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {

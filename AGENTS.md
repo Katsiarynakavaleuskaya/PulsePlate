@@ -268,6 +268,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - PRO tier: use `require_pro_tier()` middleware (from `app.middleware.api_tiers`).
 - VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
 - All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
+- **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
+- **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 
 **See:**
 - `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
@@ -297,6 +299,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Determinism is enforced by `pytest tests/test_openapi_determinism.py`.
 - If drift appears: fix **generator normalization** in `scripts/generate_openapi.py`, not "accept drift".
 - Local verification: run `make openapi` and then `make openapi-check`.
+- **If OpenAPI sync fails in CI** → first check generated artifacts under `frontend/src/api/*` and run `make openapi` locally, then commit the updated artifacts.
 - **Normalization policy**: Never sort semantically meaningful OpenAPI list keys (`required`, `enum`, `allOf/anyOf/oneOf`, `prefixItems`, `examples`, etc.). Add to denylist before touching normalization.
 - **Determinism gate**: If OpenAPI artifacts are committed/compared, add a determinism test (hash compare) in the CI job that owns it.
 

@@ -30,7 +30,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, Security, status
+
+from app.routers.api_key import api_key_header
 
 from app.utils.feature_flags import is_vip_module_enabled
 
@@ -160,7 +162,7 @@ def _validate_api_key_tier(api_key: str, required_tier: SubscriptionTier) -> boo
     )
 
 
-async def require_pro_tier(x_api_key: Optional[str] = Header(None)) -> str:
+async def require_pro_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
     """Require PRO tier API key for endpoint access.
 
     RU: Требуется API ключ уровня PRO для доступа к endpoint.
@@ -200,7 +202,7 @@ async def require_pro_tier(x_api_key: Optional[str] = Header(None)) -> str:
     return x_api_key
 
 
-async def require_vip_tier(x_api_key: Optional[str] = Header(None)) -> str:
+async def require_vip_tier(x_api_key: Optional[str] = Security(api_key_header)) -> str:
     """Require VIP tier API key for endpoint access.
 
     RU: Требуется API ключ уровня VIP для доступа к endpoint.
