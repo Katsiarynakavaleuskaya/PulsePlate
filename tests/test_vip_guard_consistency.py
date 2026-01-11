@@ -27,6 +27,7 @@ def headers_for_tier():
     For FREE tier, returns empty dict (no API key header) - FREE = no key required.
     For PRO/VIP, returns X-API-Key header with respective test key.
     """
+
     def _get_headers(tier: str) -> dict[str, str]:
         if tier == "VIP":
             return {"X-API-Key": TEST_KEY_VIP}
@@ -36,15 +37,13 @@ def headers_for_tier():
             return {}  # No API key header - FREE tier doesn't require a key
         else:
             raise ValueError(f"Unknown tier: {tier}")
+
     return _get_headers
 
 
 def _fill_path_params(url: str) -> str:
     """Fill path parameters with test values."""
-    return (
-        url.replace("{region}", "es")
-        .replace("{product_name}", "milk")
-    )
+    return url.replace("{region}", "es").replace("{product_name}", "milk")
 
 
 # GET endpoints (9 total)
@@ -62,10 +61,13 @@ VIP_ENDPOINTS_GET = [
 
 
 @pytest.mark.parametrize("path", VIP_ENDPOINTS_GET)
-@pytest.mark.parametrize("tier,expected", [
-    ("FREE", 403),
-    ("PRO", 403),
-])
+@pytest.mark.parametrize(
+    "tier,expected",
+    [
+        ("FREE", 403),
+        ("PRO", 403),
+    ],
+)
 def test_vip_guard_get_denies_non_vip(
     client: TestClient,
     headers_for_tier,
@@ -80,7 +82,9 @@ def test_vip_guard_get_denies_non_vip(
     if "{region}/search" in path:
         actual_path = f"{actual_path}?query=test"
     resp = client.get(actual_path, headers=headers)
-    assert resp.status_code == expected, f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
+    assert resp.status_code == expected, (
+        f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
+    )
     # Guard contract tests: only check status code, not response body details
 
 
@@ -97,7 +101,9 @@ def test_vip_guard_get_allows_vip(
     if "{region}/search" in path:
         actual_path = f"{actual_path}?query=test"
     resp = client.get(actual_path, headers=headers)
-    assert resp.status_code < 400, f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
+    assert resp.status_code < 400, (
+        f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
+    )
 
 
 # POST endpoints (8 total)
@@ -133,10 +139,13 @@ POST_PAYLOADS = {
 
 
 @pytest.mark.parametrize("path", VIP_ENDPOINTS_POST)
-@pytest.mark.parametrize("tier,expected", [
-    ("FREE", 403),
-    ("PRO", 403),
-])
+@pytest.mark.parametrize(
+    "tier,expected",
+    [
+        ("FREE", 403),
+        ("PRO", 403),
+    ],
+)
 def test_vip_guard_post_denies_non_vip(
     client: TestClient,
     headers_for_tier,
@@ -148,7 +157,9 @@ def test_vip_guard_post_denies_non_vip(
     headers = headers_for_tier(tier)
     payload = POST_PAYLOADS[path]
     resp = client.post(path, json=payload, headers=headers)
-    assert resp.status_code == expected, f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
+    assert resp.status_code == expected, (
+        f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
+    )
     # Guard contract tests: only check status code, not response body details
 
 
@@ -169,7 +180,11 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
         def mock_safe_call(func_name: str, **kwargs: Any) -> dict[str, Any]:
             if func_name == "make_weekly_menu":
                 return {"status": "success", "menu": {"days": []}}
-            return {"status": "error", "code": "unexpected_call", "message": "unexpected adapter call"}
+            return {
+                "status": "error",
+                "code": "unexpected_call",
+                "message": "unexpected adapter call",
+            }
 
         monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
     elif path == "/api/v1/vip/shoplist/weekly":
@@ -187,13 +202,18 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
         def mock_safe_call(func_name: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
             if func_name == "synthesize_recipes_for_week":
                 return {"monday": [{"recipe_id": "test", "name": "Test Recipe"}]}
-            return {"status": "error", "code": "unexpected_call", "message": "unexpected adapter call"}
+            return {
+                "status": "error",
+                "code": "unexpected_call",
+                "message": "unexpected adapter call",
+            }
 
         monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
     elif path == "/api/v1/vip/auto-repair/weekly":
         # Mock MicronutrientTargets to avoid validation errors with empty dict
         # Use simple lambda instead of MagicMock for guard tests
         monkeypatch.setattr("core.targets.MicronutrientTargets", lambda **_: object())
+
         # Mock auto_repair_week_plan function
         def mock_auto_repair(*args: Any, **kwargs: Any) -> dict[str, Any]:
             return {
@@ -211,4 +231,6 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
     headers = headers_for_tier("VIP")
     payload = POST_PAYLOADS[path]
     resp = client.post(path, json=payload, headers=headers)
-    assert 200 <= resp.status_code < 300, f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
+    assert 200 <= resp.status_code < 300, (
+        f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
+    )
