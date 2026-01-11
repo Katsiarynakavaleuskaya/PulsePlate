@@ -262,7 +262,9 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
 - All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
 
-**See:** `docs/contracts/PRODUCT_TIER_MAP.md` for canonical tier mapping and namespace policy.
+**See:**
+- `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
+- `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` — remediation roadmap (what we DO)
 
 ## OpenAPI generation (determinism requirement)
 
