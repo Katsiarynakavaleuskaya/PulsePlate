@@ -12,9 +12,9 @@
 |-----------|-------|--------|
 | `/api/v1/premium/*` | 9 | ⚠️ Deprecated (should be hidden from schema) |
 | `/api/v1/pro/*` | 4 | ✅ Canonical PRO namespace |
-| `/api/v1/vip/*` | 25 | ✅ Canonical VIP namespace |
+| `/api/v1/vip/*` | 21 | ✅ Canonical VIP namespace |
 
-**Total:** 38 endpoints
+**Total:** 34 endpoints
 
 ---
 
@@ -51,7 +51,7 @@
 
 ---
 
-## `/api/v1/vip/*` (Canonical VIP namespace — 25 endpoints)
+## `/api/v1/vip/*` (Canonical VIP namespace — 21 endpoints)
 
 ### Auto-repair (3 endpoints)
 
@@ -108,11 +108,6 @@
 
 ## Recommendations (PR execution plan)
 
-### PR-A (docs-only): ✅ Done
-- `PRODUCT_TIER_MAP.md` — canonical tier mapping
-- `OPENAPI_PATHS_AUDIT.md` — this file
-- `AGENTS.md` — tiers and namespaces policy
-
 ### PR-B (schema hygiene): Hide deprecated aliases from OpenAPI
 
 **Goal:** Frontend stops generating types for `/premium/*`.
@@ -126,7 +121,7 @@
 - Runtime: endpoints still work (backward compatible)
 - `pytest tests/test_openapi_determinism.py` passes
 
-**See:** `docs/audit/PR_B_SCHEMA_HYGIENE_DESCRIPTION.md` for full PR description.
+**Note:** PR-B description will be created in PR-B branch.
 
 ---
 
@@ -144,7 +139,7 @@
 - No VIP logic in premium endpoint
 - `pytest` + `diff-cover` ≥97%
 
-**See:** `docs/audit/PR_C_VIP_ALIGNMENT_DESCRIPTION.md` for full PR description.
+**Note:** PR-C description will be created in PR-C branch.
 
 ---
 

@@ -313,7 +313,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 
-**Docs-only PR** — это PR, который **строго ограничен документацией** и **не имеет права** изменять runtime, CI или поведение приложения.
+**Docs-only PR** — a PR strictly limited to documentation that **must not** change runtime, CI, or application behavior.
 
 **Allowed changes (docs-only):**
 * `*.md` files
@@ -342,12 +342,12 @@ git diff --name-only origin/main...HEAD \
 **Special note about legacy files:**
 * Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
 * If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
-* Code cleanup related to other PRs (e.g. PR-457) **belongs only to that PR**, never to docs PRs.
+* Code cleanup related to other PRs **belongs only to that PR**, never to docs PRs.
 
 **Rationale:**
 This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
 
-**Policy reference:** See `docs/policy/DOCS_ONLY_PR_POLICY.md` for the canonical policy source of truth.
+**Canonical policy:** This section in `AGENTS.md` is the source of truth.
 
 Violation of this rule blocks merge.
 

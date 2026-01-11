@@ -262,7 +262,7 @@
 
 ### Продуктовые уровни (как определено в коде)
 
-```
+```text
 FREE → PRO → VIP
 ```
 
@@ -271,7 +271,7 @@ FREE → PRO → VIP
 
 ### Технические термины (legacy)
 
-```
+```text
 pro_* = техническое имя (файлы, функции, переменные)
 premium_* = deprecated namespace или legacy файлы
 ```
@@ -283,7 +283,7 @@ premium_* = deprecated namespace или legacy файлы
 
 ### API Namespaces (фактические)
 
-```
+```text
 /api/v1/pro/*     → PRO tier (canonical)
 /api/v1/vip/*     → VIP tier (canonical)
 /api/v1/premium/* → deprecated (требует PRO или VIP, зависит от endpoint)

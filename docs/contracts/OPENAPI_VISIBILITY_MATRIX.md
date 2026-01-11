@@ -14,7 +14,7 @@
 |-----------|------|--------|-----------|
 | `/api/v1/bmi/*` | FREE | ✅ Show | Free surface (product entry point) |
 | `/api/v1/pro/*` | PRO | ✅ Show | Pro surface (canonical PRO tier) |
-| `/api/v1/vip/*` | VIP | ✅ Show | Vip surface (canonical VIP tier) |
+| `/api/v1/vip/*` | VIP | ✅ Show | VIP surface (canonical VIP tier) |
 
 **Rule:** Only canonical namespaces appear in public OpenAPI.
 
@@ -39,7 +39,7 @@
 
 ### How to hide endpoints
 
-**Option 1: Router-level (recommended for deprecated namespaces)**
+#### Option 1: Router-level (recommended for deprecated namespaces)
 
 ```python
 # app/routers/premium_week.py
@@ -50,7 +50,7 @@ router = APIRouter(
 )
 ```
 
-**Option 2: Endpoint-level (for selective hiding)**
+#### Option 2: Endpoint-level (for selective hiding)
 
 ```python
 @router.post(
@@ -113,4 +113,4 @@ If we ever need a separate OpenAPI schema for internal/ops endpoints:
 - `docs/contracts/PRODUCT_TIER_MAP.md` — canonical tier mapping
 - `docs/contracts/OPENAPI_PATHS_AUDIT.md` — factual inventory of paths
 - `AGENTS.md` — "Product tiers and API namespaces" section
-- `docs/audit/PR_B_SCHEMA_HYGIENE_DESCRIPTION.md` — PR-B implementation guide
+- PR-B: Schema hygiene (description will be created in PR-B branch)
