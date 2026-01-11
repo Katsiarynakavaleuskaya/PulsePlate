@@ -242,6 +242,30 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
+## Product tiers and API namespaces (canonical)
+
+### Product tiers (source of truth)
+- **Tiers are: FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
+- **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
+- **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
+- **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
+- **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
+
+### API namespace policy
+- **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
+- **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
+- **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
+- **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` is FREE tier, not PRO).
+
+### Tier enforcement
+- PRO tier: use `require_pro_tier()` middleware (from `app.middleware.api_tiers`).
+- VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
+- All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
+
+**See:**
+- `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
+- `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` — remediation roadmap (what we DO)
+
 ## OpenAPI generation (determinism requirement)
 
 ### Canonical source
@@ -291,7 +315,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 
-**Docs-only PR** — это PR, который **строго ограничен документацией** и **не имеет права** изменять runtime, CI или поведение приложения.
+**Docs-only PR** — a PR strictly limited to documentation that **must not** change runtime, CI, or application behavior.
 
 **Allowed changes (docs-only):**
 * `*.md` files
@@ -320,12 +344,13 @@ git diff --name-only origin/main...HEAD \
 **Special note about legacy files:**
 * Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
 * If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
-* Code cleanup related to other PRs (e.g. PR-457) **belongs only to that PR**, never to docs PRs.
+* Code cleanup related to other PRs **belongs only to that PR**, never to docs PRs.
 
 **Rationale:**
 This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
 
-**Policy reference:** See `docs/policy/DOCS_ONLY_PR_POLICY.md` for the canonical policy source of truth.
+**Canonical policy:** This section in `AGENTS.md` is the source of truth.
+**Last updated:** 2026-01-11
 
 Violation of this rule blocks merge.
 
