@@ -16,8 +16,8 @@
 
 > ⚠️ **Важно:**
 > `pro_*` в именах файлов/функций — **техническое legacy-название**.
-> При этом **PRO — это реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
-> `/premium/*` — **deprecated API namespace**, который требует PRO tier, но не является отдельным уровнем.
+> **PRO — реальный продуктовый уровень** (определён в `SubscriptionTier` enum).
+> `/premium/*` — **deprecated API namespace**; он требует PRO tier (а для части legacy aliases — VIP), но не является отдельным уровнем.
 
 ---
 
@@ -150,7 +150,7 @@
 
 > ⚠️ **Ключевая проблема:**
 > Эти endpoints требуют **VIP tier**, но живут под `/premium/*` namespace (deprecated PRO namespace) → **архитектурная путаница**.
-> Это фиксируется как known issue и будет исправлено в PR-C (delegation pattern).
+> **Remediation:** See `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` (PR-C: delegation pattern).
 
 ### Правила
 
@@ -290,36 +290,12 @@ premium_* = deprecated namespace или legacy файлы
 
 ---
 
-## 8️⃣ Рекомендации по исправлению (без breaking changes)
+## Remediation Roadmap
 
-### Приоритет 1: Документация
+This document is a **contract/specification** (what IS), not a remediation plan.
 
-* [ ] Зафиксировать в `AGENTS.md`: PRO и VIP — реальные уровни, premium — deprecated namespace
-* [ ] Обновить `API_CANONICAL_MAP.md` с этой таблицей
-* [ ] Добавить deprecation warnings в OpenAPI schema для `/premium/*`
-
-### Приоритет 2: Код (постепенно)
-
-* [ ] Переименовать `premium_week.py` → `pro_week_legacy.py` (или удалить после миграции)
-* [ ] Унифицировать tier requirements для `/premium/*` endpoints:
-  * Либо все требуют PRO tier
-  * Либо мигрируют на `/api/v1/vip/*` если требуют VIP
-* [ ] Добавить `require_pro_tier()` ко всем `/premium/*` endpoints, которые его не имеют
-
-### Приоритет 3: OpenAPI Schema
-
-* [ ] Явно пометить `/premium/*` как deprecated в schema
-* [ ] Добавить `x-deprecated: true` и `x-migration-path: /api/v1/pro/*`
-
----
-
-## 9️⃣ Что это даёт сразу
-
-* 🔒 Убираем путаницу в голове и в PR-ах
-* 🔧 PR-511A/511B получают **чёткие границы**
-* 📱 Frontend и iOS знают, **что есть что**
-* 🧠 Новый разработчик не изобретёт "четвёртый уровень"
-* 📊 Единый source of truth для контрактов
+For action items, PR sequencing, and remediation steps, see:
+- `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md`
 
 ---
 
