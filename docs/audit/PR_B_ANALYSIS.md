@@ -18,18 +18,20 @@
 3. Если `ALLOW_ANONYMOUS_API_KEYS=true` → любой ключ → `True`
 4. Иначе → `False`
 
-### Проблема для FREE key
-- `"invalid_key"` → `_validate_api_key_tier("invalid_key", VIP)` вернет `False`
-- `require_vip_tier()` сначала проверяет наличие ключа (403 если None), затем tier (403 если не VIP)
-- **Вывод:** `"invalid_key"` даст 403, но это будет "tier denial", не "unknown key" — это ок для тестов
+### Стратегия для FREE tier в тестах
+- `require_vip_tier()` — это **feature-gate**, не auth-gate
+- Отсутствие ключа (`x_api_key = None`) → **403** "VIP access required"
+- Неверный/недостаточный tier → **403** "API key does not have VIP tier access"
+- **Вывод:** Для FREE tier корректно использовать **пустые headers** (без `X-API-Key`), что даст 403
 
-### Решение для FREE key
-**Вариант A (рекомендуемый):** Использовать `TEST_KEY_PRO` для FREE тестов, но с monkeypatch:
-- Monkeypatch `_validate_api_key_tier` чтобы `TEST_KEY_PRO` с `required_tier=VIP` возвращал `False` (это уже так)
-- Для FREE tier: использовать любой ключ, который НЕ `TEST_KEY_VIP` и НЕ `TEST_KEY_PRO`
-- Или создать `TEST_KEY_FREE = "test_free_key"` и monkeypatch маппинг
+### Решение для FREE tier (каноничное)
+**Выбранный вариант:** FREE tier = **пустые headers** (`{}`), без `X-API-Key` заголовка.
 
-**Выбранный вариант:** Использовать `TEST_KEY_PRO` для FREE тестов (он уже не дает VIP доступ), но лучше создать явный `TEST_KEY_FREE` через monkeypatch для ясности.
+**Rationale:**
+- VIP guard (`require_vip_tier`) — feature-gate: отсутствие ключа тоже даёт 403
+- Это соответствует контракту: FREE tier не требует API ключа
+- Не требует monkeypatch или создания `TEST_KEY_FREE`
+- FREE и PRO оба получают 403 на VIP endpoints (ожидаемо)
 
 ---
 
@@ -124,33 +126,32 @@
 
 ## 5) Тест-фикстуры (требуемые)
 
-### `api_key_for_tier(tier: str) -> str`
+### `headers_for_tier(tier: str) -> dict[str, str]`
 ```python
 @pytest.fixture
-def api_key_for_tier(monkeypatch: pytest.MonkeyPatch):
-    """Return API key for tier, with monkeypatch for FREE tier."""
-    def _get_key(tier: str) -> str:
+def headers_for_tier():
+    """Return headers dict for tier.
+    
+    For FREE tier, returns empty dict (no API key header) - FREE = no key required.
+    For PRO/VIP, returns X-API-Key header with respective test key.
+    """
+    def _get_headers(tier: str) -> dict[str, str]:
         if tier == "VIP":
-            return TEST_KEY_VIP
+            return {"X-API-Key": TEST_KEY_VIP}
         elif tier == "PRO":
-            return TEST_KEY_PRO
+            return {"X-API-Key": TEST_KEY_PRO}
         elif tier == "FREE":
-            # Create a valid FREE key via monkeypatch
-            TEST_KEY_FREE = "test_free_key"
-            # Monkeypatch _validate_api_key_tier to recognize FREE key
-            original = app.middleware.api_tiers._validate_api_key_tier
-            def patched_validate(key: str, required: SubscriptionTier) -> bool:
-                if key == TEST_KEY_FREE and required == SubscriptionTier.VIP:
-                    return False  # FREE key doesn't grant VIP
-                return original(key, required)
-            monkeypatch.setattr("app.middleware.api_tiers._validate_api_key_tier", patched_validate)
-            return TEST_KEY_FREE
+            return {}  # No API key header - FREE tier doesn't require a key
         else:
             raise ValueError(f"Unknown tier: {tier}")
-    return _get_key
+    return _get_headers
 ```
 
-**Упрощение:** Можно использовать `TEST_KEY_PRO` для FREE тестов (он уже не дает VIP), но лучше явный FREE key для ясности.
+**Rationale:**
+- FREE tier = пустые headers (без `X-API-Key`) → 403 на VIP endpoints
+- PRO tier = `TEST_KEY_PRO` → 403 на VIP endpoints
+- VIP tier = `TEST_KEY_VIP` → 2xx на VIP endpoints
+- Не требует monkeypatch или создания `TEST_KEY_FREE`
 
 ---
 
@@ -184,7 +185,7 @@ def api_key_for_tier(monkeypatch: pytest.MonkeyPatch):
 
 ### Commit 3: Tests
 1. Создать `tests/test_vip_guard_consistency.py`
-2. Добавить fixture `api_key_for_tier`
+2. Добавить fixture `headers_for_tier` (FREE = пустые headers, PRO/VIP = с ключом)
 3. Параметризованные тесты для GET (9 endpoints)
 4. Параметризованные тесты для POST (8 endpoints)
 5. Моки для POST endpoints, требующих моков (5 endpoints)
@@ -193,10 +194,10 @@ def api_key_for_tier(monkeypatch: pytest.MonkeyPatch):
 
 ## 8) Критические моменты
 
-### A) FREE key strategy
-- **Проблема:** Нет `TEST_KEY_FREE`, `"invalid_key"` может дать неожиданное поведение
-- **Решение:** Использовать `TEST_KEY_PRO` для FREE тестов (он уже не дает VIP) или создать `TEST_KEY_FREE` через monkeypatch
-- **Выбор:** Использовать `TEST_KEY_PRO` для FREE (проще, работает)
+### A) FREE tier strategy
+- **Решение:** FREE tier = **пустые headers** (`{}`), без `X-API-Key` заголовка
+- **Rationale:** VIP guard (`require_vip_tier`) — feature-gate: отсутствие ключа тоже даёт 403, что корректно для FREE tier
+- **Ожидаемое поведение:** FREE и PRO оба получают 403 на VIP endpoints (это правильно, так как VIP = feature-gate)
 
 ### B) Dependency vs signature pattern
 - **Паттерн A (dependencies):** Меняем только dependency, сигнатура не меняется
