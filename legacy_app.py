@@ -54,8 +54,7 @@ from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.plan_export import export_router, plan_router
-from app.routers.premium_week import router as premium_week_router
-from app.routers.pro import router as pro_router
+from app.routers.pro_registration import register_pro_routes as _register_pro_routes
 from app.routers.recipes import router as recipes_router
 from app.routers.shoplist_day import router as shoplist_day_router
 from app.routers.shopping_list_pro import router as shopping_list_pro_router
@@ -93,6 +92,13 @@ from app.scheduler_helpers import (
     execute_async_starter,
     safe_stop_with_cleanup,
 )
+
+# PRO router registration (explicit, no import-side-effects)
+# Moved to app/routers/pro_registration.py for centralized registration
+# See register_pro_routes() for schema-only mode guard and conditional imports
+# Public compatibility surface: tests + app/__init__.py expect these attrs to exist.
+premium_week_router: Optional[APIRouter] = None
+pro_router: Optional[APIRouter] = None
 
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
@@ -1070,9 +1076,8 @@ app.include_router(shoplist_router, dependencies=[protected_dependency])
 if _register_vip_routes is not None:
     _register_vip_routes(app)
 
-# Include PRO tier router (new standard structure for iOS)
-if pro_router is not None:
-    app.include_router(pro_router)
+# Register PRO routes (centralized, explicit registration)
+pro_router, premium_week_router = _register_pro_routes(app)
 
 # Include Bayesian adherence router (PRO/VIP tier)
 try:
@@ -1132,16 +1137,8 @@ async def get_daily_nutrition_legacy(
     return response.model_dump()
 
 
-# Include premium week router for backward compatibility (deprecated)
-FEATURE_PREMIUM_WEEK_ENABLED = (
-    os.getenv("FEATURE_PREMIUM_WEEK_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
-) or VIP_MODULE_ENABLED  # Also enable if VIP module is enabled
-if FEATURE_PREMIUM_WEEK_ENABLED and premium_week_router is not None:
-    # premium_week endpoints enforce tier access internally via app.middleware.api_tiers
-    # (e.g., require_pro_tier). Do not add the global API_KEY guard here, otherwise
-    # PRO/VIP test keys (test_pro_key/test_vip_key) are rejected when API_KEY is set.
-    # NOTE: This router is deprecated. Use /api/v1/pro/* endpoints instead.
-    app.include_router(premium_week_router)
+# Premium week router registration is now handled in
+# app.routers.pro_registration.register_pro_routes() for centralized registration.
 
 # Conditionally include test router for non-production environments
 # Reuse _app_env defined earlier (line 302) to avoid duplication

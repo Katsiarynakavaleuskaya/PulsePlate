@@ -4,6 +4,188 @@
  */
 
 export interface paths {
+    "/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Root */
+        get: operations["root__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/logs/cleanup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cleanup Expired Logs
+         * @description Cleanup expired log files based on retention policy.
+         *
+         *     RU: Очистка истекших лог-файлов на основе политики хранения.
+         *     EN: Cleanup expired log files based on retention policy.
+         *
+         *     Requires API key authentication. This endpoint enforces the data retention
+         *     policy by deleting logs that have exceeded their retention period.
+         *
+         *     Args:
+         *         data_class: Optional data classification to filter by (PSEUDONYMOUS, PUBLIC, SENSITIVE).
+         *                    If None, processes all classifications.
+         *         api_key: API key for authentication (via dependency)
+         *
+         *     Returns:
+         *         Dictionary with cleanup results
+         */
+        post: operations["cleanup_expired_logs_admin_logs_cleanup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/{date_str}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Daily Nutrition Legacy
+         * @description Legacy alias for iOS nutrition endpoint - redirects to PRO endpoint.
+         *
+         *     RU: Устаревший алиас для iOS совместимости - перенаправляет на PRO endpoint.
+         *     EN: Legacy alias for iOS compatibility - redirects to PRO endpoint.
+         *
+         *     NOTE: This route is deprecated. Use /api/v1/pro/nutrition/daily instead.
+         */
+        get: operations["get_daily_nutrition_legacy_api_nutrition__date_str__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/check-updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check For Updates
+         * @description RU: Проверить наличие доступных обновлений без их установки.
+         *     EN: Check for available updates without installing them.
+         *
+         *     Returns:
+         *         Dictionary showing which sources have updates available
+         */
+        get: operations["check_for_updates_api_v1_admin_check_updates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/db-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Database Status
+         * @description RU: Получить статус всех баз данных и планировщика обновлений.
+         *     EN: Get status of all databases and update scheduler.
+         *
+         *     Returns information about:
+         *     - Database versions and last update times
+         *     - Update scheduler status
+         *     - Retry counts and error states
+         *     - Data integrity checksums
+         */
+        get: operations["get_database_status_api_v1_admin_db_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/force-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Force Database Update
+         * @description RU: Принудительно запустить обновление баз данных.
+         *     EN: Force immediate database update.
+         *
+         *     Args:
+         *         source: Optional specific source to update ("usda", "openfoodfacts")
+         *                 If None, updates all sources
+         *
+         *     Returns:
+         *         Update results with statistics on records changed
+         */
+        post: operations["force_database_update_api_v1_admin_force_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rollback Database
+         * @description Rollback database to a specific version.
+         *
+         *     Args:
+         *         source: Data source name ("usda", "openfoodfacts")
+         *         target_version: Version to rollback to
+         *
+         *     Returns:
+         *         Success status and rollback details
+         */
+        post: operations["rollback_database_api_v1_admin_rollback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/status": {
         parameters: {
             query?: never;
@@ -26,6 +208,261 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bayes/adherence/event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record adherence event (PRO/VIP)
+         * @description Record an adherence event (meal_logged or slip).
+         *
+         *     RU: Записать событие adherence (успех или срыв).
+         *     EN: Record an adherence event (success or slip).
+         *
+         *     Args:
+         *         payload: Event data (event_type, weight)
+         *         current_user: Authenticated user context derived from API key
+         *         service: AdherenceService dependency
+         *
+         *     Returns:
+         *         Updated adherence metrics
+         *
+         *     Security:
+         *         user identity is derived from auth context to prevent horizontal privilege escalation.
+         *         Each API key has isolated Bayesian state.
+         */
+        post: operations["record_event_api_v1_bayes_adherence_event_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bayes/adherence/risk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get adherence slip risk (PRO/VIP)
+         * @description Get current adherence slip risk and confidence.
+         *
+         *     RU: Получить текущий риск срыва и уверенность модели.
+         *     EN: Get current slip risk and model confidence.
+         *
+         *     Args:
+         *         current_user: Authenticated user context derived from API key
+         *         analyzer_key: Analyzer key (default: v1:adherence)
+         *         service: AdherenceService dependency
+         *
+         *     Returns:
+         *         Current adherence metrics
+         *
+         *     Security:
+         *         user identity is derived from auth context to prevent horizontal privilege escalation.
+         */
+        get: operations["get_risk_api_v1_bayes_adherence_risk_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bmi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bmi Endpoint V1
+         * @description RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).
+         *     Теперь это тонкий прокси в канонический handler (app/routers/bmi.py),
+         *     чтобы не было дублирования BMI-логики и чтобы результаты были идентичны.
+         *
+         *     EN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).
+         *     Now it is a thin proxy to the canonical handler (app/routers/bmi.py)
+         *     to avoid duplicate BMI logic and ensure identical results.
+         */
+        post: operations["bmi_endpoint_v1_api_v1_bmi_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bmi/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calculate Bmi
+         * @description RU: Рассчитывает BMI через единый engine.
+         *     EN: Calculate BMI via unified engine.
+         *
+         *     FREE tier endpoint (no API key required).
+         *
+         *     Args:
+         *         req: BMICalculateRequest with user parameters
+         *
+         *     Returns:
+         *         BMICalculateResponse with BMI calculation results (serialized with by_alias=True)
+         *
+         *     Raises:
+         *         HTTPException: 400 if domain validation fails (BMI out of bounds)
+         *                       422 if Pydantic validation fails (handled automatically)
+         *                       500 if engine is not available or other errors occur
+         */
+        post: operations["calculate_bmi_api_v1_bmi_calculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bodyfat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Calc Bodyfat */
+        post: operations["calc_bodyfat_api_v1_bodyfat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/regions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Regions
+         * @description RU: Список доступных регионов каталога.
+         *     EN: List available catalog regions.
+         */
+        get: operations["list_regions_api_v1_catalog_regions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description RU: Поиск SKU в каталоге.
+         *     EN: Search for SKUs in catalog.
+         */
+        get: operations["search_api_v1_catalog_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog/stores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Stores
+         * @description RU: Список магазинов в регионе.
+         *     EN: List stores in a region.
+         */
+        get: operations["list_stores_api_v1_catalog_stores_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/export/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Pdf Generic
+         * @description Test/demo only — do not expose in production.
+         *
+         *     Generic PDF export endpoint for tests' error-handling coverage.
+         *
+         *     Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day
+         *     if present; otherwise returns an appropriate error. For empty payloads,
+         *     FastAPI/Pydantic will trigger 422 automatically due to missing body shape.
+         *
+         *     Fallback behavior: returns 400 for empty payloads and 503 if the PDF helper is
+         *     unavailable.
+         */
+        post: operations["export_pdf_generic_api_v1_export_pdf_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/export/sign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign Export Link */
+        post: operations["sign_export_link_api_v1_export_sign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/foods": {
         parameters: {
             query?: never;
@@ -35,23 +472,6 @@ export interface paths {
         };
         /** List Foods */
         get: operations["list_foods_api_v1_foods_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/foods/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Foods Search */
-        get: operations["list_foods_search_api_v1_foods_search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -77,6 +497,472 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/foods/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Foods Search */
+        get: operations["list_foods_search_api_v1_foods_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Health V1
+         * @description Health check endpoint (v1 alias) with version info for debugging.
+         *
+         *     Returns the same extended payload as /health for consistency.
+         */
+        get: operations["health_v1_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Insight V1
+         * @description Generate insight using LLM provider (v1 with API key).
+         *
+         *     Privacy: user text may be sent to external providers; see /privacy.
+         */
+        post: operations["insight_v1_api_v1_insight_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plan/week/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Week Csv */
+        get: operations["export_week_csv_api_v1_plan_week_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plan/week/export.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Week Pdf */
+        get: operations["export_week_pdf_api_v1_plan_week_export_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/bmr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Premium Bmr
+         * @description RU: Рассчитывает BMR и TDEE с использованием нескольких формул.
+         *     EN: Calculates BMR and TDEE using multiple formulas.
+         *
+         *     Supports:
+         *     - Mifflin-St Jeor equation (primary)
+         *     - Harris-Benedict equation (secondary)
+         *     - Katch-McArdle equation (if body fat provided)
+         *         - Multiple activity levels
+         *         - Localized responses
+         */
+        post: operations["api_premium_bmr_api_v1_premium_bmr_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/exports/day/{plan_id}.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Daily Plan Csv
+         * @description Test/demo only — do not expose in production.
+         *
+         *     RU: Экспортировать дневной план в CSV.
+         *     EN: Export daily meal plan to CSV.
+         *
+         *     Args:
+         *         plan_id: ID of the daily plan to export
+         *
+         *     Returns:
+         *         CSV file download
+         *
+         *     Fallback behavior: uses mock data and returns 503 if the CSV helper is unavailable.
+         */
+        get: operations["export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/exports/day/{plan_id}.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Daily Plan Pdf
+         * @description Test/demo only — do not expose in production.
+         *
+         *     RU: Экспортировать дневной план в PDF.
+         *     EN: Export daily meal plan to PDF.
+         *
+         *     Args:
+         *         plan_id: ID of the daily plan to export
+         *
+         *     Returns:
+         *         PDF file download
+         *
+         *     Fallback behavior: returns 503 when the PDF helper is unavailable and 500 if
+         *     ReportLab is not installed.
+         */
+        get: operations["export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/exports/week/{plan_id}.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Weekly Plan Csv
+         * @description Test/demo only — do not expose in production.
+         *
+         *     RU: Экспортировать недельный план в CSV.
+         *     EN: Export weekly meal plan to CSV.
+         *
+         *     Args:
+         *         plan_id: ID of the weekly plan to export
+         *
+         *     Returns:
+         *         CSV file download
+         *
+         *     Fallback behavior: returns a minimal CSV response when the CSV helper is unavailable.
+         */
+        get: operations["export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/exports/week/{plan_id}.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Weekly Plan Pdf
+         * @description Test/demo only — do not expose in production.
+         *
+         *     RU: Экспортировать недельный план в PDF.
+         *     EN: Export weekly meal plan to PDF.
+         *
+         *     Args:
+         *         plan_id: ID of the weekly plan to export
+         *
+         *     Returns:
+         *         PDF file download
+         *
+         *     Fallback behavior: returns 503 when the PDF helper is unavailable.
+         */
+        get: operations["export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Nutrient Gaps
+         * @description RU: Анализирует дефициты нутриентов и даёт рекомендации.
+         *     EN: Analyzes nutrient deficiencies and provides food recommendations.
+         *
+         *     Smart gap analysis:
+         *     - Compares actual intake vs WHO targets
+         *     - Identifies priority deficiencies (iron, calcium, folate, etc.)
+         *     - Suggests specific foods to close gaps
+         *     - Adapts recommendations for dietary restrictions
+         *     - No supplement recommendations (food-first approach)
+         *
+         *     Perfect for food diary analysis and meal optimization.
+         */
+        post: operations["api_nutrient_gaps_api_v1_premium_gaps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/plan/week": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Weekly Menu
+         * @description RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
+         *     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.
+         *
+         *     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
+         */
+        post: operations["api_weekly_menu_api_v1_premium_plan_week_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/plate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Premium Plate
+         * @description RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.
+         *     EN: Generates 'My Plate' for goal/deficit/activity.
+         *
+         *     Enhanced Plate API with visual sectors and hand/cup portions:
+         *     - Visual plate layout with 4 sectors + 2 bowls
+         *     - Precise deficit/surplus percentage control
+         *     - Hand/cup portion method for real-world application
+         *     - Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)
+         *     - Macro-balanced meal suggestions
+         */
+        post: operations["api_premium_plate_api_v1_premium_plate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/premium/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Who Targets
+         * @description Calculate WHO-aligned nutrition targets for premium clients.
+         *
+         *     Normal FastAPI route usage with Body(...) and dependency injection.
+         *     For direct test calls, use _generate_who_targets_response directly.
+         */
+        post: operations["api_who_targets_api_v1_premium_targets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/meal/shopping-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Shopping List
+         * @description Generate shopping list from weekly meal plan.
+         *
+         *     **Input:**
+         *     - `weekly_plan_id`: Optional ID of saved weekly plan (from DB)
+         *     - `plan_data`: Optional inline weekly plan JSON
+         *     - `preferences`: Shopping list generation preferences
+         *
+         *     **Output:**
+         *     - Categories with grouped items
+         *     - Total item count
+         *     - Generation metadata
+         *
+         *     **Algorithm:**
+         *     1. Validate input (XOR: weekly_plan_id OR plan_data)
+         *     2. Extract ingredients from plan_data
+         *     3. Normalize keys and aggregate quantities
+         *     4. Group by categories
+         *     5. Return structured DTO with warnings
+         */
+        post: operations["generate_shopping_list_api_v1_pro_meal_shopping_list_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/day-close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close day (PRO)
+         * @description Close a day and finalize adherence via event collector.
+         *
+         *     RU: Закрыть день и финализировать adherence через коллектор событий.
+         *     EN: Close a day and finalize adherence via event collector.
+         *
+         *     This is the sole canonical trigger for adherence finalization.
+         *     Idempotent: repeated calls for same day return existing state without re-finalization.
+         */
+        post: operations["close_day_api_v1_pro_nutrition_day_close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/meal-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log meal event (PRO)
+         * @description Log a meal event and update adherence micro-model.
+         *
+         *     RU: Логировать событие приёма пищи и обновить микромодель adherence.
+         *     EN: Log a meal event and update adherence micro-model.
+         *
+         *     Idempotency: If client_event_id is provided and matches an existing event,
+         *     returns current state when the event is already applied.
+         */
+        post: operations["log_meal_api_v1_pro_nutrition_meal_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/shoplist/day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shopping list suggestions for a day (MVP placeholder)
+         * @description MVP endpoint for day shopping list.
+         *
+         *     PR-2: fetches day plan (if available) and generates real items.
+         *
+         *     If no plan is found, returns empty items with a "no_day_plan" warning
+         *     to keep the iOS client stable.
+         */
+        get: operations["get_shoplist_day_api_v1_pro_shoplist_day_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/recipes": {
         parameters: {
             query?: never;
@@ -86,23 +972,6 @@ export interface paths {
         };
         /** List Recipes */
         get: operations["list_recipes_api_v1_recipes_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/recipes/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Recipes Search */
-        get: operations["list_recipes_search_api_v1_recipes_search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -145,101 +1014,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/users": {
+    "/api/v1/recipes/search": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * List Users
-         * @description RU: Возвращает список пользователей с пагинацией.
-         *
-         *     EN: Return paginated list of users.
-         */
-        get: operations["list_users_api_v1_users_get"];
-        put?: never;
-        /**
-         * Create User
-         * @description RU: Создаёт нового пользователя. EN: Create a new user entry.
-         */
-        post: operations["create_user_api_v1_users_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/users/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get User
-         * @description RU: Получить пользователя по идентификатору.
-         *
-         *     EN: Retrieve a user by identifier.
-         */
-        get: operations["get_user_api_v1_users__user_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete User
-         * @description RU: Удаляет пользователя. EN: Delete a user by identifier.
-         */
-        delete: operations["delete_user_api_v1_users__user_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/export/sign": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Sign Export Link */
-        post: operations["sign_export_link_api_v1_export_sign_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/plan/week/export.csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Week Csv */
-        get: operations["export_week_csv_api_v1_plan_week_export_csv_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/plan/week/export.pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Export Week Pdf */
-        get: operations["export_week_pdf_api_v1_plan_week_export_pdf_get"];
+        /** List Recipes Search */
+        get: operations["list_recipes_search_api_v1_recipes_search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -308,6 +1091,222 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/test/echo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Echo
+         * @description Echo endpoint that returns the received data.
+         *
+         *     Useful for testing request/response payloads and headers.
+         *
+         *     Args:
+         *         data: Any JSON data to echo back
+         *
+         *     Returns:
+         *         Dict containing the echoed data and metadata
+         */
+        post: operations["test_echo_api_v1_test_echo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/test/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Test Health
+         * @description Simple health check endpoint for testing.
+         *
+         *     Returns:
+         *         TestResponse: Health status with timestamp
+         */
+        get: operations["test_health_api_v1_test_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/test/rate-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Rate Limit
+         * @description Test endpoint for rate limiting without authentication.
+         *
+         *     This endpoint is intentionally public to allow testing of rate limiting
+         *     functionality without the need for authentication tokens.
+         *
+         *     Returns:
+         *         TestResponse: Simple response with timestamp and request info
+         */
+        post: operations["test_rate_limit_api_v1_test_rate_limit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Users
+         * @description RU: Возвращает список пользователей с пагинацией.
+         *
+         *     EN: Return paginated list of users.
+         */
+        get: operations["list_users_api_v1_users_get"];
+        put?: never;
+        /**
+         * Create User
+         * @description RU: Создаёт нового пользователя. EN: Create a new user entry.
+         *
+         *     Returns:
+         *         - HTTP 201 (Created) when a new user is successfully created
+         *         - HTTP 409 (Conflict) when a user with the same email already exists
+         *
+         *     Raises:
+         *         HTTPException: 409 if email already exists (duplicate creation attempt)
+         */
+        post: operations["create_user_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get User
+         * @description RU: Получить пользователя по идентификатору.
+         *
+         *     EN: Retrieve a user by identifier.
+         */
+        get: operations["get_user_api_v1_users__user_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete User
+         * @description RU: Удаляет пользователя. EN: Delete a user by identifier.
+         *
+         *     Uses retry logic with idempotent design (returns 204 for already-deleted users).
+         */
+        delete: operations["delete_user_api_v1_users__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/auto-repair/strategies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repair Strategies
+         * @description RU: Получить доступные стратегии ремонта
+         *     EN: Get available repair strategies
+         *
+         *     Returns:
+         *         Список доступных стратегий
+         */
+        get: operations["get_repair_strategies_api_v1_vip_auto_repair_strategies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/auto-repair/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Manual Repair Suggestions
+         * @description RU: Получить предложения для ручного ремонта
+         *     EN: Get suggestions for manual repair
+         *
+         *     Args:
+         *         request: Недельный план и цели
+         *
+         *     Returns:
+         *         Предложения для ручного ремонта
+         */
+        post: operations["get_manual_repair_suggestions_api_v1_vip_auto_repair_suggestions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/auto-repair/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Auto Repair Weekly Plan
+         * @description RU: Авто-ремонт недельного плана с UX-петлей
+         *     EN: Auto-repair weekly plan with UX loop
+         *
+         *     Args:
+         *         request: Недельный план, цели и предпочтения
+         *
+         *     Returns:
+         *         Результат авто-ремонта с историей итераций
+         */
+        post: operations["auto_repair_weekly_plan_api_v1_vip_auto_repair_weekly_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/vip/health": {
         parameters: {
             query?: never;
@@ -344,32 +1343,16 @@ export interface paths {
          *     EN: Weekly menu planning with VIP features
          *
          *     Args:
-         *         request: WeeklyPlanRequest with user profile and goals
+         *         payload: Raw request payload (validated after auth)
          *
          *     Returns:
          *         Echo структура с планом меню
+         *
+         *     Note:
+         *         We intentionally accept raw dict here so auth (403) wins over Pydantic 422.
+         *         Then we validate via WeeklyPlanRequest inside the handler.
          */
         post: operations["weekly_menu_plan_api_v1_vip_menu_weekly_plan_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/vip/weekly-plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate weekly meal plan
-         * @description Create a personalized weekly meal plan based on user profile data including age, height, weight, activity level, and nutrition goals.
-         */
-        post: operations["weekly_menu_plan_alias_api_v1_vip_weekly_plan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -403,7 +1386,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/shoplist/weekly": {
+    "/api/v1/vip/recipes/synthesize": {
         parameters: {
             query?: never;
             header?: never;
@@ -413,68 +1396,68 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Weekly Shoplist
-         * @description RU: Создание списка покупок на неделю с округлением до упаковок
-         *     EN: Create weekly shopping list with package rounding
+         * Synthesize Recipe
+         * @description RU: Синтезировать рецепт на основе ингредиентов
+         *     EN: Synthesize recipe based on ingredients
+         *
+         *     Args:
+         *         request: Список ингредиентов и предпочтения
+         *
+         *     Returns:
+         *         Синтезированный рецепт
+         */
+        post: operations["synthesize_recipe_api_v1_vip_recipes_synthesize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/recipes/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Recipe Templates
+         * @description RU: Получить доступные шаблоны рецептов
+         *     EN: Get available recipe templates
+         *
+         *     Returns:
+         *         Список шаблонов рецептов
+         */
+        get: operations["get_recipe_templates_api_v1_vip_recipes_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/recipes/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Synthesize Weekly Recipes
+         * @description RU: Синтезировать рецепты для недельного плана
+         *     EN: Synthesize recipes for weekly meal plan
          *
          *     Args:
          *         request: Недельный план питания
          *
          *     Returns:
-         *         Список покупок с округлением до упаковок
+         *         Рецепты для недели
          */
-        post: operations["weekly_shoplist_api_v1_vip_shoplist_weekly_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/vip/shoplist/daily": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Daily Shoplist
-         * @description RU: Создание списка покупок на день с округлением до упаковок
-         *     EN: Create daily shopping list with package rounding
-         *
-         *     Args:
-         *         request: Дневной план питания
-         *
-         *     Returns:
-         *         Список покупок с округлением до упаковок
-         */
-        post: operations["daily_shoplist_api_v1_vip_shoplist_daily_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/vip/shoplist/formats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Available Export Formats
-         * @description RU: Получить доступные форматы экспорта списков покупок
-         *     EN: Get available export formats for shopping lists
-         *
-         *     Returns:
-         *         Список поддерживаемых форматов
-         */
-        get: operations["available_export_formats_api_v1_vip_shoplist_formats_get"];
-        put?: never;
-        post?: never;
+        post: operations["synthesize_weekly_recipes_api_v1_vip_recipes_weekly_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -505,6 +1488,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/vip/regions/{region}/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Region Categories
+         * @description RU: Получить категории продуктов в регионе
+         *     EN: Get product categories in region
+         *
+         *     Args:
+         *         region: Код региона (es, us)
+         *
+         *     Returns:
+         *         Список категорий
+         */
+        get: operations["get_region_categories_api_v1_vip_regions__region__categories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/vip/regions/{region}/search": {
         parameters: {
             query?: never;
@@ -527,33 +1537,6 @@ export interface paths {
          *         Результаты поиска
          */
         get: operations["search_region_products_api_v1_vip_regions__region__search_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/vip/regions/{region}/categories": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Region Categories
-         * @description RU: Получить категории продуктов в регионе
-         *     EN: Get product categories in region
-         *
-         *     Args:
-         *         region: Код региона (es, us)
-         *
-         *     Returns:
-         *         Список категорий
-         */
-        get: operations["get_region_categories_api_v1_vip_regions__region__categories_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -617,7 +1600,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/recipes/synthesize": {
+    "/api/v1/vip/shoplist/daily": {
         parameters: {
             query?: never;
             header?: never;
@@ -627,24 +1610,24 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Synthesize Recipe
-         * @description RU: Синтезировать рецепт на основе ингредиентов
-         *     EN: Synthesize recipe based on ingredients
+         * Daily Shoplist
+         * @description RU: Создание списка покупок на день с округлением до упаковок
+         *     EN: Create daily shopping list with package rounding
          *
          *     Args:
-         *         request: Список ингредиентов и предпочтения
+         *         request: Дневной план питания
          *
          *     Returns:
-         *         Синтезированный рецепт
+         *         Список покупок с округлением до упаковок
          */
-        post: operations["synthesize_recipe_api_v1_vip_recipes_synthesize_post"];
+        post: operations["daily_shoplist_api_v1_vip_shoplist_daily_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/recipe/synthesize": {
+    "/api/v1/vip/shoplist/export": {
         parameters: {
             query?: never;
             header?: never;
@@ -654,17 +1637,41 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Synthesize Recipe Alias
-         * @description Alias for singular recipe synthesis endpoint.
+         * Export VIP shoplist to CSV or PDF
+         * @description Export shoplist in CSV or PDF format. Uses same generation logic as /generate endpoint. Deterministic ordering: store_id, aisle, food_id.
          */
-        post: operations["synthesize_recipe_alias_api_v1_vip_recipe_synthesize_post"];
+        post: operations["vip_shoplist_export_api_v1_vip_shoplist_export_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/recipes/weekly": {
+    "/api/v1/vip/shoplist/formats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Available Export Formats
+         * @description RU: Получить доступные форматы экспорта списков покупок
+         *     EN: Get available export formats for shopping lists
+         *
+         *     Returns:
+         *         Список поддерживаемых форматов
+         */
+        get: operations["available_export_formats_api_v1_vip_shoplist_formats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/shoplist/generate": {
         parameters: {
             query?: never;
             header?: never;
@@ -674,48 +1681,64 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Synthesize Weekly Recipes
-         * @description RU: Синтезировать рецепты для недельного плана
-         *     EN: Synthesize recipes for weekly meal plan
+         * Generate VIP shoplist (deterministic)
+         * @description Deterministic shoplist generation. Decimals are serialized as strings. Includes explainability (reasons/reason) and analytics. Optional catalog enrichment via region_id/store_id query params.
+         */
+        post: operations["vip_shoplist_generate_api_v1_vip_shoplist_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/shoplist/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * VIP shoplist preview (legacy)
+         * @description Legacy preview endpoint. For new integrations, use /generate, /daily, or /weekly.
+         */
+        get: operations["vip_shoplist_preview_api_v1_vip_shoplist_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/vip/shoplist/weekly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Weekly Shoplist
+         * @description RU: Создание списка покупок на неделю с округлением до упаковок
+         *     EN: Create weekly shopping list with package rounding
          *
          *     Args:
          *         request: Недельный план питания
          *
          *     Returns:
-         *         Рецепты для недели
+         *         Список покупок с округлением до упаковок
          */
-        post: operations["synthesize_weekly_recipes_api_v1_vip_recipes_weekly_post"];
+        post: operations["weekly_shoplist_api_v1_vip_shoplist_weekly_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/recipes/templates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Recipe Templates
-         * @description RU: Получить доступные шаблоны рецептов
-         *     EN: Get available recipe templates
-         *
-         *     Returns:
-         *         Список шаблонов рецептов
-         */
-        get: operations["get_recipe_templates_api_v1_vip_recipes_templates_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/vip/auto-repair/weekly": {
+    "/api/v1/vip/weekly-plan": {
         parameters: {
             query?: never;
             header?: never;
@@ -725,24 +1748,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Auto Repair Weekly Plan
-         * @description RU: Авто-ремонт недельного плана с UX-петлей
-         *     EN: Auto-repair weekly plan with UX loop
-         *
-         *     Args:
-         *         request: Недельный план, цели и предпочтения
-         *
-         *     Returns:
-         *         Результат авто-ремонта с историей итераций
+         * [DEPRECATED] Generate weekly meal plan
+         * @deprecated
+         * @description ⚠️ DEPRECATED: Use /api/v1/vip/menu/weekly/plan instead. This endpoint will be removed in v2.0. Note: this legacy endpoint parses JSON before enforcing auth, so invalid JSON may return 422 before a 403.
          */
-        post: operations["auto_repair_weekly_plan_api_v1_vip_auto_repair_weekly_post"];
+        post: operations["weekly_menu_plan_alias_api_v1_vip_weekly_plan_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/auto-repair/suggestions": {
+    "/bmi": {
         parameters: {
             query?: never;
             header?: never;
@@ -752,98 +1769,31 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Get Manual Repair Suggestions
-         * @description RU: Получить предложения для ручного ремонта
-         *     EN: Get suggestions for manual repair
+         * Bmi Endpoint
+         * @description RU: Shim endpoint. Исторически использовал legacy BMI math (calc_bmi, bmi_category).
+         *     Теперь это тонкий прокси в канонический handler (app/routers/bmi.py),
+         *     чтобы не было дублирования BMI-логики и чтобы результаты были идентичны.
          *
-         *     Args:
-         *         request: Недельный план и цели
-         *
-         *     Returns:
-         *         Предложения для ручного ремонта
+         *     EN: Shim endpoint. Historically used legacy BMI math (calc_bmi, bmi_category).
+         *     Now it is a thin proxy to the canonical handler (app/routers/bmi.py)
+         *     to avoid duplicate BMI logic and ensure identical results.
          */
-        post: operations["get_manual_repair_suggestions_api_v1_vip_auto_repair_suggestions_post"];
+        post: operations["bmi_endpoint_bmi_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/vip/auto-repair/strategies": {
+    "/debug_env": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Repair Strategies
-         * @description RU: Получить доступные стратегии ремонта
-         *     EN: Get available repair strategies
-         *
-         *     Args:
-         *         x_api_key: API key for VIP access
-         *
-         *     Returns:
-         *         Список доступных стратегий
-         */
-        get: operations["get_repair_strategies_api_v1_vip_auto_repair_strategies_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/plan/week-flexible": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate Week Plan */
-        post: operations["generate_week_plan_api_v1_premium_plan_week_flexible_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/db": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Database Health
-         * @description RU: Мини-проверка подключения к базе данных.
-         *
-         *     EN: Lightweight database connectivity check.
-         */
-        get: operations["database_health_health_db_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Root */
-        get: operations["root__get"];
+        /** Debug Env */
+        get: operations["debug_env_debug_env_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -876,7 +1826,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Health check endpoint with version info for debugging.
+         *
+         *     Returns server status, version, and timestamp for iOS debugging.
+         *     Helps diagnose "Connection refused" errors (backend offline).
+         */
         get: operations["health_health_get"];
         put?: never;
         post?: never;
@@ -886,154 +1842,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/health": {
+    "/health/db": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Health V1 */
-        get: operations["health_v1_api_v1_health_get"];
+        /**
+         * Database Health
+         * @description RU: Мини-проверка подключения к базе данных.
+         *
+         *     EN: Lightweight database connectivity check.
+         */
+        get: operations["database_health_health_db_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Metrics
-         * @description Prometheus metrics endpoint.
-         */
-        get: operations["metrics_metrics_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/privacy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Privacy
-         * @description Privacy policy endpoint.
-         */
-        get: operations["privacy_privacy_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/bmi": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bmi Endpoint */
-        post: operations["bmi_endpoint_bmi_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/plan": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Plan Endpoint
-         * @description Generate a personal plan based on BMI and user profile.
-         */
-        post: operations["plan_endpoint_plan_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bmi": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Bmi Endpoint V1
-         * @description V1 BMI endpoint (public access).
-         */
-        post: operations["bmi_endpoint_v1_api_v1_bmi_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bmi/calculate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Bmi Calculate Legacy
-         * @description Legacy path for BMI calculation; delegates to v1 logic without API key dependency.
-         */
-        post: operations["bmi_calculate_legacy_api_v1_bmi_calculate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/insight": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Insight V1
-         * @description Generate insight using LLM provider (v1 with API key).
-         */
-        post: operations["insight_v1_api_v1_insight_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1052,6 +1876,8 @@ export interface paths {
         /**
          * Insight
          * @description Generate insight using LLM provider (legacy path without API key).
+         *
+         *     Privacy: user text may be sent to external providers; see /privacy.
          */
         post: operations["insight_insight_post"];
         delete?: never;
@@ -1060,7 +1886,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/premium/plate": {
+    "/plan": {
         parameters: {
             query?: never;
             header?: never;
@@ -1070,46 +1896,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Api Premium Plate
-         * @description RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.
-         *     EN: Generates 'My Plate' for goal/deficit/activity.
+         * Plan Endpoint
+         * @description RU: Legacy endpoint /plan (contract must remain stable in PR-457=A).
+         *     EN: Legacy /plan endpoint (contract must remain stable in PR-457=A).
          *
-         *     Enhanced Plate API with visual sectors and hand/cup portions:
-         *     - Visual plate layout with 4 sectors + 2 bowls
-         *     - Precise deficit/surplus percentage control
-         *     - Hand/cup portion method for real-world application
-         *     - Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)
-         *     - Macro-balanced meal suggestions
+         *     PR-457=A: Delegates to canonical BMI engine but preserves legacy response contract.
          */
-        post: operations["api_premium_plate_api_v1_premium_plate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/bmr": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Api Premium Bmr
-         * @description RU: Рассчитывает BMR и TDEE с использованием нескольких формул.
-         *     EN: Calculates BMR and TDEE using multiple formulas.
-         *
-         *     Supports:
-         *     - Mifflin-St Jeor equation (primary)
-         *     - Harris-Benedict equation (secondary)
-         *     - Katch-McArdle equation (if body fat provided)
-         *     - Multiple activity levels
-         *     - Localized responses
-         */
-        post: operations["api_premium_bmr_api_v1_premium_bmr_post"];
+        post: operations["plan_endpoint_plan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1149,9 +1942,9 @@ export interface paths {
         put?: never;
         /**
          * Premium Targets Legacy
-         * @description Legacy endpoint for WHO targets (backwards compatibility)
+         * @description Legacy endpoint for WHO targets (backwards compatibility).
          *
-         *     For legacy behavior, if the WHO targets backend is unavailable, return 503.
+         *     Protected with API key authentication to match the new /api/v1/premium/targets endpoint.
          */
         post: operations["premium_targets_legacy_premium_targets_post"];
         delete?: never;
@@ -1160,374 +1953,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/premium/targets": {
+    "/privacy": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Api Who Targets
-         * @description RU: Рассчитывает индивидуальные цели по нормам ВОЗ.
-         *     EN: Calculates individual nutrition targets based on WHO guidelines.
+         * Privacy
+         * @description Privacy policy endpoint with explicit pseudonymous data disclosure.
          *
-         *     Evidence-based targets for:
-         *     - Daily calorie needs (BMR/TDEE + goal adjustments)
-         *     - Macronutrient distribution (WHO/IOM acceptable ranges)
-         *     - Priority micronutrients (WHO/EFSA RDA values)
-         *     - Hydration requirements (body weight + activity)
-         *     - Physical activity goals (WHO recommendations)
-         *
-         *     All targets are personalized based on age, sex, activity level,
-         *     and special conditions (pregnancy, lactation).
+         *     RU: Эндпоинт политики конфиденциальности с явным раскрытием псевдонимных данных.
+         *     EN: Privacy policy endpoint with explicit pseudonymous data disclosure.
          */
-        post: operations["api_who_targets_api_v1_premium_targets_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/plan/week": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Api Weekly Menu
-         * @description RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
-         *     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.
-         *
-         *     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
-         */
-        post: operations["api_weekly_menu_api_v1_premium_plan_week_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/gaps": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Api Nutrient Gaps
-         * @description RU: Анализирует дефициты нутриентов и даёт рекомендации.
-         *     EN: Analyzes nutrient deficiencies and provides food recommendations.
-         *
-         *     Smart gap analysis:
-         *     - Compares actual intake vs WHO targets
-         *     - Identifies priority deficiencies (iron, calcium, folate, etc.)
-         *     - Suggests specific foods to close gaps
-         *     - Adapts recommendations for dietary restrictions
-         *     - No supplement recommendations (food-first approach)
-         *
-         *     Perfect for food diary analysis and meal optimization.
-         */
-        post: operations["api_nutrient_gaps_api_v1_premium_gaps_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/debug_env": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Debug Env */
-        get: operations["debug_env_debug_env_get"];
+        get: operations["privacy_privacy_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/db-status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Database Status
-         * @description RU: Получить статус всех баз данных и планировщика обновлений.
-         *     EN: Get status of all databases and update scheduler.
-         *
-         *     Returns information about:
-         *     - Database versions and last update times
-         *     - Update scheduler status
-         *     - Retry counts and error states
-         *     - Data integrity checksums
-         */
-        get: operations["get_database_status_api_v1_admin_db_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/force-update": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Force Database Update
-         * @description RU: Принудительно запустить обновление баз данных.
-         *     EN: Force immediate database update.
-         *
-         *     Args:
-         *         source: Optional specific source to update ("usda", "openfoodfacts")
-         *                 If None, updates all sources
-         *
-         *     Returns:
-         *         Update results with statistics on records changed
-         */
-        post: operations["force_database_update_api_v1_admin_force_update_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/check-updates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check For Updates
-         * @description RU: Проверить наличие доступных обновлений без их установки.
-         *     EN: Check for available updates without installing them.
-         *
-         *     Returns:
-         *         Dictionary showing which sources have updates available
-         */
-        get: operations["check_for_updates_api_v1_admin_check_updates_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/rollback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rollback Database
-         * @description RU: Откатить базу данных к предыдущей версии.
-         *     EN: Rollback database to a previous version.
-         *
-         *     Args:
-         *         source: Data source name ("usda", "openfoodfacts")
-         *         target_version: Version to rollback to
-         *
-         *     Returns:
-         *         Success status and rollback details
-         */
-        post: operations["rollback_database_api_v1_admin_rollback_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/exports/day/{plan_id}.csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export Daily Plan Csv
-         * @description RU: Экспортировать дневной план в CSV.
-         *     EN: Export daily meal plan to CSV.
-         *
-         *     Args:
-         *         plan_id: ID of the daily plan to export
-         *
-         *     Returns:
-         *         CSV file download
-         */
-        get: operations["export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/export/pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Export Pdf Generic
-         * @description Generic PDF export endpoint for tests' error-handling coverage.
-         *
-         *     Accepts a JSON payload and attempts to render a simple PDF using to_pdf_day
-         *     if present; otherwise returns an appropriate error. For empty payloads,
-         *     FastAPI/Pydantic will trigger 422 automatically due to missing body shape.
-         */
-        post: operations["export_pdf_generic_api_v1_export_pdf_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/exports/week/{plan_id}.csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export Weekly Plan Csv
-         * @description RU: Экспортировать недельный план в CSV.
-         *     EN: Export weekly meal plan to CSV.
-         *
-         *     Args:
-         *         plan_id: ID of the weekly plan to export
-         *
-         *     Returns:
-         *         CSV file download
-         */
-        get: operations["export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/exports/day/{plan_id}.pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export Daily Plan Pdf
-         * @description RU: Экспортировать дневной план в PDF.
-         *     EN: Export daily meal plan to PDF.
-         *
-         *     Args:
-         *         plan_id: ID of the daily plan to export
-         *
-         *     Returns:
-         *         PDF file download
-         */
-        get: operations["export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/premium/exports/week/{plan_id}.pdf": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Export Weekly Plan Pdf
-         * @description RU: Экспортировать недельный план в PDF.
-         *     EN: Export weekly meal plan to PDF.
-         *
-         *     Args:
-         *         plan_id: ID of the weekly plan to export
-         *
-         *     Returns:
-         *         PDF file download
-         */
-        get: operations["export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bodyfat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Calc Bodyfat */
-        post: operations["calc_bodyfat_api_v1_bodyfat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/bmi/pro": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Bmi Pro */
-        post: operations["bmi_pro_api_v1_bmi_pro_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1538,78 +1980,356 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** BMIProRequest */
-        BMIProRequest: {
-            /** Height Cm */
-            height_cm: number;
-            /** Weight Kg */
-            weight_kg: number;
+        /**
+         * AdherenceEventRequest
+         * @description Request schema for recording an adherence event.
+         *
+         *     RU: Схема запроса для записи события adherence.
+         *     EN: Request schema for recording an adherence event.
+         *
+         *     Security Note:
+         *         subject_id is derived from authenticated API key (not from request payload)
+         *         to prevent horizontal privilege escalation.
+         */
+        AdherenceEventRequest: {
             /**
-             * Sex
+             * Analyzer Key
+             * @default v1:adherence
+             */
+            analyzer_key: string;
+            /**
+             * Event Type
              * @enum {string}
              */
-            sex: "female" | "male";
-            /** Age */
+            event_type: "meal_logged" | "slip";
+            /**
+             * Weight
+             * @default 1
+             */
+            weight: number;
+        };
+        /**
+         * AdherenceResponse
+         * @description Response schema for adherence endpoints.
+         *
+         *     RU: Схема ответа для эндпоинтов adherence.
+         *     EN: Response schema for adherence endpoints.
+         */
+        AdherenceResponse: {
+            /** Alpha */
+            alpha: number;
+            /** Analyzer Key */
+            analyzer_key: string;
+            /** Beta */
+            beta: number;
+            /** Confidence */
+            confidence: number;
+            /** N */
+            n: number;
+            /** Needs More Data */
+            needs_more_data: boolean;
+            /** Risk Slip */
+            risk_slip: number;
+            /** User Id */
+            user_id: number;
+        };
+        /**
+         * BMICalculateRequest
+         * @description RU: Запрос для расчета BMI через единый engine.
+         *     EN: Request for BMI calculation via unified engine.
+         *
+         *     FREE tier endpoint (no API key required).
+         */
+        BMICalculateRequest: {
+            /**
+             * Age
+             * @description Age in years. Range: 1-120.
+             * @example 25
+             * @example 30
+             * @example 45
+             * @example 65
+             */
             age: number;
-            /** Waist Cm */
-            waist_cm: number;
-            /** Hip Cm */
-            hip_cm?: number | null;
-            /** Bodyfat Percent */
-            bodyfat_percent?: number | null;
+            /**
+             * Athlete
+             * @description Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by schema.
+             * @default false
+             * @example no
+             * @example yes
+             * @example false
+             * @example true
+             */
+            athlete: string | boolean;
+            /**
+             * Gender
+             * @description Gender: 'male' or 'female'. Will be normalized by engine.
+             * @example male
+             * @example female
+             * @example муж
+             * @example жен
+             * @example null
+             */
+            gender?: string | null;
+            /**
+             * Height Cm
+             * @description Height in centimeters. Must be positive.
+             * @example 170
+             * @example 175.5
+             * @example 180
+             */
+            height_cm: number;
             /**
              * Lang
+             * @description Language for localized responses: 'ru', 'en', or 'es'.
              * @default en
+             * @example en
+             * @example ru
+             * @example es
              * @enum {string}
              */
             lang: "ru" | "en" | "es";
-        };
-        /** BMIProResponse */
-        BMIProResponse: {
-            /** Bmi */
-            bmi: number;
-            /** Whtr */
-            whtr: number;
-            /** Whr */
-            whr: number | null;
-            /** Ffmi */
-            ffmi: number | null;
             /**
-             * Risk Level
+             * Pregnant
+             * @description Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.
+             * @default false
+             * @example no
+             * @example yes
+             * @example false
+             * @example true
+             */
+            pregnant: string | boolean;
+            /**
+             * Waist Cm
+             * @description Waist circumference in centimeters (optional). If provided, enables WHtR and waist risk assessment.
+             * @example 80
+             * @example 90.5
+             * @example null
+             */
+            waist_cm?: number | null;
+            /**
+             * Weight Kg
+             * @description Weight in kilograms. Must be positive.
+             * @example 65.5
+             * @example 70
+             * @example 80.3
+             */
+            weight_kg: number;
+        };
+        /**
+         * BMICalculateResponse
+         * @description RU: Ответ с результатами расчета BMI через единый engine.
+         *     EN: Response with BMI calculation results via unified engine.
+         *
+         *     Note: `category` может быть `None` для беременных и детей/подростков
+         *     (это не ошибка, а медицинский дисклеймер).
+         */
+        BMICalculateResponse: {
+            /**
+             * Age Band
+             * @description Age band for UI differentiation: 'too_young' (<12), 'child' (12-14), 'teen' (15-18), 'adult' (19-59), 'elderly' (>=60).
+             * @example adult
+             * @example teen
+             * @example elderly
              * @enum {string}
              */
-            risk_level: "low" | "moderate" | "high";
-            /** Notes */
-            notes: string[];
+            age_band: "too_young" | "child" | "teen" | "adult" | "elderly";
+            /**
+             * Bmi
+             * @description Calculated BMI value (weight_kg / (height_m ** 2)).
+             * @example 22.5
+             * @example 25.3
+             * @example 18.7
+             */
+            bmi: number;
+            /**
+             * Category
+             * @description BMI category (localized). None for users in 'pregnant', 'too_young', 'child' or 'teen' age bands - not an error, medical disclaimer. BMI categories are not provided during pregnancy or for users in 'too_young', 'child' and 'teen' age bands.
+             * @example normal
+             * @example overweight
+             * @example null
+             */
+            category?: string | null;
+            /**
+             * Group
+             * @description User group determined by auto_group(): 'general', 'athlete', 'elderly', 'child', 'teen', 'too_young', 'pregnant'.
+             * @example general
+             * @example athlete
+             * @example elderly
+             */
+            group: string;
+            /**
+             * Group Display
+             * @description Localized display name for the group.
+             * @example General
+             * @example Athlete
+             * @example Elderly
+             */
+            group_display: string;
+            /**
+             * Interpretation
+             * @description Localized interpretation text for the BMI value in the context of the group.
+             * @example Your BMI is within the normal range for your age group.
+             */
+            interpretation: string;
+            /**
+             * @description Optional structured interpretation (v1). i18n keys only. Currently may be None while wiring is in progress. Planned behavior: None only for too_young; pregnancy returns structured interpretation (goal=medical_review, target=prenatal_guidelines), and pregnant+athlete includes additional athlete disclaimers.
+             * @example {
+             *       "disclaimers": [
+             *         "bmi.interpretation.disclaimer.general"
+             *       ],
+             *       "goal_direction": "maintain",
+             *       "priority_notes": [],
+             *       "risk_flags": [],
+             *       "target_range": {
+             *         "max": 25,
+             *         "min": 18.5
+             *       }
+             *     }
+             * @example null
+             */
+            interpretation_v1?: components["schemas"]["BMIInterpretationV1Schema"] | null;
+            /**
+             * Notes
+             * @description Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.
+             * @example []
+             * @example [
+             *       "Increased waist-related risk"
+             *     ]
+             */
+            notes?: string[];
+            /** @description Optional BMI scale visualization spec (v1). Frontend should render this if available. */
+            visualization?: components["schemas"]["BMIScaleV1Spec"] | null;
+            /**
+             * @description Waist risk assessment result. Present only if waist_cm was provided and risk was calculated.
+             * @example {
+             *       "notes": [
+             *         "Increased waist-related risk"
+             *       ],
+             *       "risk_level": "moderate",
+             *       "wht_ratio": 0.52
+             *     }
+             * @example null
+             */
+            waist_risk?: components["schemas"]["WaistRiskResultSchema"] | null;
+            /**
+             * Wht Ratio
+             * @description Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.
+             * @example 0.47
+             * @example 0.52
+             * @example null
+             */
+            wht_ratio?: number | null;
+        };
+        /**
+         * BMIInterpretationV1Schema
+         * @description BMI Interpretation v1 schema (i18n keys only).
+         *
+         *     RU: Схема интерпретации BMI v1 (только i18n ключи).
+         *     EN: BMI interpretation v1 schema (i18n keys only).
+         */
+        BMIInterpretationV1Schema: {
+            /**
+             * Disclaimers
+             * @description Disclaimers (i18n keys only).
+             * @example [
+             *       "bmi.interpretation.disclaimer.general"
+             *     ]
+             */
+            disclaimers?: string[];
+            /**
+             * Goal Direction
+             * @description Goal direction for BMI management.
+             * @example maintain
+             * @enum {string}
+             */
+            goal_direction: "maintain" | "reduce" | "increase" | "medical_review";
+            /**
+             * Priority Notes
+             * @description Priority notes (i18n keys only).
+             * @example [
+             *       "bmi.interpretation.priority.stability_first"
+             *     ]
+             */
+            priority_notes?: string[];
+            /**
+             * Risk Flags
+             * @description Risk flags (i18n keys only).
+             * @example [
+             *       "bmi.interpretation.risk.extreme_value"
+             *     ]
+             */
+            risk_flags?: string[];
+            /**
+             * Target Range
+             * @description Target range (numeric or qualitative). None for medical_review cases.
+             * @example {
+             *       "max": 25,
+             *       "min": 18.5
+             *     }
+             * @example age_appropriate_growth
+             * @example null
+             */
+            target_range?: components["schemas"]["NumericRangeSchema"] | ("age_appropriate_growth" | "prenatal_guidelines") | null;
+        };
+        /**
+         * BMIMarkerSpec
+         * @description BMI marker position.
+         */
+        BMIMarkerSpec: {
+            /**
+             * Value
+             * @description Current BMI value
+             * @example 23.4
+             * @example 25
+             * @example 18.5
+             */
+            value: number;
+        };
+        /**
+         * BMIRangeSpec
+         * @description BMI range with i18n key.
+         */
+        BMIRangeSpec: {
+            /**
+             * From
+             * @description Range start (inclusive)
+             */
+            from: number;
+            /**
+             * Key
+             * @description i18n key for range label
+             */
+            key: string;
+            /**
+             * To
+             * @description Range end (exclusive)
+             */
+            to: number;
         };
         /** BMIRequest */
         BMIRequest: {
-            /** Weight Kg */
-            weight_kg: number;
-            /** Height M */
-            height_m: number;
             /**
              * Age
              * @default 30
              */
             age: number;
             /**
-             * Gender
-             * @default male
-             */
-            gender: string;
-            /**
-             * Pregnant
-             * @default no
-             */
-            pregnant: string | boolean;
-            /**
              * Athlete
              * @default no
              */
             athlete: string | boolean;
-            /** Waist Cm */
-            waist_cm?: number | null;
+            /**
+             * Gender
+             * @default male
+             */
+            gender: string;
+            /** Height M */
+            height_m: number;
+            /**
+             * Include Chart
+             * @default false
+             */
+            include_chart: boolean | null;
             /**
              * Lang
              * @default ru
@@ -1617,162 +2337,243 @@ export interface components {
              */
             lang: "ru" | "en" | "es";
             /**
+             * Pregnant
+             * @default no
+             */
+            pregnant: string | boolean;
+            /**
              * Premium
              * @default false
              */
             premium: boolean | null;
-            /**
-             * Include Chart
-             * @default false
-             */
-            include_chart: boolean | null;
+            /** Waist Cm */
+            waist_cm?: number | null;
+            /** Weight Kg */
+            weight_kg: number;
         };
         /** BMIRequestV1 */
         BMIRequestV1: {
-            /** Weight Kg */
-            weight_kg: number;
-            /** Height Cm */
-            height_cm: number;
-            /**
-             * Group
-             * @default general
-             */
-            group: string;
             /**
              * Age
              * @default 30
              */
             age: number;
             /**
+             * Athlete
+             * @default no
+             */
+            athlete: string | boolean;
+            /**
              * Gender
              * @default male
              */
             gender: string;
             /**
-             * Pregnant
-             * @default no
+             * Group
+             * @default general
              */
-            pregnant: string | boolean;
-            /**
-             * Athlete
-             * @default no
-             */
-            athlete: string | boolean;
-            /** Waist Cm */
-            waist_cm?: number | null;
+            group: string;
+            /** Height Cm */
+            height_cm: number;
             /**
              * Lang
              * @default en
              * @enum {string}
              */
             lang: "ru" | "en" | "es";
+            /**
+             * Pregnant
+             * @default no
+             */
+            pregnant: string | boolean;
+            /** Waist Cm */
+            waist_cm?: number | null;
+            /** Weight Kg */
+            weight_kg: number;
+        };
+        /**
+         * BMIScaleV1Spec
+         * @description BMI scale visualization spec v1.
+         */
+        BMIScaleV1Spec: {
+            /**
+             * Bmi
+             * @description BMI value
+             * @example 23.4
+             * @example 25
+             * @example 18.5
+             */
+            bmi: number;
+            /**
+             * Kind
+             * @default bmi_scale_v1
+             * @constant
+             */
+            kind: "bmi_scale_v1";
+            /**
+             * @description Current BMI marker
+             * @example {
+             *       "value": 23.4
+             *     }
+             */
+            marker: components["schemas"]["BMIMarkerSpec"];
+            /**
+             * Max
+             * @description Scale maximum
+             * @default 60
+             * @example 60
+             */
+            max: number;
+            /**
+             * Min
+             * @description Scale minimum
+             * @default 0
+             * @example 0
+             */
+            min: number;
+            /**
+             * Ranges
+             * @description BMI ranges with i18n keys
+             * @example [
+             *       {
+             *         "from": 0,
+             *         "key": "bmi.underweight",
+             *         "to": 18.5
+             *       },
+             *       {
+             *         "from": 18.5,
+             *         "key": "bmi.normal",
+             *         "to": 25
+             *       },
+             *       {
+             *         "from": 25,
+             *         "key": "bmi.overweight",
+             *         "to": 30
+             *       },
+             *       {
+             *         "from": 30,
+             *         "key": "bmi.obesity",
+             *         "to": 60
+             *       }
+             *     ]
+             */
+            ranges: components["schemas"]["BMIRangeSpec"][];
         };
         /**
          * BMRRequest
          * @description Request model for BMR calculation
          */
         BMRRequest: {
-            /** Weight Kg */
-            weight_kg: number;
-            /** Height Cm */
-            height_cm: number;
-            /** Age */
-            age: number;
-            /** Sex */
-            sex: string;
             /** Activity */
             activity: string;
+            /** Age */
+            age: number;
             /** Bodyfat */
             bodyfat?: number | null;
+            /** Height Cm */
+            height_cm: number;
             /**
              * Lang
              * @default en
              * @enum {string}
              */
             lang: "ru" | "en" | "es";
+            /** Sex */
+            sex: string;
+            /** Weight Kg */
+            weight_kg: number;
         };
-        /** BMRRequestLegacy */
+        /**
+         * BMRRequestLegacy
+         * @description Lenient legacy request model to allow testing error paths without 422.
+         *
+         *     RU: Более мягкая модель для обратной совместимости.
+         *     EN: Lenient model for backward compatibility.
+         */
         BMRRequestLegacy: {
-            /** Weight Kg */
-            weight_kg: number;
-            /** Height Cm */
-            height_cm: number;
-            /** Age */
-            age: number;
-            /** Sex */
-            sex: string;
             /** Activity */
             activity: string;
+            /** Age */
+            age: number;
             /** Bodyfat */
             bodyfat?: number | null;
+            /** Height Cm */
+            height_cm: number;
             /**
              * Lang
              * @default en
              * @enum {string}
              */
             lang: "ru" | "en" | "es";
+            /** Sex */
+            sex: string;
+            /** Weight Kg */
+            weight_kg: number;
         };
         /**
          * BMRResponse
          * @description Response model for BMR calculation
          */
         BMRResponse: {
-            /** Bmr */
+            /**
+             * Activity Level
+             * @description Localized description of the activity level used in calculations (e.g., 'sedentary', 'light', 'moderate', 'active', 'very_active').
+             */
+            activity_level: string;
+            /**
+             * Bmr
+             * @description BMR values calculated by different formulas. Keys are formula names (e.g., 'mifflin', 'harris', 'katch'), values are BMR in kcal/day.
+             */
             bmr: {
                 [key: string]: number;
             };
-            /** Tdee */
-            tdee: {
-                [key: string]: number;
-            };
-            /** Activity Level */
-            activity_level: string;
-            /** Recommended Intake */
+            /**
+             * Formulas Used
+             * @description List of BMR formula names that were used in the calculation (e.g., ['mifflin', 'harris', 'katch']).
+             */
+            formulas_used: string[];
+            /**
+             * Notes
+             * @description Informational messages about the calculation (e.g., notes about body fat usage, warnings, or fallback explanations).
+             */
+            notes: string[];
+            /**
+             * Recommended Intake
+             * @description Recommended daily calorie intake for different goals. Keys: 'maintenance', 'weight_loss' (20% deficit), 'weight_gain' (20% surplus); values are calories in kcal/day.
+             */
             recommended_intake: {
                 [key: string]: number;
             };
-            /** Formulas Used */
-            formulas_used: string[];
-            /** Notes */
-            notes: string[];
+            /**
+             * Tdee
+             * @description TDEE (Total Daily Energy Expenditure) values for different formulas and activity levels. Keys are formula names, values are TDEE in kcal/day.
+             */
+            tdee: {
+                [key: string]: number;
+            };
         };
         /** BodyFatRequest */
         BodyFatRequest: {
+            /**
+             * Age
+             * @description Age in years, 1..120
+             */
+            age?: number | null;
+            /**
+             * Bmi
+             * @description BMI value, 0..100
+             */
+            bmi?: number | null;
+            /** Gender */
+            gender: string;
             /**
              * Height M
              * @description Height in meters, must be positive
              */
             height_m?: number | null;
             /**
-             * Weight Kg
-             * @description Weight in kilograms, must be positive
-             */
-            weight_kg?: number | null;
-            /**
-             * Age
-             * @description Age in years, must be between 1 and 120
-             */
-            age?: number | null;
-            /** Gender */
-            gender: string;
-            /**
-             * Bmi
-             * @description BMI value, must be between 0 and 100
-             */
-            bmi?: number | null;
-            /**
-             * Neck Cm
-             * @description Neck circumference in cm, must be positive
-             */
-            neck_cm?: number | null;
-            /**
-             * Waist Cm
-             * @description Waist circumference in cm, must be positive
-             */
-            waist_cm?: number | null;
-            /**
              * Hip Cm
-             * @description Hip circumference in cm, must be positive
+             * @description Hip circumference in cm, must be > 0
              */
             hip_cm?: number | null;
             /**
@@ -1780,6 +2581,212 @@ export interface components {
              * @default en
              */
             language: string | null;
+            /**
+             * Neck Cm
+             * @description Neck circumference in cm, must be > 0
+             */
+            neck_cm?: number | null;
+            /**
+             * Waist Cm
+             * @description Waist circumference in cm, must be > 0
+             */
+            waist_cm?: number | null;
+            /**
+             * Weight Kg
+             * @description Weight in kg, must be positive
+             */
+            weight_kg?: number | null;
+        };
+        /**
+         * CatalogInfoDTO
+         * @description RU: Каталожная информация для enrichment слоя (adapter-only).
+         *     EN: Catalog enrichment info (adapter-only).
+         *
+         *     This is attached to shoplist lines when region_id/store_id are provided.
+         *     Missing catalog is not an error (fail-soft).
+         */
+        CatalogInfoDTO: {
+            /**
+             * Aisle
+             * @description Store aisle/category label
+             * @example Vegetables
+             * @example Produce
+             */
+            aisle?: string | null;
+            /**
+             * Pack Label
+             * @description Human-friendly pack label
+             * @example 500 g bag
+             * @example 1 lb bag
+             */
+            pack_label?: string | null;
+            /** @description Optional price estimate (Decimal-as-string in JSON) */
+            price?: components["schemas"]["MoneyDTO"] | null;
+            /**
+             * Region Id
+             * @description Region identifier
+             * @example es
+             * @example us
+             */
+            region_id: string;
+            /**
+             * Sku
+             * @description Stock Keeping Unit
+             * @example CRF-ES-000123
+             */
+            sku: string;
+            /**
+             * Store Id
+             * @description Store identifier
+             * @example carrefour_es
+             * @example walmart_us
+             */
+            store_id: string;
+        };
+        /**
+         * CatalogRegion
+         * @description RU: Регион каталога (legacy/public contract).
+         *     EN: Catalog region (legacy/public contract).
+         *
+         *     Region catalog public DTO (used by app/routers/catalog.py).
+         *     Keep backward-compatible with core.catalog.service model_dump().
+         */
+        CatalogRegion: {
+            /**
+             * Id
+             * @example es
+             */
+            id: string;
+            /**
+             * Name
+             * @example Spain
+             */
+            name: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CatalogSKU
+         * @description RU: SKU запись (legacy/public contract).
+         *     EN: SKU record (legacy/public contract).
+         *
+         *     SKU public DTO (used by app/routers/catalog.py).
+         */
+        CatalogSKU: {
+            /**
+             * Aisle
+             * @example Vegetables
+             */
+            aisle?: string | null;
+            /**
+             * Barcode
+             * @example 1234567890123
+             */
+            barcode?: string | null;
+            /**
+             * Brand
+             * @example Carrefour
+             */
+            brand?: string | null;
+            /**
+             * Id
+             * @example CRF-ES-000123
+             */
+            id: string;
+            /**
+             * Name
+             * @example Carrot 500g
+             */
+            name: string;
+            /**
+             * Pack Label
+             * @example 500 g bag
+             */
+            pack_label?: string | null;
+            /**
+             * Price Currency
+             * @example EUR
+             */
+            price_currency?: string | null;
+            /**
+             * Price Value
+             * @description Decimal serialized as string in JSON (Pydantic v2).
+             * @example 1.29
+             */
+            price_value?: string | null;
+            /**
+             * Region Id
+             * @example es
+             */
+            region_id: string;
+            /**
+             * Source Id
+             * @example carrefour
+             */
+            source_id: string;
+            /**
+             * Store Id
+             * @example carrefour_es
+             */
+            store_id: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CatalogStore
+         * @description RU: Магазин/сеть в регионе (legacy/public contract).
+         *     EN: Store in region (legacy/public contract).
+         *
+         *     Store public DTO (used by app/routers/catalog.py).
+         */
+        CatalogStore: {
+            /**
+             * Id
+             * @example carrefour_es
+             */
+            id: string;
+            /**
+             * Name
+             * @example Carrefour ES
+             */
+            name: string;
+            /**
+             * Region Id
+             * @example es
+             */
+            region_id: string;
+            /**
+             * Source Id
+             * @example carrefour
+             */
+            source_id: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * CurrencyDTO
+         * @description Currency codes for price enrichment.
+         *
+         *     RU: Коды валют для обогащения цен. Поддерживаются основные региональные валюты.
+         *     EN: Currency codes for price enrichment. Supports major regional currencies.
+         * @enum {string}
+         */
+        CurrencyDTO: "EUR" | "USD" | "GBP" | "CAD" | "MXN" | "AUD" | "JPY" | "BYN" | "RUB";
+        /**
+         * DayCloseRequest
+         * @description Close a day with an adherence score.
+         *
+         *     RU: Закрыть день с оценкой выполнения.
+         *     EN: Close day with adherence score.
+         */
+        DayCloseRequest: {
+            /** Adherence Score */
+            adherence_score: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
         };
         /**
          * ErrorResponse
@@ -1788,21 +2795,23 @@ export interface components {
          */
         ErrorResponse: {
             /**
-             * Status
-             * @description Response status
-             * @default error
+             * Data
+             * @description Additional error data
              */
-            status: string;
+            data?: {
+                [key: string]: unknown;
+            };
             /**
              * Message
              * @description Error message
              */
             message: string;
             /**
-             * Data
-             * @description Additional error data
+             * Status
+             * @description Response status
+             * @default error
              */
-            data?: Record<string, never>;
+            status: string;
         };
         /**
          * FoodHit
@@ -1810,18 +2819,27 @@ export interface components {
          *     EN: Search hit for list views.
          */
         FoodHit: {
+            /**
+             * Carbs G
+             * @default 0
+             */
+            carbs_g: number;
+            /**
+             * Fat G
+             * @default 0
+             */
+            fat_g: number;
             /** Id */
             id: string;
-            /** Name */
-            name: string;
             /** Kcal */
             kcal: number;
-            /** Protein G */
+            /** Name */
+            name: string;
+            /**
+             * Protein G
+             * @default 0
+             */
             protein_g: number;
-            /** Fat G */
-            fat_g: number;
-            /** Carbs G */
-            carbs_g: number;
         };
         /**
          * FoodItem
@@ -1829,81 +2847,90 @@ export interface components {
          *     EN: Complete food model with provenance tracking.
          */
         FoodItem: {
-            /** Id */
-            id: string;
-            /** Canonical Name */
-            canonical_name: string;
-            /** Group */
-            group?: string | null;
             /**
-             * Per G
-             * @default 100
-             */
-            per_g: number;
-            /** Kcal */
-            kcal: number;
-            /** Protein G */
-            protein_g: number;
-            /** Fat G */
-            fat_g: number;
-            /** Carbs G */
-            carbs_g: number;
-            /**
-             * Fiber G
+             * B12 Ug
              * @default 0
              */
-            fiber_g: number;
+            B12_ug: number;
+            /** Brand */
+            brand?: string | null;
+            /**
+             * Ca Mg
+             * @default 0
+             */
+            Ca_mg: number;
+            /** Canonical Name */
+            canonical_name: string;
+            /**
+             * Carbs G
+             * @default 0
+             */
+            carbs_g: number;
+            /**
+             * Fat G
+             * @default 0
+             */
+            fat_g: number;
+            /** Fdc Id */
+            fdc_id?: string | null;
             /**
              * Fe Mg
              * @default 0
              */
             Fe_mg: number;
             /**
-             * Ca Mg
+             * Fiber G
              * @default 0
              */
-            Ca_mg: number;
+            fiber_g: number;
+            /** Flags */
+            flags?: string[];
+            /**
+             * Folate Ug
+             * @default 0
+             */
+            Folate_ug: number;
+            /** Group */
+            group?: string | null;
+            /** Gtin */
+            gtin?: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Iodine Ug
+             * @default 0
+             */
+            Iodine_ug: number;
             /**
              * K Mg
              * @default 0
              */
             K_mg: number;
+            /** Kcal */
+            kcal: number;
             /**
              * Mg Mg
              * @default 0
              */
             Mg_mg: number;
             /**
-             * Vitd Iu
-             * @default 0
+             * Per G
+             * @default 100
              */
-            VitD_IU: number;
+            per_g: number;
             /**
-             * B12 Ug
+             * Price Per 100G
              * @default 0
              */
-            B12_ug: number;
+            price_per_100g: number;
             /**
-             * Folate Ug
+             * Protein G
              * @default 0
              */
-            Folate_ug: number;
-            /**
-             * Iodine Ug
-             * @default 0
-             */
-            Iodine_ug: number;
-            /** Flags */
-            flags?: string[];
-            /** Brand */
-            brand?: string | null;
-            /** Gtin */
-            gtin?: string | null;
-            /** Fdc Id */
-            fdc_id?: string | null;
+            protein_g: number;
             /**
              * Source
-             * @default USDA|OFF
+             * @default USDA
              */
             source: string;
             /**
@@ -1914,10 +2941,10 @@ export interface components {
             /** Version Date */
             version_date: string;
             /**
-             * Price Per 100G
+             * Vitd Iu
              * @default 0
              */
-            price_per_100g: number;
+            VitD_IU: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1937,6 +2964,70 @@ export interface components {
             text: string;
         };
         /**
+         * MealLogRequest
+         * @description Log a meal-related event.
+         *
+         *     RU: Логировать событие приёма пищи.
+         *     EN: Log a meal event.
+         */
+        MealLogRequest: {
+            /** Adherence Score */
+            adherence_score?: number | null;
+            /**
+             * Client Event Id
+             * @description Client-provided idempotency key (recommended for mobile retries)
+             */
+            client_event_id?: string | null;
+            /**
+             * Log Type
+             * @default meal_logged
+             * @enum {string}
+             */
+            log_type: "meal_logged" | "slip" | "partial";
+            /** Meal Type */
+            meal_type?: ("breakfast" | "lunch" | "dinner" | "snack") | null;
+            /** Occurred At */
+            occurred_at?: string | null;
+        };
+        /**
+         * MoneyDTO
+         * @description RU: Деньги: Decimal сериализуется в JSON как строка (Pydantic v2).
+         *     EN: Money: Decimal is serialized to JSON as string (Pydantic v2).
+         */
+        MoneyDTO: {
+            /**
+             * @example EUR
+             * @example USD
+             * @example GBP
+             */
+            currency: components["schemas"]["CurrencyDTO"];
+            /**
+             * Value
+             * @description Decimal-as-string in JSON (no floats)
+             * @example 1.29
+             * @example 2.50
+             */
+            value: string;
+        };
+        /**
+         * NumericRangeSchema
+         * @description Numeric BMI target range schema.
+         */
+        NumericRangeSchema: {
+            /**
+             * Max
+             * @description Range maximum (inclusive)
+             * @example 25
+             */
+            max: number;
+            /**
+             * Min
+             * @description Range minimum (inclusive)
+             * @example 18.5
+             */
+            min: number;
+        };
+        /**
          * NutrientGapsRequest
          * @description RU: Запрос на анализ дефицитов нутриентов.
          *     EN: Request for nutrient gap analysis.
@@ -1954,14 +3045,97 @@ export interface components {
          *     EN: Response with gap analysis and recommendations.
          */
         NutrientGapsResponse: {
-            /** Gaps */
-            gaps: {
-                [key: string]: Record<string, never>;
-            };
-            /** Food Recommendations */
-            food_recommendations: string[];
             /** Adherence Score */
             adherence_score: number;
+            /** Food Recommendations */
+            food_recommendations: string[];
+            /** Gaps */
+            gaps: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        /**
+         * PackageRuleDTO
+         * @description Packaging rule for a food item (pack size, rounding mode, minimum packs).
+         */
+        PackageRuleDTO: {
+            /**
+             * Food Id
+             * @example carrot
+             * @example tomato
+             */
+            food_id: string;
+            /**
+             * Min Packs
+             * @description Minimum packs to buy (>=1)
+             * @default 1
+             * @example 1
+             * @example 2
+             */
+            min_packs: number;
+            /** @description Pack size for this food */
+            pack_size: components["schemas"]["QuantityDTO-Input"];
+            /**
+             * Rounding
+             * @description Rounding mode (CEIL=never undersupply, NEAREST=prefer oversupply)
+             * @default CEIL
+             * @enum {string}
+             */
+            rounding: "CEIL" | "NEAREST" | "NONE";
+        };
+        /**
+         * PackedLineDTO
+         * @description Packed shopping list line with packaging details and explainability reasons.
+         */
+        PackedLineDTO: {
+            /** @description Optional catalog enrichment (adapter-only, fail-soft). */
+            catalog?: components["schemas"]["CatalogInfoDTO"] | null;
+            /**
+             * Food Id
+             * @example carrot
+             * @example tomato
+             */
+            food_id: string;
+            /**
+             * Min Packs
+             * @description Minimum packs enforced
+             */
+            min_packs: number;
+            /** @description Overage (provided - requested) */
+            overage: components["schemas"]["QuantityDTO-Output"];
+            /** @description Pack size used */
+            pack_size: components["schemas"]["QuantityDTO-Output"];
+            /**
+             * Packs
+             * @description Number of packs to buy
+             * @example 1
+             * @example 2
+             */
+            packs: number;
+            /** @description Total quantity provided (packs * pack_size) */
+            provided: components["schemas"]["QuantityDTO-Output"];
+            /**
+             * Reasons
+             * @description Explainability reasons (stable order, deterministic)
+             * @example [
+             *       "rounding=CEIL",
+             *       "min_packs=1",
+             *       "requested=100 G",
+             *       "provided=500 G",
+             *       "overage=400 G"
+             *     ]
+             */
+            reasons?: string[];
+            /** @description Requested quantity */
+            requested: components["schemas"]["QuantityDTO-Output"];
+            /**
+             * Rounding
+             * @description Rounding mode applied
+             * @enum {string}
+             */
+            rounding: "CEIL" | "NEAREST" | "NONE";
         };
         /**
          * PlateRequest
@@ -1970,138 +3144,655 @@ export interface components {
          */
         PlateRequest: {
             /**
-             * Sex
-             * @enum {string}
-             */
-            sex: "female" | "male";
-            /** Age */
-            age: number;
-            /** Height Cm */
-            height_cm: number;
-            /** Weight Kg */
-            weight_kg: number;
-            /**
              * Activity
              * @enum {string}
              */
             activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
+            /** Age */
+            age: number;
+            /** Bodyfat */
+            bodyfat?: number | null;
+            /** Deficit Pct */
+            deficit_pct?: number | null;
+            /** Diet Flags */
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
             /**
              * Goal
              * @enum {string}
              */
             goal: "loss" | "maintain" | "gain";
-            /** Deficit Pct */
-            deficit_pct?: number | null;
+            /** Height Cm */
+            height_cm: number;
+            /**
+             * Lang
+             * @default en
+             */
+            lang: string;
+            /**
+             * Life Stage
+             * @default adult
+             * @enum {string}
+             */
+            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
+            /**
+             * Sex
+             * @enum {string}
+             */
+            sex: "female" | "male";
             /** Surplus Pct */
             surplus_pct?: number | null;
-            /** Bodyfat */
-            bodyfat?: number | null;
-            /** Diet Flags */
-            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
+            /** Weight Kg */
+            weight_kg: number;
         };
         /** PlateResponse */
         PlateResponse: {
+            /** Day Micros */
+            day_micros?: {
+                [key: string]: number;
+            };
             /** Kcal */
             kcal: number;
+            /** Layout */
+            layout: components["schemas"]["VisualShape"][];
             /** Macros */
             macros: {
                 [key: string]: number;
             };
-            /** Portions */
-            portions: Record<string, never>;
-            /** Layout */
-            layout: components["schemas"]["VisualShape"][];
             /** Meals */
-            meals: Record<string, never>[];
+            meals: {
+                [key: string]: unknown;
+            }[];
             /**
-             * Day Micros
-             * @default {}
+             * Meals Per Day
+             * @default 3
              */
-            day_micros: {
+            meals_per_day: number;
+            /** Portions */
+            portions: {
                 [key: string]: number;
             };
         };
+        /**
+         * QuantityDTO
+         * @description Quantity with value and unit (deterministic, no prices).
+         */
+        "QuantityDTO-Input": {
+            /**
+             * Unit
+             * @description Measurement unit
+             * @example G
+             * @example ML
+             * @example PCS
+             * @enum {string}
+             */
+            unit: "G" | "ML" | "PCS" | "KG" | "L";
+            /**
+             * Value
+             * @description Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'
+             * @example 100
+             * @example 150.5
+             * @example 0
+             */
+            value: number | string;
+        };
+        /**
+         * QuantityDTO
+         * @description Quantity with value and unit (deterministic, no prices).
+         */
+        "QuantityDTO-Output": {
+            /**
+             * Unit
+             * @description Measurement unit
+             * @example G
+             * @example ML
+             * @example PCS
+             * @enum {string}
+             */
+            unit: "G" | "ML" | "PCS" | "KG" | "L";
+            /**
+             * Value
+             * @description Decimal value (serialized as string in JSON, no floats). Example: '100', '12.5'
+             * @example 100
+             * @example 150.5
+             * @example 0
+             */
+            value: string;
+        };
         /** Recipe */
         Recipe: {
-            /** Recipe Id */
-            recipe_id: string;
-            /** Title */
-            title: string;
-            /**
-             * Locale
-             * @default en
-             */
-            locale: string;
-            /** Servings */
-            servings: number;
-            /** Yield Total G */
-            yield_total_g: number;
-            /** Ingredients */
-            ingredients: components["schemas"]["Ingredient"][];
-            /** Steps */
-            steps?: string[];
-            /** Tags */
-            tags?: string[];
             /** Allergens */
             allergens?: string[];
-            /**
-             * Cost Total
-             * @default 0
-             */
-            cost_total: number;
             /**
              * Cost Per Serv
              * @default 0
              */
             cost_per_serv: number;
+            /**
+             * Cost Total
+             * @default 0
+             */
+            cost_total: number;
+            /** Ingredients */
+            ingredients: components["schemas"]["Ingredient"][];
+            /**
+             * Locale
+             * @default en
+             */
+            locale: string;
             /** Nutrients Per Serv */
             nutrients_per_serv?: {
                 [key: string]: number;
             };
+            /** Recipe Id */
+            recipe_id: string;
+            /** Servings */
+            servings: number;
             /**
              * Source
              * @default internal
              */
             source: string;
+            /** Steps */
+            steps?: string[];
+            /** Tags */
+            tags?: string[];
+            /** Title */
+            title: string;
             /** Version Date */
             version_date: string;
+            /** Yield Total G */
+            yield_total_g: number;
         };
         /** RecipePreviewRequest */
         RecipePreviewRequest: {
-            /** Title */
-            title: string;
+            /** Ingredients */
+            ingredients: components["schemas"]["Ingredient"][];
             /**
              * Servings
              * @default 1
              */
             servings: number;
-            /** Ingredients */
-            ingredients: components["schemas"]["Ingredient"][];
+            /** Title */
+            title: string;
         };
         /** RecipePreviewResponse */
         RecipePreviewResponse: {
-            /** Title */
-            title: string;
-            /** Servings */
-            servings: number;
-            /** Total G */
-            total_g: number;
             /** Per Serving */
             per_serving: {
                 [key: string]: number;
             };
+            /** Servings */
+            servings: number;
+            /** Title */
+            title: string;
+            /** Total G */
+            total_g: number;
         };
         /** RecipeQueryHit */
         RecipeQueryHit: {
-            /** Recipe Id */
-            recipe_id: string;
-            /** Title */
-            title: string;
             /** Kcal Per Serv */
             kcal_per_serv: number;
+            /** Recipe Id */
+            recipe_id: string;
             /** Tags */
             tags?: string[];
+            /** Title */
+            title: string;
         };
+        /**
+         * ShopAisle
+         * @description Stable aisle/category for iOS (do not rename; only extend).
+         *
+         *     RU: Категории для группировки списка покупок (не переименовывать).
+         * @enum {string}
+         */
+        ShopAisle: "Produce" | "Protein" | "Dairy" | "Pantry" | "Frozen" | "Other";
+        /**
+         * ShopLang
+         * @description Supported languages for shopping list localization.
+         *
+         *     RU: Поддерживаемые языки для локализации списка покупок.
+         * @enum {string}
+         */
+        ShopLang: "ru" | "en" | "es";
+        /**
+         * ShoplistAnalyticsDTO
+         * @description Analytics summary for shoplist generation (deterministic, no prices).
+         */
+        ShoplistAnalyticsDTO: {
+            /**
+             * Packed Lines
+             * @description Items with packaging rules applied
+             */
+            packed_lines: number;
+            /**
+             * Total Lines
+             * @description Total items (packed + unpacked)
+             */
+            total_lines: number;
+            /**
+             * Total Overage By Unit
+             * @description Aggregated overage per unit type (Decimal values serialized as strings)
+             * @example {
+             *       "G": "150",
+             *       "ML": "0"
+             *     }
+             */
+            total_overage_by_unit?: {
+                [key: string]: string;
+            };
+            /**
+             * Unpacked Lines
+             * @description Items without packaging rules
+             */
+            unpacked_lines: number;
+        };
+        /**
+         * ShoplistDailyRequest
+         * @description Request payload for POST /api/v1/vip/shoplist/daily.
+         *
+         *     Same contract as ShoplistGenerateRequest.
+         */
+        ShoplistDailyRequest: {
+            /**
+             * Items
+             * @description Shopping list items (can be empty)
+             */
+            items?: components["schemas"]["ShoplistItemDTO"][];
+            /**
+             * Packaging Rules
+             * @description Optional. If missing/None, items without rules go to 'unpacked'.
+             */
+            packaging_rules?: components["schemas"]["PackageRuleDTO"][] | null;
+        };
+        /**
+         * ShoplistDayItemDTO
+         * @description One day shopping list item (server → iOS).
+         *
+         *     key: stable dedup key (server-side normalized slug or food_id-like).
+         *     title: localized title for UI.
+         *
+         *     RU: Одна строка списка покупок на день (сервер → iOS).
+         */
+        ShoplistDayItemDTO: {
+            /** @default Other */
+            aisle: components["schemas"]["ShopAisle"];
+            /** Key */
+            key: string;
+            /** Notes */
+            notes?: string | null;
+            /** Qty */
+            qty: number;
+            source?: components["schemas"]["ShoplistSourceDTO"] | null;
+            /** Title */
+            title: string;
+            unit: components["schemas"]["ShopUnit"];
+        };
+        /**
+         * ShoplistDayResponse
+         * @description Day shopping list suggestions (MVP placeholder).
+         *
+         *     Note: date field is intentionally str (YYYY-MM-DD) to match API contract,
+         *     even though handler receives date type. This avoids unintended serialization changes.
+         *
+         *     RU: Подсказки списка покупок на день (MVP заглушка).
+         */
+        ShoplistDayResponse: {
+            /**
+             * Date
+             * @description YYYY-MM-DD
+             */
+            date: string;
+            /** Items */
+            items?: components["schemas"]["ShoplistDayItemDTO"][];
+            /** @description Language code */
+            lang: components["schemas"]["ShopLang"];
+            /** Warnings */
+            warnings?: string[];
+        };
+        /**
+         * ShoplistGenerateRequest
+         * @description Request payload for POST /api/v1/vip/shoplist/generate.
+         * @example {
+         *       "items": [
+         *         {
+         *           "food_id": "carrot",
+         *           "form": "RAW",
+         *           "qty": {
+         *             "unit": "G",
+         *             "value": "100"
+         *           }
+         *         }
+         *       ],
+         *       "packaging_rules": [
+         *         {
+         *           "food_id": "carrot",
+         *           "min_packs": 1,
+         *           "pack_size": {
+         *             "unit": "G",
+         *             "value": "500"
+         *           },
+         *           "rounding": "CEIL"
+         *         }
+         *       ]
+         *     }
+         */
+        ShoplistGenerateRequest: {
+            /**
+             * Items
+             * @description Shopping list items (can be empty)
+             */
+            items?: components["schemas"]["ShoplistItemDTO"][];
+            /**
+             * Packaging Rules
+             * @description Optional. If missing/None, items without rules go to 'unpacked'.
+             */
+            packaging_rules?: components["schemas"]["PackageRuleDTO"][] | null;
+        };
+        /**
+         * ShoplistGenerateResponse
+         * @description Response for POST /api/v1/vip/shoplist/generate (deterministic, no prices).
+         * @example {
+         *       "analytics": {
+         *         "packed_lines": 1,
+         *         "total_lines": 1,
+         *         "total_overage_by_unit": {
+         *           "G": "400"
+         *         },
+         *         "unpacked_lines": 0
+         *       },
+         *       "packed": [
+         *         {
+         *           "food_id": "carrot",
+         *           "min_packs": 1,
+         *           "overage": {
+         *             "unit": "G",
+         *             "value": "400"
+         *           },
+         *           "pack_size": {
+         *             "unit": "G",
+         *             "value": "500"
+         *           },
+         *           "packs": 1,
+         *           "provided": {
+         *             "unit": "G",
+         *             "value": "500"
+         *           },
+         *           "reasons": [
+         *             "min_packs=1",
+         *             "overage=400 G",
+         *             "provided=500 G",
+         *             "requested=100 G",
+         *             "rounding=CEIL"
+         *           ],
+         *           "requested": {
+         *             "unit": "G",
+         *             "value": "100"
+         *           },
+         *           "rounding": "CEIL"
+         *         }
+         *       ],
+         *       "unpacked": []
+         *     }
+         */
+        ShoplistGenerateResponse: {
+            /** @description Analytics summary (included by default in generate/daily/weekly endpoints) */
+            analytics?: components["schemas"]["ShoplistAnalyticsDTO"] | null;
+            /**
+             * Packed
+             * @description Items with packaging rules applied
+             */
+            packed?: components["schemas"]["PackedLineDTO"][];
+            /**
+             * Unpacked
+             * @description Items without packaging rules
+             */
+            unpacked?: components["schemas"]["UnpackedLineDTO"][];
+        };
+        /**
+         * ShoplistItemDTO
+         * @description Shopping list item specification (food, quantity, form).
+         */
+        ShoplistItemDTO: {
+            /**
+             * Food Id
+             * @example carrot
+             * @example tomato
+             */
+            food_id: string;
+            /**
+             * Form
+             * @description Food form
+             * @default RAW
+             * @example RAW
+             * @example COOKED
+             * @enum {string}
+             */
+            form: "RAW" | "COOKED" | "FROZEN" | "DRIED" | "CANNED";
+            /** @description Requested quantity */
+            qty: components["schemas"]["QuantityDTO-Input"];
+        };
+        /**
+         * ShoplistPreviewItem
+         * @description One shopping list preview item (deterministic, no prices).
+         */
+        ShoplistPreviewItem: {
+            /**
+             * Category
+             * @example vegetables
+             */
+            category: string;
+            /**
+             * Name
+             * @example Tomatoes
+             */
+            name: string;
+            /**
+             * Quantity
+             * @example 500 g
+             */
+            quantity: string;
+        };
+        /**
+         * ShoplistPreviewMeta
+         * @description Preview metadata; explicitly states that prices are not included.
+         */
+        ShoplistPreviewMeta: {
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Preview
+             * @default true
+             */
+            preview: boolean;
+            /**
+             * Prices Included
+             * @default false
+             */
+            prices_included: boolean;
+        };
+        /**
+         * ShoplistPreviewResponse
+         * @description Response for GET /api/v1/vip/shoplist/preview.
+         */
+        ShoplistPreviewResponse: {
+            /** Items */
+            items: components["schemas"]["ShoplistPreviewItem"][];
+            meta?: components["schemas"]["ShoplistPreviewMeta"];
+        };
+        /**
+         * ShoplistSourceDTO
+         * @description Optional provenance of an item.
+         *
+         *     RU: Источник/происхождение позиции (опционально).
+         */
+        ShoplistSourceDTO: {
+            /** Ref */
+            ref?: string | null;
+            /**
+             * Type
+             * @default plan
+             * @enum {string}
+             */
+            type: "plan" | "manual" | "import";
+        };
+        /**
+         * ShoplistWeeklyDayRequest
+         * @description Request payload for one day in weekly shoplist.
+         *
+         *     Same contract as ShoplistGenerateRequest per day.
+         */
+        ShoplistWeeklyDayRequest: {
+            /**
+             * Items
+             * @description Shopping list items for this day (can be empty)
+             */
+            items?: components["schemas"]["ShoplistItemDTO"][];
+            /**
+             * Packaging Rules
+             * @description Optional. If missing/None, items without rules go to 'unpacked'.
+             */
+            packaging_rules?: components["schemas"]["PackageRuleDTO"][] | null;
+        };
+        /**
+         * ShoplistWeeklyRequest
+         * @description Request payload for POST /api/v1/vip/shoplist/weekly.
+         */
+        ShoplistWeeklyRequest: {
+            /**
+             * Days
+             * @description One element per day. Contract: length = as requested by client (no fixed 7-day requirement).
+             */
+            days: components["schemas"]["ShoplistWeeklyDayRequest"][];
+        };
+        /**
+         * ShoplistWeeklyResponse
+         * @description Response for POST /api/v1/vip/shoplist/weekly.
+         */
+        ShoplistWeeklyResponse: {
+            /**
+             * Days
+             * @description One response per day (length = as requested by client)
+             */
+            days?: components["schemas"]["ShoplistGenerateResponse"][];
+        };
+        /**
+         * ShoppingListCategory
+         * @description Category of shopping list items.
+         */
+        ShoppingListCategory: {
+            /** Items */
+            items: components["schemas"]["ShoppingListItem"][];
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * ShoppingListDTO
+         * @description Shopping list generation response.
+         */
+        ShoppingListDTO: {
+            /** Categories */
+            categories: components["schemas"]["ShoppingListCategory"][];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            meta: components["schemas"]["ShoppingListMeta"];
+            /** Total Items */
+            total_items: number;
+        };
+        /**
+         * ShoppingListItem
+         * @description Individual shopping list item.
+         */
+        ShoppingListItem: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Quantity */
+            quantity: number;
+            /** Recipe Refs */
+            recipe_refs?: string[];
+            /** Unit */
+            unit: string;
+        };
+        /**
+         * ShoppingListMeta
+         * @description Metadata about shopping list generation.
+         */
+        ShoppingListMeta: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "weekly_plan_id" | "inline_plan" | "day_plan";
+            /**
+             * Unit System
+             * @enum {string}
+             */
+            unit_system: "metric" | "imperial";
+            /** Warnings */
+            warnings?: string[];
+        };
+        /**
+         * ShoppingListPreferences
+         * @description User preferences for shopping list generation.
+         */
+        ShoppingListPreferences: {
+            /** Dietary Tags */
+            dietary_tags?: string[];
+            /** Exclude Items */
+            exclude_items?: string[];
+            /**
+             * Group By
+             * @default category
+             * @enum {string}
+             */
+            group_by: "category" | "recipe";
+            /**
+             * Merge Similar Items
+             * @default true
+             */
+            merge_similar_items: boolean;
+            /**
+             * Round Quantities
+             * @default true
+             */
+            round_quantities: boolean;
+            /**
+             * Unit System
+             * @default metric
+             * @enum {string}
+             */
+            unit_system: "metric" | "imperial";
+        };
+        /**
+         * ShoppingListRequest
+         * @description Request to generate a shopping list from a weekly plan.
+         *
+         *     Must provide either weekly_plan_id (from DB) or plan_data (inline JSON).
+         */
+        ShoppingListRequest: {
+            /** Plan Data */
+            plan_data?: {
+                [key: string]: unknown;
+            } | null;
+            preferences?: components["schemas"]["ShoppingListPreferences"];
+            /** Weekly Plan Id */
+            weekly_plan_id?: string | null;
+        };
+        /**
+         * ShopUnit
+         * @description Stable units for iOS (do not rename; only extend).
+         *
+         *     RU: Стабильные единицы измерения для iOS (не переименовывать, только расширять).
+         * @enum {string}
+         */
+        ShopUnit: "g" | "kg" | "ml" | "l" | "pcs";
         /** SignRequest */
         SignRequest: {
             /** Path */
@@ -2109,27 +3800,42 @@ export interface components {
             /** Ttl Seconds */
             ttl_seconds?: number | null;
         };
-        /** TargetsIn */
-        TargetsIn: {
-            /** Kcal */
-            kcal: number;
-            /** Macros */
-            macros: {
-                [key: string]: number;
-            };
-            /** Micro */
-            micro: {
-                [key: string]: number;
-            };
+        /**
+         * TestResponse
+         * @description Standard test response model.
+         */
+        TestResponse: {
+            /** Message */
+            message: string;
+            /** Request Id */
+            request_id?: string | null;
+            /** Status */
+            status: string;
+            /** Timestamp */
+            timestamp: string;
+        };
+        /**
+         * UnpackedLineDTO
+         * @description Unpacked shopping list line (no packaging rule available).
+         */
+        UnpackedLineDTO: {
+            /** @description Optional catalog enrichment (adapter-only, fail-soft). */
+            catalog?: components["schemas"]["CatalogInfoDTO"] | null;
             /**
-             * Water Ml
-             * @default 0
+             * Food Id
+             * @example carrot
+             * @example tomato
              */
-            water_ml: number;
-            /** Activity Week */
-            activity_week?: {
-                [key: string]: number;
-            } | null;
+            food_id: string;
+            /**
+             * Reason
+             * @description Why item is unpacked
+             * @default no_packaging_rule
+             * @example no_packaging_rule
+             */
+            reason: string;
+            /** @description Requested quantity */
+            requested: components["schemas"]["QuantityDTO-Output"];
         };
         /**
          * UserCreate
@@ -2154,10 +3860,10 @@ export interface components {
              * Format: email
              */
             email: string;
-            /** Name */
-            name: string;
             /** Id */
             id: number;
+            /** Name */
+            name: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -2174,144 +3880,47 @@ export interface components {
          *     EN: Primitive for frontend (plate sector/bowl/dot).
          */
         VisualShape: {
+            /** Fraction */
+            fraction: number;
             /**
              * Kind
              * @enum {string}
              */
             kind: "plate_sector" | "bowl" | "marker";
-            /** Fraction */
-            fraction: number;
             /** Label */
             label: string;
             /** Tooltip */
             tooltip: string;
         };
         /**
-         * WHOTargetsRequest
-         * @description RU: Запрос на расчёт целей по нормам ВОЗ.
-         *     EN: Request for WHO-based nutrition targets.
+         * WaistRiskResultSchema
+         * @description RU: API-схема для сериализованного WaistRiskResult (domain dataclass).
+         *     EN: API schema for serialized WaistRiskResult (domain dataclass).
          */
-        WHOTargetsRequest: {
+        WaistRiskResultSchema: {
             /**
-             * Sex
+             * Notes
+             * @description Additional notes providing context for the waist risk assessment.
+             * @example [
+             *       "Increased waist-related risk"
+             *     ]
+             */
+            notes?: string[];
+            /**
+             * Risk Level
+             * @description Waist-related risk level derived from the WHtR.
+             * @example moderate
              * @enum {string}
              */
-            sex: "female" | "male";
-            /** Age */
-            age: number;
-            /** Height Cm */
-            height_cm: number;
-            /** Weight Kg */
-            weight_kg: number;
+            risk_level: "low" | "moderate" | "high";
             /**
-             * Activity
-             * @enum {string}
+             * Wht Ratio
+             * @description Waist-to-Height Ratio (WHtR) used for this assessment, if available.
+             * @example 0.47
+             * @example 0.52
+             * @example null
              */
-            activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
-            /**
-             * Goal
-             * @default maintain
-             * @enum {string}
-             */
-            goal: "loss" | "maintain" | "gain";
-            /** Deficit Pct */
-            deficit_pct?: number | null;
-            /** Surplus Pct */
-            surplus_pct?: number | null;
-            /** Bodyfat */
-            bodyfat?: number | null;
-            /** Diet Flags */
-            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
-            /**
-             * Life Stage
-             * @default adult
-             * @enum {string}
-             */
-            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
-            /**
-             * Lang
-             * @default en
-             */
-            lang: string;
-        };
-        /**
-         * WHOTargetsResponse
-         * @description RU: Ответ с целевыми значениями по ВОЗ.
-         *     EN: Response with WHO-based targets.
-         */
-        WHOTargetsResponse: {
-            /** Kcal Daily */
-            kcal_daily: number;
-            /** Macros */
-            macros: {
-                [key: string]: number;
-            };
-            /** Water Ml */
-            water_ml: number;
-            /** Priority Micros */
-            priority_micros: {
-                [key: string]: number;
-            };
-            /** Activity Weekly */
-            activity_weekly: {
-                [key: string]: number;
-            };
-            /** Calculation Date */
-            calculation_date: string;
-            /**
-             * Warnings
-             * @default []
-             */
-            warnings: {
-                [key: string]: string;
-            }[];
-        };
-        /** WeekPlanRequest */
-        WeekPlanRequest: {
-            targets?: components["schemas"]["TargetsIn"] | null;
-            /** Sex */
-            sex?: ("female" | "male") | null;
-            /** Age */
-            age?: number | null;
-            /** Height Cm */
-            height_cm?: number | null;
-            /** Weight Kg */
-            weight_kg?: number | null;
-            /**
-             * Activity
-             * @default moderate
-             */
-            activity: ("sedentary" | "light" | "moderate" | "active" | "very_active") | null;
-            /**
-             * Goal
-             * @default maintain
-             */
-            goal: ("loss" | "maintain" | "gain") | null;
-            /** Diet Flags */
-            diet_flags?: string[];
-            /**
-             * Lang
-             * @default en
-             * @enum {string}
-             */
-            lang: "ru" | "en" | "es";
-        };
-        /** WeekPlanResponse */
-        WeekPlanResponse: {
-            /** Daily Menus */
-            daily_menus: Record<string, never>[];
-            /** Weekly Coverage */
-            weekly_coverage: {
-                [key: string]: number;
-            };
-            /** Shopping List */
-            shopping_list: {
-                [key: string]: number;
-            };
-            /** Total Cost */
-            total_cost: number;
-            /** Adherence Score */
-            adherence_score: number;
+            wht_ratio?: number | null;
         };
         /**
          * WeeklyMenuResponse
@@ -2319,91 +3928,26 @@ export interface components {
          *     EN: Response with weekly menu.
          */
         WeeklyMenuResponse: {
-            /** Week Summary */
-            week_summary: Record<string, never>;
+            /** Adherence Score */
+            adherence_score: number;
             /** Daily Menus */
-            daily_menus: Record<string, never>[];
-            /** Weekly Coverage */
-            weekly_coverage: {
-                [key: string]: number;
-            };
+            daily_menus: {
+                [key: string]: unknown;
+            }[];
             /** Shopping List */
             shopping_list: {
                 [key: string]: number;
             };
             /** Total Cost */
             total_cost: number;
-            /** Adherence Score */
-            adherence_score: number;
-        };
-        /**
-         * WeeklyPlanRequest
-         * @description RU: Запрос на создание недельного плана питания.
-         *     EN: Request for creating a weekly meal plan.
-         */
-        WeeklyPlanRequest: {
-            /**
-             * Sex
-             * @description Gender (male/female)
-             */
-            sex?: ("female" | "male") | null;
-            /**
-             * Age
-             * @description Age in years
-             */
-            age?: number | null;
-            /**
-             * Height Cm
-             * @description Height in centimeters
-             */
-            height_cm?: number | null;
-            /**
-             * Weight Kg
-             * @description Weight in kilograms
-             */
-            weight_kg?: number | null;
-            /**
-             * Activity
-             * @description Activity level
-             */
-            activity?: ("sedentary" | "light" | "moderate" | "active" | "very_active") | null;
-            /**
-             * Goal
-             * @description Nutrition goal
-             */
-            goal?: ("loss" | "maintain" | "gain") | null;
-            /**
-             * Calories
-             * @description Daily calories target
-             */
-            calories?: number | null;
-            /**
-             * Protein
-             * @description Daily protein target (g)
-             */
-            protein?: number | null;
-            /**
-             * User Id
-             * @description User identifier
-             */
-            user_id?: string | null;
-            /**
-             * Preferences
-             * @description User preferences
-             */
-            preferences?: Record<string, never>;
-            /**
-             * Goals
-             * @description Nutrition goals
-             */
-            goals?: Record<string, never>;
-            /**
-             * Constraints
-             * @description Dietary constraints
-             */
-            constraints?: Record<string, never>;
-        } & {
-            [key: string]: unknown;
+            /** Week Summary */
+            week_summary: {
+                [key: string]: unknown;
+            };
+            /** Weekly Coverage */
+            weekly_coverage: {
+                [key: string]: number;
+            };
         };
         /**
          * WeeklyPlanResponse
@@ -2412,21 +3956,158 @@ export interface components {
          */
         WeeklyPlanResponse: {
             /**
-             * Status
-             * @description Response status
-             */
-            status: string;
-            /**
              * Data
              * @description Weekly plan data
              */
-            data?: Record<string, never>;
+            data?: {
+                [key: string]: unknown;
+            };
             /**
              * Message
              * @description Additional message
              * @default
              */
             message: string;
+            /**
+             * Status
+             * @description Response status
+             */
+            status: string;
+        };
+        /**
+         * WeekPlanRequest
+         * @description Extended request for week plan with optional pre-calculated targets.
+         *
+         *     Supports two modes:
+         *     - Mode A: With targets (pre-calculated nutrition goals)
+         *     - Mode B: Calculate targets from user profile (sex, age, etc.)
+         */
+        WeekPlanRequest: {
+            /** Activity */
+            activity?: ("sedentary" | "light" | "moderate" | "active" | "very_active") | null;
+            /** Age */
+            age?: number | null;
+            /** Bodyfat */
+            bodyfat?: number | null;
+            /** Deficit Pct */
+            deficit_pct?: number | null;
+            /** Diet Flags */
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
+            /**
+             * Goal
+             * @default maintain
+             * @enum {string}
+             */
+            goal: "loss" | "maintain" | "gain";
+            /** Height Cm */
+            height_cm?: number | null;
+            /**
+             * Lang
+             * @default en
+             */
+            lang: string;
+            /**
+             * Life Stage
+             * @default adult
+             * @enum {string}
+             */
+            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
+            /** Sex */
+            sex?: ("female" | "male") | null;
+            /** Surplus Pct */
+            surplus_pct?: number | null;
+            /** Targets */
+            targets?: {
+                [key: string]: unknown;
+            } | null;
+            /** Weight Kg */
+            weight_kg?: number | null;
+        };
+        /**
+         * WHOTargetsRequest
+         * @description RU: Запрос на расчёт целей по нормам ВОЗ.
+         *     EN: Request for WHO-based nutrition targets.
+         *
+         *     The optional ``targets`` field is kept as a generic mapping to stay
+         *     backwards-compatible with older clients that send flat targets
+         *     (kcal/protein/carbs/...) while allowing newer structured payloads to be
+         *     validated at a higher level when needed.
+         */
+        WHOTargetsRequest: {
+            /**
+             * Activity
+             * @enum {string}
+             */
+            activity: "sedentary" | "light" | "moderate" | "active" | "very_active";
+            /** Age */
+            age: number;
+            /** Bodyfat */
+            bodyfat?: number | null;
+            /** Deficit Pct */
+            deficit_pct?: number | null;
+            /** Diet Flags */
+            diet_flags?: ("VEG" | "GF" | "DAIRY_FREE" | "LOW_COST" | "HIGH_PROTEIN" | "LOW_CARB" | "MEDITERRANEAN" | "VEGAN" | "KETO" | "PALEO")[] | null;
+            /**
+             * Goal
+             * @default maintain
+             * @enum {string}
+             */
+            goal: "loss" | "maintain" | "gain";
+            /** Height Cm */
+            height_cm: number;
+            /**
+             * Lang
+             * @default en
+             */
+            lang: string;
+            /**
+             * Life Stage
+             * @default adult
+             * @enum {string}
+             */
+            life_stage: "child" | "teen" | "adult" | "pregnant" | "lactating" | "elderly";
+            /**
+             * Sex
+             * @enum {string}
+             */
+            sex: "female" | "male";
+            /** Surplus Pct */
+            surplus_pct?: number | null;
+            /** Targets */
+            targets?: {
+                [key: string]: unknown;
+            } | null;
+            /** Weight Kg */
+            weight_kg: number;
+        };
+        /**
+         * WHOTargetsResponse
+         * @description RU: Ответ с целевыми значениями по ВОЗ.
+         *     EN: Response with WHO-based targets.
+         */
+        WHOTargetsResponse: {
+            /** Activity Weekly */
+            activity_weekly: {
+                [key: string]: number;
+            };
+            /** Calculation Date */
+            calculation_date: string;
+            /** Kcal Daily */
+            kcal_daily: number;
+            /** Macros */
+            macros: {
+                [key: string]: number;
+            };
+            /** Priority Micros */
+            priority_micros: {
+                [key: string]: number;
+            };
+            /** Warnings */
+            warnings?: {
+                [key: string]: string;
+            }[];
+            /** Water Ml */
+            water_ml: number;
         };
     };
     responses: never;
@@ -2437,7 +4118,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    admin_status_api_v1_admin_status_get: {
+    root__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2457,12 +4138,10 @@ export interface operations {
             };
         };
     };
-    list_foods_api_v1_foods_get: {
+    cleanup_expired_logs_admin_logs_cleanup_post: {
         parameters: {
             query?: {
-                query?: string;
-                limit?: number;
-                offset?: number;
+                data_class?: string | null;
             };
             header?: never;
             path?: never;
@@ -2476,7 +4155,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FoodHit"][];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -2490,12 +4171,511 @@ export interface operations {
             };
         };
     };
-    list_foods_search_api_v1_foods_search_get: {
+    get_daily_nutrition_legacy_api_nutrition__date_str__get: {
         parameters: {
             query?: {
-                query?: string;
+                /** @description Activity level */
+                activity?: string;
+                /** @description Age in years */
+                age?: number;
+                /** @description Nutrition goal */
+                goal?: string;
+                /** @description Height in cm */
+                height_cm?: number;
+                /** @description Biological sex (female/male) */
+                sex?: string;
+                /** @description Weight in kg */
+                weight_kg?: number;
+            };
+            header?: never;
+            path: {
+                date_str: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_for_updates_api_v1_admin_check_updates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_database_status_api_v1_admin_db_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    force_database_update_api_v1_admin_force_update_post: {
+        parameters: {
+            query?: {
+                source?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rollback_database_api_v1_admin_rollback_post: {
+        parameters: {
+            query: {
+                source: string;
+                target_version: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_status_api_v1_admin_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
+    record_event_api_v1_bayes_adherence_event_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdherenceEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdherenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_risk_api_v1_bayes_adherence_risk_get: {
+        parameters: {
+            query?: {
+                analyzer_key?: string;
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdherenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bmi_endpoint_v1_api_v1_bmi_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BMIRequestV1"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calculate_bmi_api_v1_bmi_calculate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BMICalculateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BMICalculateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calc_bodyfat_api_v1_bodyfat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BodyFatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_regions_api_v1_catalog_regions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogRegion"][];
+                };
+            };
+        };
+    };
+    search_api_v1_catalog_search_get: {
+        parameters: {
+            query: {
+                limit?: number;
+                q: string;
+                region_id: string;
+                store_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogSKU"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_stores_api_v1_catalog_stores_get: {
+        parameters: {
+            query: {
+                region_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogStore"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_pdf_generic_api_v1_export_pdf_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_export_link_api_v1_export_sign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_foods_api_v1_foods_get: {
+        parameters: {
+            query?: {
                 limit?: number;
                 offset?: number;
+                query?: string;
             };
             header?: never;
             path?: never;
@@ -2554,12 +4734,12 @@ export interface operations {
             };
         };
     };
-    list_recipes_api_v1_recipes_get: {
+    list_foods_search_api_v1_foods_search_get: {
         parameters: {
             query?: {
-                query?: string;
                 limit?: number;
                 offset?: number;
+                query?: string;
             };
             header?: never;
             path?: never;
@@ -2573,7 +4753,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RecipeQueryHit"][];
+                    "application/json": components["schemas"]["FoodHit"][];
                 };
             };
             /** @description Validation Error */
@@ -2587,12 +4767,552 @@ export interface operations {
             };
         };
     };
-    list_recipes_search_api_v1_recipes_search_get: {
+    health_v1_api_v1_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    insight_v1_api_v1_insight_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_week_csv_api_v1_plan_week_export_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_week_pdf_api_v1_plan_week_export_pdf_get: {
         parameters: {
             query?: {
-                query?: string;
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_premium_bmr_api_v1_premium_bmr_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BMRRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BMRResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_nutrient_gaps_api_v1_premium_gaps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NutrientGapsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutrientGapsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_weekly_menu_api_v1_premium_plan_week_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WeekPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyMenuResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_premium_plate_api_v1_premium_plate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_who_targets_api_v1_premium_targets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WHOTargetsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_shopping_list_api_v1_pro_meal_shopping_list_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShoppingListRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoppingListDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_day_api_v1_pro_nutrition_day_close_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DayCloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdherenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    log_meal_api_v1_pro_nutrition_meal_log_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MealLogRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdherenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shoplist_day_api_v1_pro_shoplist_day_get: {
+        parameters: {
+            query: {
+                /** @description YYYY-MM-DD */
+                date: string;
+                /** @description Language code */
+                lang?: components["schemas"]["ShopLang"];
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoplistDayResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recipes_api_v1_recipes_get: {
+        parameters: {
+            query?: {
                 limit?: number;
                 offset?: number;
+                query?: string;
             };
             header?: never;
             path?: never;
@@ -2680,6 +5400,178 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_recipes_search_api_v1_recipes_search_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                query?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeQueryHit"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_shoplist_api_v1_shoplist_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    export_shoplist_csv_api_v1_shoplist_export_csv_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    export_shoplist_pdf_api_v1_shoplist_export_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    test_echo_api_v1_test_echo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_health_api_v1_test_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResponse"];
+                };
+            };
+        };
+    };
+    test_rate_limit_api_v1_test_rate_limit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestResponse"];
                 };
             };
         };
@@ -2809,7 +5701,29 @@ export interface operations {
             };
         };
     };
-    sign_export_link_api_v1_export_sign_post: {
+    get_repair_strategies_api_v1_vip_auto_repair_strategies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    get_manual_repair_suggestions_api_v1_vip_auto_repair_suggestions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2818,7 +5732,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SignRequest"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
@@ -2828,7 +5744,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -2842,14 +5760,20 @@ export interface operations {
             };
         };
     };
-    export_week_csv_api_v1_plan_week_export_csv_get: {
+    auto_repair_weekly_plan_api_v1_vip_auto_repair_weekly_post: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2857,29 +5781,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    export_week_pdf_api_v1_plan_week_export_pdf_get: {
-        parameters: {
-            query?: {
-                lang?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -2889,66 +5793,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_shoplist_api_v1_shoplist_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    export_shoplist_csv_api_v1_shoplist_export_csv_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    export_shoplist_pdf_api_v1_shoplist_export_pdf_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
                 };
             };
         };
@@ -2968,7 +5812,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -2982,7 +5828,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WeeklyPlanRequest"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
@@ -2992,42 +5840,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    weekly_menu_plan_alias_api_v1_vip_weekly_plan_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-api-key"?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WeeklyPlanRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WeeklyPlanResponse"] | components["schemas"]["ErrorResponse"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3050,7 +5865,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
@@ -3060,7 +5877,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3074,7 +5893,7 @@ export interface operations {
             };
         };
     };
-    weekly_shoplist_api_v1_vip_shoplist_weekly_post: {
+    synthesize_recipe_api_v1_vip_recipes_synthesize_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3083,7 +5902,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
@@ -3093,7 +5914,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3107,40 +5930,7 @@ export interface operations {
             };
         };
     };
-    daily_shoplist_api_v1_vip_shoplist_daily_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    available_export_formats_api_v1_vip_shoplist_formats_get: {
+    get_recipe_templates_api_v1_vip_recipes_templates_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3155,7 +5945,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    synthesize_weekly_recipes_api_v1_vip_recipes_weekly_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3175,42 +6004,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    search_region_products_api_v1_vip_regions__region__search_get: {
-        parameters: {
-            query: {
-                query: string;
-                category?: string;
-                max_results?: number;
-            };
-            header?: never;
-            path: {
-                region: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -3232,7 +6028,46 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_region_products_api_v1_vip_regions__region__search_get: {
+        parameters: {
+            query: {
+                category?: string;
+                max_results?: number;
+                query: string;
+            };
+            header?: never;
+            path: {
+                region: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3263,7 +6098,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3296,7 +6133,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3310,7 +6149,7 @@ export interface operations {
             };
         };
     };
-    synthesize_recipe_api_v1_vip_recipes_synthesize_post: {
+    daily_shoplist_api_v1_vip_shoplist_daily_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3319,7 +6158,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
@@ -3329,7 +6170,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3343,199 +6186,25 @@ export interface operations {
             };
         };
     };
-    synthesize_recipe_alias_api_v1_vip_recipe_synthesize_post: {
+    vip_shoplist_export_api_v1_vip_shoplist_export_post: {
         parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
+            query?: {
+                /** @description Export format (export_format; csv or pdf) */
+                export_format?: string | null;
+                /** @description Optional region id (e.g. 'es', 'us') */
+                region_id?: string | null;
+                /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
+                store_id?: string | null;
             };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    synthesize_weekly_recipes_api_v1_vip_recipes_weekly_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_recipe_templates_api_v1_vip_recipes_templates_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-        };
-    };
-    auto_repair_weekly_plan_api_v1_vip_auto_repair_weekly_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_manual_repair_suggestions_api_v1_vip_auto_repair_suggestions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_repair_strategies_api_v1_vip_auto_repair_strategies_get: {
-        parameters: {
-            query?: never;
             header?: {
-                "x-api-key"?: string;
+                "x-api-key"?: string | null;
             };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    generate_week_plan_api_v1_premium_plan_week_flexible_post: {
-        parameters: {
-            query?: never;
-            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WeekPlanRequest"];
+                "application/json": components["schemas"]["ShoplistGenerateRequest"];
             };
         };
         responses: {
@@ -3545,21 +6214,47 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WeekPlanResponse"];
+                    "application/json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description Unauthorized: missing/invalid API key (auth-layer dependent) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden: valid auth but insufficient VIP tier */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIP module disabled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error (invalid enum / DTO) */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                content?: never;
+            };
+            /** @description Invariant violation (internal) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };
-    database_health_health_db_get: {
+    available_export_formats_api_v1_vip_shoplist_formats_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3575,13 +6270,228 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: string;
+                        [key: string]: unknown;
                     };
                 };
             };
         };
     };
-    root__get: {
+    vip_shoplist_generate_api_v1_vip_shoplist_generate_post: {
+        parameters: {
+            query?: {
+                /** @description Optional region id (e.g. 'es', 'us') */
+                region_id?: string | null;
+                /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
+                store_id?: string | null;
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShoplistGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoplistGenerateResponse"];
+                };
+            };
+            /** @description Unauthorized: missing/invalid API key (auth-layer dependent) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden: valid auth but insufficient VIP tier */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIP module disabled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error (invalid enum / DTO) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invariant violation (internal) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    vip_shoplist_preview_api_v1_vip_shoplist_preview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoplistPreviewResponse"];
+                };
+            };
+            /** @description Unauthorized: missing/invalid API key (auth-layer dependent) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden: valid auth but insufficient VIP tier */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VIP module disabled */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation error (invalid enum / DTO) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invariant violation (internal) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    weekly_shoplist_api_v1_vip_shoplist_weekly_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    weekly_menu_plan_alias_api_v1_vip_weekly_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeeklyPlanResponse"] | components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    bmi_endpoint_bmi_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BMIRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    debug_env_debug_env_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3636,12 +6546,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
     };
-    health_v1_api_v1_health_get: {
+    database_health_health_db_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3656,52 +6568,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
     };
-    metrics_metrics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    privacy_privacy_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    bmi_endpoint_bmi_post: {
+    insight_insight_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -3710,7 +6584,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BMIRequest"];
+                "application/json": components["schemas"]["InsightRequest"];
             };
         };
         responses: {
@@ -3720,7 +6594,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3753,205 +6629,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bmi_endpoint_v1_api_v1_bmi_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BMIRequestV1"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bmi_calculate_legacy_api_v1_bmi_calculate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BMIRequestV1"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    insight_v1_api_v1_insight_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InsightRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    insight_insight_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InsightRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_premium_plate_api_v1_premium_plate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PlateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PlateResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_premium_bmr_api_v1_premium_bmr_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BMRRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BMRResponse"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4031,106 +6711,7 @@ export interface operations {
             };
         };
     };
-    api_who_targets_api_v1_premium_targets_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WHOTargetsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WHOTargetsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_weekly_menu_api_v1_premium_plan_week_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WHOTargetsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WeeklyMenuResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    api_nutrient_gaps_api_v1_premium_gaps_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["NutrientGapsRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NutrientGapsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    debug_env_debug_env_get: {
+    privacy_privacy_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -4145,333 +6726,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_database_status_api_v1_admin_db_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    force_database_update_api_v1_admin_force_update_post: {
-        parameters: {
-            query?: {
-                source?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    check_for_updates_api_v1_admin_check_updates_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    rollback_database_api_v1_admin_rollback_post: {
-        parameters: {
-            query: {
-                source: string;
-                target_version: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_daily_plan_csv_api_v1_premium_exports_day__plan_id__csv_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plan_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_pdf_generic_api_v1_export_pdf_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_weekly_plan_csv_api_v1_premium_exports_week__plan_id__csv_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plan_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_daily_plan_pdf_api_v1_premium_exports_day__plan_id__pdf_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plan_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    export_weekly_plan_pdf_api_v1_premium_exports_week__plan_id__pdf_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                plan_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    calc_bodyfat_api_v1_bodyfat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BodyFatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    bmi_pro_api_v1_bmi_pro_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BMIProRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BMIProResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

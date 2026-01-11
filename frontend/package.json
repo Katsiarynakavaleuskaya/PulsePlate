@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.11.1 <21.0.0"
   },
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,7 @@
     "test:ci": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose --reporter=junit --outputFile=test-results/junit.xml",
     "test:coverage": "vitest run --coverage",
     "test:accessibility": "vitest run --environment jsdom --testTimeout=30000 --reporter=verbose src/**/__tests__/*Accessibility.test.tsx",
-    "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts"
+    "generate-types": "openapi-typescript src/api/openapi.json --output src/api/schema.ts --alphabetize"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",
@@ -61,7 +61,7 @@
     "jest-axe": "^10.0.0",
     "jsdom": "^24.1.0",
     "msw": "^2.11.3",
-    "openapi-typescript": "^7.9.1",
+    "openapi-typescript": "7.10.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.4.5",

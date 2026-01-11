@@ -40,7 +40,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '20'
+          node-version: '20.11.1'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -64,15 +64,20 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd ..
-          pip install -r requirements.txt
+          python -m pip install -r requirements.txt -c constraints.txt
 
-      - name: Generate OpenAPI JSON from backend
+      - name: Generate OpenAPI JSON from backend (canonical)
+        env:
+          APP_ENV: test
+          ENVIRONMENT: test
         run: |
           cd ..
-          python -c "from app import app; import json; print(json.dumps(app.openapi(), indent=2))" > frontend/src/api/openapi.json
+          make openapi
 
-      - name: Generate OpenAPI types
-        run: npm run generate-types
+      - name: Fail if OpenAPI/types are out of sync
+        run: |
+          cd ..
+          git diff --exit-code frontend/src/api/openapi.json frontend/src/api/schema.ts
 
       - name: Run ESLint with duplication checks
         run: |
