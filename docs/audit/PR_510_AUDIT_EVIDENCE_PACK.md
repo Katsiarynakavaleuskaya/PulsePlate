@@ -130,7 +130,7 @@ tags_metadata: list[dict[str, str]] = [
     },
     {
         "name": "business",
-        "description": "Business analytics and Bayesian analysis (Internal use)",
+        "description": "Businesss analytics and Bayesian analysis (Internal use)",
     },
     {
         "name": "export",
@@ -325,7 +325,7 @@ if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
 # Include BMI router (FREE tier, no API key required)
 app.include_router(bmi_router)
 
-# Include Business router (with feature flag). Defaults to disabled for safety.
+# Include Businesss router (with feature flag). Defaults to disabled for safety.
 
 _business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
 BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag) if _business_flag is not None else False
@@ -337,7 +337,7 @@ if BUSINESS_MODULE_ENABLED and business_router:
 - ❌ Test router: No schema-only guard (registered if `_app_env` allows)
 - ❌ Bodyfat router: No schema-only guard (registered if `get_bodyfat_router is not None`)
 - ❌ BMI Pro router: No schema-only guard (registered if `FEATURE_BMI_PRO_ENABLED` and `bmi_pro_router`)
-- ❌ Business router: No schema-only guard (registered if `BUSINESS_MODULE_ENABLED` and `business_router`)
+- ❌ Businesss router: No schema-only guard (registered if `BUSINESS_MODULE_ENABLED` and `business_router`)
 - ❌ EXPORTS_ENABLED endpoints: No schema-only guard (registered if `EXPORTS_ENABLED`)
 
 **Risks:**
@@ -692,7 +692,7 @@ os.environ["BUSINESS_MODULE_ENABLED"] = "false"  # ❌ DISABLED
 **Recommendations:**
 1. ✅ Fix: Add schema-only guard to VIP routes (mirror PRO pattern) — **CRITICAL:** VIP defaults to enabled, may import ORM models
 2. ✅ Fix: Exclude test router in schema-only mode (or add `include_in_schema=False`) — **CRITICAL:** Test endpoints should not be in public schema
-3. ✅ Fix: Add schema-only guards to BMI Pro, Business, Bodyfat routers
+3. ✅ Fix: Add schema-only guards to BMI Pro, Businesss, Bodyfat routers
 4. ✅ Fix: Set `VIP_MODULE_ENABLED=false` in `generate_openapi.py` if VIP routes import ORM models
 5. ⚠️ Decision needed: Should `ENABLE_TEST_ROUTES=1` be removed from schema generation? (Currently included for test coverage, but violates "minimal safe schema" principle)
 
@@ -813,7 +813,7 @@ def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
    - Test router (currently included when `ENABLE_TEST_ROUTES=1`)
    - Bodyfat router
    - BMI Pro router
-   - Business router
+   - Businesss router
    - Export endpoints
 3. Update `scripts/generate_openapi.py`:
    - Remove `ENABLE_TEST_ROUTES=1` (or exclude test router from schema)
@@ -857,7 +857,7 @@ This is feature routing cleanup, not orchestration extraction. Separate PR to av
 - Lines 836-933: `tags_metadata`, `_api_description`, `app = FastAPI(...)`
 - Lines 1064-1102: Router registration calls
 - Lines 1146-1155: Test router conditional
-- Lines 5639-5657: Bodyfat/BMI Pro/BMI/Business router registrations
+- Lines 5639-5657: Bodyfat/BMI Pro/BMI/Businesss router registrations
 - Lines 5175-5190: `EXPORTS_ENABLED` evaluation (move to registration)
 
 ### Lines to Keep in `legacy_app.py`:
@@ -1079,7 +1079,7 @@ After PR-510/511, add to `AGENTS.md`:
 
 **Critical Findings:**
 1. ✅ PRO routes have schema-only guard (good)
-2. ❌ VIP/BMI Pro/Business/Bodyfat/Test routers lack schema-only guards (risk)
+2. ❌ VIP/BMI Pro/Businesss/Bodyfat/Test routers lack schema-only guards (risk)
    - **VIP:** Defaults to enabled (`is_vip_module_enabled()` returns `True` by default)
    - **Test router:** Explicitly enabled in schema generation (`ENABLE_TEST_ROUTES=1`)
 3. ❌ Admin endpoints visible in schema (security risk)
