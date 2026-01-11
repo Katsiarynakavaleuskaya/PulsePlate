@@ -109,7 +109,7 @@ class TestVIPCoverageClean:
         result = _safe_call_with_adapter("unknown", {})
         assert isinstance(result, dict) and result.get("status") == "error"
 
-    def test_vip_weekly_menu_plan_coverage(self):
+    def test_vip_weekly_menu_plan_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly menu plan coverage with proper isolation."""
         import app
 
@@ -119,7 +119,7 @@ class TestVIPCoverageClean:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json="invalid",  # Non-dict request
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 422  # Validation error
 
@@ -135,7 +135,7 @@ class TestVIPCoverageClean:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=valid_request,
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -143,7 +143,11 @@ class TestVIPCoverageClean:
         assert "echo" in data
         assert "menu" in data
 
-    def test_vip_shoplist_weekly_coverage(self, monkeypatch):
+    def test_vip_shoplist_weekly_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ):
         """Test VIP shoplist weekly coverage with proper isolation."""
         import app
 
@@ -189,7 +193,7 @@ class TestVIPCoverageClean:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -198,33 +202,33 @@ class TestVIPCoverageClean:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_regions_coverage(self):
+    def test_vip_regions_coverage(self, vip_headers: dict[str, str]):
         """Test VIP regions coverage with proper isolation."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test regions endpoint
-        response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
+        response = client.get("/api/v1/vip/regions", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "regions" in data
 
-    def test_vip_recipe_templates_coverage(self):
+    def test_vip_recipe_templates_coverage(self, vip_headers: dict[str, str]):
         """Test VIP recipe templates coverage with proper isolation."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipe templates endpoint
-        response = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"})
+        response = client.get("/api/v1/vip/recipes/templates", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "templates" in data
 
-    def test_vip_auto_repair_strategies_coverage(self):
+    def test_vip_auto_repair_strategies_coverage(self, vip_headers: dict[str, str]):
         """Test VIP auto-repair strategies coverage with proper isolation."""
         import app
 
@@ -232,14 +236,15 @@ class TestVIPCoverageClean:
 
         # Test auto-repair strategies endpoint
         response = client.get(
-            "/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test-key"}
+            "/api/v1/vip/auto-repair/strategies",
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "strategies" in data
 
-    def test_vip_weekly_recipes_coverage(self):
+    def test_vip_weekly_recipes_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly recipes coverage with proper isolation."""
         import app
 
@@ -249,14 +254,14 @@ class TestVIPCoverageClean:
         response = client.post(
             "/api/v1/vip/recipes/weekly",
             json={"week_plan": {"days": []}},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "weekly_recipes" in data
 
-    def test_vip_weekly_plan_coverage(self):
+    def test_vip_weekly_plan_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly plan coverage with proper isolation."""
         import app
 
@@ -266,6 +271,6 @@ class TestVIPCoverageClean:
         response = client.post(
             "/api/v1/vip/weekly-plan",
             json={"calories": 2000, "preferences": []},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 422  # Validation error for invalid request

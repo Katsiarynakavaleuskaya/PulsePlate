@@ -24,7 +24,7 @@ class TestVIPRouterWorking:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         yield
 
-    def test_vip_endpoints_with_environment_enabled(self):
+    def test_vip_endpoints_with_environment_enabled(self, vip_headers: dict[str, str]):
         """Тест VIP endpoints когда VIP_MODULE_ENABLED=true"""
         with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "true"}):
             # Мокаем VIP функции
@@ -50,24 +50,20 @@ class TestVIPRouterWorking:
                 response = client.post(
                     "/api/v1/vip/menu/weekly/plan",
                     json={"user_id": "test", "preferences": {}},
-                    headers={"X-API-Key": "test_key"},
+                    headers=vip_headers,
                 )
                 # Если endpoint существует, статус должен быть 200 или 422, не 404
                 assert response.status_code in [
                     200,
                     422,
-                    403,
                 ], f"Unexpected status: {response.status_code}"
 
                 # Тест regions endpoint
                 response = client.get(
                     "/api/v1/vip/regions",
-                    headers={"X-API-Key": "test_key"},
+                    headers=vip_headers,
                 )
-                assert response.status_code in [
-                    200,
-                    403,
-                ], f"Unexpected status: {response.status_code}"
+                assert response.status_code == 200, f"Unexpected status: {response.status_code}"
 
     def test_vip_router_import_coverage(self):
         """Тест покрытия импорта VIP роутера"""
@@ -81,7 +77,7 @@ class TestVIPRouterWorking:
             except ImportError:
                 pytest.skip("VIP module not available")
 
-    def test_vip_module_disabled_fallback(self):
+    def test_vip_module_disabled_fallback(self, vip_headers: dict[str, str]):
         """Тест fallback когда VIP модуль отключен"""
         with patch.dict(os.environ, {"VIP_MODULE_ENABLED": "false"}):
             import app
@@ -93,6 +89,6 @@ class TestVIPRouterWorking:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json={"user_id": "test", "preferences": {}},
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [404, 422]

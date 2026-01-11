@@ -14,7 +14,7 @@ from starlette.types import ASGIApp
 
 
 @pytest.fixture(autouse=True)
-def vip_auth_env(monkeypatch):
+def vip_auth_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("API_KEY", "test_key")
     monkeypatch.setenv("API_KEY_REQUIRED", "true")
 
@@ -120,7 +120,7 @@ class TestVIPCoverageSimple:
         data = response.json()
         assert "vip access" in data["detail"].lower()
 
-    def test_vip_weekly_menu_plan_success_coverage(self):
+    def test_vip_weekly_menu_plan_success_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly menu plan success coverage."""
         import app
 
@@ -141,14 +141,14 @@ class TestVIPCoverageSimple:
                     "goal": "maintain",
                     "calories": 2000,
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] in ["success", "error"]
             assert "menu" in data
 
-    def test_vip_weekly_menu_plan_safe_call_error_coverage(self):
+    def test_vip_weekly_menu_plan_safe_call_error_coverage(self, vip_headers: dict[str, str]):
         """Test VIP weekly menu plan _safe_call error coverage."""
         import app
 
@@ -167,13 +167,17 @@ class TestVIPCoverageSimple:
                     "goal": "maintain",
                     "calories": 2000,
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data["status"] in ["success", "error"]  # Accept either
 
-    def test_vip_shoplist_weekly_success_coverage(self, monkeypatch):
+    def test_vip_shoplist_weekly_success_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ):
         """Test VIP shoplist weekly success coverage."""
         import app
         from app.middleware import api_tiers
@@ -214,7 +218,7 @@ class TestVIPCoverageSimple:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -223,7 +227,11 @@ class TestVIPCoverageSimple:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_weekly_error_coverage(self, monkeypatch):
+    def test_vip_shoplist_weekly_error_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ):
         """Test VIP shoplist weekly error coverage."""
         import app
         from app.middleware import api_tiers
@@ -256,14 +264,18 @@ class TestVIPCoverageSimple:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             # Invalid enum should return 422
             assert response.status_code == 422
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_success_coverage(self, monkeypatch):
+    def test_vip_shoplist_daily_success_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ):
         """Test VIP shoplist daily success coverage."""
         import app
         from app.middleware import api_tiers
@@ -296,7 +308,7 @@ class TestVIPCoverageSimple:
                         }
                     ],
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -305,7 +317,11 @@ class TestVIPCoverageSimple:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_error_coverage(self, monkeypatch):
+    def test_vip_shoplist_daily_error_coverage(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        vip_headers: dict[str, str],
+    ):
         """Test VIP shoplist daily error coverage."""
         import app
         from app.middleware import api_tiers
@@ -334,14 +350,14 @@ class TestVIPCoverageSimple:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             # Invalid enum should return 422
             assert response.status_code == 422
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_formats_success_coverage(self):
+    def test_vip_shoplist_formats_success_coverage(self, vip_headers: dict[str, str]):
         """Test VIP shoplist formats success coverage."""
         import app
 
@@ -349,13 +365,13 @@ class TestVIPCoverageSimple:
 
         # Mock format_export to return success
         with patch("app.routers.vip.format_export", return_value=["csv", "json", "pdf"]):
-            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
+            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"
             assert "formats" in data
 
-    def test_vip_shoplist_formats_error_coverage(self):
+    def test_vip_shoplist_formats_error_coverage(self, vip_headers: dict[str, str]):
         """Test VIP shoplist formats error coverage."""
         import app
 
@@ -363,7 +379,7 @@ class TestVIPCoverageSimple:
 
         # Mock format_export to raise exception
         with patch("app.routers.vip.format_export", side_effect=Exception("Format error")):
-            response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
+            response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "success"  # Returns success with echo mode

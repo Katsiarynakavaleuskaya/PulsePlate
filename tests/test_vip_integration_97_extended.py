@@ -21,7 +21,7 @@ import pytest
 class TestVIPIntegration97Extended:
     """Расширенные интеграционные тесты для VIP endpoints"""
 
-    def test_vip_weekly_menu_integration_extended_scenarios(self, test_environment):
+    def test_vip_weekly_menu_integration_extended_scenarios(self, test_environment, vip_headers):
         """Расширенные интеграционные тесты VIP weekly menu endpoint"""
         client = TestClient(_get_app())
 
@@ -44,7 +44,9 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/menu/weekly/plan", json=payload_full, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/menu/weekly/plan",
+            json=payload_full,
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -63,7 +65,9 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/menu/weekly/plan", json=payload_minimal, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/menu/weekly/plan",
+            json=payload_minimal,
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -89,7 +93,7 @@ class TestVIPIntegration97Extended:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=payload_alternative,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -115,13 +119,15 @@ class TestVIPIntegration97Extended:
             }
 
             response = client.post(
-                "/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"}
+                "/api/v1/vip/menu/weekly/plan",
+                json=payload,
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
             assert data.get("status") in ["success", "error"]
 
-    def test_vip_recipes_integration_extended_scenarios(self, test_environment):
+    def test_vip_recipes_integration_extended_scenarios(self, test_environment, vip_headers):
         """Расширенные интеграционные тесты VIP recipes endpoint"""
         client = TestClient(_get_app())
 
@@ -184,7 +190,9 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/recipes/weekly", json=payload_complex, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/recipes/weekly",
+            json=payload_complex,
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -208,7 +216,9 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/recipes/weekly", json=payload_simple, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/recipes/weekly",
+            json=payload_simple,
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -237,13 +247,15 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/recipes/weekly", json=payload_units, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/recipes/weekly",
+            json=payload_units,
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_vip_auto_repair_integration_extended_scenarios(self, test_environment):
+    def test_vip_auto_repair_integration_extended_scenarios(self, test_environment, vip_headers):
         """Расширенные интеграционные тесты VIP auto repair endpoint"""
         client = TestClient(_get_app())
 
@@ -280,7 +292,7 @@ class TestVIPIntegration97Extended:
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=payload_problems,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -308,7 +320,7 @@ class TestVIPIntegration97Extended:
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=payload_simple_problems,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -343,13 +355,13 @@ class TestVIPIntegration97Extended:
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json=payload_no_problems,
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] in ["success", "error"]
 
-    def test_vip_shoplist_integration_extended_scenarios(self, test_environment):
+    def test_vip_shoplist_integration_extended_scenarios(self, test_environment, vip_headers):
         """Расширенные интеграционные тесты VIP shoplist endpoint"""
         client = TestClient(_get_app())
 
@@ -403,7 +415,9 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/shoplist", json=payload_full, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/shoplist",
+            json=payload_full,
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
         if response.status_code == 200:
@@ -429,7 +443,9 @@ class TestVIPIntegration97Extended:
         }
 
         response = client.post(
-            "/api/v1/vip/shoplist", json=payload_simple, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/shoplist",
+            json=payload_simple,
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
@@ -457,11 +473,13 @@ class TestVIPIntegration97Extended:
             }
 
             response = client.post(
-                "/api/v1/vip/shoplist", json=payload, headers={"X-API-Key": "test_key"}
+                "/api/v1/vip/shoplist",
+                json=payload,
+                headers=vip_headers,
             )
             assert response.status_code in [200, 404]
 
-    def test_vip_error_handling_integration_extended_scenarios(self, test_environment):
+    def test_vip_error_handling_integration_extended_scenarios(self, test_environment, vip_headers):
         """Расширенные интеграционные тесты обработки ошибок VIP endpoints"""
         client = TestClient(_get_app())
 
@@ -478,7 +496,9 @@ class TestVIPIntegration97Extended:
 
         for payload in invalid_payloads:
             response = client.post(
-                "/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"}
+                "/api/v1/vip/menu/weekly/plan",
+                json=payload,
+                headers=vip_headers,
             )
             assert response.status_code in [200, 422]  # Возвращает echo mode или validation error
             if response.status_code == 200:
@@ -489,7 +509,7 @@ class TestVIPIntegration97Extended:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json={"calories": 2000},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
@@ -499,13 +519,15 @@ class TestVIPIntegration97Extended:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json={"sex": "male", "calories": 2000},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data.get("status") in ["success", "error"]
 
-    def test_vip_api_key_validation_integration_extended_scenarios(self, production_environment):
+    def test_vip_api_key_validation_integration_extended_scenarios(
+        self, production_environment, vip_headers
+    ):
         """Расширенные интеграционные тесты валидации API ключа в production"""
         client = TestClient(_get_app())
 
@@ -542,9 +564,6 @@ class TestVIPIntegration97Extended:
             assert response.status_code in [401, 403]
 
         # Тест 3: С валидным API ключом
-        import os
-
-        valid_api_key = os.environ.get("API_KEY", "test_key")
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json={
@@ -555,11 +574,13 @@ class TestVIPIntegration97Extended:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": valid_api_key},
+            headers=vip_headers,
         )
         assert response.status_code == 200
 
-    def test_vip_environment_switching_integration_extended_scenarios(self, test_environment):
+    def test_vip_environment_switching_integration_extended_scenarios(
+        self, test_environment, vip_headers
+    ):
         """Расширенные интеграционные тесты переключения окружений"""
         client = TestClient(_get_app())
 
@@ -574,11 +595,13 @@ class TestVIPIntegration97Extended:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
 
-    def test_vip_comprehensive_workflow_integration_extended_scenarios(self, test_environment):
+    def test_vip_comprehensive_workflow_integration_extended_scenarios(
+        self, test_environment, vip_headers
+    ):
         """Расширенные интеграционные тесты полного workflow VIP функций"""
         client = TestClient(_get_app())
 
@@ -593,7 +616,9 @@ class TestVIPIntegration97Extended:
         }
 
         menu_response = client.post(
-            "/api/v1/vip/menu/weekly/plan", json=menu_payload, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/menu/weekly/plan",
+            json=menu_payload,
+            headers=vip_headers,
         )
         assert menu_response.status_code == 200
         menu_data = menu_response.json()
@@ -606,7 +631,7 @@ class TestVIPIntegration97Extended:
             recipes_response = client.post(
                 "/api/v1/vip/recipes/weekly",
                 json=recipes_payload,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert recipes_response.status_code == 200
 
@@ -617,7 +642,9 @@ class TestVIPIntegration97Extended:
         }
 
         repair_response = client.post(
-            "/api/v1/vip/auto-repair/weekly", json=repair_payload, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/auto-repair/weekly",
+            json=repair_payload,
+            headers=vip_headers,
         )
         assert repair_response.status_code == 200
 
@@ -628,6 +655,8 @@ class TestVIPIntegration97Extended:
         }
 
         shoplist_response = client.post(
-            "/api/v1/vip/shoplist", json=shoplist_payload, headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/shoplist",
+            json=shoplist_payload,
+            headers=vip_headers,
         )
         assert shoplist_response.status_code in [200, 404]

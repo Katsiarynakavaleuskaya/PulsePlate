@@ -248,6 +248,19 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Tiers are: FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
 - **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
 - **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
+
+### Testing tier guards (VIP/PRO endpoints)
+- **All tests that call VIP endpoints and expect 200/422/404 MUST use valid VIP key** (`vip_headers` fixture from `tests/conftest.py`).
+- **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
+- **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
+- **Tests must not mutate `os.environ` directly** — use `monkeypatch.setenv` (prefer an `autouse` fixture for class-level suites).
+- **Type hints required for all new or modified functions** (including tests).
+  - OK: `def test_x(vip_headers: dict[str, str]) -> None:`
+  - Not OK: `def test_x(vip_headers):` (missing types)
+  - When unsure: prefer explicit `-> None` for test functions.
+  - **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
+- **Forbidden:** Testing private `_require_*` functions from routers — use behavioral tests through `TestClient` + middleware.
+- **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
 - **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
 
@@ -261,6 +274,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - PRO tier: use `require_pro_tier()` middleware (from `app.middleware.api_tiers`).
 - VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
 - All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
+- **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
+- **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 
 **See:**
 - `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
@@ -290,6 +305,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Determinism is enforced by `pytest tests/test_openapi_determinism.py`.
 - If drift appears: fix **generator normalization** in `scripts/generate_openapi.py`, not "accept drift".
 - Local verification: run `make openapi` and then `make openapi-check`.
+- **If OpenAPI sync fails in CI** → first check generated artifacts under `frontend/src/api/*` and run `make openapi` locally, then commit the updated artifacts.
 - **Normalization policy**: Never sort semantically meaningful OpenAPI list keys (`required`, `enum`, `allOf/anyOf/oneOf`, `prefixItems`, `examples`, etc.). Add to denylist before touching normalization.
 - **Determinism gate**: If OpenAPI artifacts are committed/compared, add a determinism test (hash compare) in the CI job that owns it.
 

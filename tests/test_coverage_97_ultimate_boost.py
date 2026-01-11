@@ -423,7 +423,11 @@ class TestCoverage97UltimateBoost:
             )
             assert response.status_code in [200, 422, 503, 404]
 
-    def test_app_coverage_ultimate_boost_missing_lines_1325_1326_1328_1329(self, test_environment):
+    def test_app_coverage_ultimate_boost_missing_lines_1325_1326_1328_1329(
+        self,
+        test_environment,
+        vip_headers: dict[str, str],
+    ):
         """Тест покрытия app.py строк 1325-1326, 1328-1329 - VIP endpoints с различными данными"""
         import app
 
@@ -477,11 +481,15 @@ class TestCoverage97UltimateBoost:
             response = client.post(
                 "/api/v1/vip/menu/weekly/plan",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 
-    def test_app_coverage_ultimate_boost_missing_lines_1342_1365(self, test_environment):
+    def test_app_coverage_ultimate_boost_missing_lines_1342_1365(
+        self,
+        test_environment,
+        vip_headers: dict[str, str],
+    ):
         """Тест покрытия app.py строк 1342-1365 - VIP recipes endpoint с различными данными"""
         import app
 
@@ -534,7 +542,7 @@ class TestCoverage97UltimateBoost:
             response = client.post(
                 "/api/v1/vip/recipes/weekly",
                 json=scenario,
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
 

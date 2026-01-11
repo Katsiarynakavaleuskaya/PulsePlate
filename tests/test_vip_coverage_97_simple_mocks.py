@@ -13,7 +13,7 @@ from starlette.types import ASGIApp
 class TestVIPCoverage97Integration:
     """Интеграционные тесты для покрытия VIP router до 97%"""
 
-    def test_vip_import_fallback_integration(self, test_environment):
+    def test_vip_import_fallback_integration(self, test_environment, vip_headers):
         """Тест покрытия VIP import fallback интеграционный"""
         # Remove module from sys.modules to simulate it's not available
         original_module = sys.modules.get("core.menu_engine")
@@ -35,7 +35,7 @@ class TestVIPCoverage97Integration:
                     "activity": "moderate",
                     "goal": "maintain",
                 },
-                headers={"X-API-Key": "test_key"},
+                headers=vip_headers,
             )
             assert response.status_code in [200, 404]
         finally:
@@ -64,7 +64,7 @@ class TestVIPCoverage97Integration:
         )
         assert response.status_code in [200, 401, 403]
 
-    def test_vip_coverage_simple_mocks_environment_validation(self, test_environment):
+    def test_vip_coverage_simple_mocks_environment_validation(self, test_environment, vip_headers):
         """Тест покрытия VIP environment validation с простыми моками"""
         import app
 
@@ -81,11 +81,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_logging(self, test_environment):
+    def test_vip_coverage_simple_mocks_logging(self, test_environment, vip_headers):
         """Тест покрытия VIP logging с простыми моками"""
         import app
 
@@ -102,11 +102,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key", "User-Agent": "test-agent"},
+            headers={**vip_headers, "User-Agent": "test-agent"},
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_resolve_attr(self, test_environment):
+    def test_vip_coverage_simple_mocks_resolve_attr(self, test_environment, vip_headers):
         """Тест покрытия VIP resolve_attr с простыми моками"""
         import app
 
@@ -123,11 +123,11 @@ class TestVIPCoverage97Integration:
                 "activity": "active",
                 "goal": "loss",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_require_api_key(self, test_environment):
+    def test_vip_coverage_simple_mocks_require_api_key(self, test_environment, vip_headers):
         """Тест покрытия VIP _require_api_key с простыми моками"""
         import app
 
@@ -144,11 +144,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_api_key_header(self, test_environment):
+    def test_vip_coverage_simple_mocks_api_key_header(self, test_environment, vip_headers):
         """Тест покрытия VIP _api_key_header с простыми моками"""
         import app
 
@@ -165,11 +165,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_production_environment(self, test_environment):
+    def test_vip_coverage_simple_mocks_production_environment(self, test_environment, vip_headers):
         """Тест покрытия VIP _is_production_environment с простыми моками"""
         import app
 
@@ -186,11 +186,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_anonymous_access(self, test_environment):
+    def test_vip_coverage_simple_mocks_anonymous_access(self, test_environment, vip_headers):
         """Тест покрытия VIP _should_allow_anonymous_access с простыми моками"""
         import app
 
@@ -207,11 +207,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_log_api_key_event(self, test_environment):
+    def test_vip_coverage_simple_mocks_log_api_key_event(self, test_environment, vip_headers):
         """Тест покрытия VIP _log_api_key_event с простыми моками"""
         import app
 
@@ -228,7 +228,7 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
@@ -239,7 +239,7 @@ class TestVIPCoverage97Integration:
         result = _safe_call_with_adapter("unknown", {})
         assert isinstance(result, dict) and result.get("status") == "error"
 
-    def test_vip_coverage_simple_mocks_create_user_profile(self, test_environment):
+    def test_vip_coverage_simple_mocks_create_user_profile(self, test_environment, vip_headers):
         """Тест покрытия VIP _create_user_profile_from_dict с простыми моками"""
         import app
 
@@ -264,11 +264,13 @@ class TestVIPCoverage97Integration:
                 "life_stage": "adult",
                 "medical_conditions": [],
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_adapter_make_weekly_menu(self, test_environment):
+    def test_vip_coverage_simple_mocks_adapter_make_weekly_menu(
+        self, test_environment, vip_headers
+    ):
         """Тест покрытия VIP _adapter_make_weekly_menu с простыми моками"""
         import app
 
@@ -285,11 +287,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_weekly_menu_plan(self, test_environment):
+    def test_vip_coverage_simple_mocks_weekly_menu_plan(self, test_environment, vip_headers):
         """Тест покрытия VIP weekly_menu_plan endpoint с простыми моками"""
         import app
 
@@ -306,11 +308,11 @@ class TestVIPCoverage97Integration:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_shoplist(self, test_environment):
+    def test_vip_coverage_simple_mocks_shoplist(self, test_environment, vip_headers):
         """Тест покрытия VIP shoplist endpoint с простыми моками"""
         import app
 
@@ -330,11 +332,11 @@ class TestVIPCoverage97Integration:
                     ]
                 }
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_recipes(self, test_environment):
+    def test_vip_coverage_simple_mocks_recipes(self, test_environment, vip_headers):
         """Тест покрытия VIP recipes endpoint с простыми моками"""
         import app
 
@@ -354,11 +356,11 @@ class TestVIPCoverage97Integration:
                     ]
                 }
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_auto_repair(self, test_environment):
+    def test_vip_coverage_simple_mocks_auto_repair(self, test_environment, vip_headers):
         """Тест покрытия VIP auto repair endpoint с простыми моками"""
         import app
 
@@ -378,21 +380,21 @@ class TestVIPCoverage97Integration:
                     ]
                 }
             },
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_region_catalog(self, test_environment):
+    def test_vip_coverage_simple_mocks_region_catalog(self, test_environment, vip_headers):
         """Тест покрытия VIP region catalog endpoint с простыми моками"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Тест region catalog endpoint
-        response = client.get("/api/v1/vip/region-catalog", headers={"X-API-Key": "test_key"})
+        response = client.get("/api/v1/vip/region-catalog", headers=vip_headers)
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_product_search(self, test_environment):
+    def test_vip_coverage_simple_mocks_product_search(self, test_environment, vip_headers):
         """Тест покрытия VIP product search endpoint с простыми моками"""
         import app
 
@@ -400,11 +402,12 @@ class TestVIPCoverage97Integration:
 
         # Тест product search endpoint
         response = client.get(
-            "/api/v1/vip/products/search?query=chicken", headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/products/search?query=chicken",
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_product_varieties(self, test_environment):
+    def test_vip_coverage_simple_mocks_product_varieties(self, test_environment, vip_headers):
         """Тест покрытия VIP product varieties endpoint с простыми моками"""
         import app
 
@@ -412,11 +415,12 @@ class TestVIPCoverage97Integration:
 
         # Тест product varieties endpoint
         response = client.get(
-            "/api/v1/vip/products/varieties?product=chicken", headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/products/varieties?product=chicken",
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_product_details(self, test_environment):
+    def test_vip_coverage_simple_mocks_product_details(self, test_environment, vip_headers):
         """Тест покрытия VIP product details endpoint с простыми моками"""
         import app
 
@@ -424,11 +428,12 @@ class TestVIPCoverage97Integration:
 
         # Тест product details endpoint
         response = client.get(
-            "/api/v1/vip/products/details?id=123", headers={"X-API-Key": "test_key"}
+            "/api/v1/vip/products/details?id=123",
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_nutrition_analysis(self, test_environment):
+    def test_vip_coverage_simple_mocks_nutrition_analysis(self, test_environment, vip_headers):
         """Тест покрытия VIP nutrition analysis endpoint с простыми моками"""
         import app
 
@@ -438,16 +443,16 @@ class TestVIPCoverage97Integration:
         response = client.post(
             "/api/v1/vip/nutrition/analyze",
             json={"foods": [{"name": "chicken", "amount": 100, "unit": "g"}]},
-            headers={"X-API-Key": "test_key"},
+            headers=vip_headers,
         )
         assert response.status_code in [200, 404]
 
-    def test_vip_coverage_simple_mocks_health_check(self, test_environment):
+    def test_vip_coverage_simple_mocks_health_check(self, test_environment, vip_headers):
         """Тест покрытия VIP health check endpoint с простыми моками"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Тест health check endpoint
-        response = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
+        response = client.get("/api/v1/vip/health", headers=vip_headers)
         assert response.status_code in [200, 404]

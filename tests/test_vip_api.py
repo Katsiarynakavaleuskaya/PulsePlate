@@ -7,23 +7,12 @@ EN: Tests for VIP API endpoints
 """
 
 import pytest
-from typing import cast
-
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
-
-import app
-
-# Type assertion to satisfy type checker
-assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
-
-client = TestClient(cast(ASGIApp, app.app))
 
 
-def test_vip_health():
+def test_vip_health(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP health endpoint returns 200"""
-    r = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/health", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -31,7 +20,57 @@ def test_vip_health():
     assert "features" in data
 
 
-def test_vip_weekly_plan_echo():
+def test_deprecated_weekly_plan_handles_dict_plan(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
+) -> None:
+    from fastapi.routing import APIRoute
+
+    def fake_make_weekly_menu(*, profile: object) -> dict[str, object]:
+        return {
+            "week_start": "2026-01-01",
+            "daily_menus": [],
+            "weekly_coverage": {},
+            "shopping_list": [],
+            "total_cost": 0,
+            "adherence_score": 0,
+        }
+
+    deprecated_route = next(
+        (
+            r
+            for r in client.app.routes
+            if isinstance(r, APIRoute)
+            and r.path == "/api/v1/vip/weekly-plan"
+            and "POST" in (r.methods or set())
+        ),
+        None,
+    )
+    assert deprecated_route is not None, "POST /api/v1/vip/weekly-plan route not found"
+    # NOTE: String-based module patching (e.g. "app.routers.vip.make_weekly_menu") can be flaky
+    # under dual-module / reload / shim-import behavior. Patch the registered route handler globals
+    # for determinism (see docs/ENGINEERING_LESSONS.md).
+    monkeypatch.setitem(
+        deprecated_route.endpoint.__globals__, "make_weekly_menu", fake_make_weekly_menu
+    )
+    assert deprecated_route.endpoint.__globals__["make_weekly_menu"] is fake_make_weekly_menu
+
+    payload = {
+        "sex": "female",
+        "age": 25,
+        "height_cm": 165.0,
+        "weight_kg": 60.0,
+        "activity": "light",
+        "goal": "loss",
+    }
+    r = client.post("/api/v1/vip/weekly-plan", json=payload, headers=vip_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "success"
+    assert data["data"]["week_start"] == "2026-01-01"
+    assert data["data"]["daily_menus"] == []
+
+
+def test_vip_weekly_plan_echo(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP weekly plan endpoint returns echo structure"""
     payload = {
         "sex": "male",
@@ -45,7 +84,7 @@ def test_vip_weekly_plan_echo():
         "goals": {"calories": 2000, "protein": 150},
         "constraints": {"diet_flags": ["VEG"]},
     }
-    r = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"})
+    r = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -55,12 +94,10 @@ def test_vip_weekly_plan_echo():
     assert data["echo"]["constraints"] == payload["constraints"]
 
 
-def test_vip_weekly_repair_echo():
+def test_vip_weekly_repair_echo(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP weekly repair endpoint returns echo structure"""
     payload = {"menu": {"days": 7, "meals": []}, "deficits": {"Ca": 200, "VitD": 100}}
-    r = client.post(
-        "/api/v1/vip/menu/weekly/repair", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/menu/weekly/repair", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -68,20 +105,17 @@ def test_vip_weekly_repair_echo():
     assert data["echo"] == payload
 
 
-def test_vip_module_enabled():
+def test_vip_module_enabled(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Ensure VIP module is enabled and the health endpoint responds with 200."""
-    # Confirm the FastAPI app is initialised with the VIP router
-    assert isinstance(app.app, FastAPI), "app should be FastAPI instance"
-    client = TestClient(cast(ASGIApp, app.app))
-    r = client.get("/api/v1/vip/health", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/health", headers=vip_headers)
     # VIP module is enabled, so expect 200
     assert r.status_code == 200
 
 
-def test_vip_shoplist_weekly(monkeypatch):
+def test_vip_shoplist_weekly(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
+) -> None:
     """Test VIP weekly shoplist endpoint"""
-    import app
-    from app.middleware import api_tiers
 
     # Enable VIP module
     def mock_is_vip_module_enabled() -> bool:
@@ -92,84 +126,71 @@ def test_vip_shoplist_weekly(monkeypatch):
         mock_is_vip_module_enabled,
     )
 
-    # Override VIP tier dependency
-    async def mock_require_vip_tier() -> str:
-        return "vip"
+    # Use new API format for vip_shoplist router
+    payload = {
+        "days": [
+            {
+                "items": [
+                    {"food_id": "carrot", "qty": {"value": "100", "unit": "G"}, "form": "RAW"},
+                    {"food_id": "onion", "qty": {"value": "50", "unit": "G"}, "form": "RAW"},
+                    {"food_id": "milk", "qty": {"value": "200", "unit": "ML"}, "form": "RAW"},
+                ],
+                "packaging_rules": [
+                    {
+                        "food_id": "carrot",
+                        "pack_size": {"value": "500", "unit": "G"},
+                        "rounding": "CEIL",
+                        "min_packs": 1,
+                    },
+                    {
+                        "food_id": "onion",
+                        "pack_size": {"value": "500", "unit": "G"},
+                        "rounding": "CEIL",
+                        "min_packs": 1,
+                    },
+                    {
+                        "food_id": "milk",
+                        "pack_size": {"value": "1000", "unit": "ML"},
+                        "rounding": "CEIL",
+                        "min_packs": 1,
+                    },
+                ],
+            },
+            {
+                "items": [
+                    {"food_id": "carrot", "qty": {"value": "150", "unit": "G"}, "form": "RAW"},
+                    {"food_id": "potato", "qty": {"value": "200", "unit": "G"}, "form": "RAW"},
+                ],
+                "packaging_rules": [
+                    {
+                        "food_id": "carrot",
+                        "pack_size": {"value": "500", "unit": "G"},
+                        "rounding": "CEIL",
+                        "min_packs": 1,
+                    },
+                    {
+                        "food_id": "potato",
+                        "pack_size": {"value": "500", "unit": "G"},
+                        "rounding": "CEIL",
+                        "min_packs": 1,
+                    },
+                ],
+            },
+        ]
+    }
 
-    app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
-
-    try:
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Use new API format for vip_shoplist router
-        payload = {
-            "days": [
-                {
-                    "items": [
-                        {"food_id": "carrot", "qty": {"value": "100", "unit": "G"}, "form": "RAW"},
-                        {"food_id": "onion", "qty": {"value": "50", "unit": "G"}, "form": "RAW"},
-                        {"food_id": "milk", "qty": {"value": "200", "unit": "ML"}, "form": "RAW"},
-                    ],
-                    "packaging_rules": [
-                        {
-                            "food_id": "carrot",
-                            "pack_size": {"value": "500", "unit": "G"},
-                            "rounding": "CEIL",
-                            "min_packs": 1,
-                        },
-                        {
-                            "food_id": "onion",
-                            "pack_size": {"value": "500", "unit": "G"},
-                            "rounding": "CEIL",
-                            "min_packs": 1,
-                        },
-                        {
-                            "food_id": "milk",
-                            "pack_size": {"value": "1000", "unit": "ML"},
-                            "rounding": "CEIL",
-                            "min_packs": 1,
-                        },
-                    ],
-                },
-                {
-                    "items": [
-                        {"food_id": "carrot", "qty": {"value": "150", "unit": "G"}, "form": "RAW"},
-                        {"food_id": "potato", "qty": {"value": "200", "unit": "G"}, "form": "RAW"},
-                    ],
-                    "packaging_rules": [
-                        {
-                            "food_id": "carrot",
-                            "pack_size": {"value": "500", "unit": "G"},
-                            "rounding": "CEIL",
-                            "min_packs": 1,
-                        },
-                        {
-                            "food_id": "potato",
-                            "pack_size": {"value": "500", "unit": "G"},
-                            "rounding": "CEIL",
-                            "min_packs": 1,
-                        },
-                    ],
-                },
-            ]
-        }
-
-        r = client.post(
-            "/api/v1/vip/shoplist/weekly", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert r.status_code == 200
-        data = r.json()
-        assert "days" in data
-        assert isinstance(data["days"], list)
-        assert len(data["days"]) == 2
-    finally:
-        app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
+    r = client.post("/api/v1/vip/shoplist/weekly", json=payload, headers=vip_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert "days" in data
+    assert isinstance(data["days"], list)
+    assert len(data["days"]) == 2
 
 
-def test_vip_shoplist_daily(monkeypatch):
+def test_vip_shoplist_daily(
+    monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
+) -> None:
     """Test VIP daily shoplist endpoint"""
-    import app
-    from app.middleware import api_tiers
 
     # Enable VIP module
     def mock_is_vip_module_enabled() -> bool:
@@ -180,60 +201,46 @@ def test_vip_shoplist_daily(monkeypatch):
         mock_is_vip_module_enabled,
     )
 
-    # Override VIP tier dependency
-    async def mock_require_vip_tier() -> str:
-        return "vip"
+    # Use new API format for vip_shoplist router
+    payload = {
+        "items": [
+            {"food_id": "carrot", "qty": {"value": "100", "unit": "G"}, "form": "RAW"},
+            {"food_id": "onion", "qty": {"value": "50", "unit": "G"}, "form": "RAW"},
+            {"food_id": "milk", "qty": {"value": "200", "unit": "ML"}, "form": "RAW"},
+        ],
+        "packaging_rules": [
+            {
+                "food_id": "carrot",
+                "pack_size": {"value": "500", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+            {
+                "food_id": "onion",
+                "pack_size": {"value": "500", "unit": "G"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+            {
+                "food_id": "milk",
+                "pack_size": {"value": "1000", "unit": "ML"},
+                "rounding": "CEIL",
+                "min_packs": 1,
+            },
+        ],
+    }
 
-    app.app.dependency_overrides[api_tiers.require_vip_tier] = mock_require_vip_tier
-
-    try:
-        # Create fresh TestClient after setting dependency_overrides
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Use new API format for vip_shoplist router
-        payload = {
-            "items": [
-                {"food_id": "carrot", "qty": {"value": "100", "unit": "G"}, "form": "RAW"},
-                {"food_id": "onion", "qty": {"value": "50", "unit": "G"}, "form": "RAW"},
-                {"food_id": "milk", "qty": {"value": "200", "unit": "ML"}, "form": "RAW"},
-            ],
-            "packaging_rules": [
-                {
-                    "food_id": "carrot",
-                    "pack_size": {"value": "500", "unit": "G"},
-                    "rounding": "CEIL",
-                    "min_packs": 1,
-                },
-                {
-                    "food_id": "onion",
-                    "pack_size": {"value": "500", "unit": "G"},
-                    "rounding": "CEIL",
-                    "min_packs": 1,
-                },
-                {
-                    "food_id": "milk",
-                    "pack_size": {"value": "1000", "unit": "ML"},
-                    "rounding": "CEIL",
-                    "min_packs": 1,
-                },
-            ],
-        }
-
-        r = client.post(
-            "/api/v1/vip/shoplist/daily", json=payload, headers={"X-API-Key": "test_key"}
-        )
-        assert r.status_code == 200
-        data = r.json()
-        assert "packed" in data
-        assert "unpacked" in data
-        assert "analytics" in data
-    finally:
-        app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
+    r = client.post("/api/v1/vip/shoplist/daily", json=payload, headers=vip_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert "packed" in data
+    assert "unpacked" in data
+    assert "analytics" in data
 
 
-def test_vip_shoplist_formats():
+def test_vip_shoplist_formats(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP shoplist formats endpoint"""
-    r = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -247,9 +254,9 @@ def test_vip_shoplist_formats():
     assert "es" in data["locales"]
 
 
-def test_vip_regions():
+def test_vip_regions(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP regions endpoint"""
-    r = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -258,9 +265,9 @@ def test_vip_regions():
     assert isinstance(data["regions"], list)
 
 
-def test_vip_region_search():
+def test_vip_region_search(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP region search endpoint"""
-    r = client.get("/api/v1/vip/regions/es/search?query=tomato", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/es/search?query=tomato", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -271,9 +278,9 @@ def test_vip_region_search():
     assert data["query"] == "tomato"
 
 
-def test_vip_region_categories():
+def test_vip_region_categories(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP region categories endpoint"""
-    r = client.get("/api/v1/vip/regions/es/categories", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/es/categories", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -283,9 +290,9 @@ def test_vip_region_categories():
     assert data["region"] == "es"
 
 
-def test_vip_region_stores():
+def test_vip_region_stores(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP region stores endpoint"""
-    r = client.get("/api/v1/vip/regions/es/stores", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/es/stores", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -295,9 +302,9 @@ def test_vip_region_stores():
     assert data["region"] == "es"
 
 
-def test_vip_region_price_comparison():
+def test_vip_region_price_comparison(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP region price comparison endpoint"""
-    r = client.get("/api/v1/vip/regions/compare/tomato", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/regions/compare/tomato", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -307,7 +314,7 @@ def test_vip_region_price_comparison():
     assert data["product_name"] == "tomato"
 
 
-def test_vip_recipe_synthesize():
+def test_vip_recipe_synthesize(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP recipe synthesis endpoint"""
     payload = {
         "ingredients": [
@@ -320,9 +327,7 @@ def test_vip_recipe_synthesize():
         "servings": 4,
     }
 
-    r = client.post(
-        "/api/v1/vip/recipes/synthesize", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/recipes/synthesize", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -334,7 +339,7 @@ def test_vip_recipe_synthesize():
     assert "steps" in data["recipe"]
 
 
-def test_vip_recipe_weekly():
+def test_vip_recipe_weekly(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP weekly recipe synthesis endpoint"""
     payload = {
         "week_plan": {
@@ -366,7 +371,7 @@ def test_vip_recipe_weekly():
         "recipes_per_day": 1,
     }
 
-    r = client.post("/api/v1/vip/recipes/weekly", json=payload, headers={"X-API-Key": "test_key"})
+    r = client.post("/api/v1/vip/recipes/weekly", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -375,9 +380,9 @@ def test_vip_recipe_weekly():
     assert data["total_recipes"] > 0
 
 
-def test_vip_recipe_templates():
+def test_vip_recipe_templates(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP recipe templates endpoint"""
-    r = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/recipes/templates", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -387,7 +392,7 @@ def test_vip_recipe_templates():
     assert data["total_templates"] > 0
 
 
-def test_vip_auto_repair_weekly():
+def test_vip_auto_repair_weekly(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP auto-repair weekly plan endpoint"""
     payload = {
         "week_plan": {
@@ -416,9 +421,7 @@ def test_vip_auto_repair_weekly():
         "user_preferences": {},
     }
 
-    r = client.post(
-        "/api/v1/vip/auto-repair/weekly", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -428,7 +431,7 @@ def test_vip_auto_repair_weekly():
     assert "iterations" in data["repair_result"]
 
 
-def test_vip_auto_repair_suggestions():
+def test_vip_auto_repair_suggestions(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP auto-repair suggestions endpoint"""
     payload = {
         "week_plan": {
@@ -455,9 +458,7 @@ def test_vip_auto_repair_suggestions():
         },
     }
 
-    r = client.post(
-        "/api/v1/vip/auto-repair/suggestions", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    r = client.post("/api/v1/vip/auto-repair/suggestions", json=payload, headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"
@@ -466,9 +467,9 @@ def test_vip_auto_repair_suggestions():
     assert isinstance(data["suggestions"], list)
 
 
-def test_vip_auto_repair_strategies():
+def test_vip_auto_repair_strategies(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP auto-repair strategies endpoint"""
-    r = client.get("/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test_key"})
+    r = client.get("/api/v1/vip/auto-repair/strategies", headers=vip_headers)
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "success"

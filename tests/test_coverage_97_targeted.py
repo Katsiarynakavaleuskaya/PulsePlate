@@ -175,7 +175,7 @@ class TestCoverage97Targeted:
                 assert "bmr" in response_data
 
     @pytest.mark.parametrize(
-        "endpoint,payload,expected_status,headers",
+        "endpoint,payload,expected_status",
         [
             (
                 "/api/v1/vip/menu/weekly/plan",
@@ -188,7 +188,6 @@ class TestCoverage97Targeted:
                     "goal": "maintain",
                 },
                 200,
-                {"X-API-Key": "test_key"},
             ),
             (
                 "/api/v1/vip/recipes/weekly",
@@ -208,13 +207,12 @@ class TestCoverage97Targeted:
                     }
                 },
                 200,
-                {"X-API-Key": "test_key"},
             ),
         ],
     )
-    def test_app_vip_endpoints(self, app_client, endpoint, payload, expected_status, headers):
+    def test_app_vip_endpoints(self, app_client, endpoint, payload, expected_status, vip_headers):
         """Test VIP endpoints with specific expected status codes and response validation"""
-        response = app_client.post(endpoint, json=payload, headers=headers)
+        response = app_client.post(endpoint, json=payload, headers=vip_headers)
 
         assert response.status_code in [200, 422, 404, 401, 403]
 

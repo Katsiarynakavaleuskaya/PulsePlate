@@ -133,7 +133,7 @@ class TestVIPCoverageComprehensive:
         result = _safe_call_with_adapter("unknown", {})
         assert isinstance(result, dict) and result.get("status") == "error"
 
-    def test_vip_weekly_menu_plan_coverage_lines_173_180(self):
+    def test_vip_weekly_menu_plan_coverage_lines_173_180(self, vip_headers: dict[str, str]):
         """Test VIP weekly menu plan coverage for lines 173, 180."""
         import app
 
@@ -143,7 +143,7 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json="invalid",  # Non-dict request
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 422  # Validation error
 
@@ -159,13 +159,13 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=valid_request,
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
 
-    def test_vip_weekly_menu_plan_error_coverage_lines_189_191(self):
+    def test_vip_weekly_menu_plan_error_coverage_lines_189_191(self, vip_headers: dict[str, str]):
         """Test VIP weekly menu plan error coverage for lines 189-191."""
         import app
 
@@ -183,13 +183,15 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/menu/weekly/plan",
             json=valid_request,
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200  # Should work with valid request
         data = response.json()
         assert data["status"] == "success"
 
-    def test_vip_shoplist_weekly_coverage_lines_219_259(self, monkeypatch):
+    def test_vip_shoplist_weekly_coverage_lines_219_259(
+        self, monkeypatch, vip_headers: dict[str, str]
+    ):
         """Test VIP shoplist weekly coverage for lines 219-259."""
         import app
 
@@ -235,7 +237,7 @@ class TestVIPCoverageComprehensive:
                         }
                     ]
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -244,7 +246,9 @@ class TestVIPCoverageComprehensive:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_daily_coverage_lines_315_316(self, monkeypatch):
+    def test_vip_shoplist_daily_coverage_lines_315_316(
+        self, monkeypatch, vip_headers: dict[str, str]
+    ):
         """Test VIP shoplist daily coverage for lines 315-316."""
         import app
 
@@ -282,7 +286,7 @@ class TestVIPCoverageComprehensive:
                         }
                     ],
                 },
-                headers={"X-API-Key": "test-key"},
+                headers=vip_headers,
             )
             assert response.status_code == 200
             data = response.json()
@@ -291,104 +295,98 @@ class TestVIPCoverageComprehensive:
         finally:
             app.app.dependency_overrides.pop(api_tiers.require_vip_tier, None)
 
-    def test_vip_shoplist_formats_coverage_lines_350_361_362(self):
+    def test_vip_shoplist_formats_coverage_lines_350_361_362(self, vip_headers: dict[str, str]):
         """Test VIP shoplist formats coverage for lines 350, 361-362."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test shoplist formats
-        response = client.get("/api/v1/vip/shoplist/formats", headers={"X-API-Key": "test-key"})
+        response = client.get("/api/v1/vip/shoplist/formats", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "formats" in data
 
-    def test_vip_regions_coverage_lines_421_422_449(self):
+    def test_vip_regions_coverage_lines_421_422_449(self, vip_headers: dict[str, str]):
         """Test VIP regions coverage for lines 421-422, 449."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test regions endpoint
-        response = client.get("/api/v1/vip/regions", headers={"X-API-Key": "test-key"})
+        response = client.get("/api/v1/vip/regions", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "regions" in data
 
-    def test_vip_region_search_coverage_lines_485_486(self):
+    def test_vip_region_search_coverage_lines_485_486(self, vip_headers: dict[str, str]):
         """Test VIP region search coverage for lines 485-486."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test region search endpoint
-        response = client.get(
-            "/api/v1/vip/regions/ES/search?query=test", headers={"X-API-Key": "test-key"}
-        )
+        response = client.get("/api/v1/vip/regions/ES/search?query=test", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "products" in data
 
-    def test_vip_region_categories_coverage_line_508(self):
+    def test_vip_region_categories_coverage_line_508(self, vip_headers: dict[str, str]):
         """Test VIP region categories coverage for line 508."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test region categories endpoint
-        response = client.get(
-            "/api/v1/vip/regions/ES/categories", headers={"X-API-Key": "test-key"}
-        )
+        response = client.get("/api/v1/vip/regions/ES/categories", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "categories" in data
 
-    def test_vip_region_stores_coverage_lines_525_526(self):
+    def test_vip_region_stores_coverage_lines_525_526(self, vip_headers: dict[str, str]):
         """Test VIP region stores coverage for lines 525-526."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test region stores endpoint
-        response = client.get("/api/v1/vip/regions/ES/stores", headers={"X-API-Key": "test-key"})
+        response = client.get("/api/v1/vip/regions/ES/stores", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "stores" in data
 
-    def test_vip_price_comparison_coverage_line_547(self):
+    def test_vip_price_comparison_coverage_line_547(self, vip_headers: dict[str, str]):
         """Test VIP price comparison coverage for line 547."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test price comparison endpoint
-        response = client.get(
-            "/api/v1/vip/regions/compare/test-product", headers={"X-API-Key": "test-key"}
-        )
+        response = client.get("/api/v1/vip/regions/compare/test-product", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "comparison" in data
 
-    def test_vip_recipe_templates_coverage_lines_564_565_587(self):
+    def test_vip_recipe_templates_coverage_lines_564_565_587(self, vip_headers: dict[str, str]):
         """Test VIP recipe templates coverage for lines 564-565, 587."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test recipe templates endpoint
-        response = client.get("/api/v1/vip/recipes/templates", headers={"X-API-Key": "test-key"})
+        response = client.get("/api/v1/vip/recipes/templates", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "templates" in data
 
-    def test_vip_auto_repair_coverage_lines_623_624_681(self):
+    def test_vip_auto_repair_coverage_lines_623_624_681(self, vip_headers: dict[str, str]):
         """Test VIP auto-repair coverage for lines 623-624, 681."""
         import app
 
@@ -398,29 +396,31 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/auto-repair/weekly",
             json={"menu": {"days": []}},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "error"  # Returns error when auto_repair_menu is None
         assert "repair_result" in data
 
-    def test_vip_auto_repair_strategies_coverage_lines_695_702_716(self):
+    def test_vip_auto_repair_strategies_coverage_lines_695_702_716(
+        self, vip_headers: dict[str, str]
+    ):
         """Test VIP auto-repair strategies coverage for lines 695, 702, 716."""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
         # Test auto-repair strategies endpoint
-        response = client.get(
-            "/api/v1/vip/auto-repair/strategies", headers={"X-API-Key": "test-key"}
-        )
+        response = client.get("/api/v1/vip/auto-repair/strategies", headers=vip_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "strategies" in data
 
-    def test_vip_weekly_recipes_coverage_lines_721_725_738_739_758(self):
+    def test_vip_weekly_recipes_coverage_lines_721_725_738_739_758(
+        self, vip_headers: dict[str, str]
+    ):
         """Test VIP weekly recipes coverage for lines 721-725, 738-739, 758."""
         import app
 
@@ -430,14 +430,14 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/recipes/weekly",
             json={"week_plan": {"days": []}},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "weekly_recipes" in data
 
-    def test_vip_recipe_synthesis_coverage_lines_788_789_809(self):
+    def test_vip_recipe_synthesis_coverage_lines_788_789_809(self, vip_headers: dict[str, str]):
         """Test VIP recipe synthesis coverage for lines 788-789, 809."""
         import app
 
@@ -447,14 +447,14 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/recipes/synthesize",
             json={"week_plan": {"days": []}},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
         assert "recipe" in data
 
-    def test_vip_weekly_plan_coverage_lines_829_832_835(self):
+    def test_vip_weekly_plan_coverage_lines_829_832_835(self, vip_headers: dict[str, str]):
         """Test VIP weekly plan coverage for lines 829-832, 835."""
         import app
 
@@ -464,11 +464,11 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/weekly-plan",
             json={"calories": 2000, "preferences": []},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 422  # Validation error for invalid request
 
-    def test_vip_menu_repair_coverage_lines_907_941_942(self):
+    def test_vip_menu_repair_coverage_lines_907_941_942(self, vip_headers: dict[str, str]):
         """Test VIP menu repair coverage for lines 907, 941-942."""
         import app
 
@@ -478,7 +478,7 @@ class TestVIPCoverageComprehensive:
         response = client.post(
             "/api/v1/vip/menu/weekly/repair",
             json={"menu": {"days": []}},
-            headers={"X-API-Key": "test-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
         data = response.json()

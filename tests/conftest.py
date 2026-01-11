@@ -499,6 +499,21 @@ def api_key() -> str:
 
 
 @pytest.fixture
+def vip_headers() -> dict[str, str]:
+    """Return headers with valid VIP API key for testing VIP endpoints.
+
+    RU: Возвращает заголовки с валидным VIP API ключом для тестирования VIP endpoints.
+    EN: Returns headers with valid VIP API key for testing VIP endpoints.
+
+    Use this fixture in all tests that call VIP endpoints and expect 200/422/404
+    (not 403 auth errors). VIP guard requires tier-based validation.
+    """
+    from app.middleware.api_tiers import TEST_KEY_VIP
+
+    return {"X-API-Key": TEST_KEY_VIP}
+
+
+@pytest.fixture
 def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Client configured for export endpoints with API key env."""
     monkeypatch.setenv("API_KEY", "test_key")

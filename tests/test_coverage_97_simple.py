@@ -5,21 +5,23 @@
 import os
 from typing import cast
 
+import pytest
 from starlette.types import ASGIApp
+
+from app.main import app as main_app
 
 
 class TestCoverage97Simple:
     """Простые тесты для покрытия до 97%"""
 
-    def setup_method(self) -> None:
-        """Настройка тестового окружения"""
-        os.environ |= {
-            "API_KEY": "test_key",
-            "FEATURE_PREMIUM_NUTRITION": "true",
-            "VIP_MODULE_ENABLED": "true",
-            "APP_ENV": "test",
-            "ALLOW_DEV_API_KEY": "true",
-        }
+    @pytest.fixture(autouse=True)
+    def _env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set up deterministic environment without mutating os.environ globally."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
 
     def test_conftest_fixture_coverage(self) -> None:
         """Тест покрытия conftest.py фикстур"""
@@ -109,8 +111,6 @@ class TestCoverage97Simple:
         """Тест покрытия metrics endpoint"""
         from fastapi.testclient import TestClient
 
-        from app.main import app as main_app
-
         client = TestClient(cast(ASGIApp, main_app))
         response = client.get("/metrics")
         assert response.status_code == 200
@@ -125,7 +125,7 @@ class TestCoverage97Simple:
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
         assert response.status_code in [200, 500, 503]
 
-    def test_vip_weekly_menu_endpoint_coverage(self) -> None:
+    def test_vip_weekly_menu_endpoint_coverage(self, vip_headers: dict[str, str]) -> None:
         """Тест покрытия VIP weekly menu endpoint"""
         from fastapi.testclient import TestClient
 
@@ -141,12 +141,10 @@ class TestCoverage97Simple:
             "goal": "maintain",
         }
 
-        response = client.post(
-            "/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
-    def test_vip_recipes_endpoint_coverage(self) -> None:
+    def test_vip_recipes_endpoint_coverage(self, vip_headers: dict[str, str]) -> None:
         """Тест покрытия VIP recipes endpoint"""
         from fastapi.testclient import TestClient
 
@@ -161,12 +159,10 @@ class TestCoverage97Simple:
             }
         }
 
-        response = client.post(
-            "/api/v1/vip/recipes/weekly", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/vip/recipes/weekly", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
-    def test_vip_auto_repair_endpoint_coverage(self) -> None:
+    def test_vip_auto_repair_endpoint_coverage(self, vip_headers: dict[str, str]) -> None:
         """Тест покрытия VIP auto repair endpoint"""
         from fastapi.testclient import TestClient
 
@@ -181,9 +177,7 @@ class TestCoverage97Simple:
             }
         }
 
-        response = client.post(
-            "/api/v1/vip/auto-repair/weekly", json=payload, headers={"X-API-Key": "test_key"}
-        )
+        response = client.post("/api/v1/vip/auto-repair/weekly", json=payload, headers=vip_headers)
         assert response.status_code == 200
 
     def test_app_error_handling_coverage(self) -> None:

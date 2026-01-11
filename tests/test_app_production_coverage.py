@@ -178,7 +178,7 @@ class TestAppProductionCoverage:
         assert response.status_code == 404
 
     def test_app_production_vip_endpoints_coverage(
-        self, client: TestClient, production_environment
+        self, client: TestClient, production_environment, vip_headers
     ):
         """Тест покрытия app.py production VIP endpoints"""
         # Проверяем, что VIP endpoints работают в production режиме
@@ -192,7 +192,7 @@ class TestAppProductionCoverage:
                 "activity": "moderate",
                 "goal": "maintain",
             },
-            headers={"X-API-Key": "production-secret-key"},
+            headers=vip_headers,
         )
         assert response.status_code == 200
 

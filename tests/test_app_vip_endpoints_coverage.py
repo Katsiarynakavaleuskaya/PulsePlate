@@ -50,11 +50,11 @@ from fastapi.testclient import TestClient
         ),
     ],
 )
-def test_app_vip_weekly_menu_parametrized(test_client: TestClient, payload, expected) -> None:
+def test_app_vip_weekly_menu_parametrized(
+    test_client: TestClient, payload, expected, vip_headers
+) -> None:
     client = test_client
-    response = client.post(
-        "/api/v1/vip/menu/weekly/plan", json=payload, headers={"X-API-Key": "test_key"}
-    )
+    response = client.post("/api/v1/vip/menu/weekly/plan", json=payload, headers=vip_headers)
     assert response.status_code in expected
 
 

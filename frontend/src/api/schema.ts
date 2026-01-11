@@ -4347,9 +4347,7 @@ export interface operations {
     record_event_api_v1_bayes_adherence_event_post: {
         parameters: {
             query?: never;
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -4384,9 +4382,7 @@ export interface operations {
             query?: {
                 analyzer_key?: string;
             };
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -5169,9 +5165,7 @@ export interface operations {
     generate_shopping_list_api_v1_pro_meal_shopping_list_post: {
         parameters: {
             query?: never;
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -5204,9 +5198,7 @@ export interface operations {
     close_day_api_v1_pro_nutrition_day_close_post: {
         parameters: {
             query?: never;
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -5239,9 +5231,7 @@ export interface operations {
     log_meal_api_v1_pro_nutrition_meal_log_post: {
         parameters: {
             query?: never;
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -5279,9 +5269,7 @@ export interface operations {
                 /** @description Language code */
                 lang?: components["schemas"]["ShopLang"];
             };
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -6196,9 +6184,7 @@ export interface operations {
                 /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
                 store_id?: string | null;
             };
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -6284,9 +6270,7 @@ export interface operations {
                 /** @description Optional store id (e.g. 'carrefour_es', 'walmart_us') */
                 store_id?: string | null;
             };
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -6345,9 +6329,7 @@ export interface operations {
     vip_shoplist_preview_api_v1_vip_shoplist_preview_get: {
         parameters: {
             query?: never;
-            header?: {
-                "x-api-key"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
