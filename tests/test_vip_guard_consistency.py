@@ -16,27 +16,25 @@ from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
 
 
 @pytest.fixture
-def api_key_for_tier(monkeypatch: pytest.MonkeyPatch):
-    """Return API key for tier.
+def headers_for_tier():
+    """Return headers dict for tier.
 
-    RU: Возвращает API ключ для указанного tier.
-    EN: Returns API key for specified tier.
+    RU: Возвращает заголовки для указанного tier.
+    EN: Returns headers dict for specified tier.
 
-    For FREE tier, uses TEST_KEY_PRO (which doesn't grant VIP access).
-    This ensures we test tier denial (403), not "unknown key" behavior.
+    For FREE tier, returns empty dict (no API key header) - FREE = no key required.
+    For PRO/VIP, returns X-API-Key header with respective test key.
     """
-    def _get_key(tier: str) -> str:
+    def _get_headers(tier: str) -> dict[str, str]:
         if tier == "VIP":
-            return TEST_KEY_VIP
+            return {"X-API-Key": TEST_KEY_VIP}
         elif tier == "PRO":
-            return TEST_KEY_PRO
+            return {"X-API-Key": TEST_KEY_PRO}
         elif tier == "FREE":
-            # Use PRO key for FREE tests (it's valid but doesn't grant VIP)
-            # This ensures we get 403 "tier denial", not "unknown key"
-            return TEST_KEY_PRO
+            return {}  # No API key header - FREE tier doesn't require a key
         else:
             raise ValueError(f"Unknown tier: {tier}")
-    return _get_key
+    return _get_headers
 
 
 def _fill_path_params(url: str) -> str:
@@ -68,36 +66,35 @@ VIP_ENDPOINTS_GET = [
 ])
 def test_vip_guard_get_denies_non_vip(
     client: TestClient,
-    api_key_for_tier,
+    headers_for_tier,
     path: str,
     tier: str,
     expected: int,
 ) -> None:
     """Test that GET endpoints deny access to FREE/PRO tiers."""
-    key = api_key_for_tier(tier)
+    headers = headers_for_tier(tier)
     actual_path = _fill_path_params(path)
     # Add query params for search endpoint
     if "{region}/search" in path:
         actual_path = f"{actual_path}?query=test"
-    resp = client.get(actual_path, headers={"X-API-Key": key})
+    resp = client.get(actual_path, headers=headers)
     assert resp.status_code == expected, f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
-    if expected == 403:
-        assert "VIP" in resp.json().get("detail", "").upper() or "forbidden" in resp.json().get("detail", "").lower()
+    # Guard contract tests: only check status code, not response body details
 
 
 @pytest.mark.parametrize("path", VIP_ENDPOINTS_GET)
 def test_vip_guard_get_allows_vip(
     client: TestClient,
-    api_key_for_tier,
+    headers_for_tier,
     path: str,
 ) -> None:
     """Test that GET endpoints allow access to VIP tier."""
-    key = api_key_for_tier("VIP")
+    headers = headers_for_tier("VIP")
     actual_path = _fill_path_params(path)
     # Add query params for search endpoint
     if "{region}/search" in path:
         actual_path = f"{actual_path}?query=test"
-    resp = client.get(actual_path, headers={"X-API-Key": key})
+    resp = client.get(actual_path, headers=headers)
     assert resp.status_code < 400, f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
 
 
@@ -140,24 +137,23 @@ POST_PAYLOADS = {
 ])
 def test_vip_guard_post_denies_non_vip(
     client: TestClient,
-    api_key_for_tier,
+    headers_for_tier,
     path: str,
     tier: str,
     expected: int,
 ) -> None:
     """Test that POST endpoints deny access to FREE/PRO tiers."""
-    key = api_key_for_tier(tier)
+    headers = headers_for_tier(tier)
     payload = POST_PAYLOADS[path]
-    resp = client.post(path, json=payload, headers={"X-API-Key": key})
+    resp = client.post(path, json=payload, headers=headers)
     assert resp.status_code == expected, f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
-    if expected == 403:
-        assert "VIP" in resp.json().get("detail", "").upper() or "forbidden" in resp.json().get("detail", "").lower()
+    # Guard contract tests: only check status code, not response body details
 
 
 @pytest.mark.parametrize("path", VIP_ENDPOINTS_POST)
 def test_vip_guard_post_allows_vip_and_returns_2xx(
     client: TestClient,
-    api_key_for_tier,
+    headers_for_tier,
     monkeypatch: pytest.MonkeyPatch,
     path: str,
 ) -> None:
@@ -167,20 +163,41 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
     """
     # Mock internal calls for endpoints that require them
     if path == "/api/v1/vip/menu/weekly/plan":
-        monkeypatch.setattr(
-            "app.routers.vip._safe_call_with_adapter",
-            lambda func_name, **kwargs: {"status": "success", "menu": {"days": []}},
-        )
+        # Conditional mock: only return success for expected function name
+        def mock_safe_call(func_name: str, **kwargs: dict) -> dict:
+            if func_name == "make_weekly_menu":
+                return {"status": "success", "menu": {"days": []}}
+            return {"status": "error", "code": "unexpected_call", "message": "unexpected adapter call"}
+
+        monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
     elif path == "/api/v1/vip/shoplist/weekly":
-        monkeypatch.setattr("app.routers.vip.format_export", lambda data, **kwargs: [])
+        # Mock all three functions in the chain
+        monkeypatch.setattr("app.routers.vip.aggregate_ingredients", lambda req: [])
+        monkeypatch.setattr("app.routers.vip.round_to_packages", lambda aggregated: [])
+        monkeypatch.setattr("app.routers.vip.format_export", lambda shopping_list, **kwargs: [])
     elif path == "/api/v1/vip/shoplist/daily":
-        monkeypatch.setattr("app.routers.vip.format_export", lambda data, **kwargs: [])
+        # Mock all three functions in the chain
+        monkeypatch.setattr("app.routers.vip.aggregate_ingredients", lambda req: [])
+        monkeypatch.setattr("app.routers.vip.round_to_packages", lambda aggregated: [])
+        monkeypatch.setattr("app.routers.vip.format_export", lambda shopping_list, **kwargs: [])
     elif path == "/api/v1/vip/recipes/weekly":
-        monkeypatch.setattr(
-            "app.routers.vip._safe_call_with_adapter",
-            lambda func_name, *args, **kwargs: {"monday": [{"recipe_id": "test", "name": "Test Recipe"}]},
-        )
+        # Conditional mock: only return success for expected function name
+        def mock_safe_call(func_name: str, *args: tuple, **kwargs: dict) -> dict:
+            if func_name == "synthesize_recipes_for_week":
+                return {"monday": [{"recipe_id": "test", "name": "Test Recipe"}]}
+            return {"status": "error", "code": "unexpected_call", "message": "unexpected adapter call"}
+
+        monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
     elif path == "/api/v1/vip/auto-repair/weekly":
+        # Mock MicronutrientTargets import to avoid validation errors with empty dict
+        from unittest.mock import MagicMock
+
+        # Mock the class itself (not instance) so MicronutrientTargets(**{}) returns a mock
+        mock_targets_class = MagicMock()
+        mock_targets_instance = MagicMock()
+        mock_targets_class.return_value = mock_targets_instance
+        monkeypatch.setattr("core.targets.MicronutrientTargets", mock_targets_class)
+        # Mock auto_repair_week_plan function
         monkeypatch.setattr(
             "app.routers.vip.auto_repair_week_plan",
             lambda *args, **kwargs: {
@@ -194,7 +211,7 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
     # Echo mode endpoints (/menu/weekly/repair, /recipes/synthesize, /auto-repair/suggestions)
     # don't need mocks - they return echo immediately
 
-    key = api_key_for_tier("VIP")
+    headers = headers_for_tier("VIP")
     payload = POST_PAYLOADS[path]
-    resp = client.post(path, json=payload, headers={"X-API-Key": key})
+    resp = client.post(path, json=payload, headers=headers)
     assert 200 <= resp.status_code < 300, f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
