@@ -82,9 +82,9 @@ def test_vip_guard_get_denies_non_vip(
     if "{region}/search" in path:
         actual_path = f"{actual_path}?query=test"
     resp = client.get(actual_path, headers=headers)
-    assert resp.status_code == expected, (
-        f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
-    )
+    assert (
+        resp.status_code == expected
+    ), f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
     # Guard contract tests: only check status code, not response body details
 
 
@@ -101,9 +101,9 @@ def test_vip_guard_get_allows_vip(
     if "{region}/search" in path:
         actual_path = f"{actual_path}?query=test"
     resp = client.get(actual_path, headers=headers)
-    assert resp.status_code < 400, (
-        f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
-    )
+    assert (
+        resp.status_code < 400
+    ), f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
 
 
 # POST endpoints (8 total)
@@ -157,9 +157,9 @@ def test_vip_guard_post_denies_non_vip(
     headers = headers_for_tier(tier)
     payload = POST_PAYLOADS[path]
     resp = client.post(path, json=payload, headers=headers)
-    assert resp.status_code == expected, (
-        f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
-    )
+    assert (
+        resp.status_code == expected
+    ), f"Expected {expected} for {tier} tier on {path}, got {resp.status_code}: {resp.text}"
     # Guard contract tests: only check status code, not response body details
 
 
@@ -231,6 +231,6 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
     headers = headers_for_tier("VIP")
     payload = POST_PAYLOADS[path]
     resp = client.post(path, json=payload, headers=headers)
-    assert 200 <= resp.status_code < 300, (
-        f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"
-    )
+    assert (
+        200 <= resp.status_code < 300
+    ), f"Expected 2xx for VIP tier on {path}, got {resp.status_code}: {resp.text}"

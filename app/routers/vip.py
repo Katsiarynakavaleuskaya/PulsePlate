@@ -1,7 +1,19 @@
 import logging
 import os
 import inspect
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, Literal, Mapping, Optional, Type, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    Literal,
+    Mapping,
+    Optional,
+    Type,
+    Union,
+    cast,
+)
 
 from fastapi import (  # pyright: ignore[reportMissingImports]
     APIRouter,
