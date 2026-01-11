@@ -9,6 +9,8 @@ via require_vip_tier() middleware, not api-key-only guards.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -164,7 +166,7 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
     # Mock internal calls for endpoints that require them
     if path == "/api/v1/vip/menu/weekly/plan":
         # Conditional mock: only return success for expected function name
-        def mock_safe_call(func_name: str, **kwargs: dict) -> dict:
+        def mock_safe_call(func_name: str, **kwargs: Any) -> dict[str, Any]:
             if func_name == "make_weekly_menu":
                 return {"status": "success", "menu": {"days": []}}
             return {"status": "error", "code": "unexpected_call", "message": "unexpected adapter call"}
@@ -182,32 +184,27 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
         monkeypatch.setattr("app.routers.vip.format_export", lambda shopping_list, **kwargs: [])
     elif path == "/api/v1/vip/recipes/weekly":
         # Conditional mock: only return success for expected function name
-        def mock_safe_call(func_name: str, *args: tuple, **kwargs: dict) -> dict:
+        def mock_safe_call(func_name: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
             if func_name == "synthesize_recipes_for_week":
                 return {"monday": [{"recipe_id": "test", "name": "Test Recipe"}]}
             return {"status": "error", "code": "unexpected_call", "message": "unexpected adapter call"}
 
         monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
     elif path == "/api/v1/vip/auto-repair/weekly":
-        # Mock MicronutrientTargets import to avoid validation errors with empty dict
-        from unittest.mock import MagicMock
-
-        # Mock the class itself (not instance) so MicronutrientTargets(**{}) returns a mock
-        mock_targets_class = MagicMock()
-        mock_targets_instance = MagicMock()
-        mock_targets_class.return_value = mock_targets_instance
-        monkeypatch.setattr("core.targets.MicronutrientTargets", mock_targets_class)
+        # Mock MicronutrientTargets to avoid validation errors with empty dict
+        # Use simple lambda instead of MagicMock for guard tests
+        monkeypatch.setattr("core.targets.MicronutrientTargets", lambda **_: object())
         # Mock auto_repair_week_plan function
-        monkeypatch.setattr(
-            "app.routers.vip.auto_repair_week_plan",
-            lambda *args, **kwargs: {
+        def mock_auto_repair(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            return {
                 "status": "repaired",
                 "repaired_plan": {},
                 "original_plan": {},
                 "changes_made": [],
                 "remaining_gaps": [],
-            },
-        )
+            }
+
+        monkeypatch.setattr("app.routers.vip.auto_repair_week_plan", mock_auto_repair)
     # Echo mode endpoints (/menu/weekly/repair, /recipes/synthesize, /auto-repair/suggestions)
     # don't need mocks - they return echo immediately
 
