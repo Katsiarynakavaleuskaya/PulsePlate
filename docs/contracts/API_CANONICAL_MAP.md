@@ -21,7 +21,7 @@
 ## Non-goals for PR-508
 
 - Do not add new product logic or new endpoints.
-- Do not change business rules.
+- Keep business rules unchanged (behavior must remain identical).
 - Do not refactor legacy entrypoints (`app:app` -> `app.main:app`) in this PR.
 
 ## Follow-up PRs (vertical slices)

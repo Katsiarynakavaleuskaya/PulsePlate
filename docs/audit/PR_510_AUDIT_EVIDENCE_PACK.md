@@ -4,6 +4,8 @@
 **Branch:** `fix/openapi-determinism`
 **Commit:** `48cd4429 docs(audit): add PR-510 legacy_app.py analysis`
 
+> **Note:** Line numbers are best-effort at time of audit; prefer searching by symbols/strings like `app.include_router(`, `_register_*`, `normalize_openapi_schema`, etc.
+
 ---
 
 ## 0. Facts & Identifiers

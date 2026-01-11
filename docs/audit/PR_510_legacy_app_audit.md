@@ -4,6 +4,8 @@
 **Status:** Analysis phase (no code changes)
 **Goal:** Transform `legacy_app.py` into a pure compatibility-proxy by identifying orchestration/bootstrap logic that must be extracted.
 
+> **Note:** Line numbers are best-effort at time of audit; prefer searching by symbols/strings like `app.include_router(`, `_register_*`, `normalize_openapi_schema`, etc.
+
 ---
 
 ## 1. Side-Effects at Import Time
@@ -120,7 +122,7 @@
 
 ### Current Registration Flow
 
-```
+```text
 import legacy_app
   ↓
 Module-level imports execute (lines 1-94)
