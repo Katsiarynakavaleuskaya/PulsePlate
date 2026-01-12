@@ -27,7 +27,7 @@
 ### 3. "Why not fix OpenAPI visibility now?"
 
 **Response:**
-> OpenAPI visibility gates (hiding deprecated aliases) are planned for PR-521 (frontend migration). PR-520 stabilizes contracts first; visibility changes require frontend coordination.
+> OpenAPI visibility changes are gated and can be handled in a dedicated PR (PR-520/next) once contracts are stable; we avoid mixing that with contract changes here unless it blocks CI.
 
 ### 4. "Let's extract legacy_app logic too"
 

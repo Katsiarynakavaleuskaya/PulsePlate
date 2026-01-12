@@ -145,3 +145,51 @@ def test_guard_divergence_plate_premium_is_legacy_guarded_pro_is_pro_tier_guarde
 
     r_pro = client.post("/api/v1/pro/nutrition/plate", json=payload, headers=_pro_headers())
     assert r_pro.status_code == 200, r_pro.text
+
+
+@pytest.mark.parametrize(
+    "invalid_payload,expected_field",
+    [
+        ({"age": 0, "sex": "female", "height_cm": 165.0, "weight_kg": 60.0, "activity": "light", "goal": "maintain", "life_stage": "adult", "lang": "en"}, "age"),
+        ({"age": 25, "sex": "female", "height_cm": 165.0, "weight_kg": 60.0, "activity": "light", "goal": "invalid_goal", "life_stage": "adult", "lang": "en"}, "goal"),
+        ({"age": 25, "sex": "female", "height_cm": 165.0, "weight_kg": 60.0, "activity": "light", "goal": "maintain", "life_stage": "adult", "lang": "en", "unexpected_field": "value"}, "unexpected_field"),
+    ],
+)
+def test_premium_targets_422_parity_pro_targets(
+    client: TestClient, invalid_payload: dict[str, object], expected_field: str
+) -> None:
+    """Parity test: premium and PRO targets return same 422 errors for invalid payloads."""
+    r_premium = client.post(
+        "/api/v1/premium/targets", json=invalid_payload, headers=_premium_headers()
+    )
+    assert r_premium.status_code == 422, r_premium.text
+
+    r_pro = client.post(
+        "/api/v1/pro/nutrition/targets", json=invalid_payload, headers=_pro_headers()
+    )
+    assert r_pro.status_code == 422, r_pro.text
+
+    # Thin proxy invariant: same error response structure
+    assert r_premium.json() == r_pro.json()
+
+
+@pytest.mark.parametrize(
+    "endpoint_path",
+    [
+        "/api/v1/premium/targets",
+        "/api/v1/premium/plate",
+        "/api/v1/premium/plan/week",
+        "/api/v1/premium/plan/week-flexible",
+    ],
+)
+def test_premium_endpoints_deprecated_in_openapi(
+    client: TestClient, endpoint_path: str
+) -> None:
+    """Assert all premium nutrition endpoints are marked deprecated in OpenAPI."""
+    r = client.get("/openapi.json")
+    assert r.status_code == 200
+    spec = r.json()
+
+    # Extract method (all are POST)
+    op = spec["paths"][endpoint_path]["post"]
+    assert op.get("deprecated") is True, f"{endpoint_path} must be deprecated in OpenAPI"

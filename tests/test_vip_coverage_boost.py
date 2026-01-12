@@ -19,7 +19,7 @@ class TestVIPCoverageBoost:
     @pytest.fixture(autouse=True)
     def _vip_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-        monkeypatch.setenv("API_KEY", "test_key")  # pragma: allowlist secret
+        # Do not set API_KEY here; VIP tests use vip_headers fixture (tier-aware guard)
 
     def test_vip_health_endpoint(self, vip_headers: dict[str, str]) -> None:
         """Тест VIP health endpoint"""

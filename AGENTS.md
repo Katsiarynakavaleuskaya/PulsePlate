@@ -444,6 +444,11 @@ git push --force-with-lease
 - Prevents overwriting remote changes you haven't seen
 - Fails if someone else pushed to your branch (forces you to fetch first)
 
+**Alternative (no force, preferred when branch is polluted):**
+- Create a fresh branch from `origin/main` and cherry-pick/squash only relevant commits.
+- Open a new PR from the clean branch; close the old PR as superseded.
+- This avoids force push entirely and keeps history clean without risk of overwriting others' work.
+
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 
 ### Goal

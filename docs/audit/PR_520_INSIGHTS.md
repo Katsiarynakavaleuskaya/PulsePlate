@@ -128,12 +128,14 @@
 
 ## 📊 Metrics and Gates
 
-### CI Gates (Must Pass)
+### Common checks (subset; final gate is `make verify`)
 1. `pytest tests/test_repo_policy_guards.py` — import hygiene
 2. `make test-fast` — quick smoke
 3. `make cov-check` — coverage >=97%
 4. `make lint` — formatting
 5. `make openapi` → `git diff --exit-code` — OpenAPI sync
+
+**Final readiness claim uses `make verify` only (see AGENTS.md).**
 
 ### Test Patterns
 - **Guard tests:** Status code only (not payload shape)
