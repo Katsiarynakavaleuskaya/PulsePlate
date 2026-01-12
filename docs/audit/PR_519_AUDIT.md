@@ -387,7 +387,7 @@ Proposed staging:
 - [x] Deprecated premium plate delegates to canonical PRO plate (legacy-guarded)
 - [x] Parity tests added for targets+plate (same request/response models)
 - [x] Guard divergence documented (premium aliases are legacy-guarded by design)
-- [ ] `make verify` passes
+- [x] `make verify` passes
 
 ---
 
