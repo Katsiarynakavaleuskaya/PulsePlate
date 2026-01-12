@@ -61,6 +61,17 @@ from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.shoplist_export import router as shoplist_router
 from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
+from app.schemas.premium_contracts import (
+    Activity,
+    DietFlag,
+    Goal,
+    PlateRequest,
+    PlateResponse,
+    Sex,
+    VisualShape,
+    WHOTargetsRequest,
+    WHOTargetsResponse,
+)
 from app.services import recipe_store
 from app.services.food_store import get_food
 
@@ -2829,72 +2840,6 @@ if "repair_week_plan" not in globals():
         from core.menu_engine import repair_week_plan
 
         globals()["repair_week_plan"] = repair_week_plan
-# Enhanced Plate API Models
-Sex = Literal["female", "male"]
-Activity = Literal["sedentary", "light", "moderate", "active", "very_active"]
-Goal = Literal["loss", "maintain", "gain"]
-DietFlag = Literal[
-    "VEG",
-    "GF",
-    "DAIRY_FREE",
-    "LOW_COST",
-    "HIGH_PROTEIN",
-    "LOW_CARB",
-    "MEDITERRANEAN",
-    "VEGAN",
-    "KETO",
-    "PALEO",
-]
-LifeStage = Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"]
-
-
-class PlateRequest(BaseModel):
-    """RU: Запрос на генерацию «Моей Тарелки».
-    EN: Request to generate 'My Plate'.
-    """
-
-    sex: Sex
-    age: int = Field(..., ge=10, le=100)
-    height_cm: float = Field(..., gt=0)
-    weight_kg: float = Field(..., gt=0)
-    activity: Activity
-    goal: Goal
-    # RU: Для цели loss/gain задаём процент; для maintain можно опустить или 0.
-    # EN: For loss/gain provide percent; for maintain can omit or use 0.
-    deficit_pct: Optional[float] = Field(None, ge=5, le=25)  # for loss
-    surplus_pct: Optional[float] = Field(None, ge=5, le=20)  # for gain
-    bodyfat: Optional[float] = Field(None, ge=3, le=60)
-    diet_flags: Optional[set[DietFlag]] = None
-    life_stage: LifeStage = "adult"
-    lang: str = "en"
-
-
-class VisualShape(BaseModel):
-    """RU: Примитив для фронтенда (сектор тарелки/чашка/метка).
-    EN: Primitive for frontend (plate sector/bowl/dot).
-    """
-
-    kind: Literal["plate_sector", "bowl", "marker"]
-    # fraction: доля сектора 0..1 для plate_sector, или вместимость чашки в 'cups'
-    fraction: float
-    label: str
-    tooltip: str
-
-
-class PlateResponse(BaseModel):
-    kcal: int
-    macros: Dict[str, int]  # {"protein_g": int, "fat_g": int, "carbs_g": int, "fiber_g": int}
-    portions: Dict[
-        str, float
-    ]  # {"protein_palm": float, "carb_cups": float, "veg_cups": float, "fat_thumbs": float}
-    layout: List[VisualShape]  # спецификация визуалки
-    meals: List[Dict[str, Any]]  # список блюд с калориями/макро
-    day_micros: Dict[str, float] = Field(
-        default_factory=dict
-    )  # агрегированные микронутриенты за день
-    meals_per_day: int = 3  # метаданные: количество приёмов пищи в день
-
-
 MICRO_ALIAS_MAP: Dict[str, tuple[str, ...]] = {
     # Map primary micronutrient keys to common aliases for backward compatibility
     # Format: primary_key -> (alias1, alias2, ...)
@@ -3317,52 +3262,6 @@ class TargetsIn(BaseModel):
         return v
 
 
-class WHOTargetsRequest(BaseModel):
-    """RU: Запрос на расчёт целей по нормам ВОЗ.
-    EN: Request for WHO-based nutrition targets.
-
-    The optional ``targets`` field is kept as a generic mapping to stay
-    backwards-compatible with older clients that send flat targets
-    (kcal/protein/carbs/...) while allowing newer structured payloads to be
-    validated at a higher level when needed.
-    """
-
-    sex: Sex
-    age: int = Field(..., ge=1, le=120)
-    height_cm: float = Field(..., gt=0)
-    weight_kg: float = Field(..., gt=0)
-    activity: Activity
-    goal: Goal = "maintain"
-    deficit_pct: Optional[float] = Field(None, ge=5, le=25)
-    surplus_pct: Optional[float] = Field(None, ge=5, le=20)
-    bodyfat: Optional[float] = Field(None, ge=3, le=60)
-    diet_flags: Optional[set[DietFlag]] = None
-    life_stage: Literal["child", "teen", "adult", "pregnant", "lactating", "elderly"] = "adult"
-    lang: str = "en"  # Language for localized warnings
-    targets: Optional[Dict[str, Any]] = None  # Optional custom targets (shape validated elsewhere)
-
-    model_config = {"extra": "forbid"}  # Reject unknown top-level fields
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_values(
-        cls, values: dict[str, Any] | "WHOTargetsRequest"
-    ) -> dict[str, Any] | "WHOTargetsRequest":
-        if not isinstance(values, dict):
-            return values
-        # Normalize goal synonyms used in tests (e.g., 'lose' -> 'loss')
-        goal = values.get("goal")
-        if isinstance(goal, str):
-            g = goal.strip().lower()
-            if g in {"lose", "loss", "weight_loss"}:
-                values["goal"] = "loss"
-            elif g in {"maintain", "maintenance"}:
-                values["goal"] = "maintain"
-            elif g in {"gain", "weight_gain"}:
-                values["goal"] = "gain"
-        return values
-
-
 class WeekPlanRequest(WHOTargetsRequest):
     """Extended request for week plan with optional pre-calculated targets.
 
@@ -3406,22 +3305,6 @@ class WeekPlanRequest(WHOTargetsRequest):
                     "(sex, age, height_cm, weight_kg, activity) must be present"
                 )
         return self
-
-
-class WHOTargetsResponse(BaseModel):
-    """RU: Ответ с целевыми значениями по ВОЗ.
-    EN: Response with WHO-based targets.
-    """
-
-    kcal_daily: int
-    macros: Dict[str, int]
-    water_ml: int
-    priority_micros: Dict[str, float]  # Key micronutrients
-    activity_weekly: Dict[str, int]  # Weekly activity targets
-    calculation_date: str
-    warnings: List[Dict[str, str]] = Field(
-        default_factory=list
-    )  # Life stage warnings with codes and messages
 
 
 class NutrientGapsRequest(BaseModel):
@@ -3976,12 +3859,7 @@ def calculate_heuristic_macros(final_kcal: int, weight_kg: float) -> tuple[int, 
     return prot, fat, carbs
 
 
-@app.post(
-    "/api/v1/premium/plate",
-    dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=PlateResponse,
-)
-async def api_premium_plate(req: PlateRequest) -> PlateResponse:
+async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
     """
     RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.
     EN: Generates 'My Plate' for goal/deficit/activity.
@@ -4141,6 +4019,20 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
         raise HTTPException(
             status_code=500, detail=f"Enhanced plate generation failed: {str(e)}"
         ) from e
+
+
+@app.post(
+    "/api/v1/premium/plate",
+    dependencies=[Depends(_get_api_key_dynamic)],
+    response_model=PlateResponse,
+    deprecated=True,
+)
+async def api_premium_plate(req: PlateRequest) -> PlateResponse:
+    """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`."""
+    from app.routers.pro_nutrition_contracts import pro_nutrition_plate
+
+    resp: PlateResponse = await pro_nutrition_plate(req)
+    return resp
 
 
 # Premium BMR Endpoint
@@ -4685,27 +4577,33 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     "/api/v1/premium/targets",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WHOTargetsResponse,
+    deprecated=True,
 )
 async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
-    """Calculate WHO-aligned nutrition targets for premium clients.
+    """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`.
 
     Normal FastAPI route usage with Body(...) and dependency injection.
     For direct test calls, use _generate_who_targets_response directly.
     """
     try:
+        req: WHOTargetsRequest
         req = WHOTargetsRequest.model_validate(payload)
     except ValidationError as exc:
         from fastapi.encoders import jsonable_encoder
 
         raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
 
-    return _generate_who_targets_response(req)
+    from app.routers.pro_nutrition_contracts import pro_nutrition_targets
+
+    resp: WHOTargetsResponse = await pro_nutrition_targets(req)
+    return resp
 
 
 @app.post(
     "/api/v1/premium/plan/week",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WeeklyMenuResponse,
+    deprecated=True,
 )
 async def api_weekly_menu(req: WeekPlanRequest) -> WeeklyMenuResponse:
     """
