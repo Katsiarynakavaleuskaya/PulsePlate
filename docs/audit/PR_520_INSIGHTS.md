@@ -191,7 +191,7 @@
 ### 1. Always Audit First (Docs-Only)
 - Document "what must change" before "how to change it"
 - Prevents scope creep and establishes clear boundaries
-- Example: PR-510 (audit) → PR-511+ (implementation)
+- Example: PR-515 (audit, originally PR-510) → PR-516+ (implementation)
 
 ### 2. Test Hygiene is Non-Negotiable
 - Env cleanup, sys.modules via monkeypatch, no importlib.reload
