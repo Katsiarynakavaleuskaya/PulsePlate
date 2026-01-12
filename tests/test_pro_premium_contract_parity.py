@@ -14,7 +14,6 @@ from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 def _premium_headers() -> dict[str, str]:
-    # tests/conftest.py sets API_KEY="test_key" for the session
     return {"X-API-Key": "test_key"}
 
 
