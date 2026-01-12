@@ -216,7 +216,7 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)):
 - Request: JSON body with profile fields
 - **Calculates plate internally** (duplicates PRO daily logic)
 
-**Problem:** 
+**Problem:**
 - Canonical PRO daily (`/api/v1/pro/nutrition/daily`) returns `DailyNutritionResponse` (segments/total_progress).
 - Premium plate returns `PlateResponse` (kcal/macros/portions/layout/meals/day_micros).
 - These are **different response models** → `/api/v1/premium/plate` cannot be a thin proxy to `/api/v1/pro/nutrition/daily` without a breaking contract change.

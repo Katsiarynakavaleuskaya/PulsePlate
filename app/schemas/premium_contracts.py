@@ -89,7 +89,9 @@ class WHOTargetsRequest(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _normalize_values(cls, values: dict[str, Any] | "WHOTargetsRequest") -> dict[str, Any] | "WHOTargetsRequest":
+    def _normalize_values(
+        cls, values: dict[str, Any] | "WHOTargetsRequest"
+    ) -> dict[str, Any] | "WHOTargetsRequest":
         if not isinstance(values, dict):
             return values
         goal = values.get("goal")
