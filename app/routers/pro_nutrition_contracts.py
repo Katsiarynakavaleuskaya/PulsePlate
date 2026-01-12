@@ -9,7 +9,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.middleware.api_tiers import require_pro_tier
-from app.schemas.premium_contracts import PlateRequest, PlateResponse, WHOTargetsRequest, WHOTargetsResponse
+from app.schemas.premium_contracts import (
+    PlateRequest,
+    PlateResponse,
+    WHOTargetsRequest,
+    WHOTargetsResponse,
+)
 
 router = APIRouter(
     prefix="/api/v1/pro/nutrition",

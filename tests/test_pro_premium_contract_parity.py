@@ -103,7 +103,9 @@ def test_guard_divergence_targets_premium_is_legacy_guarded_pro_is_pro_tier_guar
     assert r_premium.status_code == 200, r_premium.text
 
     # Canonical PRO endpoint: PRO tier guard rejects non-PRO keys (e.g. legacy "test_key").
-    r_pro_wrong_key = client.post("/api/v1/pro/nutrition/targets", json=payload, headers=_premium_headers())
+    r_pro_wrong_key = client.post(
+        "/api/v1/pro/nutrition/targets", json=payload, headers=_premium_headers()
+    )
     assert r_pro_wrong_key.status_code == 403, r_pro_wrong_key.text
 
     r_pro = client.post("/api/v1/pro/nutrition/targets", json=payload, headers=_pro_headers())
@@ -138,7 +140,9 @@ def test_guard_divergence_plate_premium_is_legacy_guarded_pro_is_pro_tier_guarde
     assert r_premium.status_code == 200, r_premium.text
 
     # Canonical PRO endpoint: PRO tier guard rejects non-PRO keys (e.g. legacy "test_key").
-    r_pro_wrong_key = client.post("/api/v1/pro/nutrition/plate", json=payload, headers=_premium_headers())
+    r_pro_wrong_key = client.post(
+        "/api/v1/pro/nutrition/plate", json=payload, headers=_premium_headers()
+    )
     assert r_pro_wrong_key.status_code == 403, r_pro_wrong_key.text
 
     r_pro = client.post("/api/v1/pro/nutrition/plate", json=payload, headers=_pro_headers())
