@@ -5,7 +5,6 @@ Clean VIP coverage tests with proper isolation.
 from __future__ import annotations
 
 import os
-import sys
 from typing import cast
 
 import pytest
@@ -42,12 +41,16 @@ class TestVIPCoverageClean:
         EN: Test verifies that when core modules are unavailable, VIP router correctly
         sets fallback values (None) for dependent functions.
 
-        Policy: Uses monkeypatch.setattr() directly (no importlib.reload per repo policy).
+        Policy: Uses monkeypatch.setattr() directly (no module reload per repo policy).
         """
         import app.routers.vip as vip
 
+        # Sanity check: verify symbols are normally not None (before patching)
+        assert vip.make_weekly_menu is not None, "make_weekly_menu should be available normally"
+        assert vip.ShoplistGenerator is not None, "ShoplistGenerator should be available normally"
+
         # Simulate missing core dependencies by patching symbols to None
-        # This tests the fallback logic without using importlib.reload (forbidden by policy)
+        # This tests the fallback logic without using module reload (forbidden by policy)
         monkeypatch.setattr(vip, "make_weekly_menu", None)
         monkeypatch.setattr(vip, "analyze_nutrient_gaps", None)
         monkeypatch.setattr(vip, "ShoplistGenerator", None)
