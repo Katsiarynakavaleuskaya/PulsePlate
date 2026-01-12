@@ -786,6 +786,7 @@ export interface paths {
         put?: never;
         /**
          * Api Weekly Menu
+         * @deprecated
          * @description RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).
          *     EN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.
          *
@@ -809,15 +810,8 @@ export interface paths {
         put?: never;
         /**
          * Api Premium Plate
-         * @description RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.
-         *     EN: Generates 'My Plate' for goal/deficit/activity.
-         *
-         *     Enhanced Plate API with visual sectors and hand/cup portions:
-         *     - Visual plate layout with 4 sectors + 2 bowls
-         *     - Precise deficit/surplus percentage control
-         *     - Hand/cup portion method for real-world application
-         *     - Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)
-         *     - Macro-balanced meal suggestions
+         * @deprecated
+         * @description [DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`.
          */
         post: operations["api_premium_plate_api_v1_premium_plate_post"];
         delete?: never;
@@ -837,7 +831,8 @@ export interface paths {
         put?: never;
         /**
          * Api Who Targets
-         * @description Calculate WHO-aligned nutrition targets for premium clients.
+         * @deprecated
+         * @description [DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`.
          *
          *     Normal FastAPI route usage with Body(...) and dependency injection.
          *     For direct test calls, use _generate_who_targets_response directly.
@@ -932,6 +927,46 @@ export interface paths {
          *     returns current state when the event is already applied.
          */
         post: operations["log_meal_api_v1_pro_nutrition_meal_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/plate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enhanced plate (PRO)
+         * @description Canonical plate endpoint for PRO tier (PlateRequest → PlateResponse).
+         */
+        post: operations["pro_nutrition_plate_api_v1_pro_nutrition_plate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pro/nutrition/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * WHO nutrition targets (PRO)
+         * @description Canonical targets endpoint for PRO tier.
+         */
+        post: operations["pro_nutrition_targets_api_v1_pro_nutrition_targets_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3139,8 +3174,7 @@ export interface components {
         };
         /**
          * PlateRequest
-         * @description RU: Запрос на генерацию «Моей Тарелки».
-         *     EN: Request to generate 'My Plate'.
+         * @description RU: Запрос на генерацию «Моей Тарелки». EN: Request to generate 'My Plate'.
          */
         PlateRequest: {
             /**
@@ -3876,8 +3910,7 @@ export interface components {
         };
         /**
          * VisualShape
-         * @description RU: Примитив для фронтенда (сектор тарелки/чашка/метка).
-         *     EN: Primitive for frontend (plate sector/bowl/dot).
+         * @description RU: Примитив для фронтенда. EN: Primitive for frontend visualization.
          */
         VisualShape: {
             /** Fraction */
@@ -4025,13 +4058,7 @@ export interface components {
         };
         /**
          * WHOTargetsRequest
-         * @description RU: Запрос на расчёт целей по нормам ВОЗ.
-         *     EN: Request for WHO-based nutrition targets.
-         *
-         *     The optional ``targets`` field is kept as a generic mapping to stay
-         *     backwards-compatible with older clients that send flat targets
-         *     (kcal/protein/carbs/...) while allowing newer structured payloads to be
-         *     validated at a higher level when needed.
+         * @description RU: Запрос на расчёт целей по нормам ВОЗ. EN: WHO-based targets request.
          */
         WHOTargetsRequest: {
             /**
@@ -4082,8 +4109,7 @@ export interface components {
         };
         /**
          * WHOTargetsResponse
-         * @description RU: Ответ с целевыми значениями по ВОЗ.
-         *     EN: Response with WHO-based targets.
+         * @description RU: Ответ с целевыми значениями по ВОЗ. EN: WHO targets response.
          */
         WHOTargetsResponse: {
             /** Activity Weekly */
@@ -5248,6 +5274,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdherenceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pro_nutrition_plate_api_v1_pro_nutrition_plate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pro_nutrition_targets_api_v1_pro_nutrition_targets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WHOTargetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WHOTargetsResponse"];
                 };
             };
             /** @description Validation Error */
