@@ -34,7 +34,7 @@
 **Key insights:**
 - **Canonical endpoints must exist before aliases** — cannot proxy to non-existent endpoint
 - **Contract mismatch = no proxy** — `PlateResponse` ≠ `DailyNutritionResponse`; must create matching canonical endpoint
-- **Guard divergence is intentional** — premium aliases legacy-guarded for backward compatibility; auth alignment is separate decision
+- **Guard divergence is intentional** — premium aliases legacy-guarded for backward compatibility; auth alignment is separate decision. Guard divergence is tested at the contract level; do not attempt to unify guards without explicit product decision.
 - **OpenAPI schema-only mode** — `app/routers/pro.py` excluded from schema; bootstrap routes (`pro_nutrition_contracts`) included
 
 ---
@@ -217,11 +217,32 @@
 - Legacy endpoints may use different guards for backward compatibility
 - Document the decision explicitly
 - Auth alignment is separate from contract alignment
+- **Guard divergence is intentional and tested at the contract level; do not attempt to unify guards in PR-520/521 without explicit product decision.**
 
 ### 7. One PR = One Logical Change
 - Don't mix concerns (e.g., guard consistency + contract fixes)
 - Minimal diff prevents review complexity
 - Verify once before claiming readiness
+- **All changes after review — only in response to specific blocking feedback, no "while we're at it" improvements**
+
+---
+
+## ✅ Enforcement Checklist (Copy/Paste into Every PR Description)
+
+Before claiming PR is ready, verify:
+
+- [ ] **Scope:** One logical change, no drive-by refactors
+- [ ] **Contracts:** No contract-mismatch proxies (hard stop)
+- [ ] **OpenAPI:** If schema changes: OpenAPI regenerated + `openapi-check` green
+- [ ] **Test hygiene:** If env vars touched in tests: monkeypatch + cleanup (xdist-safe)
+- [ ] **Import policy:** No `sys.modules` direct mutations, no `importlib.reload`
+- [ ] **Guards:** Tier check must win over validation (403 before 422), no duplicate guard matrices
+- [ ] **Final gate:** Run `make verify` once before merge (diff-cover ≥ 97%)
+
+**Scope creep prevention:**
+- All changes after review — only in response to specific blocking feedback
+- No "while we're at it" improvements
+- If reviewer suggests unrelated improvements → defer to separate PR
 
 ---
 
