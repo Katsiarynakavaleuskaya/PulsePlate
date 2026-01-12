@@ -150,9 +150,46 @@ def test_guard_divergence_plate_premium_is_legacy_guarded_pro_is_pro_tier_guarde
 @pytest.mark.parametrize(
     "invalid_payload,expected_field",
     [
-        ({"age": 0, "sex": "female", "height_cm": 165.0, "weight_kg": 60.0, "activity": "light", "goal": "maintain", "life_stage": "adult", "lang": "en"}, "age"),
-        ({"age": 25, "sex": "female", "height_cm": 165.0, "weight_kg": 60.0, "activity": "light", "goal": "invalid_goal", "life_stage": "adult", "lang": "en"}, "goal"),
-        ({"age": 25, "sex": "female", "height_cm": 165.0, "weight_kg": 60.0, "activity": "light", "goal": "maintain", "life_stage": "adult", "lang": "en", "unexpected_field": "value"}, "unexpected_field"),
+        (
+            {
+                "age": 0,
+                "sex": "female",
+                "height_cm": 165.0,
+                "weight_kg": 60.0,
+                "activity": "light",
+                "goal": "maintain",
+                "life_stage": "adult",
+                "lang": "en",
+            },
+            "age",
+        ),
+        (
+            {
+                "age": 25,
+                "sex": "female",
+                "height_cm": 165.0,
+                "weight_kg": 60.0,
+                "activity": "light",
+                "goal": "invalid_goal",
+                "life_stage": "adult",
+                "lang": "en",
+            },
+            "goal",
+        ),
+        (
+            {
+                "age": 25,
+                "sex": "female",
+                "height_cm": 165.0,
+                "weight_kg": 60.0,
+                "activity": "light",
+                "goal": "maintain",
+                "life_stage": "adult",
+                "lang": "en",
+                "unexpected_field": "value",
+            },
+            "unexpected_field",
+        ),
     ],
 )
 def test_premium_targets_422_parity_pro_targets(
@@ -182,9 +219,7 @@ def test_premium_targets_422_parity_pro_targets(
         "/api/v1/premium/plan/week-flexible",
     ],
 )
-def test_premium_endpoints_deprecated_in_openapi(
-    client: TestClient, endpoint_path: str
-) -> None:
+def test_premium_endpoints_deprecated_in_openapi(client: TestClient, endpoint_path: str) -> None:
     """Assert all premium nutrition endpoints are marked deprecated in OpenAPI."""
     r = client.get("/openapi.json")
     assert r.status_code == 200
