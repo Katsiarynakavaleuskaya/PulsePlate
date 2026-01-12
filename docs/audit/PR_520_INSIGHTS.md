@@ -8,7 +8,7 @@
 
 ## 📋 Context: PR Sequence (PR-510 → PR-520)
 
-### PR-510 (legacy_app audit) — PR #515
+### PR-515 (legacy_app audit, originally PR-510)
 **Type:** Docs-only
 **Key insight:** Audit-first approach prevents scope creep. Documenting "what must move" before "how to move it" creates clear boundaries.
 
