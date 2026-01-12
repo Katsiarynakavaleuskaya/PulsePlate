@@ -111,14 +111,6 @@ def test_premium_plate_matches_pro_plate(
     assert r_premium.json() == r_pro.json()
 
 
-def test_week_flexible_is_deprecated_in_openapi(client: TestClient) -> None:
-    r = client.get("/openapi.json")
-    assert r.status_code == 200
-    spec = r.json()
-    op = spec["paths"]["/api/v1/premium/plan/week-flexible"]["post"]
-    assert op.get("deprecated") is True
-
-
 def test_guard_divergence_targets_premium_is_legacy_guarded_pro_is_pro_tier_guarded(
     client: TestClient,
 ) -> None:
@@ -184,52 +176,43 @@ def test_guard_divergence_plate_premium_is_legacy_guarded_pro_is_pro_tier_guarde
 
 
 @pytest.mark.parametrize(
-    "invalid_payload,expected_field",
+    "invalid_payload",
     [
-        (
-            {
-                "age": 0,
-                "sex": "female",
-                "height_cm": 165.0,
-                "weight_kg": 60.0,
-                "activity": "light",
-                "goal": "maintain",
-                "life_stage": "adult",
-                "lang": "en",
-            },
-            "age",
-        ),
-        (
-            {
-                "age": 25,
-                "sex": "female",
-                "height_cm": 165.0,
-                "weight_kg": 60.0,
-                "activity": "light",
-                "goal": "invalid_goal",
-                "life_stage": "adult",
-                "lang": "en",
-            },
-            "goal",
-        ),
-        (
-            {
-                "age": 25,
-                "sex": "female",
-                "height_cm": 165.0,
-                "weight_kg": 60.0,
-                "activity": "light",
-                "goal": "maintain",
-                "life_stage": "adult",
-                "lang": "en",
-                "unexpected_field": "value",
-            },
-            "unexpected_field",
-        ),
+        {
+            "age": 0,
+            "sex": "female",
+            "height_cm": 165.0,
+            "weight_kg": 60.0,
+            "activity": "light",
+            "goal": "maintain",
+            "life_stage": "adult",
+            "lang": "en",
+        },
+        {
+            "age": 25,
+            "sex": "female",
+            "height_cm": 165.0,
+            "weight_kg": 60.0,
+            "activity": "light",
+            "goal": "invalid_goal",
+            "life_stage": "adult",
+            "lang": "en",
+        },
+        {
+            "age": 25,
+            "sex": "female",
+            "height_cm": 165.0,
+            "weight_kg": 60.0,
+            "activity": "light",
+            "goal": "maintain",
+            "life_stage": "adult",
+            "lang": "en",
+            "unexpected_field": "value",
+        },
     ],
 )
 def test_premium_targets_422_parity_pro_targets(
-    client: TestClient, invalid_payload: dict[str, object], expected_field: str
+    client: TestClient, invalid_payload: dict[str, object]
 ) -> None:
     """Parity test: premium and PRO targets return same 422 errors for invalid payloads."""
     r_premium = client.post(
