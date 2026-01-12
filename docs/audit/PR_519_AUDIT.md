@@ -413,5 +413,35 @@ Proposed staging:
 
 ---
 
+---
+
+## 📋 I. Guard Divergence (Intentional Design Decision)
+
+### Why Premium Aliases Are Legacy-Guarded
+
+**Canonical PRO endpoints:**
+- Use `require_pro_tier()` (tier-aware guard)
+- Enforce PRO tier validation via `_validate_api_key_tier()`
+
+**Deprecated premium aliases:**
+- Use `_get_api_key_dynamic` (legacy API key check)
+- **Not required to be auth-equivalent** to canonical PRO routes
+
+**Rationale:**
+1. **Backward compatibility** — legacy clients may rely on API_KEY env var behavior
+2. **Gradual migration** — frontend/iOS can migrate to canonical endpoints over time
+3. **Separate concern** — auth alignment is a product/infra decision, not a contract fix
+
+**Policy:**
+- Premium aliases remain legacy-guarded **by design** in PR-519/520
+- Guard alignment (making premium aliases use `require_pro_tier`) is **out of scope** for contract PRs
+- This decision must be made separately (product/infra team) if needed
+
+**Evidence:**
+- `legacy_app.py` premium endpoints use `_get_api_key_dynamic` (line 3980, 4685, 4706)
+- Canonical PRO endpoints in `app/routers/pro.py` and `app/routers/pro_nutrition_contracts.py` use `require_pro_tier`
+
+---
+
 **Last updated:** 2026-01-12
 **Next step:** Run `make verify` before claiming readiness.
