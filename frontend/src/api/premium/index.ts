@@ -1,6 +1,6 @@
 export type { PremiumRequestOptions, SupportedPremiumLang } from './types';
 export type { BmrRequest, BmrApiResponse } from './bmr';
-export type { PlateRequest, PlateApiResponse } from './plate';
+export type { PlateRequest, PlateResponse } from './plate';
 export type { TargetsRequest, TargetsApiResponse } from './targets';
 export type { WeeklyMenuResponse } from './weekly-plan';
 

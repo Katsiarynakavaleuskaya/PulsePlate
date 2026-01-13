@@ -1,8 +1,12 @@
 import { createPremiumEndpoint } from './types';
-import type { PlateRequest, PlateApiResponse } from './types';
+import type { PlateRequest } from './types';
+import type { components } from '../schema';
 
-export const getPlate = createPremiumEndpoint<PlateRequest, PlateApiResponse>(
+type PlateResponse = components['schemas']['PlateResponse'];
+
+export const getPlate = createPremiumEndpoint<PlateRequest, PlateResponse>(
   '/api/v1/pro/nutrition/plate'
 );
 
-export type { PlateRequest, PlateApiResponse } from './types';
+export type { PlateRequest } from './types';
+export type { PlateResponse };

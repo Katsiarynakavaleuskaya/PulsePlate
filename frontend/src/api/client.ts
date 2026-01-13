@@ -321,7 +321,7 @@ export type {
   BmrRequest,
   BmrApiResponse,
   PlateRequest,
-  PlateApiResponse,
+  PlateResponse,
   TargetsRequest,
   TargetsApiResponse,
 } from "./premium";
