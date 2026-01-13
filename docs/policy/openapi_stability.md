@@ -19,9 +19,21 @@
 - ❌ Providers are not OpenAPI consumers (not wired into runtime), so they do not affect OpenAPI stability policy.
 
 **Implementation:**
-- (Optional) Use vendor extensions (`x-alias-of`, `x-migration-path`) to document canonical replacements when feasible
-- Mark endpoints as `deprecated: true` but keep `include_in_schema=True` (default)
+- **Current mechanism (implemented):** mark alias endpoints as `deprecated: true` and keep `include_in_schema=True` (default).
+- **Planned mechanism (future work, not implemented yet):** add vendor extensions (`x-alias-of`, `x-migration-path`) to document canonical replacements (see `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md`).
 - Hide deprecated in Swagger UI (optional), but keep in schema
+
+### Example (planned vendor extensions)
+
+Note: This is an example of the planned format; currently we rely on FastAPI `deprecated=True`.
+
+```yaml
+/api/v1/premium/nutrition/plate:
+  post:
+    deprecated: true
+    x-alias-of: /api/v1/pro/nutrition/plate
+    x-migration-path: "Migrate to /api/v1/pro/nutrition/plate (same contract)"
+```
 
 **Migration Order (Hard Rule):**
 1. **Client migration first** (frontend/iOS migrate to canonical endpoints)
@@ -57,6 +69,7 @@
 - **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
 - Follow the canonical workflow documented in root `AGENTS.md` ("OpenAPI generation (determinism requirement)").
 - Regenerate via the canonical Make target: `make openapi`. (Implementation detail: it calls `scripts/generate_openapi.py`; do not call the script directly in PR workflows.)
+- Verify artifacts are committed via `make openapi-check`.
 - PR rule: if backend changes any schema/route, regenerate OpenAPI artifacts or explicitly justify why schema is unchanged.
 
 ### Type Usage Rules
@@ -74,6 +87,7 @@
 - **Runtime shape checks (optional):** For mocked responses in integration tests, prefer typing:
   - `const mock: PlateResponse = {...}` to fail fast on schema changes.
 - **Path constants:** If an endpoint path is asserted in tests/mocks, prefer shared exported constants to prevent drift.
+- **CI enforcement:** OpenAPI sync checks ensure generated artifacts are committed and consistent.
 
 ### Migration Rules (/premium → /pro)
 
@@ -90,7 +104,7 @@ A frontend-breaking contract change includes:
 - Schema changes in `components.schemas.*` used by the frontend,
 - Path changes for endpoints consumed by the frontend,
 - Behavior changes that alter error envelope or auth requirements.
-- Observability breaking change: backend route-template changes that alter metrics label keys used by dashboards/alerts.
+- Observability breaking change (backend-only): backend route-template changes that alter metrics label keys used by dashboards/alerts.
 
 ---
 
