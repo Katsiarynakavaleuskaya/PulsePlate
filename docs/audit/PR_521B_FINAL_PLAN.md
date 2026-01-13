@@ -1,7 +1,7 @@
 # PR-521B: Backend OpenAPI Vendor Extensions (Final Plan)
 
 **Date:** 2026-01-13  
-**Status:** 📋 Ready for implementation  
+**Status:** ✅ Implemented  
 **Scope:** Backend-only, OpenAPI metadata only (no runtime changes)
 
 ---
