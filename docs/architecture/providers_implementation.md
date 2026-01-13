@@ -1,0 +1,393 @@
+# Providers Implementation — Detailed Analysis
+
+**Date:** 2026-01-12
+**Purpose:** Document how `providers/` is implemented and why it's not connected to runtime
+
+---
+
+## 📋 Current State (Facts)
+
+### Directory Structure
+
+```
+providers/
+├── __init__.py      # ProviderBase Protocol
+├── grok.py          # xAI Grok provider
+├── ollama.py        # Local Ollama provider
+├── pico.py          # Pico provider (Ollama-compatible)
+├── stub.py          # Stub provider (for tests)
+└── AGENTS.md        # Provider-specific rules
+```
+
+### What Providers Are
+
+**LLM Providers** (Language Model Providers):
+- Abstract interface: `ProviderBase` (Protocol)
+- Implementations: `GrokProvider`, `OllamaProvider`, `PicoProvider`, `StubProvider`
+- Purpose: Provide LLM (Large Language Model) capabilities for AI features
+
+**Not to be confused with:**
+- Catalog providers (`app/services/catalog_adapter.py`) — different domain (food catalog)
+- Shoplist providers (`core/catalog/provider.py`) — different domain (shopping list)
+
+---
+
+## 🔍 Implementation Details
+
+### 1. ProviderBase Protocol
+
+**File:** `providers/__init__.py`
+
+```python
+class ProviderBase(Protocol):
+    """Базовый интерфейс для всех LLM-провайдеров."""
+    name: str
+    async def generate(self, text: str) -> str:
+        raise NotImplementedError("Provider must implement .generate(text)")
+```
+
+**Design:**
+- Protocol-based (structural typing)
+- Minimal interface: `name` + `generate(text)` method
+- Async-first (all providers are async)
+
+**Rationale:**
+- Allows multiple implementations (grok, ollama, pico, stub)
+- Easy to swap providers via env var (`LLM_PROVIDER`)
+- Testable via stub provider
+
+---
+
+### 2. GrokProvider (xAI)
+
+**File:** `providers/grok.py`
+
+**Implementation:**
+- Uses OpenAI-compatible SDK (`AsyncOpenAI`)
+- Endpoint: `https://api.x.ai/v1` (default)
+- Model: `grok-4-latest` (default)
+- API key: from env (`GROK_API_KEY` or `XAI_API_KEY`)
+- Retry logic: 3 attempts with exponential backoff
+
+**Key features:**
+- Network calls via `httpx` (async)
+- Error handling: wraps exceptions in `RuntimeError`
+- Timeout: 30s (default, configurable)
+
+**Rationale:**
+- xAI provides OpenAI-compatible API
+- Reuse existing OpenAI SDK (less code)
+- Production-ready provider for cloud LLM
+
+---
+
+### 3. OllamaProvider (Local)
+
+**File:** `providers/ollama.py`
+
+**Implementation:**
+- Local/self-hosted Ollama server
+- Endpoint: `http://localhost:11434` (default)
+- Model: `llama3.1:8b` (default)
+- Timeout: 1.5s (short, for fast 503 responses)
+- Retry logic: 3 attempts with exponential backoff
+
+**Key features:**
+- Two API methods: `/api/chat` (preferred) + `/api/generate` (fallback)
+- Handles multiple response formats (compatible implementations)
+- Fast timeout → quick 503 if Ollama unavailable
+- Network errors → `RuntimeError("ollama_unavailable")`
+
+**Rationale:**
+- Privacy: local models, no data leaves machine
+- Cost: free (self-hosted)
+- Flexibility: can use any Ollama-compatible model
+- Fast failure: short timeout prevents hanging requests
+
+---
+
+### 4. PicoProvider (Ollama-Compatible)
+
+**File:** `providers/pico.py`
+
+**Implementation:**
+- Ollama-compatible provider (alternative to Ollama)
+- Endpoint: same as Ollama (default: `http://localhost:11434`)
+- Model: same as Ollama (default: `llama3.1:8b`)
+- Timeout: 5.0s (longer than Ollama)
+
+**Key features:**
+- Sync + async fallback (for test compatibility)
+- Handles multiple response formats
+- Error handling: wraps in `RuntimeError`
+
+**Rationale:**
+- Alternative to Ollama (if user prefers Pico)
+- Same API contract as Ollama (easy swap)
+- Test compatibility (sync client for monkeypatch)
+
+---
+
+### 5. StubProvider (Testing)
+
+**File:** `providers/stub.py`
+
+**Implementation:**
+- No network calls
+- Deterministic output: `[stub @ {timestamp}] Insight: {text[:120]}`
+- Synchronous (not async, but compatible)
+
+**Rationale:**
+- Fast tests (no network)
+- Deterministic (predictable output)
+- No external dependencies
+
+---
+
+## 🔗 Integration Point: `llm.py`
+
+**File:** `llm.py` (root level)
+
+**Purpose:** Factory function to get LLM provider based on env var.
+
+**Implementation:**
+```python
+# Lazy imports (fail-soft if provider unavailable)
+try:
+    from providers.grok import GrokProvider as _GrokProvider
+except ImportError:
+    GrokProvider = None
+
+try:
+    from providers.ollama import OllamaProvider as _OllamaProvider
+except ImportError:
+    OllamaProvider = None
+
+# Factory function
+def get_provider():
+    val = os.getenv("LLM_PROVIDER", "").strip().lower()
+    if val == "grok":
+        return GrokProvider(...) or GrokLiteProvider()
+    if val == "ollama":
+        return OllamaProvider(...) or OllamaLiteProvider()
+    if val == "stub":
+        return StubProvider()
+    return None
+```
+
+**Rationale:**
+- Fail-soft: if provider unavailable → fallback to "lite" provider
+- Lite providers: offline fallback (no network, returns formatted text)
+- Env-based selection: easy to switch providers
+
+---
+
+## ❌ Current Runtime Usage: NONE (Confirmed)
+
+### Evidence: Providers Not Connected to Runtime
+
+**1. No imports in app routers:**
+```bash
+rg "from providers|import providers|providers\." app/routers/
+# Result: empty (no matches)
+```
+
+**2. No imports in app services:**
+```bash
+rg "from providers|import providers|providers\." app/services/
+# Result: empty (no matches)
+```
+
+**3. Only usage: `llm.py` (root level)**
+- `llm.py` imports providers (lines 59, 67, 74)
+- But `llm.py` itself is **not imported** by app routers/services
+- `llm.py` is standalone script/module
+
+**4. `/insight` endpoint exists in OpenAPI but not in app routers:**
+- OpenAPI schema shows `/api/v1/insight` endpoint (in `app/static/openapi.json`)
+- But no router handler found in `app/routers/` for `/insight`
+- Likely: endpoint exists in `legacy_app.py` but not actively used
+
+**5. Verification commands:**
+```bash
+# Check providers imports (excluding tests)
+rg -n "from\s+providers|import\s+providers|providers\." . --type py | grep -v "test_" | grep -v "providers/__init__"
+# Result: only llm.py and providers/ollama.py (self-import)
+
+# Check llm.py usage in app
+rg "from llm|import llm|llm\.get_provider" app/
+# Result: empty
+```
+
+**Conclusion:** `providers/` exists but is **not wired into runtime** (no FastAPI endpoints in `app/routers/` use it).
+
+---
+
+## 🎯 Why Providers Exist (Design Rationale)
+
+### Original Intent (Inferred)
+
+**Purpose:** Provide LLM capabilities for AI features (e.g., nutrition insights, recipe synthesis).
+
+**Design decisions:**
+1. **Multiple providers** → flexibility (cloud vs local)
+2. **Protocol-based** → easy to swap implementations
+3. **Fail-soft** → graceful degradation (lite providers)
+4. **Env-based selection** → no code changes to switch providers
+
+### Current Status
+
+**Implemented:**
+- ✅ Provider interfaces (Protocol)
+- ✅ Multiple implementations (grok, ollama, pico, stub)
+- ✅ Factory function (`llm.py`)
+- ✅ Tests (unit tests for each provider)
+
+**Not implemented:**
+- ❌ FastAPI endpoints using providers
+- ❌ Integration with app routers
+- ❌ Runtime usage in production
+
+**Status:** Providers are "warehouse" (implemented but not connected).
+
+---
+
+## 📊 Provider Usage Analysis
+
+### Where Providers Are Used
+
+**1. `llm.py` (root):**
+- Imports all providers
+- Factory function `get_provider()`
+- Lite providers (fallback)
+
+**2. Tests:**
+- `tests/test_providers_unit.py` — unit tests
+- `tests/test_llm*.py` — integration tests
+- `tests/test_llm_import_coverage.py` — import coverage
+
+**3. Scripts:**
+- `ollama_diagnostic.sh` — diagnostic script
+- `ollama_monitor.sh` — monitoring script
+
+**4. Documentation:**
+- `docs/finetune/README.md` — mentions providers
+- `docs/archive/2025-09-16/` — historical docs
+
+### Where Providers Are NOT Used
+
+**1. App routers:**
+- No `/api/v1/*/insight` endpoint
+- No LLM features in FastAPI
+
+**2. App services:**
+- No service uses `llm.get_provider()`
+- No LLM integration in business logic
+
+**3. Core domain:**
+- No LLM calls in `core/` modules
+
+---
+
+## 🔮 Future Integration (Not Current)
+
+### Potential Use Cases
+
+**1. Nutrition Insights:**
+- `/api/v1/vip/insight` endpoint
+- Uses LLM to generate nutrition insights
+- Requires VIP tier
+
+**2. Recipe Synthesis:**
+- AI-generated recipes
+- Uses LLM to create custom recipes
+- Requires VIP tier
+
+**3. Meal Planning:**
+- AI-assisted meal planning
+- Uses LLM for suggestions
+- Requires PRO/VIP tier
+
+### Why Not Connected Yet
+
+**Possible reasons:**
+1. Feature not ready (still in development)
+2. Waiting for LLM infrastructure (Ollama setup, API keys)
+3. Prioritizing other features first
+4. Design decision: keep LLM optional/experimental
+
+---
+
+## ✅ Verification: Providers Not Connected
+
+### Commands to Verify
+
+```bash
+# 1. Check imports in app routers
+rg "from providers|import providers|providers\." app/routers/
+# Expected: empty
+
+# 2. Check imports in app services
+rg "from providers|import providers|providers\." app/services/
+# Expected: empty
+
+# 3. Check llm.py usage in app
+rg "from llm|import llm|llm\.get_provider" app/
+# Expected: empty
+
+# 4. Check LLM endpoints
+rg "/insight|/llm|/ai" app/routers/
+# Expected: empty (or not found)
+```
+
+**Result:** Providers exist but are **not connected to runtime**.
+
+---
+
+## 📝 Implications for PR-521
+
+### OpenAPI Stability
+
+**Fact:** `providers/` exists but is not wired into runtime.
+
+**Implication for OpenAPI:**
+- Providers are **not** OpenAPI consumers (they don't generate SDKs from OpenAPI)
+- Providers are **not** wired into runtime (no FastAPI endpoints use them)
+- **Therefore:** Providers do **not** affect OpenAPI stability policy
+
+**OpenAPI Stability Rationale (separate from providers):**
+- Web frontend generates types from OpenAPI (`openapi.json` → `schema.ts`)
+- External OpenAPI consumers are unknown
+- iOS is manual today (does not depend on OpenAPI)
+
+**Conclusion:** OpenAPI stability policy is driven by web type generation and unknown external consumers, **not by providers** (providers are not OpenAPI consumers).
+
+---
+
+## 🎯 Summary
+
+**What providers are:**
+- LLM provider implementations (grok, ollama, pico, stub)
+- Abstracted via `ProviderBase` Protocol
+- Selected via env var (`LLM_PROVIDER`)
+- Factory function in `llm.py`
+
+**Current status:**
+- ✅ Implemented (code exists)
+- ❌ Not connected to runtime (no FastAPI endpoints use them)
+- ✅ Tested (unit tests exist)
+
+**Why they exist:**
+- Future AI features (insights, recipe synthesis)
+- Flexibility (cloud vs local LLM)
+- Fail-soft design (graceful degradation)
+
+**For PR-521:**
+- Providers are potential future OpenAPI consumers
+- Cannot assume they won't use OpenAPI in future
+- Therefore: keep deprecated aliases in schema (vendor extensions only)
+
+---
+
+**Last updated:** 2026-01-12
+**Status:** Providers exist but not connected to runtime
