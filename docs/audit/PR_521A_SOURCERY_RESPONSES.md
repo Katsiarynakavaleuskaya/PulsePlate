@@ -31,7 +31,7 @@
 > Extract endpoint paths as constants
 
 **Response:**
-> ✅ Done — added `PRO_NUTRITION_TARGETS_PATH` and `PRO_NUTRITION_PLATE_PATH` constants in `client.ts` and exported for shared usage. In `targets.ts/plate.ts` I intentionally keep the literal strings for now because the test harness mocks `client.ts` and we previously hit an `undefined` path regression; once the mock module boundary is cleaned up we can safely switch to importing the constants everywhere (follow-up PR if needed).
+> ✅ Done — added `PRO_NUTRITION_TARGETS_PATH` and `PRO_NUTRITION_PLATE_PATH` constants in `client.ts` and exported for shared usage. In `targets.ts/plate.ts` I intentionally keep the literal strings for now because the test harness mocks `client.ts` and we previously hit an `undefined` path regression; this is a temporary workaround (tech debt) and we can switch to importing the constants everywhere once the mock module boundary is cleaned up (follow-up PR if needed).
 
 ---
 
@@ -91,7 +91,7 @@
 > Support both premium and pro paths in mockUrl for backward compatibility
 
 **Response:**
-> Skipped for now — this PR migrates the only callers of `/api/v1/premium/{targets,plate}`. If other legacy callers are discovered, we can add alias support in a follow-up PR. Keeping mock routing strict to the canonical paths encourages migration.
+> Skipped for now — this PR migrates the only frontend callers of `/api/v1/premium/{targets,plate}`. If other legacy callers are discovered, we can add alias support in a follow-up PR. Keeping mock routing strict to the canonical paths encourages migration.
 
 ---
 
