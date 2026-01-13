@@ -4026,6 +4026,10 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=PlateResponse,
     deprecated=True,
+    openapi_extra={
+        "x-alias-of": "/api/v1/pro/nutrition/plate",
+        "x-migration-path": "Migrate to /api/v1/pro/nutrition/plate (same contract)",
+    },
 )
 async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`."""
@@ -4578,6 +4582,10 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=WHOTargetsResponse,
     deprecated=True,
+    openapi_extra={
+        "x-alias-of": "/api/v1/pro/nutrition/targets",
+        "x-migration-path": "Migrate to /api/v1/pro/nutrition/targets (same contract)",
+    },
 )
 async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`.
