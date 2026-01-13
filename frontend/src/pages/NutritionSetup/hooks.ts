@@ -12,7 +12,7 @@ import type {
   TargetsResponse,
 } from './schema';
 import { validDietFlags } from './schema';
-import type { PlateApiResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
+import type { PlateResponse as ApiPlateResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
 
 const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 
@@ -281,7 +281,7 @@ const normalizeBmrResponse = (
   };
 };
 
-const normalizePlateResponse = (response: PlateApiResponse): PlateResponse => {
+const normalizePlateResponse = (response: ApiPlateResponse): PlateResponse => {
   const macros = response.macros ?? {};
 
   const proteinG = safeNumber((macros as Record<string, unknown>)?.protein_g ?? (macros as Record<string, unknown>)?.protein) ?? null;

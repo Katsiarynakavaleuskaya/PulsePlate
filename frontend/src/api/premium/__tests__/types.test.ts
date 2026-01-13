@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, expectTypeOf } from "vitest";
-import type { PlateApiResponse, Portion, LayoutItem, Meal } from "../types";
+import type { Portion, LayoutItem, Meal, PlateResponse } from "../types";
 
 describe("Premium Types", () => {
   describe("Portion", () => {
@@ -80,15 +80,14 @@ describe("Premium Types", () => {
     });
   });
 
-  describe("PlateApiResponse", () => {
-    it("should accept valid plate API response", () => {
-      const validResponse: PlateApiResponse = {
+  describe("PlateResponse (OpenAPI)", () => {
+    it("should accept valid plate API response (OpenAPI schema)", () => {
+      const validResponse: PlateResponse = {
         kcal: 2000,
         macros: {
           protein_g: 125,
           fat_g: 67,
           carbs_g: 250,
-          fiber_g: 25,
         },
         portions: {
           protein_palm: 2.1,
@@ -152,16 +151,18 @@ describe("Premium Types", () => {
         },
       };
       expect(validResponse).toBeDefined();
+      expect(validResponse.kcal).toBe(2000);
+      expect(validResponse.macros).toBeDefined();
+      expect(validResponse.portions).toBeDefined();
     });
 
-    it("should enforce PlateApiResponse required fields (type-level)", () => {
-      const sample: PlateApiResponse = {
+    it("should enforce PlateResponse required fields (type-level)", () => {
+      const sample: PlateResponse = {
         kcal: 2000,
         macros: {
           protein_g: 125,
           fat_g: 67,
           carbs_g: 250,
-          fiber_g: 25,
         },
         portions: {
           protein_palm: 2.1,
@@ -173,7 +174,7 @@ describe("Premium Types", () => {
         layout: [],
         meals: [],
       };
-      expectTypeOf(sample).toMatchTypeOf<PlateApiResponse>();
+      expectTypeOf(sample).toMatchTypeOf<PlateResponse>();
     });
   });
 });

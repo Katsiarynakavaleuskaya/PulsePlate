@@ -99,14 +99,19 @@ const searchParams = (() => {
 
 const forceMock = searchParams.get("mock") === "1";
 
+// PRO nutrition endpoint paths (canonical)
+export const PRO_NUTRITION_TARGETS_PATH = "/api/v1/pro/nutrition/targets";
+export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
+
 function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
     return "/mock/bmr.json";
   }
-  if (path.includes("/api/v1/pro/nutrition/plate") || path.includes("/pro/nutrition/plate")) {
+  // PRO nutrition endpoints (canonical)
+  if (path.includes(PRO_NUTRITION_PLATE_PATH) || path.includes("/pro/nutrition/plate")) {
     return "/mock/plate.json";
   }
-  if (path.includes("/api/v1/pro/nutrition/targets") || path.includes("/pro/nutrition/targets")) {
+  if (path.includes(PRO_NUTRITION_TARGETS_PATH) || path.includes("/pro/nutrition/targets")) {
     return "/mocks/targets.json";
   }
   if (path.includes("/plan/week")) {
@@ -321,7 +326,7 @@ export type {
   BmrRequest,
   BmrApiResponse,
   PlateRequest,
-  PlateApiResponse,
+  PlateResponse,
   TargetsRequest,
   TargetsApiResponse,
 } from "./premium";

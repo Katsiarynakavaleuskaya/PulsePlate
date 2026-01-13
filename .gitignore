@@ -371,3 +371,7 @@ local-safety-report.json
 **/tmp_security_*/
 **/tmp_security_*/
 coverage.json
+# Local / temporary audit scratchpads
+docs/audit/_local/**
+docs/audit/*.tmp.md
+docs/audit/*.draft.md
