@@ -327,11 +327,13 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 ### Update flow
 1. From repo root: `make openapi` (generates OpenAPI + regenerates TS types).
-2. Commit changes to:
-   - `frontend/src/api/openapi.json`
-   - `frontend/src/api/schema.ts`
+2. **Mandatory:** Commit changes to:
+ - `frontend/src/api/openapi.json`
+ - `frontend/src/api/schema.ts` (if changed)
 3. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
 4. CI will fail if generated artifacts are out of sync (see the CI check that verifies generated artifacts).
+
+**Hard rule:** Any PR that changes OpenAPI (even metadata-only via `openapi_extra`) **must** commit regenerated `frontend/src/api/openapi.json` and pass `make openapi-check`. Generated artifacts are part of the PR diff, not optional.
 
 ### Test requirement
 - `pytest tests/test_openapi_determinism.py` **must pass** and cannot be disabled/weakened.
