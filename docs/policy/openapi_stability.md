@@ -55,7 +55,7 @@
 ### Generation Workflow (Frontend)
 
 - **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
-- Regenerate via the repo script (canonical): `scripts/generate_openapi.py` (or the Make target if present).
+- Regenerate via the canonical Make target: `make openapi` (do not run `scripts/generate_openapi.py` directly).
 - PR rule: if backend changes any schema/route, the PR must include regenerated OpenAPI artifacts *or* an explicit note why schema is intentionally unchanged.
 
 ### Type Usage Rules

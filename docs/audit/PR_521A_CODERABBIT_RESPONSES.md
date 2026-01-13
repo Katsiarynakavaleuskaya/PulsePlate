@@ -52,8 +52,7 @@
 **If CodeRabbit asks about scope:**
 
 **Response:**
-> This PR is strictly frontend-only (4 files: `targets.ts`, `plate.ts`, `client.ts`, `targets-integration.test.ts`). Backend changes, test improvements, and docs fixes are tracked in separate PRs to maintain clean scope boundaries.
-
+> This PR focuses on frontend API migration (primary code files: `targets.ts`, `plate.ts`, `client.ts`, `targets-integration.test.ts`) plus supporting documentation and `.gitignore` updates. Backend changes and test improvements are tracked in separate PRs.
 ---
 
 **Last updated:** 2026-01-12
