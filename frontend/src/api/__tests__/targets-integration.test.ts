@@ -427,6 +427,8 @@ describe('WHO Targets API Integration', () => {
         activity: 'moderate',
         goal: 'maintain',
         diet_flags: [],
+        lang: 'en',
+        life_stage: 'adult',
       };
 
       const mockResponse: PlateResponse = {
@@ -474,6 +476,8 @@ describe('WHO Targets API Integration', () => {
         activity: 'moderate',
         goal: 'maintain',
         diet_flags: [],
+        lang: 'en',
+        life_stage: 'adult',
       };
 
       const mockResponse: PlateResponse = {
