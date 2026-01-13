@@ -22,7 +22,7 @@
 | `/api/v1/premium/targets` | `/api/v1/pro/nutrition/targets` | `legacy_app.py` | ✅ Yes |
 | `/api/v1/premium/plan/week-flexible` | `/api/v1/pro/meal/weekly` | `app/routers/premium_week.py` | ⚠️ No (excluded by design) |
 
-**Known gap:** `/api/v1/premium/plan/week-flexible` is annotated in code but excluded from generated OpenAPI due to current schema-gating (feature flag `FEATURE_PREMIUM_WEEK_ENABLED=false` in `scripts/generate_openapi.py`). This PR does not change schema inclusion policy; it only adds metadata where endpoints are present in the schema. Vendor extensions will appear in OpenAPI when this exclusion is lifted in a future PR (per current OpenAPI policy).
+**Known gap:** `/api/v1/premium/plan/week-flexible` is annotated in code, but is **currently excluded** from generated OpenAPI when `FEATURE_PREMIUM_WEEK_ENABLED=false` in the schema generator (see `scripts/generate_openapi.py`). This PR is metadata-only and intentionally does not change schema inclusion policy.
 
 ### Files Changed (5)
 
@@ -39,6 +39,10 @@
 - ✅ `make openapi-check` — passes (generated artifacts committed)
 - ✅ `pytest tests/test_openapi_determinism.py` — passes (determinism preserved)
 - ✅ `make verify` — passes (lint, typecheck, test-fast, diff-cov)
+
+## CI Verification
+
+- OpenAPI sync check run: `<PASTE LINK TO THE WORKFLOW RUN / JOB>`
 
 ---
 
@@ -60,7 +64,7 @@ Current scope is optimal: all alias metadata in one atomic change.
 
 ## Known Gap / Future Work
 
-`/api/v1/premium/plan/week-flexible` is annotated in code but excluded from generated OpenAPI due to schema-gating (feature flag). This PR does not change schema inclusion policy; it only adds metadata where endpoints are present in the schema. The question of whether deprecated aliases should always appear in OpenAPI (even when gated) is deferred to a future PR that addresses schema inclusion policy.
+`/api/v1/premium/plan/week-flexible` is annotated in code but excluded from generated OpenAPI due to schema-gating (feature flag). The question of whether deprecated aliases should always appear in OpenAPI (even when gated) is deferred to a future PR that addresses schema inclusion policy.
 
 ---
 
@@ -96,6 +100,13 @@ make test-fast
 
 - **PR-521A** (merged): Frontend migration from `/premium/*` to `/pro/*`
 - **PR-521B** (this PR): Backend OpenAPI metadata for aliases
+
+---
+
+## References
+
+- FastAPI docs — `openapi_extra` (Path Operation Advanced Configuration): `https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/#openapi-extra`
+- Schema generator: `scripts/generate_openapi.py` (repo source)
 
 ---
 

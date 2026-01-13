@@ -209,7 +209,7 @@ make verify
 
 ## 📝 Commit Message Template
 
-```
+```text
 feat(openapi): add vendor extensions to deprecated premium aliases
 
 Add x-alias-of and x-migration-path vendor extensions to:
