@@ -1,5 +1,9 @@
 # PR-521B: Backend OpenAPI Vendor Extensions
 
+> ℹ️ This document summarizes the PR description for GitHub.
+> Canonical scope, gaps, and verification live in:
+> **docs/audit/PR_521B_FINAL_PLAN.md**
+
 ## Scope
 
 **Metadata-only OpenAPI changes** — add vendor extensions (`x-alias-of`, `x-migration-path`) to deprecated premium alias endpoints to document canonical replacements.

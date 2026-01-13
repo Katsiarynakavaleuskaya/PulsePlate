@@ -327,9 +327,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 ### Update flow
 1. From repo root: `make openapi` (generates OpenAPI + regenerates TS types).
-2. **Mandatory:** Commit changes to:
- - `frontend/src/api/openapi.json`
- - `frontend/src/api/schema.ts` (if changed)
+2. **Commit regenerated artifacts** (see hard rule below).
 3. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
 4. CI will fail if generated artifacts are out of sync (see the CI check that verifies generated artifacts).
 

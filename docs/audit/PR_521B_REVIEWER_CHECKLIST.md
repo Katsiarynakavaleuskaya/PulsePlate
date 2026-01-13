@@ -1,5 +1,9 @@
 # PR-521B Reviewer Checklist
 
+> ℹ️ This checklist is derived from the canonical PR plan:
+> **docs/audit/PR_521B_FINAL_PLAN.md**
+> In case of conflict, the plan takes precedence.
+
 ## Quick Review (2-3 minutes)
 
 ### ✅ Scope Check
