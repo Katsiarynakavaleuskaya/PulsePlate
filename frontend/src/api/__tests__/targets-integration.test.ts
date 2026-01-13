@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getTargets } from '../premium/targets';
+import { getPlate } from '../premium/plate';
 import type { TargetsRequest, TargetsApiResponse } from '../premium/types';
+import type { PlateRequest } from '../premium/types';
+import { PRO_NUTRITION_TARGETS_PATH, PRO_NUTRITION_PLATE_PATH } from '../client';
 
 // Mock the API client
-vi.mock('../client', () => ({
-  api: vi.fn(),
-}));
+vi.mock('../client', async () => {
+  const actual = await vi.importActual<typeof import('../client')>('../client');
+  return {
+    ...actual,
+    api: vi.fn(),
+  };
+});
 
 import { api } from '../client';
 
@@ -398,6 +405,105 @@ describe('WHO Targets API Integration', () => {
 
       expect(mockApi).toHaveBeenCalledWith(
         '/api/v1/pro/nutrition/targets',
+        expect.objectContaining({
+          method: 'POST',
+          body: mockRequest,
+          signal: options.signal,
+        }),
+        { onAuthError: options.onAuthError },
+        true
+      );
+    });
+  });
+
+  describe('Plate API Integration', () => {
+    it('should fetch plate successfully with valid request', async () => {
+      const mockRequest: PlateRequest = {
+        sex: 'female',
+        age: 25,
+        height_cm: 165,
+        weight_kg: 60,
+        activity: 'moderate',
+        goal: 'maintain',
+        diet_flags: [],
+      };
+
+      const mockResponse = {
+        kcal: 2000,
+        macros: {
+          protein_g: 125,
+          fat_g: 67,
+          carbs_g: 250,
+        },
+        portions: {
+          protein_palm: 2.1,
+          fat_thumbs: 1.3,
+          carb_cups: 4.2,
+          veg_cups: 3.0,
+        },
+        layout: [],
+        meals: [],
+        meals_per_day: 3,
+      };
+
+      mockApi.mockResolvedValue(mockResponse);
+
+      const result = await getPlate(mockRequest);
+
+      expect(mockApi).toHaveBeenCalledWith(
+        '/api/v1/pro/nutrition/plate',
+        expect.objectContaining({
+          method: 'POST',
+          body: mockRequest,
+          signal: undefined,
+        }),
+        undefined,
+        true
+      );
+
+      expect(result).toEqual(mockResponse);
+    });
+
+    it('should pass through request options correctly', async () => {
+      const mockRequest: PlateRequest = {
+        sex: 'female',
+        age: 25,
+        height_cm: 165,
+        weight_kg: 60,
+        activity: 'moderate',
+        goal: 'maintain',
+        diet_flags: [],
+      };
+
+      const mockResponse = {
+        kcal: 2000,
+        macros: {
+          protein_g: 125,
+          fat_g: 67,
+          carbs_g: 250,
+        },
+        portions: {
+          protein_palm: 2.1,
+          fat_thumbs: 1.3,
+          carb_cups: 4.2,
+          veg_cups: 3.0,
+        },
+        layout: [],
+        meals: [],
+        meals_per_day: 3,
+      };
+
+      mockApi.mockResolvedValue(mockResponse);
+
+      const options = {
+        signal: new AbortController().signal,
+        onAuthError: vi.fn(),
+      };
+
+      await getPlate(mockRequest, options);
+
+      expect(mockApi).toHaveBeenCalledWith(
+        '/api/v1/pro/nutrition/plate',
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,

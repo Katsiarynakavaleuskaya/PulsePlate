@@ -99,10 +99,15 @@ const searchParams = (() => {
 
 const forceMock = searchParams.get("mock") === "1";
 
+// PRO nutrition endpoint paths (canonical)
+export const PRO_NUTRITION_TARGETS_PATH = "/api/v1/pro/nutrition/targets";
+export const PRO_NUTRITION_PLATE_PATH = "/api/v1/pro/nutrition/plate";
+
 function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
     return "/mock/bmr.json";
   }
+  // PRO nutrition endpoints (canonical)
   if (path.includes("/api/v1/pro/nutrition/plate") || path.includes("/pro/nutrition/plate")) {
     return "/mock/plate.json";
   }
