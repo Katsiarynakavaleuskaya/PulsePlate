@@ -3,6 +3,7 @@ import { getTargets } from '../premium/targets';
 import { getPlate } from '../premium/plate';
 import type { TargetsRequest, TargetsApiResponse } from '../premium/types';
 import type { PlateRequest } from '../premium/types';
+import type { PlateResponse } from '../premium/plate';
 import { PRO_NUTRITION_TARGETS_PATH, PRO_NUTRITION_PLATE_PATH } from '../client';
 
 // Mock the API client
@@ -428,7 +429,7 @@ describe('WHO Targets API Integration', () => {
         diet_flags: [],
       };
 
-      const mockResponse = {
+      const mockResponse: PlateResponse = {
         kcal: 2000,
         macros: {
           protein_g: 125,
@@ -475,7 +476,7 @@ describe('WHO Targets API Integration', () => {
         diet_flags: [],
       };
 
-      const mockResponse = {
+      const mockResponse: PlateResponse = {
         kcal: 2000,
         macros: {
           protein_g: 125,
