@@ -19,7 +19,7 @@
 - ❌ Providers are not OpenAPI consumers (not wired into runtime), so they do not affect OpenAPI stability policy.
 
 **Implementation:**
-- Use vendor extensions (`x-alias-of`, `x-migration-path`) to document canonical replacements
+- (Optional) Use vendor extensions (`x-alias-of`, `x-migration-path`) to document canonical replacements when feasible
 - Mark endpoints as `deprecated: true` but keep `include_in_schema=True` (default)
 - Hide deprecated in Swagger UI (optional), but keep in schema
 
@@ -55,8 +55,9 @@
 ### Generation Workflow (Frontend)
 
 - **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
-- Regenerate via the canonical Make target: `make openapi` (do not run `scripts/generate_openapi.py` directly).
-- PR rule: if backend changes any schema/route, the PR must include regenerated OpenAPI artifacts *or* an explicit note why schema is intentionally unchanged.
+- Follow the canonical workflow documented in root `AGENTS.md` ("OpenAPI generation (determinism requirement)").
+- Regenerate via the canonical Make target: `make openapi`. (Implementation detail: it calls `scripts/generate_openapi.py`; do not call the script directly in PR workflows.)
+- PR rule: if backend changes any schema/route, regenerate OpenAPI artifacts or explicitly justify why schema is unchanged.
 
 ### Type Usage Rules
 
@@ -89,6 +90,7 @@ A frontend-breaking contract change includes:
 - Schema changes in `components.schemas.*` used by the frontend,
 - Path changes for endpoints consumed by the frontend,
 - Behavior changes that alter error envelope or auth requirements.
+- Observability breaking change: backend route-template changes that alter metrics label keys used by dashboards/alerts.
 
 ---
 
