@@ -281,6 +281,10 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - PRO tier: use `require_pro_tier()` middleware (from `app.middleware.api_tiers`).
 - VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
 - All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
+- **Deprecated alias hard-stop (contracts):** never proxy between endpoints with different `response_model` (that is a breaking change).
+- **Plate policy:** `premium/plate` must proxy only to `pro/nutrition/plate` (`PlateRequest` → `PlateResponse`), never to `pro/nutrition/daily` (`DailyNutritionResponse`).
+- **Weekly policy:** if `premium/plan/week` is VIP-dependent or contract-incompatible, do not proxy it to PRO; use `premium/plan/week-flexible` as the sanctioned deprecated PRO-compatible bridge.
+- **Guard divergence:** Premium aliases may use legacy guards (`_get_api_key_dynamic`) while canonical PRO endpoints use tier guards (`require_pro_tier`). This is intentional for backward compatibility; guard alignment is a separate product/infra decision. See `docs/audit/PR_520_INSIGHTS.md` for enforcement checklist and recurring anti-patterns.
 - **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
 - **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 
@@ -439,6 +443,11 @@ git push --force-with-lease
 **Why force-with-lease:**
 - Prevents overwriting remote changes you haven't seen
 - Fails if someone else pushed to your branch (forces you to fetch first)
+
+**Alternative (no force, preferred when branch is polluted):**
+- Create a fresh branch from `origin/main` and cherry-pick/squash only relevant commits.
+- Open a new PR from the clean branch; close the old PR as superseded.
+- This avoids force push entirely and keeps history clean without risk of overwriting others' work.
 
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 

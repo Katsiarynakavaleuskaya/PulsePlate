@@ -2046,7 +2046,7 @@
         "type": "object"
       },
       "PlateRequest": {
-        "description": "RU: Запрос на генерацию «Моей Тарелки».\nEN: Request to generate 'My Plate'.",
+        "description": "RU: Запрос на генерацию «Моей Тарелки». EN: Request to generate 'My Plate'.",
         "properties": {
           "activity": {
             "enum": [
@@ -3461,7 +3461,7 @@
         "type": "object"
       },
       "VisualShape": {
-        "description": "RU: Примитив для фронтенда (сектор тарелки/чашка/метка).\nEN: Primitive for frontend (plate sector/bowl/dot).",
+        "description": "RU: Примитив для фронтенда. EN: Primitive for frontend visualization.",
         "properties": {
           "fraction": {
             "title": "Fraction",
@@ -3496,7 +3496,7 @@
       },
       "WHOTargetsRequest": {
         "additionalProperties": false,
-        "description": "RU: Запрос на расчёт целей по нормам ВОЗ.\nEN: Request for WHO-based nutrition targets.\n\nThe optional ``targets`` field is kept as a generic mapping to stay\nbackwards-compatible with older clients that send flat targets\n(kcal/protein/carbs/...) while allowing newer structured payloads to be\nvalidated at a higher level when needed.",
+        "description": "RU: Запрос на расчёт целей по нормам ВОЗ. EN: WHO-based targets request.",
         "properties": {
           "activity": {
             "enum": [
@@ -3651,7 +3651,7 @@
         "type": "object"
       },
       "WHOTargetsResponse": {
-        "description": "RU: Ответ с целевыми значениями по ВОЗ.\nEN: Response with WHO-based targets.",
+        "description": "RU: Ответ с целевыми значениями по ВОЗ. EN: WHO targets response.",
         "properties": {
           "activity_weekly": {
             "additionalProperties": {
@@ -5483,6 +5483,7 @@
     },
     "/api/v1/premium/plan/week": {
       "post": {
+        "deprecated": true,
         "description": "RU: Генерирует недельный план питания (через core.menu_engine.make_weekly_menu).\nEN: Generate a weekly meal plan using core.menu_engine.make_weekly_menu.\n\nReturns keys: week_summary, daily_menus, weekly_coverage, shopping_list.",
         "operationId": "api_weekly_menu_api_v1_premium_plan_week_post",
         "requestBody": {
@@ -5527,7 +5528,8 @@
     },
     "/api/v1/premium/plate": {
       "post": {
-        "description": "RU: Генерирует «Мою Тарелку» под цель/дефицит/активность.\nEN: Generates 'My Plate' for goal/deficit/activity.\n\nEnhanced Plate API with visual sectors and hand/cup portions:\n- Visual plate layout with 4 sectors + 2 bowls\n- Precise deficit/surplus percentage control\n- Hand/cup portion method for real-world application\n- Diet flags support (VEG, GF, DAIRY_FREE, LOW_COST)\n- Macro-balanced meal suggestions",
+        "deprecated": true,
+        "description": "[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`.",
         "operationId": "api_premium_plate_api_v1_premium_plate_post",
         "requestBody": {
           "content": {
@@ -5571,7 +5573,8 @@
     },
     "/api/v1/premium/targets": {
       "post": {
-        "description": "Calculate WHO-aligned nutrition targets for premium clients.\n\nNormal FastAPI route usage with Body(...) and dependency injection.\nFor direct test calls, use _generate_who_targets_response directly.",
+        "deprecated": true,
+        "description": "[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`.\n\nNormal FastAPI route usage with Body(...) and dependency injection.\nFor direct test calls, use _generate_who_targets_response directly.",
         "operationId": "api_who_targets_api_v1_premium_targets_post",
         "requestBody": {
           "content": {
@@ -5755,6 +5758,102 @@
         "summary": "Log meal event (PRO)",
         "tags": [
           "nutrition-log",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/nutrition/plate": {
+      "post": {
+        "description": "Canonical plate endpoint for PRO tier (PlateRequest → PlateResponse).",
+        "operationId": "pro_nutrition_plate_api_v1_pro_nutrition_plate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Enhanced plate (PRO)",
+        "tags": [
+          "nutrition",
+          "pro"
+        ]
+      }
+    },
+    "/api/v1/pro/nutrition/targets": {
+      "post": {
+        "description": "Canonical targets endpoint for PRO tier.",
+        "operationId": "pro_nutrition_targets_api_v1_pro_nutrition_targets_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WHOTargetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WHOTargetsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "WHO nutrition targets (PRO)",
+        "tags": [
+          "nutrition",
           "pro"
         ]
       }

@@ -13,9 +13,11 @@ from legacy_app import app as _legacy_app  # re-export FastAPI instance from leg
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
 from app.bootstrap.metrics import register_metrics
+from app.bootstrap.pro_contracts import register_pro_contract_routes
 
 app: FastAPI = _legacy_app
 
 register_metrics(app)
+register_pro_contract_routes(app)
 
 __all__ = ["app"]

@@ -3,7 +3,6 @@
 Фокус: VIP endpoints, fallback paths, error handling
 """
 
-import os
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -17,24 +16,10 @@ from app.middleware import api_tiers
 class TestVIPCoverageBoost:
     """Тесты для покрытия недостающих веток VIP модуля"""
 
-    def setup_method(self) -> None:
-        # Устанавливаем переменные окружения для VIP модуля
-        self._orig_api_key = os.environ.get("API_KEY")
-        self._orig_vip_module_enabled = os.environ.get("VIP_MODULE_ENABLED")
-        os.environ["VIP_MODULE_ENABLED"] = "true"
-        os.environ["API_KEY"] = "test_key"  # pragma: allowlist secret
-
-    def teardown_method(self) -> None:
-        # Восстанавливаем переменные окружения как было до теста (важно для xdist/порядка тестов).
-        if self._orig_api_key is None:
-            os.environ.pop("API_KEY", None)  # pragma: allowlist secret
-        else:
-            os.environ["API_KEY"] = self._orig_api_key  # pragma: allowlist secret
-
-        if self._orig_vip_module_enabled is None:
-            os.environ.pop("VIP_MODULE_ENABLED", None)
-        else:
-            os.environ["VIP_MODULE_ENABLED"] = self._orig_vip_module_enabled
+    @pytest.fixture(autouse=True)
+    def _vip_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        # Do not set API_KEY here; VIP tests use vip_headers fixture (tier-aware guard)
 
     def test_vip_health_endpoint(self, vip_headers: dict[str, str]) -> None:
         """Тест VIP health endpoint"""
