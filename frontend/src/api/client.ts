@@ -108,10 +108,10 @@ function mockUrl(path: string): string | null {
     return "/mock/bmr.json";
   }
   // PRO nutrition endpoints (canonical)
-  if (path.includes("/api/v1/pro/nutrition/plate") || path.includes("/pro/nutrition/plate")) {
+  if (path.includes(PRO_NUTRITION_PLATE_PATH) || path.includes("/pro/nutrition/plate")) {
     return "/mock/plate.json";
   }
-  if (path.includes("/api/v1/pro/nutrition/targets") || path.includes("/pro/nutrition/targets")) {
+  if (path.includes(PRO_NUTRITION_TARGETS_PATH) || path.includes("/pro/nutrition/targets")) {
     return "/mocks/targets.json";
   }
   if (path.includes("/plan/week")) {

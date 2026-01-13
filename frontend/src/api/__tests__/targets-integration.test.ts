@@ -76,7 +76,7 @@ describe('WHO Targets API Integration', () => {
       const result = await getTargets(mockRequest);
 
       expect(mockApi).toHaveBeenCalledWith(
-        '/api/v1/pro/nutrition/targets',
+        PRO_NUTRITION_TARGETS_PATH,
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,
@@ -451,7 +451,7 @@ describe('WHO Targets API Integration', () => {
       const result = await getPlate(mockRequest);
 
       expect(mockApi).toHaveBeenCalledWith(
-        '/api/v1/pro/nutrition/plate',
+        PRO_NUTRITION_PLATE_PATH,
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,
