@@ -304,7 +304,7 @@ tzdata==2025.3
     # via faker
 urllib3==2.6.3
     # via requests
-virtualenv==20.35.4
+virtualenv==20.36.1
     # via pre-commit
 wheel==0.45.1
     # via pip-tools
