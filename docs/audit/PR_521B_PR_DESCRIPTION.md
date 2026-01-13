@@ -16,9 +16,9 @@
 |------------------|-------------------|------|-----------------|
 | `/api/v1/premium/plate` | `/api/v1/pro/nutrition/plate` | `legacy_app.py` | ✅ Yes |
 | `/api/v1/premium/targets` | `/api/v1/pro/nutrition/targets` | `legacy_app.py` | ✅ Yes |
-| `/api/v1/premium/plan/week-flexible` | `/api/v1/pro/meal/weekly` | `app/routers/premium_week.py` | ⚠️ No (excluded from OpenAPI generation) |
+| `/api/v1/premium/plan/week-flexible` | `/api/v1/pro/meal/weekly` | `app/routers/premium_week.py` | ⚠️ No (excluded by design) |
 
-**Note:** `/api/v1/premium/plan/week-flexible` is annotated in code but excluded from OpenAPI generation (via `FEATURE_PREMIUM_WEEK_ENABLED=false` in `scripts/generate_openapi.py`). Vendor extensions will appear in OpenAPI when this exclusion is lifted in a future PR.
+**Known gap:** `/api/v1/premium/plan/week-flexible` is annotated in code but excluded from generated OpenAPI due to current schema-gating (feature flag `FEATURE_PREMIUM_WEEK_ENABLED=false` in `scripts/generate_openapi.py`). This PR does not change schema inclusion policy; it only adds metadata where endpoints are present in the schema. Vendor extensions will appear in OpenAPI when this exclusion is lifted in a future PR (per current OpenAPI policy).
 
 ### Files Changed (5)
 
@@ -48,11 +48,15 @@
 
 ## Why Not Split PR?
 
-This PR is already minimal (metadata-only, 4 files). Splitting would require:
+This PR is already minimal (metadata-only, 5 files). Splitting would require:
 - Separate PR for each endpoint (overhead)
 - Or separate PR for code vs artifacts (breaks atomicity)
 
 Current scope is optimal: all alias metadata in one atomic change.
+
+## Known Gap / Future Work
+
+`/api/v1/premium/plan/week-flexible` is annotated in code but excluded from generated OpenAPI due to schema-gating (feature flag). This PR does not change schema inclusion policy; it only adds metadata where endpoints are present in the schema. The question of whether deprecated aliases should always appear in OpenAPI (even when gated) is deferred to a future PR that addresses schema inclusion policy.
 
 ---
 
