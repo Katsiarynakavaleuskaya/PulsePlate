@@ -103,10 +103,10 @@ function mockUrl(path: string): string | null {
   if (path.includes("/api/v1/premium/bmr") || path.includes("/premium/bmr")) {
     return "/mock/bmr.json";
   }
-  if (path.includes("/api/v1/premium/plate") || path.includes("/premium/plate")) {
+  if (path.includes("/api/v1/pro/nutrition/plate") || path.includes("/pro/nutrition/plate")) {
     return "/mock/plate.json";
   }
-  if (path.includes("/api/v1/premium/targets") || path.includes("/premium/targets")) {
+  if (path.includes("/api/v1/pro/nutrition/targets") || path.includes("/pro/nutrition/targets")) {
     return "/mocks/targets.json";
   }
   if (path.includes("/plan/week")) {

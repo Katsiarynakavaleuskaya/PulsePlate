@@ -69,7 +69,7 @@ describe('WHO Targets API Integration', () => {
       const result = await getTargets(mockRequest);
 
       expect(mockApi).toHaveBeenCalledWith(
-        '/api/v1/premium/targets',
+        '/api/v1/pro/nutrition/targets',
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,
@@ -397,7 +397,7 @@ describe('WHO Targets API Integration', () => {
       await getTargets(mockRequest, options);
 
       expect(mockApi).toHaveBeenCalledWith(
-        '/api/v1/premium/targets',
+        '/api/v1/pro/nutrition/targets',
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,
