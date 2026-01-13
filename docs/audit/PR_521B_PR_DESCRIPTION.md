@@ -43,6 +43,7 @@
 ## CI Verification
 
 - OpenAPI sync check run: `<PASTE LINK TO THE WORKFLOW RUN / JOB>`
+  - *Note: CI link will be updated once the current run completes and the workflow URL is available.*
 
 ---
 
