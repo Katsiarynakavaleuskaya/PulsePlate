@@ -9,7 +9,7 @@
 
 ### Directory Structure
 
-```
+```text
 providers/
 ├── __init__.py      # ProviderBase Protocol
 ├── grok.py          # xAI Grok provider

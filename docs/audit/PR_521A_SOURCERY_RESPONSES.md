@@ -11,7 +11,7 @@
 > Overall suggestions: add path constants, fix PlateResponse type, add plate tests
 
 **Response:**
-> Thanks! I'll keep this PR focused on the route migration + contract typing. I'll introduce shared constants for the PRO nutrition paths (used by client, mocks and tests) and fix the plate API generic to use the OpenAPI-generated `PlateResponse`. I'll also extend the integration test to assert `getPlate` hits `/api/v1/pro/nutrition/plate` and that mock routing resolves both PRO nutrition endpoints.
+> Thanks! This PR focuses on frontend client migration from deprecated `/api/v1/premium/*` to canonical `/api/v1/pro/nutrition/*` endpoints. Backend route templates are unchanged, so metrics label resolution and server-side alerts are unaffected. Shared constants for PRO nutrition paths are introduced (used by client, mocks and tests), and the plate API generic now uses the OpenAPI-generated `PlateResponse`. Integration tests assert `getPlate` hits the canonical path and validate the request/response contract.
 
 ---
 
