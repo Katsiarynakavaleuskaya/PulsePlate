@@ -1,9 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, it, expect, expectTypeOf } from "vitest";
-import type { Portion, LayoutItem, Meal } from "../types";
-import type { components } from "../../schema";
-
-type PlateResponse = components["schemas"]["PlateResponse"];
+import type { Portion, LayoutItem, Meal, PlateResponse } from "../types";
 
 describe("Premium Types", () => {
   describe("Portion", () => {
