@@ -16,7 +16,8 @@ reportlab>=4.4.4,<5.0.0
 sqlalchemy>=2.0.44,<3.0.0
 # Required for async SQLAlchemy (create_async_engine, AsyncSession)
 # greenlet is needed for SQLAlchemy async operations on all platforms
-greenlet>=3.0.0,<4.0.0
+# greenlet>=3.1.0 required for Python 3.13+ support
+greenlet>=3.1.0,<4.0.0
 alembic>=1.17.2,<2.0.0
 # Pin to tested 3.x series; allow minor upgrades for compatibility
 psycopg[binary]>=3.2.3,<4.0.0
