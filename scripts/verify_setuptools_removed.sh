@@ -6,9 +6,30 @@ set -euo pipefail
 
 IMAGE_TAG="${1:-pulseplate:test}"
 
+# Pre-flight checks: verify docker is available and daemon is reachable
+if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ ERROR: docker is not installed or not on PATH" >&2
+    exit 127
+fi
+
+if ! docker info >/dev/null 2>&1; then
+    echo "❌ ERROR: docker daemon is not reachable (is Docker running / do you have permissions?)" >&2
+    # Show actual error for debugging
+    docker info >&2 || true
+    exit 1
+fi
+
+# Verify image exists before running checks
+if ! docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+    echo "❌ ERROR: Docker image '$IMAGE_TAG' not found locally" >&2
+    echo "   Build it first: docker build --target production -t $IMAGE_TAG ." >&2
+    exit 1
+fi
+
 echo "🔍 Checking if setuptools is present in image: $IMAGE_TAG"
 
 # Check 1: Try to import setuptools (should fail)
+# NOTE: 2>/dev/null only suppresses Python import error, not docker errors
 echo "Test 1: Import setuptools (should fail)..."
 if docker run --rm "$IMAGE_TAG" python -c "import setuptools" 2>/dev/null; then
     echo "❌ FAIL: setuptools can be imported"
@@ -18,6 +39,7 @@ else
 fi
 
 # Check 2: Check if setuptools directory exists in site-packages
+# NOTE: 2>/dev/null only suppresses ls "not found" errors inside container, not docker errors
 echo "Test 2: Check site-packages for setuptools directory..."
 if docker run --rm "$IMAGE_TAG" sh -c "ls -d /opt/venv/lib/python*/site-packages/setuptools* 2>/dev/null || true" | grep -q setuptools; then
     echo "❌ FAIL: setuptools directory found in site-packages"
@@ -27,8 +49,9 @@ else
 fi
 
 # Check 3: Check for setuptools in pip list
+# NOTE: No stderr redirection here - docker errors will surface naturally
 echo "Test 3: Check pip list for setuptools..."
-if docker run --rm "$IMAGE_TAG" pip list | grep -qi setuptools; then
+if docker run --rm "$IMAGE_TAG" pip list 2>&1 | grep -qi setuptools; then
     echo "❌ FAIL: setuptools found in pip list"
     exit 1
 else
