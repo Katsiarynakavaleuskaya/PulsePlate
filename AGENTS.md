@@ -94,6 +94,7 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
 - Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
 - If a pip version constraint is required, use a version range and document the reason + CI verification.
+- **Security fixes for Python dependencies must be done via `requirements.in`/`requirements.txt`, not via ad-hoc `pip install -U ...` in Dockerfile.** We allow unsafe packages (setuptools/pip/wheel) in lockfiles via `pip-compile --allow-unsafe` so security fixes live in `requirements.txt` and Dockerfile remains simple (no upgrade/install steps).
 - Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
 
 ### 4) Lint/format
@@ -470,9 +471,19 @@ Violation of this rule blocks merge.
 - Do NOT copy logic into a second place.
 - Move shared logic into `core/` and call it from both sides.
 
-## Git conflict resolution (canonical ritual)
+## Git workflow (single-developer safe mode)
 
-If `git push` fails with "failed to push some refs" (conflict):
+This workflow is the default while the project is maintained by a single developer and branch protection blocks force-pushes.
+If the repo becomes multi-maintainer again, revisit this policy in a dedicated PR with documented rationale.
+
+**Hard rules:**
+
+- ❌ **Never use `git push --force` or `git push --force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
+- ❌ Never rewrite branch history (no rebase of published branches).
+- ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
+- ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
+- ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
+- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Required steps (in order):**
 
@@ -480,41 +491,47 @@ If `git push` fails with "failed to push some refs" (conflict):
 # 1. Fetch latest from remote
 git fetch origin
 
-# 2. Rebase on top of main (preserves linear history)
-git rebase origin/main
+# 2. Make changes
+# ... edit files ...
 
-# 3. Resolve conflicts if any (edit files, then):
-git add <resolved-files>
-git rebase --continue
-
-# 4. Verify tests still pass after rebase
+# 3. Verify tests pass
 make test-fast
 make cov-check
 
-# 5. Push with force-with-lease (safe force push)
-git push --force-with-lease
+# 4. Push normally (no force push)
+git push
 ```
 
-**Hard rules:**
+**If your branch diverged or got messy (required approach):**
 
-- ❌ Never use `git push -f` without `--force-with-lease` (unsafe, can overwrite others' work)
-- ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
-- ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
-- ✅ Always rebase (don't merge main into feature branch) to keep history linear
-- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
+```bash
+# 1. Fetch latest
+git fetch origin
 
-**Why force-with-lease:**
+# 2. Create fresh branch from main
+git checkout -b fix/<new-branch> origin/main
 
-- Prevents overwriting remote changes you haven't seen
-- Fails if someone else pushed to your branch (forces you to fetch first)
+# 3. Cherry-pick only the clean commits you want
+git cherry-pick <sha1> <sha2> ...
 
-**Alternative (no force, preferred when branch is polluted):**
+# 4. Verify tests pass
+make test-fast
+make cov-check
 
-- Create a fresh branch from `origin/main` and cherry-pick/squash only relevant commits.
-- Open a new PR from the clean branch; close the old PR as superseded.
-- This avoids force push entirely and keeps history clean without risk of overwriting others' work.
+# 5. Push new branch
+git push -u origin fix/<new-branch>
 
-## Import Hygiene Checklist (must-run before PR / after rebase)
+# 6. Preserve review context when superseding a PR
+# - Notify reviewers before closing the old PR (comment: "Superseded by #<new-pr>")
+# - In the new PR description: "Supersedes #<old-pr-number>"
+# - Copy any unresolved review feedback / check failures into the new PR checklist
+```
+
+Close the old PR as superseded and open a new PR from the clean branch.
+
+This avoids force push entirely and keeps history clean without risk of overwriting others' work.
+
+## Import Hygiene Checklist (must-run before PR)
 
 ### Goal
 

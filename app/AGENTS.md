@@ -159,10 +159,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 - **No green, no push, no exceptions.**
 
 **Push hygiene (required):**
-- Before pushing: `git fetch origin`
-- Rebase before push: `git rebase origin/main` (preferred over merge)
-- After rebase: resolve conflicts locally, re-run `make test-fast` + `make lint` + `make cov-check`
-- Push with safety: `git push --force-with-lease` (never `git push -f` without `--force-with-lease`)
+- See root `AGENTS.md` — `Git workflow (single-developer safe mode)` for push hygiene.
 
 ---
 
