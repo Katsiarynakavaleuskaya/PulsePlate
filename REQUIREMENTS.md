@@ -75,9 +75,10 @@ This repo uses `pip-compile` (pip-tools) to generate pinned `requirements*.txt`.
 To avoid environment drift, run this with the pinned Python from `.python-version` / `.tool-versions`.
 
 ```bash
-pip-compile --output-file=requirements.txt requirements.in
-pip-compile --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
-pip-compile --output-file=requirements-lock.txt requirements-dev.in requirements.in
+# Include setuptools/pip/wheel in lockfile for security fixes (--allow-unsafe)
+pip-compile --allow-unsafe --output-file=requirements.txt requirements.in
+pip-compile --allow-unsafe --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
+pip-compile --allow-unsafe --output-file=requirements-lock.txt requirements-dev.in requirements.in
 ```
 
 ### Update Dev Dependency

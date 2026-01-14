@@ -94,6 +94,7 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
 - Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
 - If a pip version constraint is required, use a version range and document the reason + CI verification.
+- **Security fixes for Python dependencies must be done via `requirements.in`/`requirements.txt`, not via ad-hoc `pip install -U ...` in Dockerfile.** We allow unsafe packages (setuptools/pip/wheel) in lockfiles via `pip-compile --allow-unsafe` so security fixes live in `requirements.txt` and Dockerfile remains simple (no upgrade/install steps).
 - Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
 
 ### 4) Lint/format
@@ -491,8 +492,8 @@ git rebase --continue
 make test-fast
 make cov-check
 
-# 5. Push with force-with-lease (safe force push)
-git push --force-with-lease
+# 5. Push normally (force push is forbidden)
+git push
 ```
 
 **Hard rules:**
@@ -505,15 +506,13 @@ git push --force-with-lease
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
-**Why force-with-lease:**
+**If push fails after rebase (non-fast-forward):**
 
-- Prevents overwriting remote changes you haven't seen
-- Fails if someone else pushed to your branch (forces you to fetch first)
-
-**Alternative (no force, preferred when branch is polluted):**
-
-- Create a fresh branch from `origin/main` and cherry-pick/squash only relevant commits.
-- Open a new PR from the clean branch; close the old PR as superseded.
+- **Do NOT use force push.** Instead:
+  1. Create a fresh branch from `origin/main`
+  2. Cherry-pick or squash only relevant commits
+  3. Open a new PR from the clean branch
+  4. Close the old PR as superseded
 - This avoids force push entirely and keeps history clean without risk of overwriting others' work.
 
 ## Import Hygiene Checklist (must-run before PR / after rebase)

@@ -22,10 +22,7 @@ ENV PIP_NO_PYTHON_VERSION_WARNING=1
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
-# Security: upgrade setuptools to >=78.1.1 to fix jaraco.context vulnerability (GHSA-58pv-8j8x-9vj2)
-# This ensures vendored jaraco.context is >= 6.1.0 (patched)
-RUN python -m pip install --no-cache-dir --upgrade "setuptools>=78.1.1" && \
-    python -m pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
