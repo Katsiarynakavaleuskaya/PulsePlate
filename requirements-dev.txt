@@ -78,7 +78,7 @@ execnet==2.1.2
     # via pytest-xdist
 faker==40.1.0
     # via -r requirements-dev.in
-filelock==3.20.1
+filelock==3.20.3
     # via
     #   cachecontrol
     #   safety
