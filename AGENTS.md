@@ -136,13 +136,13 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - In CI for PRs/MRs (GitHub Actions / GitLab).
 - Can be run locally: compares `origin/<base>` vs `HEAD` (base defaults to `main`, override via `PR_SCOPE_BASE_REF`).
 
-**Exit codes**
+### Exit codes
 
 - `0` — OK / skipped (e.g., cannot fetch base ref locally)
 - `1` — BLOCK (scope violation)
 - `128` — hard failure (base ref resolution/checkout misconfigured in CI)
 
-**Enforced checks**
+### Enforced checks
 
 1. **Always BLOCK:** any `*.py` under `docs/pr/`
 2. **Runtime PRs only:** block planning docs in `docs/pr/`:

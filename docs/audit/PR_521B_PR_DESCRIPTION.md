@@ -42,8 +42,8 @@
 
 ## CI Verification
 
-- OpenAPI sync check run: `<PASTE LINK TO THE WORKFLOW RUN / JOB>`
-  - *Note: CI link will be updated once the current run completes and the workflow URL is available.*
+- OpenAPI sync check run: [workflow job](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/20959192068/job/60231486960)
+  - *CI workflow run (context): [run #20959192068](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/20959192068)*
 
 ---
 
@@ -106,7 +106,7 @@ make test-fast
 
 ## References
 
-- FastAPI docs — `openapi_extra` (Path Operation Advanced Configuration): `https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/#openapi-extra`
+- FastAPI docs — [Path Operation Advanced Configuration: `openapi_extra`](https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/#openapi-extra)
 - Schema generator: `scripts/generate_openapi.py` (repo source)
 
 ---
