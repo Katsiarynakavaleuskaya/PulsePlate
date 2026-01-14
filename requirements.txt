@@ -43,6 +43,8 @@ fastapi==0.128.0
     # via -r requirements.in
 fonttools==4.61.1
     # via matplotlib
+greenlet==3.3.0
+    # via -r requirements.in
 h11==0.16.0
     # via
     #   httpcore
