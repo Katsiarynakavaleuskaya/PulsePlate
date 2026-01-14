@@ -48,7 +48,7 @@
 
 ### 2. Force Push Abuse
 **Problem:** Repeated `--force-with-lease` after every amend
-**Solution:** Use `--force-with-lease` only when necessary (rebase), not for every commit
+**Solution:** Force push is forbidden. Update PRs by adding new commits only. If branch got messy, create fresh branch and cherry-pick.
 **Evidence:** User feedback: "опять пуш форс что ты заладил"
 
 ### 3. Test Pollution (xdist)
@@ -170,7 +170,7 @@
 - **Verify once** — `make verify` before claiming readiness
 
 ### Git Hygiene
-- **No force push abuse** — only when necessary (rebase)
+- **No force push** — force push is forbidden. Use new commits or fresh branch with cherry-pick.
 - **Atomic commits** — one logical change per commit
 - **Pre-commit hooks** — stage auto-fixes, commit separately
 

@@ -160,9 +160,9 @@ curl -fsS https://.../metrics | grep http_requests_total
 
 **Push hygiene (required):**
 - Before pushing: `git fetch origin`
-- Rebase before push: `git rebase origin/main` (preferred over merge)
-- After rebase: resolve conflicts locally, re-run `make test-fast` + `make lint` + `make cov-check`
-- Push with safety: `git push --force-with-lease` (never `git push -f` without `--force-with-lease`)
+- Verify tests pass: `make test-fast` + `make lint` + `make cov-check`
+- Push normally: `git push` (force push is forbidden)
+- If branch diverged: create fresh branch and cherry-pick (see root AGENTS.md)
 
 ---
 

@@ -471,9 +471,16 @@ Violation of this rule blocks merge.
 - Do NOT copy logic into a second place.
 - Move shared logic into `core/` and call it from both sides.
 
-## Git conflict resolution (canonical ritual)
+## Git workflow (single-developer safe mode)
 
-If `git push` fails with "failed to push some refs" (conflict):
+**Hard rules:**
+
+- ❌ **Never use `git push --force` or `git push --force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
+- ❌ Never rewrite branch history (no rebase of published branches).
+- ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
+- ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
+- ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
+- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Required steps (in order):**
 
@@ -481,39 +488,40 @@ If `git push` fails with "failed to push some refs" (conflict):
 # 1. Fetch latest from remote
 git fetch origin
 
-# 2. Rebase on top of main (preserves linear history)
-git rebase origin/main
+# 2. Make changes
+# ... edit files ...
 
-# 3. Resolve conflicts if any (edit files, then):
-git add <resolved-files>
-git rebase --continue
-
-# 4. Verify tests still pass after rebase
+# 3. Verify tests pass
 make test-fast
 make cov-check
 
-# 5. Push normally (force push is forbidden)
+# 4. Push normally (no force push)
 git push
 ```
 
-**Hard rules:**
+**If your branch diverged or got messy (required approach):**
 
-- ❌ **Never use `git push --force` or `--force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
-- ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
-- ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
-- ✅ Always rebase (don't merge main into feature branch) to keep history linear
-- ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
-- ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
-- ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
+```bash
+# 1. Fetch latest
+git fetch origin
 
-**If push fails after rebase (non-fast-forward):**
+# 2. Create fresh branch from main
+git checkout -b fix/<new-branch> origin/main
 
-- **Do NOT use force push.** Instead:
-  1. Create a fresh branch from `origin/main`
-  2. Cherry-pick or squash only relevant commits
-  3. Open a new PR from the clean branch
-  4. Close the old PR as superseded
-- This avoids force push entirely and keeps history clean without risk of overwriting others' work.
+# 3. Cherry-pick only the clean commits you want
+git cherry-pick <sha1> <sha2> ...
+
+# 4. Verify tests pass
+make test-fast
+make cov-check
+
+# 5. Push new branch
+git push -u origin fix/<new-branch>
+```
+
+Close the old PR as superseded and open a new PR from the clean branch.
+
+This avoids force push entirely and keeps history clean without risk of overwriting others' work.
 
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 
