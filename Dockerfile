@@ -22,7 +22,7 @@ ENV PIP_NO_PYTHON_VERSION_WARNING=1
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
-RUN python -m pip install --no-cache-dir --upgrade "pip==24.2" && \
+RUN python -m pip install --no-cache-dir --upgrade pip && \
     python -m pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime base stage
