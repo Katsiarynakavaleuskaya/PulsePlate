@@ -89,6 +89,13 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - `legacy_app.py` must only contain: thin proxies, response formatting, legacy endpoint shims.
 - This prevents drift and keeps legacy as a pure compatibility layer.
 
+**Dockerfile policy (hard):**
+
+- Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
+- Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
+- If a pip version constraint is required, use a version range and document the reason + CI verification.
+- Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
+
 ### 4) Lint/format
 
 ```bash
