@@ -497,10 +497,12 @@ git push --force-with-lease
 
 **Hard rules:**
 
-- ❌ Never use `git push -f` without `--force-with-lease` (unsafe, can overwrite others' work)
+- ❌ **Never use `git push --force` or `--force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
 - ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
 - ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
 - ✅ Always rebase (don't merge main into feature branch) to keep history linear
+- ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
+- ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Why force-with-lease:**
