@@ -481,8 +481,10 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 **Hard rules:**
 
 - ❌ **Never use `git push --force` or `git push --force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
+- ❌ **Never merge no-op PRs** (branches identical to main after conflict resolution). Close as duplicate instead.
 - ❌ Never rewrite branch history (no rebase of published branches).
 - ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
+- ✅ **Before resolving conflicts: check whether upstream PRs already landed; if branch becomes identical to main, close as duplicate.**
 - ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
