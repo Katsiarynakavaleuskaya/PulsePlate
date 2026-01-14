@@ -321,6 +321,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
 - **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
 - **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` is FREE tier, not PRO).
+- **Frontend must not call `/api/v1/premium/*` endpoints** — use canonical `/api/v1/pro/*` or `/api/v1/vip/*` instead. Deprecated premium endpoints may be removed in future releases.
 
 ### Tier enforcement
 
