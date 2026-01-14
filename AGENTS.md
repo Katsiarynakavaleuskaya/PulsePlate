@@ -91,8 +91,9 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 
 **Dockerfile policy (hard):**
 
-- Do not pin `pip` to an old version in Dockerfile (e.g., `pip==24.2`). Use `pip` without version pin to allow compatibility with base image updates.
-- If a pip version pin is required, store it in a single place (ARG/ENV) and update it simultaneously with base Python image bumps.
+- Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
+- Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
+- If a pip version constraint is required, use a version range and document the reason + CI verification.
 - Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
 
 ### 4) Lint/format
