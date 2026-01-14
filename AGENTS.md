@@ -95,7 +95,6 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
 - If a pip version constraint is required, use a version range and document the reason + CI verification.
 - **Security fixes for Python dependencies must be done via `requirements.in`/`requirements.txt`, not via ad-hoc `pip install -U ...` in Dockerfile.** We allow unsafe packages (setuptools/pip/wheel) in lockfiles via `pip-compile --allow-unsafe` so security fixes live in `requirements.txt` and Dockerfile remains simple (no upgrade/install steps).
-- **Python 3.13+ compatibility:** If CI/main uses Python 3.13+, then `greenlet` must be `>=3.1.0,<4.0.0` (greenlet 3.1.0+ adds Python 3.13 support; 3.0.x may fail to build/run on 3.13).
 - Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
 
 ### 4) Lint/format
