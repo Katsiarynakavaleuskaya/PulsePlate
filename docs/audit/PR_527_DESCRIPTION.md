@@ -65,7 +65,7 @@ curl -sS http://localhost:8000/health && echo "✅ API works"
 
 Two related vulnerabilities are addressed by removing setuptools from the production runtime image:
 
-- **GHSA-58pv-8j8x-9vj2 (jaraco.context)**: Path traversal when processing tar archives (tarball extraction). The vulnerable version (jaraco.context < 6.1.0) is vendored within setuptools.
+- **GHSA-58pv-8j8x-9vj2 (jaraco.context)**: Path traversal during tarball extraction. The vulnerable version (jaraco.context < 6.1.0) is vendored within setuptools.
 - **CVE-2025-47273 (setuptools)**: Path traversal in setuptools' `PackageIndex.download` (filename derived from URL). Affects setuptools < 78.1.1; primarily related to deprecated `easy_install`/`PackageIndex` flows, not typical FastAPI runtime paths.
 
 Removing setuptools from the runtime image eliminates both vulnerabilities from production runtime while keeping build-time tooling intact.
