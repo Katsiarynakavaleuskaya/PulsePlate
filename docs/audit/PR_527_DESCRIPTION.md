@@ -2,16 +2,21 @@
 
 ## Problem
 
+# PR #527: Security - Remove vulnerable vendored jaraco.context from the production image (via setuptools removal)
+
 Trivy/GitHub code scanning flags **GHSA-58pv-8j8x-9vj2** (jaraco.context < 6.1.0), inherited via setuptools vendored dependency. The vulnerability is a path traversal issue that can allow attackers to write files to arbitrary locations.
 
 **Root cause:** setuptools vendors `jaraco.context` package, and older versions (< 6.1.0) contain the vulnerability. The vendored package is located at `setuptools/_vendor/...jaraco.context-5.3.0.dist-info`.
 
 ## Solution
 
-Remove setuptools from runtime image after installing dependencies. setuptools is only needed for build-time (pip install), not runtime.
+Remove setuptools from the production/runtime image after installing dependencies. setuptools is typically only needed for build-time (pip install / builds), not for serving the app.
 
-**Rationale:** setuptools==78.1.1 still vendors jaraco.context 5.3.0 (vulnerable). Adding jaraco.context>=6.1.0 to requirements doesn't fix the vendored dependency inside setuptools. Since setuptools isn't used in runtime code, we uninstall it in the builder stage (before copying venv to runtime-base), so the final production image does not contain setuptools. The development stage intentionally retains setuptools/wheel because they are required runtime dependencies of pip-tools for lockfile regeneration via `pip-compile`. Verified via `python -c "import importlib.util as u; print(u.find_spec('setuptools'))"` returning `None` inside the built `production` image.
+**Rationale:** By removing setuptools from the production/runtime image, we remove the vulnerable vendored copy (jaraco.context 5.3.0, which is in the affected range for GHSA-58pv-8j8x-9vj2) from the shipped artifact. setuptools remains available during build-time. The development stage intentionally retains setuptools/wheel because they are required runtime dependencies of pip-tools for lockfile regeneration via `pip-compile`. 
 
+**Risk:** Uninstalling setuptools can break runtime if any dependency imports `pkg_resources` (from setuptools). Verify the app starts successfully and core imports succeed without setuptools to catch any transitive runtime dependency.
+
+**Verification:** Verified via `python -c "import importlib.util as u; print(u.find_spec('setuptools'))"` returning `None` inside the built `production` image. Also verified the app starts and imports required modules successfully without setuptools present.
 ## Changes
 
 - **requirements.txt**: Regenerated with `--allow-unsafe` to include `setuptools==78.1.1` (needed for build-time)

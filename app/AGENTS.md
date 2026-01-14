@@ -159,10 +159,7 @@ curl -fsS https://.../metrics | grep http_requests_total
 - **No green, no push, no exceptions.**
 
 **Push hygiene (required):**
-- Before pushing: `git fetch origin`
-- Verify tests pass: `make test-fast` + `make lint` + `make cov-check`
-- Push normally: `git push` (force push is forbidden)
-- If branch diverged: create fresh branch and cherry-pick (see root AGENTS.md)
+- See root `AGENTS.md` — `Git workflow (single-developer safe mode)` for push hygiene.
 
 ---
 
