@@ -512,17 +512,25 @@ git push
 # 1. Fetch latest
 git fetch origin
 
-# 2. Create fresh branch from main
+# 2. Check if upstream PRs already landed (avoid duplicate work)
+git diff origin/main...HEAD --stat
+# If diff is empty or only contains unrelated changes, consider closing PR as duplicate
+
+# 3. Create fresh branch from main
 git checkout -b fix/<new-branch> origin/main
 
-# 3. Cherry-pick only the clean commits you want
+# 4. Cherry-pick only the clean commits you want
 git cherry-pick <sha1> <sha2> ...
 
-# 4. Verify tests pass
+# 5. After cherry-pick, verify branch still has meaningful changes
+git diff origin/main...HEAD --stat
+# If branch becomes identical to main, close PR as duplicate (no-op merges are forbidden)
+
+# 6. Verify tests pass
 make test-fast
 make cov-check
 
-# 5. Push new branch
+# 7. Push new branch
 git push -u origin fix/<new-branch>
 
 # 6. Preserve review context when superseding a PR
