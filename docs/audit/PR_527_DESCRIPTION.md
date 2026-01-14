@@ -10,7 +10,7 @@ Trivy/GitHub code scanning flags **GHSA-58pv-8j8x-9vj2** (jaraco.context < 6.1.0
 
 Remove setuptools from runtime image after installing dependencies. setuptools is only needed for build-time (pip install), not runtime.
 
-**Rationale:** setuptools==78.1.1 still vendors jaraco.context 5.3.0 (vulnerable). Adding jaraco.context>=6.1.0 to requirements doesn't fix the vendored dependency. Since setuptools isn't used in runtime code, we uninstall it from the final image to eliminate the vulnerability entirely.
+**Rationale:** setuptools==78.1.1 still vendors jaraco.context 5.3.0 (vulnerable). Adding jaraco.context>=6.1.0 to requirements doesn't fix the vendored dependency inside setuptools. Since setuptools isn't used in runtime code, we uninstall it in the builder stage (before copying venv to runtime-base), so the final production image does not contain setuptools. Verified via `python -c "import importlib.util as u; print(u.find_spec('setuptools'))"` returning `None` inside the built `production` image.
 
 ## Changes
 
@@ -28,11 +28,20 @@ Remove setuptools from runtime image after installing dependencies. setuptools i
 
 **Local verification (optional):**
 ```bash
-# Build production image
+# 1) Build production image
 docker build -t pulseplate:test --target production .
 
-# Verify setuptools is removed
-docker run --rm pulseplate:test python -c "import setuptools" 2>&1 | grep -q "No module named setuptools" && echo "✅ PASS" || echo "❌ FAIL"
+# 2) Verify setuptools cannot be imported
+docker run --rm pulseplate:test python -c "import importlib.util as u; print(u.find_spec('setuptools'))"
+# Expected: None
+
+# 3) Verify no setuptools/jaraco.context in site-packages
+docker run --rm pulseplate:test sh -c 'ls -1 /opt/venv/lib/python*/site-packages | grep -iE "setuptools|jaraco.context" || echo "✅ Not found"'
+
+# 4) (Optional) Verify API starts without setuptools
+docker run --rm -p 8000:8000 pulseplate:test &
+sleep 5
+curl -sS http://localhost:8000/health && echo "✅ API works"
 ```
 
 **If security alert #502 doesn't close after merge:**
