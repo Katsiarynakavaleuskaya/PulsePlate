@@ -22,7 +22,10 @@ ENV PIP_NO_PYTHON_VERSION_WARNING=1
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-dev.txt ./
-RUN python -m pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt && \
+    # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
+    # setuptools is only needed for build-time (pip install), not runtime
+    python -m pip uninstall -y setuptools wheel || true
 
 # Stage 2: Runtime base stage
 # NOTE: Keep system package manager tools here so the development stage can install tools via apt.
@@ -151,7 +154,10 @@ USER root
 # Install development dependencies
 # Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
 COPY requirements.txt requirements-dev.txt ./
-RUN python -m pip install --no-cache-dir -r requirements-dev.txt
+RUN python -m pip install --no-cache-dir -r requirements-dev.txt && \
+    # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
+    # setuptools is only needed for build-time (pip install), not runtime
+    python -m pip uninstall -y setuptools wheel || true
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \

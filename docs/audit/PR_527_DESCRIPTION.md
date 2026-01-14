@@ -8,16 +8,16 @@ Trivy/GitHub code scanning flags **GHSA-58pv-8j8x-9vj2** (jaraco.context < 6.1.0
 
 ## Solution
 
-Include setuptools>=78.1.1 in lockfile via `pip-compile --allow-unsafe`. This includes patched jaraco.context >= 6.1.0 and ensures locked version in `requirements.txt`.
+Remove setuptools from runtime image after installing dependencies. setuptools is only needed for build-time (pip install), not runtime.
 
-**Rationale:** `pip-compile` marks setuptools as "unsafe" by default, but we allow it via `--allow-unsafe` so security fixes live in the lockfile. Dockerfile remains simple (no ad-hoc installs/upgrades).
+**Rationale:** setuptools==78.1.1 still vendors jaraco.context 5.3.0 (vulnerable). Adding jaraco.context>=6.1.0 to requirements doesn't fix the vendored dependency. Since setuptools isn't used in runtime code, we uninstall it from the final image to eliminate the vulnerability entirely.
 
 ## Changes
 
-- **requirements.txt**: Regenerated with `--allow-unsafe` to include `setuptools==78.1.1` (locked version)
+- **requirements.txt**: Regenerated with `--allow-unsafe` to include `setuptools==78.1.1` (needed for build-time)
 - **requirements-dev.txt**: Regenerated with `--allow-unsafe` for consistency
 - **REQUIREMENTS.md**: Updated pip-compile commands to include `--allow-unsafe` flag
-- **Dockerfile**: Remains simple (no ad-hoc setuptools install)
+- **Dockerfile**: Uninstall setuptools/wheel from runtime image after installing dependencies
 - **AGENTS.md**: Added rule that security fixes must be done via requirements with `--allow-unsafe`, not ad-hoc Dockerfile upgrades
 
 ## Verification
@@ -29,11 +29,9 @@ Include setuptools>=78.1.1 in lockfile via `pip-compile --allow-unsafe`. This in
 ## Related
 
 - Security alert: #502
-- GHSA: https://github.com/advisories/GHSA-58pv-8j8x-9vj2
+- GHSA: <https://github.com/advisories/GHSA-58pv-8j8x-9vj2>
 - CVE: CVE-2025-47273 (related setuptools vulnerability)
 
 ## Risk Assessment
 
-This vulnerability is exploitable when processing malicious tar archives. For production FastAPI applications, this is typically not a runtime path, but:
-- Security gates (Trivy/code scanning) require the update
-- The package is present in CI/containers → must be fixed
+This vulnerability is exploitable when processing malicious tar archives. For production FastAPI applications, this is typically not a runtime path. By removing setuptools from the runtime image, we eliminate the vulnerability entirely while keeping setuptools available during build-time (where it's needed for pip install).

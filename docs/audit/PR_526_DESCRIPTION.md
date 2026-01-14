@@ -3,7 +3,8 @@
 ## Problem
 
 Docker build was failing with error:
-```
+
+```text
 No matching distribution found for pip==24.2 (from versions: none)
 ```
 
