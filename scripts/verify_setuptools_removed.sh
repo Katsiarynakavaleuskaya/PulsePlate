@@ -49,9 +49,9 @@ else
 fi
 
 # Check 3: Check for setuptools in pip list
-# NOTE: No stderr redirection here - docker errors will surface naturally
+# NOTE: Suppress pip stderr only (inside container), not docker errors
 echo "Test 3: Check pip list for setuptools..."
-if docker run --rm "$IMAGE_TAG" pip list 2>&1 | grep -qi setuptools; then
+if docker run --rm "$IMAGE_TAG" sh -c 'pip list 2>/dev/null' | grep -qi setuptools; then
     echo "❌ FAIL: setuptools found in pip list"
     exit 1
 else

@@ -1,8 +1,6 @@
-# PR #527: Security - Bump setuptools to fix jaraco.context vulnerability
+# PR #527: Security - Remove vulnerable vendored jaraco.context from the production image (via setuptools removal)
 
 ## Problem
-
-# PR #527: Security - Remove vulnerable vendored jaraco.context from the production image (via setuptools removal)
 
 Trivy/GitHub code scanning flags **GHSA-58pv-8j8x-9vj2** (jaraco.context < 6.1.0), inherited via setuptools vendored dependency. The vulnerability is a path traversal issue that can allow attackers to write files to arbitrary locations.
 
@@ -12,14 +10,16 @@ Trivy/GitHub code scanning flags **GHSA-58pv-8j8x-9vj2** (jaraco.context < 6.1.0
 
 Remove setuptools from the production/runtime image after installing dependencies. setuptools is typically only needed for build-time (pip install / builds), not for serving the app.
 
-**Rationale:** By removing setuptools from the production/runtime image, we remove the vulnerable vendored copy (jaraco.context 5.3.0, which is in the affected range for GHSA-58pv-8j8x-9vj2) from the shipped artifact. setuptools remains available during build-time. The development stage intentionally retains setuptools/wheel because they are required runtime dependencies of pip-tools for lockfile regeneration via `pip-compile`. 
+**Rationale:** By removing setuptools from the production/runtime image, we remove the vulnerable vendored copy (jaraco.context 5.3.0, which is in the affected range for GHSA-58pv-8j8x-9vj2) from the shipped artifact. setuptools remains available during build-time. The development stage intentionally retains setuptools/wheel because they are required runtime dependencies of pip-tools for lockfile regeneration via `pip-compile`.
+
+**Timing:** `requirements.txt` includes setuptools **for build-time install** (needed for `pip install`), then Dockerfile removes it **before runtime** (in builder stage, before copying venv to runtime-base). 
 
 **Risk:** Uninstalling setuptools can break runtime if any dependency imports `pkg_resources` (from setuptools). Verify the app starts successfully and core imports succeed without setuptools to catch any transitive runtime dependency.
 
 **Verification:** Verified via `python -c "import importlib.util as u; print(u.find_spec('setuptools'))"` returning `None` inside the built `production` image. Also verified the app starts and imports required modules successfully without setuptools present.
 ## Changes
 
-- **requirements.txt**: Regenerated with `--allow-unsafe` to include `setuptools==78.1.1` (needed for build-time)
+- **requirements.txt**: Regenerated with `--allow-unsafe` to include `setuptools==78.1.1` (needed for build-time install, then removed before runtime)
 - **requirements-dev.txt**: Regenerated with `--allow-unsafe` for consistency
 - **REQUIREMENTS.md**: Updated pip-compile commands to include `--allow-unsafe` flag
 - **Dockerfile**: Uninstall setuptools/wheel from builder stage (before copying venv to runtime-base). Development stage retains setuptools/wheel as they are required runtime dependencies of pip-tools for lockfile generation.
@@ -63,4 +63,9 @@ curl -sS http://localhost:8000/health && echo "✅ API works"
 
 ## Risk Assessment
 
-This vulnerability is exploitable when processing malicious tar archives. For production FastAPI applications, this is typically not a runtime path. By removing setuptools from the runtime image, we eliminate the vulnerability entirely while keeping setuptools available during build-time (where it's needed for pip install).
+Two related vulnerabilities are addressed by removing setuptools from the production runtime image:
+
+- **GHSA-58pv-8j8x-9vj2 (jaraco.context)**: Path traversal when processing tar archives (tarball extraction). The vulnerable version (jaraco.context < 6.1.0) is vendored within setuptools.
+- **CVE-2025-47273 (setuptools)**: Path traversal in setuptools' `PackageIndex.download` (filename derived from URL). Affects setuptools < 78.1.1; primarily related to deprecated `easy_install`/`PackageIndex` flows, not typical FastAPI runtime paths.
+
+Removing setuptools from the runtime image eliminates both vulnerabilities from production runtime while keeping build-time tooling intact.
