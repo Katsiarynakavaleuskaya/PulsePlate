@@ -171,6 +171,11 @@
 
 ### Git Hygiene
 - **No force push** — force push is forbidden. Use new commits or fresh branch with cherry-pick.
+
+**Why this policy changed (single-developer safe mode):**
+Historically, this repo recommended "rebase + force-with-lease" to keep history linear. In practice, automated agents/tools occasionally attempted force-push on PR branches, creating churn and risking loss of context.
+Because the project is currently maintained by a single developer and PR history is squashed on merge anyway, we prefer **non-rewriting updates**: add fixup commits (or revert) and let GitHub "Squash and merge" perform history cleanup.
+
 - **Atomic commits** — one logical change per commit
 - **Pre-commit hooks** — stage auto-fixes, commit separately
 

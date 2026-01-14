@@ -473,6 +473,9 @@ Violation of this rule blocks merge.
 
 ## Git workflow (single-developer safe mode)
 
+This workflow is the default while the project is maintained by a single developer and branch protection blocks force-pushes.
+If the repo becomes multi-maintainer again, revisit this policy in a dedicated PR with documented rationale.
+
 **Hard rules:**
 
 - ❌ **Never use `git push --force` or `git push --force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
@@ -517,13 +520,18 @@ make cov-check
 
 # 5. Push new branch
 git push -u origin fix/<new-branch>
+
+# 6. Preserve review context when superseding a PR
+# - Notify reviewers before closing the old PR (comment: "Superseded by #<new-pr>")
+# - In the new PR description: "Supersedes #<old-pr-number>"
+# - Copy any unresolved review feedback / check failures into the new PR checklist
 ```
 
 Close the old PR as superseded and open a new PR from the clean branch.
 
 This avoids force push entirely and keeps history clean without risk of overwriting others' work.
 
-## Import Hygiene Checklist (must-run before PR / after rebase)
+## Import Hygiene Checklist (must-run before PR)
 
 ### Goal
 
