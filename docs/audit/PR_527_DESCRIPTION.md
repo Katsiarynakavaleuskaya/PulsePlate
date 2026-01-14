@@ -10,14 +10,14 @@ Trivy/GitHub code scanning flags **GHSA-58pv-8j8x-9vj2** (jaraco.context < 6.1.0
 
 Remove setuptools from runtime image after installing dependencies. setuptools is only needed for build-time (pip install), not runtime.
 
-**Rationale:** setuptools==78.1.1 still vendors jaraco.context 5.3.0 (vulnerable). Adding jaraco.context>=6.1.0 to requirements doesn't fix the vendored dependency inside setuptools. Since setuptools isn't used in runtime code, we uninstall it in the builder stage (before copying venv to runtime-base), so the final production image does not contain setuptools. Verified via `python -c "import importlib.util as u; print(u.find_spec('setuptools'))"` returning `None` inside the built `production` image.
+**Rationale:** setuptools==78.1.1 still vendors jaraco.context 5.3.0 (vulnerable). Adding jaraco.context>=6.1.0 to requirements doesn't fix the vendored dependency inside setuptools. Since setuptools isn't used in runtime code, we uninstall it in the builder stage (before copying venv to runtime-base), so the final production image does not contain setuptools. The development stage intentionally retains setuptools/wheel because they are required runtime dependencies of pip-tools for lockfile regeneration via `pip-compile`. Verified via `python -c "import importlib.util as u; print(u.find_spec('setuptools'))"` returning `None` inside the built `production` image.
 
 ## Changes
 
 - **requirements.txt**: Regenerated with `--allow-unsafe` to include `setuptools==78.1.1` (needed for build-time)
 - **requirements-dev.txt**: Regenerated with `--allow-unsafe` for consistency
 - **REQUIREMENTS.md**: Updated pip-compile commands to include `--allow-unsafe` flag
-- **Dockerfile**: Uninstall setuptools/wheel from runtime image after installing dependencies
+- **Dockerfile**: Uninstall setuptools/wheel from builder stage (before copying venv to runtime-base). Development stage retains setuptools/wheel as they are required runtime dependencies of pip-tools for lockfile generation.
 - **AGENTS.md**: Added rule that security fixes must be done via requirements with `--allow-unsafe`, not ad-hoc Dockerfile upgrades
 
 ## Verification

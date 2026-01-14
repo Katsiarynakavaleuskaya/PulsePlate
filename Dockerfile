@@ -154,10 +154,10 @@ USER root
 # Install development dependencies
 # Copy both requirements files as requirements-dev.txt includes requirements.txt via -r
 COPY requirements.txt requirements-dev.txt ./
-RUN python -m pip install --no-cache-dir -r requirements-dev.txt && \
-    # Remove setuptools from runtime image to fix GHSA-58pv-8j8x-9vj2 (jaraco.context vulnerability)
-    # setuptools is only needed for build-time (pip install), not runtime
-    python -m pip uninstall -y setuptools wheel || true
+# SECURITY NOTE: Do NOT uninstall setuptools/wheel in development stage.
+# They are required runtime dependencies of pip-tools for lockfile generation (pip-compile).
+# Security mitigation (GHSA-58pv-8j8x-9vj2) applies to runtime/production images only.
+RUN python -m pip install --no-cache-dir -r requirements-dev.txt
 
 # Install additional development tools
 RUN apt-get update && apt-get install -y \
