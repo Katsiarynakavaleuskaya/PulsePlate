@@ -2,33 +2,24 @@
 
 ## Problem
 
-GitHub Code Scanning shows "2 configurations not found":
+GitHub Code Scanning shows: "2 configurations not found":
 - `build.yml:publish`
 - `trivy.yml:build`
 
-## Root Cause Analysis
+The workflows/jobs **exist in the repo**, but GitHub cannot resolve them for
+baseline comparison because there has been **no successful SARIF upload run on
+`main`** to establish the baseline for these configurations.
 
-### Current State
+## Root cause
 
-**build.yml:**
-- ✅ Has `workflow_dispatch` trigger
-- ✅ Has SARIF upload in `security-scan` job (filesystem scan)
-- ✅ Has SARIF upload in `publish` job (image scan)
-- ✅ Runs on `push` to `main`
+- `trivy.yml` was missing `workflow_dispatch`, so we couldn't trigger a manual
+  baseline run on `main`.
+- Both workflows (`trivy.yml` and `build.yml`) must have at least one successful
+  run on `main` that uploads SARIF for GitHub to register the configurations.
 
-**trivy.yml:**
-- ❌ Missing `workflow_dispatch` trigger
-- ✅ Has SARIF upload in `build` job
-- ✅ Runs on `push` to `main`
+## Fix
 
-### Why GitHub Can't Find Configurations
-
-1. **trivy.yml** lacks `workflow_dispatch` → cannot create manual baseline run on main
-2. Both workflows need at least one successful run on main that uploads SARIF to establish baseline
-
-## Solution
-
-Add `workflow_dispatch` to `trivy.yml` to enable manual baseline runs.
+Add `workflow_dispatch` to `trivy.yml` so we can run it manually on `main` after merge.
 
 ## Changes
 
@@ -47,13 +38,14 @@ on:
   workflow_dispatch:  # ADD THIS
 ```
 
-## Verification
+## Post-merge steps (required)
 
-After merge:
-1. Go to Actions → `trivy` workflow
-2. Click "Run workflow" → select `main` branch → Run
-3. Wait for completion
-4. Check any PR → "configurations not found" warning should disappear
+After merging this PR:
+1. Actions → run `trivy` workflow on `main` (manual Run workflow)
+2. Actions → run `build` workflow on `main` (manual Run workflow)
+
+These runs upload SARIF on `main`, establish the baseline, and should resolve
+the "configurations not found" warning.
 
 ## Risk
 
