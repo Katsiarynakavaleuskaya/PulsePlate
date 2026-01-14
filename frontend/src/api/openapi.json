@@ -5568,7 +5568,9 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Api Premium Plate"
+        "summary": "Api Premium Plate",
+        "x-alias-of": "/api/v1/pro/nutrition/plate",
+        "x-migration-path": "Migrate to /api/v1/pro/nutrition/plate (same contract)"
       }
     },
     "/api/v1/premium/targets": {
@@ -5615,7 +5617,9 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Api Who Targets"
+        "summary": "Api Who Targets",
+        "x-alias-of": "/api/v1/pro/nutrition/targets",
+        "x-migration-path": "Migrate to /api/v1/pro/nutrition/targets (same contract)"
       }
     },
     "/api/v1/pro/meal/shopping-list": {

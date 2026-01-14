@@ -177,6 +177,10 @@ def estimate_targets_minimal(
     response_model=WeekPlanResponse,
     dependencies=[Depends(require_pro_tier)],
     deprecated=True,
+    openapi_extra={
+        "x-alias-of": "/api/v1/pro/meal/weekly",
+        "x-migration-path": "Migrate to /api/v1/pro/meal/weekly (same contract)",
+    },
     summary="[DEPRECATED] Generate weekly meal plan",
     description="""
     ⚠️ **DEPRECATED**: This endpoint is deprecated and will be removed in v2.0.

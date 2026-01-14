@@ -9,18 +9,21 @@ make verify   # runs: lint → typecheck → test-fast → diff-cov (≥97%)
 ```
 
 Or individually:
+
 - `make lint` — ruff/flake8 checks
 - `make typecheck` — mypy with no cache (`--no-incremental --cache-dir=/dev/null`)
 - `make test-fast` — pytest quick run
 - `make diff-cov` — diff-cover ≥97% against origin/main
 
 **If ANY command fails:**
+
 1. Paste raw output lines showing the failure
 2. Provide `file:line:error` pointers
 3. Do NOT write "готово", "green", "mergeable"
 4. Fix the issue first, then re-run `make verify`
 
 **❌ Forbidden:**
+
 - Saying "all checks pass" without showing command outputs
 - Using `|| true`, `continue-on-error`, or ignoring failures
 - Adding `# type: ignore` without explicit user approval
@@ -32,6 +35,7 @@ If diff-cover shows uncovered helpers that have zero call sites → **delete the
 ---
 
 ## REQUIRED READING (before any change)
+
 1) `docs/ENGINEERING_LESSONS.md` (project-level lessons and hard-won invariants)
 2) `RUNBOOK_AGENT.md` (CI/debug playbook)
 3) The nearest scoped `AGENTS.md` for the files you touch (e.g. `tests/AGENTS.md`, `scripts/AGENTS.md`)
@@ -39,39 +43,46 @@ If diff-cover shows uncovered helpers that have zero call sites → **delete the
 If your change conflicts with these docs, you must explain why and how risks are mitigated.
 
 ## If you feel lost
+
 Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".
 
 ## One-command smoke checks (run from repo root)
 
 ### 0) Quick status
+
 ```bash
 git status
 git log -1 --oneline
 ```
 
 ### 1) Guard policies (import hygiene)
+
 ```bash
 pytest -q tests/test_repo_policy_guards.py
 ```
 
 ### 2) Fast tests (cheap signal)
+
 ```bash
 make test-fast
 ```
 
 ### 3) Coverage gate (only when preparing merge)
+
 ```bash
 make cov-check  # Total coverage ≥97%
 make diff-cov   # Diff-coverage ≥97% on changed lines
 ```
 
 **Coverage rule (hard):**
+
 - Never use per-file coverage % as a readiness signal.
 - Only `make cov-check` (total ≥97%) + `make diff-cov` (diff-coverage ≥97%) count.
 - If CI is red, PR is not ready.
 - File-level coverage (e.g., "95.5% for app/middleware/metrics.py") is NOT a gate metric.
 
 **legacy_app.py policy (hard):**
+
 - `legacy_app.py` is a thin compatibility proxy only.
 - Forbidden: registering middleware, observability/instrumentation, infra routes (/metrics), or any runtime behavior changes.
 - All middleware/observability registration must live in bootstrap modules (e.g., `app/bootstrap/metrics.py`) and be called from the primary app entrypoint (e.g., `app/main.py`).
@@ -79,17 +90,21 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - This prevents drift and keeps legacy as a pure compatibility layer.
 
 ### 4) Lint/format
+
 ```bash
 make lint
 make fmt-check
 ```
 
 ## Canonical navigation
+
 Start here: AGENTS.md → RUNBOOK_AGENT.md → module AGENTS.
+
 - RUNBOOK_AGENT.md: greps + CI failure triage
 - tests/test_repo_policy_guards.py: enforced architecture rules
 
 ## Engineering lessons
+
 See: `docs/ENGINEERING_LESSONS.md` (derived from PR-8b).
 Captures project-level lessons: test determinism, diff-coverage, portability, error contracts, sys.modules policy.
 
@@ -117,15 +132,18 @@ rg -n "COPY .*app\.py" Dockerfile
 A repository-wide guard that runs early in CI to prevent PR bloat and mixed concerns.
 
 **When it runs**
+
 - In CI for PRs/MRs (GitHub Actions / GitLab).
 - Can be run locally: compares `origin/<base>` vs `HEAD` (base defaults to `main`, override via `PR_SCOPE_BASE_REF`).
 
-**Exit codes**
+### Exit codes
+
 - `0` — OK / skipped (e.g., cannot fetch base ref locally)
 - `1` — BLOCK (scope violation)
 - `128` — hard failure (base ref resolution/checkout misconfigured in CI)
 
-**Enforced checks**
+### Enforced checks
+
 1. **Always BLOCK:** any `*.py` under `docs/pr/`
 2. **Runtime PRs only:** block planning docs in `docs/pr/`:
    `PR_<n>_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST).md`
@@ -134,6 +152,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
    - runtime PRs with >2 markdown files (mixed-concern signal)
 
 **How to pass**
+
 - Put tests in `tests/`, never under `docs/pr/`.
 - Keep runtime PRs focused: aim for `<15 files`, and limit docs to 1–2 contract/spec markdown files.
 - If you need planning docs, move them to a separate docs-only PR.
@@ -146,21 +165,25 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 **Guard test:** `tests/test_no_bmi_math_outside_core.py`
 
 **What it enforces:**
+
 - BMI formulas/thresholds/constants ONLY allowed in `core/bmi/*`
 - `legacy_app.py` is scanned (no longer whitelisted)
 - Any hardcoded thresholds (18.5/24.9/25/30 for BMI, 80/88/94/102 for waist) outside `core/bmi/` → FAIL
 
 **Canonical sources:**
+
 - Waist risk thresholds: `core/bmi/risk._waist_thresholds()`
 - Waist risk note (compat): `core/bmi/risk.get_waist_risk_note()`
 - Healthy BMI range: `core/bmi/engine.HEALTHY_BMI_RANGE`
 
 **❌ Forbidden in `legacy_app.py`:**
+
 - `warn, high = (94, 102)` or similar
 - `{"min": 18.5, "max": 24.9}` or similar BMI literals
 - Any BMI category logic (use `core/bmi/engine`)
 
 **✅ Allowed in `legacy_app.py`:**
+
 - Thin proxies that import and delegate to `core/bmi/*`
 - Response shape formatting (no domain logic)
 
@@ -169,24 +192,29 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 ## PR #403 specific invariants (Import Hygiene)
 
 ### Entrypoint
+
 - Docker/uvicorn MUST use: `app.main:app`
 - Verify: `rg -n "uvicorn\s+app(:|.main:app)" Dockerfile Makefile docker-compose.yaml`
 
 ### Forbidden patterns
+
 - No dynamic imports in tests/app/core/providers (except whitelisted test files)
 - No sys.path.insert in tests (except conftest.py, test_test_pro_access_coverage.py)
 - No sys.modules mutation anywhere
 
 ### ENV-gating order
+
 - `TESTING=true` MUST be set BEFORE importing app/legacy_app
 - Handled in tests/conftest.py pytest_configure
 
 ### Model registration
+
 - `app/models/__init__.py` MUST export all model classes
 - Verify: `rg -n "from .*\.plans import|__all__" app/models/__init__.py`
 - Both `WeeklyPlan` and `DayPlan` must be in `__all__`
 
 ### Public surface contract
+
 - `app/__init__.py` uses PEP 562 forwarding to `legacy_app`
 - Required symbols: `resolve_attr`, `make_weekly_menu`, `build_nutrition_targets`, `get_update_scheduler`
 - Verify: `python -c "import app; needed=['resolve_attr','make_weekly_menu','build_nutrition_targets','get_update_scheduler']; print('missing:', [n for n in needed if not hasattr(app, n)])"`
@@ -194,6 +222,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 ### See RUNBOOK_AGENT.md for detailed grep commands
 
 ## Scope and layout
+
 - This AGENTS.md applies to: repo root and below.
 - Project shape: single project with subfolders; backend is primary product, frontend/ios are clients.
 - Key directories: `app/`, `core/`, `frontend/`, `ios/`, `deploy/`, `providers/`, `tests/`, `alembic/`,
@@ -216,6 +245,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 | tests | pytest | `tests/` | Test suite | `make test` | `make test` | - | `tests/AGENTS.md` |
 
 ## Cross-domain workflows
+
 - Frontend -> backend: REST `/api/v1/*` endpoints with API key + session auth; contracts derive from
   Pydantic models in `app/schemas/` and FastAPI OpenAPI output.
 - iOS -> backend: same REST endpoints and auth; mobile flows mirror web API behavior.
@@ -225,13 +255,16 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Auth and tiers: API key + user sessions; VIP/Pro tier routing enforced in middleware.
 
 ## Verification (preferred approach)
+
 - Run quiet first; re-run narrowed failures with verbose logs only when debugging.
 - Use module AGENTS.md for exact commands and setup.
 
 ## Docs usage
+
 - Do not open/read `docs/` unless the user asks or the task requires it.
 
 ## Global conventions and hard rules
+
 - Never mock `builtins.__import__` or `builtins.float` (xdist timeouts).
 - CI requires >=97% coverage; keep tests updated.
 - Never push to `main`; use feature branches.
@@ -245,11 +278,13 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 ## Product tiers and API namespaces (canonical)
 
 ### Product tiers (source of truth)
+
 - **Tiers are: FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
 - **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
 - **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
 
 ### Testing tier guards (VIP/PRO endpoints)
+
 - **All tests that call VIP endpoints and expect 200/422/404 MUST use valid VIP key** (`vip_headers` fixture from `tests/conftest.py`).
 - **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
 - **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
@@ -272,12 +307,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
 
 ### API namespace policy
+
 - **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
 - **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
 - **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
 - **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` is FREE tier, not PRO).
 
 ### Tier enforcement
+
 - PRO tier: use `require_pro_tier()` middleware (from `app.middleware.api_tiers`).
 - VIP tier: use `require_vip_tier()` middleware (from `app.middleware.api_tiers`).
 - All `/premium/*` endpoints must delegate to canonical handlers (no business logic in aliases).
@@ -289,12 +326,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
 
 **See:**
+
 - `docs/contracts/PRODUCT_TIER_MAP.md` — contract/specification (what IS)
 - `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md` — remediation roadmap (what we DO)
 
 ## OpenAPI generation (determinism requirement)
 
 ### Canonical source
+
 - **Do not edit** `frontend/src/api/openapi.json` or `frontend/src/api/schema.ts` manually.
 - Canonical OpenAPI source: `app.main.app` (bootstrap + metrics applied).
 - Generator: `scripts/generate_openapi.py` (single source of truth for CI and local).
@@ -302,17 +341,20 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - `frontend/AGENTS.md` should link to this section as the canonical OpenAPI workflow (AGENTS Update Rule); do not duplicate these bullets there.
 
 ### SQLAlchemy model import policy (critical)
+
 - **Forbidden**: Import SQLAlchemy models at module level in routers that are included in OpenAPI generation.
 - Routers that import `app.models.*` must be conditionally imported when `PULSEPLATE_OPENAPI=1` to prevent SQLAlchemy "Table already defined" errors.
 - **Allowed**: Import models inside endpoint functions or dependencies (lazy loading).
 - **Rationale**: OpenAPI generation must not trigger SQLAlchemy table creation to ensure deterministic schema generation.
 
 ### OpenAPI generation mode
+
 - Generator sets `PULSEPLATE_OPENAPI=1` before importing app.
 - Routers that import SQLAlchemy models (e.g., `premium_week`, `pro`) are skipped in this mode.
 - This ensures schema generation does not load DB layer and prevents double-loading errors.
 
 ### Determinism requirement
+
 - Determinism is enforced by `pytest tests/test_openapi_determinism.py`.
 - If drift appears: fix **generator normalization** in `scripts/generate_openapi.py`, not "accept drift".
 - Local verification: run `make openapi` and then `make openapi-check`.
@@ -321,23 +363,31 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Determinism gate**: If OpenAPI artifacts are committed/compared, add a determinism test (hash compare) in the CI job that owns it.
 
 ### Response model policy
+
 - **Forbidden**: Endpoints returning `dict[str, Any]` or untyped responses.
 - **Required**: All endpoints must use Pydantic `response_model` to ensure proper OpenAPI schema generation.
 - **Rationale**: Untyped responses degrade to `unknown` in generated TypeScript types, making frontend integration impossible.
 
 ### Update flow
+
 1. From repo root: `make openapi` (generates OpenAPI + regenerates TS types).
-2. Commit changes to:
-   - `frontend/src/api/openapi.json`
-   - `frontend/src/api/schema.ts`
+2. **Mandatory:** Commit regenerated artifacts:
+
+- `frontend/src/api/openapi.json`
+- `frontend/src/api/schema.ts` (if changed)
+
 3. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
-4. CI will fail if generated artifacts are out of sync (see the CI check that verifies generated artifacts).
+4. CI will fail if generated artifacts are out of sync (OpenAPI sync check).
+
+**Hard rule:** Any PR that changes OpenAPI (including metadata-only changes via `openapi_extra`) **must** commit regenerated `frontend/src/api/openapi.json` and `frontend/src/api/schema.ts` (if changed) and pass `make openapi-check`.
 
 ### Test requirement
+
 - `pytest tests/test_openapi_determinism.py` **must pass** and cannot be disabled/weakened.
 - Any changes to routers/schemas must preserve determinism.
 
 ### Documentation requirement
+
 - If a PR changes workflow/agent behavior/tooling, include a `docs(agents): ...` commit in the same PR.
 
 ### 🛑 Docs-only PR Rule (Mandatory)
@@ -345,16 +395,16 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 **Docs-only PR** — a PR strictly limited to documentation that **must not** change runtime, CI, or application behavior.
 
 **Allowed changes (docs-only):**
-* `*.md` files
-* `README.md`
-* `AGENTS.md`, `RUNBOOK_AGENT.md`, `DEPLOYMENT.md`
-* `.github/*.md` (templates, instructions)
+- `*.md` files
+- `README.md`
+- `AGENTS.md`, `RUNBOOK_AGENT.md`, `DEPLOYMENT.md`
+- `.github/*.md` (templates, instructions)
 
 **❌ Forbidden changes (docs-only):**
-* Any source code (`*.py`, `*.js`, `*.ts`, `*.swift`, etc.)
-* CI / infra (`*.yml`, `Dockerfile`, `Makefile`, `requirements*`)
-* Runtime configs or imports
-* **Any change to application behavior**, even if it is a "cleanup" or "revert"
+- Any source code (`*.py`, `*.js`, `*.ts`, `*.swift`, etc.)
+- CI / infra (`*.yml`, `Dockerfile`, `Makefile`, `requirements*`)
+- Runtime configs or imports
+- **Any change to application behavior**, even if it is a "cleanup" or "revert"
 
 **Enforcement checklist (before push):**
 
@@ -365,13 +415,13 @@ git diff --name-only origin/main...HEAD \
   | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$"
 ```
 
-* Output **must be empty**.
-* If any non-doc file appears → **STOP** and revert it from the PR.
+- Output **must be empty**.
+- If any non-doc file appears → **STOP** and revert it from the PR.
 
 **Special note about legacy files:**
-* Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
-* If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
-* Code cleanup related to other PRs **belongs only to that PR**, never to docs PRs.
+- Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
+- If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
+- Code cleanup related to other PRs **belongs only to that PR**, never to docs PRs.
 
 **Rationale:**
 This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
@@ -382,12 +432,14 @@ This rule exists to prevent accidental regressions, keep PR reviews focused and 
 Violation of this rule blocks merge.
 
 ## Known pitfalls
+
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
   Import hygiene guards prevent regression.
 
 ## Duplicate modules / imports policy (critical)
 
 ### Hard rules
+
 - There must be exactly ONE FastAPI app instance used by runtime and tests.
   - Entrypoint: `app.main:app`
   - `app/__init__.py` is a shim only (no dynamic loading).
@@ -400,12 +452,14 @@ Violation of this rule blocks merge.
   - mutating `sys.modules[...] = ...` (except explicitly whitelisted guard cases)
 
 ### Source of truth
+
 - Domain logic → `core/`
 - FastAPI layer → `app/routers/` (thin)
 - Storage adapters → `app/services/` (thin wrappers calling `core/`)
 - Legacy entrypoint → `legacy_app.py` (compat only; no new features here)
 
 ### If you see duplicate behavior
+
 - Do NOT copy logic into a second place.
 - Move shared logic into `core/` and call it from both sides.
 
@@ -414,6 +468,7 @@ Violation of this rule blocks merge.
 If `git push` fails with "failed to push some refs" (conflict):
 
 **Required steps (in order):**
+
 ```bash
 # 1. Fetch latest from remote
 git fetch origin
@@ -434,6 +489,7 @@ git push --force-with-lease
 ```
 
 **Hard rules:**
+
 - ❌ Never use `git push -f` without `--force-with-lease` (unsafe, can overwrite others' work)
 - ❌ Never push after rebase without re-running `make test-fast` and `make cov-check`
 - ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
@@ -441,10 +497,12 @@ git push --force-with-lease
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
 
 **Why force-with-lease:**
+
 - Prevents overwriting remote changes you haven't seen
 - Fails if someone else pushed to your branch (forces you to fetch first)
 
 **Alternative (no force, preferred when branch is polluted):**
+
 - Create a fresh branch from `origin/main` and cherry-pick/squash only relevant commits.
 - Open a new PR from the clean branch; close the old PR as superseded.
 - This avoids force push entirely and keeps history clean without risk of overwriting others' work.
@@ -452,50 +510,62 @@ git push --force-with-lease
 ## Import Hygiene Checklist (must-run before PR / after rebase)
 
 ### Goal
+
 Prevent regressions to dynamic imports / sys.path hacks / sys.modules patching that cause xdist hangs,
 dual-namespace imports, and missing legacy exports.
 
 ### Allowed exceptions
+
 Dynamic import / sys.path.insert is allowed ONLY for standalone script tests:
+
 - `tests/test_test_pro_access_coverage.py`
 - `tests/test_ensure_database_versions.py`
 
 ### 1) No dynamic import patterns in tests (except allowed)
+
 ```bash
 git grep -nE "spec_from_file_location|module_from_spec|exec_module\(" -- tests \
   | grep -vE "test_test_pro_access_coverage\.py|test_ensure_database_versions\.py|conftest\.py" || true
 ```
 
 ### 2) No sys.path.insert in tests (except allowed)
+
 ```bash
 git grep -n "sys\.path\.insert" -- tests \
   | grep -vE "test_test_pro_access_coverage\.py" || true
 ```
 
 ### 3) No sys.modules mutation in tests
+
 ```bash
 git grep -nE "sys\.modules\[[^]]+\]\s*=|del\s+sys\.modules\[" -- tests || true
 ```
 
 ### 4) Verify app shim contract (PEP 562 shim)
+
 `import app` must be a stable facade for legacy surface.
+
 ```bash
 git grep -nE "import legacy_app|app\s*=\s*_legacy\.app|def __getattr__|def __dir__" -- app/__init__.py
 ```
 
 ### 5) Verify TESTING env set before imports in conftest
+
 ```bash
 git grep -nE "TESTING" -- tests/conftest.py
 git grep -nE "import app|import legacy_app|from app import|from legacy_app import" -- tests/conftest.py
 ```
+
 Ensure `TESTING=true` is set BEFORE importing app/legacy_app.
 
 ### 6) Guard tests must pass
+
 ```bash
 pytest -q tests/test_import_hygiene_guard.py tests/test_env_guards.py -q
 ```
 
 ### 7) Export route smoke (only if exports are feature-flagged)
+
 ```bash
 python - <<'PY'
 import os
@@ -508,19 +578,23 @@ PY
 ```
 
 ### Notes
+
 - Never reintroduce `spec.loader.exec_module` in `app/__init__.py`.
 - Prefer package imports: `import app.services.X as X`, not file loading.
 - Do not move sys.path hacks into conftest; localize any script-only needs to the specific test file.
 
 ### 8) Scripts must not use dynamic imports for app internals
+
 ```bash
 git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || true
 ```
+
 - `scripts/` may use `sys.path.insert` for standalone CLI only
 - Scripts must NOT create `Base` or manipulate SQLAlchemy metadata
 - Direct imports from `core`/`app` are allowed if using standard package imports
 
 ## Links to module instructions
+
 - `app/AGENTS.md`
 - `core/AGENTS.md`
 - `frontend/AGENTS.md`
@@ -530,6 +604,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - `tests/AGENTS.md`
 
 ## Deployment docs
+
 - `DEPLOYMENT.md` → `docs/deploy/README.md`
 
 ---
@@ -537,6 +612,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 ## AGENTS Update Rule (Canonical)
 
 ### Purpose
+
 Prevent instruction drift, duplication, and conflicting rules across agents.
 There must be a **single source of truth** for each class of instruction.
 
@@ -574,6 +650,7 @@ There must be a **single source of truth** for each class of instruction.
    - Do not overload AGENTS with runbook-level detail.
 
 ### Non-goals
+
 - AGENTS files are NOT changelogs.
 - AGENTS files are NOT PR notes.
 - AGENTS files must remain stable and auditable.
