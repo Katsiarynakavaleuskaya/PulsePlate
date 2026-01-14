@@ -26,6 +26,21 @@ Remove setuptools from runtime image after installing dependencies. setuptools i
 - ✅ Docker build should succeed
 - ✅ Smoke tests should pass
 
+**Local verification (optional):**
+```bash
+# Build production image
+docker build -t pulseplate:test --target production .
+
+# Verify setuptools is removed
+docker run --rm pulseplate:test python -c "import setuptools" 2>&1 | grep -q "No module named setuptools" && echo "✅ PASS" || echo "❌ FAIL"
+```
+
+**If security alert #502 doesn't close after merge:**
+
+1. Check alert details: "Detected in" field (image vs filesystem/SBOM)
+2. If scanning filesystem/SBOM (not runtime image): Dismiss with reason "Not present in runtime image; build-time only; removed in Dockerfile"
+3. If scanning wrong stage: Update CI workflow to scan `production` stage only
+
 ## Related
 
 - Security alert: #502
