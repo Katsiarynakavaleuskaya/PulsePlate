@@ -239,7 +239,7 @@ class TestAsyncAndBackgroundTasks:
         for endpoint in ["/health", "/healthz", "/live"]:
             response = client.get(endpoint)
             assert response.status_code in [200, 404, 405]
-        
+
         # /ready is a readiness probe - may return 503 if DB unavailable
         response = client.get("/ready")
         assert response.status_code in [200, 404, 405, 503]
