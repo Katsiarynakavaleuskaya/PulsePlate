@@ -133,3 +133,68 @@ class TestBMIProAPI:
         assert "bmi" in result
         assert "whtr" in result
         assert result["bmi"] == pytest.approx(22.9, 0.1)
+
+    def test_bmi_pro_legacy_alias_guard_called_once(self) -> None:
+        """Test that require_pro_tier guard is NOT duplicated (static check).
+
+        This prevents regression if guard gains side effects (logging, metrics, rate limits).
+        We verify statically that guard is only in function parameter, not in decorator dependencies.
+
+        Note: Runtime call counting is difficult with FastAPI's dependency injection system,
+        so we use static analysis of the route definition and function signature.
+        """
+        import inspect
+
+        from app.routers.bmi_pro_legacy_alias import bmi_pro_legacy_alias as handler_func
+
+        # Check function signature: guard should be in parameter, not duplicated
+        sig = inspect.signature(handler_func)
+        param_guard_count = len(
+            [p for p in sig.parameters.values() if "require_pro_tier" in str(p.default)]
+        )
+
+        assert param_guard_count == 1, (
+            f"Legacy alias handler has {param_guard_count} require_pro_tier guards "
+            "in function parameters. Expected exactly 1 (no duplication)."
+        )
+
+        # Check source code: decorator should NOT have dependencies=[Depends(require_pro_tier)]
+        import inspect as inspect_module
+        import re
+
+        # Get source of the entire module to check decorator
+        from app.routers import bmi_pro_legacy_alias
+
+        module_source = inspect_module.getsource(bmi_pro_legacy_alias)
+        # Remove comments to avoid false positives (comment mentions the pattern)
+        lines = module_source.split("\n")
+        code_lines = [line for line in lines if not line.strip().startswith("#")]
+        code_source = "\n".join(code_lines)
+
+        # Look for dependencies=[Depends(require_pro_tier)] in @router.post decorator context
+        # Pattern: @router.post(... dependencies=[Depends(require_pro_tier)] ...)
+        decorator_pattern = r"@router\.post\([^)]*dependencies\s*=\s*\[.*require_pro_tier.*\]"
+        decorator_matches = re.findall(decorator_pattern, code_source, re.DOTALL)
+
+        assert len(decorator_matches) == 0, (
+            f"Legacy alias decorator has {len(decorator_matches)} require_pro_tier dependencies. "
+            "Guard should only be in function parameter to avoid double invocation. "
+            f"Found matches: {decorator_matches}"
+        )
+
+        # Functional test: verify endpoint still works correctly
+        data = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "sex": "male",
+            "waist_cm": 85.0,
+            "hip_cm": 100.0,
+            "bodyfat_percent": 20.0,
+            "lang": "en",
+        }
+
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+        )
+        assert response.status_code == 200
