@@ -1,5 +1,5 @@
 """
-Comprehensive tests for core/bmi_extras_pro.py - Advanced BMI metrics.
+Comprehensive tests for core/bmi_extras.py (Pro tier) - Advanced BMI metrics.
 
 Tests cover:
 - Waist-to-Height Ratio (WHtR) calculation and interpretation
@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import pytest
-from core.bmi_extras_pro import (
+from core.bmi_extras import (
     wht_ratio,
     whr_ratio,
     ffmi,

@@ -243,6 +243,80 @@ def stage_obesity(
     }
 
 
+def stage_obesity_optional_whr(
+    bmi: float,
+    wht: float,
+    whr: Optional[float],
+    sex: Literal["male", "female"],
+    lang: str,
+) -> Dict[str, str]:
+    """Stage obesity based on multiple metrics with optional WHR.
+
+    PRO tier staging that handles missing WHR data correctly.
+    If WHR is missing, do NOT treat it as low risk; mark WHR as "unknown"
+    and exclude from risk_factors calculation.
+
+    Args:
+        bmi: Body Mass Index
+        wht: Waist-to-Height Ratio
+        whr: Waist-to-Hip Ratio (optional - None if hip_cm not provided)
+        sex: Biological sex
+        lang: Language for recommendations
+
+    Returns:
+        Dictionary with staging information and recommendations
+    """
+    # Get WHtR interpretation (always available)
+    wht_interpretation = interpret_wht_ratio(wht, lang)  # type: ignore
+
+    # WHR interpretation - only if data available
+    whr_risk = "unknown"
+    if whr is not None:
+        whr_interpretation = interpret_whr_ratio(whr, sex, lang)
+        whr_risk = whr_interpretation["risk"]
+
+    # Determine overall staging - only count WHR if data available
+    risk_factors = 0
+    if bmi >= 30:  # Obese
+        risk_factors += 1
+    if wht >= 0.5:  # High WHtR risk
+        risk_factors += 1
+    if whr is not None:
+        # Only count WHR risk factor if we have actual data
+        if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):
+            risk_factors += 1
+
+    if risk_factors >= 2:
+        stage = "high_risk"
+        recommendation = (
+            "Consider consulting with a healthcare professional for comprehensive assessment"
+        )
+    elif risk_factors == 1:
+        stage = "moderate_risk"
+        recommendation = t(lang, "recommendation_monitor_health")  # type: ignore
+    else:
+        stage = "low_risk"
+        recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
+
+    if bmi >= 30:
+        bmi_category = "obese"
+    elif bmi >= 25:
+        bmi_category = "overweight"
+    elif bmi >= 18.5:
+        bmi_category = "normal"
+    else:
+        bmi_category = "underweight"
+
+    return {
+        "stage": stage,
+        "risk_factors": str(risk_factors),
+        "recommendation": recommendation,
+        "bmi_category": bmi_category,
+        "wht_risk": wht_interpretation["risk"],
+        "whr_risk": whr_risk,
+    }
+
+
 # ============================================================================
 # Free/Simple Tier - Simplified versions for basic BMI calculations
 # ============================================================================

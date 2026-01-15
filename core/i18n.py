@@ -48,6 +48,8 @@ TRANSLATIONS = {
         "form_waist": "Талия (см)",
         "form_hip": "Бедра (см)",
         "form_bodyfat": "Процент жира (%)",
+        # BMI Pro - Missing data notes
+        "bmi_pro_whr_missing_hip": "WHR не рассчитан: нет окружности бёдер (hip_cm). Оценка риска выполнена только по BMI и WHtR.",
         "form_calculate": "Рассчитать",
         "form_male": "Мужской",
         "form_female": "Женский",
@@ -150,6 +152,8 @@ TRANSLATIONS = {
         "form_waist": "Waist (cm)",
         "form_hip": "Hip (cm)",
         "form_bodyfat": "Body Fat %",
+        # BMI Pro - Missing data notes
+        "bmi_pro_whr_missing_hip": "WHR not computed: missing hip_cm. Risk assessment performed using BMI and WHtR only.",
         "form_calculate": "Calculate",
         "form_male": "Male",
         "form_female": "Female",
@@ -245,6 +249,8 @@ TRANSLATIONS = {
         "form_waist": "Cintura (cm)",
         "form_hip": "Cadera (cm)",
         "form_bodyfat": "Grasa Corporal %",
+        # BMI Pro - Missing data notes
+        "bmi_pro_whr_missing_hip": "WHR no calculado: falta hip_cm. Evaluación de riesgo realizada solo con BMI y WHtR.",
         "form_calculate": "Calcular",
         "form_male": "Masculino",
         "form_female": "Femenino",

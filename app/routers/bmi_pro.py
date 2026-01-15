@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from core.bmi_extras import (
     BMIProCard,
     ffmi,
-    stage_obesity,
+    stage_obesity_optional_whr,
     whr_ratio,
     wht_ratio,
 )
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
 
 def _adapt_pro_stage_to_response(
-    stage_dict: dict[str, str], whr: float | None  # noqa: ARG001
+    stage_dict: dict[str, str], whr: float | None, lang: str  # noqa: ARG001
 ) -> tuple[Literal["low", "moderate", "high"], list[str]]:
     """Adapt Pro tier stage_obesity Dict response to BMIProResponse format.
 
@@ -71,6 +71,11 @@ def _adapt_pro_stage_to_response(
         notes.append(f"WHtR risk: {wht_risk}")
     if whr_risk and whr_risk != "low":
         notes.append(f"WHR risk: {whr_risk}")
+    # If WHR is missing (unknown), add note explaining missing data
+    if whr_risk == "unknown":
+        from core.i18n import t
+
+        notes.append(t(lang, "bmi_pro_whr_missing_hip"))
 
     return risk_level, notes
 
@@ -105,13 +110,8 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
         # Use Pro tier functions exclusively (no mixing with Free/Simple tier)
         v_whtr = wht_ratio(req.waist_cm, req.height_cm)  # Pro: 3 decimal places
-        # Pro tier whr_ratio requires hip_cm, but response allows Optional
-        # Use 0.0 as placeholder for stage_obesity calculation if hip_cm is None
-        v_whr_calc = (
-            whr_ratio(req.waist_cm, float(req.hip_cm), req.sex)
-            if req.hip_cm is not None
-            else 0.0  # Pro tier stage_obesity requires whr (not Optional)
-        )
+        # Pro tier whr_ratio requires hip_cm; if missing, WHR is None (not 0.0)
+        # Do NOT substitute 0.0 - missing data must be treated as "unknown", not "low risk"
         v_whr = (
             whr_ratio(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
         )
@@ -122,12 +122,13 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
             if req.bodyfat_percent is not None
             else ffmi(req.weight_kg, req.height_cm)["ffmi"]  # Estimate mode
         )
-        # Pro tier stage_obesity returns Dict[str, str], adapt to BMIProResponse format
-        stage_dict = stage_obesity(
-            bmi=bmi_val, wht=v_whtr, whr=v_whr_calc, sex=req.sex, lang=req.lang
+        # Pro tier stage_obesity_optional_whr handles missing WHR correctly
+        # Returns whr_risk="unknown" if whr is None (not "low")
+        stage_dict = stage_obesity_optional_whr(
+            bmi=bmi_val, wht=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang
         )
         # Adapt Pro tier Dict response to BMIProResponse format (risk_level, notes)
-        risk_level, notes = _adapt_pro_stage_to_response(stage_dict, v_whr)
+        risk_level, notes = _adapt_pro_stage_to_response(stage_dict, v_whr, req.lang)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     card = BMIProCard(

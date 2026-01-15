@@ -5,7 +5,7 @@ import pytest
 
 
 def test_bmi_extras_pro_functions_and_errors():
-    from core import bmi_extras_pro as pro
+    from core import bmi_extras as pro
 
     # WHtR normal
     assert pro.wht_ratio(80, 200) == 0.4
@@ -54,7 +54,7 @@ def test_bmi_extras_pro_functions_and_errors():
 
 
 def test_bmi_extras_pro_low_risk_and_moderate_stage():
-    from core import bmi_extras_pro as pro
+    from core import bmi_extras as pro
 
     # Low risk branches for WHR
     assert pro.interpret_whr_ratio(0.94, "male", "en")["risk"] == "low"
