@@ -2,28 +2,29 @@
 
 from __future__ import annotations
 
-import os
+import pytest
 from fastapi.testclient import TestClient
-
-from app import app
 
 
 class TestAPISpanish:
     """Test API endpoints with Spanish language support."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app)
-        # Use pro_headers fixture value (consistent with other PRO tests)
-        from app.middleware.api_tiers import TEST_KEY_PRO
+    client: TestClient
+    pro_headers: dict[str, str]
 
-        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        self.client = client
+        self.pro_headers = pro_headers
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+        # Environment cleanup handled by monkeypatch fixture
+        pass
 
     def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""

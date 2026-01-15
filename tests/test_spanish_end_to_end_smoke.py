@@ -7,34 +7,30 @@ across the entire application in a realistic scenario.
 
 from __future__ import annotations
 
-import os
-from typing import cast
-
 import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
-
-# Import the FastAPI app from app.py file
-from app import app
 
 
 @pytest.mark.slow
 class TestSpanishEndToEndSmoke:
     """End-to-end smoke test for Spanish language support."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(cast(ASGIApp, app))
-        # Use pro_headers fixture value (consistent with other PRO tests)
-        from app.middleware.api_tiers import TEST_KEY_PRO
+    client: TestClient
+    pro_headers: dict[str, str]
 
-        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        self.client = client
+        self.pro_headers = pro_headers
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+        # Environment cleanup handled by monkeypatch fixture
+        pass
 
     def test_spanish_end_to_end_workflow(self) -> None:
         """Test a complete workflow using Spanish language."""
