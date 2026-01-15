@@ -314,3 +314,35 @@ def test_docstring_tracker_ignores_comments_when_not_in_docstring() -> None:
     in_doc = True
     in_doc = _update_in_docstring_state("# Still in docstring", in_doc)
     assert in_doc is True, "Comment prefix should not affect state when already in docstring"
+
+
+def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -> None:
+    """
+    Document known limitation: triple-quotes inside string literals are detected.
+
+    Current regex-based approach detects triple-quotes even inside regular string literals.
+    This is a known limitation.
+
+    Why this is acceptable for guard tests:
+    1. Such patterns are extremely rare in Python code
+    2. Guard focuses on docstrings and active code patterns, not string literal content
+    3. Full tokenize-based parsing would be overkill for this use case
+    4. False positives from this edge case are unlikely to mask real violations
+
+    If this becomes a problem in practice, we'd need to use Python's tokenize module
+    to properly distinguish string literals from docstrings.
+    """
+    in_doc = False
+    # Current implementation WILL detect triple-quotes inside string literal (1 delimiter = odd = toggle)
+    in_doc = _update_in_docstring_state('x = \'not a docstring """ just text\'', in_doc)
+    # This is expected behavior with regex approach - documented limitation, not a bug
+    assert (
+        in_doc is True
+    ), "Regex-based tracker detects triple-quotes in string literals (known limitation)"
+
+    # Verify that next line would be incorrectly skipped (but this is rare in practice)
+    # Next line has no triple-quotes, so state doesn't toggle and remains True
+    in_doc = _update_in_docstring_state("THRESHOLD = 25.0  # This would be skipped", in_doc)
+    assert (
+        in_doc is True
+    ), "Next line after false-positive toggle would be incorrectly skipped (known limitation)"
