@@ -96,5 +96,5 @@ class TestAPISpanish:
         assert "bmi" in result
         assert "category" in result
 
-        # Check that the summary is in Spanish
-        assert "plan" in result["summary"].lower() or "plan" in result["summary"].lower()
+        # Check that the summary contains plan information
+        assert "plan" in result["summary"].lower()
