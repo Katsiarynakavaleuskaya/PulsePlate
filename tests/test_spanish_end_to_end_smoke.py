@@ -16,7 +16,6 @@ from starlette.types import ASGIApp
 
 # Import the FastAPI app from app.py file
 from app import app
-from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 @pytest.mark.slow
@@ -27,6 +26,9 @@ class TestSpanishEndToEndSmoke:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(cast(ASGIApp, app))
+        # Use pro_headers fixture value (consistent with other PRO tests)
+        from app.middleware.api_tiers import TEST_KEY_PRO
+
         self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
 
     def teardown_method(self) -> None:

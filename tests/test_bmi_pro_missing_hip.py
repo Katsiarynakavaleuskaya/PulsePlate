@@ -39,6 +39,7 @@ def test_bmi_pro_missing_hip_cm(
     response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
 
     # WHR must be None (not 0.0 or any number)
@@ -68,6 +69,7 @@ def test_bmi_pro_with_hip_cm(client: TestClient, pro_headers: dict[str, str]) ->
     response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
 
     # WHR should be calculated (not None)
@@ -97,6 +99,7 @@ def test_bmi_pro_missing_hip_high_risk(client: TestClient, pro_headers: dict[str
     response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
 
     # WHR must be None
@@ -124,6 +127,7 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown(
     response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
 
     # Notes should contain missing hip explanation
@@ -149,6 +153,7 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_low(
     response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
 
     # Notes should NOT contain "not computed" or "missing" for WHR

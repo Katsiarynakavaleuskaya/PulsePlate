@@ -89,6 +89,10 @@ TRANSLATIONS = {
         "bmi_pro_moderate_risk": "Умеренный",
         "bmi_pro_high_risk": "Высокий",
         "bmi_pro_analysis_complete": "Анализ BMI Pro завершен",
+        # BMI Pro Notes (risk factors and assessments)
+        "bmi_pro_risk_factors": "Факторы риска: {count}",
+        "bmi_pro_wht_risk": "WHtR риск: {risk}",
+        "bmi_pro_whr_risk": "WHR риск: {risk}",
         # Recommendations
         "recommendation_consult_healthcare": "Рассмотрите возможность консультации с "
         "медицинским специалистом для комплексной оценки",
@@ -193,6 +197,10 @@ TRANSLATIONS = {
         "bmi_pro_moderate_risk": "Moderate",
         "bmi_pro_high_risk": "High",
         "bmi_pro_analysis_complete": "BMI Pro analysis complete",
+        # BMI Pro Notes (risk factors and assessments)
+        "bmi_pro_risk_factors": "Risk factors: {count}",
+        "bmi_pro_wht_risk": "WHtR risk: {risk}",
+        "bmi_pro_whr_risk": "WHR risk: {risk}",
         # Recommendations
         "recommendation_consult_healthcare": "Consider consulting with a healthcare "
         "professional for comprehensive assessment",
@@ -291,6 +299,10 @@ TRANSLATIONS = {
         "bmi_pro_moderate_risk": "Moderado",
         "bmi_pro_high_risk": "Alto",
         "bmi_pro_analysis_complete": "Análisis de IMC Pro completado",
+        # BMI Pro Notes (risk factors and assessments)
+        "bmi_pro_risk_factors": "Factores de riesgo: {count}",
+        "bmi_pro_wht_risk": "Riesgo WHtR: {risk}",
+        "bmi_pro_whr_risk": "Riesgo WHR: {risk}",
         # Recommendations
         "recommendation_consult_healthcare": "Considera consultar con un profesional "
         "de la salud para una evaluación completa",

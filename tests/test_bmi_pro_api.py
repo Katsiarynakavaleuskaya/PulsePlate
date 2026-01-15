@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app from app package
 from app import app
-from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestBMIProAPI:
@@ -21,6 +20,10 @@ class TestBMIProAPI:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
+        # Import here to avoid circular dependency
+        from app.middleware.api_tiers import TEST_KEY_PRO
+
+        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -40,9 +43,7 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/pro/bmi", json=data, headers={"X-API-Key": TEST_KEY_PRO}
-        )
+        response = self.client.post("/api/v1/pro/bmi", json=data, headers=self.pro_headers)
         assert response.status_code == 200
 
         result = response.json()
@@ -66,9 +67,7 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/pro/bmi", json=data, headers={"X-API-Key": TEST_KEY_PRO}
-        )
+        response = self.client.post("/api/v1/pro/bmi", json=data, headers=self.pro_headers)
         assert response.status_code == 200
 
         result = response.json()
@@ -91,9 +90,7 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/pro/bmi", json=data, headers={"X-API-Key": TEST_KEY_PRO}
-        )
+        response = self.client.post("/api/v1/pro/bmi", json=data, headers=self.pro_headers)
         assert response.status_code == 422  # Validation error
 
     def test_bmi_pro_endpoint_missing_api_key(self) -> None:
@@ -124,9 +121,7 @@ class TestBMIProAPI:
         }
 
         # Legacy path should still work with Pro key
-        response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
-        )
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers=self.pro_headers)
         assert response.status_code == 200
 
         result = response.json()
@@ -159,13 +154,12 @@ class TestBMIProAPI:
         )
 
         # Check source code: decorator should NOT have dependencies=[Depends(require_pro_tier)]
-        import inspect as inspect_module
         import re
 
         # Get source of the entire module to check decorator
         from app.routers import bmi_pro_legacy_alias
 
-        module_source = inspect_module.getsource(bmi_pro_legacy_alias)
+        module_source = inspect.getsource(bmi_pro_legacy_alias)
         # Remove comments to avoid false positives (comment mentions the pattern)
         lines = module_source.split("\n")
         code_lines = [line for line in lines if not line.strip().startswith("#")]
@@ -194,7 +188,5 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
-        )
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers=self.pro_headers)
         assert response.status_code == 200

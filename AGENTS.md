@@ -434,10 +434,10 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
 - **Tests must not mutate `os.environ` directly** — use `monkeypatch.setenv` (prefer an `autouse` fixture for class-level suites).
 - **Type hints required for all new or modified functions** (including tests).
- - OK: `def test_x(vip_headers: dict[str, str]) -> None:` or `def test_x(pro_headers: dict[str, str]) -> None:`
- - Not OK: `def test_x(vip_headers):` (missing types)
- - When unsure: prefer explicit `-> None` for test functions.
- - **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
+- OK: `def test_x(vip_headers: dict[str, str]) -> None:` or `def test_x(pro_headers: dict[str, str]) -> None:`
+- Not OK: `def test_x(vip_headers):` (missing types)
+- When unsure: prefer explicit `-> None` for test functions.
+- **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
 - **VIP guard matrix lives in `tests/test_vip_tier_guard_matrix.py`** — do not duplicate this matrix in other vip_* tests.
 - **sys.modules mutation forbidden** — use `monkeypatch.delitem(sys.modules, name, raising=False)` and `monkeypatch.setitem(sys.modules, name, value)` instead of direct `del sys.modules[...]` or `sys.modules[...] = ...`.
 - **Env vars set in tests must be cleaned in teardown** — all variables set in `setup_method` must be popped/restored in `teardown_method` to prevent xdist pollution.

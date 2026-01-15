@@ -64,20 +64,20 @@ def _adapt_pro_stage_to_response(
     # Add risk factor information if available
     risk_factors = stage_dict.get("risk_factors")
     if risk_factors and risk_factors != "0":
-        notes.append(f"Risk factors: {risk_factors}")
+        notes.append(t(lang, "bmi_pro_risk_factors", count=risk_factors))  # type: ignore
 
     # Add individual risk assessments (wht_risk, whr_risk) if available
     # These provide additional context from Pro tier analysis
     wht_risk = stage_dict.get("wht_risk")
     whr_risk = stage_dict.get("whr_risk")
     if wht_risk and wht_risk != "low":
-        notes.append(f"WHtR risk: {wht_risk}")
+        notes.append(t(lang, "bmi_pro_wht_risk", risk=wht_risk))  # type: ignore
 
     # WHR: if unknown (missing hip), show only the translated explanation (no duplicate "WHR risk: unknown")
     if whr_risk == "unknown":
         notes.append(t(lang, "bmi_pro_whr_missing_hip"))
     elif whr_risk and whr_risk != "low":
-        notes.append(f"WHR risk: {whr_risk}")
+        notes.append(t(lang, "bmi_pro_whr_risk", risk=whr_risk))  # type: ignore
 
     return risk_level, notes
 

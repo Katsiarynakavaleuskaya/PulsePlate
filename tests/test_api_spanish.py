@@ -6,7 +6,6 @@ import os
 from fastapi.testclient import TestClient
 
 from app import app
-from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestAPISpanish:
@@ -16,6 +15,9 @@ class TestAPISpanish:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
+        # Use pro_headers fixture value (consistent with other PRO tests)
+        from app.middleware.api_tiers import TEST_KEY_PRO
+
         self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
 
     def teardown_method(self) -> None:
