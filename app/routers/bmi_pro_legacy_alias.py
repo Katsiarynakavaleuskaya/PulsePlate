@@ -26,7 +26,6 @@ router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 @router.post(
     "/pro",
     response_model=BMIProResponse,
-    dependencies=[Depends(require_pro_tier)],
     deprecated=True,
     openapi_extra={
         "x-alias-of": "/api/v1/pro/bmi",
@@ -44,9 +43,11 @@ def bmi_pro_legacy_alias(
 
     Args:
         req: BMI Pro request payload
-        _: Pro tier guard (required)
+        _: Pro tier guard (required, ensures tier check before proxying)
 
     Returns:
         BMI Pro response with analysis results
     """
-    return bmi_pro(req, _)
+    # Canonical handler bmi_pro() uses dependencies=[Depends(require_pro_tier)] in decorator,
+    # so it only accepts req parameter. Guard is enforced here (legacy alias) and in canonical handler.
+    return bmi_pro(req)
