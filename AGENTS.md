@@ -428,21 +428,23 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 ### Testing tier guards (VIP/PRO endpoints)
 
 - **All tests that call VIP endpoints and expect 200/422/404 MUST use valid VIP key** (`vip_headers` fixture from `tests/conftest.py`).
+- **All tests that call PRO endpoints and expect 200/422/404 MUST use valid PRO key** (`pro_headers` fixture from `tests/conftest.py`).
+- **PRO tier guard is mandatory** — all PRO endpoints MUST enforce `require_pro_tier` dependency. Tests without `pro_headers` will receive 401/403 (guard enforced before payload validation).
 - **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
 - **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
 - **Tests must not mutate `os.environ` directly** — use `monkeypatch.setenv` (prefer an `autouse` fixture for class-level suites).
 - **Type hints required for all new or modified functions** (including tests).
-  - OK: `def test_x(vip_headers: dict[str, str]) -> None:`
-  - Not OK: `def test_x(vip_headers):` (missing types)
-  - When unsure: prefer explicit `-> None` for test functions.
-  - **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
+ - OK: `def test_x(vip_headers: dict[str, str]) -> None:` or `def test_x(pro_headers: dict[str, str]) -> None:`
+ - Not OK: `def test_x(vip_headers):` (missing types)
+ - When unsure: prefer explicit `-> None` for test functions.
+ - **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
 - **VIP guard matrix lives in `tests/test_vip_tier_guard_matrix.py`** — do not duplicate this matrix in other vip_* tests.
 - **sys.modules mutation forbidden** — use `monkeypatch.delitem(sys.modules, name, raising=False)` and `monkeypatch.setitem(sys.modules, name, value)` instead of direct `del sys.modules[...]` or `sys.modules[...] = ...`.
 - **Env vars set in tests must be cleaned in teardown** — all variables set in `setup_method` must be popped/restored in `teardown_method` to prevent xdist pollution.
 - **Dependency override pattern:**
-  - If test overrides `require_vip_tier` dependency → do NOT send `vip_headers` (guard is bypassed)
-  - If test name includes `_with_guard_bypassed` → override is intentional for business logic testing
-  - If test name does NOT include bypass marker → no overrides, use real keys
+ - If test overrides `require_vip_tier` or `require_pro_tier` dependency → do NOT send `vip_headers`/`pro_headers` (guard is bypassed)
+ - If test name includes `_with_guard_bypassed` → override is intentional for business logic testing
+ - If test name does NOT include bypass marker → no overrides, use real keys
 - **Forbidden:** Testing private `_require_*` functions from routers — use behavioral tests through `TestClient` + middleware.
 - **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).

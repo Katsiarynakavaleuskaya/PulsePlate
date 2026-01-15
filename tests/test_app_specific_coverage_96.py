@@ -37,7 +37,10 @@ class TestAppSpecificCoverage96:
         """Test metrics endpoint when prometheus is not available (line 606)."""
         response = self.client.get("/metrics")
 
-        # If endpoint is not mounted in this configuration, skip test explicitly
+        # If endpoint is not mounted in this configuration, skip test explicitly.
+        # This can happen in CI/test environments where app.middleware_stack is already built
+        # before register_metrics() is called (Starlette forbids adding routes after first request).
+        # The endpoint is registered in app/main.py, but test fixtures may use pre-initialized app instances.
         if response.status_code == 404:
             pytest.skip("/metrics endpoint is not registered in this app configuration")
 
@@ -57,7 +60,10 @@ class TestAppSpecificCoverage96:
         # Test metrics endpoint - it may return error if Prometheus is not available
         response = self.client.get("/metrics")
 
-        # If endpoint is not mounted in this configuration, skip test explicitly
+        # If endpoint is not mounted in this configuration, skip test explicitly.
+        # This can happen in CI/test environments where app.middleware_stack is already built
+        # before register_metrics() is called (Starlette forbids adding routes after first request).
+        # The endpoint is registered in app/main.py, but test fixtures may use pre-initialized app instances.
         if response.status_code == 404:
             pytest.skip("/metrics endpoint is not registered in this app configuration")
 
