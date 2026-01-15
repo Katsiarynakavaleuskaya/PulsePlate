@@ -50,6 +50,7 @@ from app.dependencies import validate_template_dir
 from app.routers.api_key import api_key_header
 from app.routers.bmi import router as bmi_router
 from app.routers.bmi_pro import router as bmi_pro_router
+from app.routers.bmi_pro_legacy_alias import router as bmi_pro_legacy_alias_router
 from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
@@ -5550,7 +5551,11 @@ if get_bodyfat_router is not None:
 _bmi_pro_flag = os.getenv("FEATURE_BMI_PRO_ENABLED")
 FEATURE_BMI_PRO_ENABLED = _is_truthy(_bmi_pro_flag) if _bmi_pro_flag is not None else False
 if FEATURE_BMI_PRO_ENABLED and bmi_pro_router:
+    # Register canonical PRO endpoint: /api/v1/pro/bmi
     app.include_router(bmi_pro_router)
+    # Register legacy shim for backward compatibility: /api/v1/bmi/pro (deprecated)
+    if bmi_pro_legacy_alias_router:
+        app.include_router(bmi_pro_legacy_alias_router)
 
 # Include BMI router (FREE tier, no API key required)
 app.include_router(bmi_router)

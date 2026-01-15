@@ -25,7 +25,7 @@ from core.bmi.engine import _compute_bmi as calc_bmi
 from core.i18n import Language, t
 
 
-router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
+router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
 
 
 def _adapt_pro_stage_to_response(
@@ -105,7 +105,7 @@ class BMIProResponse(BaseModel):
     notes: list[str]
 
 
-@router.post("/pro", response_model=BMIProResponse)
+@router.post("/bmi", response_model=BMIProResponse)
 def bmi_pro(req: BMIProRequest, _: str = Depends(require_pro_tier)) -> BMIProResponse:
     try:
         # Convert height to meters for calc_bmi(weight, height_m)

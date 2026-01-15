@@ -36,7 +36,7 @@ def test_bmi_pro_missing_hip_cm(
         "lang": lang,
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
+    response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -65,7 +65,7 @@ def test_bmi_pro_with_hip_cm(client: TestClient, pro_headers: dict[str, str]) ->
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
+    response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -94,7 +94,7 @@ def test_bmi_pro_missing_hip_high_risk(client: TestClient, pro_headers: dict[str
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
+    response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -121,7 +121,7 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown(
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
+    response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -146,7 +146,7 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_low(
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
+    response = client.post("/api/v1/pro/bmi", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()

@@ -7,7 +7,7 @@ EN: Tests for BMI Pro router.
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -30,7 +30,7 @@ class TestBMIProRouter:
     def test_bmi_pro_success_basic(self) -> None:
         """Test BMI Pro endpoint with basic data."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -55,7 +55,7 @@ class TestBMIProRouter:
     def test_bmi_pro_success_with_hip(self) -> None:
         """Test BMI Pro endpoint with hip measurement."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -75,7 +75,7 @@ class TestBMIProRouter:
     def test_bmi_pro_success_with_bodyfat(self) -> None:
         """Test BMI Pro endpoint with body fat percentage."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -95,7 +95,7 @@ class TestBMIProRouter:
     def test_bmi_pro_success_russian(self) -> None:
         """Test BMI Pro endpoint with Russian language."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -115,7 +115,7 @@ class TestBMIProRouter:
         """Test BMI Pro endpoint validation errors."""
         # Test negative height
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": -170.0,
                 "weight_kg": 70.0,
@@ -129,7 +129,7 @@ class TestBMIProRouter:
 
         # Test negative weight
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": -70.0,
@@ -143,7 +143,7 @@ class TestBMIProRouter:
 
         # Test invalid age
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={"height_cm": 170.0, "weight_kg": 70.0, "sex": "male", "age": 5, "waist_cm": 80.0},
             headers=self.pro_headers,
         )
@@ -151,7 +151,7 @@ class TestBMIProRouter:
 
         # Test invalid sex
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -167,7 +167,7 @@ class TestBMIProRouter:
         """Test BMI Pro endpoint with missing required fields."""
         # Missing height
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={"weight_kg": 70.0, "sex": "male", "age": 30, "waist_cm": 80.0},
             headers=self.pro_headers,
         )
@@ -175,19 +175,19 @@ class TestBMIProRouter:
 
         # Missing weight
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={"height_cm": 170.0, "sex": "male", "age": 30, "waist_cm": 80.0},
             headers=self.pro_headers,
         )
         assert response.status_code == 422
 
     @patch("app.routers.bmi_pro.calc_bmi")
-    def test_bmi_pro_calculation_error(self, mock_calc_bmi) -> None:
+    def test_bmi_pro_calculation_error(self, mock_calc_bmi: MagicMock) -> None:
         """Test BMI Pro endpoint with calculation error."""
         mock_calc_bmi.side_effect = ValueError("Invalid calculation")
 
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,

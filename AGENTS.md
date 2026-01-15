@@ -449,13 +449,15 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
 - **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
+- **Legacy deprecated aliases:** Tests should use canonical paths (`/api/v1/pro/bmi`), not deprecated aliases (`/api/v1/bmi/pro`). One test per deprecated alias is sufficient to verify backward compatibility.
 
 ### API namespace policy
 
 - **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
 - **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
+- **Legacy aliases:** Deprecated endpoints in wrong namespace (e.g., `/api/v1/bmi/pro` for PRO tier) must be implemented as thin shims delegating to canonical endpoints. Both canonical and legacy paths must be guarded with appropriate tier dependencies.
 - **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
-- **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` is FREE tier, not PRO).
+- **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` router can be PRO tier if it uses `/api/v1/pro/*` namespace).
 - **Frontend must not call `/api/v1/premium/*` endpoints** — use canonical `/api/v1/pro/*` or `/api/v1/vip/*` instead. Deprecated premium endpoints may be removed in future releases.
 
 ### Tier enforcement

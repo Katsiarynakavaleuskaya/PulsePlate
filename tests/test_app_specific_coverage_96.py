@@ -5,7 +5,6 @@ This module targets the specific uncovered lines identified in the coverage repo
 """
 
 import os
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -468,7 +467,7 @@ class TestAppSpecificCoverage96:
         if flag is not None and flag.lower() not in {"1", "true", "yes", "on"}:
             pytest.skip("BMI Pro endpoint disabled by BMI_PRO_ENABLED")
 
-        response = self.client.post("/api/v1/bmi/pro", json=payload)
+        response = self.client.post("/api/v1/pro/bmi", json=payload)
 
         # If endpoint is not mounted in this configuration, skip test explicitly
         if response.status_code == 404:

@@ -5,7 +5,6 @@ Tests for BMI Pro API endpoint.
 from __future__ import annotations
 
 import os
-import sys
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,7 +41,7 @@ class TestBMIProAPI:
         }
 
         response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+            "/api/v1/pro/bmi", json=data, headers={"X-API-Key": TEST_KEY_PRO}
         )
         assert response.status_code == 200
 
@@ -68,7 +67,7 @@ class TestBMIProAPI:
         }
 
         response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+            "/api/v1/pro/bmi", json=data, headers={"X-API-Key": TEST_KEY_PRO}
         )
         assert response.status_code == 200
 
@@ -93,7 +92,7 @@ class TestBMIProAPI:
         }
 
         response = self.client.post(
-            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+            "/api/v1/pro/bmi", json=data, headers={"X-API-Key": TEST_KEY_PRO}
         )
         assert response.status_code == 422  # Validation error
 
@@ -108,5 +107,29 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data)
+        response = self.client.post("/api/v1/pro/bmi", json=data)
         assert response.status_code in (401, 403)  # Pro tier guard requires API key
+
+    def test_bmi_pro_legacy_alias_still_works(self) -> None:
+        """Test that deprecated legacy alias /api/v1/bmi/pro still works (backward compatibility)."""
+        data = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "sex": "male",
+            "waist_cm": 85.0,
+            "hip_cm": 100.0,
+            "bodyfat_percent": 20.0,
+            "lang": "en",
+        }
+
+        # Legacy path should still work with Pro key
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+        )
+        assert response.status_code == 200
+
+        result = response.json()
+        assert "bmi" in result
+        assert "whtr" in result
+        assert result["bmi"] == pytest.approx(22.9, 0.1)

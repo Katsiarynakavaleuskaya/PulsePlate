@@ -110,7 +110,7 @@ class TestAPIEndToEndSpanish:
         """Test BMI Pro endpoint with Spanish language."""
         # Test BMI Pro calculation with Spanish language
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "weight_kg": 70,
                 "height_cm": 175,  # Changed from height_m to height_cm

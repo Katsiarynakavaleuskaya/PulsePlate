@@ -82,7 +82,7 @@ class TestSpanishEndToEndSmoke:
 
         # 3. Test BMI Pro calculation with Spanish language
         bmi_pro_response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "weight_kg": 70,
                 "height_cm": 175,

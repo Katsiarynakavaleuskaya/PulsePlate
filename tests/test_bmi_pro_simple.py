@@ -22,7 +22,7 @@ def test_bmi_pro_ok() -> None:
         "bodyfat_percent": 18,
         "lang": "en",
     }
-    r = client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": TEST_KEY_PRO})
+    r = client.post("/api/v1/pro/bmi", json=payload, headers={"X-API-Key": TEST_KEY_PRO})
     assert r.status_code == 200
     data = r.json()
 

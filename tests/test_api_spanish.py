@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import os
-
-import pytest
 from fastapi.testclient import TestClient
 
 from app import app
@@ -69,7 +67,7 @@ class TestAPISpanish:
             "lang": "es",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers=self.pro_headers)
+        response = self.client.post("/api/v1/pro/bmi", json=data, headers=self.pro_headers)
         assert response.status_code == 422
 
         result = response.json()
