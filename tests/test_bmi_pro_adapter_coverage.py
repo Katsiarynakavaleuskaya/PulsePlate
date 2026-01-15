@@ -22,11 +22,12 @@ def test_adapt_pro_stage_to_response_empty_recommendation():
         "whr_risk": "low",
     }
 
-    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, None, "en")
+    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, "en")
 
     # Empty recommendation should not be added to notes
     assert risk_level == "low"
     # Notes should be empty or not contain empty strings
+    assert "" not in notes
     assert all(n.strip() for n in notes if n)
 
 
@@ -41,7 +42,7 @@ def test_adapt_pro_stage_to_response_risk_factors_zero():
         "whr_risk": "low",
     }
 
-    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, None, "en")
+    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, "en")
 
     # risk_factors="0" should not appear in notes
     assert risk_level == "low"
@@ -62,7 +63,7 @@ def test_adapt_pro_stage_to_response_risk_factors_non_zero():
         "whr_risk": "high",
     }
 
-    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, None, "en")
+    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, "en")
 
     # risk_factors="2" should appear in notes
     assert risk_level == "high"
@@ -81,12 +82,12 @@ def test_adapt_pro_stage_to_response_whr_risk_unknown():
         "whr_risk": "unknown",  # Should trigger missing hip note
     }
 
-    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, None, "en")
+    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, "en")
 
     # Should contain missing hip explanation
     assert risk_level == "moderate"
-    notes_text = " ".join(notes)
-    assert "WHR not computed" in notes_text or "missing hip_cm" in notes_text.lower()
+    notes_text = " ".join(notes).lower()
+    assert "whr not computed" in notes_text or "missing hip_cm" in notes_text
 
 
 def test_adapt_pro_stage_to_response_whr_risk_low():
@@ -100,7 +101,7 @@ def test_adapt_pro_stage_to_response_whr_risk_low():
         "whr_risk": "low",  # Not "unknown" - should not add missing hip note
     }
 
-    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, None, "en")
+    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, "en")
 
     # Should NOT contain missing hip explanation
     assert risk_level == "low"
@@ -120,7 +121,7 @@ def test_adapt_pro_stage_to_response_wht_risk_moderate():
         "whr_risk": "low",
     }
 
-    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, None, "en")
+    risk_level, notes = _adapt_pro_stage_to_response(stage_dict, "en")
 
     # Should contain WHtR risk
     assert risk_level == "moderate"
@@ -146,5 +147,5 @@ def test_adapt_pro_stage_to_response_stage_mapping():
             "whr_risk": "low",
         }
 
-        risk_level, _ = _adapt_pro_stage_to_response(stage_dict, None, "en")
+        risk_level, _ = _adapt_pro_stage_to_response(stage_dict, "en")
         assert risk_level == expected_risk, f"Stage {stage} should map to {expected_risk}"

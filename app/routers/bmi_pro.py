@@ -20,14 +20,14 @@ from core.bmi_extras import (
 from core.bmi.engine import _compute_bmi as calc_bmi
 
 # Import i18n functionality
-from core.i18n import Language
+from core.i18n import Language, t
 
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
 
 def _adapt_pro_stage_to_response(
-    stage_dict: dict[str, str], whr: float | None, lang: Language  # noqa: ARG001
+    stage_dict: dict[str, str], lang: Language
 ) -> tuple[Literal["low", "moderate", "high"], list[str]]:
     """Adapt Pro tier stage_obesity Dict response to BMIProResponse format.
 
@@ -38,7 +38,7 @@ def _adapt_pro_stage_to_response(
 
     Args:
         stage_dict: Pro tier stage_obesity result (Dict[str, str])
-        whr: WHR value (used to determine if None should be passed to response)
+        lang: Language code for i18n notes
 
     Returns:
         Tuple of (risk_level, notes_list) compatible with BMIProResponse
@@ -70,13 +70,12 @@ def _adapt_pro_stage_to_response(
     whr_risk = stage_dict.get("whr_risk")
     if wht_risk and wht_risk != "low":
         notes.append(f"WHtR risk: {wht_risk}")
-    if whr_risk and whr_risk != "low":
-        notes.append(f"WHR risk: {whr_risk}")
-    # If WHR is missing (unknown), add note explaining missing data
-    if whr_risk == "unknown":
-        from core.i18n import t
 
+    # WHR: if unknown (missing hip), show only the translated explanation (no duplicate "WHR risk: unknown")
+    if whr_risk == "unknown":
         notes.append(t(lang, "bmi_pro_whr_missing_hip"))
+    elif whr_risk and whr_risk != "low":
+        notes.append(f"WHR risk: {whr_risk}")
 
     return risk_level, notes
 
@@ -129,7 +128,7 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
             bmi=bmi_val, wht=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang
         )
         # Adapt Pro tier Dict response to BMIProResponse format (risk_level, notes)
-        risk_level, notes = _adapt_pro_stage_to_response(stage_dict, v_whr, req.lang)
+        risk_level, notes = _adapt_pro_stage_to_response(stage_dict, req.lang)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     card = BMIProCard(
