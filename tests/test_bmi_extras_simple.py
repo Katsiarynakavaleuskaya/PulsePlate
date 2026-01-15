@@ -3,7 +3,7 @@ import pytest
 from core import bmi_extras as bx
 
 
-def test_wht_ratio_valid_and_invalid():
+def test_wht_ratio_valid_and_invalid() -> None:
     assert bx.wht_ratio_simple(80, 170) == 0.47
     assert bx.wht_ratio_simple(90, 170) == 0.53
     with pytest.raises(ValueError):
@@ -12,7 +12,7 @@ def test_wht_ratio_valid_and_invalid():
         bx.wht_ratio_simple(80, 0)
 
 
-def test_whr_ratio_valid_and_invalid():
+def test_whr_ratio_valid_and_invalid() -> None:
     assert bx.whr_ratio_simple(80, 100) == 0.8
     assert bx.whr_ratio_simple(90, 90) == 1.0
     with pytest.raises(ValueError):
@@ -21,7 +21,7 @@ def test_whr_ratio_valid_and_invalid():
         bx.whr_ratio_simple(80, -1)
 
 
-def test_ffmi_basic_and_bounds():
+def test_ffmi_basic_and_bounds() -> None:
     # 80kg, 20% bf, 180cm -> FFM=64, FFMI=64/(1.8^2)=19.8 -> rounded 19.8
     assert bx.ffmi_simple(80, 180, 20) == 19.8
     # Input validation

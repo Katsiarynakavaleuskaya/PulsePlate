@@ -178,17 +178,17 @@ def interpret_whr_ratio(
     if sex.lower() == "male":
         if whr_ratio_value < WHR_MALE_HIGH_RISK:
             risk_level = "low"
-            description = t(lang, "risk_low_health")  # type: ignore
+            description = t(lang, "risk_low_health")
         else:
             risk_level = "high"
-            description = t(lang, "risk_high_android_shape")  # type: ignore
+            description = t(lang, "risk_high_android_shape")
     else:  # female
         if whr_ratio_value < WHR_FEMALE_HIGH_RISK:
             risk_level = "low"
-            description = t(lang, "risk_low_health")  # type: ignore
+            description = t(lang, "risk_low_health")
         else:
             risk_level = "high"
-            description = t(lang, "risk_high_android_shape")  # type: ignore
+            description = t(lang, "risk_high_android_shape")
 
     return {"risk": risk_level, "description": description}
 
@@ -211,7 +211,7 @@ def stage_obesity(
         Dictionary with staging information and recommendations
     """
     # Get individual risk assessments
-    wht_interpretation = interpret_wht_ratio(wht, lang)  # type: ignore
+    wht_interpretation = interpret_wht_ratio(wht, lang)
     whr_interpretation = interpret_whr_ratio(whr, sex, lang)
 
     # Determine overall staging
@@ -227,13 +227,13 @@ def stage_obesity(
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = t(lang, "recommendation_consult_healthcare")  # type: ignore
+        recommendation = t(lang, "recommendation_consult_healthcare")
     elif risk_factors == 1:
         stage = "moderate_risk"
-        recommendation = t(lang, "recommendation_monitor_health")  # type: ignore
+        recommendation = t(lang, "recommendation_monitor_health")
     else:
         stage = "low_risk"
-        recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
+        recommendation = t(lang, "recommendation_maintain_habits")
 
     if bmi >= BMI_OBESE_THRESHOLD:
         bmi_category = "obese"
@@ -278,7 +278,7 @@ def stage_obesity_optional_whr(
         Dictionary with staging information and recommendations
     """
     # Get WHtR interpretation (always available)
-    wht_interpretation = interpret_wht_ratio(wht, lang)  # type: ignore
+    wht_interpretation = interpret_wht_ratio(wht, lang)
 
     # WHR interpretation - only if data available
     whr_risk = "unknown"
@@ -301,13 +301,13 @@ def stage_obesity_optional_whr(
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = t(lang, "recommendation_consult_healthcare")  # type: ignore
+        recommendation = t(lang, "recommendation_consult_healthcare")
     elif risk_factors == 1:
         stage = "moderate_risk"
-        recommendation = t(lang, "recommendation_monitor_health")  # type: ignore
+        recommendation = t(lang, "recommendation_monitor_health")
     else:
         stage = "low_risk"
-        recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
+        recommendation = t(lang, "recommendation_maintain_habits")
 
     if bmi >= BMI_OBESE_THRESHOLD:
         bmi_category = "obese"

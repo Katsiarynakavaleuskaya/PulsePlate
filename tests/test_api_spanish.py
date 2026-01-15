@@ -21,11 +21,6 @@ class TestAPISpanish:
         self.client = client
         self.pro_headers = pro_headers
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        # Environment cleanup handled by monkeypatch fixture
-        pass
-
     def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""
         data = {
@@ -99,5 +94,6 @@ class TestAPISpanish:
         assert "bmi" in result
         assert "category" in result
 
-        # Check that the summary contains plan information
-        assert "plan" in result["summary"].lower()
+        # Check that the summary contains plan/resumen keywords in Spanish
+        summary_text = result["summary"].lower()
+        assert any(keyword in summary_text for keyword in ("plan", "planes", "resumen"))

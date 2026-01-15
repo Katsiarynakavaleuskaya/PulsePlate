@@ -71,7 +71,7 @@ def test_adapt_pro_stage_to_response_risk_factors_non_zero():
     assert "Risk factors: 2" in notes_text
 
 
-def test_adapt_pro_stage_to_response_whr_risk_unknown():
+def test_adapt_pro_stage_to_response_whr_risk_unknown() -> None:
     """Test adapter adds missing hip note when whr_risk='unknown'."""
     # Stage dict with whr_risk="unknown"
     stage_dict = {
@@ -90,7 +90,7 @@ def test_adapt_pro_stage_to_response_whr_risk_unknown():
     assert "whr not computed" in notes_text or "missing hip_cm" in notes_text
 
 
-def test_adapt_pro_stage_to_response_whr_risk_low():
+def test_adapt_pro_stage_to_response_whr_risk_low() -> None:
     """Test adapter doesn't add missing hip note when whr_risk is not 'unknown'."""
     # Stage dict with whr_risk="low"
     stage_dict = {
@@ -110,7 +110,7 @@ def test_adapt_pro_stage_to_response_whr_risk_low():
     assert "missing hip_cm" not in notes_text.lower()
 
 
-def test_adapt_pro_stage_to_response_wht_risk_moderate():
+def test_adapt_pro_stage_to_response_wht_risk_moderate() -> None:
     """Test adapter adds WHtR risk when wht_risk != 'low'."""
     # Stage dict with wht_risk="moderate"
     stage_dict = {

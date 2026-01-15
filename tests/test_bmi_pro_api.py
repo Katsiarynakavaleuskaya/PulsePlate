@@ -23,11 +23,6 @@ class TestBMIProAPI:
         self.client = client
         self.pro_headers = pro_headers
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        # Environment cleanup handled by monkeypatch fixture
-        pass
-
     def test_bmi_pro_endpoint_success(self) -> None:
         """Test successful BMI Pro analysis."""
         data = {

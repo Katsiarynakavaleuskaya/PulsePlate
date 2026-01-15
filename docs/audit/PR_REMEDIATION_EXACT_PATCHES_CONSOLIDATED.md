@@ -315,7 +315,7 @@ def stage_obesity_simple(
 -    return round(weight_kg / (height_m**2), 1)
 -
 -
- router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
+ router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
 ```
 
 **Line 49 — Update BMI calculation to use engine:**
@@ -345,10 +345,7 @@ def stage_obesity_simple(
          # Use canonical engine for BMI calculation
          bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
          v_whtr = wht_ratio(req.waist_cm, req.height_cm)
--        v_whr = whr_ratio(req.waist_cm, float(req.hip_cm)) if req.hip_cm is not None else None
-+        v_whr = whr_ratio_pro(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
-+        v_whr = whr_ratio_pro(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
-```
+        v_whr = whr_ratio_pro(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
 
 **Note:** We use Pro tier `whr_ratio` (imported as `whr_ratio_pro`) because it supports sex-specific thresholds, and `req.sex` is available in the request.
 

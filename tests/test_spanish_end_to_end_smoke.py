@@ -27,11 +27,6 @@ class TestSpanishEndToEndSmoke:
         self.client = client
         self.pro_headers = pro_headers
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        # Environment cleanup handled by monkeypatch fixture
-        pass
-
     def test_spanish_end_to_end_workflow(self) -> None:
         """Test a complete workflow using Spanish language."""
         # 1. Test BMI calculation with Spanish language

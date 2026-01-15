@@ -26,11 +26,6 @@ class TestAPIEndToEndSpanish:
         self.client = client
         self.pro_headers = pro_headers
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        # Environment cleanup handled by monkeypatch fixture
-        pass
-
     def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""
         # Test BMI calculation with Spanish language

@@ -257,7 +257,7 @@ npx shadcn@latest init
 
 **Configuration:**
 - Style: New York (или Default)
-- Base color: Navy (соответствует дизайн-системе)
+- Base color: blue (shadcn doesn't support custom names; map to Navy via CSS variables)
 - CSS variables: Yes (уже есть в `tokens.css`)
 
 ### Step 2: Add Core Components (Phase 1)
