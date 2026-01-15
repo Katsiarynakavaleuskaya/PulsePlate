@@ -291,10 +291,8 @@ def stage_obesity_simple(
  from fastapi import APIRouter, HTTPException
  from pydantic import BaseModel, Field
 
--# Use the simplified extras module that matches the function signatures used here
--from core.bmi_extras_simple import BMIProCard, ffmi, stage_obesity, whr_ratio, wht_ratio
-+from core.bmi_extras import BMIProCard, ffmi_simple as ffmi, stage_obesity_simple as stage_obesity, whr_ratio as whr_ratio_pro, wht_ratio_simple as wht_ratio
-+from core.bmi.engine import _compute_bmi
+-# Use canonical extras module with Pro tier functions
++from core.bmi_extras import BMIProCard, ffmi, stage_obesity, whr_ratio, wht_ratio
 
  # Import i18n functionality
  from core.i18n import Language
@@ -329,10 +327,10 @@ def stage_obesity_simple(
      try:
 -        # Convert height to meters for calc_bmi(weight, height_m)
 -        bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
-+        # Use canonical engine for BMI calculation
-+        bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
++        # Use canonical engine for BMI calculation (already imported as calc_bmi alias)
++        bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
 +        v_whtr = wht_ratio(req.waist_cm, req.height_cm)
-+        v_whr = whr_ratio(req.waist_cm, float(req.hip_cm)) if req.hip_cm is not None else None
++        v_whr = whr_ratio(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
 ```
 
 **Line 51 — Update whr_ratio call to use Pro tier with sex:**
