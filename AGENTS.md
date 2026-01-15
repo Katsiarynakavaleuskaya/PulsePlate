@@ -482,10 +482,118 @@ This rule exists to prevent accidental regressions, keep PR reviews focused and 
 
 Violation of this rule blocks merge.
 
+## Release readiness priorities (hard rule)
+
+**Definition of Ready / Definition of Done for release:**
+
+1. **P0-A: "Product Works"** (must-have before any release)
+   - Core functionality works (BMI calculates, forms validate, API contracts match)
+   - No "undefined" in UI results
+   - Locale parsing works (RU comma → dot)
+   - Error handling shows proper messages, not crashes
+   - Forms submit valid data to backend
+   - API responses are correctly rendered
+
+2. **P0-B: "Can Publish"** (required for App Store/public launch)
+   - App Store assets (screenshots, metadata)
+   - Basic onboarding (at least 2 screens: value + usage)
+   - Language switch works
+   - Core user flows are complete
+
+3. **P1: "Brand Magic"** (enhancements, not blockers)
+   - Slogan, ECG/pulse animations, FitChef assets
+   - Advanced UX, Storybook, design system polish
+   - Visual refinements beyond functional requirements
+
+**Hard rule:** Do not work on P1 items until P0-A is complete. "Brand magic" is worthless if the product doesn't calculate.
+
+**Diagnostic approach for "BMI undefined" issues:**
+1. **Request:** Check DevTools Network → URL + payload (JSON)
+2. **Response:** Check status code + first fields of body
+   - **422** → Form sends wrong data (parsing/fields/units) → Fix in PR-525
+   - **200, but BMI null/undefined** → Render/field mapping broken in UI
+   - **403** → API key/gate/PRO guard issue (not BMI math)
+   - **500** → Server error (check logs/endpoint)
+
+## BMI Engine Invariant (Hard Rule)
+
+**Invariant:** *"One BMI Engine must be the sole calculation path for all BMI-related computations."*
+
+**Enforcement:**
+- Guard tests in `tests/test_bmi_canonical_guard.py`
+- CI fails on violation
+- No imports from `bmi_core` in `core/bmi/`
+- Only one canonical extras module (or clear purpose)
+
+**Point of No-Return:**
+> *"Until legacy dependency is removed, any downstream fixes (frontend, API contracts) are considered unreliable. The system cannot be diagnosed or fixed reliably until the invariant is restored."*
+
+**Related:**
+- `docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md` — Root cause analysis
+- `docs/audit/BACKEND_P0_REMEDIATION_PLAN.md` — Remediation plan
+- `docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md` — Guard policy
+
 ## Known pitfalls
 
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
   Import hygiene guards prevent regression.
+
+## Frontend form handling rules (hard)
+
+### React Hook Form (RHF) integration
+
+**Hard rule:** Custom input components with `onValueChange(value)` → **only use `Controller` pattern**, never `{...register()}`.
+
+**Why:**
+- `register()` expects DOM `onChange(event)`
+- Custom components use `onValueChange(value)` → incompatible
+- Direct `{...register()}` will cause bugs (values as strings, NaN, undefined)
+
+**Correct pattern:**
+```typescript
+import { Controller } from "react-hook-form";
+import { NumberInput } from "@/components/ui/number-input";
+
+<Controller
+  name="weight_kg"
+  control={control}
+  render={({ field }) => (
+    <NumberInput
+      value={field.value ?? ""}
+      onValueChange={field.onChange}   // (number | "") => void
+      onBlur={field.onBlur}
+      locale="ru"
+    />
+  )}
+/>
+```
+
+**Alternative (quick fix):** Use `setValueAs` with native `<input>`:
+```typescript
+<input
+  {...register('weight_kg', {
+    setValueAs: (v) => {
+      const s = String(v ?? "").trim().replace(/,/g, ".");
+      const n = Number(s);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    },
+  })}
+/>
+```
+
+### Locale numeric parsing (RU/EN)
+
+**Hard rule:** RU locale must support comma decimal separator (`75,1` → `75.1`).
+
+**Implementation:**
+- Use `setValueAs` for quick fixes (P0)
+- Use `NumberInput` with `Controller` for proper components (P1)
+- **Single source of truth:** Either `setValueAs` OR `NumberInput`, not both
+
+**Verification:**
+- Test with `75,1` → should parse to `75.1`
+- Test with `75.1` → should parse to `75.1`
+- Invalid input → should show error, not `undefined`
 
 ## Duplicate modules / imports policy (critical)
 
