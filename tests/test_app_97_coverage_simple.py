@@ -234,15 +234,23 @@ class TestAsyncAndBackgroundTasks:
         assert response.status_code in [200, 404, 405]
 
         # Test other potential metrics endpoints
-        # /health = liveness (always 200, no DB dependency)
-        # /ready = readiness (may return 503 if DB unavailable)
-        for endpoint in ["/health", "/healthz", "/live"]:
+        # Explicit mapping: liveness vs readiness semantics
+        # Liveness endpoints: always 200 (or 404/405 if route absent), no DB dependency
+        liveness_endpoints = ["/health", "/healthz", "/live", "/livez"]
+        for endpoint in liveness_endpoints:
             response = client.get(endpoint)
-            assert response.status_code in [200, 404, 405]
+            assert response.status_code in [200, 404, 405], (
+                f"Liveness endpoint {endpoint} must return 200/404/405, not {response.status_code}"
+            )
 
-        # /ready is a readiness probe - may return 503 if DB unavailable
-        response = client.get("/ready")
-        assert response.status_code in [200, 404, 405, 503]
+        # Readiness endpoints: may return 503 if DB unavailable
+        readiness_endpoints = ["/ready", "/readyz"]
+        for endpoint in readiness_endpoints:
+            response = client.get(endpoint)
+            assert response.status_code in [200, 404, 405, 503], (
+                f"Readiness endpoint {endpoint} may return 503 if DB unavailable, "
+                f"got {response.status_code}"
+            )
 
 
 class TestComplexDataCombinations:
