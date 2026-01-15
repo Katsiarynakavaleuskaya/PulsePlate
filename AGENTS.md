@@ -358,6 +358,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Explicit tier functions:** `*_simple()` for Free tier, `*_pro()` or base names for Pro tier
 - **Documentation:** Each function must document which tier it serves and policy differences
 - **No mixing:** Free endpoints use Simple tier functions; Pro endpoints use Pro tier functions
+- **Allowed:** Pro endpoints may **map/adapt** Pro-tier outputs to legacy DTOs for backward compatibility (contract adaptation, not tier mixing)
+- **Forbidden:** Calling any `*_simple()` (Free/Simple tier) functions inside Pro endpoints
 
 **Canonical structure:**
 ```python
@@ -400,6 +402,28 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 **Key principle:**
 > **PRO tier = automation of interpretation** (calculations, risk assessment)
 > **VIP tier = automation of actions** (menus, products, planning)
+
+### Remediation PR policy (hard rule)
+
+**Scope discipline for architectural remediation:**
+
+- **Remediation PR must fix violations and restore invariants** — guards green, `make verify` green, no obvious dead imports (ruff/mypy).
+- **Allowed in remediation PR:**
+  - Fixing tests that fail due to eliminated violations (legacy paths, duplicate modules, BMI math outside engine)
+  - Updating imports to canonical paths
+  - Removing tests that covered deleted/consolidated modules (only if replacement coverage exists)
+- **Forbidden in remediation PR:**
+  - "Cleanup for cleanup's sake" (unused code, orphan tests that don't fail)
+  - Mass refactoring beyond scope
+  - Coverage optimization unrelated to remediation
+- **All warnings and failures must be fixed** — remediation PR must be clean (no `--no-verify`, no ignored warnings).
+
+**Post-remediation follow-up:**
+
+- Dead code removal, orphan test cleanup, coverage optimization → **separate PR**: `chore: remove dead code after BMI remediation`
+- Rationale: Keeps remediation PR focused, reviewable, and mergeable without scope creep.
+
+**See:** `docs/audit/PR_REMEDIATION_SELF_AUDIT.md` for detailed checklist.
 
 ### Testing tier guards (VIP/PRO endpoints)
 

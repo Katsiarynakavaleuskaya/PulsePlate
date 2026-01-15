@@ -5,15 +5,14 @@ from typing import Literal, Optional, cast
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-# Use canonical BMI extras module
-# Note: Using Simple tier functions (stage_obesity_simple, wht_ratio_simple) for compatibility
-# with current response model (tuple return). Pro tier functions (ffmi, whr_ratio) used for Pro tier calculations.
+# Use canonical BMI extras module - Pro tier functions only
+# Pro endpoint must use Pro tier functions exclusively (no mixing with Free/Simple tier)
 from core.bmi_extras import (
     BMIProCard,
-    ffmi as ffmi_pro,
-    stage_obesity_simple as stage_obesity,
-    whr_ratio as whr_ratio_pro,
-    wht_ratio_simple as wht_ratio,
+    ffmi,
+    stage_obesity,
+    whr_ratio,
+    wht_ratio,
 )
 
 # Import canonical BMI engine
@@ -24,6 +23,48 @@ from core.i18n import Language
 
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
+
+
+def _adapt_pro_stage_to_response(
+    stage_dict: dict[str, str], whr: float | None  # noqa: ARG001
+) -> tuple[Literal["low", "moderate", "high"], list[str]]:
+    """Adapt Pro tier stage_obesity Dict response to BMIProResponse format.
+
+    Pro tier stage_obesity returns Dict with keys: stage, recommendation, risk_factors, etc.
+    BMIProResponse expects: risk_level (Literal) and notes (list[str]).
+
+    This is contract adaptation, not tier mixing - all calculations use Pro tier.
+
+    Args:
+        stage_dict: Pro tier stage_obesity result (Dict[str, str])
+        whr: WHR value (used to determine if None should be passed to response)
+
+    Returns:
+        Tuple of (risk_level, notes_list) compatible with BMIProResponse
+    """
+    stage = stage_dict.get("stage", "low_risk")
+
+    # Map Pro tier stage to risk_level
+    if stage == "high_risk":
+        risk_level: Literal["low", "moderate", "high"] = "high"
+    elif stage == "moderate_risk":
+        risk_level = "moderate"
+    else:
+        risk_level = "low"
+
+    # Build notes list from Pro tier recommendations
+    notes: list[str] = []
+    recommendation = stage_dict.get("recommendation")
+    if recommendation:
+        notes.append(recommendation)
+
+    # Add risk factor information if available
+    risk_factors = stage_dict.get("risk_factors")
+    if risk_factors and risk_factors != "0":
+        notes.append(f"Risk factors: {risk_factors}")
+
+    return risk_level, notes
+
 
 Sex = Literal["female", "male"]
 
@@ -53,20 +94,31 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     try:
         # Convert height to meters for _compute_bmi(weight, height_m)
         bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
-        v_whtr = wht_ratio(req.waist_cm, req.height_cm)
-        v_whr = (
-            whr_ratio_pro(req.waist_cm, float(req.hip_cm), req.sex)
+        # Use Pro tier functions exclusively (no mixing with Free/Simple tier)
+        v_whtr = wht_ratio(req.waist_cm, req.height_cm)  # Pro: 3 decimal places
+        # Pro tier whr_ratio requires hip_cm, but response allows Optional
+        # Use 0.0 as placeholder for stage_obesity calculation if hip_cm is None
+        v_whr_calc = (
+            whr_ratio(req.waist_cm, float(req.hip_cm), req.sex)
             if req.hip_cm is not None
-            else None
+            else 0.0  # Pro tier stage_obesity requires whr (not Optional)
+        )
+        v_whr = (
+            whr_ratio(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
         )
         # Use Pro tier ffmi (returns dict), extract ffmi value for response compatibility
         # Pro tier ffmi supports estimate mode (bodyfat_pct=None uses default 0.85)
         v_ffmi = (
-            ffmi_pro(req.weight_kg, req.height_cm, req.bodyfat_percent)["ffmi"]
+            ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)["ffmi"]
             if req.bodyfat_percent is not None
-            else ffmi_pro(req.weight_kg, req.height_cm)["ffmi"]  # Estimate mode
+            else ffmi(req.weight_kg, req.height_cm)["ffmi"]  # Estimate mode
         )
-        risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang)
+        # Pro tier stage_obesity returns Dict[str, str], adapt to BMIProResponse format
+        stage_dict = stage_obesity(
+            bmi=bmi_val, wht=v_whtr, whr=v_whr_calc, sex=req.sex, lang=req.lang
+        )
+        # Adapt Pro tier Dict response to BMIProResponse format (risk_level, notes)
+        risk_level, notes = _adapt_pro_stage_to_response(stage_dict, v_whr)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     card = BMIProCard(
@@ -74,7 +126,7 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         whtr=v_whtr,
         whr=v_whr,
         ffmi=v_ffmi,
-        risk_level=cast(Literal["low", "moderate", "high"], risk),
+        risk_level=risk_level,
         notes=notes,
     )
     return BMIProResponse(**card.__dict__)
