@@ -16,7 +16,8 @@ from core.bmi_extras import (
 )
 
 # Import canonical BMI engine
-from core.bmi.engine import _compute_bmi
+# Alias calc_bmi for test patching compatibility (no BMI math in router, just symbol)
+from core.bmi.engine import _compute_bmi as calc_bmi
 
 # Import i18n functionality
 from core.i18n import Language
@@ -106,8 +107,8 @@ class BMIProResponse(BaseModel):
 @router.post("/pro", response_model=BMIProResponse)
 def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     try:
-        # Convert height to meters for _compute_bmi(weight, height_m)
-        bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
+        # Convert height to meters for calc_bmi(weight, height_m)
+        bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
         # Use Pro tier functions exclusively (no mixing with Free/Simple tier)
         v_whtr = wht_ratio(req.waist_cm, req.height_cm)  # Pro: 3 decimal places
         # Pro tier whr_ratio requires hip_cm; if missing, WHR is None (not 0.0)
@@ -116,12 +117,12 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
             whr_ratio(req.waist_cm, float(req.hip_cm), req.sex) if req.hip_cm is not None else None
         )
         # Use Pro tier ffmi (returns dict), extract ffmi value for response compatibility
-        # Pro tier ffmi supports estimate mode (bodyfat_pct=None uses default 0.85)
-        v_ffmi = (
-            ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)["ffmi"]
-            if req.bodyfat_percent is not None
-            else ffmi(req.weight_kg, req.height_cm)["ffmi"]  # Estimate mode
-        )
+        # Contract: ffmi=None when bodyfat_percent is missing (no estimate mode in remediation)
+        # Estimate mode can be added in separate product PR with contract update
+        v_ffmi: Optional[float] = None
+        if req.bodyfat_percent is not None:
+            ffmi_dict = ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)
+            v_ffmi = ffmi_dict["ffmi"]
         # Pro tier stage_obesity_optional_whr handles missing WHR correctly
         # Returns whr_risk="unknown" if whr is None (not "low")
         stage_dict = stage_obesity_optional_whr(
