@@ -31,7 +31,7 @@ echo "🔍 Checking if setuptools is present in image: $IMAGE_TAG"
 # Check 1: Try to import setuptools (should fail)
 # NOTE: 2>/dev/null only suppresses Python import error, not docker errors
 echo "Test 1: Import setuptools (should fail)..."
-if docker run --rm "$IMAGE_TAG" python -c "import setuptools" 2>/dev/null; then
+if docker run --rm "$IMAGE_TAG" /opt/venv/bin/python -c "import setuptools" 2>/dev/null; then
     echo "❌ FAIL: setuptools can be imported"
     exit 1
 else
