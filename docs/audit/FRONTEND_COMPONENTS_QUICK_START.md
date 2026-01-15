@@ -170,11 +170,7 @@ npx shadcn@latest add progress
 
 ### Setup shadcn/ui
 
-```bash
-cd frontend
-npx shadcn@latest init
-# Answer: New York, Navy, Yes (CSS vars)
-```
+
 
 ### Add Components
 
