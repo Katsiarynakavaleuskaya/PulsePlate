@@ -22,12 +22,20 @@ Or individually:
 3. Do NOT write "готово", "green", "mergeable"
 4. Fix the issue first, then re-run `make verify`
 
+**Pre-commit hook policy (mandatory before push):**
+
+- **Always run `pre-commit run --all-files` locally before pushing any PR.**
+- If hooks modify files (e.g., `.secrets.baseline`, whitespace fixes, formatting), commit them as a dedicated `chore(pre-commit): apply hook fixes` commit.
+- CI runs `pre-commit run --all-files` and will fail if hooks would modify files that aren't committed.
+- This is not optional: uncommitted hook modifications guarantee CI failure.
+
 **❌ Forbidden:**
 
 - Saying "all checks pass" without showing command outputs
 - Using `|| true`, `continue-on-error`, or ignoring failures
 - Adding `# type: ignore` without explicit user approval
 - Testing dead code instead of deleting it
+- Pushing PRs without running `pre-commit run --all-files` first
 
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
