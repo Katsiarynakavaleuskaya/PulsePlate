@@ -63,6 +63,15 @@ def _adapt_pro_stage_to_response(
     if risk_factors and risk_factors != "0":
         notes.append(f"Risk factors: {risk_factors}")
 
+    # Add individual risk assessments (wht_risk, whr_risk) if available
+    # These provide additional context from Pro tier analysis
+    wht_risk = stage_dict.get("wht_risk")
+    whr_risk = stage_dict.get("whr_risk")
+    if wht_risk and wht_risk != "low":
+        notes.append(f"WHtR risk: {wht_risk}")
+    if whr_risk and whr_risk != "low":
+        notes.append(f"WHR risk: {whr_risk}")
+
     return risk_level, notes
 
 
