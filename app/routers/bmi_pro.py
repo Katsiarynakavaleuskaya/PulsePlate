@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
 
 def _adapt_pro_stage_to_response(
-    stage_dict: dict[str, str], whr: float | None, lang: str  # noqa: ARG001
+    stage_dict: dict[str, str], whr: float | None, lang: Language  # noqa: ARG001
 ) -> tuple[Literal["low", "moderate", "high"], list[str]]:
     """Adapt Pro tier stage_obesity Dict response to BMIProResponse format.
 
