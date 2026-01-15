@@ -69,8 +69,8 @@ BMI_FORMULA_RE = re.compile(
 # NOTE: Also detects WHR thresholds (0.95/0.80) outside core/bmi/risk.py
 BMI_THRESHOLDS_RE = re.compile(
     r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip).*"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80)\b|"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80)\b.*"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80|0\.90|0\.85)\b|"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80|0\.90|0\.85)\b.*"
     r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip)",
     re.IGNORECASE,
 )
@@ -151,8 +151,16 @@ def _scan(
 
         try:
             text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            in_docstring = False
             for idx, line in enumerate(text, start=1):
+                # Track docstring state (multiline docstrings)
+                if '"""' in line or "'''" in line:
+                    # Toggle docstring state (handle both opening and closing)
+                    in_docstring = not in_docstring
                 if SKIP_LINE_RE.match(line):
+                    continue
+                # Skip lines inside docstrings
+                if in_docstring:
                     continue
                 # Skip docstrings and type hints
                 if SKIP_CONTEXT_RE.search(line) and "bmi" not in line.lower():
