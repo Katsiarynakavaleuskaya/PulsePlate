@@ -22,12 +22,26 @@ Or individually:
 3. Do NOT write "готово", "green", "mergeable"
 4. Fix the issue first, then re-run `make verify`
 
+**Pre-commit hook policy (mandatory before push):**
+
+- **Always run `pre-commit run --all-files` locally before pushing any PR.**
+- **If hooks modify files:**
+  1. Run `pre-commit run --all-files`
+  2. Check `git status` for modified files (e.g., `.secrets.baseline`, whitespace fixes, formatting)
+  3. **Commit hook modifications as a separate commit:** `chore(pre-commit): apply hook fixes`
+  4. **Important:** If `detect-secrets` updated `.secrets.baseline`, this must be committed (it's a legitimate baseline update, not a secret leak)
+- CI runs `pre-commit run --all-files` and will fail if hooks would modify files that aren't committed.
+- This is not optional: uncommitted hook modifications guarantee CI failure.
+- **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
+
 **❌ Forbidden:**
 
 - Saying "all checks pass" without showing command outputs
 - Using `|| true`, `continue-on-error`, or ignoring failures
 - Adding `# type: ignore` without explicit user approval
 - Testing dead code instead of deleting it
+- Pushing PRs without running `pre-commit run --all-files` first
+- Using `SKIP=...` or disabling hooks without explicit justification (default: "fix it, don't skip it"; if skip is needed, document why in PR description/comment)
 
 **Dead code policy:**
 If diff-cover shows uncovered helpers that have zero call sites → **delete them**, don't write tests for unused code.
@@ -230,6 +244,25 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 ### See RUNBOOK_AGENT.md for detailed grep commands
 
+## Health and readiness endpoints (operational semantics)
+
+**Liveness vs Readiness:**
+
+- **`/health`** = liveness probe: **always returns 200**, no DB dependencies. Used by orchestrators to determine if container should be restarted.
+- **`/ready`** = readiness probe: **may return 503 if DB unavailable**. Used by orchestrators to determine if container should receive traffic.
+- **`/health/db`** = explicit DB health check: returns 503 if DB unavailable.
+
+**Rules:**
+
+- `/health` endpoint must **never** depend on external services (DB, external APIs). It should always return 200 to indicate the process is alive.
+- `/ready` endpoint **may** return 503 if dependencies (DB, external services) are unavailable. This is correct behavior for readiness checks.
+- Tests for "metrics/health paths" should allow 503 for `/ready` but expect 200 for `/health`.
+- Docker HEALTHCHECK should use `/health` (liveness), not `/ready` (readiness).
+
+**Rationale:** Separating liveness and readiness allows orchestrators to:
+- Restart containers that fail liveness (process dead)
+- Stop routing traffic to containers that fail readiness (dependencies unavailable)
+
 ## Scope and layout
 
 - This AGENTS.md applies to: repo root and below.
@@ -283,6 +316,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-commit hooks run tests on changed files; keep changes minimal and focused.
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
+
+**Ruff ANN* rules (type hints) policy:**
+
+- Ruff ANN* rules (`ANN201`, `ANN202`, `ANN401`, etc.) are **non-blocking** and serve as **technical debt indicators**.
+- CI reports these warnings but does not fail the pipeline due to them.
+- This is intentional: the codebase is large and mixed (core/legacy/scripts/providers), and enforcing ANN* as errors would block velocity.
+- Enforcement will be introduced incrementally via scoped PRs (e.g., enable ANN* as blocking for `core/bmi` or `app/routers` only).
+- Current state: **observability/tech-debt signal**, not enforcement.
 
 ## Product tiers and API namespaces (canonical)
 
