@@ -214,9 +214,7 @@ def stage_obesity(
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = (
-            "Consider consulting with a healthcare professional for comprehensive assessment"
-        )
+        recommendation = t(lang, "recommendation_consult_healthcare")  # type: ignore
     elif risk_factors == 1:
         stage = "moderate_risk"
         recommendation = t(lang, "recommendation_monitor_health")  # type: ignore
@@ -288,9 +286,7 @@ def stage_obesity_optional_whr(
 
     if risk_factors >= 2:
         stage = "high_risk"
-        recommendation = (
-            "Consider consulting with a healthcare professional for comprehensive assessment"
-        )
+        recommendation = t(lang, "recommendation_consult_healthcare")  # type: ignore
     elif risk_factors == 1:
         stage = "moderate_risk"
         recommendation = t(lang, "recommendation_monitor_health")  # type: ignore

@@ -323,6 +323,37 @@ class TestStageObesity:
         assert "wht_risk" in result
         assert result["whr_risk"] == "unknown"  # WHR is None
 
+    def test_stage_obesity_optional_whr_high_risk_localization(self):
+        """Test that high-risk recommendation is localized (not hardcoded English)."""
+        from core.bmi_extras import stage_obesity_optional_whr
+
+        # High risk: BMI >= 30, WHtR >= 0.5 (risk_factors >= 2)
+        result_ru = stage_obesity_optional_whr(bmi=32.0, wht=0.55, whr=None, sex="male", lang="ru")
+        assert result_ru["stage"] == "high_risk"
+        assert "recommendation" in result_ru
+        # Russian recommendation should NOT contain English text
+        assert "Consider consulting" not in result_ru["recommendation"]
+        assert (
+            "Рассмотрите" in result_ru["recommendation"]
+            or "консультации" in result_ru["recommendation"]
+        )
+
+        result_es = stage_obesity_optional_whr(bmi=32.0, wht=0.55, whr=None, sex="male", lang="es")
+        assert result_es["stage"] == "high_risk"
+        assert "recommendation" in result_es
+        # Spanish recommendation should NOT contain English text
+        assert "Consider consulting" not in result_es["recommendation"]
+        assert (
+            "Considera consultar" in result_es["recommendation"]
+            or "profesional" in result_es["recommendation"]
+        )
+
+        result_en = stage_obesity_optional_whr(bmi=32.0, wht=0.55, whr=None, sex="male", lang="en")
+        assert result_en["stage"] == "high_risk"
+        assert "recommendation" in result_en
+        # English should contain the expected text
+        assert "Consider consulting" in result_en["recommendation"]
+
 
 class TestIntegration:
     """Integration tests combining multiple pro metrics."""
