@@ -104,5 +104,50 @@ def test_bmi_pro_missing_hip_high_risk():
 
     # Risk should be high or moderate based on BMI+WHtR (not low due to missing WHR)
     assert data["risk_level"] in ["moderate", "high"]
-    # Should not be "low" when BMI and WHtR indicate risk
-    assert data["risk_level"] != "low"
+
+
+def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown():
+    """Test adapter handles whr_risk='unknown' and adds i18n note."""
+    request_data = {
+        "height_cm": 170.0,
+        "weight_kg": 70.0,
+        "sex": "male",
+        "age": 30,
+        "waist_cm": 80.0,
+        "hip_cm": None,  # Missing - triggers whr_risk="unknown"
+        "bodyfat_percent": None,
+        "lang": "en",
+    }
+
+    response = client.post("/api/v1/bmi/pro", json=request_data)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Notes should contain missing hip explanation
+    notes_text = " ".join(data["notes"])
+    assert "WHR not computed" in notes_text or "missing hip_cm" in notes_text.lower()
+
+
+def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_low():
+    """Test adapter doesn't add missing hip note when whr_risk is not 'unknown'."""
+    request_data = {
+        "height_cm": 170.0,
+        "weight_kg": 70.0,
+        "sex": "male",
+        "age": 30,
+        "waist_cm": 80.0,
+        "hip_cm": 95.0,  # Provided - whr_risk should be "low" or "high", not "unknown"
+        "bodyfat_percent": 20.0,
+        "lang": "en",
+    }
+
+    response = client.post("/api/v1/bmi/pro", json=request_data)
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Notes should NOT contain "not computed" or "missing" for WHR
+    notes_text = " ".join(data["notes"])
+    # When hip is provided, whr_risk is calculated, so "unknown" note should not appear
+    assert "WHR not computed" not in notes_text
