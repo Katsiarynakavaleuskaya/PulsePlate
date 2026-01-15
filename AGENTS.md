@@ -34,6 +34,16 @@ Or individually:
 - This is not optional: uncommitted hook modifications guarantee CI failure.
 - **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
 
+**Pre-commit and "expected red" PRs (guard policy):**
+
+- **`--no-verify` is allowed ONLY for "expected-red PR" (guards-first approach)** and **only** with explicit explanation in commit message and PR description.
+- **Rationale:** Guard tests intentionally fail to document architectural violations. Pre-commit hook runs pytest and blocks commits when guards fail (expected behavior).
+- **Process:**
+  1. Guard Policy PR: Use `--no-verify` with explanation: "Pre-commit hook fails because guards intentionally document violations. This is expected behavior — guards will pass after remediation."
+  2. Remediation PR: **Must pass pre-commit** (guards turn green, no `--no-verify` needed).
+  3. **Future improvement:** Consider moving pytest from pre-commit to CI-only (or make it optional via `SKIP_TESTS=1` env var) to avoid blocking commits for expected-red PRs.
+- **Note:** Pre-commit currently runs `backend-tests` hook (pytest) via `.pre-commit-config.yaml`. This is intentional for normal PRs, but creates friction for guard policy PRs. This is acceptable for now; process improvement can be done in separate PR.
+
 **❌ Forbidden:**
 
 - Saying "all checks pass" without showing command outputs
@@ -332,6 +342,64 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Tiers are: FREE / PRO / VIP** (per `SubscriptionTier` enum in `app/middleware/api_tiers.py`).
 - **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
 - **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
+
+### Product tier policy for BMI extras (hard rule)
+
+**Invariant:** BMI extras calculations must explicitly distinguish Free/Simple vs Pro tier policies.
+
+**Rationale:** Free and Pro tiers use different:
+- Rounding precision (2 vs 3 decimal places)
+- WHR thresholds (0.90/0.85 vs 0.95/0.80 for male/female)
+- Return formats (tuple vs Dict)
+- Feature availability (FFMI estimate mode in Pro only)
+
+**Enforcement:**
+- **One canonical module:** `core/bmi_extras.py` (satisfies guard requirement)
+- **Explicit tier functions:** `*_simple()` for Free tier, `*_pro()` or base names for Pro tier
+- **Documentation:** Each function must document which tier it serves and policy differences
+- **No mixing:** Free endpoints use Simple tier functions; Pro endpoints use Pro tier functions
+
+**Canonical structure:**
+```python
+# core/bmi_extras.py structure:
+# - Pro tier functions: wht_ratio(), whr_ratio(waist, hip, sex), ffmi(), stage_obesity(), interpret_*()
+# - Free/Simple tier functions: wht_ratio_simple(), whr_ratio_simple(waist, hip), ffmi_simple(), stage_obesity_simple(), BMIProCard
+```
+
+**Product contract:**
+- **Free tier:** BMI + category + basic WHtR (if waist available); no WHR, no FFMI, no staging
+- **Pro tier:** All Free features + WHR (sex-specific) + FFMI (with estimate mode) + comprehensive staging + notes
+
+**See:**
+- `docs/audit/PR_REMEDIATION_BMI_EXTRAS_ANALYSIS.md` — Detailed tier analysis
+- `docs/contracts/PRODUCT_TIER_MAP.md` — Full product tier documentation
+- `docs/product/FREE_PRO_CONTRACT.md` — Full product tier contract
+
+### Future scope (explicitly out of current remediation PR)
+
+**VIP tier features (require separate audit and PR):**
+- Personalized nutrition menus
+- Store-based product selection
+- Diet and cuisine preferences
+- Goal-driven meal optimization
+- Restaurant integration
+- Advanced personalization logic
+
+**Rationale:**
+- Current remediation PR is **architectural/technical** — restoring invariants
+- VIP tier requires separate product audit and design
+- Menu automation and product selection are distinct from BMI calculation engine
+- Normalization of existing Free/Pro tiers = OK (remediation)
+- New features or VIP automation = NOT OK (separate PRs)
+
+**When to implement:**
+- After backend P0 remediation is complete (guards green)
+- After product contract is established (FREE/PRO tiers)
+- Requires separate audit: `docs/audit/VIP_TIER_AUDIT.md` (future)
+
+**Key principle:**
+> **PRO tier = automation of interpretation** (calculations, risk assessment)
+> **VIP tier = automation of actions** (menus, products, planning)
 
 ### Testing tier guards (VIP/PRO endpoints)
 

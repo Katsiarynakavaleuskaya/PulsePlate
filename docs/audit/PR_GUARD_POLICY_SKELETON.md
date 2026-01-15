@@ -108,15 +108,6 @@ Each failure = checklist item for remediation PR.
 
 ## Testing
 
-### Manual Testing
-
-```bash
-# Run guard tests (will fail initially)
-pytest tests/test_bmi_canonical_guard.py -v
-
-# Expected: 2-3 failures (documenting current violations)
-```
-
 ### CI Testing
 
 - Guard tests run in CI

@@ -5,16 +5,22 @@ from typing import Literal, Optional, cast
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-# Use the simplified extras module that matches the function signatures used here
-from core.bmi_extras_simple import BMIProCard, ffmi, stage_obesity, whr_ratio, wht_ratio
+# Use canonical BMI extras module
+# Note: Using Simple tier functions (ffmi_simple, stage_obesity_simple, wht_ratio_simple) for compatibility
+# with current response model (tuple return). Pro tier whr_ratio used for sex-specific calculation.
+from core.bmi_extras import (
+    BMIProCard,
+    ffmi_simple as ffmi,
+    stage_obesity_simple as stage_obesity,
+    whr_ratio as whr_ratio_pro,
+    wht_ratio_simple as wht_ratio,
+)
+
+# Import canonical BMI engine
+from core.bmi.engine import _compute_bmi
 
 # Import i18n functionality
 from core.i18n import Language
-
-
-# Define calc_bmi locally to avoid circular import
-def calc_bmi(weight_kg: float, height_m: float) -> float:
-    return round(weight_kg / (height_m**2), 1)
 
 
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
@@ -43,12 +49,16 @@ class BMIProResponse(BaseModel):
 
 
 @router.post("/pro", response_model=BMIProResponse)
-def bmi_pro(req: BMIProRequest):
+def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     try:
-        # Convert height to meters for calc_bmi(weight, height_m)
-        bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
+        # Convert height to meters for _compute_bmi(weight, height_m)
+        bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
         v_whtr = wht_ratio(req.waist_cm, req.height_cm)
-        v_whr = whr_ratio(req.waist_cm, float(req.hip_cm)) if req.hip_cm is not None else None
+        v_whr = (
+            whr_ratio_pro(req.waist_cm, float(req.hip_cm), req.sex)
+            if req.hip_cm is not None
+            else None
+        )
         v_ffmi = (
             ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)
             if req.bodyfat_percent is not None

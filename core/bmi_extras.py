@@ -1,17 +1,33 @@
 """
-BMI Pro: Advanced metrics and risk assessment functions.
+BMI Extras: Advanced metrics and risk assessment functions.
 
-This module implements professional-level BMI analysis including:
-- Waist-to-Height Ratio (WHtR) and risk categories
-- Waist-to-Hip Ratio (WHR) with sex-specific thresholds
-- Fat-Free Mass Index (FFMI) calculation
-- Obesity staging based on multiple metrics
+This module implements BMI analysis with two explicit product tiers:
+
+Pro Tier (Paid - PRO subscription):
+- Rounding: 3 decimal places
+- WHR thresholds: 0.95 (male) / 0.80 (female) - stricter
+- FFMI: Supports estimate mode (0.85 default if bodyfat_pct not provided)
+- Return formats: Dict for staging, comprehensive interpretation
+- Functions: wht_ratio(), whr_ratio(waist, hip, sex), ffmi(), stage_obesity(), interpret_*()
+
+Free/Simple Tier (Free - no subscription):
+- Rounding: 2 decimal places
+- WHR thresholds: 0.90 (male) / 0.85 (female) - simplified
+- FFMI: Requires bodyfat_pct (no estimate mode)
+- Return formats: Tuple for staging, simplified response
+- Functions: wht_ratio_simple(), whr_ratio_simple(waist, hip), ffmi_simple(), stage_obesity_simple(), BMIProCard
+
+Product Policy: Different tiers serve different user needs. Free tier provides basic calculations;
+Pro tier provides detailed analysis with sex-specific thresholds and comprehensive staging.
 """
 
+from dataclasses import dataclass
 from typing import Dict, Literal, Optional
 
 # Import i18n functionality
 from core.i18n import Language, t
+
+Sex = Literal["female", "male"]
 
 
 def wht_ratio(waist_cm: float, height_cm: float) -> float:
@@ -225,3 +241,149 @@ def stage_obesity(
         "wht_risk": wht_interpretation["risk"],
         "whr_risk": whr_interpretation["risk"],
     }
+
+
+# ============================================================================
+# Free/Simple Tier - Simplified versions for basic BMI calculations
+# ============================================================================
+#
+# Product Policy:
+# - Free tier: Simplified thresholds, 2 decimal places, basic risk assessment
+# - Pro tier: Stricter sex-specific thresholds, 3 decimal places, comprehensive staging
+#
+# Rationale: Different rounding and thresholds serve different product tiers.
+# Free users get simplified calculations; Pro users get detailed analysis.
+# ============================================================================
+
+
+@dataclass(frozen=True)
+class BMIProCard:
+    """RU: Расширенная карточка BMI (поясничные метрики и риск).
+    EN: Extended BMI card with circumferences and risk staging.
+    """
+
+    bmi: float
+    whtr: float
+    whr: Optional[float]
+    ffmi: Optional[float]
+    risk_level: Literal["low", "moderate", "high"]
+    notes: list[str]
+
+
+def wht_ratio_simple(waist_cm: float, height_cm: float) -> float:
+    """Waist-to-Height Ratio (WHtR) - Free/Simple tier.
+
+    Product Policy: Free tier uses 2 decimal places (simplified precision).
+    Pro tier uses 3 decimal places (see wht_ratio()).
+
+    Args:
+        waist_cm: Waist circumference in centimeters
+        height_cm: Height in centimeters
+
+    Returns:
+        WHtR value rounded to 2 decimal places
+
+    Raises:
+        ValueError: If waist or height is <= 0
+    """
+    if waist_cm <= 0 or height_cm <= 0:
+        raise ValueError("waist_cm and height_cm must be positive")
+    return round(waist_cm / height_cm, 2)
+
+
+def whr_ratio_simple(waist_cm: float, hip_cm: float) -> float:
+    """Waist-to-Hip Ratio (WHR) - Free/Simple tier.
+
+    Product Policy: Free tier uses simplified calculation (no sex-specific thresholds).
+    Pro tier uses sex-specific thresholds (see whr_ratio()).
+
+    Rounding: 2 decimal places (Free tier policy).
+
+    Args:
+        waist_cm: Waist circumference in centimeters
+        hip_cm: Hip circumference in centimeters
+
+    Returns:
+        WHR value rounded to 2 decimal places
+
+    Raises:
+        ValueError: If waist or hip is <= 0
+    """
+    if waist_cm <= 0 or hip_cm <= 0:
+        raise ValueError("waist_cm and hip_cm must be positive")
+    return round(waist_cm / hip_cm, 2)
+
+
+def ffmi_simple(value_weight_kg: float, height_cm: float, bodyfat_percent: float) -> float:
+    """Fat-Free Mass Index (FFMI) - Simple tier.
+
+    Args:
+        value_weight_kg: Weight in kilograms
+        height_cm: Height in centimeters
+        bodyfat_percent: Body fat percentage (required, 0-60)
+
+    Returns:
+        FFMI value rounded to 1 decimal place
+
+    Raises:
+        ValueError: If weight, height, or bodyfat_percent is invalid
+    """
+    if value_weight_kg <= 0 or height_cm <= 0:
+        raise ValueError("weight_kg and height_cm must be positive")
+    if not (0 <= bodyfat_percent <= 60):
+        raise ValueError("bodyfat_percent out of range")
+    ffm = value_weight_kg * (1 - bodyfat_percent / 100.0)
+    h_m = height_cm / 100.0
+    return round(ffm / (h_m * h_m), 1)
+
+
+def stage_obesity_simple(
+    *, bmi: float, whtr: float, whr: Optional[float], sex: Sex, lang: Language = "en"
+) -> tuple[str, list[str]]:
+    """RU: Мягкое стадирование риска по BMI+WHtR(+WHR) - Free/Simple tier.
+    EN: Light risk staging using BMI+WHtR(+WHR) - Free/Simple tier.
+
+    Product Policy: Free tier uses simplified thresholds:
+    - WHR thresholds: 0.90 (male) / 0.85 (female) - simplified
+    - Pro tier uses stricter thresholds: 0.95 (male) / 0.80 (female)
+
+    Returns: Tuple format (risk_level, notes_list) for simple tier compatibility.
+    Pro tier returns Dict format (see stage_obesity()).
+
+    Args:
+        bmi: Body Mass Index
+        whtr: Waist-to-Height Ratio
+        whr: Optional Waist-to-Hip Ratio
+        sex: Biological sex ("male" or "female")
+        lang: Language for messages
+
+    Returns:
+        Tuple of (risk_level, notes_list)
+    """
+    notes: list[str] = []
+    # Базово по WHtR (≈>0.5 — повышенный риск)
+    if whtr < 0.5:
+        risk = "low"
+    elif whtr < 0.6:
+        risk = "moderate"
+        notes.append(t(lang, "risk_moderate_central_fat"))
+    else:
+        risk = "high"
+        notes.append(t(lang, "risk_high_central_fat"))
+
+    # Корректировка по WHR (Free tier: simplified thresholds)
+    if whr is not None:
+        thr = 0.9 if sex == "male" else 0.85  # Free tier thresholds
+        if whr >= thr:
+            notes.append(t(lang, "risk_high_whr", threshold=thr))
+            risk = "high" if risk == "moderate" else risk
+
+    # Доп. акцент по очень высокому BMI
+    if bmi >= 35:
+        notes.append(t(lang, "risk_high_bmi"))
+        risk = "high"
+    elif bmi >= 30 and risk == "low":
+        risk = "moderate"
+        notes.append(t(lang, "risk_moderate_bmi"))
+
+    return risk, notes

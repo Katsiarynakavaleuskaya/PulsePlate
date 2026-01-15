@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from bmi_core import compute_wht_ratio
+from core.bmi.engine import _compute_wht_ratio
 
 
 RiskLevel = Literal["low", "moderate", "high"]
@@ -148,6 +148,6 @@ def calculate_waist_risk(
     else:
         notes = ()
 
-    wht_ratio = compute_wht_ratio(waist_cm, height_m)
+    wht_ratio = _compute_wht_ratio(waist_cm, height_m)
 
     return WaistRiskResult(wht_ratio=wht_ratio, risk_level=risk_level, notes=notes)

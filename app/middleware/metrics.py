@@ -325,7 +325,10 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
                 metrics.request_duration_seconds.labels(
                     method=method, route=route_norm, status=status
                 ).observe(elapsed)
-            except Exception:
+            except Exception:  # nosec B110 - metrics are non-critical, silent failure intentional
                 # Metrics recording must never affect request handling.
                 # Optional: logger.exception("Prometheus metrics recording failed")
+                # Rationale: Silent failure is intentional - metrics are non-critical
+                # and must not interrupt request processing. This is a known pattern
+                # for observability code that should never affect business logic.
                 pass
