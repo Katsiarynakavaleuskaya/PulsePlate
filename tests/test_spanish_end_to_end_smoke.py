@@ -5,8 +5,9 @@ This test ensures that Spanish language support works correctly
 across the entire application in a realistic scenario.
 """
 
+from __future__ import annotations
+
 import os
-import sys
 from typing import cast
 
 import pytest
@@ -15,6 +16,7 @@ from starlette.types import ASGIApp
 
 # Import the FastAPI app from app.py file
 from app import app
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 @pytest.mark.slow
@@ -25,6 +27,7 @@ class TestSpanishEndToEndSmoke:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(cast(ASGIApp, app))
+        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -91,7 +94,7 @@ class TestSpanishEndToEndSmoke:
                 "hip_cm": 90,
                 "lang": "es",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=self.pro_headers,
         )
 
         assert bmi_pro_response.status_code == 422

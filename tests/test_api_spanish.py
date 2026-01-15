@@ -1,9 +1,14 @@
 """Tests for API endpoints with Spanish language support."""
 
+from __future__ import annotations
+
 import os
 
+import pytest
 from fastapi.testclient import TestClient
+
 from app import app
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestAPISpanish:
@@ -13,6 +18,7 @@ class TestAPISpanish:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
+        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -63,7 +69,7 @@ class TestAPISpanish:
             "lang": "es",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/bmi/pro", json=data, headers=self.pro_headers)
         assert response.status_code == 422
 
         result = response.json()

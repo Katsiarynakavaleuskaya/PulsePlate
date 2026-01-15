@@ -5,11 +5,14 @@ This test ensures that Spanish language support works correctly
 across the entire API including BMI, BodyFat, and Plan endpoints.
 """
 
+from __future__ import annotations
+
 import os
 
 from fastapi.testclient import TestClient
 
 from app import app
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestAPIEndToEndSpanish:
@@ -19,6 +22,7 @@ class TestAPIEndToEndSpanish:
         """Set up test client."""
         os.environ["API_KEY"] = "test_key"
         self.client = TestClient(app)
+        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
@@ -118,7 +122,7 @@ class TestAPIEndToEndSpanish:
                 "hip_cm": 90,
                 "lang": "es",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=self.pro_headers,
         )
 
         assert response.status_code == 422
