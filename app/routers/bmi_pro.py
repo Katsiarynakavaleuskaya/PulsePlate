@@ -105,8 +105,8 @@ class BMIProResponse(BaseModel):
     notes: list[str]
 
 
-@router.post("/bmi", response_model=BMIProResponse)
-def bmi_pro(req: BMIProRequest, _: str = Depends(require_pro_tier)) -> BMIProResponse:
+@router.post("/bmi", response_model=BMIProResponse, dependencies=[Depends(require_pro_tier)])
+def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     try:
         # Convert height to meters for calc_bmi(weight, height_m)
         bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)

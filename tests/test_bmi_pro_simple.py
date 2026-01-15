@@ -46,5 +46,5 @@ def test_bmi_pro_validation() -> None:
         "waist_cm": 80,
         "lang": "en",
     }
-    r = client.post("/api/v1/bmi/pro", json=bad, headers={"X-API-Key": TEST_KEY_PRO})
+    r = client.post("/api/v1/pro/bmi", json=bad, headers={"X-API-Key": TEST_KEY_PRO})
     assert r.status_code in (400, 422)
