@@ -100,6 +100,38 @@ SKIP_CONTEXT_RE = re.compile(
     r"description=|Field\(|#|docstring|type:|->|def.*\(.*\)\s*->|:.*float.*="
 )
 
+# Pattern to match triple-quoted strings (docstrings)
+TRIPLE_QUOTES_RE = re.compile(r"('''|\"\"\")")
+
+
+def _update_in_docstring_state(line: str, in_docstring: bool) -> bool:
+    """
+    Track whether we are inside a triple-quoted string/docstring.
+
+    Important: a single line can contain BOTH opening and closing delimiters:
+    `\"\"\"doc\"\"\"` or `'''doc'''`. In that case there are 2 delimiters and
+    the state MUST NOT flip (docstring starts and ends on same line).
+
+    Args:
+        line: Current line to analyze
+        in_docstring: Current docstring state
+
+    Returns:
+        Updated docstring state (True if inside docstring, False otherwise)
+    """
+    # When not inside docstring, ignore triple-quotes in comments
+    scan = line
+    if not in_docstring:
+        scan = scan.split("#", 1)[0]
+
+    # Count triple-quote delimiters in the line
+    n_delims = len(TRIPLE_QUOTES_RE.findall(scan))
+
+    # Only toggle state if odd number of delimiters (opening or closing, not both)
+    if n_delims % 2 == 1:
+        return not in_docstring
+    return in_docstring
+
 
 def _is_whitelisted(rel_path: str) -> bool:
     """Check if path is in whitelist."""
@@ -153,10 +185,8 @@ def _scan(
             text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
             in_docstring = False
             for idx, line in enumerate(text, start=1):
-                # Track docstring state (multiline docstrings)
-                if '"""' in line or "'''" in line:
-                    # Toggle docstring state (handle both opening and closing)
-                    in_docstring = not in_docstring
+                # Track docstring state (handles both single-line and multiline docstrings)
+                in_docstring = _update_in_docstring_state(line, in_docstring)
                 if SKIP_LINE_RE.match(line):
                     continue
                 # Skip lines inside docstrings
@@ -236,3 +266,51 @@ def test_no_waist_thresholds_outside_core() -> None:
         + "\n".join(f"  {hit}" for hit in hits)
         + "\n\nMove waist threshold logic to core/bmi/risk.py"
     )
+
+
+def test_docstring_tracker_single_line_docstring_does_not_leak() -> None:
+    """Test that single-line docstrings don't leak state to next line."""
+    in_doc = False
+    # Single-line docstring (opening and closing on same line) should NOT toggle state
+    in_doc = _update_in_docstring_state('"""doc"""', in_doc)
+    assert in_doc is False, "Single-line docstring should not toggle state"
+
+    in_doc = _update_in_docstring_state("'''doc'''", in_doc)
+    assert in_doc is False, "Single-line docstring with single quotes should not toggle state"
+
+    # Next line should be checked (not skipped)
+    in_doc = _update_in_docstring_state("THRESHOLD = 25.0", in_doc)
+    assert in_doc is False, "Line after single-line docstring should not be in docstring state"
+
+
+def test_docstring_tracker_multiline_toggles_on_odd_count() -> None:
+    """Test that multiline docstrings correctly toggle state."""
+    in_doc = False
+    # Opening delimiter (odd count = 1)
+    in_doc = _update_in_docstring_state('"""doc', in_doc)
+    assert in_doc is True, "Opening delimiter should set in_docstring=True"
+
+    # Line inside docstring (no delimiters)
+    in_doc = _update_in_docstring_state("still doc", in_doc)
+    assert in_doc is True, "Line inside docstring should keep in_docstring=True"
+
+    # Closing delimiter (odd count = 1)
+    in_doc = _update_in_docstring_state('end"""', in_doc)
+    assert in_doc is False, "Closing delimiter should set in_docstring=False"
+
+    # Next line should be checked (not skipped)
+    in_doc = _update_in_docstring_state("THRESHOLD = 30.0", in_doc)
+    assert in_doc is False, "Line after closed docstring should not be in docstring state"
+
+
+def test_docstring_tracker_ignores_comments_when_not_in_docstring() -> None:
+    """Test that triple-quotes in comments don't affect state when not in docstring."""
+    in_doc = False
+    # Triple-quotes in comment should be ignored
+    in_doc = _update_in_docstring_state("# Comment with '''quotes'''", in_doc)
+    assert in_doc is False, "Triple-quotes in comment should not toggle state when not in docstring"
+
+    # But if we're already in docstring, comment prefix doesn't matter
+    in_doc = True
+    in_doc = _update_in_docstring_state("# Still in docstring", in_doc)
+    assert in_doc is True, "Comment prefix should not affect state when already in docstring"
