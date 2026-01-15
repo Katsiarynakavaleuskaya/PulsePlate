@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
+from core.bmi.engine import _compute_bmi
 from core.nutrition_constants import (
     BMI_DANGEROUS_LOW,
     BMI_OBESITY_THRESHOLD,
@@ -374,7 +375,7 @@ class NutritionBayesianAnalyzer:
                 height_m = height / 100.0 if height > 3 else height
                 if height_m <= 0 or height_m > 3 or height <= 0:
                     continue
-                bmi = weight / (height_m**2)
+                bmi = _compute_bmi(weight, height_m)
                 if (
                     bmi < self.safety_thresholds["bmi_dangerous_low"]
                     or bmi >= self.safety_thresholds["bmi_dangerous_high"]

@@ -178,7 +178,6 @@ class TestFinalCoreCoverage:
             "core.aliases",
             "core.auto_repair",
             "core.bmi_extras",
-            "core.bmi_extras_simple",
             "core.db",
             "core.food_merge",
             "core.i18n",

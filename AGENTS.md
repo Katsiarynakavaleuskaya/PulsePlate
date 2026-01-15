@@ -34,6 +34,16 @@ Or individually:
 - This is not optional: uncommitted hook modifications guarantee CI failure.
 - **One-time setup:** Run `pre-commit install` locally once to enable automatic hook execution on `git commit` (reduces CI noise).
 
+**Pre-commit and "expected red" PRs (guard policy):**
+
+- **`--no-verify` is allowed ONLY for "expected-red PR" (guards-first approach)** and **only** with explicit explanation in commit message and PR description.
+- **Rationale:** Guard tests intentionally fail to document architectural violations. Pre-commit hook runs pytest and blocks commits when guards fail (expected behavior).
+- **Process:**
+  1. Guard Policy PR: Use `--no-verify` with explanation: "Pre-commit hook fails because guards intentionally document violations. This is expected behavior — guards will pass after remediation."
+  2. Remediation PR: **Must pass pre-commit** (guards turn green, no `--no-verify` needed).
+  3. **Future improvement:** Consider moving pytest from pre-commit to CI-only (or make it optional via `SKIP_TESTS=1` env var) to avoid blocking commits for expected-red PRs.
+- **Note:** Pre-commit currently runs `backend-tests` hook (pytest) via `.pre-commit-config.yaml`. This is intentional for normal PRs, but creates friction for guard policy PRs. This is acceptable for now; process improvement can be done in separate PR.
+
 **❌ Forbidden:**
 
 - Saying "all checks pass" without showing command outputs
@@ -171,8 +181,8 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 2. **Runtime PRs only:** block planning docs in `docs/pr/`:
    `PR_<n>_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST).md`
 3. **Warnings (non-blocking):**
-   - file count > ~15 (info), > ~30 (warning)
-   - runtime PRs with >2 markdown files (mixed-concern signal)
+  - file count > ~15 (info), > ~30 (warning)
+  - runtime PRs with >2 markdown files (mixed-concern signal)
 
 **How to pass**
 
@@ -333,35 +343,122 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **`/premium/*` is a deprecated namespace** (aliases only), not a tier.
 - **VIP endpoints MUST live under `/api/v1/vip/*`** (canonical namespace).
 
+### Product tier policy for BMI extras (hard rule)
+
+**Invariant:** BMI extras calculations must explicitly distinguish Free/Simple vs Pro tier policies.
+
+**Rationale:** Free and Pro tiers use different:
+- Rounding precision (2 vs 3 decimal places)
+- WHR thresholds (0.90/0.85 vs 0.95/0.80 for male/female)
+- Return formats (tuple vs Dict)
+- Feature availability (FFMI estimate mode in Pro only)
+
+**Enforcement:**
+- **One canonical module:** `core/bmi_extras.py` (satisfies guard requirement)
+- **Explicit tier functions:** `*_simple()` for Free tier, `*_pro()` or base names for Pro tier
+- **Documentation:** Each function must document which tier it serves and policy differences
+- **No mixing:** Free endpoints use Simple tier functions; Pro endpoints use Pro tier functions
+- **Allowed:** Pro endpoints may **map/adapt** Pro-tier outputs to legacy DTOs for backward compatibility (contract adaptation, not tier mixing)
+- **Forbidden:** Calling any `*_simple()` (Free/Simple tier) functions inside Pro endpoints
+
+**Canonical structure:**
+```python
+# core/bmi_extras.py structure:
+# - Pro tier functions: wht_ratio(), whr_ratio(waist, hip, sex), ffmi(), stage_obesity(), interpret_*()
+# - Free/Simple tier functions: wht_ratio_simple(), whr_ratio_simple(waist, hip), ffmi_simple(), stage_obesity_simple(), BMIProCard
+```
+
+**Product contract:**
+- **Free tier:** BMI + category + basic WHtR (if waist available); no WHR, no FFMI, no staging
+- **Pro tier:** All Free features + WHR (sex-specific) + FFMI (with estimate mode) + comprehensive staging + notes
+
+**See:**
+- `docs/audit/PR_REMEDIATION_BMI_EXTRAS_ANALYSIS.md` — Detailed tier analysis
+- `docs/contracts/PRODUCT_TIER_MAP.md` — Full product tier documentation
+- `docs/product/FREE_PRO_CONTRACT.md` — Full product tier contract
+
+### Future scope (explicitly out of current remediation PR)
+
+**VIP tier features (require separate audit and PR):**
+- Personalized nutrition menus
+- Store-based product selection
+- Diet and cuisine preferences
+- Goal-driven meal optimization
+- Restaurant integration
+- Advanced personalization logic
+
+**Rationale:**
+- Current remediation PR is **architectural/technical** — restoring invariants
+- VIP tier requires separate product audit and design
+- Menu automation and product selection are distinct from BMI calculation engine
+- Normalization of existing Free/Pro tiers = OK (remediation)
+- New features or VIP automation = NOT OK (separate PRs)
+
+**When to implement:**
+- After backend P0 remediation is complete (guards green)
+- After product contract is established (FREE/PRO tiers)
+- Requires separate audit: `docs/audit/VIP_TIER_AUDIT.md` (future)
+
+**Key principle:**
+> **PRO tier = automation of interpretation** (calculations, risk assessment)
+> **VIP tier = automation of actions** (menus, products, planning)
+
+### Remediation PR policy (hard rule)
+
+**Scope discipline for architectural remediation:**
+
+- **Remediation PR must fix violations and restore invariants** — guards green, `make verify` green, no obvious dead imports (ruff/mypy).
+- **Allowed in remediation PR:**
+  - Fixing tests that fail due to eliminated violations (legacy paths, duplicate modules, BMI math outside engine)
+  - Updating imports to canonical paths
+  - Removing tests that covered deleted/consolidated modules (only if replacement coverage exists)
+- **Forbidden in remediation PR:**
+  - "Cleanup for cleanup's sake" (unused code, orphan tests that don't fail)
+  - Mass refactoring beyond scope
+  - Coverage optimization unrelated to remediation
+- **All warnings and failures must be fixed** — remediation PR must be clean (no `--no-verify`, no ignored warnings).
+
+**Post-remediation follow-up:**
+
+- Dead code removal, orphan test cleanup, coverage optimization → **separate PR**: `chore: remove dead code after BMI remediation`
+- Rationale: Keeps remediation PR focused, reviewable, and mergeable without scope creep.
+
+**See:** `docs/audit/PR_REMEDIATION_SELF_AUDIT.md` for detailed checklist.
+
 ### Testing tier guards (VIP/PRO endpoints)
 
 - **All tests that call VIP endpoints and expect 200/422/404 MUST use valid VIP key** (`vip_headers` fixture from `tests/conftest.py`).
+- **All tests that call PRO endpoints and expect 200/422/404 MUST use valid PRO key** (`pro_headers` fixture from `tests/conftest.py`).
+- **PRO tier guard is mandatory** — all PRO endpoints MUST enforce `require_pro_tier` dependency. Tests without `pro_headers` will receive 401/403 (guard enforced before payload validation).
 - **Guard-consistency tests assert status codes only** (not error payload shape); payload-shape belongs to dedicated contract tests.
 - **FREE tier tests use empty headers** (`{}`), not a "FREE key" — FREE = no key required.
 - **Tests must not mutate `os.environ` directly** — use `monkeypatch.setenv` (prefer an `autouse` fixture for class-level suites).
 - **Type hints required for all new or modified functions** (including tests).
-  - OK: `def test_x(vip_headers: dict[str, str]) -> None:`
-  - Not OK: `def test_x(vip_headers):` (missing types)
-  - When unsure: prefer explicit `-> None` for test functions.
-  - **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
+- OK: `def test_x(vip_headers: dict[str, str]) -> None:` or `def test_x(pro_headers: dict[str, str]) -> None:`
+- Not OK: `def test_x(vip_headers):` (missing types)
+- When unsure: prefer explicit `-> None` for test functions.
+- **No mass type-hint sweeps** — fix opportunistically when touching files, or when CR requests it locally.
 - **VIP guard matrix lives in `tests/test_vip_tier_guard_matrix.py`** — do not duplicate this matrix in other vip_* tests.
 - **sys.modules mutation forbidden** — use `monkeypatch.delitem(sys.modules, name, raising=False)` and `monkeypatch.setitem(sys.modules, name, value)` instead of direct `del sys.modules[...]` or `sys.modules[...] = ...`.
 - **Env vars set in tests must be cleaned in teardown** — all variables set in `setup_method` must be popped/restored in `teardown_method` to prevent xdist pollution.
 - **Dependency override pattern:**
-  - If test overrides `require_vip_tier` dependency → do NOT send `vip_headers` (guard is bypassed)
-  - If test name includes `_with_guard_bypassed` → override is intentional for business logic testing
-  - If test name does NOT include bypass marker → no overrides, use real keys
+ - If test overrides `require_vip_tier` or `require_pro_tier` dependency → do NOT send `vip_headers`/`pro_headers` (guard is bypassed)
+ - If test name includes `_with_guard_bypassed` → override is intentional for business logic testing
+ - If test name does NOT include bypass marker → no overrides, use real keys
 - **Forbidden:** Testing private `_require_*` functions from routers — use behavioral tests through `TestClient` + middleware.
 - **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
 - **FREE endpoints live under `/api/v1/bmi/*`** and other free paths.
+- **Legacy deprecated aliases:** Tests should use canonical paths (`/api/v1/pro/bmi`), not deprecated aliases (`/api/v1/bmi/pro`). One test per deprecated alias is sufficient to verify backward compatibility.
 
 ### API namespace policy
 
 - **Canonical namespaces:** `/api/v1/bmi/*` (FREE), `/api/v1/pro/*` (PRO), `/api/v1/vip/*` (VIP).
 - **Deprecated namespace:** `/api/v1/premium/*` (aliases only, must delegate to canonical `/pro/*` or `/vip/*`).
+- **Legacy aliases:** Deprecated endpoints in wrong namespace (e.g., `/api/v1/bmi/pro` for PRO tier) must be implemented as thin shims delegating to canonical endpoints. Both canonical and legacy paths must be guarded with appropriate tier dependencies.
+  - **Example:** `POST /api/v1/bmi/pro` (deprecated) → thin proxy to `POST /api/v1/pro/bmi` (canonical). See `app/routers/bmi_pro_legacy_alias.py` for reference implementation.
 - **OpenAPI must not expose deprecated aliases by default** (hide `/premium/*` from schema to prevent frontend from generating types for wrong paths).
-- **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` is FREE tier, not PRO).
+- **File naming must not imply tier unless enforced** (e.g., `bmi_pro.py` router can be PRO tier if it uses `/api/v1/pro/*` namespace).
 - **Frontend must not call `/api/v1/premium/*` endpoints** — use canonical `/api/v1/pro/*` or `/api/v1/vip/*` instead. Deprecated premium endpoints may be removed in future releases.
 
 ### Tier enforcement
@@ -482,10 +579,118 @@ This rule exists to prevent accidental regressions, keep PR reviews focused and 
 
 Violation of this rule blocks merge.
 
+## Release readiness priorities (hard rule)
+
+**Definition of Ready / Definition of Done for release:**
+
+1. **P0-A: "Product Works"** (must-have before any release)
+   - Core functionality works (BMI calculates, forms validate, API contracts match)
+   - No "undefined" in UI results
+   - Locale parsing works (RU comma → dot)
+   - Error handling shows proper messages, not crashes
+   - Forms submit valid data to backend
+   - API responses are correctly rendered
+
+2. **P0-B: "Can Publish"** (required for App Store/public launch)
+   - App Store assets (screenshots, metadata)
+   - Basic onboarding (at least 2 screens: value + usage)
+   - Language switch works
+   - Core user flows are complete
+
+3. **P1: "Brand Magic"** (enhancements, not blockers)
+   - Slogan, ECG/pulse animations, FitChef assets
+   - Advanced UX, Storybook, design system polish
+   - Visual refinements beyond functional requirements
+
+**Hard rule:** Do not work on P1 items until P0-A is complete. "Brand magic" is worthless if the product doesn't calculate.
+
+**Diagnostic approach for "BMI undefined" issues:**
+1. **Request:** Check DevTools Network → URL + payload (JSON)
+2. **Response:** Check status code + first fields of body
+   - **422** → Form sends wrong data (parsing/fields/units) → Fix in PR-525
+   - **200, but BMI null/undefined** → Render/field mapping broken in UI
+   - **403** → API key/gate/PRO guard issue (not BMI math)
+   - **500** → Server error (check logs/endpoint)
+
+## BMI Engine Invariant (Hard Rule)
+
+**Invariant:** *"One BMI Engine must be the sole calculation path for all BMI-related computations."*
+
+**Enforcement:**
+- Guard tests in `tests/test_bmi_canonical_guard.py`
+- CI fails on violation
+- No imports from `bmi_core` in `core/bmi/`
+- Only one canonical extras module (or clear purpose)
+
+**Point of No-Return:**
+> *"Until legacy dependency is removed, any downstream fixes (frontend, API contracts) are considered unreliable. The system cannot be diagnosed or fixed reliably until the invariant is restored."*
+
+**Related:**
+- `docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md` — Root cause analysis
+- `docs/audit/BACKEND_P0_REMEDIATION_PLAN.md` — Remediation plan
+- `docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md` — Guard policy
+
 ## Known pitfalls
 
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
   Import hygiene guards prevent regression.
+
+## Frontend form handling rules (hard)
+
+### React Hook Form (RHF) integration
+
+**Hard rule:** Custom input components with `onValueChange(value)` → **only use `Controller` pattern**, never `{...register()}`.
+
+**Why:**
+- `register()` expects DOM `onChange(event)`
+- Custom components use `onValueChange(value)` → incompatible
+- Direct `{...register()}` will cause bugs (values as strings, NaN, undefined)
+
+**Correct pattern:**
+```typescript
+import { Controller } from "react-hook-form";
+import { NumberInput } from "@/components/ui/number-input";
+
+<Controller
+  name="weight_kg"
+  control={control}
+  render={({ field }) => (
+    <NumberInput
+      value={field.value ?? ""}
+      onValueChange={field.onChange}   // (number | "") => void
+      onBlur={field.onBlur}
+      locale="ru"
+    />
+  )}
+/>
+```
+
+**Alternative (quick fix):** Use `setValueAs` with native `<input>`:
+```typescript
+<input
+  {...register('weight_kg', {
+    setValueAs: (v) => {
+      const s = String(v ?? "").trim().replace(/,/g, ".");
+      const n = Number(s);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    },
+  })}
+/>
+```
+
+### Locale numeric parsing (RU/EN)
+
+**Hard rule:** RU locale must support comma decimal separator (`75,1` → `75.1`).
+
+**Implementation:**
+- Use `setValueAs` for quick fixes (P0)
+- Use `NumberInput` with `Controller` for proper components (P1)
+- **Single source of truth:** Either `setValueAs` OR `NumberInput`, not both
+
+**Verification:**
+- Test with `75,1` → should parse to `75.1`
+- Test with `75.1` → should parse to `75.1`
+- Invalid input → should show error, not `undefined`
 
 ## Duplicate modules / imports policy (critical)
 

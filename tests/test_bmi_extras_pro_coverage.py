@@ -1,5 +1,5 @@
 """
-Comprehensive tests for core/bmi_extras_pro.py - Advanced BMI metrics.
+Comprehensive tests for core/bmi_extras.py (Pro tier) - Advanced BMI metrics.
 
 Tests cover:
 - Waist-to-Height Ratio (WHtR) calculation and interpretation
@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import pytest
-from core.bmi_extras_pro import (
+from core.bmi_extras import (
     wht_ratio,
     whr_ratio,
     ffmi,
@@ -279,6 +279,76 @@ class TestStageObesity:
         assert "stage" in result_ru
         result_es = stage_obesity(bmi=27.0, wht=0.52, whr=0.90, sex="male", lang="es")
         assert "stage" in result_es
+
+    def test_stage_obesity_optional_whr_with_whr_none(self):
+        """Test stage_obesity_optional_whr with missing WHR (whr=None)."""
+        from core.bmi_extras import stage_obesity_optional_whr
+
+        # Missing WHR should result in whr_risk="unknown"
+        result = stage_obesity_optional_whr(bmi=22.0, wht=0.45, whr=None, sex="male", lang="en")
+        assert "stage" in result
+        assert result["whr_risk"] == "unknown"
+        assert "wht_risk" in result
+        assert result["risk_factors"] in ["0", "1", "2"]  # WHR not counted when None
+
+    def test_stage_obesity_optional_whr_with_whr_provided(self):
+        """Test stage_obesity_optional_whr with WHR provided."""
+        from core.bmi_extras import stage_obesity_optional_whr
+
+        # With WHR, should calculate whr_risk normally
+        result = stage_obesity_optional_whr(bmi=32.0, wht=0.55, whr=0.96, sex="male", lang="en")
+        assert "stage" in result
+        assert result["whr_risk"] != "unknown"
+        assert result["whr_risk"] in ["low", "high"]
+        assert "wht_risk" in result
+
+    def test_stage_obesity_optional_whr_low_risk_path(self):
+        """Test stage_obesity_optional_whr low_risk path (risk_factors=0)."""
+        from core.bmi_extras import stage_obesity_optional_whr
+
+        # Low risk: BMI < 30, WHtR < 0.5, no WHR risk
+        result = stage_obesity_optional_whr(bmi=22.0, wht=0.4, whr=None, sex="male", lang="en")
+        assert result["stage"] == "low_risk"
+        assert result["risk_factors"] == "0"
+        assert "recommendation" in result
+
+    def test_stage_obesity_optional_whr_underweight_bmi_category(self):
+        """Test stage_obesity_optional_whr with underweight BMI category."""
+        from core.bmi_extras import stage_obesity_optional_whr
+
+        # Underweight: BMI < 18.5
+        result = stage_obesity_optional_whr(bmi=17.0, wht=0.4, whr=None, sex="male", lang="en")
+        assert result["bmi_category"] == "underweight"
+        assert "stage" in result
+        assert "wht_risk" in result
+        assert result["whr_risk"] == "unknown"  # WHR is None
+
+    def test_stage_obesity_optional_whr_high_risk_localization(self):
+        """Test that high-risk recommendation is localized (not hardcoded English).
+
+        Verifies that recommendation matches i18n key 'recommendation_consult_healthcare'
+        for all languages (RU/ES/EN), ensuring no hardcoded English text appears.
+        """
+        from core.bmi_extras import stage_obesity_optional_whr
+        from core.i18n import t
+
+        # High risk: BMI >= 30, WHtR >= 0.5 (risk_factors >= 2)
+        for lang in ["ru", "es", "en"]:
+            result = stage_obesity_optional_whr(bmi=32.0, wht=0.55, whr=None, sex="male", lang=lang)
+            assert result["stage"] == "high_risk"
+            assert "recommendation" in result
+
+            # Compare directly with i18n key (not hardcoded text)
+            expected = t(lang, "recommendation_consult_healthcare")
+            assert (
+                result["recommendation"] == expected
+            ), f"Recommendation for lang={lang} should match i18n key 'recommendation_consult_healthcare'"
+
+            # Additional safety check: RU/ES should NOT contain English text
+            if lang in ["ru", "es"]:
+                assert (
+                    "Consider consulting" not in result["recommendation"]
+                ), f"Language {lang} should not contain English text 'Consider consulting'"
 
 
 class TestIntegration:

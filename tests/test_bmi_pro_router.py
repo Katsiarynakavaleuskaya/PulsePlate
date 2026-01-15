@@ -5,8 +5,12 @@ RU: Тесты для роутера BMI Pro.
 EN: Tests for BMI Pro router.
 """
 
-from unittest.mock import patch
+from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
@@ -15,18 +19,21 @@ from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
 class TestBMIProRouter:
     """Test BMI Pro router functionality."""
 
-    def setup_method(self):
-        """Set up test client."""
-        from fastapi import FastAPI
+    client: TestClient
+    pro_headers: dict[str, str]
 
+    @pytest.fixture(autouse=True)
+    def _setup(self, pro_headers: dict[str, str]) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
         app = FastAPI()
         app.include_router(router)
         self.client = TestClient(app)
+        self.pro_headers = pro_headers
 
-    def test_bmi_pro_success_basic(self):
+    def test_bmi_pro_success_basic(self) -> None:
         """Test BMI Pro endpoint with basic data."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -35,6 +42,7 @@ class TestBMIProRouter:
                 "waist_cm": 80.0,
                 "lang": "en",
             },
+            headers=self.pro_headers,
         )
 
         assert response.status_code == 200
@@ -47,10 +55,10 @@ class TestBMIProRouter:
         assert "notes" in data
         assert isinstance(data["notes"], list)
 
-    def test_bmi_pro_success_with_hip(self):
+    def test_bmi_pro_success_with_hip(self) -> None:
         """Test BMI Pro endpoint with hip measurement."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -60,16 +68,17 @@ class TestBMIProRouter:
                 "hip_cm": 95.0,
                 "lang": "en",
             },
+            headers=self.pro_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["whr"] is not None
 
-    def test_bmi_pro_success_with_bodyfat(self):
+    def test_bmi_pro_success_with_bodyfat(self) -> None:
         """Test BMI Pro endpoint with body fat percentage."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -79,16 +88,17 @@ class TestBMIProRouter:
                 "bodyfat_percent": 15.0,
                 "lang": "en",
             },
+            headers=self.pro_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["ffmi"] is not None
 
-    def test_bmi_pro_success_russian(self):
+    def test_bmi_pro_success_russian(self) -> None:
         """Test BMI Pro endpoint with Russian language."""
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -97,17 +107,18 @@ class TestBMIProRouter:
                 "waist_cm": 80.0,
                 "lang": "ru",
             },
+            headers=self.pro_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
         assert "notes" in data
 
-    def test_bmi_pro_validation_errors(self):
+    def test_bmi_pro_validation_errors(self) -> None:
         """Test BMI Pro endpoint validation errors."""
         # Test negative height
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": -170.0,
                 "weight_kg": 70.0,
@@ -115,12 +126,13 @@ class TestBMIProRouter:
                 "age": 30,
                 "waist_cm": 80.0,
             },
+            headers=self.pro_headers,
         )
         assert response.status_code == 422
 
         # Test negative weight
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": -70.0,
@@ -128,19 +140,21 @@ class TestBMIProRouter:
                 "age": 30,
                 "waist_cm": 80.0,
             },
+            headers=self.pro_headers,
         )
         assert response.status_code == 422
 
         # Test invalid age
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={"height_cm": 170.0, "weight_kg": 70.0, "sex": "male", "age": 5, "waist_cm": 80.0},
+            headers=self.pro_headers,
         )
         assert response.status_code == 422
 
         # Test invalid sex
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -148,30 +162,35 @@ class TestBMIProRouter:
                 "age": 30,
                 "waist_cm": 80.0,
             },
+            headers=self.pro_headers,
         )
         assert response.status_code == 422
 
-    def test_bmi_pro_missing_required_fields(self):
+    def test_bmi_pro_missing_required_fields(self) -> None:
         """Test BMI Pro endpoint with missing required fields."""
         # Missing height
         response = self.client.post(
-            "/api/v1/bmi/pro", json={"weight_kg": 70.0, "sex": "male", "age": 30, "waist_cm": 80.0}
+            "/api/v1/pro/bmi",
+            json={"weight_kg": 70.0, "sex": "male", "age": 30, "waist_cm": 80.0},
+            headers=self.pro_headers,
         )
         assert response.status_code == 422
 
         # Missing weight
         response = self.client.post(
-            "/api/v1/bmi/pro", json={"height_cm": 170.0, "sex": "male", "age": 30, "waist_cm": 80.0}
+            "/api/v1/pro/bmi",
+            json={"height_cm": 170.0, "sex": "male", "age": 30, "waist_cm": 80.0},
+            headers=self.pro_headers,
         )
         assert response.status_code == 422
 
     @patch("app.routers.bmi_pro.calc_bmi")
-    def test_bmi_pro_calculation_error(self, mock_calc_bmi):
+    def test_bmi_pro_calculation_error(self, mock_calc_bmi: MagicMock) -> None:
         """Test BMI Pro endpoint with calculation error."""
         mock_calc_bmi.side_effect = ValueError("Invalid calculation")
 
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "height_cm": 170.0,
                 "weight_kg": 70.0,
@@ -179,12 +198,13 @@ class TestBMIProRouter:
                 "age": 30,
                 "waist_cm": 80.0,
             },
+            headers=self.pro_headers,
         )
 
         assert response.status_code == 400
         assert "Invalid calculation" in response.json()["detail"]
 
-    def test_bmi_pro_request_model(self):
+    def test_bmi_pro_request_model(self) -> None:
         """Test BMIProRequest model validation."""
         # Valid request
         request = BMIProRequest(height_cm=170.0, weight_kg=70.0, sex="male", age=30, waist_cm=80.0)
@@ -197,7 +217,7 @@ class TestBMIProRouter:
         assert request.bodyfat_percent is None
         assert request.lang == "en"
 
-    def test_bmi_pro_response_model(self):
+    def test_bmi_pro_response_model(self) -> None:
         """Test BMIProResponse model."""
         response = BMIProResponse(
             bmi=24.2, whtr=0.47, whr=0.85, ffmi=20.5, risk_level="low", notes=["Good health"]

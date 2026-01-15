@@ -5,31 +5,27 @@ This test ensures that Spanish language support works correctly
 across the entire application in a realistic scenario.
 """
 
-import os
-import sys
-from typing import cast
+from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-from starlette.types import ASGIApp
-
-# Import the FastAPI app from app.py file
-from app import app
 
 
 @pytest.mark.slow
 class TestSpanishEndToEndSmoke:
     """End-to-end smoke test for Spanish language support."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(cast(ASGIApp, app))
+    client: TestClient
+    pro_headers: dict[str, str]
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        self.client = client
+        self.pro_headers = pro_headers
 
     def test_spanish_end_to_end_workflow(self) -> None:
         """Test a complete workflow using Spanish language."""
@@ -79,26 +75,27 @@ class TestSpanishEndToEndSmoke:
 
         # 3. Test BMI Pro calculation with Spanish language
         bmi_pro_response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "weight_kg": 70,
                 "height_cm": 175,
                 "age": 30,
-                "gender": "hombre",
-                "pregnant": "no",
-                "athlete": "no",
+                "sex": "male",
                 "waist_cm": 80,
                 "hip_cm": 90,
                 "lang": "es",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=self.pro_headers,
         )
 
-        assert bmi_pro_response.status_code == 422
+        assert bmi_pro_response.status_code == 200
         bmi_pro_result = bmi_pro_response.json()
 
-        # Check that we have validation errors
-        assert "detail" in bmi_pro_result
+        # Check that the response contains Spanish output
+        assert "bmi" in bmi_pro_result
+        assert bmi_pro_result["bmi"] == pytest.approx(22.9, abs=0.1)
+        # Verify Spanish language is processed (notes should be localized)
+        assert isinstance(bmi_pro_result.get("notes"), list)
 
         # 4. Test web interface with Spanish language parameter
         web_response = self.client.get("/?lang=es")

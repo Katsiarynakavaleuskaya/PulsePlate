@@ -5,7 +5,6 @@ This module targets the specific uncovered lines identified in the coverage repo
 """
 
 import os
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -33,31 +32,63 @@ class TestAppSpecificCoverage96:
         # The function should return something (even if it's a mock)
         assert result is not None
 
-    def test_metrics_endpoint_no_prometheus(self):
-        """Test metrics endpoint when prometheus is not available (line 606)."""
-        response = self.client.get("/metrics")
-        assert response.status_code == 200
-        # When prometheus is not available, it returns JSON with error
-        # But if prometheus is available, it returns text/plain metrics
-        if response.headers.get("content-type") == "application/json":
-            data = response.json()
-            assert "error" in data
-            assert "Prometheus client not available" in data["error"]
-        else:
-            # Prometheus is available and returns metrics text
-            assert "text/plain" in response.headers.get("content-type", "")
+    def test_metrics_endpoint_no_prometheus(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test metrics endpoint when prometheus exporter fails (forced fallback)."""
+        from unittest.mock import MagicMock
 
-    def test_metrics_endpoint_with_prometheus(self):
-        """Test metrics endpoint when prometheus is available (line 605)."""
-        # Test metrics endpoint - it may return error if Prometheus is not available
+        # Force exporter failure to test JSON fallback deterministically
+        # metrics_endpoint() calls: prometheus_client = _import_prometheus_client()
+        # then: prometheus_client.generate_latest()
+        # We patch _import_prometheus_client to return a mock that raises on generate_latest()
+        mock_prometheus_client = MagicMock()
+        mock_prometheus_client.generate_latest.side_effect = RuntimeError(
+            "Prometheus exporter disabled for test"
+        )
+        mock_prometheus_client.CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
+
+        monkeypatch.setattr(
+            "app.bootstrap.metrics._import_prometheus_client",
+            lambda *args, **kwargs: mock_prometheus_client,
+        )
+
         response = self.client.get("/metrics")
+
+        # If endpoint is not mounted in this configuration, skip test explicitly.
+        # This can happen in CI/test environments where app.middleware_stack is already built
+        # before register_metrics() is called (Starlette forbids adding routes after first request).
+        if response.status_code == 404:
+            pytest.skip("/metrics endpoint is not registered in this app configuration")
+
         assert response.status_code == 200
-        # If Prometheus is available, check for metrics
-        if "python_gc_objects_collected_total" in response.text:
+        # Forced exporter failure should return JSON error envelope
+        assert response.headers.get("content-type", "").startswith("application/json")
+        data = response.json()
+        assert "error" in data
+        assert "detail" in data
+        # RuntimeError during generate_latest() should return "Metrics export failed"
+        assert data["error"] == "Metrics export failed"
+
+    def test_metrics_endpoint_with_prometheus(self) -> None:
+        """Test metrics endpoint when prometheus is available (happy path)."""
+        response = self.client.get("/metrics")
+
+        # If endpoint is not mounted in this configuration, skip test explicitly.
+        # This can happen in CI/test environments where app.middleware_stack is already built
+        # before register_metrics() is called (Starlette forbids adding routes after first request).
+        if response.status_code == 404:
+            pytest.skip("/metrics endpoint is not registered in this app configuration")
+
+        assert response.status_code == 200
+
+        content_type = response.headers.get("content-type", "")
+        if content_type.startswith("text/plain"):
+            # Prometheus is available and returns metrics text
             assert "python_info" in response.text
         else:
-            # If Prometheus is not available, check for error message
-            assert "error" in response.text or "not available" in response.text
+            # Prometheus exporter unavailable; fallback covered by no_prometheus test
+            pytest.skip(
+                "Prometheus exporter unavailable; fallback covered by test_metrics_endpoint_no_prometheus"
+            )
 
     def test_privacy_endpoint_content(self):
         """Test privacy endpoint returns expected content."""
@@ -452,14 +483,45 @@ class TestAppSpecificCoverage96:
         if flag is not None and flag.lower() not in {"1", "true", "yes", "on"}:
             pytest.skip("BMI Pro endpoint disabled by BMI_PRO_ENABLED")
 
-        response = self.client.post("/api/v1/bmi/pro", json=payload)
+        response = self.client.post("/api/v1/pro/bmi", json=payload)
 
         # If endpoint is not mounted in this configuration, skip test explicitly
         if response.status_code == 404:
             pytest.skip("BMI Pro endpoint is not mounted in this app configuration")
 
-        # In test environment with mocked auth: 200 (success), 422 (validation), or 403 (strict mode)
-        assert response.status_code in [200, 422, 403]
+        # Pro tier guard requires authentication: 401 (no key)
+        # This test is specifically "without_auth", so expect strict 401
+        assert response.status_code == 401
+
+    def test_api_v1_bmi_pro_endpoint_with_invalid_auth(self) -> None:
+        """Test API v1 BMI Pro endpoint with invalid PRO key (should return 403)."""
+        payload = {
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "sex": "male",
+            "waist_cm": 85.0,
+            "lang": "en",
+        }
+
+        # Optional explicit gate for CI configs where BMI Pro is deliberately disabled.
+        flag = os.environ.get("BMI_PRO_ENABLED")
+        if flag is not None and flag.lower() not in {"1", "true", "yes", "on"}:
+            pytest.skip("BMI Pro endpoint disabled by BMI_PRO_ENABLED")
+
+        # Use invalid PRO key (not TEST_KEY_PRO)
+        response = self.client.post(
+            "/api/v1/pro/bmi",
+            json=payload,
+            headers={"X-API-Key": "invalid-pro-key"},
+        )
+
+        # If endpoint is not mounted in this configuration, skip test explicitly
+        if response.status_code == 404:
+            pytest.skip("BMI Pro endpoint is not mounted in this app configuration")
+
+        # Pro tier guard requires valid PRO key: 403 (invalid key)
+        assert response.status_code == 403
 
     def test_api_v1_bodyfat_endpoint(self) -> None:
         """Test API v1 bodyfat endpoint (success or validation/auth error)."""

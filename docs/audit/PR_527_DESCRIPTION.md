@@ -12,7 +12,7 @@ Remove setuptools from the production/runtime image after installing dependencie
 
 **Rationale:** By removing setuptools from the production/runtime image, we remove the vulnerable vendored copy (jaraco.context 5.3.0, which is in the affected range for GHSA-58pv-8j8x-9vj2) from the shipped artifact. setuptools remains available during build-time. The development stage intentionally retains setuptools/wheel because they are required runtime dependencies of pip-tools for lockfile regeneration via `pip-compile`.
 
-**Timing:** `requirements.txt` includes setuptools **for build-time install** (needed for `pip install`), then Dockerfile removes it **before runtime** (in builder stage, before copying venv to runtime-base). 
+**Timing:** `requirements.txt` includes setuptools **for build-time install** (needed for `pip install`), then Dockerfile removes it **before runtime** (in builder stage, before copying venv to runtime-base).
 
 **Risk:** Uninstalling setuptools can break runtime if any dependency imports `pkg_resources` (from setuptools). Verify the app starts successfully and core imports succeed without setuptools to catch any transitive runtime dependency.
 

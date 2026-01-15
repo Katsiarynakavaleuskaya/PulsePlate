@@ -48,6 +48,8 @@ TRANSLATIONS = {
         "form_waist": "Талия (см)",
         "form_hip": "Бедра (см)",
         "form_bodyfat": "Процент жира (%)",
+        # BMI Pro - Missing data notes
+        "bmi_pro_whr_missing_hip": "WHR не рассчитан: нет окружности бёдер (hip_cm). Оценка риска выполнена только по BMI и WHtR.",
         "form_calculate": "Рассчитать",
         "form_male": "Мужской",
         "form_female": "Женский",
@@ -87,6 +89,10 @@ TRANSLATIONS = {
         "bmi_pro_moderate_risk": "Умеренный",
         "bmi_pro_high_risk": "Высокий",
         "bmi_pro_analysis_complete": "Анализ BMI Pro завершен",
+        # BMI Pro Notes (risk factors and assessments)
+        "bmi_pro_risk_factors": "Факторы риска: {count}",
+        "bmi_pro_wht_risk": "WHtR риск: {risk}",
+        "bmi_pro_whr_risk": "WHR риск: {risk}",
         # Recommendations
         "recommendation_consult_healthcare": "Рассмотрите возможность консультации с "
         "медицинским специалистом для комплексной оценки",
@@ -150,6 +156,8 @@ TRANSLATIONS = {
         "form_waist": "Waist (cm)",
         "form_hip": "Hip (cm)",
         "form_bodyfat": "Body Fat %",
+        # BMI Pro - Missing data notes
+        "bmi_pro_whr_missing_hip": "WHR not computed: missing hip_cm. Risk assessment performed using BMI and WHtR only.",
         "form_calculate": "Calculate",
         "form_male": "Male",
         "form_female": "Female",
@@ -189,6 +197,10 @@ TRANSLATIONS = {
         "bmi_pro_moderate_risk": "Moderate",
         "bmi_pro_high_risk": "High",
         "bmi_pro_analysis_complete": "BMI Pro analysis complete",
+        # BMI Pro Notes (risk factors and assessments)
+        "bmi_pro_risk_factors": "Risk factors: {count}",
+        "bmi_pro_wht_risk": "WHtR risk: {risk}",
+        "bmi_pro_whr_risk": "WHR risk: {risk}",
         # Recommendations
         "recommendation_consult_healthcare": "Consider consulting with a healthcare "
         "professional for comprehensive assessment",
@@ -245,6 +257,8 @@ TRANSLATIONS = {
         "form_waist": "Cintura (cm)",
         "form_hip": "Cadera (cm)",
         "form_bodyfat": "Grasa Corporal %",
+        # BMI Pro - Missing data notes
+        "bmi_pro_whr_missing_hip": "WHR no calculado: falta hip_cm. Evaluación de riesgo realizada solo con BMI y WHtR.",
         "form_calculate": "Calcular",
         "form_male": "Masculino",
         "form_female": "Femenino",
@@ -285,6 +299,10 @@ TRANSLATIONS = {
         "bmi_pro_moderate_risk": "Moderado",
         "bmi_pro_high_risk": "Alto",
         "bmi_pro_analysis_complete": "Análisis de IMC Pro completado",
+        # BMI Pro Notes (risk factors and assessments)
+        "bmi_pro_risk_factors": "Factores de riesgo: {count}",
+        "bmi_pro_wht_risk": "Riesgo WHtR: {risk}",
+        "bmi_pro_whr_risk": "Riesgo WHR: {risk}",
         # Recommendations
         "recommendation_consult_healthcare": "Considera consultar con un profesional "
         "de la salud para una evaluación completa",

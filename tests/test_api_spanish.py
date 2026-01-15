@@ -1,23 +1,25 @@
 """Tests for API endpoints with Spanish language support."""
 
-import os
+from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
-from app import app
 
 
 class TestAPISpanish:
     """Test API endpoints with Spanish language support."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app)
+    client: TestClient
+    pro_headers: dict[str, str]
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        self.client = client
+        self.pro_headers = pro_headers
 
     def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""
@@ -63,7 +65,7 @@ class TestAPISpanish:
             "lang": "es",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post("/api/v1/pro/bmi", json=data, headers=self.pro_headers)
         assert response.status_code == 422
 
         result = response.json()
@@ -92,5 +94,6 @@ class TestAPISpanish:
         assert "bmi" in result
         assert "category" in result
 
-        # Check that the summary is in Spanish
-        assert "plan" in result["summary"].lower() or "plan" in result["summary"].lower()
+        # Check that the summary contains plan/resumen keywords in Spanish
+        summary_text = result["summary"].lower()
+        assert any(keyword in summary_text for keyword in ("plan", "planes", "resumen"))

@@ -44,6 +44,8 @@ WHITELIST_PARTS = [
     # Tracked in PR-456: migrate to use core/bmi/engine.py
     "app/routers/bmi_pro.py",
     "core/nutrition_",  # Nutrition constants (not BMI math, different domain)
+    # NOTE: core/bmi_extras is whitelisted for BMI calculations, but thresholds must come from core/bmi/risk
+    # Guard test will still catch hardcoded thresholds (18.5/25/30/0.95/0.80) even in whitelisted files
     "core/bmi_extras",  # PRO features (separate from Free BMI canonical engine)
     "app/schemas/bmi.py",  # Schema Field descriptions (documentation, not code)
     "tests_strict/",  # Strict test suite (test code)
@@ -64,11 +66,12 @@ BMI_FORMULA_RE = re.compile(
 # Pattern 2: BMI thresholds (canonical values) - must be in BMI context
 # Look for BMI-related keywords nearby (bmi, category, threshold, etc.)
 # Includes 24.9 (healthy range max) per PR-502 enforcement
+# NOTE: Also detects WHR thresholds (0.95/0.80) outside core/bmi/risk.py
 BMI_THRESHOLDS_RE = re.compile(
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy).*"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b|"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b.*"
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy)",
+    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip).*"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80)\b|"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80)\b.*"
+    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip)",
     re.IGNORECASE,
 )
 
@@ -103,9 +106,30 @@ def _is_whitelisted(rel_path: str) -> bool:
     return any(part in rel_path for part in WHITELIST_PARTS)
 
 
-def _scan(pattern: re.Pattern[str], description: str) -> list[str]:
+def _should_skip_threshold_check(rel_path: str) -> bool:
+    """
+    Check if threshold regex checks should be skipped for this path.
+
+    Special case: core/bmi_extras is whitelisted for BMI math calculations,
+    but threshold checks must still run to prevent hardcoded thresholds outside core/bmi/risk.
+    """
+    # core/bmi_extras is whitelisted for math, but thresholds must be checked
+    if "core/bmi_extras" in rel_path:
+        return False
+    return _is_whitelisted(rel_path)
+
+
+def _scan(
+    pattern: re.Pattern[str], description: str, skip_threshold_check: bool = False
+) -> list[str]:
     """
     Scan repository for forbidden patterns.
+
+    Args:
+        pattern: Regex pattern to search for
+        description: Description for error messages
+        skip_threshold_check: If True, use special logic for threshold checks
+            (core/bmi_extras must still be checked even if whitelisted)
 
     Returns:
         List of hits in format "file:line: content"
@@ -117,8 +141,13 @@ def _scan(pattern: re.Pattern[str], description: str) -> list[str]:
         except ValueError:
             # Path not relative to REPO_ROOT (shouldn't happen, but defensive)
             continue
-        if _is_whitelisted(rel):
-            continue
+        # For threshold checks, use special logic (core/bmi_extras must be checked)
+        if skip_threshold_check:
+            if _should_skip_threshold_check(rel):
+                continue
+        else:
+            if _is_whitelisted(rel):
+                continue
 
         try:
             text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
@@ -158,8 +187,11 @@ def test_no_bmi_thresholds_outside_core() -> None:
     """
     RU: Проверяет, что пороги BMI (18.5, 25.0, 30.0, etc.) не встречаются вне whitelist.
     EN: Ensures BMI thresholds (18.5, 25.0, 30.0, etc.) are not found outside whitelist.
+
+    NOTE: core/bmi_extras is whitelisted for math, but threshold checks still run
+    to prevent hardcoded thresholds outside core/bmi/risk.py.
     """
-    hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds")
+    hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds", skip_threshold_check=True)
     assert not hits, (
         "BMI thresholds found outside core/bmi (violates canonical rule):\n"
         + "\n".join(f"  {hit}" for hit in hits)
@@ -186,8 +218,11 @@ def test_no_waist_thresholds_outside_core() -> None:
     EN: Ensures waist thresholds (80/88/94/102) are not found outside whitelist.
 
     PR-502: Prevents hardcoded waist risk constants from creeping back into legacy_app.py.
+
+    NOTE: core/bmi_extras is whitelisted for math, but threshold checks still run
+    to prevent hardcoded thresholds outside core/bmi/risk.py.
     """
-    hits = _scan(WAIST_THRESHOLDS_RE, "waist thresholds")
+    hits = _scan(WAIST_THRESHOLDS_RE, "waist thresholds", skip_threshold_check=True)
     assert not hits, (
         "Waist thresholds found outside core/bmi (violates canonical rule):\n"
         + "\n".join(f"  {hit}" for hit in hits)

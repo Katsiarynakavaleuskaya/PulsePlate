@@ -499,6 +499,21 @@ def api_key() -> str:
 
 
 @pytest.fixture
+def pro_headers() -> dict[str, str]:
+    """Return headers with valid PRO API key for testing PRO endpoints.
+
+    RU: Возвращает заголовки с валидным PRO API ключом для тестирования PRO endpoints.
+    EN: Returns headers with valid PRO API key for testing PRO endpoints.
+
+    Use this fixture in all tests that call PRO endpoints and expect 200/422/404
+    (not 403 auth errors). PRO guard requires tier-based validation.
+    """
+    from app.middleware.api_tiers import TEST_KEY_PRO
+
+    return {"X-API-Key": TEST_KEY_PRO}
+
+
+@pytest.fixture
 def vip_headers() -> dict[str, str]:
     """Return headers with valid VIP API key for testing VIP endpoints.
 

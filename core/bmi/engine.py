@@ -4,8 +4,8 @@ BMI Engine Orchestrator
 RU: Единый engine для расчета BMI (canonical source of truth).
 EN: Unified engine for BMI calculation (canonical source of truth).
 
-This module will be fully implemented in PR-455.
-Currently provides a stub implementation for development/testing.
+Canonical implementation: all BMI calculations must use this module.
+No other calculation paths are allowed.
 """
 
 from __future__ import annotations

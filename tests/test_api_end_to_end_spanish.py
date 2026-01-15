@@ -5,25 +5,26 @@ This test ensures that Spanish language support works correctly
 across the entire API including BMI, BodyFat, and Plan endpoints.
 """
 
-import os
+from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
-
-from app import app
 
 
 class TestAPIEndToEndSpanish:
     """Test end-to-end Spanish language support."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        os.environ["API_KEY"] = "test_key"
-        self.client = TestClient(app)
+    client: TestClient
+    pro_headers: dict[str, str]
 
-    def teardown_method(self) -> None:
-        """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
+    @pytest.fixture(autouse=True)
+    def _setup(
+        self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
+        monkeypatch.setenv("API_KEY", "test_key")
+        self.client = client
+        self.pro_headers = pro_headers
 
     def test_bmi_endpoint_spanish(self) -> None:
         """Test BMI endpoint with Spanish language."""
@@ -106,25 +107,27 @@ class TestAPIEndToEndSpanish:
         """Test BMI Pro endpoint with Spanish language."""
         # Test BMI Pro calculation with Spanish language
         response = self.client.post(
-            "/api/v1/bmi/pro",
+            "/api/v1/pro/bmi",
             json={
                 "weight_kg": 70,
-                "height_cm": 175,  # Changed from height_m to height_cm
+                "height_cm": 175,
                 "age": 30,
-                "gender": "hombre",
-                "pregnant": "no",
-                "athlete": "no",
+                "sex": "male",
                 "waist_cm": 80,
                 "hip_cm": 90,
                 "lang": "es",
             },
-            headers={"X-API-Key": "test_key"},
+            headers=self.pro_headers,
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 200
+        result = response.json()
 
-        # Check that the response contains Spanish text in the analysis
-        # This would depend on the specific implementation of BMI Pro
+        # Check that the response contains Spanish output
+        assert "bmi" in result
+        assert result["bmi"] == pytest.approx(22.9, abs=0.1)
+        # Verify Spanish language is processed (notes should be localized)
+        assert isinstance(result.get("notes"), list)
 
     def test_all_endpoints_consistency_spanish(self) -> None:
         """Test consistency of Spanish language support across all endpoints."""
