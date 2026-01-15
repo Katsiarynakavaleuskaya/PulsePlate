@@ -12,7 +12,6 @@
 ### Q1: Что уже сделано в предыдущих PR?
 
 **✅ PR-521A (#522) — Merged 2026-01-13**
-
 - Targets migration: `/api/v1/premium/targets` → `/api/v1/pro/nutrition/targets`
 - Plate migration: `/api/v1/premium/plate` → `/api/v1/pro/nutrition/plate`
 - OpenAPI types used (`PlateResponse`)
@@ -20,13 +19,11 @@
 - Build: PASS
 
 **✅ PR-521B (#523) — Merged 2026-01-14**
-
 - OpenAPI vendor extensions (`x-alias-of`, `x-migration-path`)
 - Schema regenerated
 - Migration paths documented in OpenAPI
 
 **🔴 PR-528 — NOT DONE**
-
 - Weekly plan migration was planned but never implemented
 - This PR (#524) completes that work
 
@@ -35,7 +32,6 @@
 ### Q2: Что осталось сделать?
 
 **Единственная критическая задача (P0):**
-
 - Migrate weekly plan endpoint: `/api/v1/premium/plan/week` → `/api/v1/pro/meal/weekly`
 - Update request type: `TargetsRequest` → `WeekPlanRequest`
 - Update 3 files: `weekly-plan.ts`, `WeeklyPlanViewer.tsx`, `weekly-plan-integration.test.ts`
@@ -45,14 +41,12 @@
 ### Q3: Какие типы использовать?
 
 **Request Type:**
-
 ```typescript
 import type { components } from '../schema';
 type WeekPlanRequest = components['schemas']['WeekPlanRequest'];
 ```
 
 **Response Type:**
-
 ```typescript
 type WeeklyMenuResponse = components['schemas']['WeeklyMenuResponse'];
 ```
@@ -64,13 +58,11 @@ type WeeklyMenuResponse = components['schemas']['WeeklyMenuResponse'];
 ### Q4: Какой endpoint использовать?
 
 **Canonical Endpoint:**
-
 ```
 POST /api/v1/pro/meal/weekly
 ```
 
 **Backend Location:** `app/routers/pro.py:241-262`
-
 - Request: `WeekPlanRequest`
 - Response: `WeekPlanResponse` (matches `WeeklyMenuResponse` structure)
 - Guard: `require_pro_tier()` (PRO tier required)
@@ -82,7 +74,6 @@ POST /api/v1/pro/meal/weekly
 **❌ НЕТ — адаптер не нужен**
 
 **Причина:**
-
 - Backend `WeekPlanResponse` имеет те же поля, что и `WeeklyMenuResponse`:
   - `daily_menus: List[Dict]`
   - `weekly_coverage: Dict[str, float]`
@@ -97,13 +88,11 @@ POST /api/v1/pro/meal/weekly
 ### Q6: Что делать с тестами?
 
 **Обновить:**
-
 1. Request type: `TargetsRequest` → `WeekPlanRequest`
 2. Endpoint path: `/api/v1/premium/plan/week` → `/api/v1/pro/meal/weekly`
 3. Imports: добавить `WeekPlanRequest` из `weekly-plan.ts`
 
 **Файл:** `frontend/src/api/__tests__/weekly-plan-integration.test.ts`
-
 - Lines 29, 111: изменить тип запроса
 - Lines 97, 354: изменить endpoint path
 
@@ -112,7 +101,6 @@ POST /api/v1/pro/meal/weekly
 ### Q7: Нужно ли обновлять моки?
 
 **Да, если MSW handlers существуют:**
-
 - Файл: `frontend/src/mocks/handlers.ts` (или аналогичный)
 - Изменить: `/api/v1/premium/plan/week` → `/api/v1/pro/meal/weekly`
 
@@ -121,27 +109,23 @@ POST /api/v1/pro/meal/weekly
 ### Q8: Как проверить, что всё работает?
 
 **1. Type Check:**
-
 ```bash
 cd frontend
 npm run build  # Должно пройти без ошибок
 ```
 
 **2. Tests:**
-
 ```bash
 npm test  # Все тесты должны пройти
 ```
 
 **3. Manual Test:**
-
 - Запустить dev server: `npm run dev`
 - Открыть главную страницу
 - Проверить Network tab: должен быть запрос на `/api/v1/pro/meal/weekly`
 - Убедиться, что weekly plan загружается
 
 **4. Production Check:**
-
 - Нет 404 в логах
 - Главная страница обновляется
 - Weekly plan генерируется корректно
@@ -151,7 +135,6 @@ npm test  # Все тесты должны пройти
 ## 🎯 Implementation Plan
 
 ### Step 1: Create Branch
-
 ```bash
 git checkout main
 git pull
@@ -159,7 +142,6 @@ git checkout -b fix/frontend-weekly-plan-alignment
 ```
 
 ### Step 2: Apply Patches
-
 1. **`frontend/src/api/premium/weekly-plan.ts`**
    - Заменить endpoint path
    - Заменить `TargetsRequest` на `WeekPlanRequest`
@@ -179,7 +161,6 @@ git checkout -b fix/frontend-weekly-plan-alignment
    - Обновить handler path
 
 ### Step 3: Verify
-
 ```bash
 cd frontend
 npm run build
@@ -187,7 +168,6 @@ npm test
 ```
 
 ### Step 4: Commit
-
 ```bash
 git add frontend/src/api/premium/weekly-plan.ts
 git add frontend/src/features/plan/WeeklyPlanViewer.tsx
@@ -204,7 +184,6 @@ Fixes main page not updating issue (P0)."
 ```
 
 ### Step 5: Update Documentation (Optional, same PR)
-
 ```bash
 # Update audit doc
 git add docs/audit/FRONTEND_BACKEND_ALIGNMENT_AUDIT.md

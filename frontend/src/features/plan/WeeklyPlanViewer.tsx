@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../api/schema";
-import { getWeeklyPlan, type WeeklyMenuResponse } from "../../api/premium/weekly-plan";
+import { getWeeklyPlan } from "../../api/premium/weekly-plan";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
@@ -51,6 +51,7 @@ async function downloadSignedFile(url: string, filename: string) {
 }
 
 type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
+type WeeklyMenuResponse = components["schemas"]["WeeklyMenuResponse"];
 type UnknownRecord = Record<string, unknown>;
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
