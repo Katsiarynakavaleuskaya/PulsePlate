@@ -312,6 +312,17 @@ class TestStageObesity:
         assert result["risk_factors"] == "0"
         assert "recommendation" in result
 
+    def test_stage_obesity_optional_whr_underweight_bmi_category(self):
+        """Test stage_obesity_optional_whr with underweight BMI category."""
+        from core.bmi_extras import stage_obesity_optional_whr
+
+        # Underweight: BMI < 18.5
+        result = stage_obesity_optional_whr(bmi=17.0, wht=0.4, whr=None, sex="male", lang="en")
+        assert result["bmi_category"] == "underweight"
+        assert "stage" in result
+        assert "wht_risk" in result
+        assert result["whr_risk"] == "unknown"  # WHR is None
+
 
 class TestIntegration:
     """Integration tests combining multiple pro metrics."""
