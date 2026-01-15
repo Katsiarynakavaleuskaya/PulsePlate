@@ -1,23 +1,15 @@
-import os
+from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import app
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 client = TestClient(app)
 
 
-@pytest.fixture
-def api_key():
-    """Set up and tear down API key for testing."""
-    os.environ["API_KEY"] = "test_key"
-    yield "test_key"
-    if "API_KEY" in os.environ:
-        del os.environ["API_KEY"]
-
-
-def test_bmi_pro_ok(api_key):
+def test_bmi_pro_ok() -> None:
     payload = {
         "weight_kg": 70,
         "height_cm": 170,
@@ -30,7 +22,7 @@ def test_bmi_pro_ok(api_key):
         "bodyfat_percent": 18,
         "lang": "en",
     }
-    r = client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": api_key})
+    r = client.post("/api/v1/bmi/pro", json=payload, headers={"X-API-Key": TEST_KEY_PRO})
     assert r.status_code == 200
     data = r.json()
 
@@ -42,7 +34,7 @@ def test_bmi_pro_ok(api_key):
     assert abs(data["whtr"] - 85 / 170) < 0.01
 
 
-def test_bmi_pro_validation(api_key):
+def test_bmi_pro_validation() -> None:
     # Invalid data - height_cm should be > 0
     bad = {
         "weight_kg": 70,
@@ -54,5 +46,5 @@ def test_bmi_pro_validation(api_key):
         "waist_cm": 80,
         "lang": "en",
     }
-    r = client.post("/api/v1/bmi/pro", json=bad, headers={"X-API-Key": api_key})
+    r = client.post("/api/v1/bmi/pro", json=bad, headers={"X-API-Key": TEST_KEY_PRO})
     assert r.status_code in (400, 422)

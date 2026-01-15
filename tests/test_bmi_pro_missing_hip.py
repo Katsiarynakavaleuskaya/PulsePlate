@@ -7,12 +7,10 @@ Verifies that missing hip_cm is handled correctly:
 - Notes include explanation about missing data
 """
 
+from __future__ import annotations
+
 import pytest
 from fastapi.testclient import TestClient
-
-from app.main import app
-
-client = TestClient(app)
 
 
 @pytest.mark.parametrize(
@@ -23,7 +21,9 @@ client = TestClient(app)
         ("es", "WHR no calculado"),
     ],
 )
-def test_bmi_pro_missing_hip_cm(lang: str, expected_note_contains: str):
+def test_bmi_pro_missing_hip_cm(
+    client: TestClient, pro_headers: dict[str, str], lang: str, expected_note_contains: str
+) -> None:
     """Test that missing hip_cm results in WHR=None and proper note."""
     request_data = {
         "height_cm": 170.0,
@@ -36,7 +36,7 @@ def test_bmi_pro_missing_hip_cm(lang: str, expected_note_contains: str):
         "lang": lang,
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data)
+    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -52,7 +52,7 @@ def test_bmi_pro_missing_hip_cm(lang: str, expected_note_contains: str):
     assert expected_note_contains.lower() in notes_text.lower()
 
 
-def test_bmi_pro_with_hip_cm():
+def test_bmi_pro_with_hip_cm(client: TestClient, pro_headers: dict[str, str]) -> None:
     """Test that providing hip_cm results in WHR calculation."""
     request_data = {
         "height_cm": 170.0,
@@ -65,7 +65,7 @@ def test_bmi_pro_with_hip_cm():
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data)
+    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -78,10 +78,10 @@ def test_bmi_pro_with_hip_cm():
     # Notes should NOT contain "missing" or "not computed" for WHR
     notes_text = " ".join(data["notes"])
     assert "not computed" not in notes_text.lower()
-    assert "missing" not in notes_text.lower() or "hip_cm" not in notes_text.lower()
+    assert "missing" not in notes_text.lower()
 
 
-def test_bmi_pro_missing_hip_high_risk():
+def test_bmi_pro_missing_hip_high_risk(client: TestClient, pro_headers: dict[str, str]) -> None:
     """Test that missing hip_cm doesn't artificially lower risk when BMI+WHtR indicate high risk."""
     request_data = {
         "height_cm": 170.0,
@@ -94,7 +94,7 @@ def test_bmi_pro_missing_hip_high_risk():
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data)
+    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -106,7 +106,9 @@ def test_bmi_pro_missing_hip_high_risk():
     assert data["risk_level"] in ["moderate", "high"]
 
 
-def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown():
+def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
     """Test adapter handles whr_risk='unknown' and adds i18n note."""
     request_data = {
         "height_cm": 170.0,
@@ -119,7 +121,7 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown():
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data)
+    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -129,7 +131,9 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_unknown():
     assert "WHR not computed" in notes_text or "missing hip_cm" in notes_text.lower()
 
 
-def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_low():
+def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_low(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
     """Test adapter doesn't add missing hip note when whr_risk is not 'unknown'."""
     request_data = {
         "height_cm": 170.0,
@@ -142,7 +146,7 @@ def test_bmi_pro_adapt_pro_stage_to_response_whr_risk_low():
         "lang": "en",
     }
 
-    response = client.post("/api/v1/bmi/pro", json=request_data)
+    response = client.post("/api/v1/bmi/pro", json=request_data, headers=pro_headers)
 
     assert response.status_code == 200
     data = response.json()

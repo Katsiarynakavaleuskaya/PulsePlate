@@ -2,6 +2,8 @@
 Tests for BMI Pro API endpoint.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 
@@ -10,6 +12,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app from app package
 from app import app
+from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestBMIProAPI:
@@ -38,7 +41,9 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -62,7 +67,9 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+        )
         assert response.status_code == 200
 
         result = response.json()
@@ -85,11 +92,13 @@ class TestBMIProAPI:
             "lang": "en",
         }
 
-        response = self.client.post("/api/v1/bmi/pro", json=data, headers={"X-API-Key": "test_key"})
+        response = self.client.post(
+            "/api/v1/bmi/pro", json=data, headers={"X-API-Key": TEST_KEY_PRO}
+        )
         assert response.status_code == 422  # Validation error
 
     def test_bmi_pro_endpoint_missing_api_key(self) -> None:
-        """Test BMI Pro endpoint without API key."""
+        """Test BMI Pro endpoint without API key (should require Pro tier)."""
         data = {
             "weight_kg": 70.0,
             "height_cm": 175.0,
@@ -100,4 +109,4 @@ class TestBMIProAPI:
         }
 
         response = self.client.post("/api/v1/bmi/pro", json=data)
-        assert response.status_code == 200  # API key not required
+        assert response.status_code in (401, 403)  # Pro tier guard requires API key

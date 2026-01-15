@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from app.middleware.api_tiers import require_pro_tier
 
 # Use canonical BMI extras module - Pro tier functions only
 # Pro endpoint must use Pro tier functions exclusively (no mixing with Free/Simple tier)
@@ -104,7 +106,7 @@ class BMIProResponse(BaseModel):
 
 
 @router.post("/pro", response_model=BMIProResponse)
-def bmi_pro(req: BMIProRequest) -> BMIProResponse:
+def bmi_pro(req: BMIProRequest, _: str = Depends(require_pro_tier)) -> BMIProResponse:
     try:
         # Convert height to meters for calc_bmi(weight, height_m)
         bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
