@@ -311,6 +311,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Pre-push backend tests are diff-based; see `scripts/AGENTS.md` for details.
 - Use Pydantic v2 APIs and FastAPI best practices for backend changes.
 
+**Ruff ANN* rules (type hints) policy:**
+
+- Ruff ANN* rules (`ANN201`, `ANN202`, `ANN401`, etc.) are **non-blocking** and serve as **technical debt indicators**.
+- CI reports these warnings but does not fail the pipeline due to them.
+- This is intentional: the codebase is large and mixed (core/legacy/scripts/providers), and enforcing ANN* as errors would block velocity.
+- Enforcement will be introduced incrementally via scoped PRs (e.g., enable ANN* as blocking for `core/bmi` or `app/routers` only).
+- Current state: **observability/tech-debt signal**, not enforcement.
+
 ## Product tiers and API namespaces (canonical)
 
 ### Product tiers (source of truth)
