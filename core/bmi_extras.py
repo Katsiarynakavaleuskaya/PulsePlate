@@ -32,8 +32,11 @@ from core.bmi.risk import (
     BMI_NORMAL_MIN,
     BMI_OBESE_THRESHOLD,
     BMI_OVERWEIGHT_THRESHOLD,
+    BMI_VERY_HIGH_THRESHOLD,
     WHR_FEMALE_HIGH_RISK,
     WHR_MALE_HIGH_RISK,
+    WHR_SIMPLE_FEMALE_HIGH_RISK,
+    WHR_SIMPLE_MALE_HIGH_RISK,
 )
 
 Sex = Literal["female", "male"]
@@ -171,8 +174,8 @@ def interpret_whr_ratio(
 
     Returns:
         Dictionary with risk category and description.
-        Note: `description` field is intentionally English-only as a stable identifier;
-        localization is provided via `category`/`risk` fields and i18n keys.
+        Note: `description` field is localized via `t(lang, ...)` function;
+        `category`/`risk` fields use i18n keys for stable identifiers.
     """
     # Sex-specific thresholds for increased health risk (from canonical source)
     if sex.lower() == "male":
@@ -458,13 +461,15 @@ def stage_obesity_simple(
 
     # Корректировка по WHR (Free tier: simplified thresholds)
     if whr is not None:
-        thr = 0.9 if sex == "male" else 0.85  # Free tier thresholds
+        thr = (
+            WHR_SIMPLE_MALE_HIGH_RISK if sex == "male" else WHR_SIMPLE_FEMALE_HIGH_RISK
+        )  # Free tier thresholds
         if whr >= thr:
             notes.append(t(lang, "risk_high_whr", threshold=thr))
             risk = "high" if risk == "moderate" else risk
 
     # Доп. акцент по очень высокому BMI
-    if bmi >= 35:
+    if bmi >= BMI_VERY_HIGH_THRESHOLD:
         notes.append(t(lang, "risk_high_bmi"))
         risk = "high"
     elif bmi >= BMI_OBESE_THRESHOLD and risk == "low":

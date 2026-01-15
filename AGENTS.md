@@ -181,8 +181,8 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 2. **Runtime PRs only:** block planning docs in `docs/pr/`:
    `PR_<n>_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST).md`
 3. **Warnings (non-blocking):**
-   - file count > ~15 (info), > ~30 (warning)
-   - runtime PRs with >2 markdown files (mixed-concern signal)
+  - file count > ~15 (info), > ~30 (warning)
+  - runtime PRs with >2 markdown files (mixed-concern signal)
 
 **How to pass**
 

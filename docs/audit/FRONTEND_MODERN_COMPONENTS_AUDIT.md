@@ -461,11 +461,11 @@ npx storybook@latest init
 
 ## 🔗 Resources
 
-- **shadcn/ui:** https://ui.shadcn.com/
-- **Radix UI:** https://www.radix-ui.com/
-- **Headless UI:** https://headlessui.com/
-- **Tailwind CSS:** https://tailwindcss.com/
-- **React Hook Form:** https://react-hook-form.com/
+- **shadcn/ui:** [ui.shadcn.com](https://ui.shadcn.com/)
+- **Radix UI:** [radix-ui.com](https://www.radix-ui.com/)
+- **Headless UI:** [headlessui.com](https://headlessui.com/)
+- **Tailwind CSS:** [tailwindcss.com](https://tailwindcss.com/)
+- **React Hook Form:** [react-hook-form.com](https://react-hook-form.com/)
 
 ---
 

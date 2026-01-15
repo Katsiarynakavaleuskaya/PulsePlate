@@ -1,3 +1,5 @@
+from typing import Literal, Optional
+
 import pytest
 
 from core import bmi_extras as bx
@@ -54,8 +56,15 @@ def test_ffmi_basic_and_bounds() -> None:
         (24.0, 0.55, 0.86, "female", "high", ["WHR ≥ 0.85"]),
     ],
 )
-def test_stage_obesity_scenarios(bmi, whtr, whr, sex, expected_risk, expected_note_contains):
-    risk, notes = bx.stage_obesity_simple(bmi=bmi, whtr=whtr, whr=whr, sex=sex)  # type: ignore[arg-type]
+def test_stage_obesity_scenarios(
+    bmi: float,
+    whtr: float,
+    whr: Optional[float],
+    sex: Literal["male", "female"],
+    expected_risk: Literal["low", "moderate", "high"],
+    expected_note_contains: list[str],
+) -> None:
+    risk, notes = bx.stage_obesity_simple(bmi=bmi, whtr=whtr, whr=whr, sex=sex)
     assert risk == expected_risk
     for fragment in expected_note_contains:
         assert any(fragment in n for n in notes)

@@ -324,15 +324,15 @@ def stage_obesity_simple(
 --- a/app/routers/bmi_pro.py
 +++ b/app/routers/bmi_pro.py
 @@ -46,7 +46,7 @@
- @router.post("/pro", response_model=BMIProResponse)
+ @router.post("/bmi", response_model=BMIProResponse)
  def bmi_pro(req: BMIProRequest):
      try:
 -        # Convert height to meters for calc_bmi(weight, height_m)
 -        bmi_val = calc_bmi(req.weight_kg, req.height_cm / 100.0)
 +        # Use canonical engine for BMI calculation
 +        bmi_val = _compute_bmi(req.weight_kg, req.height_cm / 100.0)
-         v_whtr = wht_ratio(req.waist_cm, req.height_cm)
-         v_whr = whr_ratio(req.waist_cm, float(req.hip_cm)) if req.hip_cm is not None else None
++        v_whtr = wht_ratio(req.waist_cm, req.height_cm)
++        v_whr = whr_ratio(req.waist_cm, float(req.hip_cm)) if req.hip_cm is not None else None
 ```
 
 **Line 51 — Update whr_ratio call to use Pro tier with sex:**

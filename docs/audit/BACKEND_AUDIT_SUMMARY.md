@@ -45,7 +45,7 @@
 
 ---
 
-## ⚠️ High Priority Issues (P1)
+## ⚠️ High-priority Issues (P1)
 
 ### 3. xfailed Tests (2)
 
@@ -88,7 +88,7 @@
 
 ---
 
-## 📝 Medium Priority Issues (P2)
+## 📝 Medium-priority Issues (P2)
 
 ### 7. i18n Error Messages (Multiple files)
 
@@ -163,14 +163,14 @@
 1. Remove legacy BMI dependency (`core/bmi/risk.py`)
 2. Consolidate BMI extras modules
 
-### P1 (High Priority)
+### P1 (High-priority)
 
 3. Fix xfailed tests (dependency override)
 4. Implement log cleanup
 5. Implement database lookup for API tiers
 6. Deduplicate `estimate_targets_minimal`
 
-### P2 (Medium Priority)
+### P2 (Medium-priority)
 
 7. i18n error messages (systematic update)
 8. Verify BMI engine status

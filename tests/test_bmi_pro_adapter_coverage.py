@@ -11,7 +11,7 @@ import pytest
 from app.routers.bmi_pro import _adapt_pro_stage_to_response
 
 
-def test_adapt_pro_stage_to_response_empty_recommendation():
+def test_adapt_pro_stage_to_response_empty_recommendation() -> None:
     """Test adapter handles empty recommendation correctly."""
     # Stage dict with empty recommendation
     stage_dict = {
@@ -31,7 +31,7 @@ def test_adapt_pro_stage_to_response_empty_recommendation():
     assert all(n.strip() for n in notes if n)
 
 
-def test_adapt_pro_stage_to_response_risk_factors_zero():
+def test_adapt_pro_stage_to_response_risk_factors_zero() -> None:
     """Test adapter doesn't add 'Risk factors: 0' to notes."""
     # Stage dict with risk_factors="0"
     stage_dict = {
@@ -52,7 +52,7 @@ def test_adapt_pro_stage_to_response_risk_factors_zero():
     assert "Maintain healthy habits" in notes_text
 
 
-def test_adapt_pro_stage_to_response_risk_factors_non_zero():
+def test_adapt_pro_stage_to_response_risk_factors_non_zero() -> None:
     """Test adapter adds 'Risk factors: N' when risk_factors > 0."""
     # Stage dict with risk_factors="2"
     stage_dict = {

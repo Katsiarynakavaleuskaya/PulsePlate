@@ -142,7 +142,7 @@ def bmi_pro_legacy_alias(req: BMIProRequest) -> BMIProResponse:
 
 ## 🗺️ File Structure After Migration
 
-```
+```text
 app/routers/
 ├── bmi_pro.py          # Canonical: /api/v1/pro/bmi (Pro namespace)
 └── bmi_pro_shim.py     # Deprecated: /api/v1/bmi/pro (backward compat)
@@ -150,7 +150,7 @@ app/routers/
 
 **OR (simpler):**
 
-```
+```text
 app/routers/
 └── bmi_pro.py          # Contains both:
                         # - Canonical: /api/v1/pro/bmi

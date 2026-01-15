@@ -80,9 +80,7 @@ class TestSpanishEndToEndSmoke:
                 "weight_kg": 70,
                 "height_cm": 175,
                 "age": 30,
-                "gender": "hombre",
-                "pregnant": "no",
-                "athlete": "no",
+                "sex": "male",
                 "waist_cm": 80,
                 "hip_cm": 90,
                 "lang": "es",
@@ -90,11 +88,14 @@ class TestSpanishEndToEndSmoke:
             headers=self.pro_headers,
         )
 
-        assert bmi_pro_response.status_code == 422
+        assert bmi_pro_response.status_code == 200
         bmi_pro_result = bmi_pro_response.json()
 
-        # Check that we have validation errors
-        assert "detail" in bmi_pro_result
+        # Check that the response contains Spanish output
+        assert "bmi" in bmi_pro_result
+        assert bmi_pro_result["bmi"] == pytest.approx(22.9, abs=0.1)
+        # Verify Spanish language is processed (notes should be localized)
+        assert isinstance(bmi_pro_result.get("notes"), list)
 
         # 4. Test web interface with Spanish language parameter
         web_response = self.client.get("/?lang=es")

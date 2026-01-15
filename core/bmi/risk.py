@@ -28,6 +28,13 @@ BMI_OBESE_THRESHOLD: Final[float] = 30.0
 WHR_MALE_HIGH_RISK: Final[float] = 0.95
 WHR_FEMALE_HIGH_RISK: Final[float] = 0.80
 
+# WHR thresholds for Free/Simple tier (simplified thresholds)
+WHR_SIMPLE_MALE_HIGH_RISK: Final[float] = 0.90
+WHR_SIMPLE_FEMALE_HIGH_RISK: Final[float] = 0.85
+
+# BMI threshold for very high risk (Free/Simple tier staging)
+BMI_VERY_HIGH_THRESHOLD: Final[float] = 35.0
+
 
 # Localized messages for waist risk assessment
 _MESSAGES: dict[tuple[RiskLevel, str], str] = {
