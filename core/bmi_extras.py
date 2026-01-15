@@ -5,7 +5,7 @@ This module implements BMI analysis with two explicit product tiers:
 
 Pro Tier (Paid - PRO subscription):
 - Rounding: 3 decimal places
-- WHR thresholds: 0.95 (male) / 0.80 (female) - stricter
+- WHR thresholds: WHR_MALE_HIGH_RISK / WHR_FEMALE_HIGH_RISK (from core.bmi.risk) - stricter
 - FFMI: Supports estimate mode (0.85 default if bodyfat_pct not provided)
 - Return formats: Dict for staging, comprehensive interpretation
 - Functions: wht_ratio(), whr_ratio(waist, hip, sex), ffmi(), stage_obesity(), interpret_*()
@@ -26,6 +26,15 @@ from typing import Dict, Literal, Optional
 
 # Import i18n functionality
 from core.i18n import Language, t
+
+# Import canonical thresholds from core/bmi/risk (single source of truth)
+from core.bmi.risk import (
+    BMI_NORMAL_MIN,
+    BMI_OBESE_THRESHOLD,
+    BMI_OVERWEIGHT_THRESHOLD,
+    WHR_FEMALE_HIGH_RISK,
+    WHR_MALE_HIGH_RISK,
+)
 
 Sex = Literal["female", "male"]
 
@@ -151,28 +160,30 @@ def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> Dict[s
 
 
 def interpret_whr_ratio(
-    whr_ratio_value: float, sex: Literal["male", "female"], lang: str
+    whr_ratio_value: float, sex: Literal["male", "female"], lang: Language
 ) -> Dict[str, str]:
     """Interpret WHR value according to sex-specific health risk thresholds.
 
     Args:
         whr_ratio_value: Calculated WHR value
         sex: Biological sex ("male" or "female")
-        lang: Language for descriptions
+        lang: Language for descriptions (RU/EN/ES)
 
     Returns:
-        Dictionary with risk category and description
+        Dictionary with risk category and description.
+        Note: `description` field is intentionally English-only as a stable identifier;
+        localization is provided via `category`/`risk` fields and i18n keys.
     """
-    # Sex-specific thresholds for increased health risk
+    # Sex-specific thresholds for increased health risk (from canonical source)
     if sex.lower() == "male":
-        if whr_ratio_value < 0.95:
+        if whr_ratio_value < WHR_MALE_HIGH_RISK:
             risk_level = "low"
             description = t(lang, "risk_low_health")  # type: ignore
         else:
             risk_level = "high"
             description = t(lang, "risk_high_android_shape")  # type: ignore
     else:  # female
-        if whr_ratio_value < 0.80:
+        if whr_ratio_value < WHR_FEMALE_HIGH_RISK:
             risk_level = "low"
             description = t(lang, "risk_low_health")  # type: ignore
         else:
@@ -183,7 +194,7 @@ def interpret_whr_ratio(
 
 
 def stage_obesity(
-    bmi: float, wht: float, whr: float, sex: Literal["male", "female"], lang: str
+    bmi: float, wht: float, whr: float, sex: Literal["male", "female"], lang: Language
 ) -> Dict[str, str]:
     """Stage obesity based on multiple metrics.
 
@@ -205,11 +216,13 @@ def stage_obesity(
 
     # Determine overall staging
     risk_factors = 0
-    if bmi >= 30:  # Obese
+    if bmi >= BMI_OBESE_THRESHOLD:  # Obese
         risk_factors += 1
     if wht >= 0.5:  # High WHtR risk
         risk_factors += 1
-    if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):  # High WHR risk
+    if (sex == "male" and whr >= WHR_MALE_HIGH_RISK) or (
+        sex == "female" and whr >= WHR_FEMALE_HIGH_RISK
+    ):  # High WHR risk
         risk_factors += 1
 
     if risk_factors >= 2:
@@ -222,11 +235,11 @@ def stage_obesity(
         stage = "low_risk"
         recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
 
-    if bmi >= 30:
+    if bmi >= BMI_OBESE_THRESHOLD:
         bmi_category = "obese"
-    elif bmi >= 25:
+    elif bmi >= BMI_OVERWEIGHT_THRESHOLD:
         bmi_category = "overweight"
-    elif bmi >= 18.5:
+    elif bmi >= BMI_NORMAL_MIN:
         bmi_category = "normal"
     else:
         bmi_category = "underweight"
@@ -246,7 +259,7 @@ def stage_obesity_optional_whr(
     wht: float,
     whr: Optional[float],
     sex: Literal["male", "female"],
-    lang: str,
+    lang: Language,
 ) -> Dict[str, str]:
     """Stage obesity based on multiple metrics with optional WHR.
 
@@ -275,13 +288,15 @@ def stage_obesity_optional_whr(
 
     # Determine overall staging - only count WHR if data available
     risk_factors = 0
-    if bmi >= 30:  # Obese
+    if bmi >= BMI_OBESE_THRESHOLD:  # Obese
         risk_factors += 1
     if wht >= 0.5:  # High WHtR risk
         risk_factors += 1
     if whr is not None:
         # Only count WHR risk factor if we have actual data
-        if (sex == "male" and whr >= 0.95) or (sex == "female" and whr >= 0.80):
+        if (sex == "male" and whr >= WHR_MALE_HIGH_RISK) or (
+            sex == "female" and whr >= WHR_FEMALE_HIGH_RISK
+        ):
             risk_factors += 1
 
     if risk_factors >= 2:
@@ -294,11 +309,11 @@ def stage_obesity_optional_whr(
         stage = "low_risk"
         recommendation = t(lang, "recommendation_maintain_habits")  # type: ignore
 
-    if bmi >= 30:
+    if bmi >= BMI_OBESE_THRESHOLD:
         bmi_category = "obese"
-    elif bmi >= 25:
+    elif bmi >= BMI_OVERWEIGHT_THRESHOLD:
         bmi_category = "overweight"
-    elif bmi >= 18.5:
+    elif bmi >= BMI_NORMAL_MIN:
         bmi_category = "normal"
     else:
         bmi_category = "underweight"
@@ -415,7 +430,7 @@ def stage_obesity_simple(
 
     Product Policy: Free tier uses simplified thresholds:
     - WHR thresholds: 0.90 (male) / 0.85 (female) - simplified
-    - Pro tier uses stricter thresholds: 0.95 (male) / 0.80 (female)
+    - Pro tier uses stricter thresholds: WHR_MALE_HIGH_RISK / WHR_FEMALE_HIGH_RISK (from core.bmi.risk)
 
     Returns: Tuple format (risk_level, notes_list) for simple tier compatibility.
     Pro tier returns Dict format (see stage_obesity()).
@@ -452,7 +467,7 @@ def stage_obesity_simple(
     if bmi >= 35:
         notes.append(t(lang, "risk_high_bmi"))
         risk = "high"
-    elif bmi >= 30 and risk == "low":
+    elif bmi >= BMI_OBESE_THRESHOLD and risk == "low":
         risk = "moderate"
         notes.append(t(lang, "risk_moderate_bmi"))
 

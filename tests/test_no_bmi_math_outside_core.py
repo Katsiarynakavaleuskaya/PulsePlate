@@ -44,6 +44,8 @@ WHITELIST_PARTS = [
     # Tracked in PR-456: migrate to use core/bmi/engine.py
     "app/routers/bmi_pro.py",
     "core/nutrition_",  # Nutrition constants (not BMI math, different domain)
+    # NOTE: core/bmi_extras is whitelisted for BMI calculations, but thresholds must come from core/bmi/risk
+    # Guard test will still catch hardcoded thresholds (18.5/25/30/0.95/0.80) even in whitelisted files
     "core/bmi_extras",  # PRO features (separate from Free BMI canonical engine)
     "app/schemas/bmi.py",  # Schema Field descriptions (documentation, not code)
     "tests_strict/",  # Strict test suite (test code)
@@ -64,11 +66,12 @@ BMI_FORMULA_RE = re.compile(
 # Pattern 2: BMI thresholds (canonical values) - must be in BMI context
 # Look for BMI-related keywords nearby (bmi, category, threshold, etc.)
 # Includes 24.9 (healthy range max) per PR-502 enforcement
+# NOTE: Also detects WHR thresholds (0.95/0.80) outside core/bmi/risk.py
 BMI_THRESHOLDS_RE = re.compile(
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy).*"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b|"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5)\b.*"
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy)",
+    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip).*"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80)\b|"
+    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80)\b.*"
+    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip)",
     re.IGNORECASE,
 )
 

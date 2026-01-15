@@ -9,23 +9,26 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.routers.bmi_pro import BMIProRequest, BMIProResponse, router
-from app.middleware.api_tiers import TEST_KEY_PRO
 
 
 class TestBMIProRouter:
     """Test BMI Pro router functionality."""
 
-    def setup_method(self) -> None:
-        """Set up test client."""
-        from fastapi import FastAPI
+    client: TestClient
+    pro_headers: dict[str, str]
 
+    @pytest.fixture(autouse=True)
+    def _setup(self, pro_headers: dict[str, str]) -> None:
+        """Set up test client and headers using fixtures (canonical pattern)."""
         app = FastAPI()
         app.include_router(router)
         self.client = TestClient(app)
-        self.pro_headers = {"X-API-Key": TEST_KEY_PRO}
+        self.pro_headers = pro_headers
 
     def test_bmi_pro_success_basic(self) -> None:
         """Test BMI Pro endpoint with basic data."""

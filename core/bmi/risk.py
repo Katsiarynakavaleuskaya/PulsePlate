@@ -12,12 +12,21 @@ IMPORTANT:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Final, Literal
 
 from core.bmi.engine import _compute_wht_ratio
 
 
 RiskLevel = Literal["low", "moderate", "high"]
+
+# BMI thresholds (canonical source of truth)
+BMI_NORMAL_MIN: Final[float] = 18.5
+BMI_OVERWEIGHT_THRESHOLD: Final[float] = 25.0
+BMI_OBESE_THRESHOLD: Final[float] = 30.0
+
+# WHR thresholds for Pro tier (sex-specific health risk)
+WHR_MALE_HIGH_RISK: Final[float] = 0.95
+WHR_FEMALE_HIGH_RISK: Final[float] = 0.80
 
 
 # Localized messages for waist risk assessment
