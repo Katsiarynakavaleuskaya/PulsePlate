@@ -234,9 +234,15 @@ class TestAsyncAndBackgroundTasks:
         assert response.status_code in [200, 404, 405]
 
         # Test other potential metrics endpoints
-        for endpoint in ["/health", "/healthz", "/ready", "/live"]:
+        # /health = liveness (always 200, no DB dependency)
+        # /ready = readiness (may return 503 if DB unavailable)
+        for endpoint in ["/health", "/healthz", "/live"]:
             response = client.get(endpoint)
             assert response.status_code in [200, 404, 405]
+        
+        # /ready is a readiness probe - may return 503 if DB unavailable
+        response = client.get("/ready")
+        assert response.status_code in [200, 404, 405, 503]
 
 
 class TestComplexDataCombinations:

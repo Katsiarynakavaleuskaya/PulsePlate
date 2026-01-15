@@ -230,6 +230,25 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 ### See RUNBOOK_AGENT.md for detailed grep commands
 
+## Health and readiness endpoints (operational semantics)
+
+**Liveness vs Readiness:**
+
+- **`/health`** = liveness probe: **always returns 200**, no DB dependencies. Used by orchestrators to determine if container should be restarted.
+- **`/ready`** = readiness probe: **may return 503 if DB unavailable**. Used by orchestrators to determine if container should receive traffic.
+- **`/health/db`** = explicit DB health check: returns 503 if DB unavailable.
+
+**Rules:**
+
+- `/health` endpoint must **never** depend on external services (DB, external APIs). It should always return 200 to indicate the process is alive.
+- `/ready` endpoint **may** return 503 if dependencies (DB, external services) are unavailable. This is correct behavior for readiness checks.
+- Tests for "metrics/health paths" should allow 503 for `/ready` but expect 200 for `/health`.
+- Docker HEALTHCHECK should use `/health` (liveness), not `/ready` (readiness).
+
+**Rationale:** Separating liveness and readiness allows orchestrators to:
+- Restart containers that fail liveness (process dead)
+- Stop routing traffic to containers that fail readiness (dependencies unavailable)
+
 ## Scope and layout
 
 - This AGENTS.md applies to: repo root and below.
