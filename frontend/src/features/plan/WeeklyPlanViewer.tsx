@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { components, paths } from "../../api/schema";
-import { fetchJson } from "../../api/client";
+import type { components } from "../../api/schema";
+import { getWeeklyPlan } from "../../api/premium/weekly-plan";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
@@ -50,9 +50,8 @@ async function downloadSignedFile(url: string, filename: string) {
   URL.revokeObjectURL(anchor.href);
 }
 
-type WeekPlanResponse =
-  paths["/api/v1/premium/plan/week"]["post"]["responses"]["200"]["content"]["application/json"];
 type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
+type WeeklyMenuResponse = components["schemas"]["WeeklyMenuResponse"];
 type UnknownRecord = Record<string, unknown>;
 
 const DEFAULT_REQUEST: WeekPlanRequest = {
@@ -143,7 +142,7 @@ export default function WeeklyPlanViewer() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [data, setData] = useState<WeekPlanResponse | null>(null);
+  const [data, setData] = useState<WeeklyMenuResponse | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [lastSignedLink, setLastSignedLink] = useState<string | null>(null);
 
@@ -159,10 +158,7 @@ export default function WeeklyPlanViewer() {
           lang: supportedLangs.includes(locale) ? locale : "en",
         };
 
-        const week = await fetchJson<WeekPlanResponse>("/api/v1/premium/plan/week", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        const week = await getWeeklyPlan(payload);
         setData(week);
       } catch (e: any) {
         setErr(e?.message || "Fetch error");

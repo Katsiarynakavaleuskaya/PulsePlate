@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getWeeklyPlan } from '../premium/weekly-plan';
-import type { WeeklyMenuResponse } from '../premium/weekly-plan';
-import type { TargetsRequest } from '../premium/types';
+import type { WeeklyMenuResponse, WeekPlanRequest } from '../premium/weekly-plan';
 
 // Mock the API client
 vi.mock('../client', () => ({
@@ -26,7 +25,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Successful API calls (200)', () => {
     it('should generate weekly plan successfully with valid request', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -94,7 +93,7 @@ describe('Weekly Plan API Integration', () => {
       const result = await getWeeklyPlan(mockRequest);
 
       expect(mockApi).toHaveBeenCalledWith(
-        '/api/v1/premium/plan/week',
+        '/api/v1/pro/meal/weekly',
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,
@@ -108,7 +107,7 @@ describe('Weekly Plan API Integration', () => {
     });
 
     it('should handle request with all optional fields', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'male',
         age: 30,
         height_cm: 180,
@@ -158,7 +157,7 @@ describe('Weekly Plan API Integration', () => {
       const lifeStages = ['child', 'teen', 'adult', 'pregnant', 'lactating', 'elderly'] as const;
 
       for (const lifeStage of lifeStages) {
-        const mockRequest: TargetsRequest = {
+        const mockRequest: WeekPlanRequest = {
           sex: 'female',
           age: lifeStage === 'child' ? 8 : lifeStage === 'teen' ? 16 : 25,
           height_cm: 165,
@@ -203,7 +202,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Error handling (401)', () => {
     it('should handle authentication errors', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -222,7 +221,7 @@ describe('Weekly Plan API Integration', () => {
     });
 
     it('should handle missing API key', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -252,7 +251,7 @@ describe('Weekly Plan API Integration', () => {
         goal: 'maintain',
         life_stage: 'adult',
         lang: 'en',
-      } as TargetsRequest;
+      } as WeekPlanRequest;
 
       const validationError = new Error('Validation error: age must be positive');
       validationError.name = 'ValidationError';
@@ -281,7 +280,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Network errors', () => {
     it('should handle network timeout', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -300,7 +299,7 @@ describe('Weekly Plan API Integration', () => {
     });
 
     it('should handle server errors (500)', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -321,7 +320,7 @@ describe('Weekly Plan API Integration', () => {
 
   describe('Request options', () => {
     it('should pass through request options correctly', async () => {
-      const mockRequest: TargetsRequest = {
+      const mockRequest: WeekPlanRequest = {
         sex: 'female',
         age: 25,
         height_cm: 165,
@@ -351,7 +350,7 @@ describe('Weekly Plan API Integration', () => {
       await getWeeklyPlan(mockRequest, options);
 
       expect(mockApi).toHaveBeenCalledWith(
-        '/api/v1/premium/plan/week',
+        '/api/v1/pro/meal/weekly',
         expect.objectContaining({
           method: 'POST',
           body: mockRequest,
