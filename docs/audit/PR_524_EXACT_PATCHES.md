@@ -74,7 +74,7 @@ type WeeklyMenuResponse = components["schemas"]["WeeklyMenuResponse"];
 type UnknownRecord = Record<string, unknown>;
 ```
 
-### Changes (Lines 146: State Type)
+### Changes (Line 146: State Type)
 
 **Before:**
 ```typescript
@@ -153,7 +153,7 @@ useEffect(() => {
 
 ## File 3: `frontend/src/api/__tests__/weekly-plan-integration.test.ts`
 
-### Changes (Line 1-4: Imports)
+### Changes (Lines 1–4: Imports)
 
 **Before:**
 ```typescript
@@ -237,7 +237,7 @@ const mockRequest: WeekPlanRequest = {
 
 ---
 
-## File 4: MSW Handlers (if exists)
+## File 4: MSW handlers (if they exist)
 
 ### File: `frontend/src/mocks/handlers.ts` (or similar)
 

@@ -224,7 +224,7 @@ expect(mockApi).toHaveBeenCalledWith(
 
 ---
 
-### 4. MSW Handlers (if present)
+### 4. MSW handlers (if they exist)
 
 **File:** `frontend/src/mocks/handlers.ts` (or similar)
 
