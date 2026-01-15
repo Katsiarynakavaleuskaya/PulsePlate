@@ -368,7 +368,6 @@ class TestZeroCoverageModules:
             "core.meal_i18n",
             "core.menu_engine_new",
             "core.bmi_extras",
-            "core.bmi_extras_simple",
             "core.rules_who_simple",
             "core.shoplist",
         ]
