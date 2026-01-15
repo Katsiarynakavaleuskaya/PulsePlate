@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional, cast
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
