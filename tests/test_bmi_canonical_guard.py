@@ -193,7 +193,13 @@ def test_single_canonical_extras_module() -> None:
     undocumented_modules: list[str] = []
 
     for module in extras_modules:
-        content = module.read_text(encoding="utf-8")
+        try:
+            content = module.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            # Skip files we can't read, consider them undocumented
+            undocumented_modules.append(str(module.relative_to(REPO_ROOT)))
+            continue
+
         content_lower = content.lower()
 
         # Check for canonical marker or purpose documentation
@@ -285,12 +291,15 @@ def test_no_bmi_calculation_outside_engine() -> None:
             continue
 
         for py_file in directory.rglob("*.py"):
-            # Skip core/bmi/ (allowed)
-            if "core/bmi" in str(py_file):
+            # Skip core/bmi/ (allowed) - use path-aware check
+            rel = py_file.relative_to(REPO_ROOT)
+            if len(rel.parts) >= 2 and rel.parts[:2] == ("core", "bmi"):
                 continue
 
-            # Skip tests
-            if "test" in str(py_file):
+            # Skip tests - use path-aware check
+            if rel.parts and rel.parts[0] == "tests":
+                continue
+            if py_file.name.startswith("test") and py_file.suffix == ".py":
                 continue
 
             # Check whitelist

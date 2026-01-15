@@ -49,7 +49,7 @@ Engine marked as 'stub' but appears functionally complete.
 
 ---
 
-## ✅ Expected Passes (2)
+## ✅ Expected Passes (1)
 
 ### 4. `test_bmi_result_structure_consistency` — PASSED ✅
 
@@ -57,7 +57,9 @@ Engine marked as 'stub' but appears functionally complete.
 
 ---
 
-### 5. `test_no_bmi_calculation_outside_engine` — FAILED ⚠️
+## ✅ Expected Failures (4)
+
+### 5. `test_no_bmi_calculation_outside_engine` — FAILED ✅
 
 **Violations Found:**
 ```
@@ -65,7 +67,7 @@ app/routers/bmi_pro.py:16 — def calc_bmi(...)
 core/nutrition_bayesian_analyzer.py:377 — bmi = weight / (height_m**2)
 ```
 
-**Status:** ⚠️ **Expected violations** — Both should use engine
+**Status:** ✅ **Expected** — Documents BMI calculation outside engine violation
 
 **Notes:**
 - `bmi_pro.py` has local `calc_bmi` helper — should use `core/bmi/engine`
@@ -78,13 +80,15 @@ core/nutrition_bayesian_analyzer.py:377 — bmi = weight / (height_m**2)
 ## 📊 Summary
 
 **Total Tests:** 5
-**Expected Failures:** 4 (3 architectural violations + 1-2 calculation violations)
+**Expected Passes:** 1
+**Expected Failures:** 4
+**Actual Passes:** 1
 **Actual Failures:** 4
 **Status:** ✅ **Guards work correctly** — they document violations as expected
 
 **Breakdown:**
 - Architectural violations: 3 (legacy import, duplicates, metadata)
-- Calculation violations: 1-2 (`bmi_pro.py`, possibly `nutrition_bayesian_analyzer.py`)
+- Calculation violations: 1 (`bmi_pro.py` local calc_bmi, `nutrition_bayesian_analyzer.py` direct calculation)
 
 ---
 

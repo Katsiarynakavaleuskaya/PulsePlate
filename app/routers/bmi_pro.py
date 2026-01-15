@@ -6,11 +6,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 # Use canonical BMI extras module
-# Note: Using Simple tier functions (ffmi_simple, stage_obesity_simple, wht_ratio_simple) for compatibility
-# with current response model (tuple return). Pro tier whr_ratio used for sex-specific calculation.
+# Note: Using Simple tier functions (stage_obesity_simple, wht_ratio_simple) for compatibility
+# with current response model (tuple return). Pro tier functions (ffmi, whr_ratio) used for Pro tier calculations.
 from core.bmi_extras import (
     BMIProCard,
-    ffmi_simple as ffmi,
+    ffmi as ffmi_pro,
     stage_obesity_simple as stage_obesity,
     whr_ratio as whr_ratio_pro,
     wht_ratio_simple as wht_ratio,
@@ -59,10 +59,12 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
             if req.hip_cm is not None
             else None
         )
+        # Use Pro tier ffmi (returns dict), extract ffmi value for response compatibility
+        # Pro tier ffmi supports estimate mode (bodyfat_pct=None uses default 0.85)
         v_ffmi = (
-            ffmi(req.weight_kg, req.height_cm, req.bodyfat_percent)
+            ffmi_pro(req.weight_kg, req.height_cm, req.bodyfat_percent)["ffmi"]
             if req.bodyfat_percent is not None
-            else None
+            else ffmi_pro(req.weight_kg, req.height_cm)["ffmi"]  # Estimate mode
         )
         risk, notes = stage_obesity(bmi=bmi_val, whtr=v_whtr, whr=v_whr, sex=req.sex, lang=req.lang)
     except ValueError as e:
