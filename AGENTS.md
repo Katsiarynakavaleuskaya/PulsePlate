@@ -548,6 +548,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 **Docs-only PR** — a PR strictly limited to documentation that **must not** change runtime, CI, or application behavior.
 
+**Exception:** Security suppressions must be done in a dedicated **security PR** and may include `.trivyignore` + `docs/security/*.md` (see "PR Scope Policy (Hard Rule)").
+
 **Allowed changes (docs-only):**
 - `*.md` files
 - `README.md`
@@ -906,7 +908,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **Example:**
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
 - Suppression expires: 2026-03-01
-- Monitor: https://security-tracker.debian.org/tracker/CVE-2026-0861
+- Monitor: <https://security-tracker.debian.org/tracker/CVE-2026-0861>
 - See: `docs/security/CVE-2026-0861-glibc.md`
 
 ---
@@ -958,6 +960,8 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 ---
 
 ## PR Scope Policy (Hard Rule)
+
+This section complements the earlier **"Docs-only PR Rule"** and clarifies the **single allowed exception**: a security PR may include `.trivyignore` together with related security docs.
 
 **Runtime config changes (`.trivyignore`, workflows, infra configs) must NEVER be mixed with docs-only PRs.**
 
