@@ -135,10 +135,12 @@ def interpret_wht_ratio(wht_ratio_value: float, lang: Language = "en") -> Dict[s
 
     Args:
         wht_ratio_value: Calculated WHtR value
-        lang: Language for descriptions
+        lang: Language parameter (kept for API compatibility, but description is English-only by design)
 
     Returns:
-        Dictionary with risk category and description
+        Dictionary with risk category and description.
+        Note: `description` field is English-only (stable identifier, not localized).
+        `category` and `risk` fields use English keys for stable identifiers.
     """
     if wht_ratio_value < 0.4:
         return {

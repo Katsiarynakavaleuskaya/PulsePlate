@@ -45,8 +45,14 @@ jobs:
 
       - name: Test Docker image pull
         run: |
+          set -euo pipefail
           echo "🐳 Testing Docker image pull..."
-          echo ${{ secrets.GHCR_READ_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          if [ -z "${{ secrets.GHCR_READ_TOKEN }}" ]; then
+            echo "❌ GHCR_READ_TOKEN is not set"
+            exit 1
+          fi
+          echo "${{ secrets.GHCR_READ_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+          echo "✅ Docker login successful"
           docker pull ghcr.io/${{ steps.image-name.outputs.image_name }}:${{ github.event.workflow_run.head_sha }}
           echo "✅ Docker image pull successful"
 

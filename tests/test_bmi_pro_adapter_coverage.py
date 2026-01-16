@@ -129,7 +129,7 @@ def test_adapt_pro_stage_to_response_wht_risk_moderate() -> None:
     assert "WHtR risk: moderate" in notes_text
 
 
-def test_adapt_pro_stage_to_response_stage_mapping():
+def test_adapt_pro_stage_to_response_stage_mapping() -> None:
     """Test adapter correctly maps stage to risk_level."""
     test_cases = [
         ("high_risk", "high"),
