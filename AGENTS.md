@@ -904,7 +904,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **Example:**
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
 - Suppression expires: 2026-03-01
-- Monitor: https://security-tracker.debian.org/tracker/CVE-2026-0861
+- Monitor: <https://security-tracker.debian.org/tracker/CVE-2026-0861>
 - See: `docs/security/CVE-2026-0861-glibc.md`
 
 ---

@@ -223,8 +223,11 @@ def _scan(
                 # Skip comment-only lines and docstring markers (after docstring state check)
                 if SKIP_LINE_RE.match(line):
                     continue
-                # Skip docstrings and type hints
-                if SKIP_CONTEXT_RE.search(line) and "bmi" not in line.lower():
+                # Skip docstrings and type hints (but keep BMI/WHR-related lines)
+                lower = line.lower()
+                if SKIP_CONTEXT_RE.search(line) and not any(
+                    k in lower for k in ("bmi", "whr", "waist", "hip")
+                ):
                     continue
                 if pattern.search(line):
                     hits.append(f"{rel}:{idx}: {line.strip()}")
@@ -410,6 +413,34 @@ def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -
     assert (
         in_doc is True
     ), "Next line after false-positive toggle would be incorrectly skipped (known limitation)"
+
+
+def test_skip_context_does_not_filter_whr_thresholds() -> None:
+    """Test that SKIP_CONTEXT filter does not skip WHR thresholds in type-hinted constants."""
+    # Create test file outside tests/ to avoid whitelist (use app/ as it's scanned)
+    test_file = REPO_ROOT / "app" / "test_guard_whr_skip_temp.py"
+    try:
+        test_file.write_text(
+            '"""Module docstring"""\n'
+            "WHR_THRESHOLD: float = 0.90  # whr threshold\n"
+            "# This should be detected as a violation\n"
+        )
+
+        # Use BMI_THRESHOLDS_RE to scan the repository
+        hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", skip_threshold_check=False)
+
+        # Filter hits to only our test file
+        test_hits = [h for h in hits if "test_guard_whr_skip_temp.py" in h]
+
+        assert len(test_hits) > 0, "Should detect WHR threshold even with type hint"
+        # Verify the violation is on line 2 (after docstring)
+        assert any(
+            "test_guard_whr_skip_temp.py:2:" in h for h in test_hits
+        ), "WHR threshold with type hint should not be skipped by SKIP_CONTEXT filter"
+    finally:
+        # Clean up: remove test file
+        if test_file.exists():
+            test_file.unlink()
 
 
 def test_bmi_thresholds_re_matches_new_whr_thresholds() -> None:
