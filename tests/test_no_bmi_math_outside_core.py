@@ -109,9 +109,6 @@ SKIP_CONTEXT_RE = re.compile(
     r"description=|Field\(|#|docstring|type:|->|def.*\(.*\)\s*->|:.*float.*="
 )
 
-# Pattern to match triple-quoted strings (docstrings)
-TRIPLE_QUOTES_RE = re.compile(r"('''|\"\"\")")
-
 
 def _update_docstring_state(
     line: str, in_docstring: bool, doc_quote: str | None
@@ -157,7 +154,7 @@ def _update_docstring_state(
         return False, None
 
     # Already inside docstring: only the same quote type can close it
-    assert doc_quote in (dq, sq), f"Invalid doc_quote: {doc_quote}"
+    assert doc_quote in (dq, sq), f"Unexpected doc_quote: {doc_quote!r} (expected {dq!r} or {sq!r})"
     close_count = scan.count(doc_quote)
     if close_count % 2 == 1:
         return False, None
@@ -447,3 +444,54 @@ def test_bmi_thresholds_re_does_not_match_nearby_non_whr_thresholds() -> None:
     assert (
         BMI_THRESHOLDS_RE.search("0.86 waist to hip ratio (whr) recorded") is None
     ), "Should not match 0.86 in waist hip ratio context"
+
+
+def test_bmi_thresholds_re_does_not_match_non_bmi_whr_context() -> None:
+    """Test that 0.90/0.85 do not match outside BMI/WHR context (anti-false-positive)."""
+    # These should NOT match because they lack BMI/WHR keywords (discount, accuracy, etc.)
+    assert (
+        BMI_THRESHOLDS_RE.search("discount rate 0.90 percent") is None
+    ), "Should not match 0.90 in discount context"
+    assert (
+        BMI_THRESHOLDS_RE.search("accuracy 0.85 correlation") is None
+    ), "Should not match 0.85 in accuracy context"
+    assert (
+        BMI_THRESHOLDS_RE.search("value 0.90 exceeds limit") is None
+    ), "Should not match 0.90 without BMI/WHR keyword"
+    assert (
+        BMI_THRESHOLDS_RE.search("value 0.85 is recorded") is None
+    ), "Should not match 0.85 without BMI/WHR keyword"
+
+
+def test_docstring_tracker_mismatched_quotes_does_not_close() -> None:
+    """Test that mismatched triple quotes do not close docstring."""
+    in_doc = False
+    q: str | None = None
+    # Start with double quotes
+    in_doc, q = _update_docstring_state('"""start', in_doc, q)
+    assert in_doc is True and q == '"""', "Should enter docstring with double quotes"
+    # Encounter single quotes - should NOT close (mismatched)
+    in_doc, q = _update_docstring_state("still doc '''", in_doc, q)
+    assert (
+        in_doc is True and q == '"""'
+    ), "Should remain in docstring (single quotes don't close double-quote docstring)"
+    # Only matching double quotes close it
+    in_doc, q = _update_docstring_state('end"""', in_doc, q)
+    assert in_doc is False and q is None, "Matching double quotes should close docstring"
+
+
+def test_docstring_tracker_mismatched_quotes_single_to_double() -> None:
+    """Test that mismatched triple quotes (single to double) do not close docstring."""
+    in_doc = False
+    q: str | None = None
+    # Start with single quotes
+    in_doc, q = _update_docstring_state("'''start", in_doc, q)
+    assert in_doc is True and q == "'''", "Should enter docstring with single quotes"
+    # Encounter double quotes - should NOT close (mismatched)
+    in_doc, q = _update_docstring_state('still doc """', in_doc, q)
+    assert (
+        in_doc is True and q == "'''"
+    ), "Should remain in docstring (double quotes don't close single-quote docstring)"
+    # Only matching single quotes close it
+    in_doc, q = _update_docstring_state("end'''", in_doc, q)
+    assert in_doc is False and q is None, "Matching single quotes should close docstring"
