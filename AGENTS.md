@@ -904,7 +904,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **Example:**
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
 - Suppression expires: 2026-03-01
-- Monitor: <https://security-tracker.debian.org/tracker/CVE-2026-0861>
+- Monitor: https://security-tracker.debian.org/tracker/CVE-2026-0861
 - See: `docs/security/CVE-2026-0861-glibc.md`
 
 ---
@@ -952,6 +952,27 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - **PR-D:** Frontend audit (only after backend stable)
 
 **See:** `docs/audit/ROADMAP_POST_REMEDIATION.md` for detailed audit questions and DoD.
+
+---
+
+## PR Scope Policy (Hard Rule)
+
+**Runtime config changes (`.trivyignore`, workflows, infra configs) must NEVER be mixed with docs-only PRs.**
+
+**Rules:**
+- **Docs-only PR:** Only `*.md` files, `README.md`, `AGENTS.md`, `.github/*.md` (templates)
+- **Runtime config PR:** `.trivyignore`, `.github/workflows/*.yml`, `Dockerfile`, `Makefile`, `requirements*`, etc.
+- **Tests PR:** `tests/*.py`, test-related configs
+- **Mixed PR:** Only when explicitly justified (e.g., security config + security docs)
+
+**Rationale:** Mixing runtime config with docs-only PRs violates PR scope guard policy and makes reviews/CI tracking unreliable.
+
+**Examples:**
+- ✅ **OK:** Security config PR with `.trivyignore` + `docs/security/*.md` (related security docs)
+- ❌ **Forbidden:** Docs-only PR with `.trivyignore` (runtime config)
+- ❌ **Forbidden:** Guard scanner PR with `.trivyignore` (different scope)
+
+**Editor troubleshooting docs** (e.g., `CODERABBIT_CURSOR_FIX.md`) should be in separate docs-only PR to avoid scope creep.
 
 ---
 
