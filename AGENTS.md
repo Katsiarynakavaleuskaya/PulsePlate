@@ -201,7 +201,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 - BMI formulas/thresholds/constants ONLY allowed in `core/bmi/*`
 - `legacy_app.py` is scanned (no longer whitelisted)
-- Any hardcoded thresholds (18.5/24.9/25/30 for BMI, 80/88/94/102 for waist) outside `core/bmi/` → FAIL
+- Any hardcoded thresholds (18.5/24.9/25/30 for BMI, 80/88/94/102 for waist, 0.95/0.80/0.90/0.85 for WHR) outside `core/bmi/` → FAIL
 
 **Canonical sources:**
 
@@ -219,6 +219,12 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 
 - Thin proxies that import and delegate to `core/bmi/*`
 - Response shape formatting (no domain logic)
+
+**Guard scanner requirements:**
+
+- **Docstring tracking:** Guard scanners must not be state-breakable by one-line triple-quoted docstrings. Parity-based tracking (or tokenize) required.
+- **Pattern tests:** Regex guard patterns must have explicit tests for any new thresholds (including near-miss values to verify precision).
+- **Docstring state update:** Docstring state must be updated BEFORE `SKIP_LINE_RE` check to ensure docstrings starting with `"""` are properly tracked.
 
 ---
 
@@ -874,6 +880,80 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - `scripts/` may use `sys.path.insert` for standalone CLI only
 - Scripts must NOT create `Base` or manipulate SQLAlchemy metadata
 - Direct imports from `core`/`app` are allowed if using standard package imports
+
+## Security: Unfixed Distro CVE Policy
+
+**When a CRITICAL CVE is unfixed upstream in base image distro:**
+
+1. **Document:** Create security note in `docs/security/`
+2. **Suppress:** Add temporary suppression in `.trivyignore` with expiry date
+3. **Monitor:** Check upstream tracker weekly until fix available
+4. **Remove:** When fixed version available, remove suppression and update base image
+
+**Suppression requirements:**
+- Must have expiry date (max 90 days)
+- Must reference CVE tracker URL
+- Must document removal condition
+- Must be reviewed in separate security PR (PR-SEC)
+
+**Rationale:** We cannot fix system library vulnerabilities. We can only:
+- Document unfixed status
+- Monitor for upstream fix
+- Update base image when fix available
+
+**Example:**
+- CVE-2026-0861 (glibc) — unfixed in Debian bookworm
+- Suppression expires: 2026-03-01
+- Monitor: https://security-tracker.debian.org/tracker/CVE-2026-0861
+- See: `docs/security/CVE-2026-0861-glibc.md`
+
+---
+
+## CI: GitHub Container Registry (GHCR) Policy
+
+**Required for workflows that pull from GHCR:**
+
+1. **Permissions:** Job must have `packages: read` permission
+2. **Login:** Must use `docker login` before `docker pull`
+3. **Username:** Use `${{ github.repository_owner }}` (not `github.actor`)
+4. **Token:** Use `${{ secrets.GHCR_READ_TOKEN }}` from environment secrets
+5. **Package access:** Package must grant repository access in settings
+
+**Verification checklist:**
+- [ ] Token has `read:packages` scope
+- [ ] Token is in Environment secrets (not Repository secrets)
+- [ ] Package settings → Actions access → repository has Read access
+- [ ] Workflow uses `github.repository_owner` for login username
+- [ ] Workflow has `permissions: packages: read`
+
+**Common errors:**
+- `denied: denied` → Check token scope and package permissions
+- `authentication required` → Verify token is in environment secrets
+- `not found` → Check package name and repository access
+
+**See:** `docs/audit/GHCR_TOKEN_SETUP.md` for detailed setup guide.
+
+---
+
+## Post-Remediation Roadmap (Hard Rule)
+
+**PR-D (Frontend Audit) is forbidden until:**
+- ✅ Remediation PR merged (PR #535)
+- ✅ PR-A cleanup merged
+- ✅ Backend guards green
+- ✅ `make verify` passes
+
+**Rationale:** Frontend audit requires stable backend contracts. Premature frontend changes create technical debt and alignment issues.
+
+**Roadmap:**
+- **PR-A:** Post-remediation cleanup (dead code, orphan tests)
+- **PR-B:** Product contract / soft paywall audit (docs only)
+- **PR-C:** Legal / compliance pack (wellness positioning)
+- **PR-D:** Frontend audit (only after backend stable)
+
+**See:** `docs/audit/ROADMAP_POST_REMEDIATION.md` for detailed audit questions and DoD.
+
+---
 
 ## Links to module instructions
 
