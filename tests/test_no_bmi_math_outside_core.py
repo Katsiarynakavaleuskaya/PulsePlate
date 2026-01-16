@@ -66,12 +66,21 @@ BMI_FORMULA_RE = re.compile(
 # Pattern 2: BMI thresholds (canonical values) - must be in BMI context
 # Look for BMI-related keywords nearby (bmi, category, threshold, etc.)
 # Includes 24.9 (healthy range max) per PR-502 enforcement
-# NOTE: Also detects WHR thresholds (0.95/0.80) outside core/bmi/risk.py
+# NOTE: Also detects WHR thresholds (0.95/0.80/0.90/0.85) outside core/bmi/risk.py
+# Numeric thresholds pattern (factored out to avoid duplication)
+_NUMERIC_THRESHOLDS = (
+    r"(?:"
+    r"18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|"
+    r"17\.5|26\.0|27\.0|24\.5|"
+    r"0\.95|0\.80|0\.90|0\.85"
+    r")"
+)
+
 BMI_THRESHOLDS_RE = re.compile(
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip).*"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80|0\.90|0\.85)\b|"
-    r"\b(18\.5|24\.9|25\.0|30\.0|35\.0|40\.0|17\.5|26\.0|27\.0|24\.5|0\.95|0\.80|0\.90|0\.85)\b.*"
-    r"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip)",
+    rf"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip).*"
+    rf"\b{_NUMERIC_THRESHOLDS}\b|"
+    rf"\b{_NUMERIC_THRESHOLDS}\b.*"
+    rf"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip)",
     re.IGNORECASE,
 )
 
@@ -100,37 +109,56 @@ SKIP_CONTEXT_RE = re.compile(
     r"description=|Field\(|#|docstring|type:|->|def.*\(.*\)\s*->|:.*float.*="
 )
 
-# Pattern to match triple-quoted strings (docstrings)
-TRIPLE_QUOTES_RE = re.compile(r"('''|\"\"\")")
 
-
-def _update_in_docstring_state(line: str, in_docstring: bool) -> bool:
+def _update_docstring_state(
+    line: str, in_docstring: bool, doc_quote: str | None
+) -> tuple[bool, str | None]:
     """
-    Track whether we are inside a triple-quoted string/docstring.
+    Track triple-quoted docstrings robustly.
 
-    Important: a single line can contain BOTH opening and closing delimiters:
-    `\"\"\"doc\"\"\"` or `'''doc'''`. In that case there are 2 delimiters and
-    the state MUST NOT flip (docstring starts and ends on same line).
+    Handles:
+    - Single-line docstrings: '''x''' or \"\"\"x\"\"\"
+    - Multiple occurrences per line by parity (odd/even count)
+    - Avoids closing \"\"\" with ''' (and vice versa)
 
     Args:
         line: Current line to analyze
         in_docstring: Current docstring state
+        doc_quote: Type of quote that opened docstring ('\"\"\"' or \"'''\") or None
 
     Returns:
-        Updated docstring state (True if inside docstring, False otherwise)
+        Tuple of (updated in_docstring state, updated doc_quote type)
     """
+    dq = '"""'
+    sq = "'''"
+
     # When not inside docstring, ignore triple-quotes in comments
     scan = line
     if not in_docstring:
         scan = scan.split("#", 1)[0]
 
-    # Count triple-quote delimiters in the line
-    n_delims = len(TRIPLE_QUOTES_RE.findall(scan))
+    dq_count = scan.count(dq)
+    sq_count = scan.count(sq)
 
-    # Only toggle state if odd number of delimiters (opening or closing, not both)
-    if n_delims % 2 == 1:
-        return not in_docstring
-    return in_docstring
+    if not in_docstring:
+        # Entering docstring: if any triple quotes appear, choose which one opens first
+        if dq_count or sq_count:
+            first_dq = scan.find(dq) if dq_count else 10**9
+            first_sq = scan.find(sq) if sq_count else 10**9
+            opener = dq if first_dq < first_sq else sq
+            # Parity: if opener occurs odd times -> enter, else stay out (opened+closed same line)
+            opener_count = dq_count if opener == dq else sq_count
+            if opener_count % 2 == 1:
+                return True, opener
+            return False, None
+        return False, None
+
+    # Already inside docstring: only the same quote type can close it
+    assert doc_quote in (dq, sq), f"Unexpected doc_quote: {doc_quote!r} (expected {dq!r} or {sq!r})"
+    close_count = scan.count(doc_quote)
+    if close_count % 2 == 1:
+        return False, None
+    return True, doc_quote
 
 
 def _is_whitelisted(rel_path: str) -> bool:
@@ -184,16 +212,22 @@ def _scan(
         try:
             text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
             in_docstring = False
+            doc_quote: str | None = None
             for idx, line in enumerate(text, start=1):
-                # Track docstring state (handles both single-line and multiline docstrings)
-                in_docstring = _update_in_docstring_state(line, in_docstring)
-                if SKIP_LINE_RE.match(line):
-                    continue
+                # Track docstring state FIRST (before SKIP_LINE_RE check)
+                # This ensures docstring state is updated even for lines that start with """
+                in_docstring, doc_quote = _update_docstring_state(line, in_docstring, doc_quote)
                 # Skip lines inside docstrings
                 if in_docstring:
                     continue
-                # Skip docstrings and type hints
-                if SKIP_CONTEXT_RE.search(line) and "bmi" not in line.lower():
+                # Skip comment-only lines and docstring markers (after docstring state check)
+                if SKIP_LINE_RE.match(line):
+                    continue
+                # Skip docstrings and type hints (but keep BMI/WHR-related lines)
+                lower = line.lower()
+                if SKIP_CONTEXT_RE.search(line) and not any(
+                    k in lower for k in ("bmi", "whr", "waist", "hip")
+                ):
                     continue
                 if pattern.search(line):
                     hits.append(f"{rel}:{idx}: {line.strip()}")
@@ -271,49 +305,81 @@ def test_no_waist_thresholds_outside_core() -> None:
 def test_docstring_tracker_single_line_docstring_does_not_leak() -> None:
     """Test that single-line docstrings don't leak state to next line."""
     in_doc = False
+    q: str | None = None
     # Single-line docstring (opening and closing on same line) should NOT toggle state
-    in_doc = _update_in_docstring_state('"""doc"""', in_doc)
+    in_doc, q = _update_docstring_state('"""doc"""', in_doc, q)
     assert in_doc is False, "Single-line docstring should not toggle state"
+    assert q is None, "No quote type should be set for single-line docstring"
 
-    in_doc = _update_in_docstring_state("'''doc'''", in_doc)
+    in_doc, q = _update_docstring_state("'''doc'''", in_doc, q)
     assert in_doc is False, "Single-line docstring with single quotes should not toggle state"
+    assert q is None, "No quote type should be set for single-line docstring"
 
     # Next line should be checked (not skipped)
-    in_doc = _update_in_docstring_state("THRESHOLD = 25.0", in_doc)
+    in_doc, q = _update_docstring_state("THRESHOLD = 25.0", in_doc, q)
     assert in_doc is False, "Line after single-line docstring should not be in docstring state"
 
 
 def test_docstring_tracker_multiline_toggles_on_odd_count() -> None:
     """Test that multiline docstrings correctly toggle state."""
     in_doc = False
+    q: str | None = None
     # Opening delimiter (odd count = 1)
-    in_doc = _update_in_docstring_state('"""doc', in_doc)
+    in_doc, q = _update_docstring_state('"""doc', in_doc, q)
     assert in_doc is True, "Opening delimiter should set in_docstring=True"
+    assert q == '"""', "Quote type should be set to triple double quotes"
 
     # Line inside docstring (no delimiters)
-    in_doc = _update_in_docstring_state("still doc", in_doc)
+    in_doc, q = _update_docstring_state("still doc", in_doc, q)
     assert in_doc is True, "Line inside docstring should keep in_docstring=True"
+    assert q == '"""', "Quote type should remain unchanged"
 
     # Closing delimiter (odd count = 1)
-    in_doc = _update_in_docstring_state('end"""', in_doc)
+    in_doc, q = _update_docstring_state('end"""', in_doc, q)
     assert in_doc is False, "Closing delimiter should set in_docstring=False"
+    assert q is None, "Quote type should be cleared after closing"
 
     # Next line should be checked (not skipped)
-    in_doc = _update_in_docstring_state("THRESHOLD = 30.0", in_doc)
+    in_doc, q = _update_docstring_state("THRESHOLD = 30.0", in_doc, q)
     assert in_doc is False, "Line after closed docstring should not be in docstring state"
 
 
 def test_docstring_tracker_ignores_comments_when_not_in_docstring() -> None:
     """Test that triple-quotes in comments don't affect state when not in docstring."""
     in_doc = False
+    q: str | None = None
     # Triple-quotes in comment should be ignored
-    in_doc = _update_in_docstring_state("# Comment with '''quotes'''", in_doc)
+    in_doc, q = _update_docstring_state("# Comment with '''quotes'''", in_doc, q)
     assert in_doc is False, "Triple-quotes in comment should not toggle state when not in docstring"
+    assert q is None, "No quote type should be set from comment"
 
     # But if we're already in docstring, comment prefix doesn't matter
     in_doc = True
-    in_doc = _update_in_docstring_state("# Still in docstring", in_doc)
+    q = '"""'
+    in_doc, q = _update_docstring_state("# Still in docstring", in_doc, q)
     assert in_doc is True, "Comment prefix should not affect state when already in docstring"
+    assert q == '"""', "Quote type should remain unchanged"
+
+
+def test_docstring_tracker_single_line_does_not_disable_scan() -> None:
+    """Test that single-line docstrings don't disable guard scanning."""
+    in_doc = False
+    q: str | None = None
+    in_doc, q = _update_docstring_state('"""summary"""', in_doc, q)
+    assert in_doc is False, "Single-line docstring should not enter docstring state"
+    assert q is None, "No quote type should be set for single-line docstring"
+
+
+def test_docstring_tracker_multiline_enters_and_exits() -> None:
+    """Test that multiline docstrings correctly enter and exit."""
+    in_doc = False
+    q: str | None = None
+    in_doc, q = _update_docstring_state('"""start', in_doc, q)
+    assert in_doc is True and q == '"""', "Opening delimiter should enter docstring state"
+    in_doc, q = _update_docstring_state("still doc", in_doc, q)
+    assert in_doc is True, "Line inside docstring should keep state"
+    in_doc, q = _update_docstring_state('end"""', in_doc, q)
+    assert in_doc is False and q is None, "Closing delimiter should exit docstring state"
 
 
 def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -> None:
@@ -333,8 +399,9 @@ def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -
     to properly distinguish string literals from docstrings.
     """
     in_doc = False
+    q: str | None = None
     # Current implementation WILL detect triple-quotes inside string literal (1 delimiter = odd = toggle)
-    in_doc = _update_in_docstring_state('x = \'not a docstring """ just text\'', in_doc)
+    in_doc, q = _update_docstring_state('x = \'not a docstring """ just text\'', in_doc, q)
     # This is expected behavior with regex approach - documented limitation, not a bug
     assert (
         in_doc is True
@@ -342,7 +409,120 @@ def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -
 
     # Verify that next line would be incorrectly skipped (but this is rare in practice)
     # Next line has no triple-quotes, so state doesn't toggle and remains True
-    in_doc = _update_in_docstring_state("THRESHOLD = 25.0  # This would be skipped", in_doc)
+    in_doc, q = _update_docstring_state("THRESHOLD = 25.0  # This would be skipped", in_doc, q)
     assert (
         in_doc is True
     ), "Next line after false-positive toggle would be incorrectly skipped (known limitation)"
+
+
+def test_skip_context_does_not_filter_whr_thresholds() -> None:
+    """Test that SKIP_CONTEXT filter does not skip WHR thresholds in type-hinted constants."""
+    # Create test file outside tests/ to avoid whitelist (use app/ as it's scanned)
+    test_file = REPO_ROOT / "app" / "test_guard_whr_skip_temp.py"
+    try:
+        test_file.write_text(
+            '"""Module docstring"""\n'
+            "WHR_THRESHOLD: float = 0.90  # whr threshold\n"
+            "# This should be detected as a violation\n"
+        )
+
+        # Use BMI_THRESHOLDS_RE to scan the repository
+        hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", skip_threshold_check=False)
+
+        # Filter hits to only our test file
+        test_hits = [h for h in hits if "test_guard_whr_skip_temp.py" in h]
+
+        assert len(test_hits) > 0, "Should detect WHR threshold even with type hint"
+        # Verify the violation is on line 2 (after docstring)
+        assert any(
+            "test_guard_whr_skip_temp.py:2:" in h for h in test_hits
+        ), "WHR threshold with type hint should not be skipped by SKIP_CONTEXT filter"
+    finally:
+        # Clean up: remove test file
+        if test_file.exists():
+            test_file.unlink()
+
+
+def test_bmi_thresholds_re_matches_new_whr_thresholds() -> None:
+    """Test that BMI_THRESHOLDS_RE matches new WHR thresholds (0.90/0.85)."""
+    assert (
+        BMI_THRESHOLDS_RE.search("whr threshold for males is 0.90") is not None
+    ), "Should match 0.90 WHR threshold for males"
+    assert (
+        BMI_THRESHOLDS_RE.search("Recommended WHR (waist to hip ratio) cutoff: 0.85 for females")
+        is not None
+    ), "Should match 0.85 WHR threshold for females"
+    assert (
+        BMI_THRESHOLDS_RE.search("0.90 is the whr threshold for high risk") is not None
+    ), "Should match 0.90 in WHR context"
+    assert (
+        BMI_THRESHOLDS_RE.search("For women, 0.85 waist hip ratio indicates elevated risk (whr)")
+        is not None
+    ), "Should match 0.85 in waist hip ratio context"
+
+
+def test_bmi_thresholds_re_does_not_match_nearby_non_whr_thresholds() -> None:
+    """Test that BMI_THRESHOLDS_RE does not match near-miss values (0.89/0.86)."""
+    assert (
+        BMI_THRESHOLDS_RE.search("whr of 0.89 is below the risk threshold") is None
+    ), "Should not match 0.89 (near-miss, not a threshold)"
+    assert (
+        BMI_THRESHOLDS_RE.search("For women, a whr of 0.86 is considered borderline") is None
+    ), "Should not match 0.86 (near-miss, not a threshold)"
+    assert (
+        BMI_THRESHOLDS_RE.search("0.89 whr value is observed in the sample") is None
+    ), "Should not match 0.89 in WHR context"
+    assert (
+        BMI_THRESHOLDS_RE.search("0.86 waist to hip ratio (whr) recorded") is None
+    ), "Should not match 0.86 in waist hip ratio context"
+
+
+def test_bmi_thresholds_re_does_not_match_non_bmi_whr_context() -> None:
+    """Test that 0.90/0.85 do not match outside BMI/WHR context (anti-false-positive)."""
+    # These should NOT match because they lack BMI/WHR keywords (discount, accuracy, etc.)
+    assert (
+        BMI_THRESHOLDS_RE.search("discount rate 0.90 percent") is None
+    ), "Should not match 0.90 in discount context"
+    assert (
+        BMI_THRESHOLDS_RE.search("accuracy 0.85 correlation") is None
+    ), "Should not match 0.85 in accuracy context"
+    assert (
+        BMI_THRESHOLDS_RE.search("value 0.90 exceeds limit") is None
+    ), "Should not match 0.90 without BMI/WHR keyword"
+    assert (
+        BMI_THRESHOLDS_RE.search("value 0.85 is recorded") is None
+    ), "Should not match 0.85 without BMI/WHR keyword"
+
+
+def test_docstring_tracker_mismatched_quotes_does_not_close() -> None:
+    """Test that mismatched triple quotes do not close docstring."""
+    in_doc = False
+    q: str | None = None
+    # Start with double quotes
+    in_doc, q = _update_docstring_state('"""start', in_doc, q)
+    assert in_doc is True and q == '"""', "Should enter docstring with double quotes"
+    # Encounter single quotes - should NOT close (mismatched)
+    in_doc, q = _update_docstring_state("still doc '''", in_doc, q)
+    assert (
+        in_doc is True and q == '"""'
+    ), "Should remain in docstring (single quotes don't close double-quote docstring)"
+    # Only matching double quotes close it
+    in_doc, q = _update_docstring_state('end"""', in_doc, q)
+    assert in_doc is False and q is None, "Matching double quotes should close docstring"
+
+
+def test_docstring_tracker_mismatched_quotes_single_to_double() -> None:
+    """Test that mismatched triple quotes (single to double) do not close docstring."""
+    in_doc = False
+    q: str | None = None
+    # Start with single quotes
+    in_doc, q = _update_docstring_state("'''start", in_doc, q)
+    assert in_doc is True and q == "'''", "Should enter docstring with single quotes"
+    # Encounter double quotes - should NOT close (mismatched)
+    in_doc, q = _update_docstring_state('still doc """', in_doc, q)
+    assert (
+        in_doc is True and q == "'''"
+    ), "Should remain in docstring (double quotes don't close single-quote docstring)"
+    # Only matching single quotes close it
+    in_doc, q = _update_docstring_state("end'''", in_doc, q)
+    assert in_doc is False and q is None, "Matching single quotes should close docstring"
