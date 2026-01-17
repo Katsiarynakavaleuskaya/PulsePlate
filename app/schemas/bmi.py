@@ -107,6 +107,54 @@ class WaistRiskResultSchema(BaseModel):
     )
 
 
+class SoftPaywallMessage(BaseModel):
+    """
+    Text-only soft paywall message.
+
+    IMPORTANT:
+    - This is NOT medical advice, only wellness positioning.
+    - No BMI-dependent logic should influence this object.
+    """
+
+    lang: Literal["ru", "en", "es"] = Field(..., description="Language code")
+
+    title_key: str = Field(..., description="i18n key for title")
+    body_key: str = Field(..., description="i18n key for body text")
+    cta_key: str = Field(..., description="i18n key for CTA label")
+
+    default_title: str = Field(..., description="Localized fallback title")
+    default_body: str = Field(..., description="Localized fallback body")
+    default_cta: str = Field(..., description="Localized fallback CTA label")
+
+
+class SoftPaywallAvailability(BaseModel):
+    """PRO tier availability status."""
+
+    pro_available: bool = Field(..., description="Whether PRO is available at runtime")
+    reason_key: str | None = Field(
+        default=None, description="Optional i18n key if PRO is unavailable"
+    )
+
+
+class SoftPaywallHook(BaseModel):
+    """
+    Soft paywall hook: metadata for clients to render a light PRO CTA.
+
+    NOTE:
+    - Backend contract only. No UI decisions here.
+    - Must be injected in adapter/router layer only.
+    """
+
+    id: str = Field(..., description="Stable hook identifier")
+    kind: Literal["cta"] = Field(default="cta")
+    position: Literal["post_result"] = Field(default="post_result")
+    priority: int = Field(default=50, ge=0, le=100)
+
+    message: SoftPaywallMessage
+    availability: SoftPaywallAvailability
+    target: Literal["pro_paywall"] = Field(default="pro_paywall")
+
+
 # --- Local normalization helpers (schema-level, MUST NOT import core.bmi.engine) ---
 # These helpers ensure schema validation aligns with engine normalization semantics
 # without creating import cycles.
@@ -465,4 +513,9 @@ class BMICalculateResponse(BaseModel):
             },
             None,
         ],
+    )
+
+    soft_paywall: SoftPaywallHook | None = Field(
+        default=None,
+        description="Optional soft paywall hook for PRO tier upsell (wellness positioning only).",
     )

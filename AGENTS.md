@@ -638,6 +638,30 @@ Violation of this rule blocks merge.
 - `docs/audit/BACKEND_P0_REMEDIATION_PLAN.md` — Remediation plan
 - `docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md` — Guard policy
 
+## Soft Paywall hooks (policy)
+
+**Invariant:** Soft paywall hooks must be built in adapter/router layer only (`app/routers/*`), never in `core/bmi/*`.
+
+**Enforcement:**
+- Guard test in `tests/test_no_bmi_logic_in_paywall.py`
+- Hook builders must not import `core/bmi/*`
+- Hook builders must not check BMI values or categories
+
+**Forbidden:**
+- Any BMI-dependent logic/branching for hook display (no thresholds, no categories, no "if BMI…")
+- Importing `core/bmi/*` from hook builders
+- BMI-based conditions for showing/hiding hooks
+
+**Allowed:**
+- Feature flags via env (`SOFT_PAYWALL_ENABLED`)
+- i18n lookup via `core.i18n.t()`
+- Hook formation in router/adapter layer only
+
+**Rationale:**
+- Hooks are UX/contract layer, not domain logic
+- BMI logic belongs in `core/bmi/*` only
+- Separation prevents accidental BMI logic drift into router layer
+
 ## Known pitfalls
 
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.

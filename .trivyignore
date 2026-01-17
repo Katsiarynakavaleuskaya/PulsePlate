@@ -1057,3 +1057,4 @@ CVE-2025-30258
 CVE-2025-8058
 
 ## NOTE: CVE-2026-0861 suppression moved to `trivy/ignore-policy.rego` (scoped by package + version).
+## See: docs/security/CVE-2026-0861-glibc.md

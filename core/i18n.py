@@ -109,6 +109,10 @@ TRANSLATIONS = {
         "bmi_engine_unavailable": "BMI engine недоступен",
         "bmi_calculation_failed": "Ошибка расчета BMI",
         "bmi_invalid_parameters": "Некорректные параметры для расчета BMI",
+        # Soft Paywall
+        "soft_paywall.title": "Более точная интерпретация",
+        "soft_paywall.body": "BMI не учитывает распределение жира и контекст. Хотите более точную интерпретацию рисков (wellness)?",
+        "soft_paywall.cta": "Открыть PRO",
         # Business Module
         "business_module_disabled": "Модуль бизнес-анализа отключен",
         "business_payload_too_large": "Слишком большой код (макс 100 KB)",
@@ -217,6 +221,10 @@ TRANSLATIONS = {
         "bmi_engine_unavailable": "BMI engine is not available",
         "bmi_calculation_failed": "BMI calculation failed",
         "bmi_invalid_parameters": "Invalid parameters for BMI calculation",
+        # Soft Paywall
+        "soft_paywall.title": "More accurate interpretation",
+        "soft_paywall.body": "BMI doesn't account for fat distribution or context. Want a more accurate wellness interpretation?",
+        "soft_paywall.cta": "See PRO",
         # Business Module
         "business_module_disabled": "Business analysis module is disabled",
         "business_payload_too_large": "Code payload too large (max 100 KB)",
@@ -324,6 +332,10 @@ TRANSLATIONS = {
         "bmi_engine_unavailable": "El motor de IMC no está disponible",
         "bmi_calculation_failed": "Error en el cálculo del IMC",
         "bmi_invalid_parameters": "Parámetros inválidos para el cálculo del IMC",
+        # Soft Paywall
+        "soft_paywall.title": "Interpretación más precisa",
+        "soft_paywall.body": "El IMC no tiene en cuenta la distribución de grasa ni el contexto. ¿Quieres una interpretación más precisa (bienestar)?",
+        "soft_paywall.cta": "Abrir PRO",
         # Business Module
         "business_module_disabled": "Módulo de análisis empresarial está deshabilitado",
         "business_payload_too_large": "Código demasiado grande (máx 100 KB)",
