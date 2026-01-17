@@ -11,6 +11,7 @@ PR-454: shim + thin adapter wiring.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import pytest
@@ -494,3 +495,57 @@ def test_http_calculate_normalizes_lang_for_localized_501(
     resp_en = client.post("/api/v1/bmi/calculate", json=_valid_payload(lang="en"))
     assert resp_en.status_code == 501
     assert resp_en.json()["detail"] == t("en", "bmi_engine_unavailable")
+
+
+def test_bmi_calculate_includes_soft_paywall_when_enabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that soft paywall hook is included when SOFT_PAYWALL_ENABLED=true."""
+    monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "true")
+    r = client.post(
+        "/api/v1/bmi/calculate",
+        json={"height_cm": 170, "weight_kg": 70, "age": 30, "lang": "en"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert "soft_paywall" in data
+    assert data["soft_paywall"] is not None
+    assert data["soft_paywall"]["id"] == "bmi.pro_interpretation_v1"
+    assert data["soft_paywall"]["message"]["lang"] == "en"
+    assert data["soft_paywall"]["message"]["default_title"]
+    assert data["soft_paywall"]["message"]["default_body"]
+    assert data["soft_paywall"]["message"]["default_cta"]
+
+
+def test_bmi_calculate_soft_paywall_is_null_when_disabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that soft paywall hook is None when SOFT_PAYWALL_ENABLED=false."""
+    monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "false")
+    r = client.post(
+        "/api/v1/bmi/calculate",
+        json={"height_cm": 170, "weight_kg": 70, "age": 30, "lang": "en"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert "soft_paywall" in data
+    assert data["soft_paywall"] is None
+
+
+@pytest.mark.parametrize("lang", ["ru", "en", "es"])
+def test_soft_paywall_defaults_match_lang(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, lang: str
+) -> None:
+    """Test that soft paywall defaults match requested language."""
+    monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "true")
+    r = client.post(
+        "/api/v1/bmi/calculate",
+        json={"height_cm": 170, "weight_kg": 70, "age": 30, "lang": lang},
+    )
+    assert r.status_code == 200
+    hook = r.json()["soft_paywall"]
+    assert hook is not None
+    assert hook["message"]["lang"] == lang
+    assert hook["message"]["default_title"]
+    assert hook["message"]["default_body"]
+    assert hook["message"]["default_cta"]
