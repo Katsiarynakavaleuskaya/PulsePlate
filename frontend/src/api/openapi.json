@@ -340,6 +340,17 @@
             "title": "Notes",
             "type": "array"
           },
+          "soft_paywall": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SoftPaywallHook"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional soft paywall hook for PRO tier upsell (wellness positioning only)."
+          },
           "visualization": {
             "anyOf": [
               {
@@ -3302,6 +3313,137 @@
           "path"
         ],
         "title": "SignRequest",
+        "type": "object"
+      },
+      "SoftPaywallAvailability": {
+        "description": "PRO tier availability status.",
+        "properties": {
+          "pro_available": {
+            "description": "Whether PRO is available at runtime",
+            "title": "Pro Available",
+            "type": "boolean"
+          },
+          "reason_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional i18n key if PRO is unavailable",
+            "title": "Reason Key"
+          }
+        },
+        "required": [
+          "pro_available"
+        ],
+        "title": "SoftPaywallAvailability",
+        "type": "object"
+      },
+      "SoftPaywallHook": {
+        "description": "Soft paywall hook: metadata for clients to render a light PRO CTA.\n\nNOTE:\n- Backend contract only. No UI decisions here.\n- Must be injected in adapter/router layer only.",
+        "properties": {
+          "availability": {
+            "$ref": "#/components/schemas/SoftPaywallAvailability"
+          },
+          "id": {
+            "description": "Stable hook identifier",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "cta",
+            "default": "cta",
+            "title": "Kind",
+            "type": "string"
+          },
+          "message": {
+            "$ref": "#/components/schemas/SoftPaywallMessage"
+          },
+          "position": {
+            "const": "post_result",
+            "default": "post_result",
+            "title": "Position",
+            "type": "string"
+          },
+          "priority": {
+            "default": 50,
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "target": {
+            "const": "pro_paywall",
+            "default": "pro_paywall",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message",
+          "availability"
+        ],
+        "title": "SoftPaywallHook",
+        "type": "object"
+      },
+      "SoftPaywallMessage": {
+        "description": "Text-only soft paywall message.\n\nIMPORTANT:\n- This is NOT medical advice, only wellness positioning.\n- No BMI-dependent logic should influence this object.",
+        "properties": {
+          "body_key": {
+            "description": "i18n key for body text",
+            "title": "Body Key",
+            "type": "string"
+          },
+          "cta_key": {
+            "description": "i18n key for CTA label",
+            "title": "Cta Key",
+            "type": "string"
+          },
+          "default_body": {
+            "description": "Localized fallback body",
+            "title": "Default Body",
+            "type": "string"
+          },
+          "default_cta": {
+            "description": "Localized fallback CTA label",
+            "title": "Default Cta",
+            "type": "string"
+          },
+          "default_title": {
+            "description": "Localized fallback title",
+            "title": "Default Title",
+            "type": "string"
+          },
+          "lang": {
+            "description": "Language code",
+            "enum": [
+              "ru",
+              "en",
+              "es"
+            ],
+            "title": "Lang",
+            "type": "string"
+          },
+          "title_key": {
+            "description": "i18n key for title",
+            "title": "Title Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lang",
+          "title_key",
+          "body_key",
+          "cta_key",
+          "default_title",
+          "default_body",
+          "default_cta"
+        ],
+        "title": "SoftPaywallMessage",
         "type": "object"
       },
       "TestResponse": {
