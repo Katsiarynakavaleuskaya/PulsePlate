@@ -11,11 +11,19 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse, WaistRiskResultSchema
+from app.schemas.bmi import (
+    BMICalculateRequest,
+    BMICalculateResponse,
+    SoftPaywallAvailability,
+    SoftPaywallHook,
+    SoftPaywallMessage,
+    WaistRiskResultSchema,
+)
 from app.services.bmi_visualization import build_bmi_scale_v1
 from core.i18n import normalize_lang, t
 
@@ -85,6 +93,61 @@ except ImportError:  # pragma: no cover
 
 # Removed _get_lang_from_request() - use core.i18n.normalize_lang() directly
 # This removes duplication and ensures consistent language normalization across the app.
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """
+    Parse boolean env var.
+    RU/EN note: Accepts common truthy/falsey strings.
+    """
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    value = raw.strip().lower()
+    if value in {"1", "true", "t", "yes", "y", "on"}:
+        return True
+    if value in {"0", "false", "f", "no", "n", "off"}:
+        return False
+    return default
+
+
+def _build_soft_paywall_hook(lang: str) -> SoftPaywallHook | None:
+    """
+    Build text-only soft paywall hook.
+
+    IMPORTANT:
+    - No BMI-dependent logic.
+    - No imports from core/bmi/*.
+    """
+    enabled = _env_bool("SOFT_PAYWALL_ENABLED", default=True)
+    if not enabled:
+        return None
+
+    # Normalize lang defensively (keep it simple; do not introduce logic here)
+    safe_lang = normalize_lang(lang)
+
+    title_key = "soft_paywall.title"
+    body_key = "soft_paywall.body"
+    cta_key = "soft_paywall.cta"
+
+    message = SoftPaywallMessage(
+        lang=safe_lang,
+        title_key=title_key,
+        body_key=body_key,
+        cta_key=cta_key,
+        default_title=t(safe_lang, title_key),
+        default_body=t(safe_lang, body_key),
+        default_cta=t(safe_lang, cta_key),
+    )
+
+    availability = SoftPaywallAvailability(pro_available=True, reason_key=None)
+
+    return SoftPaywallHook(
+        id="bmi.pro_interpretation_v1",
+        message=message,
+        availability=availability,
+        target="pro_paywall",
+    )
 
 
 async def bmi_calculate_handler(
@@ -187,6 +250,9 @@ async def bmi_calculate_handler(
             # Security: log only BMI value (numeric), not user input data
             logger.exception("Failed to build BMI visualization spec (BMI=%.1f)", result.bmi)
             resp.visualization = None
+
+        # Add soft paywall hook (router layer only, no BMI logic)
+        resp.soft_paywall = _build_soft_paywall_hook(lang=str(req.lang))
 
         # Return as dict for legacy compatibility
         # IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON

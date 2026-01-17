@@ -38,6 +38,17 @@ jobs:
       - name: PR Scope Guard
         run: bash scripts/ci/pr_scope_guard.sh
 
+  trivy_ignore_policy_expiry:
+    name: Trivy ignore-policy expiry
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Check Trivy ignore-policy expiry dates
+        run: python3 scripts/ci/check_trivy_ignore_policy_expiry.py
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15

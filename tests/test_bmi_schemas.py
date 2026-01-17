@@ -262,6 +262,14 @@ class TestBMICalculateResponse:
         assert response.visualization is None
         assert response.interpretation_v1 is None
 
+    def test_bmi_calculate_response_has_soft_paywall_field(self) -> None:
+        """Test that BMICalculateResponse has optional soft_paywall field."""
+        from app.schemas.bmi import BMICalculateResponse
+
+        fields = BMICalculateResponse.model_fields
+        assert "soft_paywall" in fields
+        assert fields["soft_paywall"].is_required() is False
+
     def test_full_response_with_waist_risk(self) -> None:
         """Test full response structure with waist risk."""
         waist_risk_schema = WaistRiskResultSchema(

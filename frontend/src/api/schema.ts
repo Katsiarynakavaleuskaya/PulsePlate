@@ -2232,6 +2232,8 @@ export interface components {
              *     ]
              */
             notes?: string[];
+            /** @description Optional soft paywall hook for PRO tier upsell (wellness positioning only). */
+            soft_paywall?: components["schemas"]["SoftPaywallHook"] | null;
             /** @description Optional BMI scale visualization spec (v1). Frontend should render this if available. */
             visualization?: components["schemas"]["BMIScaleV1Spec"] | null;
             /**
@@ -3833,6 +3835,108 @@ export interface components {
             path: string;
             /** Ttl Seconds */
             ttl_seconds?: number | null;
+        };
+        /**
+         * SoftPaywallAvailability
+         * @description PRO tier availability status.
+         */
+        SoftPaywallAvailability: {
+            /**
+             * Pro Available
+             * @description Whether PRO is available at runtime
+             */
+            pro_available: boolean;
+            /**
+             * Reason Key
+             * @description Optional i18n key if PRO is unavailable
+             */
+            reason_key?: string | null;
+        };
+        /**
+         * SoftPaywallHook
+         * @description Soft paywall hook: metadata for clients to render a light PRO CTA.
+         *
+         *     NOTE:
+         *     - Backend contract only. No UI decisions here.
+         *     - Must be injected in adapter/router layer only.
+         */
+        SoftPaywallHook: {
+            availability: components["schemas"]["SoftPaywallAvailability"];
+            /**
+             * Id
+             * @description Stable hook identifier
+             */
+            id: string;
+            /**
+             * Kind
+             * @default cta
+             * @constant
+             */
+            kind: "cta";
+            message: components["schemas"]["SoftPaywallMessage"];
+            /**
+             * Position
+             * @default post_result
+             * @constant
+             */
+            position: "post_result";
+            /**
+             * Priority
+             * @default 50
+             */
+            priority: number;
+            /**
+             * Target
+             * @default pro_paywall
+             * @constant
+             */
+            target: "pro_paywall";
+        };
+        /**
+         * SoftPaywallMessage
+         * @description Text-only soft paywall message.
+         *
+         *     IMPORTANT:
+         *     - This is NOT medical advice, only wellness positioning.
+         *     - No BMI-dependent logic should influence this object.
+         */
+        SoftPaywallMessage: {
+            /**
+             * Body Key
+             * @description i18n key for body text
+             */
+            body_key: string;
+            /**
+             * Cta Key
+             * @description i18n key for CTA label
+             */
+            cta_key: string;
+            /**
+             * Default Body
+             * @description Localized fallback body
+             */
+            default_body: string;
+            /**
+             * Default Cta
+             * @description Localized fallback CTA label
+             */
+            default_cta: string;
+            /**
+             * Default Title
+             * @description Localized fallback title
+             */
+            default_title: string;
+            /**
+             * Lang
+             * @description Language code
+             * @enum {string}
+             */
+            lang: "ru" | "en" | "es";
+            /**
+             * Title Key
+             * @description i18n key for title
+             */
+            title_key: string;
         };
         /**
          * TestResponse
