@@ -5,7 +5,8 @@ from datetime import UTC, datetime, date
 from pathlib import Path
 
 
-_EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})\s*$")
+# Allow trailing content after the date (e.g. "(manual removal)").
+_EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 
 
 def _parse_expiry(path: Path) -> date:
