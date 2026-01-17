@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 
-def test_bmi_extras_pro_functions_and_errors():
+def test_bmi_extras_functions_and_errors():
     from core import bmi_extras as extras
 
     # WHtR normal
@@ -53,7 +53,7 @@ def test_bmi_extras_pro_functions_and_errors():
     assert stage["stage"] in {"high_risk", "moderate_risk", "low_risk"}
 
 
-def test_bmi_extras_pro_low_risk_and_moderate_stage():
+def test_bmi_extras_low_risk_and_moderate_stage():
     from core import bmi_extras as extras
 
     # Low risk branches for WHR
