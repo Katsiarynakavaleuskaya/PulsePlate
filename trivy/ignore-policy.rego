@@ -13,10 +13,12 @@ ignore {
 	input.VulnerabilityID == "CVE-2026-0915"
 	input.PkgName == "libc6"
 	input.InstalledVersion == "2.36-9+deb12u13"
+	startswith(input.PkgID, "libc6@2.36-9+deb12u13")
 }
 
 ignore {
 	input.VulnerabilityID == "CVE-2026-0915"
 	input.PkgName == "libc-bin"
 	input.InstalledVersion == "2.36-9+deb12u13"
+	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
 }
