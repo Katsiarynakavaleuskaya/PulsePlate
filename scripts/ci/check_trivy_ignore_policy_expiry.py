@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import os
 import re
 from datetime import UTC, datetime, date
@@ -33,11 +34,10 @@ def _resolve_policy_files(repo_root: Path) -> list[Path]:
         paths = [p.strip() for p in env_path.split(",") if p.strip()]
         resolved: list[Path] = []
         for raw in paths:
-            candidate = (repo_root / raw).resolve()
-            if "*" in raw:
+            if glob.has_magic(raw):
                 resolved.extend(sorted(repo_root.glob(raw)))
-            else:
-                resolved.append(candidate)
+                continue
+            resolved.append((repo_root / raw).resolve())
         return resolved
 
     trivy_dir = repo_root / "trivy"
