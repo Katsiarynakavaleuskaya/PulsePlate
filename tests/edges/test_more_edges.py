@@ -5,63 +5,63 @@ import pytest
 
 
 def test_bmi_extras_pro_functions_and_errors():
-    from core import bmi_extras as pro
+    from core import bmi_extras as extras
 
     # WHtR normal
-    assert pro.wht_ratio(80, 200) == 0.4
+    assert extras.wht_ratio(80, 200) == 0.4
     # WHtR errors
     with pytest.raises(ValueError):
-        pro.wht_ratio(0, 200)
+        extras.wht_ratio(0, 200)
     with pytest.raises(ValueError):
-        pro.wht_ratio(80, 0)
+        extras.wht_ratio(80, 0)
 
     # WHR normal
-    assert pro.whr_ratio(90, 100, "male") == 0.9
+    assert extras.whr_ratio(90, 100, "male") == 0.9
     # WHR errors
     with pytest.raises(ValueError):
-        pro.whr_ratio(0, 100, "male")
+        extras.whr_ratio(0, 100, "male")
     with pytest.raises(ValueError):
-        pro.whr_ratio(90, 0, "female")
+        extras.whr_ratio(90, 0, "female")
 
     # FFMI with bodyfat
-    out = pro.ffmi(80, 180, 20)
+    out = extras.ffmi(80, 180, 20)
     assert out["ffmi"] > 0 and out["ffm_kg"] == 64.0
     # FFMI no bodyfat (estimate path)
-    out2 = pro.ffmi(80, 180)
+    out2 = extras.ffmi(80, 180)
     assert out2["ffm_kg"] == 68.0
     # FFMI errors
     with pytest.raises(ValueError):
-        pro.ffmi(0, 180)
+        extras.ffmi(0, 180)
     with pytest.raises(ValueError):
-        pro.ffmi(80, 0)
+        extras.ffmi(80, 0)
     with pytest.raises(ValueError):
-        pro.ffmi(80, 180, -1)
+        extras.ffmi(80, 180, -1)
 
     # Interpretations
-    assert pro.interpret_wht_ratio(0.35)["category"] == "underweight"
-    assert pro.interpret_wht_ratio(0.45)["category"] == "healthy"
-    assert pro.interpret_wht_ratio(0.55)["category"] == "overweight"
-    assert pro.interpret_wht_ratio(0.65)["category"] == "obese"
+    assert extras.interpret_wht_ratio(0.35)["category"] == "underweight"
+    assert extras.interpret_wht_ratio(0.45)["category"] == "healthy"
+    assert extras.interpret_wht_ratio(0.55)["category"] == "overweight"
+    assert extras.interpret_wht_ratio(0.65)["category"] == "obese"
 
-    male_risk = pro.interpret_whr_ratio(0.96, "male", "en")
+    male_risk = extras.interpret_whr_ratio(0.96, "male", "en")
     assert male_risk["risk"] in {"low", "high"}
-    female_risk = pro.interpret_whr_ratio(0.81, "female", "en")
+    female_risk = extras.interpret_whr_ratio(0.81, "female", "en")
     assert female_risk["risk"] in {"low", "high"}
 
     # Staging
-    stage = pro.stage_obesity(bmi=31, wht=0.52, whr=0.97, sex="male", lang="en")
+    stage = extras.stage_obesity(bmi=31, wht=0.52, whr=0.97, sex="male", lang="en")
     assert stage["stage"] in {"high_risk", "moderate_risk", "low_risk"}
 
 
 def test_bmi_extras_pro_low_risk_and_moderate_stage():
-    from core import bmi_extras as pro
+    from core import bmi_extras as extras
 
     # Low risk branches for WHR
-    assert pro.interpret_whr_ratio(0.94, "male", "en")["risk"] == "low"
-    assert pro.interpret_whr_ratio(0.79, "female", "en")["risk"] == "low"
+    assert extras.interpret_whr_ratio(0.94, "male", "en")["risk"] == "low"
+    assert extras.interpret_whr_ratio(0.79, "female", "en")["risk"] == "low"
 
     # Moderate risk stage: only WHtR high
-    mod = pro.stage_obesity(bmi=24.0, wht=0.52, whr=0.7, sex="female", lang="en")
+    mod = extras.stage_obesity(bmi=24.0, wht=0.52, whr=0.7, sex="female", lang="en")
     assert mod["stage"] == "moderate_risk"
 
 
