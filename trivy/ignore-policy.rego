@@ -2,7 +2,7 @@ package trivy
 
 import rego.v1
 
-default ignore = false
+default ignore := false
 
 # Narrow suppressions for Trivy code-scanning alerts:
 # - Limit to the specific OS packages observed (libc6 + libc-bin)
@@ -13,7 +13,7 @@ default ignore = false
 # - docs/security/CVE-2026-0861-glibc.md
 # - docs/security/CVE-2026-0915-glibc.md
 
-ignore {
+ignore if {
 	input.VulnerabilityID == "CVE-2026-0861"
 	input.PkgName == "libc6"
 	startswith(input.PkgID, "libc6@2.36-9+deb12u")
@@ -21,21 +21,21 @@ ignore {
 	regex.match("^2\\.36-9\\+deb12u(10|13)$", input.InstalledVersion)
 }
 
-ignore {
+ignore if {
 	input.VulnerabilityID == "CVE-2026-0861"
 	input.PkgName == "libc-bin"
 	startswith(input.PkgID, "libc-bin@2.36-9+deb12u")
 	regex.match("^2\\.36-9\\+deb12u(10|13)$", input.InstalledVersion)
 }
 
-ignore {
+ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
 	input.PkgName == "libc6"
 	input.InstalledVersion == "2.36-9+deb12u13"
 	startswith(input.PkgID, "libc6@2.36-9+deb12u13")
 }
 
-ignore {
+ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
 	input.PkgName == "libc-bin"
 	input.InstalledVersion == "2.36-9+deb12u13"
