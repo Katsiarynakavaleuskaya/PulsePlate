@@ -905,6 +905,10 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 **CVE suppressions must live in a dedicated security PR (runtime config allowed), and must reference a single canonical doc in `docs/security/...`.**
 
+**Security PR scoping:**
+- **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE in `.trivyignore` for traceability and auditability.
+- **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no `.trivyignore` additions required).
+
 **Example:**
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
 - Suppression expires: 2026-03-01
