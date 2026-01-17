@@ -548,6 +548,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 **Docs-only PR** — a PR strictly limited to documentation that **must not** change runtime, CI, or application behavior.
 
+**Exception:** Security suppressions must be done in a dedicated **security PR** and may include `.trivyignore` + `docs/security/*.md` (see "PR Scope Policy (Hard Rule)").
+
 **Allowed changes (docs-only):**
 - `*.md` files
 - `README.md`
@@ -901,6 +903,12 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Monitor for upstream fix
 - Update base image when fix available
 
+**CVE suppressions must live in a dedicated security PR (runtime config allowed), and must reference a single canonical doc in `docs/security/...`.**
+
+**Security PR scoping:**
+- **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE in `.trivyignore` for traceability and auditability.
+- **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no `.trivyignore` additions required).
+
 **Example:**
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
 - Suppression expires: 2026-03-01
@@ -952,6 +960,29 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - **PR-D:** Frontend audit (only after backend stable)
 
 **See:** `docs/audit/ROADMAP_POST_REMEDIATION.md` for detailed audit questions and DoD.
+
+---
+
+## PR Scope Policy (Hard Rule)
+
+This section complements the earlier **"Docs-only PR Rule"** and clarifies the **single allowed exception**: a security PR may include `.trivyignore` together with related security docs.
+
+**Runtime config changes (`.trivyignore`, workflows, infra configs) must NEVER be mixed with docs-only PRs.**
+
+**Rules:**
+- **Docs-only PR:** Only `*.md` files, `README.md`, `AGENTS.md`, `.github/*.md` (templates)
+- **Runtime config PR:** `.trivyignore`, `.github/workflows/*.yml`, `Dockerfile`, `Makefile`, `requirements*`, etc.
+- **Tests PR:** `tests/*.py`, test-related configs
+- **Mixed PR:** Only when explicitly justified (e.g., security config + security docs)
+
+**Rationale:** Mixing runtime config with docs-only PRs violates PR scope guard policy and makes reviews/CI tracking unreliable.
+
+**Examples:**
+- ✅ **OK:** Security config PR with `.trivyignore` + `docs/security/*.md` (related security docs)
+- ❌ **Forbidden:** Docs-only PR with `.trivyignore` (runtime config)
+- ❌ **Forbidden:** Guard scanner PR with `.trivyignore` (different scope)
+
+**Editor troubleshooting docs** (e.g., `CODERABBIT_CURSOR_FIX.md`) should be in separate docs-only PR to avoid scope creep.
 
 ---
 
