@@ -124,7 +124,7 @@ jobs:
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
-      packages: write
+      packages: write # write implies read; required for GHCR push/pull
       security-events: write
 
     steps:
@@ -139,11 +139,18 @@ jobs:
         run: |
           echo "image_name=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to Container Registry
+      - name: Log in to GHCR (read)
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_READ_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GHCR (write)
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
