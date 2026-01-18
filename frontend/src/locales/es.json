@@ -256,6 +256,35 @@
   "accessibility": {
     "homeScreen": "Pantalla Principal"
   },
+  "bmiCalculate": {
+    "title": "Calculadora de IMC",
+    "description": "Calcula tu Índice de Masa Corporal",
+    "form": {
+      "weightLabel": "Peso (kg)",
+      "heightLabel": "Altura (cm)",
+      "sexLabel": "Sexo",
+      "sex": {
+        "female": "Femenino",
+        "male": "Masculino"
+      },
+      "ageLabel": "Edad (opcional)",
+      "waistLabel": "Cintura (cm, opcional)",
+      "hipLabel": "Cadera (cm, opcional)",
+      "submit": "Calcular IMC",
+      "submitting": "Calculando...",
+      "reset": "Calcular de Nuevo"
+    },
+    "result": {
+      "title": "Resultado del IMC",
+      "bmi": "IMC:",
+      "category": "Categoría:"
+    },
+    "error": {
+      "generic": "Ocurrió un error. Inténtalo de nuevo.",
+      "invalidWeight": "Por favor ingresa un peso válido (kg).",
+      "invalidHeight": "Por favor ingresa una altura válida (cm)."
+    }
+  },
   "whoTargets": {
     "calories": {
       "title": "Calorías Diarias",

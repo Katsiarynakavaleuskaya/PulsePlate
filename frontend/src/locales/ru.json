@@ -256,6 +256,35 @@
   "accessibility": {
     "homeScreen": "Главный экран"
   },
+  "bmiCalculate": {
+    "title": "Калькулятор BMI",
+    "description": "Рассчитайте ваш индекс массы тела",
+    "form": {
+      "weightLabel": "Вес (кг)",
+      "heightLabel": "Рост (см)",
+      "sexLabel": "Пол",
+      "sex": {
+        "female": "Женский",
+        "male": "Мужской"
+      },
+      "ageLabel": "Возраст (необязательно)",
+      "waistLabel": "Талия (см, необязательно)",
+      "hipLabel": "Бёдра (см, необязательно)",
+      "submit": "Рассчитать BMI",
+      "submitting": "Рассчитываем...",
+      "reset": "Рассчитать снова"
+    },
+    "result": {
+      "title": "Результат BMI",
+      "bmi": "BMI:",
+      "category": "Категория:"
+    },
+    "error": {
+      "generic": "Произошла ошибка. Попробуйте ещё раз.",
+      "invalidWeight": "Введите корректный вес (кг).",
+      "invalidHeight": "Введите корректный рост (см)."
+    }
+  },
   "whoTargets": {
     "calories": {
       "title": "Дневные калории",

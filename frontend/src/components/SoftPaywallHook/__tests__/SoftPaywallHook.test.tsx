@@ -19,8 +19,15 @@ vi.mock("react-router-dom", async () => {
 describe("SoftPaywallHook", () => {
   const mockHook: components["schemas"]["SoftPaywallHook"] = {
     id: "bmi.pro_interpretation_v1",
+    kind: "cta",
+    position: "post_result",
+    priority: 50,
+    target: "pro_paywall",
     message: {
       lang: "en",
+      title_key: "soft_paywall.title",
+      body_key: "soft_paywall.body",
+      cta_key: "soft_paywall.cta",
       default_title: "More accurate interpretation",
       default_body: "BMI doesn't account for muscle mass, bone density, and body composition. Get PRO insights.",
       default_cta: "See PRO",
@@ -84,9 +91,14 @@ describe("SoftPaywallHook", () => {
       </MemoryRouter>
     );
 
+    // Assert no navigation on mount
+    expect(mockNavigate).not.toHaveBeenCalled();
+
     const ctaButton = screen.getByTestId("soft-paywall-cta");
     fireEvent.click(ctaButton);
 
+    // Assert exactly one navigation call with correct path
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
     expect(mockNavigate).toHaveBeenCalledWith("/pro");
   });
 
