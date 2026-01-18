@@ -7,6 +7,8 @@ Covers error paths in app/routers/bmi_pro.py:calculate_bmi_pro()
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -276,7 +278,7 @@ class TestProEndpointHelperFunctions:
         assert bmi_pro._normalize_bool_flag(0) is False
         assert bmi_pro._normalize_bool_flag(1) is False
         # Test with None
-        assert bmi_pro._normalize_bool_flag(None) is False  # type: ignore[arg-type]
+        assert bmi_pro._normalize_bool_flag(cast("str | bool", None)) is False
         # Test with empty string
         assert bmi_pro._normalize_bool_flag("") is False
         # Test with whitespace-only string

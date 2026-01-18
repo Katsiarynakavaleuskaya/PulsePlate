@@ -321,8 +321,7 @@ async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProRespo
             weight_kg=req.weight_kg,
             height_cm=req.height_cm,
             age=req.age,
-            gender=req.gender
-            or "male",  # TODO(P1): Move gender normalization to schema/engine, not router
+            gender=req.gender,  # Schema guarantees gender is never None after normalization
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,

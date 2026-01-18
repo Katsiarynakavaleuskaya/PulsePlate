@@ -10,6 +10,7 @@ No other calculation paths are allowed.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -221,7 +222,7 @@ def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
     try:
         ratio = (waist_cm / 100.0) / height_m
         # Check for non-finite values (inf, nan) before rounding
-        if not (ratio > 0 and ratio < float("inf")):
+        if not (math.isfinite(ratio) and ratio > 0):
             return None
         return round(ratio, 2)
     except (OverflowError, ZeroDivisionError):

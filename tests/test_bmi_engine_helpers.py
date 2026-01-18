@@ -7,8 +7,6 @@ PR-455: Helper functions parity tests.
 
 from __future__ import annotations
 
-import builtins
-
 import pytest
 
 from core.bmi.engine import (
@@ -328,27 +326,29 @@ class TestComputeWhtRatio:
         # NAN ratio: waist is NaN, height finite positive
         assert _compute_wht_ratio(waist_cm=math.nan, height_m=1.70) is None
 
-    def test_wht_ratio_exception_handling_returns_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_wht_ratio_exception_handling_returns_none(self) -> None:
         """
         RU: Exception handling в _compute_wht_ratio → None (covers lines 227, 230).
         EN: Exception handling in _compute_wht_ratio → None (covers lines 227, 230).
 
-        Test strategy: Force OverflowError in round() to cover except block (lines 227, 230).
-        Similar to test_overflow_handling for _compute_whr.
+        Test strategy: Use an input object that raises OverflowError during division
+        (no monkeypatching builtins or core compute functions).
         """
-        import builtins
+        from typing import cast
 
         import core.bmi.engine as engine
 
-        # Patch round() to raise OverflowError to test exception path
-        def _force_overflow_round(value: float, ndigits: int) -> float:
-            raise OverflowError("overflow")
+        class _ExplodingWaist:
+            def __le__(self, other: object) -> bool:
+                return False
 
-        monkeypatch.setattr(builtins, "round", _force_overflow_round)
-        # Should handle overflow gracefully and return None
-        result = engine._compute_wht_ratio(waist_cm=80.0, height_m=1.70)
+            def __gt__(self, other: object) -> bool:
+                return False
+
+            def __truediv__(self, other: object) -> float:
+                raise OverflowError("overflow")
+
+        result = engine._compute_wht_ratio(waist_cm=cast(float, _ExplodingWaist()), height_m=1.70)
         assert result is None
 
 
@@ -387,17 +387,20 @@ class TestComputeWhr:
         # hip_cm > 0 is validated by Pydantic, but guard remains for safety
         assert _compute_whr(80.0, 0.0) is None
 
-    def test_overflow_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_overflow_handling(self) -> None:
         """Test that OverflowError is handled gracefully."""
+        from typing import cast
+
         import core.bmi.engine as engine
 
-        # Mock round to raise OverflowError to test exception path
-        def _force_overflow_round(value: float, ndigits: int) -> float:
-            raise OverflowError("overflow")
+        class _ExplodingWaist:
+            def __le__(self, other: object) -> bool:
+                return False
 
-        monkeypatch.setattr(builtins, "round", _force_overflow_round)
-        # Should handle overflow gracefully and return None
-        result = engine._compute_whr(80.0, 100.0)
+            def __truediv__(self, other: object) -> float:
+                raise OverflowError("overflow")
+
+        result = engine._compute_whr(cast(float, _ExplodingWaist()), 100.0)
         assert result is None
 
 

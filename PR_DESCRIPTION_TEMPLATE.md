@@ -1,6 +1,6 @@
 # PR Title (squash title)
 
-```
+```text
 feat(bmi): add PRO WHR endpoint (hip_cm) and keep FREE contract unchanged
 ```
 

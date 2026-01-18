@@ -542,6 +542,27 @@ class BMICalculateProRequest(BMICalculateRequest):
         examples=[95.0, 100.5, None],
     )
 
+    @model_validator(mode="after")
+    def _apply_pro_gender_invariant(self) -> "BMICalculateProRequest":
+        """
+        RU: Применяет инвариант gender: гарантирует, что gender всегда str после нормализации.
+        EN: Applies gender invariant: ensures gender is always str after normalization.
+
+        Rules:
+        - If gender is None after normalization → default to "male" (safe default for WHR/waist risk thresholds)
+        - This ensures router never receives None gender, eliminating hidden fallback logic.
+
+        This keeps the BMI pipeline robust: gender is always a non-None string for PRO tier calculations.
+        """
+        # Apply parent's pregnancy invariant first (may set gender="female" if pregnant)
+        self = super()._apply_pregnancy_invariant()
+
+        # Ensure gender is never None after all normalizations
+        if self.gender is None:
+            self.gender = "male"
+
+        return self
+
 
 class BMICalculateProResponse(BMICalculateResponse):
     """

@@ -659,8 +659,10 @@ def test_bmi_calculate_pro_rejects_non_positive_hip(
     assert resp.status_code == 422
 
 
-def test_bmi_calculate_rejects_negative_hip(client: TestClient) -> None:
-    """Test endpoint rejects hip_cm < 0 with 422 validation error."""
+def test_bmi_calculate_pro_rejects_negative_hip(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint rejects hip_cm < 0 with 422 validation error."""
     payload = {
         "weight_kg": 70.0,
         "height_cm": 170.0,
@@ -672,5 +674,5 @@ def test_bmi_calculate_rejects_negative_hip(client: TestClient) -> None:
         "pregnant": False,
         "lang": "en",
     }
-    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
     assert resp.status_code == 422
