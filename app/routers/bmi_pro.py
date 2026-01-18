@@ -317,12 +317,17 @@ async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProRespo
             detail=t(lang, "bmi_engine_unavailable"),
         )
 
+    # Schema guarantees gender is never None after _apply_pro_gender_invariant
+    # Type narrowing for mypy (not a security check)
+    assert req.gender is not None, "PRO schema validator ensures gender is non-None"  # nosec B101
+    gender_str: str = req.gender
+
     try:
         result = calc(
             weight_kg=req.weight_kg,
             height_cm=req.height_cm,
             age=req.age,
-            gender=req.gender,  # Schema guarantees gender is never None after normalization
+            gender=gender_str,
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,

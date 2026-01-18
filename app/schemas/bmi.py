@@ -555,8 +555,12 @@ class BMICalculateProRequest(BMICalculateRequest):
 
         This keeps the BMI pipeline robust: gender is always a non-None string for PRO tier calculations.
         """
-        # Apply parent's pregnancy invariant first (may set gender="female" if pregnant)
-        self = super()._apply_pregnancy_invariant()
+        # Apply parent's pregnancy invariant logic directly (avoids mypy super() issue with Pydantic validators)
+        if self.pregnant:
+            if self.gender is None:
+                self.gender = "female"
+            elif self.gender == "male":
+                self.pregnant = False
 
         # Ensure gender is never None after all normalizations
         if self.gender is None:
