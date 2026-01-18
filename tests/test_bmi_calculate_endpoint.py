@@ -11,7 +11,6 @@ PR-454: shim + thin adapter wiring.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import pytest
@@ -98,7 +97,7 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
     # Use gender="female" to avoid soft normalization of pregnant
     resp = client.post(
         "/api/v1/bmi/calculate",
-        json=_valid_payload(gender="female", pregnant="yes", athlete=True),
+        json=_valid_payload(gender="female", pregnant="yes", athlete="yes"),
     )
     assert resp.status_code == 200
 
@@ -591,7 +590,8 @@ def test_bmi_calculate_free_tier_does_not_return_whr(client: TestClient) -> None
     assert resp.status_code == 200
     assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
-    # FREE tier response should not contain whr field
+    # FREE tier: WHR is PRO-only. Contract allows either "absent" or null.
+    # Canonical expectation: field is absent (not present in response).
     assert "whr" not in data
 
 
@@ -610,7 +610,7 @@ def test_bmi_calculate_pro_with_hip_returns_whr(
         "pregnant": False,
         "lang": "en",
     }
-    resp = client.post("/api/v1/bmi/pro/calculate", json=payload, headers=pro_headers)
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
     assert resp.status_code == 200
     assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
@@ -633,7 +633,7 @@ def test_bmi_calculate_pro_without_hip_returns_null_whr(
         "pregnant": False,
         "lang": "en",
     }
-    resp = client.post("/api/v1/bmi/pro/calculate", json=payload, headers=pro_headers)
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
     assert resp.status_code == 200
     assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
@@ -655,7 +655,7 @@ def test_bmi_calculate_pro_rejects_non_positive_hip(
         "pregnant": False,
         "lang": "en",
     }
-    resp = client.post("/api/v1/bmi/pro/calculate", json=payload, headers=pro_headers)
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
     assert resp.status_code == 422
 
 

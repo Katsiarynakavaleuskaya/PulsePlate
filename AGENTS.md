@@ -324,6 +324,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 ## Global conventions and hard rules
 
 - Never mock `builtins.__import__` or `builtins.float` (xdist timeouts).
+- **Forbidden: monkeypatching builtins** (`float`, `int`, `str`, `datetime`, etc.) and private compute operators (e.g., `float.__truediv__`). In Python 3.13+, many builtins are immutable, causing test failures and teardown errors. Test non-finite/overflow/edge cases via **inputs** (e.g., `math.inf`, `math.nan`) or controlled context (`decimal.localcontext()`), not by patching builtins.
+- **Forbidden: monkeypatching core compute functions** (e.g., `_compute_wht_ratio`, `_compute_whr`, `_compute_bmi`). Tests must stimulate branches through **input data** or through public/internal helpers in engine, not by patching the compute functions themselves. Router/adapter seams (e.g., `calculate_bmi_result` in routers) may be patched for thin adapter testing.
 - CI requires >=97% coverage; keep tests updated.
 - Never push to `main`; use feature branches.
 - Test DB isolation: each xdist worker uses a unique SQLite path.

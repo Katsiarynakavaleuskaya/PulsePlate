@@ -1,27 +1,22 @@
 # Backend Audit — Hip Circumference and WHR (Waist-to-Hip Ratio) Implementation
 
 **Date:** 2026-01-18
-**Purpose:** Pre-implementation audit for adding `hip_cm` and WHR calculation to BMI endpoint
-**Status:** Pre-implementation (backend contract extension, web follow-up PR planned)
+**Purpose:** Audit of PRO-tier `hip_cm` + WHR (and FREE-tier exclusion) for BMI calculation
+**Status:** Implemented (PRO tier contract + engine support)
 
 ---
 
 ## Executive Summary
 
 **Current State:**
-- ✅ BMI endpoint exists: `POST /api/v1/bmi/calculate` (`app/routers/bmi.py`)
-- ✅ Current request includes: `weight_kg, height_cm, gender, age, waist_cm?, athlete, pregnant, lang`
-- ✅ Current response includes: `wht_ratio` (waist-to-height), `waist_risk` (risk assessment)
-- ❌ **`hip_cm` field: NOT in request schema**
-- ❌ **WHR (waist-to-hip ratio): NOT calculated or returned**
-
-**Proposed Change:**
-- Add `hip_cm?: float | None` to `BMICalculateRequest`
-- Add `whr?: float | None` to `BMICalculateResponse`
-- Calculate WHR in `core/bmi/engine.py` (following "One BMI Engine" policy)
-- Return WHR only when both `waist_cm` and `hip_cm` are provided
-
-**Critical Finding:** This is a **backend-first PR** (contract extension). Web follow-up PR will restore hip input field and render WHR from response.
+- ✅ **FREE endpoint:** `POST /api/v1/bmi/calculate` (`app/routers/bmi.py`)
+  - Request: `BMICalculateRequest` (rejects `hip_cm`)
+  - Response: `BMICalculateResponse` (omits `whr`)
+- ✅ **PRO endpoint (canonical namespace):** `POST /api/v1/pro/bmi/calculate` (per `/api/v1/pro/*` policy)
+  - Current implementation is served from `POST /api/v1/bmi/pro/calculate` (`app/routers/bmi.py`) pending route move.
+  - Request: `BMICalculateProRequest` (optional `hip_cm`)
+  - Response: `BMICalculateProResponse` (optional `whr`)
+- ✅ **Engine behavior:** `core/bmi/engine.py` computes `whr` and returns it only when both `waist_cm` and `hip_cm` are provided and > 0.
 
 ---
 
@@ -30,25 +25,24 @@
 ### A1. What is the canonical outcome of this PR?
 
 **Answer:**
-- **(а) Backend: `hip_cm` + WHR in BMI response** ✅
-- PR is **backend-first** (canon: WHR = backend-first, web follows)
+- **PRO tier:** adds `hip_cm` in `BMICalculateProRequest` and `whr` in `BMICalculateProResponse`.
+- **FREE tier:** explicitly rejects `hip_cm` and omits `whr` from the response.
 
 **DoD:**
-- `hip_cm` appears in OpenAPI request schema
-- `whr` appears in OpenAPI response schema
-- WHR calculated in `core/bmi/engine.py` (canonical location)
-- All tests pass, coverage ≥97%
-
-**Decision:** Backend PR only. Web follow-up PR will restore hip input + render WHR.
+- `BMICalculateProRequest` / `BMICalculateProResponse` appear in OpenAPI schema for the PRO endpoint.
+- `BMICalculateRequest` rejects `hip_cm` (extra fields forbidden) and `BMICalculateResponse` omits `whr`.
+- `core/bmi/engine.py` computes `whr` and returns it only when both `waist_cm` and `hip_cm` are provided and > 0.
+- All tests pass, coverage ≥97%.
 
 ---
 
 ### A2. Where is the canonical BMI contract?
 
 **Answer:**
-- ✅ **Endpoint:** `/api/v1/bmi/calculate` (`app/routers/bmi.py:57`)
-- ✅ **Request schema:** `app/schemas/bmi.py:178` (`BMICalculateRequest`)
-- ✅ **Response schema:** `app/schemas/bmi.py:404` (`BMICalculateResponse`)
+- ✅ **FREE endpoint:** `/api/v1/bmi/calculate` (`app/routers/bmi.py`) → `BMICalculateRequest` / `BMICalculateResponse`
+- ✅ **PRO endpoint (canonical namespace):** `/api/v1/pro/bmi/calculate` (policy)
+  - Current implementation is served from `/api/v1/bmi/pro/calculate` (`app/routers/bmi.py`)
+  - Uses `BMICalculateProRequest` / `BMICalculateProResponse`
 
 **Current Request Fields:**
 ```python
@@ -79,10 +73,10 @@ soft_paywall: SoftPaywallHook | None
 ```
 
 **DoD:**
-- Add `hip_cm?: float | None = Field(default=None, gt=0)` to `BMICalculateRequest`
-- Add `whr?: float | None = Field(default=None, description="Waist-to-Hip Ratio. Calculated only if both waist_cm and hip_cm are provided.")` to `BMICalculateResponse`
-
-**Decision:** Extend existing schemas, maintain backward compatibility (optional fields).
+- FREE: keep `BMICalculateRequest` strict (`extra="forbid"`) so `hip_cm` is rejected.
+- PRO: expose `hip_cm` via `BMICalculateProRequest`.
+- FREE: keep `BMICalculateResponse` strict (`extra="forbid"`) so `whr` is omitted.
+- PRO: expose `whr` via `BMICalculateProResponse`.
 
 ---
 
@@ -146,22 +140,12 @@ hip_cm: float | None = Field(
 ### A5. Where should WHR live in the response?
 
 **Answer:**
-- ✅ **Top-level field:** `whr?: float | None` (not in nested `ratios` block)
+- ✅ **Top-level field (PRO only):** `whr?: float | None` in `BMICalculateProResponse` (not in nested `ratios` block)
 - ✅ **Parity with `wht_ratio`:** Same structure (optional float)
 - ✅ **No i18n keys:** Just number (like `wht_ratio`)
 
 **DoD:**
-```python
-# app/schemas/bmi.py
-whr: float | None = Field(
-    None,
-    description=(
-        "Waist-to-Hip Ratio (WHR). "
-        "Calculated only if both waist_cm and hip_cm were provided and >0."
-    ),
-    examples=[0.80, 0.95, None],
-)
-```
+- `BMICalculateProResponse.whr` exists and is nullable; `BMICalculateResponse` (FREE) omits `whr`.
 
 **Decision:** Top-level optional field, numeric only (no categories/buckets in first iteration).
 
@@ -187,9 +171,11 @@ whr: float | None = Field(
 ### B1. Web should only render what backend provides
 
 **Answer:**
-- ✅ **Confirmed:** Web is thin client (no BMI logic on frontend)
-- ✅ **No local thresholds:** No WHR risk calculation on frontend
-- ✅ **Render only:** Display `response.whr` if present, hide if `null`
+- ✅ Web is thin client (no BMI logic on frontend)
+- ✅ No local thresholds (no WHR risk calculation on frontend)
+- ✅ Render only:
+  - FREE flow: no WHR (response omits `whr`)
+  - PRO flow: display `response.whr` only if present and non-null
 
 **DoD (Web follow-up PR):**
 ```typescript
@@ -222,7 +208,7 @@ whr: float | None = Field(
 
 ## C) Validation and UX
 
-### C1. Frontend validation for hip input
+### C1. Frontend validation for hip input (PRO tier only)
 
 **Answer:**
 - ✅ **Comma normalization:** Use `normalizeNumber()` helper (RU locale support)
@@ -239,7 +225,7 @@ const parsedHipCm = parseFloat(normalizedHip);
 hip_cm: Number.isFinite(parsedHipCm) && parsedHipCm > 0 ? parsedHipCm : undefined,
 ```
 
-**Decision:** Frontend validates `>0`, normalizes commas, sends only if valid.
+**Decision:** Hip input is PRO-tier only; validate `>0`, normalize commas, send only if valid.
 
 ---
 
@@ -283,7 +269,7 @@ def _compute_whr(waist_cm: float | None, hip_cm: float | None) -> float | None:
 
 **DoD:**
 - Keys exist, no changes needed
-- Web follow-up PR will restore hip input field using existing keys
+- Hip input should only be shown in a PRO-tier UI/flow (not in the FREE `/api/v1/bmi/calculate` form)
 
 **Decision:** i18n keys ready, no backend changes needed.
 
@@ -294,129 +280,27 @@ def _compute_whr(waist_cm: float | None, hip_cm: float | None) -> float | None:
 ### D1. Backend tests required
 
 **Answer:**
-- ✅ **Contract test:** `hip_cm` appears in OpenAPI schema (generated)
-- ✅ **Unit test:** WHR calculation (example: `waist_cm=80, hip_cm=100` → `whr=0.8`)
-- ✅ **Negative test:** `hip_cm<=0` → 422 validation error
-- ✅ **Serialization determinism:** Float precision (2 decimals, same as `wht_ratio`)
+- ✅ **FREE contract:** rejects `hip_cm` and omits `whr`
+- ✅ **PRO contract:** accepts `hip_cm` (optional) and returns `whr` only when both `waist_cm` and `hip_cm` are provided
+- ✅ **Negative:** `hip_cm <= 0` is rejected with 422 on the PRO endpoint
+- ✅ **Engine:** `core/bmi/engine.py` computes WHR and returns `None` when inputs are missing/invalid
 
-**DoD:**
-```python
-# tests/test_bmi_schemas.py
-def test_bmi_calculate_request_accepts_hip_cm():
-    """Test that hip_cm is accepted in request schema."""
-    request = BMICalculateRequest(
-        weight_kg=70.0,
-        height_cm=170.0,
-        age=30,
-        gender="female",
-        hip_cm=95.0,
-    )
-    assert request.hip_cm == 95.0
-
-def test_bmi_calculate_request_rejects_hip_cm_zero():
-    """Test that hip_cm <= 0 is rejected."""
-    with pytest.raises(ValidationError):
-        BMICalculateRequest(
-            weight_kg=70.0,
-            height_cm=170.0,
-            age=30,
-            gender="female",
-            hip_cm=0.0,
-        )
-
-# tests/test_bmi_engine.py
-def test_compute_whr_calculates_correctly():
-    """Test WHR calculation."""
-    whr = _compute_whr(waist_cm=80.0, hip_cm=100.0)
-    assert whr == 0.8
-
-def test_compute_whr_returns_none_if_missing():
-    """Test WHR returns None if waist or hip missing."""
-    assert _compute_whr(None, 100.0) is None
-    assert _compute_whr(80.0, None) is None
-    assert _compute_whr(None, None) is None
-
-# tests/test_bmi_calculate_endpoint.py
-def test_bmi_calculate_with_hip_returns_whr():
-    """Test endpoint returns WHR when both waist and hip provided."""
-    response = client.post(
-        "/api/v1/bmi/calculate",
-        json={
-            "weight_kg": 70.0,
-            "height_cm": 170.0,
-            "age": 30,
-            "gender": "female",
-            "waist_cm": 80.0,
-            "hip_cm": 100.0,
-        },
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["whr"] == 0.8
-
-def test_bmi_calculate_without_hip_returns_null_whr():
-    """Test endpoint returns whr=null when hip not provided."""
-    response = client.post(
-        "/api/v1/bmi/calculate",
-        json={
-            "weight_kg": 70.0,
-            "height_cm": 170.0,
-            "age": 30,
-            "gender": "female",
-            "waist_cm": 80.0,
-            # hip_cm not provided
-        },
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["whr"] is None
-```
-
-**Decision:** 4 test categories required: contract, unit, negative, integration.
+**DoD (canonical references):**
+- See `tests/test_bmi_calculate_endpoint.py` for:
+  - FREE: `test_bmi_calculate_free_tier_does_not_accept_hip_cm`, `test_bmi_calculate_free_tier_does_not_return_whr`
+  - PRO: `test_bmi_calculate_pro_with_hip_returns_whr`, `test_bmi_calculate_pro_without_hip_returns_null_whr`,
+    `test_bmi_calculate_rejects_non_positive_hip`, `test_bmi_calculate_rejects_negative_hip`
 
 ---
 
 ### D2. Web tests (follow-up PR)
 
 **Answer:**
-- ✅ **Form test:** Hip field renders in BMI form
-- ✅ **Payload test:** `hip_cm` sent in request when provided
-- ✅ **Result test:** WHR renders only if `response.whr != null`
+- ✅ **PRO-only form test:** Hip field renders only in a PRO-tier UI/flow (not on FREE BMI form)
+- ✅ **Payload test:** `hip_cm` is included in the PRO request only when valid (`>0`)
+- ✅ **Result test:** WHR renders only if `response.whr != null` (PRO response)
+- ✅ **Regression test:** FREE BMI UI does not show hip input and does not expect `whr` in FREE response
 - ✅ **i18n test:** Locale keys pass quality checks
-
-**DoD (Web follow-up PR):**
-```typescript
-// frontend/src/pages/BMI/__tests__/BMICalculatePage.test.tsx
-it("renders hip input field", () => {
-  render(<BMICalculatePage />);
-  expect(screen.getByLabelText(/hip/i)).toBeInTheDocument();
-});
-
-it("sends hip_cm in request when provided", async () => {
-  const mockApi = vi.spyOn(bmiApi, "calculateBMI");
-  render(<BMICalculatePage />);
-
-  fireEvent.change(screen.getByLabelText(/hip/i), { target: { value: "100" } });
-  fireEvent.click(screen.getByText(/calculate/i));
-
-  await waitFor(() => {
-    expect(mockApi).toHaveBeenCalledWith(
-      expect.objectContaining({ hip_cm: 100.0 })
-    );
-  });
-});
-
-it("renders WHR only when response.whr is not null", () => {
-  const response = { bmi: 24.2, whr: 0.8, ... };
-  render(<BMICalculatePage />);
-  // ... set response state
-  expect(screen.getByText(/0.80/)).toBeInTheDocument();
-
-  const responseNull = { bmi: 24.2, whr: null, ... };
-  // ... set response state
-  expect(screen.queryByText(/whr/i)).not.toBeInTheDocument();
-});
-```
 
 **Decision:** Web tests in follow-up PR (not in backend PR).
 
@@ -487,8 +371,8 @@ waist_risk = ...
 - ✅ **Web follow-up PR** (separate, after backend merge)
 
 **Canonical order:**
-1. **PR-backend:** `feat(bmi): add optional hip_cm and compute WHR in response`
-2. **PR-web:** `feat(web): restore hip input and render WHR from response`
+1. **PR-backend:** `feat(bmi): add PRO-tier hip_cm and compute WHR in PRO response`
+2. **PR-web:** `feat(web): add PRO-gated hip input and render WHR from PRO response`
 
 **Decision:** 2 PRs (backend-first, web follows).
 
@@ -514,31 +398,24 @@ waist_risk = ...
 
 **Backend Files:**
 1. `app/schemas/bmi.py`
-   - Add `hip_cm?: float | None` to `BMICalculateRequest`
-   - Add `whr?: float | None` to `BMICalculateResponse`
+   - FREE: `BMICalculateRequest` rejects extra fields (including `hip_cm`)
+   - PRO: `BMICalculateProRequest` adds optional `hip_cm`
+   - FREE: `BMICalculateResponse` omits `whr`
+   - PRO: `BMICalculateProResponse` adds optional `whr`
 
 2. `core/bmi/engine.py`
    - Add `_compute_whr(waist_cm: float | None, hip_cm: float | None) -> float | None`
    - Integrate into `calculate_bmi_result()` (Step 9.5)
 
 3. `app/routers/bmi.py`
-   - Pass `hip_cm` from request to engine
-   - Add `whr` to response from engine result
+   - FREE: call engine with `hip_cm=None` and omit `whr` in response
+   - PRO: accept `BMICalculateProRequest`, pass `hip_cm=req.hip_cm`, include `whr` in response
 
-4. `tests/test_bmi_schemas.py`
-   - Test `hip_cm` in request schema
-   - Test `whr` in response schema
+4. `tests/test_bmi_calculate_endpoint.py`
+   - FREE: rejects `hip_cm` and omits `whr`
+   - PRO: `hip_cm` enables `whr`; non-positive hip is rejected with 422
 
-5. `tests/test_bmi_engine.py`
-   - Test `_compute_whr()` function
-   - Test edge cases (None, <=0, division)
-
-6. `tests/test_bmi_calculate_endpoint.py`
-   - Test endpoint with `hip_cm` → returns `whr`
-   - Test endpoint without `hip_cm` → returns `whr=null`
-   - Test validation (`hip_cm<=0` → 422)
-
-7. `make openapi` (regenerate OpenAPI artifacts)
+5. `make openapi` (regenerate OpenAPI artifacts)
    - `frontend/src/api/openapi.json`
    - `frontend/src/api/schema.ts` (if TypeScript generation exists)
 
@@ -550,29 +427,18 @@ waist_risk = ...
 
 ```python
 class BMICalculateRequest(BaseModel):
+    model_config = {"extra": "forbid"}  # FREE: rejects hip_cm
     # ... existing fields ...
-
-    hip_cm: float | None = Field(
-        default=None,
-        gt=0,
-        description=(
-            "Hip circumference in centimeters (optional). "
-            "If provided along with waist_cm, enables WHR calculation."
-        ),
-        examples=[95.0, 100.5, None],
-    )
 
 class BMICalculateResponse(BaseModel):
+    model_config = {"extra": "forbid"}  # FREE: omits whr
     # ... existing fields ...
 
-    whr: float | None = Field(
-        None,
-        description=(
-            "Waist-to-Hip Ratio (WHR). "
-            "Calculated only if both waist_cm and hip_cm were provided and >0."
-        ),
-        examples=[0.80, 0.95, None],
-    )
+class BMICalculateProRequest(BMICalculateRequest):
+    hip_cm: float | None = Field(default=None, gt=0)
+
+class BMICalculateProResponse(BMICalculateResponse):
+    whr: float | None = Field(default=None)
 ```
 
 **File: `core/bmi/engine.py`**
@@ -634,13 +500,32 @@ async def calculate_bmi(request: BMICalculateRequest) -> BMICalculateResponse:
         pregnant=request.pregnant,
         athlete=request.athlete,
         waist_cm=request.waist_cm,
-        hip_cm=request.hip_cm,  # NEW
+        hip_cm=None,  # FREE tier: do not accept hip_cm / do not compute WHR
         lang=request.lang,
     )
 
     return BMICalculateResponse(
         # ... existing fields ...
-        whr=result.whr,  # NEW
+    )
+
+# PRO tier endpoint (canonical namespace should be /api/v1/pro/bmi/calculate; current implementation lives here)
+@router.post("/pro/calculate", response_model=BMICalculateProResponse)
+async def calculate_bmi_pro(request: BMICalculateProRequest) -> BMICalculateProResponse:
+    # ... existing code ...
+    result = calculate_bmi_result(
+        weight_kg=request.weight_kg,
+        height_cm=request.height_cm,
+        age=request.age,
+        gender=request.gender or "",
+        pregnant=request.pregnant,
+        athlete=request.athlete,
+        waist_cm=request.waist_cm,
+        hip_cm=request.hip_cm,
+        lang=request.lang,
+    )
+    return BMICalculateProResponse(
+        # ... existing fields ...
+        whr=result.whr,
     )
 ```
 
@@ -649,30 +534,34 @@ async def calculate_bmi(request: BMICalculateRequest) -> BMICalculateResponse:
 ### G3. Definition of Done (DoD)
 
 **Backend PR DoD:**
-- [ ] `hip_cm` field added to `BMICalculateRequest` schema
-- [ ] `whr` field added to `BMICalculateResponse` schema
+- [ ] `BMICalculateRequest` rejects `hip_cm` (FREE tier)
+- [ ] `BMICalculateResponse` omits `whr` (FREE tier)
+- [ ] `hip_cm` field added to `BMICalculateProRequest` schema (PRO tier)
+- [ ] `whr` field added to `BMICalculateProResponse` schema (PRO tier)
 - [ ] `_compute_whr()` function implemented in `core/bmi/engine.py`
 - [ ] `calculate_bmi_result()` accepts `hip_cm` parameter
 - [ ] `calculate_bmi_result()` returns `whr` in result
-- [ ] Router passes `hip_cm` to engine and includes `whr` in response
+- [ ] Router passes `hip_cm=None` for FREE and includes `whr` only in PRO response
 - [ ] OpenAPI schema regenerated (`make openapi`)
-- [ ] Contract test: `hip_cm` in OpenAPI request schema
-- [ ] Contract test: `whr` in OpenAPI response schema
+- [ ] Contract test: `hip_cm` in PRO OpenAPI request schema
+- [ ] Contract test: `whr` in PRO OpenAPI response schema
 - [ ] Unit test: `_compute_whr(80, 100) == 0.8`
 - [ ] Unit test: `_compute_whr(None, 100) is None`
 - [ ] Unit test: `_compute_whr(80, None) is None`
 - [ ] Negative test: `hip_cm=0` → 422 validation error
-- [ ] Integration test: endpoint with `hip_cm` → returns `whr`
-- [ ] Integration test: endpoint without `hip_cm` → returns `whr=null`
+- [ ] Integration test: FREE endpoint rejects `hip_cm`
+- [ ] Integration test: FREE endpoint omits `whr`
+- [ ] Integration test: PRO endpoint with `hip_cm` → returns `whr`
+- [ ] Integration test: PRO endpoint without `hip_cm` → returns `whr=null`
 - [ ] Coverage ≥97% for changed files
 - [ ] `make verify` passes (lint, typecheck, test-fast, diff-cov)
 - [ ] `make openapi-check` passes (determinism)
 
 **Web Follow-up PR DoD (separate PR):**
-- [ ] Hip input field restored in `BMICalculatePage.tsx`
-- [ ] `hip_cm` sent in request payload when provided
-- [ ] WHR displayed in result when `response.whr != null`
-- [ ] WHR hidden when `response.whr == null`
+- [ ] Hip input field added to a PRO-tier UI/flow (do not add to FREE `/api/v1/bmi/calculate` form)
+- [ ] `hip_cm` sent in PRO request payload when provided
+- [ ] WHR displayed in result when `response.whr != null` (PRO flow)
+- [ ] WHR hidden when `response.whr == null` (PRO flow)
 - [ ] i18n keys pass locale quality tests
 - [ ] Tests: form renders hip field
 - [ ] Tests: payload includes `hip_cm` when provided
@@ -690,7 +579,7 @@ async def calculate_bmi(request: BMICalculateRequest) -> BMICalculateResponse:
 3. **WHR = number only:** No risk categories in first iteration
 4. **Top-level `whr` field:** Not nested in `ratios` block (parity with `wht_ratio`)
 5. **Calculation in engine:** `_compute_whr()` in `core/bmi/engine.py` (One BMI Engine policy)
-6. **Web follow-up PR:** Separate PR to restore hip input + render WHR
+6. **Web follow-up PR:** Separate PR to add PRO-gated hip input + render WHR
 7. **No AGENTS.md update:** Extension of existing contract, not new policy
 
 **Open Questions:**
@@ -709,9 +598,9 @@ async def calculate_bmi(request: BMICalculateRequest) -> BMICalculateResponse:
 2. **Implement changes:** Follow G2 skeleton
 3. **Write tests:** Follow D1 requirements
 4. **Run verification:** `make verify`, `make openapi-check`
-5. **Open PR:** Title: `feat(bmi): add optional hip_cm and compute WHR in response`
-6. **After merge:** Create web follow-up PR to restore hip input + render WHR
+5. **Open PR:** Title: `feat(bmi): add PRO-tier hip_cm and compute WHR in PRO response`
+6. **After merge:** Create web follow-up PR to add PRO-gated hip input + render WHR
 
 ---
 
-**End of Audit**
+## End of Audit

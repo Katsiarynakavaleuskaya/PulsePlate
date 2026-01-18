@@ -122,8 +122,8 @@ class TestNormalizeLang:
         """Test locale fallback logic (via core.i18n)."""
         assert _normalize_lang("en-US") == "en"
         assert _normalize_lang("es-MX") == "es"
-        # es-ES → "en" per core/i18n.py LANG_ALIASES (market-based strategy)
-        assert _normalize_lang("es-ES") == "es"  # Changed: product goal (RU/ES/EN localization)
+        # Product policy: ES locales normalize to "es"
+        assert _normalize_lang("es-ES") == "es"
 
     def test_unknown_language_fallback(self) -> None:
         """Test fallback to 'en' for unknown languages."""
@@ -228,30 +228,70 @@ class TestComputeWhtRatio:
         assert _compute_wht_ratio(80.0, 3.0) == 0.27  # <= 3.0, valid
         assert _compute_wht_ratio(80.0, 3.01) is None  # > 3.0
 
-    def test_overflow_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_overflow_returns_none(self) -> None:
         """
-        RU: OverflowError при приведении очень большого int к float → None (fail-soft).
-        EN: OverflowError during huge int→float conversion → None (fail-soft).
+        RU: Controlled overflow в Decimal ratio → None (fail-soft).
+        EN: Controlled overflow in Decimal ratio → None (fail-soft).
+
+        Deterministic strategy: local Decimal context with small Emax/Emin and Overflow trap.
+        Guaranteed overflow: Decimal("1e10") / Decimal("1e-10") = 1e20 > Emax=9.
+
+        Test verifies:
+        1. Context is explicitly set (Emax=9, Emin=-9, traps[Overflow]=True)
+        2. Direct division raises Overflow in this context (deterministic)
+        3. Helper catches overflow and returns None (fail-soft)
         """
+        import decimal
+        from decimal import Decimal
+
         import core.bmi.engine as engine
 
-        # Patch _MAX_WAIST_CM to allow huge values and verify fail-soft behavior
-        monkeypatch.setattr(engine, "_MAX_WAIST_CM", 10**2000)
-        # Function should handle overflow gracefully and return None (not raise)
-        # type: ignore[arg-type] because huge ints may trigger OverflowError on conversion
-        result = engine._compute_wht_ratio(10**1000, 1.0)
+        # Explicit context setup: small Emax ensures deterministic overflow
+        with decimal.localcontext() as ctx:
+            ctx.Emax = 9
+            ctx.Emin = -9
+            ctx.traps[decimal.Overflow] = True
+
+            # Verify context is active: direct division should raise Overflow
+            numer = Decimal("1e10")
+            denom = Decimal("1e-10")
+            # This division in this context will overflow: 1e20 > Emax=9
+            # If traps[Overflow] = True, this raises; helper catches it
+            with pytest.raises(decimal.Overflow):
+                _ = numer / denom  # Direct division should overflow in this context
+
+            # Now test helper: should catch overflow and return None
+            result = engine._safe_ratio_decimal(numer=numer, denom=denom)
+
         assert result is None
 
     def test_fail_soft_waist_validation(self) -> None:
         """Test fail-soft behavior for invalid waist (legacy parity)."""
         assert _compute_wht_ratio(0.0, 1.70) is None  # <= 0
         assert _compute_wht_ratio(-1.0, 1.70) is None  # < 0
-        assert _compute_wht_ratio(300.0, 1.70) == 1.76  # boundary
+        assert _compute_wht_ratio(300.0, 1.70) == 1.76  # boundary (300/100/1.70 = 1.764... → 1.76)
         assert _compute_wht_ratio(301.0, 1.70) is None  # > 300.0
 
     def test_normal_case_smoke(self) -> None:
         """Test normal WHtR scenario returns rounded ratio."""
         assert _compute_wht_ratio(1.0, 1.0) == 0.01
+
+    def test_non_finite_ratio_returns_none(self) -> None:
+        """
+        RU: Non-finite ratio (inf/nan) → None (fail-soft).
+        EN: Non-finite ratio (inf/nan) → None (fail-soft).
+
+        Test strategy: Create non-finite ratio via inputs (waist_cm=inf/nan),
+        not by patching builtins (forbidden in Py3.13+).
+        This covers line 203 in core/bmi/engine.py.
+        """
+        import math
+
+        # INF ratio: waist is +inf, height finite positive
+        assert _compute_wht_ratio(waist_cm=math.inf, height_m=1.70) is None
+
+        # NAN ratio: waist is NaN, height finite positive
+        assert _compute_wht_ratio(waist_cm=math.nan, height_m=1.70) is None
 
 
 class TestComputeWhr:

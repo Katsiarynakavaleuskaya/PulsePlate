@@ -144,8 +144,8 @@ export default function BeforeAfter({
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
             } catch {
-            // Ignore analytics errors
-        }
+              // Ignore analytics errors
+            }
             onPurchase?.();
           }}
         >
@@ -162,8 +162,8 @@ export default function BeforeAfter({
             try {
               log(Events.PURCHASE_CANCEL, { source, via });
             } catch {
-            // Ignore analytics errors
-        }
+              // Ignore analytics errors
+            }
             onClose();
           }}
         >

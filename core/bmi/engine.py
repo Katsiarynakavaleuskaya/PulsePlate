@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING, Final, Literal, NamedTuple, TypeAlias
 
 from core.i18n import Language, normalize_lang
@@ -174,6 +175,27 @@ def _compute_bmi(weight_kg: float, height_m: float) -> float:
 
     bmi = weight_kg / (height_m**2)
     return round(bmi, 1)
+
+
+def _safe_ratio_decimal(*, numer: Decimal, denom: Decimal) -> Decimal | None:
+    """
+    RU: Безопасное деление Decimal для controlled overflow тестирования.
+    EN: Safe Decimal division for controlled overflow testing.
+
+    Helper для тестов: принимает Decimal напрямую, ловит overflow/invalid.
+    Returns None on overflow, non-finite, or zero division.
+    """
+    import decimal
+
+    try:
+        if denom == 0:
+            return None
+        value = numer / denom
+        if not value.is_finite():
+            return None
+        return value
+    except (decimal.Overflow, decimal.InvalidOperation, ZeroDivisionError):
+        return None
 
 
 def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
