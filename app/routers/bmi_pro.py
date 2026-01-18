@@ -31,6 +31,7 @@ from core.bmi_extras import (
 # Import canonical BMI engine
 # Alias calc_bmi for test patching compatibility (no BMI math in router, just symbol)
 from core.bmi.engine import _compute_bmi as calc_bmi
+from core.bmi.engine import BMICalculateResult as EngineBMICalculateResult
 
 # Import i18n functionality
 from core.i18n import Language, normalize_lang, t
@@ -51,7 +52,7 @@ class CalculateBmiResult(Protocol):
         waist_cm: float | None,
         hip_cm: float | None,
         lang: str | None,
-    ) -> "BMICalculateResult": ...  # noqa: F821
+    ) -> EngineBMICalculateResult: ...
 
 
 def _get_engine_calculator() -> CalculateBmiResult | None:

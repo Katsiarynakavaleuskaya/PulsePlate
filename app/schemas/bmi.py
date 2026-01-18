@@ -549,7 +549,8 @@ class BMICalculateProRequest(BMICalculateRequest):
         EN: Applies gender invariant: ensures gender is always str after normalization.
 
         Rules:
-        - If gender is None after normalization → default to "male" (safe default for WHR/waist risk thresholds)
+        - First apply parent's pregnancy invariant (may set gender="female" if pregnant)
+        - If gender is still None after normalization → default to "male" (safe default for WHR/waist risk thresholds)
         - This ensures router never receives None gender, eliminating hidden fallback logic.
 
         This keeps the BMI pipeline robust: gender is always a non-None string for PRO tier calculations.
