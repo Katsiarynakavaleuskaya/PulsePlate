@@ -296,7 +296,7 @@ async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProRespo
         HTTPException: 400 if domain validation fails
                       401/403 if PRO tier key is missing/invalid
                       422 if Pydantic validation fails
-                      500 if engine is not available
+                      501 if engine is not available
     """
     # Normalize language once at the beginning (same pattern as FREE endpoint)
     lang = normalize_lang(str(req.lang))
