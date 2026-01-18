@@ -33,7 +33,7 @@ export default function BMICalculatePage(): JSX.Element {
   const [waistCm, setWaistCm] = useState<string>('');
   const [athlete, setAthlete] = useState<boolean>(false);
   const [pregnant, setPregnant] = useState<boolean>(false);
-  // Note: hip_cm intentionally omitted on FREE tier UI (schema supports PRO/WHR flows)
+  // Note: hip_cm removed - not in BMICalculateRequest schema
 
   // Determine language from i18n (fallback to 'en')
   const getLang = (): 'ru' | 'en' | 'es' => {
@@ -57,10 +57,11 @@ export default function BMICalculatePage(): JSX.Element {
     setError(null);
     setResponse(null);
 
-    // Abort previous request if any
+    // Abort previous request if any (and release loading if it was the active one)
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      setLoading(false);
     }
 
     // Normalize and parse numeric inputs (support comma decimals for RU locale)

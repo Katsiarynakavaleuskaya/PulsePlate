@@ -7,12 +7,12 @@ import SoftPaywallHook from "../SoftPaywallHook";
 import type { components } from "../../../api/schema";
 
 // Mock react-router-dom useNavigate
-const mockNavigate = vi.fn<[], void>();
+const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
     ...actual,
-    useNavigate: (): ((path: string) => void) => mockNavigate,
+    useNavigate: () => mockNavigate,
   };
 });
 
@@ -103,7 +103,8 @@ describe("SoftPaywallHook", () => {
   });
 
   it("calls custom onCtaClick handler when provided", (): void => {
-    const customHandler = vi.fn<[], void>();
+  it("calls custom onCtaClick handler when provided", (): void => {
+    const customHandler = vi.fn();
 
     render(
       <MemoryRouter>
