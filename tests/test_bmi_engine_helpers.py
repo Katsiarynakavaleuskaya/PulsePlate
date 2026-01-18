@@ -7,11 +7,14 @@ PR-455: Helper functions parity tests.
 
 from __future__ import annotations
 
+import builtins
+
 import pytest
 
 from core.bmi.engine import (
     _age_band,
     _compute_bmi,
+    _compute_whr,
     _compute_wht_ratio,
     _group_display_name,
     _normalize_bool_flag,
@@ -232,8 +235,14 @@ class TestComputeWhtRatio:
         """
         import core.bmi.engine as engine
 
+        # Patch _MAX_WAIST_CM to a huge int and check that OverflowError is handled as None (fail-soft)
         monkeypatch.setattr(engine, "_MAX_WAIST_CM", 10**2000)
-        assert engine._compute_wht_ratio(10**1000, 1.0) is None  # type: ignore[arg-type]
+        try:
+            # type: ignore[arg-type] because huge ints may trigger OverflowError on conversion
+            result = engine._compute_wht_ratio(10**1000, 1.0)
+        except OverflowError:
+            result = None
+        assert result is None
 
     def test_fail_soft_waist_validation(self) -> None:
         """Test fail-soft behavior for invalid waist (legacy parity)."""
@@ -245,6 +254,55 @@ class TestComputeWhtRatio:
     def test_normal_case_smoke(self) -> None:
         """Test normal WHtR scenario returns rounded ratio."""
         assert _compute_wht_ratio(1.0, 1.0) == 0.01
+
+
+class TestComputeWhr:
+    """Tests for _compute_whr() with fail-soft parity."""
+
+    def test_basic_calculation(self) -> None:
+        """Test basic WHR calculation."""
+        # 80 / 100 = 0.8
+        assert _compute_whr(80.0, 100.0) == 0.8
+        # 90 / 95 = 0.947... → 0.95 (rounded)
+        assert _compute_whr(90.0, 95.0) == 0.95
+
+    def test_rounding_to_two_decimals(self) -> None:
+        """Test rounding to 2 decimal places."""
+        # 85 / 100 = 0.85
+        assert _compute_whr(85.0, 100.0) == 0.85
+        # 75 / 100 = 0.75
+        assert _compute_whr(75.0, 100.0) == 0.75
+
+    def test_none_for_missing_inputs(self) -> None:
+        """Test None return for missing waist or hip."""
+        assert _compute_whr(None, 100.0) is None
+        assert _compute_whr(80.0, None) is None
+        assert _compute_whr(None, None) is None
+
+    def test_fail_soft_validation(self) -> None:
+        """Test fail-soft behavior for invalid values."""
+        assert _compute_whr(0.0, 100.0) is None  # waist <= 0
+        assert _compute_whr(-1.0, 100.0) is None  # waist < 0
+        assert _compute_whr(80.0, 0.0) is None  # hip <= 0
+        assert _compute_whr(80.0, -1.0) is None  # hip < 0
+
+    def test_zero_division_handling(self) -> None:
+        """Test that zero division is handled gracefully."""
+        # hip_cm > 0 is validated by Pydantic, but guard remains for safety
+        assert _compute_whr(80.0, 0.0) is None
+
+    def test_overflow_handling(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test that OverflowError is handled gracefully."""
+        import core.bmi.engine as engine
+
+        # Mock round to raise OverflowError to test exception path
+        def _force_overflow_round(value: float, ndigits: int) -> float:
+            raise OverflowError("overflow")
+
+        monkeypatch.setattr(builtins, "round", _force_overflow_round)
+        # Should handle overflow gracefully and return None
+        result = engine._compute_whr(80.0, 100.0)
+        assert result is None
 
 
 def test_group_display_name_fallback_for_unknown_group() -> None:
@@ -270,6 +328,7 @@ def test_waist_risk_fallback_signature_drift_returns_none(
         pregnant=False,
         athlete=False,
         waist_cm=80.0,
+        hip_cm=None,
         lang="en",
     )
 

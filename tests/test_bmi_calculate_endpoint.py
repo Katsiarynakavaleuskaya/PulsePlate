@@ -84,6 +84,7 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
             group_display="General",
             interpretation="Within normal range.",
             wht_ratio=0.52,
+            whr=None,
             waist_risk=waist_risk,
             notes=("Test note",),
             age_band="adult",
@@ -152,6 +153,7 @@ async def test_calculate_bmi_endpoint_direct_call(
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -241,6 +243,7 @@ def test_bmi_calculate_without_waist_risk(
             group_display="General",
             interpretation="Within normal range.",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -306,6 +309,7 @@ def test_bmi_calculate_dict_input_without_model_dump(
             group_display="General",
             interpretation="Within normal range.",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -358,6 +362,7 @@ async def test_handler_accepts_bmicalculaterequest_instance(
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -402,6 +407,7 @@ async def test_handler_accepts_dict_input_and_validates(
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -549,3 +555,59 @@ def test_soft_paywall_defaults_match_lang(
     assert hook["message"]["default_title"]
     assert hook["message"]["default_body"]
     assert hook["message"]["default_cta"]
+
+
+def test_bmi_calculate_with_hip_returns_whr(client: TestClient) -> None:
+    """Test endpoint returns WHR when both waist_cm and hip_cm are provided."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": 100.0,
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "whr" in data
+    assert data["whr"] == 0.8
+
+
+def test_bmi_calculate_without_hip_returns_null_whr(client: TestClient) -> None:
+    """Test endpoint returns whr=null when hip_cm is not provided."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        # hip_cm not provided
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["whr"] is None
+
+
+def test_bmi_calculate_rejects_non_positive_hip(client: TestClient) -> None:
+    """Test endpoint rejects hip_cm <= 0 with 422 validation error."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": 0.0,  # Invalid: must be > 0
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    assert resp.status_code == 422

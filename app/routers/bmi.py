@@ -41,7 +41,8 @@ class CalculateBmiResult(Protocol):
         pregnant: bool,
         athlete: bool,
         waist_cm: float | None,
-        lang: str,
+        hip_cm: float | None,
+        lang: str | None,
     ) -> "BMICalculateResult": ...
 
 
@@ -214,6 +215,7 @@ async def bmi_calculate_handler(
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,
+            hip_cm=req.hip_cm,
             lang=str(req.lang),
         )
 
@@ -234,6 +236,7 @@ async def bmi_calculate_handler(
             group_display=result.group_display,
             interpretation=result.interpretation,
             wht_ratio=result.wht_ratio,
+            whr=result.whr,
             waist_risk=waist_risk_schema,
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,

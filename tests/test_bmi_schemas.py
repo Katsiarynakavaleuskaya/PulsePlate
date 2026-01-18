@@ -46,6 +46,7 @@ class TestBMICalculateRequest:
         assert req.pregnant is False  # Changed: pregnant default is False (normalized to bool)
         assert req.athlete is False  # Changed: athlete default is False (normalized to bool)
         assert req.waist_cm is None
+        assert req.hip_cm is None
         assert req.lang == "en"
 
     def test_negative_weight_raises_validation_error(self) -> None:
@@ -648,3 +649,60 @@ def test_athlete_unknown_token_normalizes_to_false() -> None:
         }
     )
     assert req.athlete is False
+
+
+def test_hip_cm_optional_and_accepts_valid_value() -> None:
+    """Test that hip_cm is optional and accepts valid positive values."""
+    req = BMICalculateRequest(
+        weight_kg=70.0,
+        height_cm=170.0,
+        age=30,
+        hip_cm=100.0,
+    )
+    assert req.hip_cm == 100.0
+
+    req_no_hip = BMICalculateRequest(
+        weight_kg=70.0,
+        height_cm=170.0,
+        age=30,
+    )
+    assert req_no_hip.hip_cm is None
+
+
+def test_hip_cm_rejects_non_positive() -> None:
+    """Test that hip_cm <= 0 raises ValidationError."""
+    with pytest.raises(ValidationError) as exc_info:
+        BMICalculateRequest(weight_kg=70, height_cm=170, age=30, hip_cm=0)
+
+    errors = exc_info.value.errors()
+    assert any(err["loc"] == ("hip_cm",) and err["type"] == "greater_than" for err in errors)
+
+    with pytest.raises(ValidationError) as exc_info:
+        BMICalculateRequest(weight_kg=70, height_cm=170, age=30, hip_cm=-10)
+
+    errors = exc_info.value.errors()
+    assert any(err["loc"] == ("hip_cm",) and err["type"] == "greater_than" for err in errors)
+
+
+def test_response_includes_whr_field() -> None:
+    """Test that BMICalculateResponse includes whr field."""
+    resp = BMICalculateResponse(
+        bmi=24.2,
+        category="normal",
+        group="general",
+        group_display="General",
+        interpretation="OK",
+        age_band="adult",
+        whr=0.8,
+    )
+    assert resp.whr == 0.8
+
+    resp_no_whr = BMICalculateResponse(
+        bmi=24.2,
+        category="normal",
+        group="general",
+        group_display="General",
+        interpretation="OK",
+        age_band="adult",
+    )
+    assert resp_no_whr.whr is None

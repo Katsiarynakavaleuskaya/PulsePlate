@@ -203,6 +203,24 @@ def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
         return None
 
 
+def _compute_whr(waist_cm: float | None, hip_cm: float | None) -> float | None:
+    """
+    RU: WHR = waist_cm / hip_cm, округление до 2 знаков.
+    EN: WHR = waist_cm / hip_cm, rounded to 2 decimals.
+
+    Returns None if either waist_cm or hip_cm is None or <= 0.
+    """
+    if waist_cm is None or hip_cm is None:
+        return None
+    if waist_cm <= 0 or hip_cm <= 0:
+        return None
+    try:
+        ratio = waist_cm / hip_cm
+        return round(ratio, 2)
+    except (ZeroDivisionError, OverflowError):
+        return None
+
+
 # --- Commit 2: Group/Category/Interpretation helpers ---
 
 # RU/EN/ES display names — Commit 2 uses table (Commit 5 moves to i18n keys).
@@ -484,6 +502,7 @@ class BMICalculateResult:
     group_display: str
     interpretation: str
     wht_ratio: float | None
+    whr: float | None
     waist_risk: WaistRiskResult | None
     notes: tuple[str, ...]
     age_band: AgeBand
@@ -497,6 +516,7 @@ def calculate_bmi_result(
     pregnant: bool,
     athlete: bool,
     waist_cm: float | None,
+    hip_cm: float | None,
     lang: str | None,
 ) -> BMICalculateResult:
     """
@@ -513,6 +533,7 @@ def calculate_bmi_result(
         pregnant: Pregnant flag (bool, normalized by router)
         athlete: Athlete flag (bool, normalized by router)
         waist_cm: Waist circumference in cm (optional)
+        hip_cm: Hip circumference in cm (optional)
         lang: Language code ("ru"/"en"/"es", can be None)
 
     Returns:
@@ -563,6 +584,9 @@ def calculate_bmi_result(
     # Step 9: WHtR calculation (fail-soft)
     wht_ratio = _compute_wht_ratio(waist_cm, height_m)
 
+    # Step 9.5: WHR calculation (fail-soft)
+    whr = _compute_whr(waist_cm, hip_cm)
+
     # Step 10: Waist risk calculation (fail-soft)
     waist_risk = None
     if waist_cm is not None:
@@ -610,6 +634,7 @@ def calculate_bmi_result(
         group_display=group_display,
         interpretation=interpretation,
         wht_ratio=wht_ratio,
+        whr=whr,
         waist_risk=waist_risk,
         notes=tuple(notes_list),
         age_band=age_band,

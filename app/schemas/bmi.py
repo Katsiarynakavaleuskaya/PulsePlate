@@ -308,6 +308,16 @@ class BMICalculateRequest(BaseModel):
         examples=[80.0, 90.5, None],
     )
 
+    hip_cm: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Hip circumference in centimeters (optional). "
+            "If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation."
+        ),
+        examples=[95.0, 100.5, None],
+    )
+
     lang: Language = Field(
         default="en",
         description="Language for localized responses: 'ru', 'en', or 'es'.",
@@ -453,6 +463,15 @@ class BMICalculateResponse(BaseModel):
         None,
         description="Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.",
         examples=[0.47, 0.52, None],
+    )
+
+    whr: float | None = Field(
+        None,
+        description=(
+            "Waist-to-Hip Ratio (WHR). "
+            "Calculated only if both waist_cm and hip_cm were provided and >0."
+        ),
+        examples=[0.80, 0.95, None],
     )
 
     waist_risk: WaistRiskResultSchema | None = Field(

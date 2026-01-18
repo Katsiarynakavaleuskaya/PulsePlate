@@ -259,6 +259,7 @@ def test_golden_parity_matrix_strict_fields(case: _Case) -> None:
         pregnant=case.pregnant,
         athlete=case.athlete,
         waist_cm=case.waist_cm,
+        hip_cm=None,
         lang=case.lang,
     )
 
@@ -278,6 +279,7 @@ def test_golden_parity_language_normalization() -> None:
         pregnant=case.pregnant,
         athlete=case.athlete,
         waist_cm=case.waist_cm,
+        hip_cm=None,
         lang=case.lang,
     )
     _assert_strict(res, legacy, case.case_id)

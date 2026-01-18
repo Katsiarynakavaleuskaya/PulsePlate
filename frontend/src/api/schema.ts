@@ -2114,6 +2114,14 @@ export interface components {
              */
             height_cm: number;
             /**
+             * Hip Cm
+             * @description Hip circumference in centimeters (optional). If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation.
+             * @example 95
+             * @example 100.5
+             * @example null
+             */
+            hip_cm?: number | null;
+            /**
              * Lang
              * @description Language for localized responses: 'ru', 'en', or 'es'.
              * @default en
@@ -2248,6 +2256,14 @@ export interface components {
              * @example null
              */
             waist_risk?: components["schemas"]["WaistRiskResultSchema"] | null;
+            /**
+             * Whr
+             * @description Waist-to-Hip Ratio (WHR). Calculated only if both waist_cm and hip_cm were provided and >0.
+             * @example 0.8
+             * @example 0.95
+             * @example null
+             */
+            whr?: number | null;
             /**
              * Wht Ratio
              * @description Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.

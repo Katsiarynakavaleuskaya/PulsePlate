@@ -144,6 +144,9 @@ def test_bmi_result_structure_consistency() -> None:
         # Filter kwargs to only include valid parameters
         filtered_case = {k: v for k, v in case.items() if k in valid_params}
 
+        # Ensure hip_cm is present (required parameter)
+        if "hip_cm" not in filtered_case:
+            filtered_case["hip_cm"] = None
         result = calculate_bmi_result(**filtered_case)
 
         # Verify all required fields are present
