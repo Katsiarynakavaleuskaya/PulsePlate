@@ -103,7 +103,6 @@ describe("SoftPaywallHook", () => {
   });
 
   it("calls custom onCtaClick handler when provided", (): void => {
-  it("calls custom onCtaClick handler when provided", (): void => {
     const customHandler = vi.fn();
 
     render(
