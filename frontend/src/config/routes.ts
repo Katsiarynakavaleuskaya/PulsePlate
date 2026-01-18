@@ -5,6 +5,8 @@ import Progress from '../pages/Progress';
 import Profile from '../pages/Profile';
 import EnterKey from '../pages/Onboarding/EnterKey';
 import NutritionSetup from '../pages/NutritionSetup';
+import BMICalculatePage from '../pages/BMI/BMICalculatePage';
+import ProPaywallPage from '../pages/Pro/ProPaywallPage';
 
 export interface RouteConfig {
   path: string;
@@ -16,7 +18,7 @@ export interface RouteConfig {
 }
 
 // Union type for all route paths to ensure exhaustiveness
-export type RoutePath = '/' | '/enter-key' | '/setup' | '/profile' | '/plate' | '/progress';
+export type RoutePath = '/' | '/enter-key' | '/setup' | '/profile' | '/plate' | '/progress' | '/bmi' | '/pro';
 
 export const routes: RouteConfig[] = [
   { path: '/', label: 'Home', requiresAuth: false, component: Home },
@@ -25,6 +27,8 @@ export const routes: RouteConfig[] = [
   { path: '/profile', label: 'Profile', requiresAuth: false, component: Profile },
   { path: '/plate', label: 'Plate', requiresAuth: true, component: Plate },
   { path: '/progress', label: 'Progress', requiresAuth: true, component: Progress },
+  { path: '/bmi', label: 'BMI', requiresAuth: false, component: BMICalculatePage, hideTabBar: true },
+  { path: '/pro', label: 'Pro', requiresAuth: false, component: ProPaywallPage, hideTabBar: true },
 ];
 
 // Compile-time check: ensure all RoutePath values are present in routes
