@@ -190,8 +190,7 @@ curl -I https://pulseplate.app/health | grep -i strict-transport
 
 # Rate limit тестирование с аутентификацией
 # Вариант 1: Используйте тестовый API ключ из переменной окружения
-# pragma: allowlist secret
-export TEST_API_KEY="your-test-api-key-here"  # Замените на реальный ключ
+export TEST_API_KEY="your-test-api-key-here"  # pragma: allowlist secret  # Замените на реальный ключ
 
 # Тест с валидным телом запроса и аутентификацией
 for i in {1..15}; do \

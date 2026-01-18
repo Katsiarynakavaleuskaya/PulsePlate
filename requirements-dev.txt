@@ -156,7 +156,7 @@ packaging==25.0
     #   pytest
     #   safety
     #   safety-schemas
-pathspec==0.12.1
+pathspec==1.0.3
     # via
     #   black
     #   mypy
@@ -254,7 +254,7 @@ ruamel-yaml==0.18.17
     #   safety-schemas
 ruamel-yaml-clib==0.2.15
     # via ruamel-yaml
-ruff==0.14.11
+ruff==0.14.13
     # via -r requirements-dev.in
 safety==3.7.0
     # via -r requirements-dev.in
@@ -306,7 +306,7 @@ virtualenv==20.36.1
     # via pre-commit
 wheel==0.45.1
     # via pip-tools
-yamllint==1.37.1
+yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
