@@ -273,7 +273,7 @@
       "pregnantLabel": "Pregnant (optional)",
       "hipLabel": "Hip (cm, optional)",
       "submit": "Calculate BMI",
-      "submitting": "Calculating",
+      "submitting": "Please wait",
       "reset": "Calculate Again"
     },
     "result": {

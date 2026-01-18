@@ -57,10 +57,12 @@ export default function BMICalculatePage(): JSX.Element {
     setError(null);
     setResponse(null);
 
-    // Abort previous request if any
+    // Abort previous request if any and reset loading state
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
+    setLoading(false); // Ensure loading is reset before validation
 
     // Normalize and parse numeric inputs (support comma decimals for RU locale)
     const normalizedWeight = normalizeNumber(weightKg);
@@ -74,12 +76,14 @@ export default function BMICalculatePage(): JSX.Element {
     // Validate weight (required, must be positive)
     if (!Number.isFinite(parsedWeightKg) || parsedWeightKg <= 0) {
       setError(t('bmiCalculate.error.invalidWeight'));
+      setLoading(false); // Ensure loading is cleared on early return
       return;
     }
 
     // Validate height (required, must be positive)
     if (!Number.isFinite(parsedHeightCm) || parsedHeightCm <= 0) {
       setError(t('bmiCalculate.error.invalidHeight'));
+      setLoading(false); // Ensure loading is cleared on early return
       return;
     }
 
@@ -87,9 +91,9 @@ export default function BMICalculatePage(): JSX.Element {
     const parsedAge = parseInt(age.trim(), 10);
     if (!Number.isFinite(parsedAge) || parsedAge <= 0 || parsedAge > 120) {
       setError(t('bmiCalculate.error.invalidAge'));
+      setLoading(false); // Ensure loading is cleared on early return
       return;
     }
-
 
     // Create new AbortController for this request
     const abortController = new AbortController();
@@ -117,6 +121,9 @@ export default function BMICalculatePage(): JSX.Element {
     } catch (err) {
       // Ignore AbortError (request was cancelled)
       if (err instanceof Error && err.name === 'AbortError') {
+        // AbortError: request was cancelled, ensure loading is cleared
+        setLoading(false);
+        abortControllerRef.current = null;
         return;
       }
       setError(err instanceof Error ? err.message : t('bmiCalculate.error.generic'));
@@ -125,6 +132,7 @@ export default function BMICalculatePage(): JSX.Element {
       // Only update loading state if request wasn't aborted
       if (!abortController.signal.aborted) {
         setLoading(false);
+        abortControllerRef.current = null;
       }
     }
   };
