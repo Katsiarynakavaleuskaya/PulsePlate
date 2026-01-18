@@ -35,16 +35,35 @@ export default function BMICalculatePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
+    const parsedWeightKg = parseFloat(weightKg);
+    const parsedHeightCm = parseFloat(heightCm);
+
+    if (!Number.isFinite(parsedWeightKg)) {
+      setError('Please enter a valid weight (kg).');
+      setResponse(null);
+      return;
+    }
+
+    if (!Number.isFinite(parsedHeightCm)) {
+      setError('Please enter a valid height (cm).');
+      setResponse(null);
+      return;
+    }
+
+    const parsedAge = parseInt(age, 10);
+    const parsedWaistCm = parseFloat(waistCm);
+    const parsedHipCm = parseFloat(hipCm);
+
+    setLoading(true);
     try {
       const request: BMICalculateRequest = {
-        weight_kg: parseFloat(weightKg),
-        height_cm: parseFloat(heightCm),
+        weight_kg: parsedWeightKg,
+        height_cm: parsedHeightCm,
         sex,
-        age: age ? parseInt(age, 10) : undefined,
-        waist_cm: waistCm ? parseFloat(waistCm) : undefined,
-        hip_cm: hipCm ? parseFloat(hipCm) : undefined,
+        age: Number.isFinite(parsedAge) ? parsedAge : undefined,
+        waist_cm: Number.isFinite(parsedWaistCm) ? parsedWaistCm : undefined,
+        hip_cm: Number.isFinite(parsedHipCm) ? parsedHipCm : undefined,
         lang: getLang(),
       };
 
@@ -79,8 +98,9 @@ export default function BMICalculatePage() {
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-text">Weight (kg)</label>
+              <label htmlFor="weight-input" className="block text-sm font-medium text-text">Weight (kg)</label>
               <input
+                id="weight-input"
                 type="number"
                 step="0.1"
                 value={weightKg}

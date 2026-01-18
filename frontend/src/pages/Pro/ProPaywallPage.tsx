@@ -13,7 +13,6 @@ export default function ProPaywallPage() {
 
   const handlePurchase = () => {
     // TODO: Implement purchase flow
-    console.log('Purchase clicked');
     // For now, just close
     handleClose();
   };
