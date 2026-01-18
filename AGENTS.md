@@ -548,7 +548,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 
 **Docs-only PR** — a PR strictly limited to documentation that **must not** change runtime, CI, or application behavior.
 
-**Exception:** Security suppressions must be done in a dedicated **security PR** and may include `.trivyignore` + `docs/security/*.md` (see "PR Scope Policy (Hard Rule)").
+**Exception:** Security suppressions must be done in a dedicated **security PR** and may include Trivy ignore config (`.trivyignore` and/or `trivy/ignore-policy.rego`) + `docs/security/*.md` (see "PR Scope Policy (Hard Rule)").
 
 **Allowed changes (docs-only):**
 - `*.md` files
@@ -912,7 +912,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **When a CRITICAL CVE is unfixed upstream in base image distro:**
 
 1. **Document:** Create security note in `docs/security/`
-2. **Suppress:** Add temporary suppression in `.trivyignore` with expiry date
+2. **Suppress:** Add temporary suppression rule(s) in `trivy/ignore-policy.rego` with expiry date
 3. **Monitor:** Check upstream tracker weekly until fix available
 4. **Remove:** When fixed version available, remove suppression and update base image
 
@@ -921,6 +921,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Must reference CVE tracker URL
 - Must document removal condition
 - Must be reviewed in separate security PR (PR-SEC)
+- Must include `# Suppression expires: YYYY-MM-DD` in the policy file (enforced by CI)
 
 **Rationale:** We cannot fix system library vulnerabilities. We can only:
 - Document unfixed status
@@ -929,9 +930,14 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 **CVE suppressions must live in a dedicated security PR (runtime config allowed), and must reference a single canonical doc in `docs/security/...`.**
 
+**Trivy suppression implementation (canonical):**
+- Prefer `trivy/ignore-policy.rego` (scoped by package + version + context fields where possible).
+- `.trivyignore` is for legacy/minimal ignores; do not rely on it for expiry monitoring.
+- CI uses `TRIVY_IGNORE_POLICY_PATH` to point to active policy file(s); expiry enforcement runs `scripts/ci/check_trivy_ignore_policy_expiry.py`.
+
 **Security PR scoping:**
-- **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE in `.trivyignore` for traceability and auditability.
-- **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no `.trivyignore` additions required).
+- **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE (doc + policy rule) for traceability and auditability.
+- **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no suppression additions required).
 
 **Example:**
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
@@ -989,9 +995,9 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 
 ## PR Scope Policy (Hard Rule)
 
-This section complements the earlier **"Docs-only PR Rule"** and clarifies the **single allowed exception**: a security PR may include `.trivyignore` together with related security docs.
+This section complements the earlier **"Docs-only PR Rule"** and clarifies the **single allowed exception**: a security PR may include Trivy ignore config (`.trivyignore` and/or `trivy/ignore-policy.rego`) together with related security docs.
 
-**Runtime config changes (`.trivyignore`, workflows, infra configs) must NEVER be mixed with docs-only PRs.**
+**Runtime config changes (`.trivyignore`, `trivy/ignore-policy.rego`, workflows, infra configs) must NEVER be mixed with docs-only PRs.**
 
 **Rules:**
 - **Docs-only PR:** Only `*.md` files, `README.md`, `AGENTS.md`, `.github/*.md` (templates)
@@ -1002,8 +1008,8 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **Rationale:** Mixing runtime config with docs-only PRs violates PR scope guard policy and makes reviews/CI tracking unreliable.
 
 **Examples:**
-- ✅ **OK:** Security config PR with `.trivyignore` + `docs/security/*.md` (related security docs)
-- ❌ **Forbidden:** Docs-only PR with `.trivyignore` (runtime config)
+- ✅ **OK:** Security config PR with `trivy/ignore-policy.rego` + `docs/security/*.md` (related security docs)
+- ❌ **Forbidden:** Docs-only PR with `trivy/ignore-policy.rego` (runtime config)
 - ❌ **Forbidden:** Guard scanner PR with `.trivyignore` (different scope)
 
 **Editor troubleshooting docs** (e.g., `CODERABBIT_CURSOR_FIX.md`) should be in separate docs-only PR to avoid scope creep.

@@ -76,7 +76,7 @@ dparse==0.6.4
     #   safety-schemas
 execnet==2.1.2
     # via pytest-xdist
-faker==40.1.0
+faker==40.1.2
     # via -r requirements-dev.in
 filelock==3.20.3
     # via
@@ -95,7 +95,7 @@ httpx==0.28.1
     # via
     #   -c requirements.txt
     #   safety
-hypothesis==6.150.0
+hypothesis==6.150.2
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -156,7 +156,7 @@ packaging==25.0
     #   pytest
     #   safety
     #   safety-schemas
-pathspec==0.12.1
+pathspec==1.0.3
     # via
     #   black
     #   mypy
@@ -254,7 +254,7 @@ ruamel-yaml==0.18.17
     #   safety-schemas
 ruamel-yaml-clib==0.2.15
     # via ruamel-yaml
-ruff==0.14.11
+ruff==0.14.13
     # via -r requirements-dev.in
 safety==3.7.0
     # via -r requirements-dev.in
@@ -300,15 +300,13 @@ typing-inspection==0.4.2
     # via
     #   -c requirements.txt
     #   pydantic
-tzdata==2025.3
-    # via faker
 urllib3==2.6.3
     # via requests
 virtualenv==20.36.1
     # via pre-commit
 wheel==0.45.1
     # via pip-tools
-yamllint==1.37.1
+yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:

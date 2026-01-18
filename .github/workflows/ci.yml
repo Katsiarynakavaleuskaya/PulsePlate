@@ -48,6 +48,8 @@ jobs:
 
       - name: Check Trivy ignore-policy expiry dates
         run: python3 scripts/ci/check_trivy_ignore_policy_expiry.py
+        env:
+          TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
   lint:
     runs-on: ubuntu-latest
