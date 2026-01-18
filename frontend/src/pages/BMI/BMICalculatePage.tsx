@@ -57,12 +57,12 @@ export default function BMICalculatePage(): JSX.Element {
     setError(null);
     setResponse(null);
 
-    // Abort previous request if any and reset loading state
+    // Abort previous request if any (and release loading if it was the active one)
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
+      setLoading(false);
     }
-    setLoading(false); // Ensure loading is reset before validation
 
     // Normalize and parse numeric inputs (support comma decimals for RU locale)
     const normalizedWeight = normalizeNumber(weightKg);
@@ -76,14 +76,12 @@ export default function BMICalculatePage(): JSX.Element {
     // Validate weight (required, must be positive)
     if (!Number.isFinite(parsedWeightKg) || parsedWeightKg <= 0) {
       setError(t('bmiCalculate.error.invalidWeight'));
-      setLoading(false); // Ensure loading is cleared on early return
       return;
     }
 
     // Validate height (required, must be positive)
     if (!Number.isFinite(parsedHeightCm) || parsedHeightCm <= 0) {
       setError(t('bmiCalculate.error.invalidHeight'));
-      setLoading(false); // Ensure loading is cleared on early return
       return;
     }
 
@@ -91,7 +89,6 @@ export default function BMICalculatePage(): JSX.Element {
     const parsedAge = parseInt(age.trim(), 10);
     if (!Number.isFinite(parsedAge) || parsedAge <= 0 || parsedAge > 120) {
       setError(t('bmiCalculate.error.invalidAge'));
-      setLoading(false); // Ensure loading is cleared on early return
       return;
     }
 
@@ -114,25 +111,25 @@ export default function BMICalculatePage(): JSX.Element {
 
       const result = await calculateBMI(request, { signal: abortController.signal });
 
-      // Only update state if request wasn't aborted
-      if (!abortController.signal.aborted) {
+      // Update only if this controller is still the latest one
+      if (abortControllerRef.current === abortController && !abortController.signal.aborted) {
         setResponse(result);
       }
     } catch (err) {
       // Ignore AbortError (request was cancelled)
       if (err instanceof Error && err.name === 'AbortError') {
-        // AbortError: request was cancelled, ensure loading is cleared
-        setLoading(false);
-        abortControllerRef.current = null;
         return;
       }
-      setError(err instanceof Error ? err.message : t('bmiCalculate.error.generic'));
-      setResponse(null);
+      // Only set error if this controller is still current
+      if (abortControllerRef.current === abortController) {
+        setError(err instanceof Error ? err.message : t('bmiCalculate.error.generic'));
+        setResponse(null);
+      }
     } finally {
-      // Only update loading state if request wasn't aborted
-      if (!abortController.signal.aborted) {
-        setLoading(false);
+      // Clear loading only if this request is still current
+      if (abortControllerRef.current === abortController) {
         abortControllerRef.current = null;
+        setLoading(false);
       }
     }
   };
