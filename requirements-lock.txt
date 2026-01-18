@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=requirements-lock.txt requirements-dev.in requirements.in
 #
-alembic==1.18.0
+alembic==1.18.1
     # via -r requirements.in
 annotated-doc==0.0.4
     # via fastapi
@@ -44,7 +44,9 @@ fastapi==0.128.0
 fonttools==4.61.1
     # via matplotlib
 greenlet==3.3.0
-    # via sqlalchemy
+    # via
+    #   -r requirements.in
+    #   sqlalchemy
 h11==0.16.0
     # via
     #   httpcore
