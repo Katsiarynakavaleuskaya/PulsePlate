@@ -267,7 +267,7 @@
         "female": "Female",
         "male": "Male"
       },
-      "ageLabel": "Age (optional)",
+      "ageLabel": "Age",
       "waistLabel": "Waist (cm, optional)",
       "hipLabel": "Hip (cm, optional)",
       "submit": "Calculate BMI",
@@ -282,7 +282,8 @@
     "error": {
       "generic": "An error occurred. Please try again.",
       "invalidWeight": "Please enter a valid weight (kg).",
-      "invalidHeight": "Please enter a valid height (cm)."
+      "invalidHeight": "Please enter a valid height (cm).",
+      "invalidAge": "Please enter a valid age (1-120 years)."
     }
   },
   "whoTargets": {

@@ -23,7 +23,7 @@ export default function BMICalculatePage() {
   const [sex, setSex] = useState<'male' | 'female'>('female');
   const [age, setAge] = useState<string>('');
   const [waistCm, setWaistCm] = useState<string>('');
-  const [hipCm, setHipCm] = useState<string>('');
+  // Note: hip_cm removed - not in BMICalculateRequest schema
 
   // Determine language from i18n (fallback to 'en')
   const getLang = (): 'ru' | 'en' | 'es' => {
@@ -54,13 +54,13 @@ export default function BMICalculatePage() {
     const parsedWeightKg = parseFloat(weightKg);
     const parsedHeightCm = parseFloat(heightCm);
 
-    if (!Number.isFinite(parsedWeightKg)) {
+    if (!Number.isFinite(parsedWeightKg) || parsedWeightKg <= 0) {
       setError(t('bmiCalculate.error.invalidWeight'));
       setResponse(null);
       return;
     }
 
-    if (!Number.isFinite(parsedHeightCm)) {
+    if (!Number.isFinite(parsedHeightCm) || parsedHeightCm <= 0) {
       setError(t('bmiCalculate.error.invalidHeight'));
       setResponse(null);
       return;
@@ -68,7 +68,6 @@ export default function BMICalculatePage() {
 
     const parsedAge = parseInt(age, 10);
     const parsedWaistCm = parseFloat(waistCm);
-    // Note: hip_cm is parsed but not used (not in BMICalculateRequest schema)
 
     // Create new AbortController for this request
     const abortController = new AbortController();
@@ -76,15 +75,18 @@ export default function BMICalculatePage() {
 
     setLoading(true);
     try {
-      // Build request - age is required by schema, but we allow optional in form
-      // If age is not provided, use a default (30) to satisfy schema
-      const requestAge = Number.isFinite(parsedAge) && parsedAge > 0 ? parsedAge : 30;
+      // Validate age (required by schema)
+      if (!Number.isFinite(parsedAge) || parsedAge <= 0 || parsedAge > 120) {
+        setError(t('bmiCalculate.error.invalidAge'));
+        setResponse(null);
+        return;
+      }
 
       const request: BMICalculateRequest = {
         weight_kg: parsedWeightKg,
         height_cm: parsedHeightCm,
         gender: sex, // Schema uses 'gender', not 'sex'
-        age: requestAge,
+        age: parsedAge,
         waist_cm: Number.isFinite(parsedWaistCm) && parsedWaistCm > 0 ? parsedWaistCm : undefined,
         athlete: false, // Default value (schema requirement)
         pregnant: false, // Default value (schema requirement)
@@ -119,7 +121,6 @@ export default function BMICalculatePage() {
     setHeightCm('');
     setAge('');
     setWaistCm('');
-    setHipCm('');
   };
 
   return (
@@ -180,6 +181,9 @@ export default function BMICalculatePage() {
                 type="number"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
+                required
+                min="1"
+                max="120"
                 className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 placeholder="30"
               />
@@ -197,19 +201,6 @@ export default function BMICalculatePage() {
                 placeholder="80.0"
               />
             </div>
-
-            <div className="space-y-2">
-              <label htmlFor="hip-input" className="block text-sm font-medium text-text">{t('bmiCalculate.form.hipLabel')}</label>
-              <input
-                id="hip-input"
-                type="number"
-                step="0.1"
-                value={hipCm}
-                onChange={(e) => setHipCm(e.target.value)}
-                className="w-full px-4 py-3 border border-muted rounded-xl bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                placeholder="95.0"
-              />
-            </div>
           </div>
 
           {error && (
@@ -220,7 +211,7 @@ export default function BMICalculatePage() {
 
           <button
             type="submit"
-            disabled={loading || !weightKg || !heightCm}
+            disabled={loading || !weightKg || !heightCm || !age}
             className="w-full py-3 bg-primary text-navy rounded-xl hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? t('bmiCalculate.form.submitting') : t('bmiCalculate.form.submit')}

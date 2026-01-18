@@ -267,7 +267,7 @@
         "female": "Femenino",
         "male": "Masculino"
       },
-      "ageLabel": "Edad (opcional)",
+      "ageLabel": "Edad",
       "waistLabel": "Cintura (cm, opcional)",
       "hipLabel": "Cadera (cm, opcional)",
       "submit": "Calcular IMC",
@@ -282,7 +282,8 @@
     "error": {
       "generic": "Ocurrió un error. Inténtalo de nuevo.",
       "invalidWeight": "Por favor ingresa un peso válido (kg).",
-      "invalidHeight": "Por favor ingresa una altura válida (cm)."
+      "invalidHeight": "Por favor ingresa una altura válida (cm).",
+      "invalidAge": "Por favor ingresa una edad válida (1-120 años)."
     }
   },
   "whoTargets": {
