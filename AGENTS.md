@@ -662,6 +662,17 @@ Violation of this rule blocks merge.
 - BMI logic belongs in `core/bmi/*` only
 - Separation prevents accidental BMI logic drift into router layer
 
+## Feature changes via PR (hard rule)
+
+**Invariant:** Feature changes must land via a dedicated PR with explicit scope and DoD.
+
+**Rules:**
+- Do not mix unrelated scopes (e.g., security hygiene + product feature) in the same PR.
+- Emergency hotfix is allowed only under `hotfix/*` branch naming and must remain scope-minimal.
+- Docs-only PRs documenting already-merged features must reference the implementation PR/commit.
+
+**Historical incident:** PR #543 mixed scopes — avoid повторения.
+
 ## Known pitfalls
 
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
