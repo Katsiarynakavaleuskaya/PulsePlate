@@ -177,16 +177,19 @@ class TestProEndpointErrorHandling:
             "lang": "en",
         }
 
-        # Patch build_bmi_scale_v1 to raise exception
-        from unittest.mock import patch
+        import app.routers.bmi_pro as bmi_pro
 
-        with patch("app.routers.bmi_pro.build_bmi_scale_v1", side_effect=Exception("Build failed")):
-            resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
-            assert resp.status_code == 200
-            assert resp.headers.get("content-type", "").startswith("application/json")
-            data = resp.json()
-            # visualization should be None when build fails
-            assert data.get("visualization") is None
+        def _build_failed(*args: object, **kwargs: object) -> object:
+            raise Exception("Build failed")
+
+        monkeypatch.setattr(bmi_pro, "build_bmi_scale_v1", _build_failed)
+
+        resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
+        # visualization should be None when build fails
+        assert data.get("visualization") is None
 
     def test_soft_paywall_hook_when_enabled_returns_hook(
         self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch

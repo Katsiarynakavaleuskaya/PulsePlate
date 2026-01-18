@@ -265,6 +265,41 @@ class TestComputeWhtRatio:
 
         assert result is None
 
+    def test_safe_ratio_decimal_zero_denom_returns_none(self) -> None:
+        """
+        RU: Zero denominator в _safe_ratio_decimal → None (covers line 192).
+        EN: Zero denominator in _safe_ratio_decimal → None (covers line 192).
+        """
+        from decimal import Decimal
+
+        import core.bmi.engine as engine
+
+        result = engine._safe_ratio_decimal(numer=Decimal("10"), denom=Decimal("0"))
+        assert result is None
+
+    def test_safe_ratio_decimal_non_finite_returns_none(self) -> None:
+        """
+        RU: Non-finite Decimal result → None (covers lines 194-196).
+        EN: Non-finite Decimal result → None (covers lines 194-196).
+
+        Test strategy: Create non-finite Decimal via division that produces inf/nan.
+        """
+        from decimal import Decimal
+
+        import core.bmi.engine as engine
+
+        # Division that produces inf (large numerator, small denominator)
+        # Note: Decimal("inf") / Decimal("1") = Decimal("Infinity")
+        numer = Decimal("inf")
+        denom = Decimal("1")
+        result = engine._safe_ratio_decimal(numer=numer, denom=denom)
+        assert result is None
+
+        # NaN case
+        numer_nan = Decimal("nan")
+        result_nan = engine._safe_ratio_decimal(numer=numer_nan, denom=denom)
+        assert result_nan is None
+
     def test_fail_soft_waist_validation(self) -> None:
         """Test fail-soft behavior for invalid waist (legacy parity)."""
         assert _compute_wht_ratio(0.0, 1.70) is None  # <= 0
@@ -292,6 +327,29 @@ class TestComputeWhtRatio:
 
         # NAN ratio: waist is NaN, height finite positive
         assert _compute_wht_ratio(waist_cm=math.nan, height_m=1.70) is None
+
+    def test_wht_ratio_exception_handling_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        RU: Exception handling в _compute_wht_ratio → None (covers lines 227, 230).
+        EN: Exception handling in _compute_wht_ratio → None (covers lines 227, 230).
+
+        Test strategy: Force OverflowError in round() to cover except block (lines 227, 230).
+        Similar to test_overflow_handling for _compute_whr.
+        """
+        import builtins
+
+        import core.bmi.engine as engine
+
+        # Patch round() to raise OverflowError to test exception path
+        def _force_overflow_round(value: float, ndigits: int) -> float:
+            raise OverflowError("overflow")
+
+        monkeypatch.setattr(builtins, "round", _force_overflow_round)
+        # Should handle overflow gracefully and return None
+        result = engine._compute_wht_ratio(waist_cm=80.0, height_m=1.70)
+        assert result is None
 
 
 class TestComputeWhr:
