@@ -44,7 +44,9 @@ fastapi==0.128.0
 fonttools==4.61.1
     # via matplotlib
 greenlet==3.3.0
-    # via sqlalchemy
+    # via
+    #   -r requirements.in
+    #   sqlalchemy
 h11==0.16.0
     # via
     #   httpcore
@@ -88,7 +90,7 @@ pillow==12.1.0
     # via
     #   matplotlib
     #   reportlab
-prometheus-client==0.23.1
+prometheus-client==0.24.1
     # via -r requirements.in
 psycopg[binary]==3.3.2
     # via -r requirements.in
