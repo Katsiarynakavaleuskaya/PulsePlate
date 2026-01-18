@@ -662,6 +662,32 @@ Violation of this rule blocks merge.
 - BMI logic belongs in `core/bmi/*` only
 - Separation prevents accidental BMI logic drift into router layer
 
+## Feature changes via PR (hard rule)
+
+**Invariant:** Feature changes must land via dedicated PR with clear scope and audit reference. Mixed-scope PRs (e.g., security fix + feature implementation) are forbidden.
+
+**Enforcement:**
+- Feature PRs must have descriptive titles (e.g., `feat(scope): description`)
+- Feature PRs must reference audit documents when applicable
+- Docs-only PRs documenting already-merged features must reference the implementation PR/commit
+
+**Forbidden:**
+- Mixing feature implementation with unrelated fixes (e.g., security fixes, infra changes)
+- Direct-to-main commits for features (except emergency hotfixes with explicit `hotfix/` tag)
+- Feature changes in PRs with unrelated titles/scope
+
+**Allowed:**
+- Emergency hotfixes with explicit `hotfix/` branch prefix and clear justification
+- Docs-only PRs that reference implementation PR/commit for traceability
+
+**Rationale:**
+- Mixed-scope PRs break traceability and make audit/review impossible
+- Feature changes require dedicated review cycle and audit documentation
+- Clear PR scope prevents "feature slipped in via unrelated PR" anti-pattern
+
+**Example violation (historical):**
+- PR #543 "Fix/trivy scope CVE 2026 0915" contained soft paywall feature implementation → should have been separate PRs
+
 ## Known pitfalls
 
 - Dual Base issue: Fixed in PR #403. `app/__init__.py` now uses PEP 562 forwarding to `legacy_app`.
