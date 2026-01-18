@@ -109,6 +109,7 @@ jobs:
           # FS scan is report-only: publish SARIF findings without blocking merges.
           exit-code: '0'
           trivyignores: '.trivyignore'
+          ignore-policy: ${{ env.TRIVY_IGNORE_POLICY_PATH }}
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@c00e4aee0547167576bc6663920491135a3dee27 # v4
@@ -123,7 +124,7 @@ jobs:
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
-      packages: write
+      packages: write # write implies read; required for GHCR push/pull
       security-events: write
 
     steps:
@@ -138,11 +139,11 @@ jobs:
         run: |
           echo "image_name=$(echo "${{ env.IMAGE_NAME }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
