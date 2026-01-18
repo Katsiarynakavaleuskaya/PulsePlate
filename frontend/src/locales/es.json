@@ -269,9 +269,11 @@
       },
       "ageLabel": "Edad",
       "waistLabel": "Cintura (cm, opcional)",
+      "athleteLabel": "Atleta (opcional)",
+      "pregnantLabel": "Embarazada (opcional)",
       "hipLabel": "Cadera (cm, opcional)",
       "submit": "Calcular IMC",
-      "submitting": "Calculando...",
+      "submitting": "Calculando",
       "reset": "Calcular de Nuevo"
     },
     "result": {

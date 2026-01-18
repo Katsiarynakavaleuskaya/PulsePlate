@@ -269,9 +269,11 @@
       },
       "ageLabel": "Age",
       "waistLabel": "Waist (cm, optional)",
+      "athleteLabel": "Athlete (optional)",
+      "pregnantLabel": "Pregnant (optional)",
       "hipLabel": "Hip (cm, optional)",
       "submit": "Calculate BMI",
-      "submitting": "Calculating...",
+      "submitting": "Calculating",
       "reset": "Calculate Again"
     },
     "result": {

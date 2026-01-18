@@ -10,7 +10,15 @@ import type { components } from '../../api/schema';
 type BMICalculateRequest = components['schemas']['BMICalculateRequest'];
 type BMICalculateResponse = components['schemas']['BMICalculateResponse'];
 
-export default function BMICalculatePage() {
+/**
+ * Normalize numeric input: replace comma with dot, trim whitespace.
+ * Used for locale-aware parsing (RU uses comma as decimal separator).
+ */
+const normalizeNumber = (value: string): string => {
+  return value.replace(/,/g, '.').trim();
+};
+
+export default function BMICalculatePage(): JSX.Element {
   const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +31,8 @@ export default function BMICalculatePage() {
   const [sex, setSex] = useState<'male' | 'female'>('female');
   const [age, setAge] = useState<string>('');
   const [waistCm, setWaistCm] = useState<string>('');
+  const [athlete, setAthlete] = useState<boolean>(false);
+  const [pregnant, setPregnant] = useState<boolean>(false);
   // Note: hip_cm removed - not in BMICalculateRequest schema
 
   // Determine language from i18n (fallback to 'en')
@@ -42,32 +52,44 @@ export default function BMICalculatePage() {
     };
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setError(null);
+    setResponse(null);
 
     // Abort previous request if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
 
-    const parsedWeightKg = parseFloat(weightKg);
-    const parsedHeightCm = parseFloat(heightCm);
+    // Normalize and parse numeric inputs (support comma decimals for RU locale)
+    const normalizedWeight = normalizeNumber(weightKg);
+    const normalizedHeight = normalizeNumber(heightCm);
+    const normalizedWaist = normalizeNumber(waistCm);
 
+    const parsedWeightKg = parseFloat(normalizedWeight);
+    const parsedHeightCm = parseFloat(normalizedHeight);
+    const parsedWaistCm = parseFloat(normalizedWaist);
+
+    // Validate weight (required, must be positive)
     if (!Number.isFinite(parsedWeightKg) || parsedWeightKg <= 0) {
       setError(t('bmiCalculate.error.invalidWeight'));
-      setResponse(null);
       return;
     }
 
+    // Validate height (required, must be positive)
     if (!Number.isFinite(parsedHeightCm) || parsedHeightCm <= 0) {
       setError(t('bmiCalculate.error.invalidHeight'));
-      setResponse(null);
       return;
     }
 
-    const parsedAge = parseInt(age, 10);
-    const parsedWaistCm = parseFloat(waistCm);
+    // Validate age (required by schema, must be positive and reasonable)
+    const parsedAge = parseInt(age.trim(), 10);
+    if (!Number.isFinite(parsedAge) || parsedAge <= 0 || parsedAge > 120) {
+      setError(t('bmiCalculate.error.invalidAge'));
+      return;
+    }
+
 
     // Create new AbortController for this request
     const abortController = new AbortController();
@@ -75,21 +97,14 @@ export default function BMICalculatePage() {
 
     setLoading(true);
     try {
-      // Validate age (required by schema)
-      if (!Number.isFinite(parsedAge) || parsedAge <= 0 || parsedAge > 120) {
-        setError(t('bmiCalculate.error.invalidAge'));
-        setResponse(null);
-        return;
-      }
-
       const request: BMICalculateRequest = {
         weight_kg: parsedWeightKg,
         height_cm: parsedHeightCm,
         gender: sex, // Schema uses 'gender', not 'sex'
         age: parsedAge,
         waist_cm: Number.isFinite(parsedWaistCm) && parsedWaistCm > 0 ? parsedWaistCm : undefined,
-        athlete: false, // Default value (schema requirement)
-        pregnant: false, // Default value (schema requirement)
+        athlete,
+        pregnant,
         lang: getLang(),
       };
 
@@ -114,13 +129,20 @@ export default function BMICalculatePage() {
     }
   };
 
-  const handleReset = () => {
+  const handleReset = (): void => {
     setResponse(null);
     setError(null);
     setWeightKg('');
     setHeightCm('');
     setAge('');
     setWaistCm('');
+    setAthlete(false);
+    setPregnant(false);
+    // Abort any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   };
 
   return (
@@ -201,6 +223,34 @@ export default function BMICalculatePage() {
                 placeholder="80.0"
               />
             </div>
+
+            <label
+              htmlFor="athlete-input"
+              className="flex items-center gap-3 px-4 py-3 border border-muted rounded-xl bg-white text-text"
+            >
+              <input
+                id="athlete-input"
+                type="checkbox"
+                checked={athlete}
+                onChange={(e) => setAthlete(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="text-sm font-medium">{t('bmiCalculate.form.athleteLabel')}</span>
+            </label>
+
+            <label
+              htmlFor="pregnant-input"
+              className="flex items-center gap-3 px-4 py-3 border border-muted rounded-xl bg-white text-text"
+            >
+              <input
+                id="pregnant-input"
+                type="checkbox"
+                checked={pregnant}
+                onChange={(e) => setPregnant(e.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              <span className="text-sm font-medium">{t('bmiCalculate.form.pregnantLabel')}</span>
+            </label>
           </div>
 
           {error && (
@@ -227,10 +277,12 @@ export default function BMICalculatePage() {
                 <span className="text-muted">{t('bmiCalculate.result.bmi')}</span>
                 <span className="font-semibold text-text">{response.bmi.toFixed(1)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted">{t('bmiCalculate.result.category')}</span>
-                <span className="font-semibold text-text">{response.category}</span>
-              </div>
+              {response.category && (
+                <div className="flex justify-between">
+                  <span className="text-muted">{t('bmiCalculate.result.category')}</span>
+                  <span className="font-semibold text-text">{response.category}</span>
+                </div>
+              )}
               {response.interpretation && (
                 <div className="mt-4 p-3 bg-navy/5 rounded-lg">
                   <p className="text-sm text-muted">{response.interpretation}</p>

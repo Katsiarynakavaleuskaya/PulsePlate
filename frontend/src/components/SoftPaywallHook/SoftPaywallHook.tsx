@@ -20,7 +20,7 @@ interface SoftPaywallHookProps {
  * @param hook - Soft paywall hook data from backend (optional, null-safe)
  * @param onCtaClick - Optional custom CTA handler (defaults to navigate to /pro)
  */
-export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookProps) {
+export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookProps): JSX.Element | null {
   const navigate = useNavigate();
 
   // Guard: do not render if hook is null/undefined
@@ -33,7 +33,7 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
     return null;
   }
 
-  const handleClick = () => {
+  const handleClick = (): void => {
     if (onCtaClick) {
       onCtaClick();
     } else {
@@ -51,6 +51,7 @@ export default function SoftPaywallHook({ hook, onCtaClick }: SoftPaywallHookPro
         {hook.message.default_body}
       </p>
       <button
+        type="button"
         onClick={handleClick}
         className="px-4 py-2 bg-primary text-navy rounded-lg hover:bg-primary/90 transition-colors font-medium"
         data-testid="soft-paywall-cta"
