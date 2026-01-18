@@ -80,7 +80,15 @@ def test_metrics_increments_on_request(client: TestClient) -> None:
     # Make a request to a non-excluded endpoint
     response = client.post(
         "/api/v1/bmi/calculate",
-        json={"weight_kg": 70, "height_cm": 175, "lang": "en", "sex": "female", "age": 30},
+        json={
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": "female",
+            "athlete": False,
+            "pregnant": False,
+            "lang": "en",
+        },
     )
     assert response.status_code == 200
 
@@ -131,7 +139,15 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
     # Make a request with query params to verify route template (not raw path)
     response = client.post(
         "/api/v1/bmi/calculate?foo=bar&baz=qux",
-        json={"weight_kg": 70, "height_cm": 175, "lang": "en", "sex": "female", "age": 30},
+        json={
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": "female",
+            "athlete": False,
+            "pregnant": False,
+            "lang": "en",
+        },
     )
     assert response.status_code == 200
 

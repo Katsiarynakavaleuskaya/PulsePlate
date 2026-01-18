@@ -14,9 +14,11 @@ import logging
 import os
 from typing import Any, Callable, Protocol
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.schemas.bmi import (
+    BMICalculateProRequest,
+    BMICalculateProResponse,
     BMICalculateRequest,
     BMICalculateResponse,
     SoftPaywallAvailability,
@@ -24,6 +26,7 @@ from app.schemas.bmi import (
     SoftPaywallMessage,
     WaistRiskResultSchema,
 )
+from app.middleware.api_tiers import require_pro_tier
 from app.services.bmi_visualization import build_bmi_scale_v1
 from core.i18n import normalize_lang, t
 
@@ -215,7 +218,7 @@ async def bmi_calculate_handler(
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,
-            hip_cm=req.hip_cm,
+            hip_cm=None,  # FREE tier: do not compute WHR
             lang=str(req.lang),
         )
 
@@ -236,7 +239,7 @@ async def bmi_calculate_handler(
             group_display=result.group_display,
             interpretation=result.interpretation,
             wht_ratio=result.wht_ratio,
-            whr=result.whr,
+            # whr not included in FREE tier response
             waist_risk=waist_risk_schema,
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,
@@ -315,3 +318,111 @@ async def calculate_bmi(req: BMICalculateRequest) -> BMICalculateResponse:
     data: dict[str, Any] = await bmi_calculate_handler(req)
     response: BMICalculateResponse = BMICalculateResponse.model_validate(data)
     return response
+
+
+# PRO tier endpoint for BMI calculation with WHR support
+@router.post(
+    "/pro/calculate",
+    response_model=BMICalculateProResponse,
+    response_model_by_alias=True,
+    dependencies=[Depends(require_pro_tier)],
+    summary="Calculate BMI with WHR (PRO tier)",
+    description="""
+    PRO tier BMI calculation endpoint with WHR (Waist-to-Hip Ratio) support.
+
+    RU: Расчет BMI с поддержкой WHR для PRO уровня.
+    EN: PRO tier BMI calculation with WHR support.
+
+    Requires: PRO tier API key in X-API-Key header
+
+    Features:
+    - All FREE tier features (BMI, category, WHtR, waist risk)
+    - WHR calculation (requires hip_cm)
+    - PRO tier soft paywall hooks
+    """,
+)
+async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProResponse:
+    """
+    RU: Рассчитывает BMI через единый engine с поддержкой WHR (PRO уровень).
+    EN: Calculate BMI via unified engine with WHR support (PRO tier).
+
+    PRO tier endpoint (requires PRO API key).
+
+    Args:
+        req: BMICalculateProRequest with user parameters (includes hip_cm)
+
+    Returns:
+        BMICalculateProResponse with BMI calculation results including WHR
+
+    Raises:
+        HTTPException: 400 if domain validation fails
+                      401/403 if PRO tier key is missing/invalid
+                      422 if Pydantic validation fails
+                      500 if engine is not available
+    """
+    # Normalize boolean flags (same as FREE endpoint)
+    pregnant_bool = (
+        req.pregnant if isinstance(req.pregnant, bool) else _normalize_bool_flag(req.pregnant)
+    )
+    athlete_bool = (
+        req.athlete if isinstance(req.athlete, bool) else _normalize_bool_flag(req.athlete)
+    )
+
+    # Call engine with hip_cm (PRO tier feature)
+    if calculate_bmi_result is None:
+        lang = normalize_lang(str(req.lang))
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=t(lang, "bmi_engine_unavailable"),
+        )
+    result = calculate_bmi_result(
+        weight_kg=req.weight_kg,
+        height_cm=req.height_cm,
+        age=req.age,
+        gender=req.gender or "male",  # Engine expects non-None gender
+        pregnant=pregnant_bool,
+        athlete=athlete_bool,
+        waist_cm=req.waist_cm,
+        hip_cm=req.hip_cm,  # PRO tier: enable WHR calculation
+        lang=str(req.lang),
+    )
+
+    # Serialize waist_risk (dataclass → Pydantic schema)
+    waist_risk_schema: WaistRiskResultSchema | None = None
+    if result.waist_risk:
+        waist_risk_schema = WaistRiskResultSchema(
+            wht_ratio=result.waist_risk.wht_ratio,
+            risk_level=result.waist_risk.risk_level,
+            notes=result.waist_risk.notes,
+        )
+
+    # Build soft paywall hook (same logic as FREE endpoint)
+    soft_paywall_hook: SoftPaywallHook | None = None
+    if _env_bool("SOFT_PAYWALL_ENABLED", default=False):
+        soft_paywall_hook = _build_soft_paywall_hook(req.lang)
+
+    # Map to PRO API response (includes whr)
+    resp = BMICalculateProResponse(
+        bmi=result.bmi,
+        category=result.category,
+        group=result.group,
+        group_display=result.group_display,
+        interpretation=result.interpretation,
+        wht_ratio=result.wht_ratio,
+        whr=result.whr,  # PRO tier: include WHR
+        waist_risk=waist_risk_schema,
+        notes=list(result.notes),
+        age_band=result.age_band,
+        visualization=None,
+        interpretation_v1=None,
+        soft_paywall=soft_paywall_hook,
+    )
+
+    # Add visualization spec (graceful fallback)
+    try:
+        resp.visualization = build_bmi_scale_v1(result)
+    except Exception as e:
+        logger.warning(f"Failed to build BMI scale visualization: {e}")
+        # visualization remains None (graceful degradation)
+
+    return resp

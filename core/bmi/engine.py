@@ -198,8 +198,13 @@ def _compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
 
     try:
         ratio = (waist_cm / 100.0) / height_m
+        # Check for non-finite values (inf, nan) before rounding
+        if not (ratio > 0 and ratio < float("inf")):
+            return None
         return round(ratio, 2)
-    except OverflowError:  # ZeroDivision impossible due to height_m > 0.5 guard
+    except (OverflowError, ZeroDivisionError):
+        # ZeroDivisionError should not occur due to height_m > 0.5 guard,
+        # but handle it for robustness
         return None
 
 

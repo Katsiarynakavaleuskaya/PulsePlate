@@ -337,6 +337,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bmi/pro/calculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calculate BMI with WHR (PRO tier)
+         * @description PRO tier BMI calculation endpoint with WHR (Waist-to-Hip Ratio) support.
+         *
+         *         RU: Расчет BMI с поддержкой WHR для PRO уровня.
+         *         EN: PRO tier BMI calculation with WHR support.
+         *
+         *         Requires: PRO tier API key in X-API-Key header
+         *
+         *         Features:
+         *         - All FREE tier features (BMI, category, WHtR, waist risk)
+         *         - WHR calculation (requires hip_cm)
+         *         - PRO tier soft paywall hooks
+         */
+        post: operations["calculate_bmi_pro_api_v1_bmi_pro_calculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bodyfat": {
         parameters: {
             query?: never;
@@ -2069,13 +2099,13 @@ export interface components {
             user_id: number;
         };
         /**
-         * BMICalculateRequest
-         * @description RU: Запрос для расчета BMI через единый engine.
-         *     EN: Request for BMI calculation via unified engine.
+         * BMICalculateProRequest
+         * @description PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
          *
-         *     FREE tier endpoint (no API key required).
+         *     RU: Запрос расчета BMI для PRO уровня (расширяет FREE с hip_cm для WHR).
+         *     EN: PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
          */
-        BMICalculateRequest: {
+        BMICalculateProRequest: {
             /**
              * Age
              * @description Age in years. Range: 1-120.
@@ -2115,12 +2145,202 @@ export interface components {
             height_cm: number;
             /**
              * Hip Cm
-             * @description Hip circumference in centimeters (optional). If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation.
+             * @description Hip circumference in centimeters (optional, PRO tier only). If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation.
              * @example 95
              * @example 100.5
              * @example null
              */
             hip_cm?: number | null;
+            /**
+             * Lang
+             * @description Language for localized responses: 'ru', 'en', or 'es'.
+             * @default en
+             * @example en
+             * @example ru
+             * @example es
+             * @enum {string}
+             */
+            lang: "ru" | "en" | "es";
+            /**
+             * Pregnant
+             * @description Pregnancy status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by engine.
+             * @default false
+             * @example no
+             * @example yes
+             * @example false
+             * @example true
+             */
+            pregnant: string | boolean;
+            /**
+             * Waist Cm
+             * @description Waist circumference in centimeters (optional). If provided, enables WHtR and waist risk assessment.
+             * @example 80
+             * @example 90.5
+             * @example null
+             */
+            waist_cm?: number | null;
+            /**
+             * Weight Kg
+             * @description Weight in kilograms. Must be positive.
+             * @example 65.5
+             * @example 70
+             * @example 80.3
+             */
+            weight_kg: number;
+        };
+        /**
+         * BMICalculateProResponse
+         * @description PRO tier BMI calculation response (extends FREE with whr).
+         *
+         *     RU: Ответ расчета BMI для PRO уровня (расширяет FREE с whr).
+         *     EN: PRO tier BMI calculation response (extends FREE with whr).
+         */
+        BMICalculateProResponse: {
+            /**
+             * Age Band
+             * @description Age band for UI differentiation: 'too_young' (<12), 'child' (12-14), 'teen' (15-18), 'adult' (19-59), 'elderly' (>=60).
+             * @example adult
+             * @example teen
+             * @example elderly
+             * @enum {string}
+             */
+            age_band: "too_young" | "child" | "teen" | "adult" | "elderly";
+            /**
+             * Bmi
+             * @description Calculated BMI value (weight_kg / (height_m ** 2)).
+             * @example 22.5
+             * @example 25.3
+             * @example 18.7
+             */
+            bmi: number;
+            /**
+             * Category
+             * @description BMI category (localized). None for users in 'pregnant', 'too_young', 'child' or 'teen' age bands - not an error, medical disclaimer. BMI categories are not provided during pregnancy or for users in 'too_young', 'child' and 'teen' age bands.
+             * @example normal
+             * @example overweight
+             * @example null
+             */
+            category?: string | null;
+            /**
+             * Group
+             * @description User group determined by auto_group(): 'general', 'athlete', 'elderly', 'child', 'teen', 'too_young', 'pregnant'.
+             * @example general
+             * @example athlete
+             * @example elderly
+             */
+            group: string;
+            /**
+             * Group Display
+             * @description Localized display name for the group.
+             * @example General
+             * @example Athlete
+             * @example Elderly
+             */
+            group_display: string;
+            /**
+             * Interpretation
+             * @description Localized interpretation text for the BMI value in the context of the group.
+             * @example Your BMI is within the normal range for your age group.
+             */
+            interpretation: string;
+            /**
+             * @description Optional structured interpretation (v1). i18n keys only. Currently may be None while wiring is in progress. Planned behavior: None only for too_young; pregnancy returns structured interpretation (goal=medical_review, target=prenatal_guidelines), and pregnant+athlete includes additional athlete disclaimers.
+             * @example {
+             *       "disclaimers": [
+             *         "bmi.interpretation.disclaimer.general"
+             *       ],
+             *       "goal_direction": "maintain",
+             *       "priority_notes": [],
+             *       "risk_flags": [],
+             *       "target_range": {
+             *         "max": 25,
+             *         "min": 18.5
+             *       }
+             *     }
+             * @example null
+             */
+            interpretation_v1?: components["schemas"]["BMIInterpretationV1Schema"] | null;
+            /**
+             * Notes
+             * @description Aggregated notes (currently only from waist_risk.notes). Empty list if no notes.
+             * @example []
+             * @example [
+             *       "Increased waist-related risk"
+             *     ]
+             */
+            notes?: string[];
+            /** @description Optional soft paywall hook for PRO tier upsell (wellness positioning only). */
+            soft_paywall?: components["schemas"]["SoftPaywallHook"] | null;
+            /** @description Optional BMI scale visualization spec (v1). Frontend should render this if available. */
+            visualization?: components["schemas"]["BMIScaleV1Spec"] | null;
+            /**
+             * @description Waist risk assessment result. Present only if waist_cm was provided and risk was calculated.
+             * @example {
+             *       "notes": [
+             *         "Increased waist-related risk"
+             *       ],
+             *       "risk_level": "moderate",
+             *       "wht_ratio": 0.52
+             *     }
+             * @example null
+             */
+            waist_risk?: components["schemas"]["WaistRiskResultSchema"] | null;
+            /**
+             * Whr
+             * @description Waist-to-Hip Ratio (WHR, PRO tier only). Calculated only if both waist_cm and hip_cm were provided and >0.
+             * @example 0.8
+             * @example 0.95
+             * @example null
+             */
+            whr?: number | null;
+            /**
+             * Wht Ratio
+             * @description Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.
+             * @example 0.47
+             * @example 0.52
+             * @example null
+             */
+            wht_ratio?: number | null;
+        };
+        /** BMICalculateRequest */
+        BMICalculateRequest: {
+            /**
+             * Age
+             * @description Age in years. Range: 1-120.
+             * @example 25
+             * @example 30
+             * @example 45
+             * @example 65
+             */
+            age: number;
+            /**
+             * Athlete
+             * @description Athlete status. Accepts: 'yes'/'no' (string) or True/False (bool). Will be normalized to bool by schema.
+             * @default false
+             * @example no
+             * @example yes
+             * @example false
+             * @example true
+             */
+            athlete: string | boolean;
+            /**
+             * Gender
+             * @description Gender: 'male' or 'female'. Will be normalized by engine.
+             * @example male
+             * @example female
+             * @example муж
+             * @example жен
+             * @example null
+             */
+            gender?: string | null;
+            /**
+             * Height Cm
+             * @description Height in centimeters. Must be positive.
+             * @example 170
+             * @example 175.5
+             * @example 180
+             */
+            height_cm: number;
             /**
              * Lang
              * @description Language for localized responses: 'ru', 'en', or 'es'.
@@ -2256,14 +2476,6 @@ export interface components {
              * @example null
              */
             waist_risk?: components["schemas"]["WaistRiskResultSchema"] | null;
-            /**
-             * Whr
-             * @description Waist-to-Hip Ratio (WHR). Calculated only if both waist_cm and hip_cm were provided and >0.
-             * @example 0.8
-             * @example 0.95
-             * @example null
-             */
-            whr?: number | null;
             /**
              * Wht Ratio
              * @description Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.
@@ -4609,6 +4821,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BMICalculateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    calculate_bmi_pro_api_v1_bmi_pro_calculate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BMICalculateProRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BMICalculateProResponse"];
                 };
             };
             /** @description Validation Error */

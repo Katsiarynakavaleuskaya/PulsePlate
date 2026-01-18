@@ -176,6 +176,7 @@ def _normalize_ws_lower(s: str | None) -> str:
 
 
 class BMICalculateRequest(BaseModel):
+    model_config = {"extra": "forbid"}  # Reject extra fields (e.g., hip_cm in FREE tier)
     """
     RU: Запрос для расчета BMI через единый engine.
     EN: Request for BMI calculation via unified engine.
@@ -308,16 +309,6 @@ class BMICalculateRequest(BaseModel):
         examples=[80.0, 90.5, None],
     )
 
-    hip_cm: float | None = Field(
-        default=None,
-        gt=0,
-        description=(
-            "Hip circumference in centimeters (optional). "
-            "If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation."
-        ),
-        examples=[95.0, 100.5, None],
-    )
-
     lang: Language = Field(
         default="en",
         description="Language for localized responses: 'ru', 'en', or 'es'.",
@@ -420,6 +411,8 @@ class BMICalculateResponse(BaseModel):
     (это не ошибка, а медицинский дисклеймер).
     """
 
+    model_config = {"extra": "forbid"}  # Reject extra fields (e.g., whr in FREE tier)
+
     bmi: float = Field(
         ...,
         description="Calculated BMI value (weight_kg / (height_m ** 2)).",
@@ -463,15 +456,6 @@ class BMICalculateResponse(BaseModel):
         None,
         description="Waist-to-Height Ratio (WHtR). Calculated only if waist_cm was provided.",
         examples=[0.47, 0.52, None],
-    )
-
-    whr: float | None = Field(
-        None,
-        description=(
-            "Waist-to-Hip Ratio (WHR). "
-            "Calculated only if both waist_cm and hip_cm were provided and >0."
-        ),
-        examples=[0.80, 0.95, None],
     )
 
     waist_risk: WaistRiskResultSchema | None = Field(
@@ -537,4 +521,41 @@ class BMICalculateResponse(BaseModel):
     soft_paywall: SoftPaywallHook | None = Field(
         default=None,
         description="Optional soft paywall hook for PRO tier upsell (wellness positioning only).",
+    )
+
+
+class BMICalculateProRequest(BMICalculateRequest):
+    """
+    PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
+
+    RU: Запрос расчета BMI для PRO уровня (расширяет FREE с hip_cm для WHR).
+    EN: PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
+    """
+
+    hip_cm: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Hip circumference in centimeters (optional, PRO tier only). "
+            "If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation."
+        ),
+        examples=[95.0, 100.5, None],
+    )
+
+
+class BMICalculateProResponse(BMICalculateResponse):
+    """
+    PRO tier BMI calculation response (extends FREE with whr).
+
+    RU: Ответ расчета BMI для PRO уровня (расширяет FREE с whr).
+    EN: PRO tier BMI calculation response (extends FREE with whr).
+    """
+
+    whr: float | None = Field(
+        None,
+        description=(
+            "Waist-to-Hip Ratio (WHR, PRO tier only). "
+            "Calculated only if both waist_cm and hip_cm were provided and >0."
+        ),
+        examples=[0.80, 0.95, None],
     )

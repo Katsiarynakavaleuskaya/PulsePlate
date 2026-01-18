@@ -235,13 +235,11 @@ class TestComputeWhtRatio:
         """
         import core.bmi.engine as engine
 
-        # Patch _MAX_WAIST_CM to a huge int and check that OverflowError is handled as None (fail-soft)
+        # Patch _MAX_WAIST_CM to allow huge values and verify fail-soft behavior
         monkeypatch.setattr(engine, "_MAX_WAIST_CM", 10**2000)
-        try:
-            # type: ignore[arg-type] because huge ints may trigger OverflowError on conversion
-            result = engine._compute_wht_ratio(10**1000, 1.0)
-        except OverflowError:
-            result = None
+        # Function should handle overflow gracefully and return None (not raise)
+        # type: ignore[arg-type] because huge ints may trigger OverflowError on conversion
+        result = engine._compute_wht_ratio(10**1000, 1.0)
         assert result is None
 
     def test_fail_soft_waist_validation(self) -> None:

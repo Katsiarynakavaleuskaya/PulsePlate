@@ -7,6 +7,8 @@ import { useFocusTrap } from "../../lib/useFocusTrap";
 type Props = {
   onClose: () => void;
   onPurchase?: () => void;
+  purchaseLabel?: string;
+  purchaseDisabled?: boolean;
   source?: string;
   via?: string;
 };
@@ -23,10 +25,18 @@ type Props = {
  * @param via - Optional identifier for analytics `via` (defaults to `"paywall"`).
  * @returns The React element for the paywall dialog.
  */
-export default function BeforeAfter({ onClose, onPurchase, source = "unknown", via = "paywall" }: Props) {
+export default function BeforeAfter({
+  onClose,
+  onPurchase,
+  purchaseLabel,
+  purchaseDisabled = false,
+  source = "unknown",
+  via = "paywall",
+}: Props) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const trap = useFocusTrap(dialogRef);
 
   const handleKeyDown = useCallback(
@@ -64,8 +74,12 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // Set focus on primary button
-    primaryButtonRef.current?.focus();
+    // Set focus on primary button, or fallback to Cancel if CTA is disabled
+    if (purchaseDisabled) {
+      cancelButtonRef.current?.focus();
+    } else {
+      primaryButtonRef.current?.focus();
+    }
 
     // Cleanup: restore scroll when modal closes
     return () => {
@@ -119,10 +133,13 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
         <button
           type="button"
           ref={primaryButtonRef}
-          className="w-full py-3 rounded-xl bg-pp-primary text-white"
+          className="w-full py-3 rounded-xl bg-pp-primary text-white disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ minHeight: 44 }}
           data-testid="paywall-cta"
+          disabled={purchaseDisabled}
+          aria-disabled={purchaseDisabled}
           onClick={() => {
+            if (purchaseDisabled) return;
             // Fire-and-forget analytics before invoking callback
             try {
               log(Events.PURCHASE_ATTEMPT, { source, via });
@@ -132,11 +149,12 @@ export default function BeforeAfter({ onClose, onPurchase, source = "unknown", v
             onPurchase?.();
           }}
         >
-          {t("paywall.cta")}
+          {purchaseLabel ?? t("paywall.cta")}
         </button>
 
         <button
           type="button"
+          ref={cancelButtonRef}
           className="w-full py-2 mt-2 rounded-xl"
           style={{ minHeight: 44 }}
           data-testid="paywall-cancel"

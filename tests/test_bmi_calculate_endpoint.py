@@ -557,8 +557,48 @@ def test_soft_paywall_defaults_match_lang(
     assert hook["message"]["default_cta"]
 
 
-def test_bmi_calculate_with_hip_returns_whr(client: TestClient) -> None:
-    """Test endpoint returns WHR when both waist_cm and hip_cm are provided."""
+def test_bmi_calculate_free_tier_does_not_accept_hip_cm(client: TestClient) -> None:
+    """Test FREE tier endpoint rejects hip_cm (PRO tier only feature)."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": 100.0,  # PRO tier only - should be rejected by FREE schema
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    # FREE schema should reject hip_cm (extra field)
+    assert resp.status_code == 422
+
+
+def test_bmi_calculate_free_tier_does_not_return_whr(client: TestClient) -> None:
+    """Test FREE tier endpoint does not return whr field (PRO tier only)."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    data = resp.json()
+    # FREE tier response should not contain whr field
+    assert "whr" not in data
+
+
+def test_bmi_calculate_pro_with_hip_returns_whr(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint returns WHR when both waist_cm and hip_cm are provided."""
     payload = {
         "weight_kg": 70.0,
         "height_cm": 170.0,
@@ -570,15 +610,18 @@ def test_bmi_calculate_with_hip_returns_whr(client: TestClient) -> None:
         "pregnant": False,
         "lang": "en",
     }
-    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    resp = client.post("/api/v1/bmi/pro/calculate", json=payload, headers=pro_headers)
     assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
     assert "whr" in data
     assert data["whr"] == 0.8
 
 
-def test_bmi_calculate_without_hip_returns_null_whr(client: TestClient) -> None:
-    """Test endpoint returns whr=null when hip_cm is not provided."""
+def test_bmi_calculate_pro_without_hip_returns_null_whr(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint returns whr=null when hip_cm is not provided."""
     payload = {
         "weight_kg": 70.0,
         "height_cm": 170.0,
@@ -590,14 +633,17 @@ def test_bmi_calculate_without_hip_returns_null_whr(client: TestClient) -> None:
         "pregnant": False,
         "lang": "en",
     }
-    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    resp = client.post("/api/v1/bmi/pro/calculate", json=payload, headers=pro_headers)
     assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
     assert data["whr"] is None
 
 
-def test_bmi_calculate_rejects_non_positive_hip(client: TestClient) -> None:
-    """Test endpoint rejects hip_cm <= 0 with 422 validation error."""
+def test_bmi_calculate_pro_rejects_non_positive_hip(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint rejects hip_cm <= 0 with 422 validation error."""
     payload = {
         "weight_kg": 70.0,
         "height_cm": 170.0,
@@ -605,6 +651,23 @@ def test_bmi_calculate_rejects_non_positive_hip(client: TestClient) -> None:
         "gender": "female",
         "waist_cm": 80.0,
         "hip_cm": 0.0,  # Invalid: must be > 0
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/pro/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 422
+
+
+def test_bmi_calculate_rejects_negative_hip(client: TestClient) -> None:
+    """Test endpoint rejects hip_cm < 0 with 422 validation error."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": -10.0,  # Invalid: must be > 0
         "athlete": False,
         "pregnant": False,
         "lang": "en",
