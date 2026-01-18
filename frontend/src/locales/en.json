@@ -256,6 +256,38 @@
   "accessibility": {
     "homeScreen": "Home Screen"
   },
+  "bmiCalculate": {
+    "title": "BMI Calculator",
+    "description": "Calculate your Body Mass Index",
+    "form": {
+      "weightLabel": "Weight (kg)",
+      "heightLabel": "Height (cm)",
+      "sexLabel": "Sex",
+      "sex": {
+        "female": "Female",
+        "male": "Male"
+      },
+      "ageLabel": "Age",
+      "waistLabel": "Waist (cm, optional)",
+      "athleteLabel": "Athlete (optional)",
+      "pregnantLabel": "Pregnant (optional)",
+      "hipLabel": "Hip (cm, optional)",
+      "submit": "Calculate BMI",
+      "submitting": "Please wait",
+      "reset": "Calculate Again"
+    },
+    "result": {
+      "title": "BMI Result",
+      "bmi": "BMI:",
+      "category": "Category:"
+    },
+    "error": {
+      "generic": "An error occurred. Please try again.",
+      "invalidWeight": "Please enter a valid weight (kg).",
+      "invalidHeight": "Please enter a valid height (cm).",
+      "invalidAge": "Please enter a valid age (1-120 years)."
+    }
+  },
   "whoTargets": {
     "calories": {
       "title": "Daily Calories",
