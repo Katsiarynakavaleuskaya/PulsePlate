@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Literal, Optional, Protocol
+from typing import Literal, Optional, Protocol, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -317,10 +317,9 @@ async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProRespo
             detail=t(lang, "bmi_engine_unavailable"),
         )
 
-    # Schema guarantees gender is never None after _apply_pro_gender_invariant
-    # Type narrowing for mypy (not a security check)
-    assert req.gender is not None, "PRO schema validator ensures gender is non-None"  # nosec B101
-    gender_str: str = req.gender
+    # Schema _apply_pro_gender_invariant guarantees gender is str (not None) after validation
+    # Type narrowing for mypy (schema runtime invariant, not a security check)
+    gender_str: str = cast(str, req.gender)
 
     try:
         result = calc(

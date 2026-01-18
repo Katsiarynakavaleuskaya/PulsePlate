@@ -11,7 +11,7 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import math
-from typing import Final, Literal
+from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -532,6 +532,14 @@ class BMICalculateProRequest(BMICalculateRequest):
     EN: PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
     """
 
+    # Override gender field: type is str | None (for input), but model validator guarantees str after validation
+    # This ensures WHR/waist risk thresholds are always calculated with valid gender
+    gender: str | None = Field(
+        default=None,
+        description="Gender: 'male' or 'female'. Normalized by schema validator. Guaranteed to be str after validation.",
+        examples=["male", "female", "муж", "жен", None],
+    )
+
     hip_cm: float | None = Field(
         default=None,
         gt=0,
@@ -542,24 +550,63 @@ class BMICalculateProRequest(BMICalculateRequest):
         examples=[95.0, 100.5, None],
     )
 
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _coerce_gender_pro(cls, v: object) -> str | None:
+        """
+        RU: Нормализует gender токены для PRO tier (возвращает str | None для pregnancy invariant).
+        EN: Normalizes gender tokens for PRO tier (returns str | None for pregnancy invariant).
+
+        Rules:
+        - Valid tokens → normalized via parent's _normalize_gender_token logic
+        - None / empty / invalid → None (will be handled by _apply_pro_gender_invariant)
+        - Unknown tokens → None (will default to "male" after pregnancy check)
+
+        Note: Returns None to allow pregnancy invariant to set gender="female" if pregnant=True.
+        Final guarantee of str (not None) happens in _apply_pro_gender_invariant.
+        """
+        # None or empty → None (will be handled by model validator)
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            return None
+
+        s = _normalize_ws_lower(v)
+        if not s:
+            return None
+
+        # Use parent's normalization logic for known tokens
+        if s in _FEMALE_EXACT:
+            return "female"
+        if s in _MALE_EXACT:
+            return "male"
+        if any(s.startswith(prefix) for prefix in _FEMALE_PREFIXES):
+            return "female"
+        if any(s.startswith(prefix) for prefix in _MALE_PREFIXES):
+            return "male"
+
+        # Unknown token → None (will default to "male" after pregnancy check)
+        return None
+
     @model_validator(mode="after")
     def _apply_pro_gender_invariant(self) -> "BMICalculateProRequest":
         """
-        RU: Применяет инвариант gender: гарантирует, что gender всегда str после нормализации.
-        EN: Applies gender invariant: ensures gender is always str after normalization.
+        RU: Применяет инварианты gender и беременности для PRO tier: гарантирует str (не None).
+        EN: Applies gender and pregnancy invariants for PRO tier: guarantees str (not None).
 
         Rules:
-        - First apply parent's pregnancy invariant (may set gender="female" if pregnant)
-        - If gender is still None after normalization → default to "male" (safe default for WHR/waist risk thresholds)
-        - This ensures router never receives None gender, eliminating hidden fallback logic.
+        - First apply pregnancy invariant (may set gender="female" if pregnant=True and gender=None)
+        - If gender is still None after pregnancy check → default to "male" (safe default for WHR/waist risk thresholds)
+        - If pregnant=True and gender="male" → coerce pregnant=False (pipeline robustness)
 
-        This keeps the BMI pipeline robust: gender is always a non-None string for PRO tier calculations.
+        This ensures router receives str, eliminating need for assert/fallback in router layer.
         """
-        # Apply parent's pregnancy invariant logic directly (avoids mypy super() issue with Pydantic validators)
+        # Apply pregnancy invariant first (may set gender="female" if pregnant)
         if self.pregnant:
             if self.gender is None:
                 self.gender = "female"
             elif self.gender == "male":
+                # устойчивость пайплайна: не 422, а мягкая нормализация
                 self.pregnant = False
 
         # Ensure gender is never None after all normalizations
