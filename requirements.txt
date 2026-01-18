@@ -4,7 +4,7 @@
 #
 #    pip-compile --allow-unsafe --output-file=requirements.txt requirements.in
 #
-alembic==1.18.0
+alembic==1.18.1
     # via -r requirements.in
 annotated-doc==0.0.4
     # via fastapi
