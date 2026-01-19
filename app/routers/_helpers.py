@@ -76,7 +76,7 @@ def _build_soft_paywall_hook(lang: str, *, default_enabled: bool) -> "SoftPaywal
 
     IMPORTANT:
     - No BMI-dependent logic.
-    - No imports from core/bmi/*.
+    - Must not depend on BMI calculation modules.
 
     Args:
         lang: Language code for i18n
