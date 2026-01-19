@@ -155,6 +155,36 @@ class TestNormalizeBoolFlag:
         assert _helpers._normalize_bool_flag("") is False
         assert _helpers._normalize_bool_flag("   ") is False
 
+    def test_normalize_bool_flag_custom_yes_values_are_case_sensitive_like_engine(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that custom yes_values are case-sensitive like engine (no normalization)."""
+        # Force fallback to test fallback behavior matches engine
+        monkeypatch.setattr(_helpers, "_get_engine_normalize_bool_flag", lambda: None)
+
+        # Engine uses yes_values as-is, so mixed-case should not match normalized input
+        assert _helpers._normalize_bool_flag("yes", yes_values={"YES"}) is False
+        # Input is normalized to "yes", but set contains "YES" (case-sensitive)
+        assert (
+            _helpers._normalize_bool_flag("YES", yes_values={"YES"}) is False
+        )  # normalized to "yes"
+        # Only exact match (after input normalization) works
+        assert _helpers._normalize_bool_flag("yes", yes_values={"yes"}) is True
+
+    def test_get_engine_normalize_bool_flag_returns_none_on_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test _get_engine_normalize_bool_flag returns None on ImportError."""
+
+        # Mock _import_engine_normalize_bool_flag to raise ImportError
+        def _raise() -> object:
+            raise ImportError("Simulated import error")
+
+        monkeypatch.setattr(_helpers, "_import_engine_normalize_bool_flag", _raise)
+
+        result = _helpers._get_engine_normalize_bool_flag()
+        assert result is None
+
 
 class TestBuildSoftPaywallHook:
     """Tests for _build_soft_paywall_hook helper."""

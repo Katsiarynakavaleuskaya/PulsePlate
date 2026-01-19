@@ -41,13 +41,17 @@ def _get_engine_normalize_bool_flag() -> Callable[[str | bool, set[str] | None],
     Test can monkeypatch this to force fallback without mocking builtins import.
     """
     try:
-        from core.bmi.engine import (
-            _normalize_bool_flag as _engine_normalize_bool_flag,
-        )  # noqa: WPS433
-
-        return _engine_normalize_bool_flag
+        return _import_engine_normalize_bool_flag()
     except ImportError:
         return None
+
+
+def _import_engine_normalize_bool_flag() -> Callable[[str | bool, set[str] | None], bool]:
+    from core.bmi.engine import (
+        _normalize_bool_flag as _engine_normalize_bool_flag,
+    )  # noqa: WPS433
+
+    return _engine_normalize_bool_flag
 
 
 def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
@@ -83,10 +87,9 @@ def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) 
     if not s:
         return False
 
-    # Preserve explicit empty set semantics (set() stays empty).
-    allowed = (
-        {v.strip().lower() for v in yes_values} if yes_values is not None else _DEFAULT_YES_VALUES
-    )
+    # Preserve explicit empty set semantics (set() stays empty) and mirror engine:
+    # custom yes_values are used as-is.
+    allowed = yes_values if yes_values is not None else _DEFAULT_YES_VALUES
     return s in allowed
 
 
