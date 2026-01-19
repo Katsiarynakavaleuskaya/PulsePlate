@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
+from app.routers._helpers import _env_bool
 from app.schemas.bmi import (
     BMICalculateProRequest,
     BMICalculateProResponse,
@@ -72,19 +73,6 @@ def _get_engine_calculator() -> CalculateBmiResult | None:
 
 
 # Helper functions (same as bmi.py)
-def _env_bool(name: str, default: bool) -> bool:
-    """Parse boolean env var."""
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    value = raw.strip().lower()
-    if value in {"1", "true", "t", "yes", "y", "on"}:
-        return True
-    if value in {"0", "false", "f", "no", "n", "off"}:
-        return False
-    return default
-
-
 def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
     """Normalize boolean flag from string or bool."""
     if isinstance(value, bool):

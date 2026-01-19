@@ -11,7 +11,7 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import math
-from typing import Annotated, Final, Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -176,13 +176,14 @@ def _normalize_ws_lower(s: str | None) -> str:
 
 
 class BMICalculateRequest(BaseModel):
-    model_config = {"extra": "forbid"}  # Reject extra fields (e.g., hip_cm in FREE tier)
     """
     RU: Запрос для расчета BMI через единый engine.
     EN: Request for BMI calculation via unified engine.
 
     FREE tier endpoint (no API key required).
     """
+
+    model_config = {"extra": "forbid"}  # Reject extra fields (e.g., hip_cm in FREE tier)
 
     weight_kg: float = Field(
         ...,

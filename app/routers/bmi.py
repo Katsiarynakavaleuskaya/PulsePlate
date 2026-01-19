@@ -16,6 +16,7 @@ from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.routers._helpers import _env_bool
 from app.schemas.bmi import (
     BMICalculateRequest,
     BMICalculateResponse,
@@ -94,22 +95,6 @@ except ImportError:  # pragma: no cover
 
 # Removed _get_lang_from_request() - use core.i18n.normalize_lang() directly
 # This removes duplication and ensures consistent language normalization across the app.
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    """
-    Parse boolean env var.
-    RU/EN note: Accepts common truthy/falsey strings.
-    """
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    value = raw.strip().lower()
-    if value in {"1", "true", "t", "yes", "y", "on"}:
-        return True
-    if value in {"0", "false", "f", "no", "n", "off"}:
-        return False
-    return default
 
 
 def _build_soft_paywall_hook(lang: str) -> SoftPaywallHook | None:

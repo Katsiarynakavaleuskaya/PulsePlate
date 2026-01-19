@@ -298,6 +298,18 @@ class TestComputeWhtRatio:
         result_nan = engine._safe_ratio_decimal(numer=numer_nan, denom=denom)
         assert result_nan is None
 
+    def test_safe_ratio_decimal_finite_returns_value(self) -> None:
+        """
+        RU: Finite Decimal division returns computed value (covers line 197).
+        EN: Finite Decimal division returns computed value (covers line 197).
+        """
+        from decimal import Decimal
+
+        import core.bmi.engine as engine
+
+        result = engine._safe_ratio_decimal(numer=Decimal("10"), denom=Decimal("4"))
+        assert result == Decimal("2.5")
+
     def test_fail_soft_waist_validation(self) -> None:
         """Test fail-soft behavior for invalid waist (legacy parity)."""
         assert _compute_wht_ratio(0.0, 1.70) is None  # <= 0

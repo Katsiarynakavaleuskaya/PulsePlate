@@ -701,6 +701,73 @@ def test_pro_request_hip_cm_rejects_non_positive() -> None:
     assert any(err["loc"] == ("hip_cm",) and err["type"] == "greater_than" for err in errors)
 
 
+def test_pro_request_gender_non_str_coerces_to_default_male() -> None:
+    """Test that PRO request gender non-str input coerces to default 'male' (covers line 572)."""
+    from app.schemas.bmi import BMICalculateProRequest
+
+    req = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": 123}
+    )
+    assert req.gender == "male"
+
+
+def test_pro_request_gender_empty_string_coerces_to_default_male() -> None:
+    """Test that PRO request gender empty/whitespace coerces to default 'male' (covers line 576)."""
+    from app.schemas.bmi import BMICalculateProRequest
+
+    req = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "   "}
+    )
+    assert req.gender == "male"
+
+
+def test_pro_request_gender_exact_and_prefix_normalization() -> None:
+    """Test that PRO request gender exact/prefix tokens normalize (covers lines 581-586)."""
+    from app.schemas.bmi import BMICalculateProRequest
+
+    req_male_exact = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "male"}
+    )
+    assert req_male_exact.gender == "male"
+
+    req_female_prefix = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "женщина"}
+    )
+    assert req_female_prefix.gender == "female"
+
+    req_male_prefix = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "мужчина"}
+    )
+    assert req_male_prefix.gender == "male"
+
+
+def test_pro_request_gender_unknown_token_defaults_to_male_when_not_pregnant() -> None:
+    """Test that PRO request unknown gender token defaults to 'male' (covers line 589)."""
+    from app.schemas.bmi import BMICalculateProRequest
+
+    req = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "robot"}
+    )
+    assert req.gender == "male"
+
+
+def test_pro_request_pregnancy_gender_invariants() -> None:
+    """Test PRO pregnancy invariants (covers lines 607 and 610)."""
+    from app.schemas.bmi import BMICalculateProRequest
+
+    req_unknown_gender_pregnant = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "robot", "pregnant": True}
+    )
+    assert req_unknown_gender_pregnant.pregnant is True
+    assert req_unknown_gender_pregnant.gender == "female"
+
+    req_male_gender_pregnant = BMICalculateProRequest.model_validate(
+        {"weight_kg": 70.0, "height_cm": 170.0, "age": 30, "gender": "male", "pregnant": True}
+    )
+    assert req_male_gender_pregnant.gender == "male"
+    assert req_male_gender_pregnant.pregnant is False
+
+
 def test_free_response_does_not_include_whr() -> None:
     """Test that FREE tier BMICalculateResponse does not include whr field."""
     # FREE response should not accept whr (PRO tier only)

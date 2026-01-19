@@ -7,6 +7,8 @@ Covers error paths in app/routers/bmi_pro.py:calculate_bmi_pro()
 
 from __future__ import annotations
 
+import sys
+import types
 from typing import cast
 
 import pytest
@@ -15,6 +17,17 @@ from fastapi.testclient import TestClient
 
 class TestProEndpointErrorHandling:
     """Tests for PRO endpoint error handling (covers lines 292-293, 310-311, 315-316, 320-321, 337-339)."""
+
+    def test_get_engine_calculator_import_error_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test that ImportError in _get_engine_calculator returns None (covers lines 70-71)."""
+        import app.routers.bmi_pro as bmi_pro
+
+        dummy_engine = types.ModuleType("core.bmi.engine")
+        monkeypatch.setitem(sys.modules, "core.bmi.engine", dummy_engine)
+
+        assert bmi_pro._get_engine_calculator() is None
 
     def test_calculate_bmi_result_is_none_returns_501(
         self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
