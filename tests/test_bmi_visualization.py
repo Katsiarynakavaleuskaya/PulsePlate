@@ -1053,7 +1053,7 @@ def test_visualization_athlete_text_preserved_bc() -> None:
 
             # Test RU string "спортсмен" → should trigger athlete group
             out_ru = generate_bmi_visualization(
-                bmi=25.0,
+                bmi=26.0,
                 age=30,
                 gender="male",
                 lang="ru",
@@ -1065,7 +1065,7 @@ def test_visualization_athlete_text_preserved_bc() -> None:
 
             # Test EN string "athlete" → should trigger athlete group
             out_en = generate_bmi_visualization(
-                bmi=25.0,
+                bmi=26.0,
                 age=30,
                 gender="male",
                 lang="en",
@@ -1077,7 +1077,7 @@ def test_visualization_athlete_text_preserved_bc() -> None:
 
             # Test explicit "no" → should NOT trigger athlete group
             out_no = generate_bmi_visualization(
-                bmi=25.0,
+                bmi=26.0,
                 age=30,
                 gender="male",
                 lang="en",
