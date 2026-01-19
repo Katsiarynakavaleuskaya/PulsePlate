@@ -51,11 +51,25 @@ class TestNormalizeBoolFlag:
         assert _helpers._normalize_bool_flag("yes") is True
         assert _helpers._normalize_bool_flag("no") is False
 
-    def test_normalize_bool_flag_empty_set_preserved(self) -> None:
+    def test_normalize_bool_flag_empty_set_preserved(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that empty yes_values set() is preserved (not replaced with default)."""
-        # Empty set means no values match (engine uses yes_values as-is)
+        # Force fallback path to test fallback behavior
+        monkeypatch.setattr(_helpers, "_get_engine_normalize_bool_flag", lambda: None)
+
+        # Empty set means no values match (fallback preserves empty set)
         assert _helpers._normalize_bool_flag("yes", yes_values=set()) is False
         assert _helpers._normalize_bool_flag("y", yes_values=set()) is False
+
+    def test_normalize_bool_flag_fallback_accepts_russian_istina(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test fallback accepts Russian 'истина' token (aligned with engine defaults)."""
+        # Force fallback without mocking builtins import
+        monkeypatch.setattr(_helpers, "_get_engine_normalize_bool_flag", lambda: None)
+
+        assert _helpers._normalize_bool_flag("истина") is True
+        assert _helpers._normalize_bool_flag(" ИСТИНА ") is True  # with whitespace
+        assert _helpers._normalize_bool_flag("ИСТИНА") is True  # uppercase
 
     def test_normalize_bool_flag_custom_yes_values(self) -> None:
         """Test that custom yes_values work correctly."""

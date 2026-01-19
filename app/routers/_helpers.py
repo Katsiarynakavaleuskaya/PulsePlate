@@ -8,10 +8,13 @@ EN: Shared helper functions for routers.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from app.schemas.bmi import SoftPaywallHook
+
+# Keep fallback defaults aligned with core.bmi.engine defaults.
+_DEFAULT_YES_VALUES: set[str] = {"yes", "y", "true", "1", "да", "д", "истина", "si", "sí"}
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -29,6 +32,22 @@ def _env_bool(name: str, default: bool) -> bool:
     if value in {"0", "false", "f", "no", "n", "off"}:
         return False
     return default
+
+
+def _get_engine_normalize_bool_flag() -> Callable[[str | bool, set[str] | None], bool] | None:
+    """
+    Internal helper to isolate engine import.
+
+    Test can monkeypatch this to force fallback without mocking builtins import.
+    """
+    try:
+        from core.bmi.engine import (
+            _normalize_bool_flag as _engine_normalize_bool_flag,
+        )  # noqa: WPS433
+
+        return _engine_normalize_bool_flag
+    except ImportError:
+        return None
 
 
 def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
@@ -51,28 +70,24 @@ def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) 
     Note:
         Falls back to local implementation if engine is not available (development/testing).
     """
-    try:
-        from core.bmi.engine import (
-            _normalize_bool_flag as _engine_normalize_bool_flag,
-        )  # noqa: WPS433
+    engine_fn = _get_engine_normalize_bool_flag()
+    if engine_fn is not None:
+        return engine_fn(value, yes_values)
 
-        return _engine_normalize_bool_flag(value, yes_values)
-    except ImportError:  # pragma: no cover
-        # Fallback for development/testing when engine is not yet available
-        if isinstance(value, bool):
-            return value
-        if not isinstance(value, str):
-            return False
-        s = value.strip().lower()
-        if not s:
-            return False
-        # Preserve empty set() semantics: if yes_values is explicitly set() (empty), no values match
-        # Only use default if yes_values is None
-        if yes_values is not None:
-            allowed = {v.strip().lower() for v in yes_values}
-        else:
-            allowed = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-        return s in allowed
+    # Fallback path (dev/partial checkouts): keep behavior aligned with engine defaults.
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, str):
+        return False
+    s = value.strip().lower()
+    if not s:
+        return False
+
+    # Preserve explicit empty set semantics (set() stays empty).
+    allowed = (
+        {v.strip().lower() for v in yes_values} if yes_values is not None else _DEFAULT_YES_VALUES
+    )
+    return s in allowed
 
 
 def _build_soft_paywall_hook(lang: str, *, default_enabled: bool) -> SoftPaywallHook | None:
