@@ -596,20 +596,11 @@ class BMICalculateProRequest(BMICalculateRequest):
         EN: Applies gender and pregnancy invariants for PRO tier: guarantees str (not None).
 
         Rules:
-        - First apply pregnancy invariant (may set gender="female" if pregnant=True and gender=None)
-        - If gender is still None after pregnancy check → default to "male" (safe default for WHR/waist risk thresholds)
-        - If pregnant=True and gender="male" → coerce pregnant=False (pipeline robustness)
+        - Pregnancy invariant is applied by the base BMICalculateRequest validator
+        - If gender is still None after all normalizations → default to "male"
 
         This ensures router receives str, eliminating need for assert/fallback in router layer.
         """
-        # Apply pregnancy invariant first (may set gender="female" if pregnant)
-        if self.pregnant:
-            if self.gender is None:
-                self.gender = "female"
-            elif self.gender == "male":
-                # устойчивость пайплайна: не 422, а мягкая нормализация
-                self.pregnant = False
-
         # Ensure gender is never None after all normalizations
         if self.gender is None:
             self.gender = "male"

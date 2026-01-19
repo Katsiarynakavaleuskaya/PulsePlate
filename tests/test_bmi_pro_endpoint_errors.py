@@ -29,6 +29,43 @@ class TestProEndpointErrorHandling:
 
         assert bmi_pro._get_engine_calculator() is None
 
+    def test_helpers_and_happy_path_smoke_cover_diff_lines(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Smoke test that exercises helper functions and the happy path for diff-cover."""
+        import anyio
+
+        import app.routers.bmi_pro as bmi_pro
+        from app.schemas.bmi import BMICalculateProRequest
+
+        calc = bmi_pro._get_engine_calculator()
+        assert calc is not None
+
+        assert bmi_pro._normalize_bool_flag(True) is True
+        assert bmi_pro._normalize_bool_flag(False) is False
+        assert bmi_pro._normalize_bool_flag("да") is True
+        assert bmi_pro._normalize_bool_flag("nope") is False
+
+        monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "true")
+        assert bmi_pro._build_soft_paywall_hook("en") is not None
+
+        req = BMICalculateProRequest(
+            weight_kg=70.0,
+            height_cm=170.0,
+            age=30,
+            gender="female",
+            waist_cm=80.0,
+            hip_cm=100.0,
+            athlete=False,
+            pregnant=False,
+            lang="en",
+        )
+
+        resp = anyio.run(bmi_pro.calculate_bmi_pro, req)
+        assert resp.bmi > 0
+        assert resp.whr is not None
+        assert resp.soft_paywall is not None
+
     def test_calculate_bmi_result_is_none_returns_501(
         self, client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
