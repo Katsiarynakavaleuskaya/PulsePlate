@@ -39,3 +39,21 @@ def test_auto_group_with_athlete_text_positional() -> None:
     assert (
         group == "athlete"
     ), f"Expected 'athlete' group when athlete_text='спортсмен', got '{group}'"
+
+
+def test_auto_group_athlete_string_does_not_depend_on_pregnant_value() -> None:
+    """Regression: athlete_bool must be normalized from athlete, not pregnant."""
+    # This test ensures athlete_bool is computed from athlete parameter, not pregnant
+    g1 = auto_group(30, "male", "да", "да", "ru")  # both yes -> athlete ok either way
+    g2 = auto_group(30, "male", "да", "нет", "ru")  # athlete=no -> must NOT be athlete
+    g3 = auto_group(30, "male", "нет", "да", "ru")  # athlete=yes -> must be athlete
+
+    assert g2 != "athlete", "athlete='нет' should not result in athlete group"
+    assert g3 == "athlete", "athlete='да' should result in athlete group"
+
+
+def test_auto_group_string_athlete_negative_token_does_not_infer() -> None:
+    """Test that negative athlete tokens (no/false/нет) do not trigger athlete inference."""
+    # Ensures negative-token branch is covered (athlete_bool=False path)
+    group = auto_group(30, "male", False, "нет", "ru")
+    assert group != "athlete", "Negative athlete token 'нет' should not infer athlete group"

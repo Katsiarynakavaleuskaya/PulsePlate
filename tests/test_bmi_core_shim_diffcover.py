@@ -77,6 +77,24 @@ class TestBMICategoryShim:
         # Should be localized Russian string
         assert any("А" <= ch <= "я" for ch in cat), f"Expected Cyrillic, got: {cat}"
 
+    def test_bmi_category_returns_none_if_all_i18n_keys_missing(self) -> None:
+        """Test bmi_category fallback chain: canonical key → legacy key → None."""
+        from unittest.mock import patch
+
+        def raising_t(_lang: str, _key: str) -> str:
+            raise KeyError(_key)
+
+        with patch("bmi_core.t", side_effect=raising_t):
+            out = bmi_core.bmi_category(bmi=32.0, lang="ru", age=30, group="general")
+            # Last resort fallback should return None when all i18n keys are missing
+            assert out is None
+
+    def test_compute_wht_ratio_invalid_height_returns_none(self) -> None:
+        """Test compute_wht_ratio returns None for invalid height (covers validation branch)."""
+        r = bmi_core.compute_wht_ratio(waist_cm=80.0, height_m=0.0)
+        # Invalid height should return None (delegates to canonical engine validation)
+        assert r is None
+
 
 class TestOtherShimFunctions:
     """Test other shim function coverage."""
