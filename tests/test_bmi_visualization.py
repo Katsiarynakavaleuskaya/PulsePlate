@@ -682,7 +682,7 @@ def test_bmi_visualization_extreme_values():
                 assert "category" in result
 
 
-def test_visualization_category_is_localized_ru_not_key():
+def test_visualization_category_is_localized_ru_not_key() -> None:
     """Test that category is localized in Russian and never returns raw key."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -738,7 +738,7 @@ def test_visualization_category_is_localized_ru_not_key():
             assert result["category"] in {"Недовес", "Недостаточная масса"}
 
 
-def test_visualization_category_is_localized_en_human_readable():
+def test_visualization_category_is_localized_en_human_readable() -> None:
     """Test that category is localized in English and human-readable."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -794,7 +794,7 @@ def test_visualization_category_is_localized_en_human_readable():
             ), f"Key pattern detected: {result['category']}"
 
 
-def test_visualization_category_obesity_tiers_localized():
+def test_visualization_category_obesity_tiers_localized() -> None:
     """Test that obesity tiers (obesity_1, obesity_2, obesity_3) are properly localized."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -856,7 +856,7 @@ def test_visualization_category_obesity_tiers_localized():
             assert result["category"] == "Ожирение I степени"
 
 
-def test_visualization_ru_underweight_uses_i18n_wording():
+def test_visualization_ru_underweight_uses_i18n_wording() -> None:
     """Test that RU underweight uses canonical i18n wording, not legacy synonyms."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -898,7 +898,7 @@ def test_visualization_ru_underweight_uses_i18n_wording():
             assert out["category"] != "Недовес"
 
 
-def test_visualization_ru_fallback_never_uses_legacy_synonyms():
+def test_visualization_ru_fallback_never_uses_legacy_synonyms() -> None:
     """Test that fallback never uses legacy synonyms that diverge from i18n."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -925,11 +925,11 @@ def test_visualization_ru_fallback_never_uses_legacy_synonyms():
 
             from bmi_visualization import generate_bmi_visualization
 
-            # Force i18n "miss": monkeypatch t() to return the key as-is
-            def mock_t(lang: str, key: str) -> str:
-                return key  # Return key itself to trigger fallback
+            # Force i18n "miss": monkeypatch t() to raise KeyError (simulates missing translation)
+            def raising_t(_lang: str, _key: str) -> str:
+                raise KeyError(_key)
 
-            with patch("bmi_visualization.t", side_effect=mock_t):
+            with patch("bmi_visualization.t", side_effect=raising_t):
                 # Test underweight (BMI 17.0) - should use generic, not legacy "Недовес"
                 out = generate_bmi_visualization(
                     bmi=17.0,
@@ -945,7 +945,7 @@ def test_visualization_ru_fallback_never_uses_legacy_synonyms():
                 assert out["category"] == "Категория ИМТ"
 
 
-def test_visualization_fallback_obesity_uses_legacy_i18n_keys():
+def test_visualization_fallback_obesity_uses_legacy_i18n_keys() -> None:
     """Test that obesity tiers use legacy i18n keys (bmi_obese_*) when bmi.obesity_* missing."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -972,43 +972,59 @@ def test_visualization_fallback_obesity_uses_legacy_i18n_keys():
 
             from bmi_visualization import generate_bmi_visualization
 
-            # Test obesity_1 (BMI 32.0) - should use bmi_obese_1 from i18n
-            out_ru = generate_bmi_visualization(
-                bmi=32.0,
-                age=30,
-                gender="female",
-                lang="ru",
-                pregnant="no",
-                athlete="no",
-            )
-            assert out_ru["available"] is True
-            # Should use canonical i18n wording from bmi_obese_1
-            assert out_ru["category"] == "Ожирение I степени"
+            # Mock _t_or_none to simulate missing bmi.obesity_1 but present bmi_obese_1
+            def mock_t_or_none(lang: str, key: str) -> str | None:
+                # Simulate missing canonical key bmi.obesity_1
+                if key == "bmi.obesity_1":
+                    return None
+                # Simulate present legacy key bmi_obese_1
+                if key == "bmi_obese_1":
+                    if lang == "ru":
+                        return "Ожирение I степени"
+                    elif lang == "en":
+                        return "Obese Class I"
+                    elif lang == "es":
+                        return "Obesidad Clase I"
+                return None
 
-            out_en = generate_bmi_visualization(
-                bmi=32.0,
-                age=30,
-                gender="female",
-                lang="en",
-                pregnant="no",
-                athlete="no",
-            )
-            assert out_en["available"] is True
-            assert out_en["category"] == "Obese Class I"
+            with patch("bmi_visualization._t_or_none", side_effect=mock_t_or_none):
+                # Test obesity_1 (BMI 32.0) - should use bmi_obese_1 from i18n
+                out_ru = generate_bmi_visualization(
+                    bmi=32.0,
+                    age=30,
+                    gender="female",
+                    lang="ru",
+                    pregnant="no",
+                    athlete="no",
+                )
+                assert out_ru["available"] is True
+                # Should use canonical i18n wording from bmi_obese_1
+                assert out_ru["category"] == "Ожирение I степени"
 
-            out_es = generate_bmi_visualization(
-                bmi=32.0,
-                age=30,
-                gender="female",
-                lang="es",
-                pregnant="no",
-                athlete="no",
-            )
-            assert out_es["available"] is True
-            assert out_es["category"] == "Obesidad Clase I"
+                out_en = generate_bmi_visualization(
+                    bmi=32.0,
+                    age=30,
+                    gender="female",
+                    lang="en",
+                    pregnant="no",
+                    athlete="no",
+                )
+                assert out_en["available"] is True
+                assert out_en["category"] == "Obese Class I"
+
+                out_es = generate_bmi_visualization(
+                    bmi=32.0,
+                    age=30,
+                    gender="female",
+                    lang="es",
+                    pregnant="no",
+                    athlete="no",
+                )
+                assert out_es["available"] is True
+                assert out_es["category"] == "Obesidad Clase I"
 
 
-def test_visualization_athlete_text_preserved_bc():
+def test_visualization_athlete_text_preserved_bc() -> None:
     """Test that athlete_text is preserved for backward compatibility (BC with legacy behavior)."""
     if not MATPLOTLIB_AVAILABLE:
         pytest.skip("matplotlib not available")
@@ -1107,9 +1123,9 @@ def test_localize_bmi_category_obesity_generic_fallback(monkeypatch):
     assert result == "Ожирение" or "Ожирение" in result
 
 
-def test_visualization_category_fallback_does_not_expose_key(monkeypatch):
+def test_visualization_category_fallback_does_not_expose_key(monkeypatch) -> None:
     """Test that visualization fallback chain never exposes raw i18n keys."""
-    from unittest.mock import patch
+    from unittest.mock import Mock, patch
 
     import bmi_visualization as v
 
@@ -1117,10 +1133,16 @@ def test_visualization_category_fallback_does_not_expose_key(monkeypatch):
         raise KeyError(_key)
 
     # Force fallback chain: canonical key → legacy key → generic label
-    with patch("bmi_visualization.t", side_effect=raising_t):
-        # Mock matplotlib as available to reach localization code
+    with (
+        patch("bmi_visualization.t", side_effect=raising_t),
+        patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+    ):
+        mock_visualizer = Mock()
+        # Return any base64-ish string; content doesn't matter for this test
+        mock_visualizer.create_bmi_chart.return_value = "ZmFrZQ=="
+        mock_visualizer_class.return_value = mock_visualizer
+
         monkeypatch.setattr(v, "MATPLOTLIB_AVAILABLE", True)
-        # This should trigger fallback to safe_labels in _localize_bmi_category
         result = v.generate_bmi_visualization(
             bmi=37.0,
             age=30,
