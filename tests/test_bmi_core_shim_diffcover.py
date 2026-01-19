@@ -89,12 +89,6 @@ class TestBMICategoryShim:
             # Last resort fallback should return None when all i18n keys are missing
             assert out is None
 
-    def test_compute_wht_ratio_invalid_height_returns_none(self) -> None:
-        """Test compute_wht_ratio returns None for invalid height (covers validation branch)."""
-        r = bmi_core.compute_wht_ratio(waist_cm=80.0, height_m=0.0)
-        # Invalid height should return None (delegates to canonical engine validation)
-        assert r is None
-
 
 class TestOtherShimFunctions:
     """Test other shim function coverage."""
@@ -110,6 +104,12 @@ class TestOtherShimFunctions:
         r = bmi_core.compute_wht_ratio(waist_cm=80.0, height_m=1.70)
         assert isinstance(r, float)
         assert 0 < r < 1.0  # reasonable WHtR range
+
+    def test_compute_wht_ratio_invalid_height_returns_none(self) -> None:
+        """Test compute_wht_ratio returns None for invalid height (covers validation branch)."""
+        r = bmi_core.compute_wht_ratio(waist_cm=80.0, height_m=0.0)
+        # Invalid height should return None (delegates to canonical engine validation)
+        assert r is None
 
     def test_compute_wht_ratio_returns_none_for_invalid(self) -> None:
         """Test compute_wht_ratio returns None for invalid inputs."""
