@@ -18,13 +18,10 @@ def test_soft_paywall_builder_does_not_import_core_bmi() -> None:
     This ensures hook builder stays in router/adapter layer only,
     with no BMI logic dependencies.
     """
-    import app.routers.bmi as bmi_router
+    from app.routers._helpers import _build_soft_paywall_hook
 
-    # Get source of the specific function, not the whole module
-    func = getattr(bmi_router, "_build_soft_paywall_hook", None)
-    assert func is not None, "_build_soft_paywall_hook function not found"
-
-    src = inspect.getsource(func)
+    # Get source of the shared helper function
+    src = inspect.getsource(_build_soft_paywall_hook)
     # Check that _build_soft_paywall_hook doesn't import core/bmi
     assert "from core.bmi" not in src
     assert "import core.bmi" not in src
