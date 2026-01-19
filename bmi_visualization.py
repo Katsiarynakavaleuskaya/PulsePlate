@@ -117,11 +117,11 @@ class BMIVisualizer:
             fontweight="bold",
         )
 
-        # Left plot: BMI gauge chart
-        self._create_bmi_gauge(ax1, bmi, group, lang)
+        # Left plot: BMI gauge chart (use normalized language for consistency)
+        self._create_bmi_gauge(ax1, bmi, group, str(lang_norm))
 
         # Right plot: BMI over time (placeholder for future enhancement)
-        self._create_guidance_chart(ax2, bmi, age, gender, group, lang)
+        self._create_guidance_chart(ax2, bmi, age, gender, group, str(lang_norm))
 
         # Convert to base64
         buffer = io.BytesIO()
@@ -155,13 +155,13 @@ class BMIVisualizer:
                 linewidth=2,
             )
 
-            # Add category labels
-            category_names = {
-                0: "Under" if lang == "en" else "Недовес",
-                1: "Normal" if lang == "en" else "Норма",
-                2: "Over" if lang == "en" else "Избыток",
-                3: "Obese" if lang == "en" else "Ожирение",
+            # Add category labels (simple dict for EN/RU/ES, no new i18n keys)
+            category_names_map = {
+                "en": {0: "Under", 1: "Normal", 2: "Over", 3: "Obese"},
+                "ru": {0: "Недовес", 1: "Норма", 2: "Избыток", 3: "Ожирение"},
+                "es": {0: "Bajo", 1: "Normal", 2: "Sobre", 3: "Obeso"},
             }
+            category_names = category_names_map.get(lang, category_names_map["en"])
 
             mid_point = start + width / 2
             ax.text(
@@ -245,23 +245,31 @@ class BMIVisualizer:
         ax.set_title("Weight Recommendations", fontsize=14, fontweight="bold")
         ax.grid(axis="y", alpha=0.3)
 
-        # Add recommendation text
+        # Add recommendation text (simple dict for EN/RU/ES, no new i18n keys)
+        recommendations_map = {
+            "en": {
+                "gain": "Consider healthy weight gain",
+                "loss": "Consider healthy weight loss",
+                "maintain": "Maintain current weight",
+            },
+            "ru": {
+                "gain": "Рекомендуется здоровый набор веса",
+                "loss": "Рекомендуется здоровое снижение веса",
+                "maintain": "Поддерживайте текущий вес",
+            },
+            "es": {
+                "gain": "Considere ganar peso saludable",
+                "loss": "Considere perder peso saludable",
+                "maintain": "Mantenga el peso actual",
+            },
+        }
+        rec_map = recommendations_map.get(lang, recommendations_map["en"])
         if current_weight < healthy_min:
-            recommendation = (
-                "Consider healthy weight gain"
-                if lang == "en"
-                else "Рекомендуется здоровый набор веса"
-            )
+            recommendation = rec_map["gain"]
         elif current_weight > healthy_max:
-            recommendation = (
-                "Consider healthy weight loss"
-                if lang == "en"
-                else "Рекомендуется здоровое снижение веса"
-            )
+            recommendation = rec_map["loss"]
         else:
-            recommendation = (
-                "Maintain current weight" if lang == "en" else "Поддерживайте текущий вес"
-            )
+            recommendation = rec_map["maintain"]
 
         ax.text(
             0.5,
@@ -298,7 +306,15 @@ def generate_bmi_visualization(
         pregnant_bool = (
             _normalize_bool_flag(pregnant) if isinstance(pregnant, str) else bool(pregnant)
         )
-        athlete_bool = _normalize_bool_flag(athlete) if isinstance(athlete, str) else bool(athlete)
+        # Preserve athlete_text for backward compatibility (string inputs like "спортсмен"/"athlete")
+        athlete_text: str | None = None
+        if isinstance(athlete, str):
+            athlete_bool = _normalize_bool_flag(athlete)
+            # If string is not recognized as yes/no, preserve it for engine heuristics
+            if athlete_bool is False and athlete.lower() not in {"no", "false", "0", "нет", "н"}:
+                athlete_text = athlete
+        else:
+            athlete_bool = bool(athlete)
 
         # Determine user group using canonical engine
         group = _auto_group(
@@ -306,15 +322,15 @@ def generate_bmi_visualization(
             gender=gender,
             pregnant=pregnant_bool,
             athlete=athlete_bool,
-            athlete_text=None,
+            athlete_text=athlete_text,
         )
 
         # Create visualizer
         visualizer = BMIVisualizer()
 
-        # Generate chart
+        # Generate chart with normalized language for consistency
         chart_base64 = visualizer.create_bmi_chart(
-            bmi=bmi, age=age, gender=gender, group=group, lang=lang
+            bmi=bmi, age=age, gender=gender, group=group, lang=str(lang_norm)
         )
 
         # Get BMI category using canonical engine
@@ -324,23 +340,16 @@ def generate_bmi_visualization(
         if category_result is None:
             category_str = None
         else:
+            category_key = str(category_result)
             # Try canonical i18n key format: bmi.<category_key>
-            i18n_key = f"bmi.{category_result}"
+            i18n_key = f"bmi.{category_key}"
             try:
                 translated = t(lang_norm, i18n_key)
                 # Guard: if translation missing and t() returns the key itself or category key, use legacy fallback
                 # Check multiple possible key leak patterns: i18n_key, category_result, and variants
-                possible_keys = {
-                    i18n_key,
-                    str(category_result),
-                    f"bmi_{category_result}",
-                    (
-                        category_result.replace("obesity_", "obese_")
-                        if "obesity_" in str(category_result)
-                        else None
-                    ),
-                }
-                possible_keys.discard(None)  # Remove None if added
+                possible_keys = {i18n_key, category_key, f"bmi_{category_key}"}
+                if "obesity_" in category_key:
+                    possible_keys.add(category_key.replace("obesity_", "obese_"))
                 if translated in possible_keys:
                     raise KeyError(f"Translation returned key: {i18n_key}")
                 category_str = translated
@@ -375,8 +384,8 @@ def generate_bmi_visualization(
                 }
                 lang_code = str(lang_norm)
                 category_str = legacy_labels.get(lang_code, legacy_labels["en"]).get(
-                    str(category_result),
-                    str(category_result),  # final safety net
+                    category_key,
+                    category_key,  # final safety net
                 )
 
         return {

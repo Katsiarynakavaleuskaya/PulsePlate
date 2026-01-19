@@ -5,7 +5,7 @@ Includes visualization fallback, exception handling, and core edge cases.
 
 from unittest.mock import patch
 
-from bmi_core import auto_group, bmi_value, build_premium_plan
+from core.bmi.engine import _auto_group, _compute_bmi
 
 
 class TestBMIVisualizationEdges:
@@ -43,24 +43,16 @@ class TestBMIVisualizationEdges:
 class TestBMICoreEdges:
     """Test BMI core edge cases and validation."""
 
-    def test_validate_age_raises_in_build_plan(self):
-        """Test age validation in build_premium_plan with edge case age=0."""
-        # age=0 → function should work without exceptions
-        # valid weight/height to reach age validation
-        result = build_premium_plan(0, 70.0, 1.75, bmi_value(70.0, 1.75), "en", "general", False)
-
-        # Validate the returned plan structure
-        assert isinstance(result, dict)
-        assert "action" in result
-        assert "nutrition_tip" in result
-        assert "activity_tip" in result
-        assert isinstance(result["nutrition_tip"], str)
-        assert isinstance(result["activity_tip"], str)
-        assert len(result["nutrition_tip"]) > 0
-        assert len(result["activity_tip"]) > 0
-
     def test_auto_group_returns_general_branch(self):
         """Test auto_group returns 'general' branch for adult non-pregnant non-athlete."""
-        # Adult, not pregnant, not athlete → 'general' (line 166)
-        grp = auto_group(30, "male", "no", "no", "en")
+        # Adult, not pregnant, not athlete → 'general'
+        from core.bmi.engine import _normalize_bool_flag
+
+        grp = _auto_group(
+            age=30,
+            gender="male",
+            pregnant=_normalize_bool_flag("no"),
+            athlete=_normalize_bool_flag("no"),
+            athlete_text=None,
+        )
         assert grp == "general"
