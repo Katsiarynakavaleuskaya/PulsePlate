@@ -68,24 +68,27 @@ export default function BeforeAfter({
     }
   }, [source, via]);
 
-  // Focus effect - only on mount to avoid stealing focus on prop changes
+  // Body scroll lock effect - only on mount/unmount
   useEffect(() => {
     // Prevent background scrolling when modal is open
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
-    // Set focus on primary button, or fallback to Cancel if CTA is disabled
-    if (purchaseDisabled) {
-      cancelButtonRef.current?.focus();
-    } else {
-      primaryButtonRef.current?.focus();
-    }
 
     // Cleanup: restore scroll when modal closes
     return () => {
       document.body.style.overflow = previousOverflow;
     };
   }, []);
+
+  // Focus effect - reactive to purchaseDisabled changes
+  useEffect(() => {
+    // Set focus on primary button, or fallback to Cancel if CTA is disabled
+    if (purchaseDisabled) {
+      cancelButtonRef.current?.focus();
+    } else {
+      primaryButtonRef.current?.focus();
+    }
+  }, [purchaseDisabled]);
 
   // Note: Escape handling is confined to the dialog's keydown handler.
 
