@@ -51,6 +51,30 @@ class TestNormalizeBoolFlag:
         assert _helpers._normalize_bool_flag("yes") is True
         assert _helpers._normalize_bool_flag("no") is False
 
+    def test_normalize_bool_flag_delegates_to_engine_when_available(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test _normalize_bool_flag delegates to engine when engine is available."""
+        # Arrange: spy on engine's _normalize_bool_flag to verify delegation
+        import core.bmi.engine as engine
+
+        called = {"count": 0}
+
+        def spy(value: str | bool, yes_values: set[str] | None = None) -> bool:
+            called["count"] += 1
+            # Return True to verify engine path was taken
+            return True
+
+        # Patch engine's function (not builtins.__import__, so this is allowed)
+        monkeypatch.setattr(engine, "_normalize_bool_flag", spy, raising=True)
+
+        # Act: call through helpers (should delegate to engine)
+        result = _helpers._normalize_bool_flag("whatever")
+
+        # Assert: engine function was called and result is from engine
+        assert result is True
+        assert called["count"] == 1
+
     def test_normalize_bool_flag_empty_set_preserved(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that empty yes_values set() is preserved (not replaced with default)."""
         # Force fallback path to test fallback behavior
