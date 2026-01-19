@@ -12,6 +12,7 @@ import pytest
 from core.bmi.engine import (
     _age_band,
     _compute_bmi,
+    _compute_whr,
     _compute_wht_ratio,
     _group_display_name,
     _normalize_bool_flag,
@@ -119,8 +120,8 @@ class TestNormalizeLang:
         """Test locale fallback logic (via core.i18n)."""
         assert _normalize_lang("en-US") == "en"
         assert _normalize_lang("es-MX") == "es"
-        # es-ES → "en" per core/i18n.py LANG_ALIASES (market-based strategy)
-        assert _normalize_lang("es-ES") == "es"  # Changed: product goal (RU/ES/EN localization)
+        # Product policy: ES locales normalize to "es"
+        assert _normalize_lang("es-ES") == "es"
 
     def test_unknown_language_fallback(self) -> None:
         """Test fallback to 'en' for unknown languages."""
@@ -225,26 +226,194 @@ class TestComputeWhtRatio:
         assert _compute_wht_ratio(80.0, 3.0) == 0.27  # <= 3.0, valid
         assert _compute_wht_ratio(80.0, 3.01) is None  # > 3.0
 
-    def test_overflow_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_overflow_returns_none(self) -> None:
         """
-        RU: OverflowError при приведении очень большого int к float → None (fail-soft).
-        EN: OverflowError during huge int→float conversion → None (fail-soft).
+        RU: Controlled overflow в Decimal ratio → None (fail-soft).
+        EN: Controlled overflow in Decimal ratio → None (fail-soft).
+
+        Deterministic strategy: local Decimal context with small Emax/Emin and Overflow trap.
+        Guaranteed overflow: Decimal("1e10") / Decimal("1e-10") = 1e20 > Emax=9.
+
+        Test verifies:
+        1. Context is explicitly set (Emax=9, Emin=-9, traps[Overflow]=True)
+        2. Direct division raises Overflow in this context (deterministic)
+        3. Helper catches overflow and returns None (fail-soft)
         """
+        import decimal
+        from decimal import Decimal
+
         import core.bmi.engine as engine
 
-        monkeypatch.setattr(engine, "_MAX_WAIST_CM", 10**2000)
-        assert engine._compute_wht_ratio(10**1000, 1.0) is None  # type: ignore[arg-type]
+        # Explicit context setup: small Emax ensures deterministic overflow
+        with decimal.localcontext() as ctx:
+            ctx.Emax = 9
+            ctx.Emin = -9
+            ctx.traps[decimal.Overflow] = True
+
+            # Verify context is active: direct division should raise Overflow
+            numer = Decimal("1e10")
+            denom = Decimal("1e-10")
+            # This division in this context will overflow: 1e20 > Emax=9
+            # If traps[Overflow] = True, this raises; helper catches it
+            with pytest.raises(decimal.Overflow):
+                _ = numer / denom  # Direct division should overflow in this context
+
+            # Now test helper: should catch overflow and return None
+            result = engine._safe_ratio_decimal(numer=numer, denom=denom)
+
+        assert result is None
+
+    def test_safe_ratio_decimal_zero_denom_returns_none(self) -> None:
+        """
+        RU: Zero denominator в _safe_ratio_decimal → None (covers line 192).
+        EN: Zero denominator in _safe_ratio_decimal → None (covers line 192).
+        """
+        from decimal import Decimal
+
+        import core.bmi.engine as engine
+
+        result = engine._safe_ratio_decimal(numer=Decimal("10"), denom=Decimal("0"))
+        assert result is None
+
+    def test_safe_ratio_decimal_non_finite_returns_none(self) -> None:
+        """
+        RU: Non-finite Decimal result → None (covers lines 194-196).
+        EN: Non-finite Decimal result → None (covers lines 194-196).
+
+        Test strategy: Create non-finite Decimal via division that produces inf/nan.
+        """
+        from decimal import Decimal
+
+        import core.bmi.engine as engine
+
+        # Division that produces inf (large numerator, small denominator)
+        # Note: Decimal("inf") / Decimal("1") = Decimal("Infinity")
+        numer = Decimal("inf")
+        denom = Decimal("1")
+        result = engine._safe_ratio_decimal(numer=numer, denom=denom)
+        assert result is None
+
+        # NaN case
+        numer_nan = Decimal("nan")
+        result_nan = engine._safe_ratio_decimal(numer=numer_nan, denom=denom)
+        assert result_nan is None
+
+    def test_safe_ratio_decimal_finite_returns_value(self) -> None:
+        """
+        RU: Finite Decimal division returns computed value (covers line 197).
+        EN: Finite Decimal division returns computed value (covers line 197).
+        """
+        from decimal import Decimal
+
+        import core.bmi.engine as engine
+
+        result = engine._safe_ratio_decimal(numer=Decimal("10"), denom=Decimal("4"))
+        assert result == Decimal("2.5")
 
     def test_fail_soft_waist_validation(self) -> None:
         """Test fail-soft behavior for invalid waist (legacy parity)."""
         assert _compute_wht_ratio(0.0, 1.70) is None  # <= 0
         assert _compute_wht_ratio(-1.0, 1.70) is None  # < 0
-        assert _compute_wht_ratio(300.0, 1.70) == 1.76  # boundary
+        assert _compute_wht_ratio(300.0, 1.70) == 1.76  # boundary (300/100/1.70 = 1.764... → 1.76)
         assert _compute_wht_ratio(301.0, 1.70) is None  # > 300.0
 
     def test_normal_case_smoke(self) -> None:
         """Test normal WHtR scenario returns rounded ratio."""
         assert _compute_wht_ratio(1.0, 1.0) == 0.01
+
+    def test_non_finite_ratio_returns_none(self) -> None:
+        """
+        RU: Non-finite ratio (inf/nan) → None (fail-soft).
+        EN: Non-finite ratio (inf/nan) → None (fail-soft).
+
+        Test strategy: Create non-finite ratio via inputs (waist_cm=inf/nan),
+        not by patching builtins (forbidden in Py3.13+).
+        This covers line 203 in core/bmi/engine.py.
+        """
+        import math
+
+        # INF ratio: waist is +inf, height finite positive
+        assert _compute_wht_ratio(waist_cm=math.inf, height_m=1.70) is None
+
+        # NAN ratio: waist is NaN, height finite positive
+        assert _compute_wht_ratio(waist_cm=math.nan, height_m=1.70) is None
+
+    def test_wht_ratio_exception_handling_returns_none(self) -> None:
+        """
+        RU: Exception handling в _compute_wht_ratio → None (covers lines 227, 230).
+        EN: Exception handling in _compute_wht_ratio → None (covers lines 227, 230).
+
+        Test strategy: Use an input object that raises OverflowError during division
+        (no monkeypatching builtins or core compute functions).
+        """
+        from typing import cast
+
+        import core.bmi.engine as engine
+
+        class _ExplodingWaist:
+            def __le__(self, other: object) -> bool:
+                return False
+
+            def __gt__(self, other: object) -> bool:
+                return False
+
+            def __truediv__(self, other: object) -> float:
+                raise OverflowError("overflow")
+
+        result = engine._compute_wht_ratio(waist_cm=cast(float, _ExplodingWaist()), height_m=1.70)
+        assert result is None
+
+
+class TestComputeWhr:
+    """Tests for _compute_whr() with fail-soft parity."""
+
+    def test_basic_calculation(self) -> None:
+        """Test basic WHR calculation."""
+        # 80 / 100 = 0.8
+        assert _compute_whr(80.0, 100.0) == 0.8
+        # 90 / 95 = 0.947... → 0.95 (rounded)
+        assert _compute_whr(90.0, 95.0) == 0.95
+
+    def test_rounding_to_two_decimals(self) -> None:
+        """Test rounding to 2 decimal places."""
+        # 85 / 100 = 0.85
+        assert _compute_whr(85.0, 100.0) == 0.85
+        # 75 / 100 = 0.75
+        assert _compute_whr(75.0, 100.0) == 0.75
+
+    def test_none_for_missing_inputs(self) -> None:
+        """Test None return for missing waist or hip."""
+        assert _compute_whr(None, 100.0) is None
+        assert _compute_whr(80.0, None) is None
+        assert _compute_whr(None, None) is None
+
+    def test_fail_soft_validation(self) -> None:
+        """Test fail-soft behavior for invalid values."""
+        assert _compute_whr(0.0, 100.0) is None  # waist <= 0
+        assert _compute_whr(-1.0, 100.0) is None  # waist < 0
+        assert _compute_whr(80.0, 0.0) is None  # hip <= 0
+        assert _compute_whr(80.0, -1.0) is None  # hip < 0
+
+    def test_zero_division_handling(self) -> None:
+        """Test that zero division is handled gracefully."""
+        # hip_cm > 0 is validated by Pydantic, but guard remains for safety
+        assert _compute_whr(80.0, 0.0) is None
+
+    def test_overflow_handling(self) -> None:
+        """Test that OverflowError is handled gracefully."""
+        from typing import cast
+
+        import core.bmi.engine as engine
+
+        class _ExplodingWaist:
+            def __le__(self, other: object) -> bool:
+                return False
+
+            def __truediv__(self, other: object) -> float:
+                raise OverflowError("overflow")
+
+        result = engine._compute_whr(cast(float, _ExplodingWaist()), 100.0)
+        assert result is None
 
 
 def test_group_display_name_fallback_for_unknown_group() -> None:
@@ -270,6 +439,7 @@ def test_waist_risk_fallback_signature_drift_returns_none(
         pregnant=False,
         athlete=False,
         waist_cm=80.0,
+        hip_cm=None,
         lang="en",
     )
 

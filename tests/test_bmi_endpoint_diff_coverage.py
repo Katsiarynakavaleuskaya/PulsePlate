@@ -30,6 +30,7 @@ def test_engine_returns_result_after_implementation() -> None:
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
     assert isinstance(result, BMICalculateResult)
@@ -163,6 +164,7 @@ async def test_handler_success_with_waist_risk_from_dict_input(
             group_display="General",
             interpretation="OK",
             wht_ratio=0.5,
+            whr=None,
             waist_risk=_WaistRisk(wht_ratio=0.5, risk_level="moderate", notes=["n1"]),
             notes=("n1",),
             age_band="adult",
@@ -207,6 +209,7 @@ async def test_handler_success_with_model_dump_input(monkeypatch: pytest.MonkeyP
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -231,6 +234,7 @@ async def test_route_returns_response_model(monkeypatch: pytest.MonkeyPatch) -> 
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",

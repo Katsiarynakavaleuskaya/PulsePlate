@@ -324,6 +324,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 ## Global conventions and hard rules
 
 - Never mock `builtins.__import__` or `builtins.float` (xdist timeouts).
+- **Forbidden: monkeypatching builtins** (`float`, `int`, `str`, `datetime`, etc.) and private compute operators (e.g., `float.__truediv__`). In Python 3.13+, many builtins are immutable, causing test failures and teardown errors. Test non-finite/overflow/edge cases via **inputs** (e.g., `math.inf`, `math.nan`) or controlled context (`decimal.localcontext()`), not by patching builtins.
+- **Forbidden: monkeypatching core compute functions** (e.g., `_compute_wht_ratio`, `_compute_whr`, `_compute_bmi`). Tests must stimulate branches through **input data** or through public/internal helpers in engine, not by patching the compute functions themselves. Router/adapter seams (e.g., `calculate_bmi_result` in routers) may be patched for thin adapter testing.
 - CI requires >=97% coverage; keep tests updated.
 - Never push to `main`; use feature branches.
 - Test DB isolation: each xdist worker uses a unique SQLite path.
@@ -478,6 +480,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Guard divergence:** Premium aliases may use legacy guards (`_get_api_key_dynamic`) while canonical PRO endpoints use tier guards (`require_pro_tier`). This is intentional for backward compatibility; guard alignment is a separate product/infra decision. See `docs/audit/PR_520_INSIGHTS.md` for enforcement checklist and recurring anti-patterns.
 - **Do not use `Header(...)` in tier dependencies** — use `Security(api_key_header)` to ensure OpenAPI models credentials as security scheme (not per-operation header params). This prevents OpenAPI drift and dirty TypeScript types.
 - **Tier guard order**: Tier checks (403) must run before payload validation (422). Principle: "tier wins over payload".
+- **New metrics/features policy**: Any new metrics (e.g., WHR) must be added via tier-specific schemas + endpoints; FREE contract must not be extended without explicit tier policy decision.
 
 **See:**
 

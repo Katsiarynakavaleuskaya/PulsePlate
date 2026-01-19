@@ -20,6 +20,7 @@ def test_build_bmi_scale_v1_structure():
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
     spec = build_bmi_scale_v1(result)
@@ -45,6 +46,7 @@ def test_ranges_monotonic_no_gaps():
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
     spec = build_bmi_scale_v1(result)
@@ -84,6 +86,7 @@ def test_marker_equals_bmi():
             pregnant=False,
             athlete=False,
             waist_cm=None,
+            hip_cm=None,
             lang="en",
         )
         spec = build_bmi_scale_v1(result)
@@ -108,6 +111,7 @@ def test_build_bmi_scale_v1_edge_cases():
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
     spec1 = build_bmi_scale_v1(result1)
@@ -124,6 +128,7 @@ def test_build_bmi_scale_v1_edge_cases():
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
     spec2 = build_bmi_scale_v1(result2)
@@ -280,6 +285,7 @@ def test_visualization_adult_ranges_match_core():
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
 
@@ -312,6 +318,7 @@ def test_visualization_athlete_ranges_match_core():
         pregnant=False,
         athlete=True,  # athlete group
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
 
@@ -339,6 +346,7 @@ def test_visualization_elderly_ranges_match_core():
         pregnant=False,
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
 
@@ -380,6 +388,7 @@ def test_visualization_none_for_category_none_groups(group_input):
         pregnant=(group_name == "pregnant"),
         athlete=False,
         waist_cm=None,
+        hip_cm=None,
         lang="en",
     )
 

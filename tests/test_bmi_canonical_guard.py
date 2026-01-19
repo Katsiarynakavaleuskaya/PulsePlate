@@ -106,6 +106,7 @@ def test_bmi_result_structure_consistency() -> None:
             "pregnant": False,
             "athlete": False,
             "waist_cm": None,
+            "hip_cm": None,
             "lang": "en",
         },
         {
@@ -116,6 +117,7 @@ def test_bmi_result_structure_consistency() -> None:
             "pregnant": True,
             "athlete": False,
             "waist_cm": 80.0,
+            "hip_cm": None,
             "lang": "ru",
         },
         {
@@ -126,6 +128,7 @@ def test_bmi_result_structure_consistency() -> None:
             "pregnant": False,
             "athlete": True,
             "waist_cm": 95.0,
+            "hip_cm": None,
             "lang": "en",
         },
     ]
@@ -137,17 +140,29 @@ def test_bmi_result_structure_consistency() -> None:
         "group_display",
         "interpretation",
         "wht_ratio",
+        "whr",
         "waist_risk",
+        "notes",
+        "age_band",
     }
+
+    # Import dataclasses and BMICalculateResult once (not in loop)
+    import dataclasses
+    from core.bmi.engine import BMICalculateResult
 
     for case in test_cases:
         # Filter kwargs to only include valid parameters
         filtered_case = {k: v for k, v in case.items() if k in valid_params}
 
+        # hip_cm is optional (enables WHR if provided with waist_cm). Ensure param exists for the call.
+        if "hip_cm" not in filtered_case:
+            filtered_case["hip_cm"] = None
+
         result = calculate_bmi_result(**filtered_case)
 
-        # Verify all required fields are present
-        missing_fields = required_fields - set(dir(result))
+        # Verify all required fields are present (check dataclass fields, not dir())
+        result_fields = {f.name for f in dataclasses.fields(BMICalculateResult)}
+        missing_fields = required_fields - result_fields
         assert not missing_fields, (
             f"BMICalculateResult missing required fields: {missing_fields}\n"
             f"Test case: {case}\n"

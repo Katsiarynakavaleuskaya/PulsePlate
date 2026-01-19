@@ -183,6 +183,8 @@ class BMICalculateRequest(BaseModel):
     FREE tier endpoint (no API key required).
     """
 
+    model_config = {"extra": "forbid"}  # Reject extra fields (e.g., hip_cm in FREE tier)
+
     weight_kg: float = Field(
         ...,
         gt=0,
@@ -410,6 +412,8 @@ class BMICalculateResponse(BaseModel):
     (это не ошибка, а медицинский дисклеймер).
     """
 
+    model_config = {"extra": "forbid"}  # Reject extra fields (e.g., whr in FREE tier)
+
     bmi: float = Field(
         ...,
         description="Calculated BMI value (weight_kg / (height_m ** 2)).",
@@ -518,4 +522,105 @@ class BMICalculateResponse(BaseModel):
     soft_paywall: SoftPaywallHook | None = Field(
         default=None,
         description="Optional soft paywall hook for PRO tier upsell (wellness positioning only).",
+    )
+
+
+class BMICalculateProRequest(BMICalculateRequest):
+    """
+    PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
+
+    RU: Запрос расчета BMI для PRO уровня (расширяет FREE с hip_cm для WHR).
+    EN: PRO tier BMI calculation request (extends FREE with hip_cm for WHR).
+    """
+
+    # Override gender field: type is str | None (for input), but model validator guarantees str after validation
+    # This ensures WHR/waist risk thresholds are always calculated with valid gender
+    gender: str | None = Field(
+        default=None,
+        description="Gender: 'male' or 'female'. Normalized by schema validator. Guaranteed to be str after validation.",
+        examples=["male", "female", "муж", "жен", None],
+    )
+
+    hip_cm: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Hip circumference in centimeters (optional, PRO tier only). "
+            "If provided along with waist_cm, enables WHR (Waist-to-Hip Ratio) calculation."
+        ),
+        examples=[95.0, 100.5, None],
+    )
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _coerce_gender_pro(cls, v: object) -> str | None:
+        """
+        RU: Нормализует gender токены для PRO tier (возвращает str | None для pregnancy invariant).
+        EN: Normalizes gender tokens for PRO tier (returns str | None for pregnancy invariant).
+
+        Rules:
+        - Valid tokens → normalized via parent's _normalize_gender_token logic
+        - None / empty / invalid → None (will be handled by _apply_pro_gender_invariant)
+        - Unknown tokens → None (will default to "male" after pregnancy check)
+
+        Note: Returns None to allow pregnancy invariant to set gender="female" if pregnant=True.
+        Final guarantee of str (not None) happens in _apply_pro_gender_invariant.
+        """
+        # None or empty → None (will be handled by model validator)
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            return None
+
+        s = _normalize_ws_lower(v)
+        if not s:
+            return None
+
+        # Use parent's normalization logic for known tokens
+        if s in _FEMALE_EXACT:
+            return "female"
+        if s in _MALE_EXACT:
+            return "male"
+        if any(s.startswith(prefix) for prefix in _FEMALE_PREFIXES):
+            return "female"
+        if any(s.startswith(prefix) for prefix in _MALE_PREFIXES):
+            return "male"
+
+        # Unknown token → None (will default to "male" after pregnancy check)
+        return None
+
+    @model_validator(mode="after")
+    def _apply_pro_gender_invariant(self) -> "BMICalculateProRequest":
+        """
+        RU: Применяет инварианты gender и беременности для PRO tier: гарантирует str (не None).
+        EN: Applies gender and pregnancy invariants for PRO tier: guarantees str (not None).
+
+        Rules:
+        - Pregnancy invariant is applied by the base BMICalculateRequest validator
+        - If gender is still None after all normalizations → default to "male"
+
+        This ensures router receives str, eliminating need for assert/fallback in router layer.
+        """
+        # Ensure gender is never None after all normalizations
+        if self.gender is None:
+            self.gender = "male"
+
+        return self
+
+
+class BMICalculateProResponse(BMICalculateResponse):
+    """
+    PRO tier BMI calculation response (extends FREE with whr).
+
+    RU: Ответ расчета BMI для PRO уровня (расширяет FREE с whr).
+    EN: PRO tier BMI calculation response (extends FREE with whr).
+    """
+
+    whr: float | None = Field(
+        None,
+        description=(
+            "Waist-to-Hip Ratio (WHR, PRO tier only). "
+            "Calculated only if both waist_cm and hip_cm were provided and >0."
+        ),
+        examples=[0.80, 0.95, None],
     )

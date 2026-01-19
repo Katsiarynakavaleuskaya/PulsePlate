@@ -42,6 +42,7 @@ def test_plan_delegates_to_canonical_engine(
         group_display="General",
         interpretation="Test marker BMI for delegation proof.",
         wht_ratio=None,
+        whr=None,
         waist_risk=None,
         notes=(),
         age_band="adult",

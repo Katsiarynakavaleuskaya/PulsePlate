@@ -45,6 +45,7 @@ class TestCalculateBMIResultHappyPaths:
             pregnant=False,
             athlete=False,
             waist_cm=80.0,
+            hip_cm=None,
             lang="en",
         )
         assert res.group == "general"
@@ -65,6 +66,7 @@ class TestCalculateBMIResultHappyPaths:
             pregnant=False,
             athlete=False,
             waist_cm=None,
+            hip_cm=None,
             lang="en",
         )
         assert res.group == "teen"
@@ -81,6 +83,7 @@ class TestCalculateBMIResultHappyPaths:
             pregnant=True,
             athlete=False,
             waist_cm=None,
+            hip_cm=None,
             lang="en",
         )
         assert res.group == "pregnant"
@@ -96,6 +99,7 @@ class TestCalculateBMIResultHappyPaths:
             pregnant=True,
             athlete=True,
             waist_cm=None,
+            hip_cm=None,
             lang="en",
         )
         assert res.group == "elderly"
@@ -115,6 +119,7 @@ class TestCalculateBMIResultValidation:
                 pregnant=False,
                 athlete=False,
                 waist_cm=None,
+                hip_cm=None,
                 lang="en",
             )
 
@@ -129,6 +134,7 @@ class TestCalculateBMIResultValidation:
                 pregnant=False,
                 athlete=False,
                 waist_cm=None,
+                hip_cm=None,
                 lang="en",
             )
 
@@ -143,6 +149,7 @@ class TestCalculateBMIResultValidation:
                 pregnant=False,
                 athlete=False,
                 waist_cm=None,
+                hip_cm=None,
                 lang="en",
             )
 
@@ -158,6 +165,7 @@ class TestCalculateBMIResultValidation:
                 pregnant=False,
                 athlete=False,
                 waist_cm=None,
+                hip_cm=None,
                 lang="en",
             )
 
@@ -173,6 +181,7 @@ class TestCalculateBMIResultValidation:
                 pregnant=False,
                 athlete=False,
                 waist_cm=None,
+                hip_cm=None,
                 lang="en",
             )
 
@@ -191,6 +200,7 @@ class TestCalculateBMIResultWHtRAndRisk:
             pregnant=False,
             athlete=False,
             waist_cm=80.0,
+            hip_cm=None,
             lang="en",
         )
         assert res.wht_ratio is None
@@ -216,6 +226,7 @@ class TestCalculateBMIResultWHtRAndRisk:
             pregnant=False,
             athlete=False,
             waist_cm=None,
+            hip_cm=None,
             lang="en",
         )
         assert res.waist_risk is None
@@ -240,6 +251,7 @@ class TestCalculateBMIResultWHtRAndRisk:
             pregnant=False,
             athlete=False,
             waist_cm=95.0,
+            hip_cm=None,
             lang="en",
         )
         assert res.waist_risk is not None
@@ -270,6 +282,7 @@ class TestCalculateBMIResultWHtRAndRisk:
             pregnant=False,
             athlete=False,
             waist_cm=80.0,
+            hip_cm=None,
             lang="en",
         )
         # Should succeed on second try (positional args)
@@ -293,6 +306,7 @@ class TestCalculateBMIResultWHtRAndRisk:
             pregnant=False,
             athlete=False,
             waist_cm=80.0,
+            hip_cm=None,
             lang="en",
         )
         # Should fail-soft: waist_risk=None, but BMI calculation succeeds
@@ -318,6 +332,7 @@ class TestCalculateBMIResultWHtRAndRisk:
             pregnant=False,
             athlete=False,
             waist_cm=80.0,
+            hip_cm=None,
             lang="en",
         )
         # Should filter: only non-empty strings
@@ -369,6 +384,7 @@ class TestPipelineOrderingGuard:
             pregnant=False,
             athlete=False,
             waist_cm=80.0,
+            hip_cm=None,
             lang=None,
         )
 

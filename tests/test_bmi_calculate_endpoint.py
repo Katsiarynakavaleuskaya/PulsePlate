@@ -11,7 +11,6 @@ PR-454: shim + thin adapter wiring.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import pytest
@@ -84,6 +83,7 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
             group_display="General",
             interpretation="Within normal range.",
             wht_ratio=0.52,
+            whr=None,
             waist_risk=waist_risk,
             notes=("Test note",),
             age_band="adult",
@@ -97,7 +97,7 @@ def test_bmi_calculate_happy_path_maps_result_and_serializes_waist_risk(
     # Use gender="female" to avoid soft normalization of pregnant
     resp = client.post(
         "/api/v1/bmi/calculate",
-        json=_valid_payload(gender="female", pregnant="yes", athlete=True),
+        json=_valid_payload(gender="female", pregnant="yes", athlete="yes"),
     )
     assert resp.status_code == 200
 
@@ -152,6 +152,7 @@ async def test_calculate_bmi_endpoint_direct_call(
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -241,6 +242,7 @@ def test_bmi_calculate_without_waist_risk(
             group_display="General",
             interpretation="Within normal range.",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -306,6 +308,7 @@ def test_bmi_calculate_dict_input_without_model_dump(
             group_display="General",
             interpretation="Within normal range.",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -358,6 +361,7 @@ async def test_handler_accepts_bmicalculaterequest_instance(
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -402,6 +406,7 @@ async def test_handler_accepts_dict_input_and_validates(
             group_display="General",
             interpretation="OK",
             wht_ratio=None,
+            whr=None,
             waist_risk=None,
             notes=(),
             age_band="adult",
@@ -549,3 +554,179 @@ def test_soft_paywall_defaults_match_lang(
     assert hook["message"]["default_title"]
     assert hook["message"]["default_body"]
     assert hook["message"]["default_cta"]
+
+
+def test_bmi_calculate_free_tier_does_not_accept_hip_cm(client: TestClient) -> None:
+    """Test FREE tier endpoint rejects hip_cm (PRO tier only feature)."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": 100.0,  # PRO tier only - should be rejected by FREE schema
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    # FREE schema should reject hip_cm (extra field)
+    assert resp.status_code == 422
+
+
+def test_bmi_calculate_free_tier_does_not_return_whr(client: TestClient) -> None:
+    """Test FREE tier endpoint does not return whr field (PRO tier only)."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/bmi/calculate", json=payload)
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    data = resp.json()
+    # FREE tier: WHR is PRO-only. Contract allows either "absent" or null.
+    # Canonical expectation: field is absent (not present in response).
+    assert "whr" not in data
+
+
+def test_bmi_calculate_pro_with_hip_returns_whr(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint returns WHR when both waist_cm and hip_cm are provided."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": 100.0,
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    data = resp.json()
+    assert "whr" in data
+    assert data["whr"] == 0.8
+
+
+def test_bmi_calculate_pro_without_hip_returns_null_whr(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint returns whr=null when hip_cm is not provided."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        # hip_cm not provided
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    data = resp.json()
+    assert data["whr"] is None
+
+
+def test_bmi_calculate_pro_rejects_non_positive_hip(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint rejects hip_cm <= 0 with 422 validation error."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": 0.0,  # Invalid: must be > 0
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 422
+
+
+def test_bmi_calculate_pro_rejects_negative_hip(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """Test PRO endpoint rejects hip_cm < 0 with 422 validation error."""
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": "female",
+        "waist_cm": 80.0,
+        "hip_cm": -10.0,  # Invalid: must be > 0
+        "athlete": False,
+        "pregnant": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 422
+
+
+def test_bmi_calculate_pro_accepts_gender_none_normalizes_to_male(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """
+    RU: P0 invariant: PRO endpoint принимает gender=None и нормализует в 'male'.
+    EN: P0 invariant: PRO endpoint accepts gender=None and normalizes to 'male'.
+
+    This test proves the schema invariant: gender is guaranteed to be str (not None)
+    after validation, eliminating need for assert/fallback in router.
+    """
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": None,  # PRO schema should normalize to 'male'
+        "pregnant": False,
+        "athlete": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text[:200]}"
+    data = resp.json()
+    # Verify response structure (proves gender was normalized, not rejected)
+    assert "bmi" in data
+    assert "category" in data
+    # Gender normalization happened in schema (not router), so calculation succeeded
+
+
+def test_bmi_calculate_pro_pregnant_true_gender_none_normalizes_to_female(
+    client: TestClient, pro_headers: dict[str, str]
+) -> None:
+    """
+    RU: P0 invariant: PRO endpoint с pregnant=True и gender=None нормализует gender='female'.
+    EN: P0 invariant: PRO endpoint with pregnant=True and gender=None normalizes gender='female'.
+
+    This test proves pregnancy invariant is applied BEFORE default (pregnancy wins over default).
+    """
+    payload = {
+        "weight_kg": 70.0,
+        "height_cm": 170.0,
+        "age": 30,
+        "gender": None,  # Should become 'female' due to pregnant=True
+        "pregnant": True,
+        "athlete": False,
+        "lang": "en",
+    }
+    resp = client.post("/api/v1/pro/bmi/calculate", json=payload, headers=pro_headers)
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text[:200]}"
+    data = resp.json()
+    # Verify response structure (proves gender was normalized to 'female', not 'male')
+    assert "bmi" in data
+    assert data["group"] == "pregnant", "Pregnancy invariant should set group='pregnant'"

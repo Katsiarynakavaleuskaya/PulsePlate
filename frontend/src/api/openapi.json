@@ -88,6 +88,7 @@
         "type": "object"
       },
       "BMICalculateRequest": {
+        "additionalProperties": false,
         "description": "RU: Запрос для расчета BMI через единый engine.\nEN: Request for BMI calculation via unified engine.\n\nFREE tier endpoint (no API key required).",
         "properties": {
           "age": {
@@ -226,6 +227,7 @@
         "type": "object"
       },
       "BMICalculateResponse": {
+        "additionalProperties": false,
         "description": "RU: Ответ с результатами расчета BMI через единый engine.\nEN: Response with BMI calculation results via unified engine.\n\nNote: `category` может быть `None` для беременных и детей/подростков\n(это не ошибка, а медицинский дисклеймер).",
         "properties": {
           "age_band": {

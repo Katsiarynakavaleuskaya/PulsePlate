@@ -11,11 +11,11 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
+from app.routers._helpers import _env_bool
 from app.schemas.bmi import (
     BMICalculateRequest,
     BMICalculateResponse,
@@ -41,7 +41,8 @@ class CalculateBmiResult(Protocol):
         pregnant: bool,
         athlete: bool,
         waist_cm: float | None,
-        lang: str,
+        hip_cm: float | None,
+        lang: str | None,
     ) -> "BMICalculateResult": ...
 
 
@@ -93,22 +94,6 @@ except ImportError:  # pragma: no cover
 
 # Removed _get_lang_from_request() - use core.i18n.normalize_lang() directly
 # This removes duplication and ensures consistent language normalization across the app.
-
-
-def _env_bool(name: str, default: bool) -> bool:
-    """
-    Parse boolean env var.
-    RU/EN note: Accepts common truthy/falsey strings.
-    """
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    value = raw.strip().lower()
-    if value in {"1", "true", "t", "yes", "y", "on"}:
-        return True
-    if value in {"0", "false", "f", "no", "n", "off"}:
-        return False
-    return default
 
 
 def _build_soft_paywall_hook(lang: str) -> SoftPaywallHook | None:
@@ -214,6 +199,7 @@ async def bmi_calculate_handler(
             pregnant=pregnant_bool,
             athlete=athlete_bool,
             waist_cm=req.waist_cm,
+            hip_cm=None,  # FREE tier: do not compute WHR
             lang=str(req.lang),
         )
 
@@ -234,6 +220,7 @@ async def bmi_calculate_handler(
             group_display=result.group_display,
             interpretation=result.interpretation,
             wht_ratio=result.wht_ratio,
+            # whr not included in FREE tier response
             waist_risk=waist_risk_schema,
             notes=list(result.notes),  # Ensure list[str]
             age_band=result.age_band,

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import "@testing-library/jest-dom/vitest";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SoftPaywallHook from "../SoftPaywallHook";
@@ -35,11 +35,11 @@ describe("SoftPaywallHook", () => {
     availability: { pro_available: true },
   };
 
-  beforeEach(() => {
+  beforeEach((): void => {
     vi.clearAllMocks();
   });
 
-  it("renders when hook provided", () => {
+  it("renders when hook provided", (): void => {
     render(
       <MemoryRouter>
         <SoftPaywallHook hook={mockHook} />
@@ -52,7 +52,7 @@ describe("SoftPaywallHook", () => {
     expect(screen.getByTestId("soft-paywall-cta")).toBeInTheDocument();
   });
 
-  it("does not crash and renders nothing for null hook", () => {
+  it("does not crash and renders nothing for null hook", (): void => {
     const { container } = render(
       <MemoryRouter>
         <SoftPaywallHook hook={null} />
@@ -61,7 +61,7 @@ describe("SoftPaywallHook", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("does not crash and renders nothing for undefined hook", () => {
+  it("does not crash and renders nothing for undefined hook", (): void => {
     const { container } = render(
       <MemoryRouter>
         <SoftPaywallHook hook={undefined} />
@@ -70,7 +70,7 @@ describe("SoftPaywallHook", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("does not render when pro_available is false", () => {
+  it("does not render when pro_available is false", (): void => {
     const hookWithFalseAvailability: components["schemas"]["SoftPaywallHook"] = {
       ...mockHook,
       availability: { pro_available: false },
@@ -84,7 +84,7 @@ describe("SoftPaywallHook", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("navigates to /pro on CTA click when no custom handler", () => {
+  it("navigates to /pro on CTA click when no custom handler", (): void => {
     render(
       <MemoryRouter>
         <SoftPaywallHook hook={mockHook} />
@@ -102,7 +102,7 @@ describe("SoftPaywallHook", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/pro");
   });
 
-  it("calls custom onCtaClick handler when provided", () => {
+  it("calls custom onCtaClick handler when provided", (): void => {
     const customHandler = vi.fn();
 
     render(

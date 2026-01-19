@@ -1,11 +1,22 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+import logging
+from typing import Literal, Optional, Protocol, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
+from app.routers._helpers import _env_bool
+from app.schemas.bmi import (
+    BMICalculateProRequest,
+    BMICalculateProResponse,
+    SoftPaywallAvailability,
+    SoftPaywallHook,
+    SoftPaywallMessage,
+    WaistRiskResultSchema,
+)
+from app.services.bmi_visualization import build_bmi_scale_v1
 
 # Use canonical BMI extras module - Pro tier functions only
 # Pro endpoint must use Pro tier functions exclusively (no mixing with Free/Simple tier)
@@ -20,9 +31,86 @@ from core.bmi_extras import (
 # Import canonical BMI engine
 # Alias calc_bmi for test patching compatibility (no BMI math in router, just symbol)
 from core.bmi.engine import _compute_bmi as calc_bmi
+from core.bmi.engine import BMICalculateResult as EngineBMICalculateResult
 
 # Import i18n functionality
-from core.i18n import Language, t
+from core.i18n import Language, normalize_lang, t
+
+logger = logging.getLogger(__name__)
+
+
+# Import engine (same pattern as bmi.py)
+class CalculateBmiResult(Protocol):
+    def __call__(
+        self,
+        weight_kg: float,
+        height_cm: float,
+        age: int,
+        gender: str,
+        pregnant: bool,
+        athlete: bool,
+        waist_cm: float | None,
+        hip_cm: float | None,
+        lang: str | None,
+    ) -> EngineBMICalculateResult: ...
+
+
+def _get_engine_calculator() -> CalculateBmiResult | None:
+    """
+    RU: Изолируем импорт engine для тестируемости fallback без reload/sys.modules.
+    EN: Isolate engine import to test ImportError fallback without reload/sys.modules.
+
+    Returns:
+        calculate_bmi_result function if engine is available, None otherwise.
+    """
+    try:
+        from core.bmi.engine import calculate_bmi_result  # noqa: WPS433 (local import by design)
+
+        return calculate_bmi_result
+    except ImportError:
+        return None
+
+
+# Helper functions (same as bmi.py)
+def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
+    """Normalize boolean flag from string or bool."""
+    if isinstance(value, bool):
+        return value
+    if not isinstance(value, str):
+        return False
+    s = value.strip().lower()
+    if not s:
+        return False
+    allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+    return s in allowed
+
+
+def _build_soft_paywall_hook(lang: str) -> SoftPaywallHook | None:
+    """Build text-only soft paywall hook (no BMI logic)."""
+    enabled = _env_bool("SOFT_PAYWALL_ENABLED", default=False)
+    if not enabled:
+        return None
+
+    safe_lang = normalize_lang(lang)
+
+    message = SoftPaywallMessage(
+        lang=safe_lang,
+        title_key="soft_paywall.title",
+        body_key="soft_paywall.body",
+        cta_key="soft_paywall.cta",
+        default_title=t(safe_lang, "soft_paywall.title"),
+        default_body=t(safe_lang, "soft_paywall.body"),
+        default_cta=t(safe_lang, "soft_paywall.cta"),
+    )
+
+    availability = SoftPaywallAvailability(pro_available=True, reason_key=None)
+
+    return SoftPaywallHook(
+        id="bmi.pro_interpretation_v1",
+        message=message,
+        availability=availability,
+        target="pro_paywall",
+    )
 
 
 router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
@@ -105,7 +193,20 @@ class BMIProResponse(BaseModel):
     notes: list[str]
 
 
-@router.post("/bmi", response_model=BMIProResponse, dependencies=[Depends(require_pro_tier)])
+@router.post(
+    "/bmi",
+    response_model=BMIProResponse,
+    dependencies=[Depends(require_pro_tier)],
+    deprecated=True,  # DEPRECATED: Use /api/v1/pro/bmi/calculate (canonical engine-based endpoint)
+    summary="[DEPRECATED] Legacy PRO BMI endpoint",
+    description="""
+    DEPRECATED: This endpoint uses legacy BMI calculation logic outside canonical engine.
+    Use `/api/v1/pro/bmi/calculate` instead (canonical engine-based endpoint with WHR support).
+
+    RU: Устаревший endpoint. Используйте /api/v1/pro/bmi/calculate.
+    EN: Deprecated endpoint. Use /api/v1/pro/bmi/calculate instead.
+    """,
+)
 def bmi_pro(req: BMIProRequest) -> BMIProResponse:
     try:
         # Convert height to meters for calc_bmi(weight, height_m)
@@ -142,3 +243,135 @@ def bmi_pro(req: BMIProRequest) -> BMIProResponse:
         notes=notes,
     )
     return BMIProResponse(**card.__dict__)
+
+
+# PRO tier endpoint for BMI calculation with WHR support (canonical namespace)
+@router.post(
+    "/bmi/calculate",
+    response_model=BMICalculateProResponse,
+    response_model_by_alias=True,
+    dependencies=[Depends(require_pro_tier)],
+    summary="Calculate BMI with WHR (PRO tier)",
+    description="""
+    PRO tier BMI calculation endpoint with WHR (Waist-to-Hip Ratio) support.
+
+    RU: Расчет BMI с поддержкой WHR для PRO уровня.
+    EN: PRO tier BMI calculation with WHR support.
+
+    Requires: PRO tier API key in X-API-Key header
+
+    Features:
+    - All FREE tier features (BMI, category, WHtR, waist risk)
+    - WHR calculation (requires hip_cm)
+    - PRO tier soft paywall hooks
+    """,
+)
+async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProResponse:
+    """
+    RU: Рассчитывает BMI через единый engine с поддержкой WHR (PRO уровень).
+    EN: Calculate BMI via unified engine with WHR support (PRO tier).
+
+    PRO tier endpoint (requires PRO API key).
+
+    Args:
+        req: BMICalculateProRequest with user parameters (includes hip_cm)
+
+    Returns:
+        BMICalculateProResponse with BMI calculation results including WHR
+
+    Raises:
+        HTTPException: 400 if domain validation fails
+                      401/403 if PRO tier key is missing/invalid
+                      422 if Pydantic validation fails
+                      501 if engine is not available
+    """
+    # Normalize language once at the beginning (same pattern as FREE endpoint)
+    lang = normalize_lang(str(req.lang))
+
+    # Normalize boolean flags (same as FREE endpoint)
+    pregnant_bool = (
+        req.pregnant if isinstance(req.pregnant, bool) else _normalize_bool_flag(req.pregnant)
+    )
+    athlete_bool = (
+        req.athlete if isinstance(req.athlete, bool) else _normalize_bool_flag(req.athlete)
+    )
+
+    # Call engine with hip_cm (PRO tier feature)
+    calc = _get_engine_calculator()
+    if calc is None:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=t(lang, "bmi_engine_unavailable"),
+        )
+
+    # Schema _apply_pro_gender_invariant guarantees gender is str (not None) after validation
+    # Type narrowing for mypy (schema runtime invariant, not a security check)
+    gender_str: str = cast(str, req.gender)
+
+    try:
+        result = calc(
+            weight_kg=req.weight_kg,
+            height_cm=req.height_cm,
+            age=req.age,
+            gender=gender_str,
+            pregnant=pregnant_bool,
+            athlete=athlete_bool,
+            waist_cm=req.waist_cm,
+            hip_cm=req.hip_cm,  # PRO tier: enable WHR calculation
+            lang=str(req.lang),
+        )
+    except NotImplementedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=t(lang, "bmi_engine_unavailable"),
+        ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=t(lang, "bmi_invalid_parameters"),
+        ) from e
+    except Exception as e:
+        logger.exception("BMI calculation failed (PRO tier)")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=t(lang, "bmi_calculation_failed"),
+        ) from e
+
+    # Serialize waist_risk (dataclass → Pydantic schema)
+    waist_risk_schema: WaistRiskResultSchema | None = None
+    if result.waist_risk:
+        waist_risk_schema = WaistRiskResultSchema(
+            wht_ratio=result.waist_risk.wht_ratio,
+            risk_level=result.waist_risk.risk_level,
+            notes=result.waist_risk.notes,
+        )
+
+    # Build soft paywall hook (same logic as FREE endpoint)
+    # Note: _build_soft_paywall_hook checks SOFT_PAYWALL_ENABLED internally
+    soft_paywall_hook = _build_soft_paywall_hook(lang)
+
+    # Map to PRO API response (includes whr)
+    resp = BMICalculateProResponse(
+        bmi=result.bmi,
+        category=result.category,
+        group=result.group,
+        group_display=result.group_display,
+        interpretation=result.interpretation,
+        wht_ratio=result.wht_ratio,
+        whr=result.whr,  # PRO tier: include WHR
+        waist_risk=waist_risk_schema,
+        notes=list(result.notes),
+        age_band=result.age_band,
+        visualization=None,
+        interpretation_v1=None,
+        soft_paywall=soft_paywall_hook,
+    )
+
+    # Add visualization spec (graceful fallback)
+    try:
+        resp.visualization = build_bmi_scale_v1(result)
+    except Exception as e:
+        logger.warning("Failed to build BMI scale visualization: %s", e)
+        # visualization remains None (graceful degradation)
+
+    return resp
