@@ -68,6 +68,15 @@ class TestBMICategoryShim:
         assert isinstance(s, str)
         assert "Ожирение" in s or "obesity" in s.lower()
 
+    def test_bmi_category_returns_localized_string_not_key(self) -> None:
+        """Test bmi_category returns localized string, not raw key."""
+        cat = bmi_core.bmi_category(bmi=17.0, lang="ru", age=30, group="general")
+        assert isinstance(cat, str)
+        assert cat != "underweight"  # not raw key
+        assert cat != "bmi.underweight"  # not i18n key
+        # Should be localized Russian string
+        assert any("А" <= ch <= "я" for ch in cat), f"Expected Cyrillic, got: {cat}"
+
 
 class TestOtherShimFunctions:
     """Test other shim function coverage."""
@@ -89,6 +98,12 @@ class TestOtherShimFunctions:
         r = bmi_core.compute_wht_ratio(waist_cm=0.0, height_m=1.70)
         # May return None or raise depending on engine implementation
         assert r is None or isinstance(r, float)
+
+    def test_compute_wht_ratio_accepts_none_waist(self) -> None:
+        """Test compute_wht_ratio accepts None for waist_cm (BC with legacy behavior)."""
+        r = bmi_core.compute_wht_ratio(waist_cm=None, height_m=1.70)
+        # Should return None when waist is missing
+        assert r is None
 
     def test_group_display_name_localized(self) -> None:
         """Test group_display_name wrapper."""

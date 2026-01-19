@@ -157,12 +157,12 @@ def bmi_value(weight_kg: float, height_m: float) -> float:
     return _compute_bmi(weight_kg=weight_kg, height_m=height_m)
 
 
-def compute_wht_ratio(waist_cm: float, height_m: float) -> float | None:
+def compute_wht_ratio(waist_cm: float | None, height_m: float) -> float | None:
     """
     Legacy wrapper for _compute_wht_ratio.
 
     Args:
-        waist_cm: Waist circumference in centimeters
+        waist_cm: Waist circumference in centimeters (may be None for missing/invalid input)
         height_m: Height in meters
 
     Returns:
