@@ -1105,3 +1105,33 @@ def test_localize_bmi_category_obesity_generic_fallback(monkeypatch):
     result = v._localize_bmi_category(lang_norm, "obesity_1")
     # Should use generic obesity label as fallback (lines 76-78)
     assert result == "Ожирение" or "Ожирение" in result
+
+
+def test_visualization_category_fallback_does_not_expose_key(monkeypatch):
+    """Test that visualization fallback chain never exposes raw i18n keys."""
+    from unittest.mock import patch
+
+    import bmi_visualization as v
+
+    def raising_t(_lang: str, _key: str) -> str:
+        raise KeyError(_key)
+
+    # Force fallback chain: canonical key → legacy key → generic label
+    with patch("bmi_visualization.t", side_effect=raising_t):
+        # Mock matplotlib as available to reach localization code
+        monkeypatch.setattr(v, "MATPLOTLIB_AVAILABLE", True)
+        # This should trigger fallback to safe_labels in _localize_bmi_category
+        result = v.generate_bmi_visualization(
+            bmi=37.0,
+            age=30,
+            gender="male",
+            lang="ru",
+            pregnant=False,
+            athlete=False,
+        )
+        # Category should be safe generic label, not raw key
+        if "category" in result and result["category"]:
+            cat = result["category"]
+            assert "obesity" not in cat.lower() or "Категория ИМТ" in cat
+            assert "bmi." not in cat
+            assert cat != "obesity_2"  # not raw category key
