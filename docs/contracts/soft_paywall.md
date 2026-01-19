@@ -105,8 +105,8 @@ The hook structure is the same.
 
 The hook enablement is controlled via env `SOFT_PAYWALL_ENABLED` parsed by `_env_bool()`.
 
-* True values: `"1"`, `"true"`, `"t"`, `"yes"`, `"y"`, `"on"` (case-insensitive, trimmed)
-* False values: `"0"`, `"false"`, `"f"`, `"no"`, `"n"`, `"off"`
+* True values: `"1"`, `"true"`, `"t"`, `"yes"`, `"y"`, `"on"` (**case-insensitive, trimmed**)
+* False values: `"0"`, `"false"`, `"f"`, `"no"`, `"n"`, `"off"` (**case-insensitive, trimmed**)
 * Unset: fallback to `default_enabled`
 * Unknown value: fallback to `default_enabled`
 
@@ -114,6 +114,10 @@ The hook enablement is controlled via env `SOFT_PAYWALL_ENABLED` parsed by `_env
 
 The hook uses translations from `core/i18n.py` via request language `req.lang`
 (normalized with `normalize_lang()`, unknown → `"en"`).
+
+**Client validation rule:** do **not** treat supported languages as a closed enum.
+Clients should accept any BCP-47-like language tag (e.g. `en`, `en-US`, `ru-RU`) and rely on server-side normalization/fallback (`unknown → "en"`).
+The current set of shipped translations is RU/EN/ES, but this may expand without breaking the contract.
 
 ### RU
 
