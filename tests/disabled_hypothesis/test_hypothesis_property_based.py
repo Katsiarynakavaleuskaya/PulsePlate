@@ -10,7 +10,34 @@ import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
-from bmi_core import bmi_category, bmi_value
+from core.bmi.engine import _bmi_category, _compute_bmi
+from core.i18n import normalize_lang, t
+
+
+def bmi_category(bmi: float, lang: str) -> str:
+    """Helper to get localized BMI category (legacy compatibility)."""
+    category_key = _bmi_category(bmi=bmi, age=30, group="general")
+    if category_key is None:
+        return "N/A"
+    lang_norm = normalize_lang(lang)
+    # Use legacy keys for full category names
+    legacy_map = {
+        "underweight": "bmi_underweight",
+        "normal": "bmi_normal",
+        "overweight": "bmi_overweight",
+        "obesity_1": "bmi_obese_1",
+        "obesity_2": "bmi_obese_2",
+        "obesity_3": "bmi_obese_3",
+    }
+    legacy_key = legacy_map.get(category_key, f"bmi_{category_key}")
+    return t(lang_norm, legacy_key)
+
+
+def bmi_value(weight_kg: float, height_m: float) -> float:
+    """Helper for bmi_value (canonical: _compute_bmi)."""
+    return _compute_bmi(weight_kg=weight_kg, height_m=height_m)
+
+
 from core.targets import _life_stage_warnings
 
 

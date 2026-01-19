@@ -21,7 +21,10 @@ CORE_MODULES = [
 
 # Define main application modules as a constant list for parametrized testing
 MAIN_MODULES = [
-    "bmi_core",
+    "core.bmi.engine",  # canonical BMI engine
+    "app.main",  # FastAPI entrypoint
+    "app.routers.bmi",  # FREE tier endpoint
+    "app.routers.bmi_pro",  # PRO tier endpoint
     "nutrition_core",
     "nutrition_plate",
     "bodyfat",

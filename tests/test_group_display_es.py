@@ -5,7 +5,7 @@ This test ensures that group display names are correctly localized
 in Spanish and other supported languages.
 """
 
-from bmi_core import auto_group, group_display_name
+from core.bmi.engine import _auto_group, _group_display_name
 
 
 class TestGroupDisplayES:
@@ -25,9 +25,9 @@ class TestGroupDisplayES:
         ]
 
         for group in groups:
-            es_name = group_display_name(group, "es")
-            en_name = group_display_name(group, "en")
-            ru_name = group_display_name(group, "ru")
+            es_name = _group_display_name(group, "es")
+            en_name = _group_display_name(group, "en")
+            ru_name = _group_display_name(group, "ru")
 
             # All should be strings
             assert isinstance(es_name, str)
@@ -41,32 +41,34 @@ class TestGroupDisplayES:
 
     def test_auto_group_spanish_terms(self):
         """Test that auto_group recognizes Spanish terms."""
+        from core.bmi.engine import _normalize_bool_flag
+
         # Test Spanish terms for pregnant women
-        group_pregnant_es = auto_group(
+        group_pregnant_es = _auto_group(
             age=25,
             gender="mujer",  # Spanish for "woman"
-            pregnant="si",  # Spanish for "yes"
-            athlete="no",
-            lang="es",
+            pregnant=_normalize_bool_flag("si"),  # Spanish for "yes"
+            athlete=_normalize_bool_flag("no"),
+            athlete_text=None,
         )
         assert group_pregnant_es == "pregnant"
 
-        group_pregnant_es2 = auto_group(
+        group_pregnant_es2 = _auto_group(
             age=25,
             gender="mujer",  # Spanish for "woman"
-            pregnant="sí",  # Spanish for "yes" with accent
-            athlete="no",
-            lang="es",
+            pregnant=_normalize_bool_flag("sí"),  # Spanish for "yes" with accent
+            athlete=_normalize_bool_flag("no"),
+            athlete_text=None,
         )
         assert group_pregnant_es2 == "pregnant"
 
-        # Test Spanish terms for athletes
-        group_athlete_es = auto_group(
+        # Test Spanish terms for athletes (preserve athlete_text for heuristics)
+        group_athlete_es = _auto_group(
             age=25,
             gender="hombre",  # Spanish for "man"
-            pregnant="no",
-            athlete="atleta",  # Spanish for "athlete"
-            lang="es",
+            pregnant=_normalize_bool_flag("no"),
+            athlete=_normalize_bool_flag("atleta"),  # Spanish for "athlete"
+            athlete_text="atleta",  # Preserve text for engine heuristics
         )
         assert group_athlete_es == "general"
 

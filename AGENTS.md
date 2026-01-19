@@ -633,6 +633,12 @@ Violation of this rule blocks merge.
 - No imports from `bmi_core` in `core/bmi/`
 - Only one canonical extras module (or clear purpose)
 
+**Legacy shim policy (`bmi_core.py`):**
+- Legacy shim `bmi_core.py` **must preserve positional ABI** (e.g., `lang` = 5th positional in `auto_group`).
+- Any shim must have **direct diff-cover tests** on all exported wrappers.
+- Deprecated stubs: `(*args, **kwargs) -> raise RuntimeError` + test on raises (no silent None returns).
+- Shim must **not contain BMI math** — all calculations delegate to `core/bmi/*`.
+
 **Point of No-Return:**
 > *"Until legacy dependency is removed, any downstream fixes (frontend, API contracts) are considered unreliable. The system cannot be diagnosed or fixed reliably until the invariant is restored."*
 

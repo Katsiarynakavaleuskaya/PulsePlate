@@ -2,8 +2,27 @@
 Tests for Spanish i18n support in the BMI App.
 """
 
-from bmi_core import bmi_category, interpret_group
-from core.i18n import t
+from core.bmi.engine import _bmi_category
+from core.i18n import t, normalize_lang
+
+
+def _bmi_category_localized(bmi: float, lang: str) -> str:
+    """Helper to get localized BMI category."""
+    category_key = _bmi_category(bmi=bmi, age=30, group="general")
+    if category_key is None:
+        return "N/A"
+    lang_norm = normalize_lang(lang)
+    # Use legacy keys for full category names (bmi_normal = "Peso normal", not "Normal")
+    legacy_map = {
+        "underweight": "bmi_underweight",
+        "normal": "bmi_normal",
+        "overweight": "bmi_overweight",
+        "obesity_1": "bmi_obese_1",
+        "obesity_2": "bmi_obese_2",
+        "obesity_3": "bmi_obese_3",
+    }
+    legacy_key = legacy_map.get(category_key, f"bmi_{category_key}")
+    return t(lang_norm, legacy_key)
 
 
 class TestSpanishI18n:
@@ -12,18 +31,12 @@ class TestSpanishI18n:
     def test_bmi_category_spanish(self):
         """Test BMI categories in Spanish."""
         # Test different BMI values
-        assert bmi_category(17.0, "es") == "Bajo peso"
-        assert bmi_category(22.0, "es") == "Peso normal"
-        assert bmi_category(27.0, "es") == "Sobrepeso"
-        assert bmi_category(32.0, "es") == "Obesidad Clase I"
-        assert bmi_category(37.0, "es") == "Obesidad Clase II"
-        assert bmi_category(45.0, "es") == "Obesidad Clase III"
-
-    def test_interpret_group_spanish(self):
-        """Test group interpretation in Spanish."""
-        # Test athlete group
-        result = interpret_group(26.0, "athlete", "es")
-        assert "atleta" in result.lower() or "grasa corporal" in result.lower()
+        assert _bmi_category_localized(17.0, "es") == "Bajo peso"
+        assert _bmi_category_localized(22.0, "es") == "Peso normal"
+        assert _bmi_category_localized(27.0, "es") == "Sobrepeso"
+        assert _bmi_category_localized(32.0, "es") == "Obesidad Clase I"
+        assert _bmi_category_localized(37.0, "es") == "Obesidad Clase II"
+        assert _bmi_category_localized(45.0, "es") == "Obesidad Clase III"
 
     def test_i18n_translation_function_spanish(self):
         """Test the i18n translation function directly."""

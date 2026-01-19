@@ -9,7 +9,83 @@ import io
 from collections.abc import Iterable
 from typing import Any, Protocol
 
-from bmi_core import auto_group, bmi_category, group_display_name
+# Import canonical BMI engine functions
+from core.bmi.engine import (
+    BMIGroup,
+    HEALTHY_BMI_RANGE,
+    _auto_group,
+    _bmi_category,
+    _group_display_name,
+    _normalize_bool_flag,
+)
+from core.bmi.risk import (
+    BMI_NORMAL_MIN,
+    BMI_OBESE_THRESHOLD,
+    BMI_OVERWEIGHT_THRESHOLD,
+)
+from core.i18n import Language, normalize_lang, t
+
+
+def _t_or_none(lang_norm: Language, key: str) -> str | None:
+    """
+    Return translation if present; None if i18n misses and returns the key.
+
+    Args:
+        lang_norm: Normalized language code
+        key: i18n translation key
+
+    Returns:
+        Translated string if valid, None if translation missing
+    """
+    try:
+        val = t(lang_norm, key)
+        # Guard: if translation missing and t() returns the key itself, treat as miss
+        if val == key:
+            return None
+        return val
+    except KeyError:
+        return None
+
+
+def _localize_bmi_category(lang_norm: Language, category_key: str) -> str:
+    """
+    Localize BMI category using canonical i18n keys.
+    Never returns raw keys or alternative wording that diverges from i18n.
+
+    Args:
+        lang_norm: Normalized language code
+        category_key: BMI category key (e.g., "underweight", "obesity_1")
+
+    Returns:
+        Localized category string, or safe generic label if i18n fails
+    """
+    # Try canonical key format: bmi.<category_key> (works for underweight, normal, overweight)
+    primary_key = f"bmi.{category_key}"
+    localized = _t_or_none(lang_norm, primary_key)
+    if localized:
+        return localized
+
+    # For obesity tiers, try legacy keys (bmi_obese_1, bmi_obese_2, bmi_obese_3)
+    if category_key.startswith("obesity_"):
+        legacy_key = f"bmi_obese_{category_key.split('_')[1]}"
+        localized = _t_or_none(lang_norm, legacy_key)
+        if localized:
+            return localized
+
+        # If specific tier key missing, try generic obesity label
+        generic = _t_or_none(lang_norm, "bmi.obesity")
+        if generic:
+            return generic
+
+    # Last resort: safe generic label (not category-specific, avoids drift)
+    # This ensures we never return raw keys or alternative wording
+    safe_labels = {
+        "en": "BMI category",
+        "ru": "Категория ИМТ",
+        "es": "Categoría de IMC",
+    }
+    return safe_labels.get(str(lang_norm), safe_labels["en"])
+
 
 MATPLOTLIB_AVAILABLE = False
 plt: Any | None
@@ -73,12 +149,33 @@ class BMIVisualizer:
         "obese": "#e74c3c",  # Red
     }
 
-    # Age-specific BMI ranges for visualization
+    # Visual-only BMI ranges for chart display (not used for classification)
+    # Classification uses core/bmi/engine and core/bmi/risk thresholds
     BMI_RANGES = {
-        "general": [(0, 18.5), (18.5, 25), (25, 30), (30, 45)],
-        "elderly": [(0, 17.5), (17.5, 26), (26, 31), (31, 45)],
-        "teen": [(0, 17.5), (17.5, 24.5), (24.5, 29.5), (29.5, 45)],
-        "athlete": [(0, 18.5), (18.5, 27), (27, 32), (32, 45)],
+        "general": [
+            (0, BMI_NORMAL_MIN),
+            (BMI_NORMAL_MIN, BMI_OVERWEIGHT_THRESHOLD),
+            (BMI_OVERWEIGHT_THRESHOLD, BMI_OBESE_THRESHOLD),
+            (BMI_OBESE_THRESHOLD, 45),
+        ],
+        "elderly": [
+            (0, 17.5),  # Elderly-specific visual threshold
+            (17.5, 26.0),  # Elderly-specific visual threshold
+            (26.0, 31.0),  # Elderly-specific visual threshold
+            (31.0, 45),
+        ],
+        "teen": [
+            (0, 17.5),  # Teen-specific visual threshold
+            (17.5, 24.5),  # Teen-specific visual threshold
+            (24.5, 29.5),  # Teen-specific visual threshold
+            (29.5, 45),
+        ],
+        "athlete": [
+            (0, BMI_NORMAL_MIN),
+            (BMI_NORMAL_MIN, 27.0),  # Athlete-specific visual threshold
+            (27.0, 32.0),  # Athlete-specific visual threshold
+            (32.0, 45),
+        ],
     }
 
     def __init__(self) -> None:
@@ -90,7 +187,7 @@ class BMIVisualizer:
         bmi: float,
         age: int,
         gender: str,
-        group: str = "general",
+        group: BMIGroup = "general",
         lang: str = "en",
         include_guidance: bool = True,
     ) -> str:
@@ -100,19 +197,21 @@ class BMIVisualizer:
             raise ImportError("matplotlib not available for visualization")
 
         # Set up the figure
+        # Normalize language if not already normalized (defensive)
+        lang_norm = normalize_lang(lang) if isinstance(lang, str) else Language.EN
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
         fig.suptitle(
-            f"BMI Analysis - {group_display_name(group, lang).title()}"
+            f"BMI Analysis - {_group_display_name(group, lang_norm).title()}"
             + (f" (Age: {age})" if age else ""),
             fontsize=16,
             fontweight="bold",
         )
 
-        # Left plot: BMI gauge chart
-        self._create_bmi_gauge(ax1, bmi, group, lang)
+        # Left plot: BMI gauge chart (use normalized language for consistency)
+        self._create_bmi_gauge(ax1, bmi, group, str(lang_norm))
 
         # Right plot: BMI over time (placeholder for future enhancement)
-        self._create_guidance_chart(ax2, bmi, age, gender, group, lang)
+        self._create_guidance_chart(ax2, bmi, age, gender, group, str(lang_norm))
 
         # Convert to base64
         buffer = io.BytesIO()
@@ -124,7 +223,7 @@ class BMIVisualizer:
 
         return image_base64
 
-    def _create_bmi_gauge(self, ax: _AxesLike, bmi: float, group: str, lang: str) -> None:
+    def _create_bmi_gauge(self, ax: _AxesLike, bmi: float, group: BMIGroup, lang: str) -> None:
         """Create BMI gauge chart showing current BMI position."""
         ranges = self.BMI_RANGES.get(group, self.BMI_RANGES["general"])
         colors = ["#3498db", "#27ae60", "#f39c12", "#e74c3c"]
@@ -146,13 +245,13 @@ class BMIVisualizer:
                 linewidth=2,
             )
 
-            # Add category labels
-            category_names = {
-                0: "Under" if lang == "en" else "Недовес",
-                1: "Normal" if lang == "en" else "Норма",
-                2: "Over" if lang == "en" else "Избыток",
-                3: "Obese" if lang == "en" else "Ожирение",
+            # Add category labels (simple dict for EN/RU/ES, no new i18n keys)
+            category_names_map = {
+                "en": {0: "Under", 1: "Normal", 2: "Over", 3: "Obese"},
+                "ru": {0: "Недовес", 1: "Норма", 2: "Избыток", 3: "Ожирение"},
+                "es": {0: "Bajo", 1: "Normal", 2: "Sobre", 3: "Obeso"},
             }
+            category_names = category_names_map.get(lang, category_names_map["en"])
 
             mid_point = start + width / 2
             ax.text(
@@ -192,20 +291,22 @@ class BMIVisualizer:
         bmi: float,
         age: int,
         gender: str,
-        group: str,
+        group: BMIGroup,
         lang: str,
     ) -> None:
         """Create guidance and recommendations chart."""
 
         # Calculate healthy weight range based on height (assume 1.7m for demo)
         height = 1.7  # This would come from actual data
-        healthy_min = 18.5 * height * height
-        healthy_max = 25.0 * height * height
+        # Use canonical HEALTHY_BMI_RANGE from engine (general population)
+        healthy_min = HEALTHY_BMI_RANGE.min * height * height
+        healthy_max = HEALTHY_BMI_RANGE.max * height * height
 
+        # Group-specific adjustments (visual only, not for classification)
         if group == "elderly":
-            healthy_max = 26.0 * height * height
+            healthy_max = 26.0 * height * height  # Elderly-specific (visual only)
         elif group == "athlete":
-            healthy_max = 27.0 * height * height
+            healthy_max = 27.0 * height * height  # Athlete-specific (visual only)
 
         current_weight = bmi * height * height
 
@@ -236,23 +337,31 @@ class BMIVisualizer:
         ax.set_title("Weight Recommendations", fontsize=14, fontweight="bold")
         ax.grid(axis="y", alpha=0.3)
 
-        # Add recommendation text
+        # Add recommendation text (simple dict for EN/RU/ES, no new i18n keys)
+        recommendations_map = {
+            "en": {
+                "gain": "Consider healthy weight gain",
+                "loss": "Consider healthy weight loss",
+                "maintain": "Maintain current weight",
+            },
+            "ru": {
+                "gain": "Рекомендуется здоровый набор веса",
+                "loss": "Рекомендуется здоровое снижение веса",
+                "maintain": "Поддерживайте текущий вес",
+            },
+            "es": {
+                "gain": "Considere ganar peso saludable",
+                "loss": "Considere perder peso saludable",
+                "maintain": "Mantenga el peso actual",
+            },
+        }
+        rec_map = recommendations_map.get(lang, recommendations_map["en"])
         if current_weight < healthy_min:
-            recommendation = (
-                "Consider healthy weight gain"
-                if lang == "en"
-                else "Рекомендуется здоровый набор веса"
-            )
+            recommendation = rec_map["gain"]
         elif current_weight > healthy_max:
-            recommendation = (
-                "Consider healthy weight loss"
-                if lang == "en"
-                else "Рекомендуется здоровое снижение веса"
-            )
+            recommendation = rec_map["loss"]
         else:
-            recommendation = (
-                "Maintain current weight" if lang == "en" else "Поддерживайте текущий вес"
-            )
+            recommendation = rec_map["maintain"]
 
         ax.text(
             0.5,
@@ -271,8 +380,8 @@ def generate_bmi_visualization(
     bmi: float,
     age: int,
     gender: str,
-    pregnant: str = "no",
-    athlete: str = "no",
+    pregnant: bool | str = "no",
+    athlete: bool | str = "no",
     lang: str = "en",
 ) -> dict[str, Any]:
     """Generate BMI visualization and return as base64 encoded image."""
@@ -284,25 +393,63 @@ def generate_bmi_visualization(
         }
 
     try:
-        # Determine user group
-        group = auto_group(age, gender, pregnant, athlete, lang)
+        # Normalize inputs for canonical engine
+        lang_norm = normalize_lang(lang)
+        pregnant_bool = (
+            _normalize_bool_flag(pregnant) if isinstance(pregnant, str) else bool(pregnant)
+        )
+        # Preserve athlete_text for backward compatibility (string inputs like "спортсмен"/"athlete")
+        athlete_text: str | None = None
+        if isinstance(athlete, str):
+            athlete_bool = _normalize_bool_flag(athlete)
+            # If string is not recognized as yes/no, preserve it for engine heuristics
+            # This allows legacy behavior where "спортсмен"/"athlete" strings trigger athlete group
+            athlete_lower = athlete.strip().lower()
+            if athlete_bool is False and athlete_lower not in {
+                "no",
+                "false",
+                "0",
+                "",
+                "нет",
+                "н",
+                "не",
+            }:
+                athlete_text = athlete
+        else:
+            athlete_bool = bool(athlete)
+
+        # Determine user group using canonical engine
+        group = _auto_group(
+            age=age,
+            gender=gender,
+            pregnant=pregnant_bool,
+            athlete=athlete_bool,
+            athlete_text=athlete_text,
+        )
 
         # Create visualizer
         visualizer = BMIVisualizer()
 
-        # Generate chart
+        # Generate chart with normalized language for consistency
         chart_base64 = visualizer.create_bmi_chart(
-            bmi=bmi, age=age, gender=gender, group=group, lang=lang
+            bmi=bmi, age=age, gender=gender, group=group, lang=str(lang_norm)
         )
 
-        # Get BMI category
-        category = bmi_category(bmi, lang, age, group)
+        # Get BMI category using canonical engine
+        category_result = _bmi_category(bmi=bmi, age=age, group=group)
+
+        # Localize category key to string (backward compatibility with bmi_core behavior)
+        if category_result is None:
+            category_str = None
+        else:
+            category_key = str(category_result)
+            category_str = _localize_bmi_category(lang_norm, category_key)
 
         return {
             "chart_base64": chart_base64,
-            "category": category,
+            "category": category_str,
             "group": group,
-            "group_display": group_display_name(group, lang),
+            "group_display": _group_display_name(group, lang_norm),
             "available": True,
             "format": "png",
             "encoding": "base64",
