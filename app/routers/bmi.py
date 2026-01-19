@@ -11,7 +11,6 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, status
