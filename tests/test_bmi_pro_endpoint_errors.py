@@ -41,13 +41,15 @@ class TestProEndpointErrorHandling:
         calc = bmi_pro._get_engine_calculator()
         assert calc is not None
 
-        assert bmi_pro._normalize_bool_flag(True) is True
-        assert bmi_pro._normalize_bool_flag(False) is False
-        assert bmi_pro._normalize_bool_flag("да") is True
-        assert bmi_pro._normalize_bool_flag("nope") is False
+        from app.routers._helpers import _build_soft_paywall_hook, _normalize_bool_flag
+
+        assert _normalize_bool_flag(True) is True
+        assert _normalize_bool_flag(False) is False
+        assert _normalize_bool_flag("да") is True
+        assert _normalize_bool_flag("nope") is False
 
         monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "true")
-        assert bmi_pro._build_soft_paywall_hook("en", default_enabled=False) is not None
+        assert _build_soft_paywall_hook("en", default_enabled=False) is not None
 
         req = BMICalculateProRequest(
             weight_kg=70.0,

@@ -66,11 +66,16 @@ def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) 
         s = value.strip().lower()
         if not s:
             return False
-        allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "si", "sí"}
+        # Preserve empty set() semantics: if yes_values is explicitly set() (empty), no values match
+        # Only use default if yes_values is None
+        if yes_values is not None:
+            allowed = {v.strip().lower() for v in yes_values}
+        else:
+            allowed = {"yes", "y", "true", "1", "да", "д", "si", "sí"}
         return s in allowed
 
 
-def _build_soft_paywall_hook(lang: str, *, default_enabled: bool) -> "SoftPaywallHook | None":
+def _build_soft_paywall_hook(lang: str, *, default_enabled: bool) -> SoftPaywallHook | None:
     """
     Build text-only soft paywall hook (no BMI logic).
 
