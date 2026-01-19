@@ -853,7 +853,7 @@ def test_visualization_category_obesity_tiers_localized():
                 "А" <= ch <= "я" for ch in result["category"]
             ), f"Expected Cyrillic, got: {result['category']}"
             # Should be Russian localized string for obesity tier (canonical format)
-            assert result["category"] in {"Ожирение I степени"}
+            assert result["category"] == "Ожирение I степени"
 
 
 def test_visualization_ru_underweight_uses_i18n_wording():
@@ -983,11 +983,7 @@ def test_visualization_fallback_obesity_uses_legacy_i18n_keys():
             )
             assert out_ru["available"] is True
             # Should use canonical i18n wording from bmi_obese_1
-            assert out_ru["category"] in {
-                "Ожирение I степени",
-                "Ожирение II степени",
-                "Ожирение III степени",
-            }
+            assert out_ru["category"] == "Ожирение I степени"
 
             out_en = generate_bmi_visualization(
                 bmi=32.0,
@@ -998,11 +994,7 @@ def test_visualization_fallback_obesity_uses_legacy_i18n_keys():
                 athlete="no",
             )
             assert out_en["available"] is True
-            assert out_en["category"] in {
-                "Obese Class I",
-                "Obese Class II",
-                "Obese Class III",
-            }
+            assert out_en["category"] == "Obese Class I"
 
             out_es = generate_bmi_visualization(
                 bmi=32.0,
@@ -1013,8 +1005,68 @@ def test_visualization_fallback_obesity_uses_legacy_i18n_keys():
                 athlete="no",
             )
             assert out_es["available"] is True
-            assert out_es["category"] in {
-                "Obesidad Clase I",
-                "Obesidad Clase II",
-                "Obesidad Clase III",
-            }
+            assert out_es["category"] == "Obesidad Clase I"
+
+
+def test_visualization_athlete_text_preserved_bc():
+    """Test that athlete_text is preserved for backward compatibility (BC with legacy behavior)."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # Test RU string "спортсмен" → should trigger athlete group
+            out_ru = generate_bmi_visualization(
+                bmi=25.0,
+                age=30,
+                gender="male",
+                lang="ru",
+                pregnant="no",
+                athlete="спортсмен",  # String input, not boolean
+            )
+            assert out_ru["available"] is True
+            assert out_ru["group"] == "athlete"
+
+            # Test EN string "athlete" → should trigger athlete group
+            out_en = generate_bmi_visualization(
+                bmi=25.0,
+                age=30,
+                gender="male",
+                lang="en",
+                pregnant="no",
+                athlete="athlete",  # String input, not boolean
+            )
+            assert out_en["available"] is True
+            assert out_en["group"] == "athlete"
+
+            # Test explicit "no" → should NOT trigger athlete group
+            out_no = generate_bmi_visualization(
+                bmi=25.0,
+                age=30,
+                gender="male",
+                lang="en",
+                pregnant="no",
+                athlete="no",  # Explicit no
+            )
+            assert out_no["available"] is True
+            assert out_no["group"] == "general"

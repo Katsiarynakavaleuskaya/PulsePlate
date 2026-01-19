@@ -12,10 +12,16 @@ from typing import Any, Protocol
 # Import canonical BMI engine functions
 from core.bmi.engine import (
     BMIGroup,
+    HEALTHY_BMI_RANGE,
     _auto_group,
     _bmi_category,
     _group_display_name,
     _normalize_bool_flag,
+)
+from core.bmi.risk import (
+    BMI_NORMAL_MIN,
+    BMI_OBESE_THRESHOLD,
+    BMI_OVERWEIGHT_THRESHOLD,
 )
 from core.i18n import Language, normalize_lang, t
 
@@ -143,12 +149,33 @@ class BMIVisualizer:
         "obese": "#e74c3c",  # Red
     }
 
-    # Age-specific BMI ranges for visualization
+    # Visual-only BMI ranges for chart display (not used for classification)
+    # Classification uses core/bmi/engine and core/bmi/risk thresholds
     BMI_RANGES = {
-        "general": [(0, 18.5), (18.5, 25), (25, 30), (30, 45)],
-        "elderly": [(0, 17.5), (17.5, 26), (26, 31), (31, 45)],
-        "teen": [(0, 17.5), (17.5, 24.5), (24.5, 29.5), (29.5, 45)],
-        "athlete": [(0, 18.5), (18.5, 27), (27, 32), (32, 45)],
+        "general": [
+            (0, BMI_NORMAL_MIN),
+            (BMI_NORMAL_MIN, BMI_OVERWEIGHT_THRESHOLD),
+            (BMI_OVERWEIGHT_THRESHOLD, BMI_OBESE_THRESHOLD),
+            (BMI_OBESE_THRESHOLD, 45),
+        ],
+        "elderly": [
+            (0, 17.5),  # Elderly-specific visual threshold
+            (17.5, 26.0),  # Elderly-specific visual threshold
+            (26.0, 31.0),  # Elderly-specific visual threshold
+            (31.0, 45),
+        ],
+        "teen": [
+            (0, 17.5),  # Teen-specific visual threshold
+            (17.5, 24.5),  # Teen-specific visual threshold
+            (24.5, 29.5),  # Teen-specific visual threshold
+            (29.5, 45),
+        ],
+        "athlete": [
+            (0, BMI_NORMAL_MIN),
+            (BMI_NORMAL_MIN, 27.0),  # Athlete-specific visual threshold
+            (27.0, 32.0),  # Athlete-specific visual threshold
+            (32.0, 45),
+        ],
     }
 
     def __init__(self) -> None:
@@ -170,7 +197,8 @@ class BMIVisualizer:
             raise ImportError("matplotlib not available for visualization")
 
         # Set up the figure
-        lang_norm = normalize_lang(lang)
+        # Normalize language if not already normalized (defensive)
+        lang_norm = normalize_lang(lang) if isinstance(lang, str) else Language.EN
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
         fig.suptitle(
             f"BMI Analysis - {_group_display_name(group, lang_norm).title()}"
@@ -270,13 +298,15 @@ class BMIVisualizer:
 
         # Calculate healthy weight range based on height (assume 1.7m for demo)
         height = 1.7  # This would come from actual data
-        healthy_min = 18.5 * height * height
-        healthy_max = 25.0 * height * height
+        # Use canonical HEALTHY_BMI_RANGE from engine (general population)
+        healthy_min = HEALTHY_BMI_RANGE.min * height * height
+        healthy_max = HEALTHY_BMI_RANGE.max * height * height
 
+        # Group-specific adjustments (visual only, not for classification)
         if group == "elderly":
-            healthy_max = 26.0 * height * height
+            healthy_max = 26.0 * height * height  # Elderly-specific (visual only)
         elif group == "athlete":
-            healthy_max = 27.0 * height * height
+            healthy_max = 27.0 * height * height  # Athlete-specific (visual only)
 
         current_weight = bmi * height * height
 
@@ -373,7 +403,17 @@ def generate_bmi_visualization(
         if isinstance(athlete, str):
             athlete_bool = _normalize_bool_flag(athlete)
             # If string is not recognized as yes/no, preserve it for engine heuristics
-            if athlete_bool is False and athlete.lower() not in {"no", "false", "0", "нет", "н"}:
+            # This allows legacy behavior where "спортсмен"/"athlete" strings trigger athlete group
+            athlete_lower = athlete.strip().lower()
+            if athlete_bool is False and athlete_lower not in {
+                "no",
+                "false",
+                "0",
+                "",
+                "нет",
+                "н",
+                "не",
+            }:
                 athlete_text = athlete
         else:
             athlete_bool = bool(athlete)
