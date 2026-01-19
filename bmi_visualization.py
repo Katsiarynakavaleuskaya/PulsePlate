@@ -9,7 +9,9 @@ import io
 from collections.abc import Iterable
 from typing import Any, Protocol
 
-from bmi_core import auto_group, bmi_category, group_display_name
+# Import canonical BMI engine functions
+from core.bmi.engine import _auto_group, _bmi_category, _group_display_name, _normalize_bool_flag
+from core.i18n import normalize_lang
 
 MATPLOTLIB_AVAILABLE = False
 plt: Any | None
@@ -100,9 +102,10 @@ class BMIVisualizer:
             raise ImportError("matplotlib not available for visualization")
 
         # Set up the figure
+        lang_norm = normalize_lang(lang)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
         fig.suptitle(
-            f"BMI Analysis - {group_display_name(group, lang).title()}"
+            f"BMI Analysis - {_group_display_name(group, lang_norm).title()}"
             + (f" (Age: {age})" if age else ""),
             fontsize=16,
             fontweight="bold",
@@ -284,8 +287,21 @@ def generate_bmi_visualization(
         }
 
     try:
-        # Determine user group
-        group = auto_group(age, gender, pregnant, athlete, lang)
+        # Normalize inputs for canonical engine
+        lang_norm = normalize_lang(lang)
+        pregnant_bool = (
+            _normalize_bool_flag(pregnant) if isinstance(pregnant, str) else bool(pregnant)
+        )
+        athlete_bool = _normalize_bool_flag(athlete) if isinstance(athlete, str) else bool(athlete)
+
+        # Determine user group using canonical engine
+        group = _auto_group(
+            age=age,
+            gender=gender,
+            pregnant=pregnant_bool,
+            athlete=athlete_bool,
+            athlete_text=None,
+        )
 
         # Create visualizer
         visualizer = BMIVisualizer()
@@ -295,14 +311,17 @@ def generate_bmi_visualization(
             bmi=bmi, age=age, gender=gender, group=group, lang=lang
         )
 
-        # Get BMI category
-        category = bmi_category(bmi, lang, age, group)
+        # Get BMI category using canonical engine
+        category_result = _bmi_category(bmi=bmi, age=age, group=group)
+
+        # Category is a string key (underweight, normal, etc.) or None
+        category_str = str(category_result) if category_result is not None else None
 
         return {
             "chart_base64": chart_base64,
-            "category": category,
+            "category": category_str,
             "group": group,
-            "group_display": group_display_name(group, lang),
+            "group_display": _group_display_name(group, lang_norm),
             "available": True,
             "format": "png",
             "encoding": "base64",
