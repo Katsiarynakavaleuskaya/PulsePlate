@@ -35,19 +35,25 @@ def auto_group(
     gender: str,
     pregnant: str | bool,
     athlete: str | bool,
-    athlete_text: str | None = None,
-    lang: str | None = None,  # Legacy parameter, ignored
+    lang: str | None = None,  # Legacy parameter, 5th positional (BC requirement)
+    athlete_text: str | None = None,  # 6th positional (optional)
 ) -> str:
     """
     Legacy wrapper for _auto_group.
+
+    IMPORTANT: Positional order must remain:
+      auto_group(age, gender, pregnant, athlete, lang_code, athlete_text=None)
+
+    This preserves legacy callers that pass `lang` as the 5th positional arg.
+    Changing the order would silently misroute lang into athlete_text.
 
     Args:
         age: Age in years
         gender: Gender string
         pregnant: Pregnant flag (str or bool)
         athlete: Athlete flag (str or bool)
-        athlete_text: Optional athlete text for heuristics
-        lang: Language (legacy parameter, ignored)
+        lang: Language (legacy parameter, ignored in canonical engine)
+        athlete_text: Optional athlete text for heuristics (6th positional)
 
     Returns:
         Group string (e.g., "general", "athlete", "pregnant")
@@ -272,5 +278,4 @@ def build_premium_plan(
     }
 
 
-# Re-export normalize_lang for backward compatibility
-normalize_lang = normalize_lang
+# normalize_lang is imported above (re-exported for backward compatibility)
