@@ -76,7 +76,7 @@ or
 
 | Field          | Type     | Required | Notes                        |
 | -------------- | -------- | -------- | ---------------------------- |
-| `lang`         | `string` | yes      | Language code (`"ru"\|"en"\|"es"`) |
+| `lang`         | `string` | yes      | Language tag (BCP-47-like). Server normalizes request language and may add new translations over time. Clients must not validate as a closed enum. |
 | `title_key`    | `string` | yes      | i18n key (`soft_paywall.title`) |
 | `body_key`     | `string` | yes      | i18n key (`soft_paywall.body`) |
 | `cta_key`      | `string` | yes      | i18n key (`soft_paywall.cta`) |
@@ -89,7 +89,7 @@ or
 | Field           | Type             | Required | Notes                              |
 | --------------- | ---------------- | -------- | ---------------------------------- |
 | `pro_available` | `boolean`        | yes      | Currently always `true`            |
-| `reason_key`    | `string \| null` | no       | Reserved for future gating reasons |
+| `reason_key`    | `string or null` | no       | Reserved for future gating reasons |
 
 ## FREE vs PRO semantics
 
