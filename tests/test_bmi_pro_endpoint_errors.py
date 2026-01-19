@@ -327,8 +327,8 @@ class TestProEndpointHelperFunctions:
         assert _normalize_bool_flag(True) is True
         assert _normalize_bool_flag(False) is False
         # Test with int (not bool, not str)
-        assert _normalize_bool_flag(0) is False
-        assert _normalize_bool_flag(1) is False
+        assert _normalize_bool_flag(cast("str | bool", 0)) is False
+        assert _normalize_bool_flag(cast("str | bool", 1)) is False
         # Test with None
         assert _normalize_bool_flag(cast("str | bool", None)) is False
         # Test with empty string
