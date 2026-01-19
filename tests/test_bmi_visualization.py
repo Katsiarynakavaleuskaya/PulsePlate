@@ -721,13 +721,20 @@ def test_visualization_category_is_localized_ru_not_key():
 
             assert result["available"] is True
             assert result["category"] is not None
-            # Category must be localized, not a raw key
+            # Category must be localized, not a raw key (check multiple possible key formats)
             assert result["category"] not in {
                 "underweight",
                 "bmi.underweight",
                 "bmi_underweight",
+                "obese_1",
+                "obese_2",
+                "obese_3",
             }
-            # Should be Russian localized string
+            # Should be Russian localized string (contains Cyrillic)
+            assert any(
+                "А" <= ch <= "я" for ch in result["category"]
+            ), f"Expected Cyrillic, got: {result['category']}"
+            # Should be one of expected Russian translations
             assert result["category"] in {"Недовес", "Недостаточная масса"}
 
 
@@ -770,14 +777,21 @@ def test_visualization_category_is_localized_en_human_readable():
 
             assert result["available"] is True
             assert result["category"] is not None
-            # Category must be localized, not a raw key
+            # Category must be localized, not a raw key (check multiple possible key formats)
             assert result["category"] not in {
                 "underweight",
                 "bmi.underweight",
                 "bmi_underweight",
+                "obese_1",
+                "obese_2",
+                "obese_3",
             }
-            # Should be English localized string
+            # Should be English localized string (human-readable, not a key)
             assert result["category"] in {"Underweight"}
+            # Additional check: should not contain dots or underscores (key patterns)
+            assert (
+                "." not in result["category"] and "_" not in result["category"]
+            ), f"Key pattern detected: {result['category']}"
 
 
 def test_visualization_category_obesity_tiers_localized():
@@ -819,11 +833,24 @@ def test_visualization_category_obesity_tiers_localized():
 
             assert result["available"] is True
             assert result["category"] is not None
-            # Category must be localized, not a raw key
+            # Category must be localized, not a raw key (check multiple possible key formats)
             assert result["category"] not in {
                 "obesity_1",
+                "obesity_2",
+                "obesity_3",
+                "obese_1",
+                "obese_2",
+                "obese_3",
                 "bmi.obesity_1",
+                "bmi.obesity_2",
+                "bmi.obesity_3",
                 "bmi_obese_1",
+                "bmi_obese_2",
+                "bmi_obese_3",
             }
+            # Should be Russian localized string (contains Cyrillic)
+            assert any(
+                "А" <= ch <= "я" for ch in result["category"]
+            ), f"Expected Cyrillic, got: {result['category']}"
             # Should be Russian localized string for obesity tier
             assert result["category"] in {"Ожирение I"}

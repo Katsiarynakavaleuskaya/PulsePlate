@@ -328,8 +328,20 @@ def generate_bmi_visualization(
             i18n_key = f"bmi.{category_result}"
             try:
                 translated = t(lang_norm, i18n_key)
-                # Guard: if translation missing and t() returns the key itself, use legacy fallback
-                if translated == i18n_key or translated == str(category_result):
+                # Guard: if translation missing and t() returns the key itself or category key, use legacy fallback
+                # Check multiple possible key leak patterns: i18n_key, category_result, and variants
+                possible_keys = {
+                    i18n_key,
+                    str(category_result),
+                    f"bmi_{category_result}",
+                    (
+                        category_result.replace("obesity_", "obese_")
+                        if "obesity_" in str(category_result)
+                        else None
+                    ),
+                }
+                possible_keys.discard(None)  # Remove None if added
+                if translated in possible_keys:
                     raise KeyError(f"Translation returned key: {i18n_key}")
                 category_str = translated
             except KeyError:
