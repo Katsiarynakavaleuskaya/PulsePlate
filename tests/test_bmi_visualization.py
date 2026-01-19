@@ -1070,3 +1070,38 @@ def test_visualization_athlete_text_preserved_bc():
             )
             assert out_no["available"] is True
             assert out_no["group"] == "general"
+
+
+def test_generate_bmi_visualization_returns_unavailable_when_matplotlib_missing(monkeypatch):
+    """Test that generate_bmi_visualization returns unavailable when matplotlib is missing."""
+    import bmi_visualization as v
+
+    # Force MATPLOTLIB_AVAILABLE to False
+    monkeypatch.setattr(v, "MATPLOTLIB_AVAILABLE", False)
+    out = v.generate_bmi_visualization(bmi=22.0, age=30, gender="female", lang="ru")
+    assert out["available"] is False
+    assert "error" in out
+    assert "matplotlib" in out["error"].lower() or "not available" in out["error"].lower()
+
+
+def test_localize_bmi_category_obesity_generic_fallback(monkeypatch):
+    """Test _localize_bmi_category fallback to generic obesity label when tier key missing."""
+    import bmi_visualization as v
+    from core.i18n import normalize_lang
+
+    # Force i18n to return key for specific tier (simulates missing bmi_obese_1)
+    # but return translation for generic "bmi.obesity"
+    def mock_t_or_none(lang: str, key: str) -> str | None:
+        if key == "bmi.obesity_1":
+            return None  # Simulate miss (primary key)
+        elif key == "bmi_obese_1":
+            return None  # Simulate legacy key miss
+        elif key == "bmi.obesity":
+            return "Ожирение" if lang == "ru" else "Obesity"  # Generic works
+        return None
+
+    monkeypatch.setattr(v, "_t_or_none", mock_t_or_none)
+    lang_norm = normalize_lang("ru")
+    result = v._localize_bmi_category(lang_norm, "obesity_1")
+    # Should use generic obesity label as fallback (lines 76-78)
+    assert result == "Ожирение" or "Ожирение" in result
