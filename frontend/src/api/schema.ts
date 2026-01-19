@@ -2068,7 +2068,13 @@ export interface components {
             /** User Id */
             user_id: number;
         };
-        /** BMICalculateRequest */
+        /**
+         * BMICalculateRequest
+         * @description RU: Запрос для расчета BMI через единый engine.
+         *     EN: Request for BMI calculation via unified engine.
+         *
+         *     FREE tier endpoint (no API key required).
+         */
         BMICalculateRequest: {
             /**
              * Age

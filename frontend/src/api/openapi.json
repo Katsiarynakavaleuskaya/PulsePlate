@@ -89,6 +89,7 @@
       },
       "BMICalculateRequest": {
         "additionalProperties": false,
+        "description": "RU: Запрос для расчета BMI через единый engine.\nEN: Request for BMI calculation via unified engine.\n\nFREE tier endpoint (no API key required).",
         "properties": {
           "age": {
             "description": "Age in years. Range: 1-120.",
