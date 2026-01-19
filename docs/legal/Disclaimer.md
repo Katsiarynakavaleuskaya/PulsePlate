@@ -159,10 +159,10 @@ Para niños, personas embarazadas, ancianos y atletas, siempre consulte con espe
 
 ## 📍 Legal Compliance
 
-This disclaimer is designed to comply with:
-- **CIS markets:** Wellness positioning avoids medical activity regulation
-- **EU:** MDR (Medical Device Regulation) not triggered; wellness category is safe
-- **US:** FDA not triggered (not medical device); FTC compliant (no false claims)
+This disclaimer is intended to align with:
+- **CIS markets:** Wellness positioning to avoid medical activity regulation
+- **EU:** MDR considerations for wellness-only positioning
+- **US:** FDA/FTC considerations for non-medical claims
 
 ---
 

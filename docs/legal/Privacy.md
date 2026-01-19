@@ -45,8 +45,11 @@
 **Обработка с использованием AI/LLM:**
 
 - Некоторые эндпоинты (`/insight`, `/api/v1/insight`) могут передавать предоставленный пользователем текст внешним AI-провайдерам для генерации персонализированных рекомендаций
-- Провайдеры могут включать OpenAI, Anthropic или другие сервисы
-- Данные у провайдеров обычно хранятся до 30 дней для мониторинга злоупотреблений, затем удаляются
+- Текущие LLM-провайдеры включают Grok (xAI), Ollama (локальный/самостоятельный хостинг) и Pico
+- Обработка и хранение данных регулируются политиками каждого провайдера:
+  - Grok (xAI): согласно опубликованным условиям xAI
+  - Ollama: обрабатывается и хранится локально как часть самостоятельного развёртывания
+  - Pico: обрабатывается согласно применимой политике данных
 - **Отказ:** Не используйте эндпоинты `/insight` или `/api/v1/insight`, если не хотите, чтобы ваш текст обрабатывался внешними AI-провайдерами
 
 **Рекомендация:** Избегайте отправки личной идентифицирующей информации (PII) или чувствительных медицинских данных в эндпоинты insight.
@@ -65,7 +68,7 @@
 
 **Данные у внешних провайдеров:**
 
-- Подчиняются политикам хранения провайдеров (обычно 30 дней)
+- Подчиняются политикам хранения соответствующих провайдеров
 
 ### Ваши права (GDPR)
 
@@ -121,8 +124,11 @@ Calculations are performed locally and temporarily.
 **AI/LLM Processing:**
 
 - Certain endpoints (`/insight`, `/api/v1/insight`) may transmit user-provided text to external AI providers for generating personalized insights
-- Providers may include OpenAI, Anthropic, or other services
-- Data at providers is typically retained for 30 days for abuse monitoring, then deleted
+- Current LLM providers include Grok (xAI), Ollama (local/self-hosted), and Pico
+- Data processing and retention are governed by each provider's own policies:
+  - Grok (xAI): according to xAI's published terms
+  - Ollama: processed and stored locally as part of self-hosted deployment
+  - Pico: handled according to its applicable data policy
 - **Opt-out:** Do not use `/insight` or `/api/v1/insight` endpoints if you do not wish your text to be processed by external AI providers
 
 **Recommendation:** Avoid submitting personally identifiable information (PII) or sensitive health data to insight endpoints.
@@ -141,7 +147,7 @@ Calculations are performed locally and temporarily.
 
 **Data at External Providers:**
 
-- Subject to provider retention policies (typically 30 days)
+- Subject to the respective provider's retention policies
 
 ### Your Rights (GDPR)
 
@@ -197,8 +203,11 @@ Los cálculos se realizan localmente y temporalmente.
 **Procesamiento con AI/LLM:**
 
 - Ciertos endpoints (`/insight`, `/api/v1/insight`) pueden transmitir texto proporcionado por el usuario a proveedores de AI externos para generar recomendaciones personalizadas
-- Los proveedores pueden incluir OpenAI, Anthropic u otros servicios
-- Los datos en los proveedores generalmente se retienen durante 30 días para monitoreo de abuso, luego se eliminan
+- Los proveedores actuales de LLM incluyen Grok (xAI), Ollama (local/autohospedado) y Pico
+- El tratamiento y la retención de datos dependen de las políticas de cada proveedor:
+  - Grok (xAI): según los términos publicados por xAI
+  - Ollama: procesamiento y almacenamiento local como parte de la implementación autohospedada
+  - Pico: conforme a su política de datos aplicable
 - **Opt-out:** No use los endpoints `/insight` o `/api/v1/insight` si no desea que su texto sea procesado por proveedores de AI externos
 
 **Recomendación:** Evite enviar información de identificación personal (PII) o datos de salud sensibles a los endpoints de insight.
@@ -217,7 +226,7 @@ Los cálculos se realizan localmente y temporalmente.
 
 **Datos en Proveedores Externos:**
 
-- Sujetos a políticas de retención del proveedor (típicamente 30 días)
+- Sujetos a las políticas de retención del proveedor correspondiente
 
 ### Sus Derechos (GDPR)
 
