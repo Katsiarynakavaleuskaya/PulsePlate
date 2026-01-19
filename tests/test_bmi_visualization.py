@@ -852,5 +852,169 @@ def test_visualization_category_obesity_tiers_localized():
             assert any(
                 "А" <= ch <= "я" for ch in result["category"]
             ), f"Expected Cyrillic, got: {result['category']}"
-            # Should be Russian localized string for obesity tier
-            assert result["category"] in {"Ожирение I"}
+            # Should be Russian localized string for obesity tier (canonical format)
+            assert result["category"] in {"Ожирение I степени"}
+
+
+def test_visualization_ru_underweight_uses_i18n_wording():
+    """Test that RU underweight uses canonical i18n wording, not legacy synonyms."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # i18n hit: should return canonical wording
+            out = generate_bmi_visualization(
+                bmi=17.0,
+                age=30,
+                gender="female",
+                lang="ru",
+                pregnant="no",
+                athlete="no",
+            )
+            assert out["available"] is True
+            # Must use canonical i18n wording, not legacy "Недовес"
+            assert out["category"] == "Недостаточная масса"
+            assert out["category"] != "Недовес"
+
+
+def test_visualization_ru_fallback_never_uses_legacy_synonyms():
+    """Test that fallback never uses legacy synonyms that diverge from i18n."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # Force i18n "miss": monkeypatch t() to return the key as-is
+            def mock_t(lang: str, key: str) -> str:
+                return key  # Return key itself to trigger fallback
+
+            with patch("bmi_visualization.t", side_effect=mock_t):
+                # Test underweight (BMI 17.0) - should use generic, not legacy "Недовес"
+                out = generate_bmi_visualization(
+                    bmi=17.0,
+                    age=30,
+                    gender="female",
+                    lang="ru",
+                    pregnant="no",
+                    athlete="no",
+                )
+                assert out["available"] is True
+                # Must be generic, but NOT legacy synonym "Недовес"
+                assert out["category"] != "Недовес"
+                assert out["category"] == "Категория ИМТ"
+
+
+def test_visualization_fallback_obesity_uses_legacy_i18n_keys():
+    """Test that obesity tiers use legacy i18n keys (bmi_obese_*) when bmi.obesity_* missing."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # Test obesity_1 (BMI 32.0) - should use bmi_obese_1 from i18n
+            out_ru = generate_bmi_visualization(
+                bmi=32.0,
+                age=30,
+                gender="female",
+                lang="ru",
+                pregnant="no",
+                athlete="no",
+            )
+            assert out_ru["available"] is True
+            # Should use canonical i18n wording from bmi_obese_1
+            assert out_ru["category"] in {
+                "Ожирение I степени",
+                "Ожирение II степени",
+                "Ожирение III степени",
+            }
+
+            out_en = generate_bmi_visualization(
+                bmi=32.0,
+                age=30,
+                gender="female",
+                lang="en",
+                pregnant="no",
+                athlete="no",
+            )
+            assert out_en["available"] is True
+            assert out_en["category"] in {
+                "Obese Class I",
+                "Obese Class II",
+                "Obese Class III",
+            }
+
+            out_es = generate_bmi_visualization(
+                bmi=32.0,
+                age=30,
+                gender="female",
+                lang="es",
+                pregnant="no",
+                athlete="no",
+            )
+            assert out_es["available"] is True
+            assert out_es["category"] in {
+                "Obesidad Clase I",
+                "Obesidad Clase II",
+                "Obesidad Clase III",
+            }

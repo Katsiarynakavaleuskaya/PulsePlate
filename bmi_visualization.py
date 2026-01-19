@@ -17,7 +17,69 @@ from core.bmi.engine import (
     _group_display_name,
     _normalize_bool_flag,
 )
-from core.i18n import normalize_lang, t
+from core.i18n import Language, normalize_lang, t
+
+
+def _t_or_none(lang_norm: Language, key: str) -> str | None:
+    """
+    Return translation if present; None if i18n misses and returns the key.
+
+    Args:
+        lang_norm: Normalized language code
+        key: i18n translation key
+
+    Returns:
+        Translated string if valid, None if translation missing
+    """
+    try:
+        val = t(lang_norm, key)
+        # Guard: if translation missing and t() returns the key itself, treat as miss
+        if val == key:
+            return None
+        return val
+    except KeyError:
+        return None
+
+
+def _localize_bmi_category(lang_norm: Language, category_key: str) -> str:
+    """
+    Localize BMI category using canonical i18n keys.
+    Never returns raw keys or alternative wording that diverges from i18n.
+
+    Args:
+        lang_norm: Normalized language code
+        category_key: BMI category key (e.g., "underweight", "obesity_1")
+
+    Returns:
+        Localized category string, or safe generic label if i18n fails
+    """
+    # Try canonical key format: bmi.<category_key> (works for underweight, normal, overweight)
+    primary_key = f"bmi.{category_key}"
+    localized = _t_or_none(lang_norm, primary_key)
+    if localized:
+        return localized
+
+    # For obesity tiers, try legacy keys (bmi_obese_1, bmi_obese_2, bmi_obese_3)
+    if category_key.startswith("obesity_"):
+        legacy_key = f"bmi_obese_{category_key.split('_')[1]}"
+        localized = _t_or_none(lang_norm, legacy_key)
+        if localized:
+            return localized
+
+        # If specific tier key missing, try generic obesity label
+        generic = _t_or_none(lang_norm, "bmi.obesity")
+        if generic:
+            return generic
+
+    # Last resort: safe generic label (not category-specific, avoids drift)
+    # This ensures we never return raw keys or alternative wording
+    safe_labels = {
+        "en": "BMI category",
+        "ru": "Категория ИМТ",
+        "es": "Categoría de IMC",
+    }
+    return safe_labels.get(str(lang_norm), safe_labels["en"])
+
 
 MATPLOTLIB_AVAILABLE = False
 plt: Any | None
@@ -341,52 +403,7 @@ def generate_bmi_visualization(
             category_str = None
         else:
             category_key = str(category_result)
-            # Try canonical i18n key format: bmi.<category_key>
-            i18n_key = f"bmi.{category_key}"
-            try:
-                translated = t(lang_norm, i18n_key)
-                # Guard: if translation missing and t() returns the key itself or category key, use legacy fallback
-                # Check multiple possible key leak patterns: i18n_key, category_result, and variants
-                possible_keys = {i18n_key, category_key, f"bmi_{category_key}"}
-                if "obesity_" in category_key:
-                    possible_keys.add(category_key.replace("obesity_", "obese_"))
-                if translated in possible_keys:
-                    raise KeyError(f"Translation returned key: {i18n_key}")
-                category_str = translated
-            except KeyError:
-                # Fallback to legacy labels if canonical key not found
-                # This ensures backward compatibility even if i18n keys are missing
-                legacy_labels = {
-                    "en": {
-                        "underweight": "Underweight",
-                        "normal": "Normal",
-                        "overweight": "Overweight",
-                        "obesity_1": "Obesity I",
-                        "obesity_2": "Obesity II",
-                        "obesity_3": "Obesity III",
-                    },
-                    "ru": {
-                        "underweight": "Недовес",
-                        "normal": "Норма",
-                        "overweight": "Избыток",
-                        "obesity_1": "Ожирение I",
-                        "obesity_2": "Ожирение II",
-                        "obesity_3": "Ожирение III",
-                    },
-                    "es": {
-                        "underweight": "Bajo peso",
-                        "normal": "Normal",
-                        "overweight": "Sobrepeso",
-                        "obesity_1": "Obesidad I",
-                        "obesity_2": "Obesidad II",
-                        "obesity_3": "Obesidad III",
-                    },
-                }
-                lang_code = str(lang_norm)
-                category_str = legacy_labels.get(lang_code, legacy_labels["en"]).get(
-                    category_key,
-                    category_key,  # final safety net
-                )
+            category_str = _localize_bmi_category(lang_norm, category_key)
 
         return {
             "chart_base64": chart_base64,
