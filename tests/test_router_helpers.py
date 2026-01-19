@@ -104,6 +104,33 @@ class TestNormalizeBoolFlag:
         assert _helpers._normalize_bool_flag("sí") is True
         assert _helpers._normalize_bool_flag("no") is False
 
+    def test_normalize_bool_flag_fallback_bool_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test fallback path handles bool values correctly."""
+        monkeypatch.setattr(_helpers, "_get_engine_normalize_bool_flag", lambda: None)
+
+        assert _helpers._normalize_bool_flag(True) is True
+        assert _helpers._normalize_bool_flag(False) is False
+
+    def test_normalize_bool_flag_fallback_non_str_path(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test fallback path handles non-str, non-bool values correctly."""
+        monkeypatch.setattr(_helpers, "_get_engine_normalize_bool_flag", lambda: None)
+
+        from typing import cast
+
+        assert _helpers._normalize_bool_flag(cast("str | bool", 0)) is False
+        assert _helpers._normalize_bool_flag(cast("str | bool", None)) is False
+
+    def test_normalize_bool_flag_fallback_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test fallback path handles empty/whitespace strings correctly."""
+        monkeypatch.setattr(_helpers, "_get_engine_normalize_bool_flag", lambda: None)
+
+        assert _helpers._normalize_bool_flag("") is False
+        assert _helpers._normalize_bool_flag("   ") is False
+
 
 class TestBuildSoftPaywallHook:
     """Tests for _build_soft_paywall_hook helper."""
