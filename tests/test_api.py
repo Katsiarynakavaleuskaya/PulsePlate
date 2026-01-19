@@ -324,7 +324,15 @@ def test_category_by_bmi_ru(client):
             return t(lang_norm, i18n_key)
         except KeyError:
             # Fallback to legacy keys
-            legacy_key = f"bmi_{category_key}" if category_key != "obesity_1" else "bmi_obese_1"
+            legacy_map = {
+                "underweight": "bmi_underweight",
+                "normal": "bmi_normal",
+                "overweight": "bmi_overweight",
+                "obesity_1": "bmi_obese_1",
+                "obesity_2": "bmi_obese_2",
+                "obesity_3": "bmi_obese_3",
+            }
+            legacy_key = legacy_map.get(category_key, f"bmi_{category_key}")
             return t(lang_norm, legacy_key)
 
     assert bmi_category(17, "ru") == "Недостаточная масса"
@@ -333,20 +341,26 @@ def test_category_by_bmi_ru(client):
     assert bmi_category(32, "ru") == "Ожирение I степени"
 
 
-def test_compute_wht_ratio_round_exception(client):
-    """Test that _compute_wht_ratio handles round exceptions gracefully."""
+def test_compute_wht_ratio_round_exception(client) -> None:
+    """
+    Test that _compute_wht_ratio propagates round exceptions.
+
+    _compute_wht_ratio should NOT catch generic exceptions raised by round().
+    It must propagate them so callers/tests can detect unexpected failures.
+    """
+    import builtins
+
+    import pytest
     from core.bmi.engine import _compute_wht_ratio
 
-    # _compute_wht_ratio doesn't catch round exceptions, so test will raise
-    # This is expected behavior - the function doesn't handle round failures
-    with patch("builtins.round", side_effect=Exception("Round failed")):
-        try:
-            result = _compute_wht_ratio(waist_cm=80, height_m=1.7)
-            # If no exception, result should be valid
-            assert result is not None
-        except Exception as e:
-            # Exception is expected when round fails
-            assert "Round failed" in str(e)
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("round exploded")
+
+    # Patch builtins.round used by the function
+    with patch.object(builtins, "round", boom):
+        # Must raise exception, not return None or value
+        with pytest.raises(RuntimeError, match="round exploded"):
+            _compute_wht_ratio(waist_cm=80.0, height_m=1.70)
 
 
 # Removed: test_v1_bmi_invalid_api_key and test_v1_bmi_no_api_key
