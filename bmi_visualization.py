@@ -11,7 +11,17 @@ from typing import Any, Protocol
 
 # Import canonical BMI engine functions
 from core.bmi.engine import _auto_group, _bmi_category, _group_display_name, _normalize_bool_flag
-from core.i18n import normalize_lang
+from core.i18n import Language, normalize_lang, t
+
+# Category key to i18n key mapping (for localization)
+_CATEGORY_I18N_KEY: dict[str, str] = {
+    "underweight": "bmi_underweight",
+    "normal": "bmi_normal",
+    "overweight": "bmi_overweight",
+    "obesity_1": "bmi_obese_1",
+    "obesity_2": "bmi_obese_2",
+    "obesity_3": "bmi_obese_3",
+}
 
 MATPLOTLIB_AVAILABLE = False
 plt: Any | None
@@ -314,8 +324,16 @@ def generate_bmi_visualization(
         # Get BMI category using canonical engine
         category_result = _bmi_category(bmi=bmi, age=age, group=group)
 
-        # Category is a string key (underweight, normal, etc.) or None
-        category_str = str(category_result) if category_result is not None else None
+        # Localize category key to string (backward compatibility with bmi_core behavior)
+        if category_result is None:
+            category_str = None
+        else:
+            i18n_key = _CATEGORY_I18N_KEY.get(category_result)
+            if i18n_key:
+                category_str = t(lang_norm, i18n_key)
+            else:
+                # Fallback: return key as-is if mapping missing
+                category_str = str(category_result)
 
         return {
             "chart_base64": chart_base64,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from bmi_core import compute_wht_ratio
+from core.bmi.engine import _compute_wht_ratio
 from core.bmi.risk import WaistRiskResult, calculate_waist_risk
 
 
@@ -42,7 +42,7 @@ def test_waist_risk_thresholds_and_localization(
     res = calculate_waist_risk(waist_cm=waist_cm, height_m=height_m, gender=gender, lang=lang)
     assert res is not None
     assert res.risk_level == expected_level
-    assert res.wht_ratio == compute_wht_ratio(waist_cm, height_m)
+    assert res.wht_ratio == _compute_wht_ratio(waist_cm, height_m)
 
     # notes: empty tuple for low, non-empty tuple for moderate/high
     if expected_level == "low":
@@ -90,7 +90,7 @@ def test_wht_ratio_fail_soft_matches_core(waist_cm: float, height_m: float) -> N
     """Test that wht_ratio matches compute_wht_ratio() behavior (fail-soft)."""
     res = calculate_waist_risk(waist_cm=waist_cm, height_m=height_m, gender="male", lang="en")
     assert res is not None
-    assert res.wht_ratio == compute_wht_ratio(waist_cm, height_m)
+    assert res.wht_ratio == _compute_wht_ratio(waist_cm, height_m)
 
 
 @pytest.mark.parametrize("gender", ["Female", "жен", "UNKNOWN", "f", "F"])
@@ -111,7 +111,7 @@ def test_waist_risk_result_structure() -> None:
     assert res is not None
     assert isinstance(res, WaistRiskResult)
     # Verify wht_ratio matches compute_wht_ratio contract
-    assert res.wht_ratio == compute_wht_ratio(waist_cm, height_m)
+    assert res.wht_ratio == _compute_wht_ratio(waist_cm, height_m)
     assert res.risk_level in {"low", "moderate", "high"}
     assert isinstance(res.notes, tuple)
     assert all(isinstance(note, str) for note in res.notes)
