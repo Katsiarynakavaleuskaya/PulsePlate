@@ -69,7 +69,7 @@ COPY --chown=pulseplate:pulseplate app/ ./app/
 COPY --chown=pulseplate:pulseplate core/ ./core/
 COPY --chown=pulseplate:pulseplate legacy_app.py main.py settings.py ./
 # Copy root-level modules that app.py imports
-COPY --chown=pulseplate:pulseplate bmi_core.py bmi_visualization.py nutrition_core.py signed_links.py bodyfat.py ./
+COPY --chown=pulseplate:pulseplate bmi_visualization.py nutrition_core.py signed_links.py bodyfat.py ./
 COPY --chown=pulseplate:pulseplate alembic/ ./alembic/
 COPY --chown=pulseplate:pulseplate alembic.ini ./
 

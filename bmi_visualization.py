@@ -10,18 +10,14 @@ from collections.abc import Iterable
 from typing import Any, Protocol
 
 # Import canonical BMI engine functions
-from core.bmi.engine import _auto_group, _bmi_category, _group_display_name, _normalize_bool_flag
-from core.i18n import Language, normalize_lang, t
-
-# Category key to i18n key mapping (for localization)
-_CATEGORY_I18N_KEY: dict[str, str] = {
-    "underweight": "bmi_underweight",
-    "normal": "bmi_normal",
-    "overweight": "bmi_overweight",
-    "obesity_1": "bmi_obese_1",
-    "obesity_2": "bmi_obese_2",
-    "obesity_3": "bmi_obese_3",
-}
+from core.bmi.engine import (
+    BMIGroup,
+    _auto_group,
+    _bmi_category,
+    _group_display_name,
+    _normalize_bool_flag,
+)
+from core.i18n import normalize_lang, t
 
 MATPLOTLIB_AVAILABLE = False
 plt: Any | None
@@ -102,7 +98,7 @@ class BMIVisualizer:
         bmi: float,
         age: int,
         gender: str,
-        group: str = "general",
+        group: BMIGroup = "general",
         lang: str = "en",
         include_guidance: bool = True,
     ) -> str:
@@ -137,7 +133,7 @@ class BMIVisualizer:
 
         return image_base64
 
-    def _create_bmi_gauge(self, ax: _AxesLike, bmi: float, group: str, lang: str) -> None:
+    def _create_bmi_gauge(self, ax: _AxesLike, bmi: float, group: BMIGroup, lang: str) -> None:
         """Create BMI gauge chart showing current BMI position."""
         ranges = self.BMI_RANGES.get(group, self.BMI_RANGES["general"])
         colors = ["#3498db", "#27ae60", "#f39c12", "#e74c3c"]
@@ -205,7 +201,7 @@ class BMIVisualizer:
         bmi: float,
         age: int,
         gender: str,
-        group: str,
+        group: BMIGroup,
         lang: str,
     ) -> None:
         """Create guidance and recommendations chart."""
@@ -284,8 +280,8 @@ def generate_bmi_visualization(
     bmi: float,
     age: int,
     gender: str,
-    pregnant: str = "no",
-    athlete: str = "no",
+    pregnant: bool | str = "no",
+    athlete: bool | str = "no",
     lang: str = "en",
 ) -> dict[str, Any]:
     """Generate BMI visualization and return as base64 encoded image."""
@@ -328,12 +324,48 @@ def generate_bmi_visualization(
         if category_result is None:
             category_str = None
         else:
-            i18n_key = _CATEGORY_I18N_KEY.get(category_result)
-            if i18n_key:
-                category_str = t(lang_norm, i18n_key)
-            else:
-                # Fallback: return key as-is if mapping missing
-                category_str = str(category_result)
+            # Try canonical i18n key format: bmi.<category_key>
+            i18n_key = f"bmi.{category_result}"
+            try:
+                translated = t(lang_norm, i18n_key)
+                # Guard: if translation missing and t() returns the key itself, use legacy fallback
+                if translated == i18n_key or translated == str(category_result):
+                    raise KeyError(f"Translation returned key: {i18n_key}")
+                category_str = translated
+            except KeyError:
+                # Fallback to legacy labels if canonical key not found
+                # This ensures backward compatibility even if i18n keys are missing
+                legacy_labels = {
+                    "en": {
+                        "underweight": "Underweight",
+                        "normal": "Normal",
+                        "overweight": "Overweight",
+                        "obesity_1": "Obesity I",
+                        "obesity_2": "Obesity II",
+                        "obesity_3": "Obesity III",
+                    },
+                    "ru": {
+                        "underweight": "Недовес",
+                        "normal": "Норма",
+                        "overweight": "Избыток",
+                        "obesity_1": "Ожирение I",
+                        "obesity_2": "Ожирение II",
+                        "obesity_3": "Ожирение III",
+                    },
+                    "es": {
+                        "underweight": "Bajo peso",
+                        "normal": "Normal",
+                        "overweight": "Sobrepeso",
+                        "obesity_1": "Obesidad I",
+                        "obesity_2": "Obesidad II",
+                        "obesity_3": "Obesidad III",
+                    },
+                }
+                lang_code = str(lang_norm)
+                category_str = legacy_labels.get(lang_code, legacy_labels["en"]).get(
+                    str(category_result),
+                    str(category_result),  # final safety net
+                )
 
         return {
             "chart_base64": chart_base64,

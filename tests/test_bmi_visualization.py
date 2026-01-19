@@ -680,3 +680,150 @@ def test_bmi_visualization_extreme_values():
 
                 assert result["available"] is True
                 assert "category" in result
+
+
+def test_visualization_category_is_localized_ru_not_key():
+    """Test that category is localized in Russian and never returns raw key."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # Test underweight category (BMI 17.0)
+            result = generate_bmi_visualization(
+                bmi=17.0,
+                age=30,
+                gender="female",
+                lang="ru",
+                pregnant="no",
+                athlete="no",
+            )
+
+            assert result["available"] is True
+            assert result["category"] is not None
+            # Category must be localized, not a raw key
+            assert result["category"] not in {
+                "underweight",
+                "bmi.underweight",
+                "bmi_underweight",
+            }
+            # Should be Russian localized string
+            assert result["category"] in {"Недовес", "Недостаточная масса"}
+
+
+def test_visualization_category_is_localized_en_human_readable():
+    """Test that category is localized in English and human-readable."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # Test underweight category (BMI 17.0)
+            result = generate_bmi_visualization(
+                bmi=17.0,
+                age=30,
+                gender="female",
+                lang="en",
+                pregnant="no",
+                athlete="no",
+            )
+
+            assert result["available"] is True
+            assert result["category"] is not None
+            # Category must be localized, not a raw key
+            assert result["category"] not in {
+                "underweight",
+                "bmi.underweight",
+                "bmi_underweight",
+            }
+            # Should be English localized string
+            assert result["category"] in {"Underweight"}
+
+
+def test_visualization_category_obesity_tiers_localized():
+    """Test that obesity tiers (obesity_1, obesity_2, obesity_3) are properly localized."""
+    if not MATPLOTLIB_AVAILABLE:
+        pytest.skip("matplotlib not available")
+
+    with patch("bmi_visualization.MATPLOTLIB_AVAILABLE", True):
+        with (
+            patch("matplotlib.pyplot.subplots") as mock_subplots,
+            patch("matplotlib.pyplot.tight_layout"),
+            patch("matplotlib.pyplot.savefig"),
+            patch("matplotlib.pyplot.close"),
+            patch("bmi_visualization.BMIVisualizer") as mock_visualizer_class,
+            patch("io.BytesIO", return_value=io.BytesIO(b"fake_data")),
+        ):
+            mock_fig = Mock()
+            mock_ax1 = Mock()
+            mock_ax2 = Mock()
+            mock_subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
+            mock_visualizer = Mock()
+            mock_visualizer.create_bmi_chart.return_value = base64.b64encode(b"fake_data").decode(
+                "utf-8"
+            )
+            mock_visualizer_class.return_value = mock_visualizer
+
+            from bmi_visualization import generate_bmi_visualization
+
+            # Test obesity_1 (BMI 32.0)
+            result = generate_bmi_visualization(
+                bmi=32.0,
+                age=30,
+                gender="male",
+                lang="ru",
+                pregnant="no",
+                athlete="no",
+            )
+
+            assert result["available"] is True
+            assert result["category"] is not None
+            # Category must be localized, not a raw key
+            assert result["category"] not in {
+                "obesity_1",
+                "bmi.obesity_1",
+                "bmi_obese_1",
+            }
+            # Should be Russian localized string for obesity tier
+            assert result["category"] in {"Ожирение I"}
