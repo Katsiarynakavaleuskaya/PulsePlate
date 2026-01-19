@@ -665,6 +665,9 @@ Violation of this rule blocks merge.
 - BMI logic belongs in `core/bmi/*` only
 - Separation prevents accidental BMI logic drift into router layer
 
+**Contract documentation:**
+- Soft Paywall Hook contract: `docs/contracts/soft_paywall.md` (text-only, no `core.bmi.*` imports, disabled => `null`)
+
 ## Feature changes via PR (hard rule)
 
 **Invariant:** Feature changes must land via a dedicated PR with explicit scope and DoD.
