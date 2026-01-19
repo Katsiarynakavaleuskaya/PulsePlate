@@ -8,6 +8,8 @@ EN: Tests for shared router helper functions.
 
 from __future__ import annotations
 
+from typing import NoReturn
+
 import pytest
 
 from app.routers import _helpers
@@ -177,7 +179,7 @@ class TestNormalizeBoolFlag:
         """Test _get_engine_normalize_bool_flag returns None on ImportError."""
 
         # Mock _import_engine_normalize_bool_flag to raise ImportError
-        def _raise() -> object:
+        def _raise() -> NoReturn:
             raise ImportError("Simulated import error")
 
         monkeypatch.setattr(_helpers, "_import_engine_normalize_bool_flag", _raise)
