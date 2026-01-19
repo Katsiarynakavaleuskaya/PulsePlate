@@ -41,13 +41,15 @@ class TestProEndpointErrorHandling:
         calc = bmi_pro._get_engine_calculator()
         assert calc is not None
 
-        assert bmi_pro._normalize_bool_flag(True) is True
-        assert bmi_pro._normalize_bool_flag(False) is False
-        assert bmi_pro._normalize_bool_flag("да") is True
-        assert bmi_pro._normalize_bool_flag("nope") is False
+        from app.routers._helpers import _build_soft_paywall_hook, _normalize_bool_flag
+
+        assert _normalize_bool_flag(True) is True
+        assert _normalize_bool_flag(False) is False
+        assert _normalize_bool_flag("да") is True
+        assert _normalize_bool_flag("nope") is False
 
         monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "true")
-        assert bmi_pro._build_soft_paywall_hook("en") is not None
+        assert _build_soft_paywall_hook("en", default_enabled=False) is not None
 
         req = BMICalculateProRequest(
             weight_kg=70.0,
@@ -309,50 +311,50 @@ class TestProEndpointHelperFunctions:
         assert "detail" in data
 
     def test_env_bool_default_return(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test _env_bool returns default for invalid values (covers line 77)."""
-        from app.routers import bmi_pro
+        """Test _env_bool returns default for invalid values."""
+        from app.routers._helpers import _env_bool
 
         # Set invalid value
         monkeypatch.setenv("TEST_ENV_BOOL", "invalid")
-        result = bmi_pro._env_bool("TEST_ENV_BOOL", default=True)
+        result = _env_bool("TEST_ENV_BOOL", default=True)
         assert result is True  # Should return default for invalid value
 
     def test_normalize_bool_flag_non_str_non_bool(self) -> None:
-        """Test _normalize_bool_flag with non-str, non-bool input (covers lines 82-90)."""
-        from app.routers import bmi_pro
+        """Test _normalize_bool_flag with non-str, non-bool input."""
+        from app.routers._helpers import _normalize_bool_flag
 
-        # Test with bool (covers line 83)
-        assert bmi_pro._normalize_bool_flag(True) is True
-        assert bmi_pro._normalize_bool_flag(False) is False
+        # Test with bool
+        assert _normalize_bool_flag(True) is True
+        assert _normalize_bool_flag(False) is False
         # Test with int (not bool, not str)
-        assert bmi_pro._normalize_bool_flag(0) is False
-        assert bmi_pro._normalize_bool_flag(1) is False
+        assert _normalize_bool_flag(cast("str | bool", 0)) is False
+        assert _normalize_bool_flag(cast("str | bool", 1)) is False
         # Test with None
-        assert bmi_pro._normalize_bool_flag(cast("str | bool", None)) is False
+        assert _normalize_bool_flag(cast("str | bool", None)) is False
         # Test with empty string
-        assert bmi_pro._normalize_bool_flag("") is False
+        assert _normalize_bool_flag("") is False
         # Test with whitespace-only string
-        assert bmi_pro._normalize_bool_flag("   ") is False
-        # Test with default yes_values (covers lines 89-90: default set)
-        assert bmi_pro._normalize_bool_flag("yes") is True
-        assert bmi_pro._normalize_bool_flag("y") is True
-        assert bmi_pro._normalize_bool_flag("true") is True
-        assert bmi_pro._normalize_bool_flag("1") is True
-        assert bmi_pro._normalize_bool_flag("да") is True
-        assert bmi_pro._normalize_bool_flag("д") is True
-        assert bmi_pro._normalize_bool_flag("si") is True
-        assert bmi_pro._normalize_bool_flag("sí") is True
-        # Test with custom yes_values (covers lines 89-90)
+        assert _normalize_bool_flag("   ") is False
+        # Test with default yes_values
+        assert _normalize_bool_flag("yes") is True
+        assert _normalize_bool_flag("y") is True
+        assert _normalize_bool_flag("true") is True
+        assert _normalize_bool_flag("1") is True
+        assert _normalize_bool_flag("да") is True
+        assert _normalize_bool_flag("д") is True
+        assert _normalize_bool_flag("si") is True
+        assert _normalize_bool_flag("sí") is True
+        # Test with custom yes_values
         custom_yes = {"custom", "yes"}
-        assert bmi_pro._normalize_bool_flag("custom", yes_values=custom_yes) is True
-        assert bmi_pro._normalize_bool_flag("no", yes_values=custom_yes) is False
+        assert _normalize_bool_flag("custom", yes_values=custom_yes) is True
+        assert _normalize_bool_flag("no", yes_values=custom_yes) is False
 
     def test_build_soft_paywall_hook_disabled_returns_none(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Test _build_soft_paywall_hook returns None when disabled (covers line 97)."""
-        from app.routers import bmi_pro
+        """Test _build_soft_paywall_hook returns None when disabled."""
+        from app.routers._helpers import _build_soft_paywall_hook
 
         monkeypatch.setenv("SOFT_PAYWALL_ENABLED", "false")
-        result = bmi_pro._build_soft_paywall_hook("en")
+        result = _build_soft_paywall_hook("en", default_enabled=False)
         assert result is None

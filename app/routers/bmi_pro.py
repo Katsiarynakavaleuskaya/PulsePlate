@@ -7,13 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.middleware.api_tiers import require_pro_tier
-from app.routers._helpers import _env_bool
+from app.routers._helpers import _build_soft_paywall_hook, _normalize_bool_flag
 from app.schemas.bmi import (
     BMICalculateProRequest,
     BMICalculateProResponse,
-    SoftPaywallAvailability,
-    SoftPaywallHook,
-    SoftPaywallMessage,
     WaistRiskResultSchema,
 )
 from app.services.bmi_visualization import build_bmi_scale_v1
@@ -71,46 +68,7 @@ def _get_engine_calculator() -> CalculateBmiResult | None:
         return None
 
 
-# Helper functions (same as bmi.py)
-def _normalize_bool_flag(value: str | bool, yes_values: set[str] | None = None) -> bool:
-    """Normalize boolean flag from string or bool."""
-    if isinstance(value, bool):
-        return value
-    if not isinstance(value, str):
-        return False
-    s = value.strip().lower()
-    if not s:
-        return False
-    allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-    return s in allowed
-
-
-def _build_soft_paywall_hook(lang: str) -> SoftPaywallHook | None:
-    """Build text-only soft paywall hook (no BMI logic)."""
-    enabled = _env_bool("SOFT_PAYWALL_ENABLED", default=False)
-    if not enabled:
-        return None
-
-    safe_lang = normalize_lang(lang)
-
-    message = SoftPaywallMessage(
-        lang=safe_lang,
-        title_key="soft_paywall.title",
-        body_key="soft_paywall.body",
-        cta_key="soft_paywall.cta",
-        default_title=t(safe_lang, "soft_paywall.title"),
-        default_body=t(safe_lang, "soft_paywall.body"),
-        default_cta=t(safe_lang, "soft_paywall.cta"),
-    )
-
-    availability = SoftPaywallAvailability(pro_available=True, reason_key=None)
-
-    return SoftPaywallHook(
-        id="bmi.pro_interpretation_v1",
-        message=message,
-        availability=availability,
-        target="pro_paywall",
-    )
+# Helper functions moved to app.routers._helpers (shared across FREE and PRO routers)
 
 
 router = APIRouter(prefix="/api/v1/pro", tags=["pro"])
@@ -348,7 +306,7 @@ async def calculate_bmi_pro(req: BMICalculateProRequest) -> BMICalculateProRespo
 
     # Build soft paywall hook (same logic as FREE endpoint)
     # Note: _build_soft_paywall_hook checks SOFT_PAYWALL_ENABLED internally
-    soft_paywall_hook = _build_soft_paywall_hook(lang)
+    soft_paywall_hook = _build_soft_paywall_hook(lang, default_enabled=False)
 
     # Map to PRO API response (includes whr)
     resp = BMICalculateProResponse(

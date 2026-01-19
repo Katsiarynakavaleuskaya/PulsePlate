@@ -11,17 +11,14 @@ FREE tier endpoint (no API key required).
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.routers._helpers import _env_bool
+from app.routers._helpers import _build_soft_paywall_hook, _normalize_bool_flag
 from app.schemas.bmi import (
     BMICalculateRequest,
     BMICalculateResponse,
-    SoftPaywallAvailability,
-    SoftPaywallHook,
-    SoftPaywallMessage,
     WaistRiskResultSchema,
 )
 from app.services.bmi_visualization import build_bmi_scale_v1
@@ -58,81 +55,9 @@ else:
 router = APIRouter(prefix="/api/v1/bmi", tags=["bmi"])
 
 
-# Import canonical normalization from engine (removes duplication).
-# Keep a local fallback for partial checkouts / early-PR staging, but make it testable.
-# TODO(PR-456): Consider making this public API (remove underscore).
-def _fallback_normalize_bool_flag(
-    value: str | bool,
-    yes_values: set[str] | None = None,
-) -> bool:
-    """RU: Fallback на случай, если core недоступен. EN: Fallback if core is unavailable."""
-    if isinstance(value, bool):
-        return value
-    if not isinstance(value, str):
-        return False
-    s = value.strip().lower()
-    if not s:
-        return False
-    allowed = yes_values or {"yes", "y", "true", "1", "да", "д", "si", "sí"}
-    return s in allowed
-
-
-# RU: Тип фиксируем заранее → mypy всегда знает, что возвращается bool.
-# EN: Fix type upfront → mypy always knows return type is bool.
-# Note: Using ... for args to allow optional yes_values parameter
-_normalize_bool_flag: Callable[..., bool] = _fallback_normalize_bool_flag
-
-try:
-    # Импортируем в "временное" имя, потом присваиваем typed-callable
-    from core.bmi.engine import _normalize_bool_flag as _engine_normalize_bool_flag
-
-    _normalize_bool_flag = _engine_normalize_bool_flag
-except ImportError:  # pragma: no cover
-    # Fail-soft: используем fallback
-    pass
-
-
 # Removed _get_lang_from_request() - use core.i18n.normalize_lang() directly
 # This removes duplication and ensures consistent language normalization across the app.
-
-
-def _build_soft_paywall_hook(lang: str) -> SoftPaywallHook | None:
-    """
-    Build text-only soft paywall hook.
-
-    IMPORTANT:
-    - No BMI-dependent logic.
-    - No imports from core/bmi/*.
-    """
-    enabled = _env_bool("SOFT_PAYWALL_ENABLED", default=True)
-    if not enabled:
-        return None
-
-    # Normalize lang defensively (keep it simple; do not introduce logic here)
-    safe_lang = normalize_lang(lang)
-
-    title_key = "soft_paywall.title"
-    body_key = "soft_paywall.body"
-    cta_key = "soft_paywall.cta"
-
-    message = SoftPaywallMessage(
-        lang=safe_lang,
-        title_key=title_key,
-        body_key=body_key,
-        cta_key=cta_key,
-        default_title=t(safe_lang, title_key),
-        default_body=t(safe_lang, body_key),
-        default_cta=t(safe_lang, cta_key),
-    )
-
-    availability = SoftPaywallAvailability(pro_available=True, reason_key=None)
-
-    return SoftPaywallHook(
-        id="bmi.pro_interpretation_v1",
-        message=message,
-        availability=availability,
-        target="pro_paywall",
-    )
+# Removed _normalize_bool_flag and _build_soft_paywall_hook - use shared helpers from _helpers.py
 
 
 async def bmi_calculate_handler(
@@ -239,7 +164,7 @@ async def bmi_calculate_handler(
             resp.visualization = None
 
         # Add soft paywall hook (router layer only, no BMI logic)
-        resp.soft_paywall = _build_soft_paywall_hook(lang=str(req.lang))
+        resp.soft_paywall = _build_soft_paywall_hook(str(req.lang), default_enabled=True)
 
         # Return as dict for legacy compatibility
         # IMPORTANT: use by_alias=True to ensure "from" (not "from_") in JSON

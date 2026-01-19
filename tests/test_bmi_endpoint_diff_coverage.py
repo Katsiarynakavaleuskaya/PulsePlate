@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from app.routers import bmi as bmi_router
+from app.routers._helpers import _normalize_bool_flag
 from app.schemas.bmi import BMICalculateRequest, BMICalculateResponse
 from core.bmi.engine import BMICalculateResult, calculate_bmi_result
 from core.i18n import t
@@ -39,23 +40,23 @@ def test_engine_returns_result_after_implementation() -> None:
     assert result.category == "normal"
 
 
-def test_fallback_normalize_bool_flag() -> None:
-    assert bmi_router._fallback_normalize_bool_flag(True) is True
-    assert bmi_router._fallback_normalize_bool_flag(False) is False
+def test_normalize_bool_flag() -> None:
+    assert _normalize_bool_flag(True) is True
+    assert _normalize_bool_flag(False) is False
 
     # Fail-soft: non-boolean/non-string inputs return False rather than raising.
-    assert bmi_router._fallback_normalize_bool_flag(123) is False  # type: ignore[arg-type]
+    assert _normalize_bool_flag(123) is False  # type: ignore[arg-type]
 
     # Empty/whitespace string → False
-    assert bmi_router._fallback_normalize_bool_flag("   ") is False
+    assert _normalize_bool_flag("   ") is False
 
     # Default allowed values
-    assert bmi_router._fallback_normalize_bool_flag("да") is True
-    assert bmi_router._fallback_normalize_bool_flag("no") is False
+    assert _normalize_bool_flag("да") is True
+    assert _normalize_bool_flag("no") is False
 
     # Custom allowlist
-    assert bmi_router._fallback_normalize_bool_flag("ok", yes_values={"ok"}) is True
-    assert bmi_router._fallback_normalize_bool_flag("yes", yes_values={"ok"}) is False
+    assert _normalize_bool_flag("ok", yes_values={"ok"}) is True
+    assert _normalize_bool_flag("yes", yes_values={"ok"}) is False
 
 
 @pytest.mark.anyio

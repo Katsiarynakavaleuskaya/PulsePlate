@@ -765,6 +765,14 @@ import { NumberInput } from "@/components/ui/number-input";
 - Do NOT copy logic into a second place.
 - Move shared logic into `core/` and call it from both sides.
 
+### Router helper policy (FREE/PRO)
+
+- **Shared helpers MUST live in `app/routers/_helpers.py`**.
+- **Do not copy/paste helper logic between routers** (`bmi.py`, `bmi_pro.py`, etc.).
+- **Soft paywall hook builder lives only in `app/routers/_helpers.py`** and must not import `core.bmi.*`.
+- **Default for `SOFT_PAYWALL_ENABLED`:** FREE `True`, PRO `False` (via `default_enabled` parameter).
+- **Guard test enforces:** routers must not define local `_build_soft_paywall_hook`; must import from `_helpers`.
+
 ## Git workflow (single-developer safe mode)
 
 This workflow is the default while the project is maintained by a single developer and branch protection blocks force-pushes.
