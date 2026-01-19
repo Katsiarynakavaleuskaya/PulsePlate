@@ -83,7 +83,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app", "providers", "core"]
+known-first-party = ["app", "bmi_core", "providers", "core"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["E402", "F811", "F401", "F841"]
