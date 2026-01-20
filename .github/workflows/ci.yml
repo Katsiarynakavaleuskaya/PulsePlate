@@ -586,24 +586,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Select Xcode (deterministic)
+      - name: Select Xcode (deterministic, shellcheck-safe)
         shell: bash
         run: |
           set -euo pipefail
 
-          preferred="/Applications/Xcode_16.2.app"
-
-          if [ -d "$preferred" ]; then
-            sudo xcode-select -s "$preferred/Contents/Developer"
+          # Prefer a pinned version if present, else fall back to default.
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_16.2.app/Contents/Developer"
           else
-            newest="$(ls -1d /Applications/Xcode_*.app 2>/dev/null | sort | tail -n 1 || true)"
-            if [ -n "$newest" ]; then
-              sudo xcode-select -s "$newest/Contents/Developer"
+            latest_xcode_app="$(
+              find /Applications -maxdepth 1 -type d -name "Xcode*.app" -print 2>/dev/null \
+                | sort \
+                | tail -n 1 || true
+            )"
+
+            if [ -n "${latest_xcode_app}" ]; then
+              sudo xcode-select -s "${latest_xcode_app}/Contents/Developer"
             else
               sudo xcode-select -s "/Applications/Xcode.app/Contents/Developer"
             fi
           fi
 
+          xcode-select -p
           xcodebuild -version
 
       - name: Verify workspace can be read
