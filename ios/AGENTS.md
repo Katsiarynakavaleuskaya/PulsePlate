@@ -129,7 +129,8 @@
 - `ios-tests` GitHub Actions job must pass
 - CI is the enforcement gate (blocks merge if tests fail)
 
-**Known issue:**
-- Workspace scheme (`PulsePlate.xcworkspace`) needs TestAction reconfiguration in Xcode
-- Currently using `-project` as workaround for local testing
-- CI uses workspace successfully (different Xcode/scheme resolution)
+**Test execution (canonical):**
+- Use `-only-testing:PulsePlateTests` to explicitly target test bundle
+- Required for app schemes in workspace context (Xcode edge case)
+- Without `-only-testing`, xcodebuild may return exit code 66 even if tests run
+- This is a known Xcode behavior, not a project configuration issue
