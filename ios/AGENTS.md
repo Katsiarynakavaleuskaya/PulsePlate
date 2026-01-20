@@ -106,6 +106,15 @@
 - Tests must pass before PR merge
 - CI failure blocks merge
 
+**Test scope policy (PR-559):**
+- **Unit tests (Guards + BMI)** — mandatory, block merge if failing
+  - `ThinClientGuardsTests` (anti-duplication guard)
+  - `BMIServiceTests`, `BMIResponseDecodingTests`, `BMIRequestEncodingTests`, `LocaleParsingTests`
+- **UI tests** — excluded from CI (do not block PR-559)
+  - `PulsePlateUITests` skipped via `-skip-testing:PulsePlateUITests`
+  - `PlateViewTests` excluded (unstable, needs stabilization/rewrite)
+  - **Backlog item:** Stabilize/rewrite `PlateViewTests` and restore to CI (see `docs/roadmap/BACKLOG_LEDGER.md`)
+
 **Destination policy:**
 - CI uses `iPhone 15,OS=latest` (stable on GitHub Actions macos-15 runner)
 - Local defaults to `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)

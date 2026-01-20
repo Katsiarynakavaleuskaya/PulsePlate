@@ -36,6 +36,20 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Stabilize/restore PlateViewTests and UI tests in CI (iOS)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (separate from PR-559)
+  - Reason: PlateViewTests unstable; UI tests excluded from PR-559 CI to unblock merge. Needs stabilization/rewrite before restoring to CI.
+  - Links:
+    - ios/PulsePlate/Tests/PlateViewTests.swift
+    - .github/workflows/ci.yml (line 633: `-skip-testing:PulsePlateUITests`)
+    - ios/AGENTS.md (Test scope policy)
+  - DoD:
+    - PlateViewTests stabilized (no flaky failures)
+    - UI tests (`PulsePlateUITests`) pass consistently
+    - `-skip-testing:PulsePlateUITests` removed from CI
+    - CI green with UI tests included
+
 - [ ] Fix or restore AnimationTests.swift (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (separate from PR-559)
@@ -99,5 +113,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-19
+**Last updated:** 2026-01-20
 **Maintainer:** @katsiaryna_kavaleuskaya
