@@ -577,7 +577,7 @@ jobs:
   # iOS unit tests (enforces guard tests and thin client invariants)
   ios-tests:
     name: iOS unit tests (xcodebuild)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 25
     if: |
       github.event_name == 'pull_request' ||
@@ -586,27 +586,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Select Xcode (built-in)
+      - name: Show Xcode version
         run: |
-          set -euo pipefail
-          # List available Xcode installations (debug info)
-          for xcode in /Applications/Xcode*.app; do
-            [ -d "$xcode" ] && echo "Found: $xcode" || true
-          done
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s "/Applications/Xcode_16.2.app"
-          else
-            # Fallback: choose latest installed Xcode
-            sudo xcode-select -s "/Applications/Xcode.app"
-          fi
-          # Verify selection
-          echo "Selected Xcode path:"
+          echo "Default Xcode path:"
           xcode-select -p
           echo "Xcode version:"
           xcodebuild -version
-
-      - name: Show Xcode version
-        run: xcodebuild -version
 
       - name: List available simulators
         run: xcrun simctl list devices available

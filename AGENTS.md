@@ -1074,12 +1074,12 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 ## iOS CI Policy (Hard Rule)
 
-**iOS PRs must run xcodebuild unit tests in GitHub Actions (macos runner).**
+**iOS PRs must run xcodebuild unit tests in GitHub Actions (macOS runner).**
 
 **Rules:**
 - Swift syntax-only checks (pre-commit hooks) are insufficient for enforcement.
 - All iOS unit tests (including guard tests like `ThinClientGuardsTests`) must run in CI.
-- CI job runs on `macos-14` runner with Xcode 15.4+.
+- CI job runs on `macos-15` runner with Xcode 16.x (matches project format).
 - Tests must pass before PR merge.
 
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
