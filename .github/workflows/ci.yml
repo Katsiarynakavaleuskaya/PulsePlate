@@ -670,6 +670,7 @@ jobs:
           print(f"Selected destination: {dest}")
           with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
               print(f"destination={dest}", file=f)
+              print(f"udid={device_udid}", file=f)
           PY
 
       - name: iOS tests (project-based, app scheme)
@@ -678,6 +679,8 @@ jobs:
           set -euo pipefail
 
           DESTINATION="${{ steps.select-destination.outputs.destination }}"
+          UDID="${{ steps.select-destination.outputs.udid }}"
+
           if [ -z "$DESTINATION" ]; then
             echo "::error::IOS_DESTINATION is empty"
             exit 1
@@ -690,18 +693,42 @@ jobs:
             exit 1
           fi
 
+          echo "DESTINATION=$DESTINATION"
+          echo "UDID=$UDID"
+
+          # Diagnostic: verify simulator exists and is accessible
+          echo "Checking simulator availability..."
+          xcrun simctl list devices | sed -n '1,200p' | head -n 50
+          if xcrun simctl list devices | grep -q "$UDID"; then
+            echo "✓ Simulator UDID found in simctl list"
+          else
+            echo "::warning::Simulator UDID not found in simctl list"
+          fi
+
+          # Boot simulator to ensure it's ready for xcodebuild test
+          # This fixes "Unable to find a destination" when simulator exists but isn't booted
+          if [ -n "$UDID" ]; then
+            echo "Booting simulator: $UDID"
+            xcrun simctl boot "$UDID" || true
+            echo "Waiting for simulator to be ready..."
+            xcrun simctl bootstatus "$UDID" -b || true
+            echo "✓ Simulator booted and ready"
+          fi
+
+          # Diagnostic: show destinations after boot
+          echo "Available destinations after boot:"
+          xcodebuild -showdestinations -project PulsePlate.xcodeproj -scheme PulsePlate 2>&1 | sed -n '1,100p' | head -n 50
+
+          # Diagnostic: Xcode version and path
+          echo "Xcode info:"
+          xcode-select -p
+          xcodebuild -version
+          ls -la /Applications | grep -i xcode | head -n 5 || true
+
           echo "Using destination: $DESTINATION"
 
-          xcodebuild -version
+          # Additional diagnostic: list project schemes
           xcodebuild -list -project PulsePlate.xcodeproj
-
-          # Optional: show destinations for sanity
-          xcodebuild -showdestinations \
-            -project PulsePlate.xcodeproj \
-            -scheme PulsePlate | sed -n '1,60p'
-
-          # List available simulators
-          xcrun simctl list devices available
 
           # Run unit tests (UI tests excluded via -skip-testing)
           xcodebuild test \
