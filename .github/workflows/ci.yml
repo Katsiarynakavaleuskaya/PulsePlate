@@ -573,3 +573,38 @@ jobs:
           fail_ci_if_error: false
           use_oidc: true
         continue-on-error: true
+
+  # iOS unit tests (enforces guard tests and thin client invariants)
+  ios-tests:
+    name: iOS unit tests (xcodebuild)
+    runs-on: macos-14
+    timeout-minutes: 25
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "15.4"
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: List available simulators
+        run: xcrun simctl list devices available
+
+      - name: Run iOS unit tests
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -scheme PulsePlate \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5' \
+            -configuration Debug \
+            -derivedDataPath ../.derivedData \
+            -enableCodeCoverage NO \
+            -quiet
