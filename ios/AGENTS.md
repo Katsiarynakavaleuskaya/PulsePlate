@@ -139,7 +139,7 @@
 
 **Local vs CI differences:**
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
-- **CI:** Uses `iPhone 15,OS=latest` (more stable on GitHub runner)
+- **CI:** Auto-selects destination (prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15`; pins iOS 18.6 runtime)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - Both use `-only-testing:PulsePlateTests` + `-parallel-testing-enabled NO` (canonical pattern)
 - CI includes diagnostic steps: `xcodebuild -version`, `xcodebuild -list`, `xcodebuild -showdestinations`

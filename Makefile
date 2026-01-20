@@ -313,7 +313,7 @@ openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fai
 ## NOTE: Uses -project (workspace scheme has test action issue).
 ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
-	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16)"; \
+	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16e)"; \
 		SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
 		echo "Using simulator: $$SIM_NAME, OS: $$SIM_OS"; \
 		cd ios && xcodebuild test \
@@ -326,10 +326,10 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 			-only-testing:PulsePlateTests/BMIRequestEncodingTests \
 			-only-testing:PulsePlateTests/LocaleParsingTests \
 			-destination "platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS" \
-		-configuration Debug \
-		-derivedDataPath ../.derivedData \
-		-enableCodeCoverage NO \
-		-parallel-testing-enabled NO
+			-configuration Debug \
+			-derivedDataPath ../.derivedData \
+			-enableCodeCoverage NO \
+			-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
 .PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test

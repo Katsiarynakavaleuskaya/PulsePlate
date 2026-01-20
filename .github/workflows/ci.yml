@@ -648,10 +648,14 @@ jobs:
               sys.exit(1)
 
           os_ver = f"{major}.{minor}"
-          available_names = [d["name"] for d in devices.get(runtime, []) if d.get("isAvailable", True)]
+          available_devices = [d for d in devices.get(runtime, []) if d.get("isAvailable", True)]
+          available_names = [d["name"] for d in available_devices]
 
           pref_devices = ["iPhone 16e", "iPhone 16", "iPhone 16 Pro", "iPhone 15", "iPhone 14"]
           device = next((n for n in pref_devices if n in available_names), None)
+          device_udid = None
+          if device:
+              device_udid = next((d["udid"] for d in available_devices if d["name"] == device), None)
 
           if device:
               dest = f"platform=iOS Simulator,name={device},OS={os_ver}"
@@ -659,7 +663,11 @@ jobs:
               # Last resort: placeholder simulator device (rarely needed)
               dest = f"platform=iOS Simulator,name=Any iOS Simulator Device,OS={os_ver}"
 
-          print(f"Selected destination: {dest} (runtime={runtime})")
+          print(f"Selected runtime: {runtime} (iOS {os_ver})")
+          print(f"Selected device: {device or 'Any iOS Simulator Device'}")
+          if device_udid:
+              print(f"Device UDID: {device_udid}")
+          print(f"Selected destination: {dest}")
           with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
               print(f"destination={dest}", file=f)
           PY
@@ -688,6 +696,7 @@ jobs:
           # List available simulators
           xcrun simctl list devices available
 
+          # Run unit tests (UI tests excluded via -skip-testing)
           xcodebuild test \
             -project PulsePlate.xcodeproj \
             -scheme PulsePlate \
