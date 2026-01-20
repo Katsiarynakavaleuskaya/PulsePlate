@@ -615,11 +615,11 @@ jobs:
           xcode-select -p
           xcodebuild -version
 
-      - name: Verify project can be read
+      - name: Verify workspace can be read
         working-directory: ios
         run: |
           set -euo pipefail
-          xcodebuild -list -project PulsePlate.xcodeproj >/dev/null
+          xcodebuild -list -workspace PulsePlate.xcworkspace >/dev/null
 
       - name: List available simulators
         run: xcrun simctl list devices available
@@ -629,8 +629,9 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild test \
+            -workspace PulsePlate.xcworkspace \
             -scheme PulsePlate \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -configuration Debug \
             -derivedDataPath ../.derivedData \
             -enableCodeCoverage NO \

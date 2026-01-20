@@ -49,7 +49,6 @@
 		B6169A892E893FEF00B218D8 /* Exceptions for "PulsePlate" folder in "PulsePlateTests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Tests/AnimationTests.swift,
 				Tests/APITests.swift,
 				Tests/PlateViewTests.swift,
 			);

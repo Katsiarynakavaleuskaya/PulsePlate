@@ -36,6 +36,19 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Fix or restore AnimationTests.swift (iOS)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (separate from PR-559)
+  - Reason: pre-existing compilation failures (missing types: PulsingView, ShimmerEffect, SlideInTransition, FadeTransition, AnimatedProgressRing, NutritionSegment; internal access issues). Excluded from PulsePlateTests target to unblock PR-559 CI.
+  - Links:
+    - ios/PulsePlate/Tests/AnimationTests.swift
+    - ios/PulsePlate.xcodeproj/project.pbxproj (line 52: removed from membershipExceptions)
+  - DoD:
+    - AnimationTests.swift compiles without errors
+    - All referenced types/modifiers are accessible (public/internal as needed)
+    - Tests restored to PulsePlateTests target
+    - CI green with AnimationTests included
+
 - [ ] Wire soft paywall CTA to real paywall router (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
