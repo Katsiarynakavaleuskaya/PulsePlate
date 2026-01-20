@@ -108,3 +108,18 @@
 - Use stable, guaranteed devices: `iPhone 16, OS=latest` (canonical)
 - If primary destination fails, update to a device that exists on current runner images
 - Never use `name=...` without `OS=latest` or auto-detect via `simctl` (unreliable)
+
+## Local iOS checks
+
+**Fast (pre-commit):**
+- Swift syntax/build checks (automatic via pre-commit hooks)
+- No full unit tests (too slow for every commit)
+
+**Recommended before pushing an iOS PR:**
+- Run `make ios-test` locally (xcodebuild test)
+- This runs all unit tests including guard tests
+- Catches issues before CI
+
+**Required (CI):**
+- `ios-tests` GitHub Actions job must pass
+- CI is the enforcement gate (blocks merge if tests fail)

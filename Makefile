@@ -307,4 +307,17 @@ frontend-install: ## Install frontend dependencies
 openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fails on diff)
 	git diff --exit-code -- frontend/src/api/openapi.json frontend/src/api/schema.ts
 
-.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check
+## Run iOS unit tests (xcodebuild test)
+ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
+	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
+	cd ios && xcodebuild test \
+		-workspace PulsePlate.xcworkspace \
+		-scheme PulsePlate \
+		-destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+		-configuration Debug \
+		-derivedDataPath ../.derivedData \
+		-enableCodeCoverage NO \
+		-quiet
+	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
+
+.PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test
