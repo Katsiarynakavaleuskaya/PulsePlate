@@ -310,20 +310,21 @@ openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fai
 ## Run iOS unit tests (xcodebuild test)
 ## Usage: make ios-test [IOS_SIM_NAME="iPhone 16e"] [IOS_SIM_OS=latest]
 ## Default: iPhone 16e (closest to CI's iPhone 16). Override locally if device not available.
-## NOTE: Uses -only-testing:PulsePlateTests to explicitly target test bundle (required for app schemes).
+## NOTE: Uses -project (workspace scheme has test action issue). Both use -only-testing.
 ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
 	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16e)"; \
 	SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
 	echo "Using simulator: $$SIM_NAME, OS: $$SIM_OS"; \
 	cd ios && xcodebuild test \
-		-workspace PulsePlate.xcworkspace \
+		-project PulsePlate.xcodeproj \
 		-scheme PulsePlate \
 		-only-testing:PulsePlateTests \
 		-destination "platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS" \
 		-configuration Debug \
 		-derivedDataPath ../.derivedData \
-		-enableCodeCoverage NO
+		-enableCodeCoverage NO \
+		-parallel-testing-enabled NO
 	@echo "$(GREEN)✅ iOS тесты пройдены$(NC)"
 
 .PHONY: all help venv setup-automation dev test test-fast cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify openapi frontend-install openapi-check ios-test

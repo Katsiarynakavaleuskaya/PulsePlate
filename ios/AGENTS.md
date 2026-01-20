@@ -94,9 +94,11 @@
 - OS: `latest` (automatically matches runner image)
 - **Hard rule:** Never pin non-existent simulators (e.g., `iPhone 15` may not exist on runner)
 
-**Workspace:**
-- Uses `PulsePlate.xcworkspace` (required for SPM dependencies like Lottie)
-- Not `PulsePlate.xcodeproj` (SPM packages won't resolve correctly)
+**Test execution (project-based):**
+- **Hard rule:** App scheme tests in CI must use `xcodebuild test -project PulsePlate.xcodeproj -only-testing:PulsePlateTests`
+- **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
+- Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
+- Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
 
 **Enforcement:**
 - XCTest unit tests (including guard tests)
@@ -105,7 +107,8 @@
 - CI failure blocks merge
 
 **Destination policy:**
-- Use stable, guaranteed devices: `iPhone 16, OS=latest` (canonical)
+- CI uses `iPhone 15,OS=latest` (stable on GitHub Actions macos-15 runner)
+- Local defaults to `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
 - If primary destination fails, update to a device that exists on current runner images
 - Never use `name=...` without `OS=latest` or auto-detect via `simctl` (unreliable)
 
@@ -122,17 +125,20 @@
 
 **Local vs CI differences:**
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
-- **CI:** Uses `iPhone 15` (more stable on GitHub runner)
-- Both use `-workspace` + `-only-testing:PulsePlateTests` (canonical pattern)
+- **CI:** Uses `iPhone 15,OS=latest` (more stable on GitHub runner)
+- Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
+- Both use `-only-testing:PulsePlateTests` + `-parallel-testing-enabled NO` (canonical pattern)
+- CI includes diagnostic steps: `xcodebuild -version`, `xcodebuild -list`, `xcodebuild -showdestinations`
 
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass
 - CI is the enforcement gate (blocks merge if tests fail)
 
 **Test execution (canonical):**
-- Use `-only-testing:PulsePlateTests` to explicitly target test bundle
-- Required for app schemes in workspace context (Xcode edge case)
+- Use `xcodebuild test -project PulsePlate.xcodeproj -scheme PulsePlate -only-testing:PulsePlateTests`
+- Project-based approach avoids workspace TestAction requirement
+- `-only-testing:PulsePlateTests` explicitly targets test bundle
 - Without `-only-testing`, xcodebuild may return exit code 66 even if tests run
-- This is a known Xcode behavior, not a project configuration issue
+- This is a known Xcode behavior when app scheme lacks TestAction in workspace context
 
-⚠️ **Hard rule:** Never run `xcodebuild test` for app schemes in workspace **without** `-only-testing`, otherwise exit code 66 is expected even when tests execute successfully.
+⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
