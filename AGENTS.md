@@ -1092,6 +1092,11 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 - **Hard rule:** Any CI flake related to destination/runtime must be resolved via UDID-only approach. No return to `OS=latest` or `name+OS` format.
 - **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
 
+**GitHub Actions shell script policy:**
+- **ShellCheck compliance required:** All shell scripts in `.github/workflows/*.yml` must pass `actionlint` (which enforces ShellCheck rules).
+- **Forbidden patterns:** `ls | grep` (SC2010) — use glob + for loop or `find` instead.
+- **Rationale:** Prevents shell script bugs and ensures CI workflow reliability.
+
 ---
 
 ## Links to module instructions
