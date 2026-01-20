@@ -73,3 +73,38 @@
 **Single source of truth:**
 - Backend contract → iOS fixtures → iOS DTOs → UI rendering
 - If contract changes → update fixtures first, no fallback logic in iOS
+
+## CI Integration — iOS Tests Workflow
+
+**Job:** `ios-tests` (GitHub Actions)
+
+**Triggers:**
+- `pull_request` events
+- `push` to `feat/*`, `fix/*`, `main` branches
+
+**Runner:** macOS 15 (GitHub Actions)
+
+**Xcode selection:**
+- Preferred: Xcode 16.2 (`/Applications/Xcode_16.2.app`)
+- Fallback: newest available `Xcode_*.app` (sorted, deterministic)
+- Final fallback: `/Applications/Xcode.app` (default)
+
+**Simulator:**
+- Device: `iPhone 16`
+- OS: `latest` (automatically matches runner image)
+- **Hard rule:** Never pin non-existent simulators (e.g., `iPhone 15` may not exist on runner)
+
+**Workspace:**
+- Uses `PulsePlate.xcworkspace` (required for SPM dependencies like Lottie)
+- Not `PulsePlate.xcodeproj` (SPM packages won't resolve correctly)
+
+**Enforcement:**
+- XCTest unit tests (including guard tests)
+- Thin-client guard tests (anti-duplication)
+- Tests must pass before PR merge
+- CI failure blocks merge
+
+**Destination policy:**
+- Use stable, guaranteed devices: `iPhone 16, OS=latest` (canonical)
+- If primary destination fails, update to a device that exists on current runner images
+- Never use `name=...` without `OS=latest` or auto-detect via `simctl` (unreliable)

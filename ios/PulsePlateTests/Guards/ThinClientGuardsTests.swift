@@ -41,14 +41,15 @@ final class ThinClientGuardsTests: XCTestCase {
             ("bmi-branch-switch", try NSRegularExpression(pattern: #"\bswitch\s+.*\bbmi\b"#))
         ]
 
-        // WHtR heuristic: only flag if both waist+height and division appear.
+        // WHtR heuristic: only flag if waist/height division pattern appears (regex-based, precise).
         let whtHeuristic: (String) -> Bool = { content in
             let lowered = content.lowercased()
-            let hasWaist = lowered.contains("waist")
-            let hasHeight = lowered.contains("height")
-            let hasDivision = lowered.contains("/")
-            let hasWhtToken = lowered.contains("wht") || lowered.contains("wthr") || lowered.contains("waisttoheight")
-            return (hasWhtToken && hasDivision) || (hasWaist && hasHeight && hasDivision)
+            let divisionRegex = try? NSRegularExpression(
+                pattern: #"\b(waist|wht|wthr|waisttoheight)\b\s*[/÷]\s*\b(height|wht|wthr|waisttoheight)\b"#,
+                options: [.caseInsensitive]
+            )
+            let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
+            return divisionRegex?.firstMatch(in: lowered, options: [], range: range) != nil
         }
 
         var hits: [String] = []
