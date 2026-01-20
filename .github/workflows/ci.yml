@@ -622,7 +622,7 @@ jobs:
           xcodebuild test \
             -workspace PulsePlate.xcworkspace \
             -scheme PulsePlate \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
             -configuration Debug \
             -derivedDataPath ../.derivedData \
             -enableCodeCoverage NO \

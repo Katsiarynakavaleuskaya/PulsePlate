@@ -308,15 +308,18 @@ openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fai
 	git diff --exit-code -- frontend/src/api/openapi.json frontend/src/api/schema.ts
 
 ## Run iOS unit tests (xcodebuild test)
-## NOTE: Using -project instead of -workspace due to scheme configuration issue.
-## Uses iPhone 17 locally (iPhone 16 may not exist on local machine).
-## CI uses iPhone 16 (available on GitHub runner).
+## Usage: make ios-test [IOS_SIM_NAME="iPhone 16e"] [IOS_SIM_OS=latest]
+## Default: iPhone 16e (closest to CI's iPhone 16). Override locally if device not available.
+## NOTE: Uses -workspace for SPM dependencies. Scheme must be shared with Test action enabled.
 ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
+	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16e)"; \
+	SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
+	echo "Using simulator: $$SIM_NAME, OS: $$SIM_OS"; \
 	cd ios && xcodebuild test \
-		-project PulsePlate.xcodeproj \
+		-workspace PulsePlate.xcworkspace \
 		-scheme PulsePlate \
-		-destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+		-destination "platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS" \
 		-configuration Debug \
 		-derivedDataPath ../.derivedData \
 		-enableCodeCoverage NO

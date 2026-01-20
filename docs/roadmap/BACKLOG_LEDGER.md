@@ -49,6 +49,18 @@ If it is not recorded here — it does not exist.
     - Tests restored to PulsePlateTests target
     - CI green with AnimationTests included
 
+- [ ] Fix ShoppingPlan public API (make nested types public or narrow API surface)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (separate from PR-559)
+  - Reason: CodeRabbit flagged "ShoppingPlan isn't constructible" - public type with internal nested types (DailyMenu, Meal). Outside PR-559 scope but architectural smell.
+  - Links:
+    - ios/PulsePlate/Models/ShoppingList/ShoppingListStubPlan.swift
+    - CodeRabbit comment (outside diff, actionable=0)
+  - DoD:
+    - Either make DailyMenu/Meal public with explicit init
+    - Or narrow API: make ShoppingPlan/ShoppingListRequestPayload internal if it's "stub" only
+    - No breaking changes to existing usage
+
 - [ ] Wire soft paywall CTA to real paywall router (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
