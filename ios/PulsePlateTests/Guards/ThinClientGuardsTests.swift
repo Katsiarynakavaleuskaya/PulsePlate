@@ -46,7 +46,7 @@ final class ThinClientGuardsTests: XCTestCase {
             let lowered = content.lowercased()
             let hasWaist = lowered.contains("waist")
             let hasHeight = lowered.contains("height")
-            let hasDivision = lowered.contains("/") || lowered.contains(" / ")
+            let hasDivision = lowered.contains("/")
             let hasWhtToken = lowered.contains("wht") || lowered.contains("wthr") || lowered.contains("waisttoheight")
             return (hasWhtToken && hasDivision) || (hasWaist && hasHeight && hasDivision)
         }
