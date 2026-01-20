@@ -134,3 +134,5 @@
 - Required for app schemes in workspace context (Xcode edge case)
 - Without `-only-testing`, xcodebuild may return exit code 66 even if tests run
 - This is a known Xcode behavior, not a project configuration issue
+
+⚠️ **Hard rule:** Never run `xcodebuild test` for app schemes in workspace **without** `-only-testing`, otherwise exit code 66 is expected even when tests execute successfully.
