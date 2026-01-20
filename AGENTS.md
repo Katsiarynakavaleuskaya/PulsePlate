@@ -181,8 +181,9 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 2. **Runtime PRs only:** block planning docs in `docs/pr/`:
    `PR_<n>_(READY|ROADMAP|HANDOFF|AUDIT_REPORT|REVIEW_CHECKLIST).md`
 3. **Warnings (non-blocking):**
-  - file count > ~15 (info), > ~30 (warning)
-  - runtime PRs with >2 markdown files (mixed-concern signal)
+
+- file count > ~15 (info), > ~30 (warning)
+- runtime PRs with >2 markdown files (mixed-concern signal)
 
 **How to pass**
 
@@ -276,6 +277,7 @@ A repository-wide guard that runs early in CI to prevent PR bloat and mixed conc
 - Docker HEALTHCHECK should use `/health` (liveness), not `/ready` (readiness).
 
 **Rationale:** Separating liveness and readiness allows orchestrators to:
+
 - Restart containers that fail liveness (process dead)
 - Stop routing traffic to containers that fail readiness (dependencies unavailable)
 
@@ -356,12 +358,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 **Invariant:** BMI extras calculations must explicitly distinguish Free/Simple vs Pro tier policies.
 
 **Rationale:** Free and Pro tiers use different:
+
 - Rounding precision (2 vs 3 decimal places)
 - WHR thresholds (0.90/0.85 vs 0.95/0.80 for male/female)
 - Return formats (tuple vs Dict)
 - Feature availability (FFMI estimate mode in Pro only)
 
 **Enforcement:**
+
 - **One canonical module:** `core/bmi_extras.py` (satisfies guard requirement)
 - **Explicit tier functions:** `*_simple()` for Free tier, `*_pro()` or base names for Pro tier
 - **Documentation:** Each function must document which tier it serves and policy differences
@@ -370,6 +374,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Forbidden:** Calling any `*_simple()` (Free/Simple tier) functions inside Pro endpoints
 
 **Canonical structure:**
+
 ```python
 # core/bmi_extras.py structure:
 # - Pro tier functions: wht_ratio(), whr_ratio(waist, hip, sex), ffmi(), stage_obesity(), interpret_*()
@@ -377,10 +382,12 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 ```
 
 **Product contract:**
+
 - **Free tier:** BMI + category + basic WHtR (if waist available); no WHR, no FFMI, no staging
 - **Pro tier:** All Free features + WHR (sex-specific) + FFMI (with estimate mode) + comprehensive staging + notes
 
 **See:**
+
 - `docs/audit/PR_REMEDIATION_BMI_EXTRAS_ANALYSIS.md` — Detailed tier analysis
 - `docs/contracts/PRODUCT_TIER_MAP.md` — Full product tier documentation
 - `docs/product/FREE_PRO_CONTRACT.md` — Full product tier contract
@@ -388,6 +395,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 ### Future scope (explicitly out of current remediation PR)
 
 **VIP tier features (require separate audit and PR):**
+
 - Personalized nutrition menus
 - Store-based product selection
 - Diet and cuisine preferences
@@ -396,6 +404,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Advanced personalization logic
 
 **Rationale:**
+
 - Current remediation PR is **architectural/technical** — restoring invariants
 - VIP tier requires separate product audit and design
 - Menu automation and product selection are distinct from BMI calculation engine
@@ -403,6 +412,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - New features or VIP automation = NOT OK (separate PRs)
 
 **When to implement:**
+
 - After backend P0 remediation is complete (guards green)
 - After product contract is established (FREE/PRO tiers)
 - Requires separate audit: `docs/audit/VIP_TIER_AUDIT.md` (future)
@@ -450,9 +460,9 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **sys.modules mutation forbidden** — use `monkeypatch.delitem(sys.modules, name, raising=False)` and `monkeypatch.setitem(sys.modules, name, value)` instead of direct `del sys.modules[...]` or `sys.modules[...] = ...`.
 - **Env vars set in tests must be cleaned in teardown** — all variables set in `setup_method` must be popped/restored in `teardown_method` to prevent xdist pollution.
 - **Dependency override pattern:**
- - If test overrides `require_vip_tier` or `require_pro_tier` dependency → do NOT send `vip_headers`/`pro_headers` (guard is bypassed)
- - If test name includes `_with_guard_bypassed` → override is intentional for business logic testing
- - If test name does NOT include bypass marker → no overrides, use real keys
+- If test overrides `require_vip_tier` or `require_pro_tier` dependency → do NOT send `vip_headers`/`pro_headers` (guard is bypassed)
+- If test name includes `_with_guard_bypassed` → override is intentional for business logic testing
+- If test name does NOT include bypass marker → no overrides, use real keys
 - **Forbidden:** Testing private `_require_*` functions from routers — use behavioral tests through `TestClient` + middleware.
 - **When tier guards are tightened:** All existing tests calling protected endpoints must be updated to use appropriate tier keys, otherwise tests check auth instead of business logic.
 - **PRO endpoints MUST live under `/api/v1/pro/*`** (canonical namespace).
@@ -533,8 +543,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - `frontend/src/api/openapi.json`
 - `frontend/src/api/schema.ts` (if changed)
 
-3. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
-4. CI will fail if generated artifacts are out of sync (OpenAPI sync check).
+1. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
+2. CI will fail if generated artifacts are out of sync (OpenAPI sync check).
 
 **Hard rule:** Any PR that changes OpenAPI (including metadata-only changes via `openapi_extra`) **must** commit regenerated `frontend/src/api/openapi.json` and `frontend/src/api/schema.ts` (if changed) and pass `make openapi-check`.
 
@@ -554,12 +564,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 **Exception:** Security suppressions must be done in a dedicated **security PR** and may include Trivy ignore config (`.trivyignore` and/or `trivy/ignore-policy.rego`) + `docs/security/*.md` (see "PR Scope Policy (Hard Rule)").
 
 **Allowed changes (docs-only):**
+
 - `*.md` files
 - `README.md`
 - `AGENTS.md`, `RUNBOOK_AGENT.md`, `DEPLOYMENT.md`
 - `.github/*.md` (templates, instructions)
 
 **❌ Forbidden changes (docs-only):**
+
 - Any source code (`*.py`, `*.js`, `*.ts`, `*.swift`, etc.)
 - CI / infra (`*.yml`, `Dockerfile`, `Makefile`, `requirements*`)
 - Runtime configs or imports
@@ -578,6 +590,7 @@ git diff --name-only origin/main...HEAD \
 - If any non-doc file appears → **STOP** and revert it from the PR.
 
 **Special note about legacy files:**
+
 - Files like `legacy_app.py` **MUST NOT** appear in docs-only PRs.
 - If a docs PR accidentally touches code, it must be **reset to `origin/main`** and removed from the diff.
 - Code cleanup related to other PRs **belongs only to that PR**, never to docs PRs.
@@ -616,6 +629,7 @@ Violation of this rule blocks merge.
 **Hard rule:** Do not work on P1 items until P0-A is complete. "Brand magic" is worthless if the product doesn't calculate.
 
 **Diagnostic approach for "BMI undefined" issues:**
+
 1. **Request:** Check DevTools Network → URL + payload (JSON)
 2. **Response:** Check status code + first fields of body
    - **422** → Form sends wrong data (parsing/fields/units) → Fix in PR-525
@@ -628,12 +642,14 @@ Violation of this rule blocks merge.
 **Invariant:** *"One BMI Engine must be the sole calculation path for all BMI-related computations."*
 
 **Enforcement:**
+
 - Guard tests in `tests/test_bmi_canonical_guard.py`
 - CI fails on violation
 - No imports from `bmi_core` in `core/bmi/`
 - Only one canonical extras module (or clear purpose)
 
 **Legacy shim policy (`bmi_core.py`):**
+
 - Legacy shim `bmi_core.py` **must preserve positional ABI** (e.g., `lang` = 5th positional in `auto_group`).
 - Any shim must have **direct diff-cover tests** on all exported wrappers.
 - Deprecated stubs: `(*args, **kwargs) -> raise RuntimeError` + test on raises (no silent None returns).
@@ -643,6 +659,7 @@ Violation of this rule blocks merge.
 > *"Until legacy dependency is removed, any downstream fixes (frontend, API contracts) are considered unreliable. The system cannot be diagnosed or fixed reliably until the invariant is restored."*
 
 **Related:**
+
 - `docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md` — Root cause analysis
 - `docs/audit/BACKEND_P0_REMEDIATION_PLAN.md` — Remediation plan
 - `docs/audit/BACKEND_P0_GUARD_POLICY_PROPOSAL.md` — Guard policy
@@ -652,26 +669,31 @@ Violation of this rule blocks merge.
 **Invariant:** Soft paywall hooks must be built in adapter/router layer only (`app/routers/*`), never in `core/bmi/*`.
 
 **Enforcement:**
+
 - Guard test in `tests/test_no_bmi_logic_in_paywall.py`
 - Hook builders must not import `core/bmi/*`
 - Hook builders must not check BMI values or categories
 
 **Forbidden:**
+
 - Any BMI-dependent logic/branching for hook display (no thresholds, no categories, no "if BMI…")
 - Importing `core/bmi/*` from hook builders
 - BMI-based conditions for showing/hiding hooks
 
 **Allowed:**
+
 - Feature flags via env (`SOFT_PAYWALL_ENABLED`)
 - i18n lookup via `core.i18n.t()`
 - Hook formation in router/adapter layer only
 
 **Rationale:**
+
 - Hooks are UX/contract layer, not domain logic
 - BMI logic belongs in `core/bmi/*` only
 - Separation prevents accidental BMI logic drift into router layer
 
 **Contract documentation:**
+
 - Soft Paywall Hook contract: `docs/contracts/soft_paywall.md` (text-only, no `core.bmi.*` imports, disabled => `null`)
 
 ## Feature changes via PR (hard rule)
@@ -679,6 +701,7 @@ Violation of this rule blocks merge.
 **Invariant:** Feature changes must land via a dedicated PR with explicit scope and DoD.
 
 **Rules:**
+
 - Do not mix unrelated scopes (e.g., security hygiene + product feature) in the same PR.
 - Emergency hotfix is allowed only under `hotfix/*` branch naming and must remain scope-minimal.
 - Docs-only PRs documenting already-merged features must reference the implementation PR/commit.
@@ -697,11 +720,13 @@ Violation of this rule blocks merge.
 **Hard rule:** Custom input components with `onValueChange(value)` → **only use `Controller` pattern**, never `{...register()}`.
 
 **Why:**
+
 - `register()` expects DOM `onChange(event)`
 - Custom components use `onValueChange(value)` → incompatible
 - Direct `{...register()}` will cause bugs (values as strings, NaN, undefined)
 
 **Correct pattern:**
+
 ```typescript
 import { Controller } from "react-hook-form";
 import { NumberInput } from "@/components/ui/number-input";
@@ -721,6 +746,7 @@ import { NumberInput } from "@/components/ui/number-input";
 ```
 
 **Alternative (quick fix):** Use `setValueAs` with native `<input>`:
+
 ```typescript
 <input
   {...register('weight_kg', {
@@ -738,11 +764,13 @@ import { NumberInput } from "@/components/ui/number-input";
 **Hard rule:** RU locale must support comma decimal separator (`75,1` → `75.1`).
 
 **Implementation:**
+
 - Use `setValueAs` for quick fixes (P0)
 - Use `NumberInput` with `Controller` for proper components (P1)
 - **Single source of truth:** Either `setValueAs` OR `NumberInput`, not both
 
 **Verification:**
+
 - Test with `75,1` → should parse to `75.1`
 - Test with `75.1` → should parse to `75.1`
 - Invalid input → should show error, not `undefined`
@@ -948,6 +976,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 4. **Remove:** When fixed version available, remove suppression and update base image
 
 **Suppression requirements:**
+
 - Must have expiry date (max 90 days)
 - Must reference CVE tracker URL
 - Must document removal condition
@@ -955,6 +984,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Must include `# Suppression expires: YYYY-MM-DD` in the policy file (enforced by CI)
 
 **Rationale:** We cannot fix system library vulnerabilities. We can only:
+
 - Document unfixed status
 - Monitor for upstream fix
 - Update base image when fix available
@@ -962,15 +992,18 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **CVE suppressions must live in a dedicated security PR (runtime config allowed), and must reference a single canonical doc in `docs/security/...`.**
 
 **Trivy suppression implementation (canonical):**
+
 - Prefer `trivy/ignore-policy.rego` (scoped by package + version + context fields where possible).
 - `.trivyignore` is for legacy/minimal ignores; do not rely on it for expiry monitoring.
 - CI uses `TRIVY_IGNORE_POLICY_PATH` to point to active policy file(s); expiry enforcement runs `scripts/ci/check_trivy_ignore_policy_expiry.py`.
 
 **Security PR scoping:**
+
 - **One PR per CVE:** Security suppression PRs must be CVE-scoped: one PR per CVE (doc + policy rule) for traceability and auditability.
 - **Exception:** A base image bump / distro upgrade PR may address multiple CVEs via upstream fixes (no suppression additions required).
 
 **Example:**
+
 - CVE-2026-0861 (glibc) — unfixed in Debian bookworm
 - Suppression expires: 2026-03-01
 - Monitor: <https://security-tracker.debian.org/tracker/CVE-2026-0861>
@@ -989,6 +1022,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 5. **Package access:** Package must grant repository access in settings
 
 **Verification checklist:**
+
 - [ ] Token has `read:packages` scope
 - [ ] Token is in Environment secrets (not Repository secrets)
 - [ ] Package settings → Actions access → repository has Read access
@@ -996,6 +1030,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - [ ] Workflow has `permissions: packages: read`
 
 **Common errors:**
+
 - `denied: denied` → Check token scope and package permissions
 - `authentication required` → Verify token is in environment secrets
 - `not found` → Check package name and repository access
@@ -1007,6 +1042,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 ## Post-Remediation Roadmap (Hard Rule)
 
 **PR-D (Frontend Audit) is forbidden until:**
+
 - ✅ Remediation PR merged (PR #535)
 - ✅ PR-A cleanup merged
 - ✅ Backend guards green
@@ -1015,6 +1051,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 **Rationale:** Frontend audit requires stable backend contracts. Premature frontend changes create technical debt and alignment issues.
 
 **Roadmap:**
+
 - **PR-A:** Post-remediation cleanup (dead code, orphan tests)
 - **PR-B:** Product contract / soft paywall audit (docs only)
 - **PR-C:** Legal / compliance pack (wellness positioning)
@@ -1031,6 +1068,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **Runtime config changes (`.trivyignore`, `trivy/ignore-policy.rego`, workflows, infra configs) must NEVER be mixed with docs-only PRs.**
 
 **Rules:**
+
 - **Docs-only PR:** Only `*.md` files, `README.md`, `AGENTS.md`, `.github/*.md` (templates)
 - **Runtime config PR:** `.trivyignore`, `.github/workflows/*.yml`, `Dockerfile`, `Makefile`, `requirements*`, etc.
 - **Tests PR:** `tests/*.py`, test-related configs
@@ -1039,6 +1077,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **Rationale:** Mixing runtime config with docs-only PRs violates PR scope guard policy and makes reviews/CI tracking unreliable.
 
 **Examples:**
+
 - ✅ **OK:** Security config PR with `trivy/ignore-policy.rego` + `docs/security/*.md` (related security docs)
 - ❌ **Forbidden:** Docs-only PR with `trivy/ignore-policy.rego` (runtime config)
 - ❌ **Forbidden:** Guard scanner PR with `.trivyignore` (different scope)
@@ -1052,6 +1091,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **Canonical backlog lives in `docs/roadmap/BACKLOG_LEDGER.md`.**
 
 **Rules (non-negotiable):**
+
 1. Any postponed / deferred work MUST be recorded in the ledger immediately.
 2. Each ledger item MUST include:
    - Owner
@@ -1065,6 +1105,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
 **Agent enforcement:**
+
 - Agents must refuse to mark work as "done" if deferred items were mentioned but not recorded in the ledger.
 - If it is not in the ledger — it does not exist.
 
@@ -1077,6 +1118,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **iOS PRs must run xcodebuild unit tests in GitHub Actions (macOS runner).**
 
 **Rules:**
+
 - Swift syntax-only checks (pre-commit hooks) are insufficient for enforcement.
 - All iOS unit tests (including guard tests like `ThinClientGuardsTests`) must run in CI.
 - CI job runs on `macos-15` runner with Xcode 16.x (matches project format).
@@ -1085,14 +1127,31 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
 
 **iOS CI destination policy (canonical):**
+
 - **CI destination MUST be UDID-only:** `platform=iOS Simulator,id=<UDID>`
-- **`OS=latest` is forbidden:** Job fails if destination contains `latest` (anti-nondeterminism guard)
-- **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
-- **Local runs:** May use friendly device name (e.g., `iPhone 16e`), but CI is UDID-only
+- **`OS=latest` is forbidden in CI:** Job fails if destination contains `latest` (anti-nondeterminism guard). CI must use explicit UDID-based destinations only.
+- **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners.
+- **Local runs (developer convenience):** May use friendly device name (e.g., `iPhone 16e`) or select latest available iOS runtime for local testing, but CI is strictly UDID-only.
+- **Xcode version pinning (hard rule):** CI must pin Xcode major/minor version compatible with selected simulator runtimes using deterministic priority list (e.g., prefer Xcode 16.4 → 16.3 → 16.2). Avoid mixing Xcode 16.2 (expects iOS 18.2 SDK) with iOS 18.5/18.6 runtimes → use Xcode 16.4/16.3 instead. Xcode version mismatch causes "iOS X.Y is not installed" errors and makes simulators ineligible for `xcodebuild -showdestinations`.
+- **"Latest" policy clarification:**
+  - ❌ **Forbidden:** `OS=latest` in CI destination strings
+  - ✅ **Allowed:** "Latest Xcode installed" selection via deterministic priority list (pin/priority), not "whatever is newest"
+  - ✅ **Allowed (local only):** "Latest iOS runtime available" for developer convenience in local runs, but CI must use UDID + pinned Xcode
 - **Hard rule:** Any CI flake related to destination/runtime must be resolved via UDID-only approach. No return to `OS=latest` or `name+OS` format.
 - **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
 
+**iOS Xcode project configuration policy (hard rule):**
+
+- **Info*.plist must have NO Target Membership and must never be in Copy Bundle Resources:** Info.plist files (`Info.plist`, `Info-Debug.plist`, `Info-Release.plist`) must be configured only via `INFOPLIST_FILE` in Build Settings. They must not have Target Membership and must never be added to "Copy Bundle Resources" build phase.
+- **Rationale:** Adding Info.plist to Copy Bundle Resources or enabling Target Membership causes Xcode build/test failures and unpredictable behavior. Info.plist is processed automatically by Xcode via `INFOPLIST_FILE` setting; copying it as a resource or enabling target membership creates conflicts.
+- **Xcode 15+ File System Synchronized Build Files:** If using Xcode 15+ with File System Synchronized Build Files enabled, add all `Info*.plist` files to `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` in `project.pbxproj` to prevent automatic addition to Copy Bundle Resources. Example: `Info.plist`, `Info-Debug.plist`, `Info-Release.plist` must all be in `membershipExceptions`.
+- **Verification:**
+  - **Target Membership:** In Xcode, select each `Info*.plist` file → File Inspector → Target Membership → ensure NO targets are checked.
+  - **Build Phases:** Target → Build Phases → Copy Bundle Resources → ensure no `Info*.plist` files are listed. If found, remove them (file remains on disk, only remove from build phase).
+  - **Command line:** Run `xcodebuild -project ... -scheme ... -configuration Debug build 2>&1 | grep -i "copy.*bundle.*resources.*info"` → should return no warnings.
+
 **GitHub Actions shell script policy:**
+
 - **ShellCheck compliance required:** All shell scripts in `.github/workflows/*.yml` must pass `actionlint` (which enforces ShellCheck rules).
 - **Forbidden patterns:** `ls | grep` (SC2010) — use glob + for loop or `find` instead.
 - **Rationale:** Prevents shell script bugs and ensures CI workflow reliability.

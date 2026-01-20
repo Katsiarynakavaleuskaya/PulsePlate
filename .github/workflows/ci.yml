@@ -586,36 +586,65 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Select Xcode (deterministic, shellcheck-safe)
+      - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
+        id: select-xcode
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer a pinned version if present, else fall back to default.
-          if [ -d "/Applications/Xcode_16.2.app" ]; then
-            sudo xcode-select -s "/Applications/Xcode_16.2.app/Contents/Developer"
-          else
-            latest_xcode_app="$(
-              find /Applications -maxdepth 1 -type d -name "Xcode*.app" -print 2>/dev/null \
-                | sort \
-                | tail -n 1 || true
-            )"
+          # Prefer newest stable 16.x to match iOS 18.5/18.6 runtimes on runner.
+          # (Xcode 16.2 expects iOS 18.2 platform, which is not installed here.)
+          CANDIDATES=(
+            "/Applications/Xcode_16.4.app/Contents/Developer"
+            "/Applications/Xcode_16.4.0.app/Contents/Developer"
+            "/Applications/Xcode_16.3.app/Contents/Developer"
+            "/Applications/Xcode_16.3.0.app/Contents/Developer"
+            "/Applications/Xcode_16.2.app/Contents/Developer"
+            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+          )
 
-            if [ -n "${latest_xcode_app}" ]; then
-              sudo xcode-select -s "${latest_xcode_app}/Contents/Developer"
-            else
-              sudo xcode-select -s "/Applications/Xcode.app/Contents/Developer"
+          SELECTED=""
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ]; then
+              SELECTED="$d"
+              break
             fi
+          done
+
+          if [ -z "$SELECTED" ]; then
+            echo "::error::No suitable Xcode 16.x found in /Applications."
+            echo "::error::Available Xcode apps:"
+            for app in /Applications/Xcode*.app; do
+              [ -e "$app" ] && echo " - $app"
+            done
+            exit 1
           fi
 
+          # Set both GITHUB_ENV and GITHUB_OUTPUT for maximum compatibility
+          echo "DEVELOPER_DIR=$SELECTED" >> "$GITHUB_ENV"
+          echo "developer_dir=$SELECTED" >> "$GITHUB_OUTPUT"
+
+          # Force xcode-select to use selected Xcode (critical on multi-Xcode runners)
+          sudo xcode-select -s "$SELECTED"
+
+          echo "Selected DEVELOPER_DIR: $SELECTED"
+          echo "Verifying Xcode selection:"
           xcode-select -p
           xcodebuild -version
 
       - name: Select iOS simulator destination (stable)
         working-directory: ios
         id: select-destination
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
         run: |
           set -euo pipefail
+
+          # Ensure simctl uses the pinned Xcode
+          echo "=== Xcode pinning verification (select-destination) ==="
+          echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
+          xcode-select -p
+          xcodebuild -version
 
           python3 - << 'PY'
           import json, os, re, subprocess, sys
@@ -675,6 +704,8 @@ jobs:
 
       - name: iOS tests (project-based, app scheme)
         working-directory: ios
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
         run: |
           set -euo pipefail
 
@@ -696,8 +727,23 @@ jobs:
           echo "DESTINATION=$DESTINATION"
           echo "UDID=$UDID"
 
+          # Verify Xcode pinning is applied (critical: ensure simctl and xcodebuild use same Xcode)
+          echo "=== Xcode pinning verification ==="
+          echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<not set>}"
+          xcode-select -p
+          xcodebuild -version
+
+          echo "=== Toolchain consistency check ==="
+          echo "xcrun simctl path:"
+          xcrun --find simctl
+          echo "xcrun xcodebuild path:"
+          xcrun --find xcodebuild
+          echo "SDK check:"
+          xcrun --sdk iphonesimulator --show-sdk-version || echo "SDK version check failed"
+          xcrun --sdk iphonesimulator --show-sdk-platform-path || echo "SDK path check failed"
+
           # Diagnostic: verify simulator exists and is accessible
-          echo "Checking simulator availability..."
+          echo "=== Simulator availability check ==="
           xcrun simctl list devices | sed -n '1,200p' | head -n 50
           if xcrun simctl list devices | grep -q "$UDID"; then
             echo "✓ Simulator UDID found in simctl list"
@@ -708,6 +754,7 @@ jobs:
           # Boot simulator to ensure it's ready for xcodebuild test
           # This fixes "Unable to find a destination" when simulator exists but isn't booted
           if [ -n "$UDID" ]; then
+            echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
             echo "Waiting for simulator to be ready..."
@@ -716,19 +763,10 @@ jobs:
           fi
 
           # Diagnostic: show destinations after boot
-          echo "Available destinations after boot:"
+          echo "=== Available destinations after boot ==="
           xcodebuild -showdestinations -project PulsePlate.xcodeproj -scheme PulsePlate 2>&1 | sed -n '1,100p' | head -n 50
 
-          # Diagnostic: Xcode version and path
-          echo "Xcode info:"
-          xcode-select -p
-          xcodebuild -version
-          echo "Installed Xcode apps:"
-          for app in /Applications/Xcode*.app; do
-            [ -e "$app" ] && echo " - $app"
-          done
-
-          echo "Using destination: $DESTINATION"
+          echo "=== Using destination: $DESTINATION ==="
 
           # Additional diagnostic: list project schemes
           xcodebuild -list -project PulsePlate.xcodeproj
