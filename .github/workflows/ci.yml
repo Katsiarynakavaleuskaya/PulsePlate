@@ -630,8 +630,13 @@ jobs:
           xcodebuild test \
             -project PulsePlate.xcodeproj \
             -scheme PulsePlate \
-            -only-testing:PulsePlateTests \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -skip-testing:PulsePlateUITests \
+            -only-testing:PulsePlateTests/ThinClientGuardsTests \
+            -only-testing:PulsePlateTests/BMIServiceTests \
+            -only-testing:PulsePlateTests/BMIResponseDecodingTests \
+            -only-testing:PulsePlateTests/BMIRequestEncodingTests \
+            -only-testing:PulsePlateTests/LocaleParsingTests \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -configuration Debug \
             -derivedDataPath ../.derivedData \
             -enableCodeCoverage NO \

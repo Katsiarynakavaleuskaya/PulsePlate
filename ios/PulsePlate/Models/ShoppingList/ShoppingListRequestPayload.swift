@@ -73,7 +73,7 @@ private struct ShoppingListAnyCodable: Codable {
         }
     }
 
-    init(value: Any) {
+    private init(value: Any) {
         self.value = value
     }
 }

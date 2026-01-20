@@ -11,3 +11,5 @@ final class MockBMIService: BMIServicing {
         }
     }
 }
+
+extension MockBMIService: @unchecked Sendable {}

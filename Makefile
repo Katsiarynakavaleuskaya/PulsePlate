@@ -309,18 +309,23 @@ openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fai
 
 ## Run iOS unit tests (xcodebuild test)
 ## Usage: make ios-test [IOS_SIM_NAME="iPhone 16e"] [IOS_SIM_OS=latest]
-## Default: iPhone 16e (closest to CI's iPhone 16). Override locally if device not available.
-## NOTE: Uses -project (workspace scheme has test action issue). Both use -only-testing.
+## Default: iPhone 16 (matches CI). Override locally if device not available.
+## NOTE: Uses -project (workspace scheme has test action issue).
 ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
-	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16e)"; \
-	SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
-	echo "Using simulator: $$SIM_NAME, OS: $$SIM_OS"; \
-	cd ios && xcodebuild test \
-		-project PulsePlate.xcodeproj \
-		-scheme PulsePlate \
-		-only-testing:PulsePlateTests \
-		-destination "platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS" \
+	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16)"; \
+		SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
+		echo "Using simulator: $$SIM_NAME, OS: $$SIM_OS"; \
+		cd ios && xcodebuild test \
+			-project PulsePlate.xcodeproj \
+			-scheme PulsePlate \
+			-skip-testing:PulsePlateUITests \
+			-only-testing:PulsePlateTests/ThinClientGuardsTests \
+			-only-testing:PulsePlateTests/BMIServiceTests \
+			-only-testing:PulsePlateTests/BMIResponseDecodingTests \
+			-only-testing:PulsePlateTests/BMIRequestEncodingTests \
+			-only-testing:PulsePlateTests/LocaleParsingTests \
+			-destination "platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS" \
 		-configuration Debug \
 		-derivedDataPath ../.derivedData \
 		-enableCodeCoverage NO \

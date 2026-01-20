@@ -1,6 +1,7 @@
 import XCTest
 import Foundation
 
+
 final class ThinClientGuardsTests: XCTestCase {
     func test_noBMILogicInAppSources() throws {
         let root = try repoRoot(from: #filePath)

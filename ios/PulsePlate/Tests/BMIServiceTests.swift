@@ -1,17 +1,16 @@
-import Testing
+import XCTest
 import Foundation
 @testable import PulsePlate
 
-@Suite(.serialized)
-struct BMIServiceTests {
-    @Test func service_returnsSuccess() async throws {
-        MockURLProtocol.reset() // Clean state before test
+
+final class BMIServiceTests: XCTestCase {
+    func test_serviceReturnsSuccess() async throws {
+        MockURLProtocol.reset()
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         let session = URLSession(configuration: config)
 
-        // Set up mock response
         MockURLProtocol.responseData = BMIFixtures.successJSON()
         MockURLProtocol.responseStatusCode = 200
 
@@ -23,13 +22,13 @@ struct BMIServiceTests {
         let request = BMIRequest(weightKg: 70, heightCm: 175, age: 30, lang: "en")
         let response = try await service.calculateBMI(request: request)
 
-        #expect(response.bmi == 22.86)
-        #expect(response.group == "general")
-        #expect(response.groupDisplay == "General")
+        XCTAssertEqual(response.bmi, 22.86, accuracy: 0.0001)
+        XCTAssertEqual(response.group, "general")
+        XCTAssertEqual(response.groupDisplay, "General")
     }
 
-    @Test func service_handles422Validation() async throws {
-        MockURLProtocol.reset() // Clean state before test
+    func test_serviceHandles422Validation() async throws {
+        MockURLProtocol.reset()
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -47,26 +46,20 @@ struct BMIServiceTests {
 
         do {
             _ = try await service.calculateBMI(request: request)
-            Issue.record("Expected BMIServiceError.validation")
+            XCTFail("Expected BMIServiceError.validation")
         } catch let error as BMIServiceError {
             switch error {
             case .validation(let errors):
-                #expect(!errors.isEmpty)
-                guard let first = errors.first else {
-                    Issue.record("Expected validation errors")
-                    return
-                }
-                #expect(first.msg.contains("greater than 0"))
+                XCTAssertFalse(errors.isEmpty)
+                XCTAssertTrue(errors.first?.msg.contains("greater than 0") ?? false)
             default:
-                Issue.record("Expected validation error, got: \(error)")
+                XCTFail("Expected validation error, got: \(error)")
             }
-        } catch {
-            Issue.record("Expected BMIServiceError, got: \(error)")
         }
     }
 
-    @Test func service_handles400DomainError() async throws {
-        MockURLProtocol.reset() // Clean state before test
+    func test_serviceHandles400DomainError() async throws {
+        MockURLProtocol.reset()
 
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -84,20 +77,18 @@ struct BMIServiceTests {
 
         do {
             _ = try await service.calculateBMI(request: request)
-            Issue.record("Expected BMIServiceError.http(400)")
+            XCTFail("Expected BMIServiceError.http(400)")
         } catch let error as BMIServiceError {
             switch error {
             case .http(let code, _):
-                #expect(code == 400)
+                XCTAssertEqual(code, 400)
             default:
-                Issue.record("Expected http error, got: \(error)")
+                XCTFail("Expected http error, got: \(error)")
             }
-        } catch {
-            Issue.record("Expected BMIServiceError, got: \(error)")
         }
     }
 
-    @Test func service_wrapsTransportError() async throws {
+    func test_serviceWrapsTransportError() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [FailingURLProtocol.self]
         let session = URLSession(configuration: config)
@@ -111,23 +102,20 @@ struct BMIServiceTests {
 
         do {
             _ = try await service.calculateBMI(request: request)
-            Issue.record("Expected BMIServiceError.transport")
+            XCTFail("Expected BMIServiceError.transport")
         } catch let error as BMIServiceError {
             switch error {
             case .transport(let message):
-                #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                XCTAssertFalse(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             default:
-                Issue.record("Expected transport error, got: \(error)")
+                XCTFail("Expected transport error, got: \(error)")
             }
-        } catch {
-            Issue.record("Expected BMIServiceError, got: \(error)")
         }
     }
 }
 
 // MARK: - Test URLProtocols
 
-/// Mock URLProtocol for successful responses (200 OK with JSON data)
 final class MockURLProtocol: URLProtocol {
     static var responseData: Data?
     static var responseStatusCode: Int = 200
@@ -136,10 +124,15 @@ final class MockURLProtocol: URLProtocol {
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        guard let client = client else { return }
+        guard let client else { return }
+
+        guard let url = request.url else {
+            client.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
 
         let response = HTTPURLResponse(
-            url: request.url!,
+            url: url,
             statusCode: Self.responseStatusCode,
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json"]
@@ -156,9 +149,19 @@ final class MockURLProtocol: URLProtocol {
 
     override func stopLoading() {}
 
-    // Reset mock state after each test
     static func reset() {
         responseData = nil
         responseStatusCode = 200
     }
+}
+
+final class FailingURLProtocol: URLProtocol {
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+    }
+
+    override func stopLoading() {}
 }
