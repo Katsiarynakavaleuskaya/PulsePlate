@@ -723,7 +723,10 @@ jobs:
           echo "Xcode info:"
           xcode-select -p
           xcodebuild -version
-          ls -la /Applications | grep -i xcode | head -n 5 || true
+          echo "Installed Xcode apps:"
+          for app in /Applications/Xcode*.app; do
+            [ -e "$app" ] && echo " - $app"
+          done
 
           echo "Using destination: $DESTINATION"
 
