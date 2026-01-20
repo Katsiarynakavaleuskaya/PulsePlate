@@ -586,24 +586,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Select newest Xcode (built-in)
+      - name: Select Xcode (deterministic)
         shell: bash
         run: |
           set -euo pipefail
 
-          # Prefer a specific version if present; otherwise pick the newest Xcode_*.app.
-          preferred="/Applications/Xcode_26.2.app"
+          preferred="/Applications/Xcode_16.2.app"
 
           if [ -d "$preferred" ]; then
             sudo xcode-select -s "$preferred/Contents/Developer"
           else
-            newest=""
-            for app in /Applications/Xcode_*.app; do
-              if [ -d "$app" ]; then
-                newest="$app"
-              fi
-            done
-
+            newest="$(ls -1d /Applications/Xcode_*.app 2>/dev/null | sort | tail -n 1 || true)"
             if [ -n "$newest" ]; then
               sudo xcode-select -s "$newest/Contents/Developer"
             else
@@ -611,8 +604,6 @@ jobs:
             fi
           fi
 
-          echo "Selected Xcode:"
-          xcode-select -p
           xcodebuild -version
 
       - name: Verify workspace can be read
