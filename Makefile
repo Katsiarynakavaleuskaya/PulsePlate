@@ -309,7 +309,7 @@ openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fai
 
 ## Run iOS unit tests (xcodebuild test)
 ## Usage: make ios-test [IOS_SIM_NAME="iPhone 16e"] [IOS_SIM_OS=latest]
-## Default: iPhone 16 (matches CI). Override locally if device not available.
+## Default: iPhone 16e (local development). CI auto-selects from available simulators.
 ## NOTE: Uses -project (workspace scheme has test action issue).
 ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"

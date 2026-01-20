@@ -611,10 +611,64 @@ jobs:
           xcode-select -p
           xcodebuild -version
 
+      - name: Select iOS simulator destination (stable)
+        working-directory: ios
+        id: select-destination
+        run: |
+          set -euo pipefail
+
+          python3 - << 'PY'
+          import json, subprocess, re, sys
+
+          # Prefer stable iOS 18.x to avoid "latest" resolving to iOS 26.x betas.
+          out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
+          data = json.loads(out)
+          devices = data.get("devices", {})
+
+          def parse_ver(s: str):
+              m = re.search(r"iOS\s+(\d+)\.(\d+)", s)
+              return (int(m.group(1)), int(m.group(2))) if m else (-1, -1)
+
+          runtimes = sorted(devices.keys(), key=parse_ver, reverse=True)
+
+          # Prefer iOS 18.x runtime if present.
+          preferred = [r for r in runtimes if re.search(r"iOS\s+18\.\d+", r)]
+          runtime = preferred[0] if preferred else (runtimes[0] if runtimes else None)
+          if not runtime:
+              print("::error::No iOS Simulator runtimes found", file=sys.stderr)
+              sys.exit(1)
+
+          available_names = [d["name"] for d in devices.get(runtime, []) if d.get("isAvailable", True)]
+
+          pref_devices = ["iPhone 16e", "iPhone 16", "iPhone 16 Pro", "iPhone 15", "iPhone 14"]
+          device = next((n for n in pref_devices if n in available_names), None)
+
+          # Extract version like "18.6" from runtime label "iOS 18.6"
+          m = re.search(r"iOS\s+(\d+\.\d+)", runtime)
+          os_ver = m.group(1) if m else "latest"
+
+          if device:
+              dest = f'platform=iOS Simulator,name={device},OS={os_ver}'
+          else:
+              # Last resort: placeholder simulator device (rarely needed)
+              dest = 'platform=iOS Simulator,name=Any iOS Simulator Device,OS=latest'
+
+          print(f"Selected destination: {dest}")
+          print(f"::set-output name=destination::{dest}")
+          PY
+
       - name: iOS tests (project-based, app scheme)
         working-directory: ios
         run: |
           set -euo pipefail
+
+          DESTINATION="${{ steps.select-destination.outputs.destination }}"
+          if [ -z "$DESTINATION" ]; then
+            echo "::error::IOS_DESTINATION is empty"
+            exit 1
+          fi
+
+          echo "Using destination: $DESTINATION"
 
           xcodebuild -version
           xcodebuild -list -project PulsePlate.xcodeproj
@@ -636,7 +690,7 @@ jobs:
             -only-testing:PulsePlateTests/BMIResponseDecodingTests \
             -only-testing:PulsePlateTests/BMIRequestEncodingTests \
             -only-testing:PulsePlateTests/LocaleParsingTests \
-            -destination 'platform=iOS Simulator,name=iPhone 16e,OS=18.6' \
+            -destination "$DESTINATION" \
             -configuration Debug \
             -derivedDataPath ../.derivedData \
             -enableCodeCoverage NO \

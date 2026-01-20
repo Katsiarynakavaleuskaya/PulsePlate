@@ -115,11 +115,16 @@
   - `PlateViewTests` excluded (unstable, needs stabilization/rewrite)
   - **Backlog item:** Stabilize/rewrite `PlateViewTests` and restore to CI (see `docs/roadmap/BACKLOG_LEDGER.md`)
 
-**Destination policy:**
-- CI uses `iPhone 15,OS=latest` (stable on GitHub Actions macos-15 runner)
+**Destination policy (CI):**
+- CI **auto-selects** destination from available simulators dynamically
+- Prefers **iOS 18.x runtime** (avoids `OS=latest` resolving to iOS 26.x betas)
+- Preferred devices: `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
+- **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
+- Never uses `OS=latest` for named devices (to avoid iOS 26.x beta runtimes)
+
+**Destination policy (Local):**
 - Local defaults to `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
-- If primary destination fails, update to a device that exists on current runner images
-- Never use `name=...` without `OS=latest` or auto-detect via `simctl` (unreliable)
+- Uses `OS=latest` locally (acceptable for development, not for CI)
 
 ## Local iOS checks
 
