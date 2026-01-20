@@ -121,9 +121,9 @@
 - Catches issues before CI
 
 **Local vs CI differences:**
-- **Local:** Uses `-project` (workspace scheme has TestAction config issue) + iPhone 17
-- **CI:** Uses `-workspace` + iPhone 16 (available on GitHub runner)
-- Both run the same tests; only destination/build method differs
+- **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
+- **CI:** Uses `iPhone 15` (more stable on GitHub runner)
+- Both use `-workspace` + `-only-testing:PulsePlateTests` (canonical pattern)
 
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass
