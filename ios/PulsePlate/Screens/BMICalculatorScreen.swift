@@ -81,8 +81,8 @@ struct BMICalculatorScreen: View {
 
     private func onCalculate() async {
         guard
-            let w = Double(weightKg),
-            let h = Double(heightCm),
+            let w = parseDouble(weightKg),
+            let h = parseDouble(heightCm),
             let a = Int(age)
         else { return }
 
@@ -98,5 +98,15 @@ struct BMICalculatorScreen: View {
         )
 
         await vm.calculateBMI(request: req)
+    }
+
+    /// Locale-aware parsing of decimal numbers.
+    /// Handles both dot (70.5) and comma (70,5) decimal separators.
+    /// This is UI normalization, not BMI logic.
+    private func parseDouble(_ text: String) -> Double? {
+        let formatter = NumberFormatter()
+        formatter.locale = .current
+        formatter.numberStyle = .decimal
+        return formatter.number(from: text)?.doubleValue
     }
 }

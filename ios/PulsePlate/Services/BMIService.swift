@@ -56,7 +56,9 @@ public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
 
         do {
-            urlRequest.httpBody = try JSONEncoder().encode(request)
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            urlRequest.httpBody = try encoder.encode(request)
         } catch {
             throw BMIServiceError.decoding(error.localizedDescription)
         }
@@ -85,6 +87,8 @@ public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
         }
 
         do {
+            // BMIResponse declares explicit CodingKeys for snake_case fields (e.g., group_display).
+            // Using .convertFromSnakeCase here could prevent those keys from matching.
             return try JSONDecoder().decode(BMIResponse.self, from: data)
         } catch {
             throw BMIServiceError.decoding(error.localizedDescription)
