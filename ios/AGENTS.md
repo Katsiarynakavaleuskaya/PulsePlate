@@ -120,6 +120,16 @@
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
+**Local vs CI differences:**
+- **Local:** Uses `-project` (workspace scheme has TestAction config issue) + iPhone 17
+- **CI:** Uses `-workspace` + iPhone 16 (available on GitHub runner)
+- Both run the same tests; only destination/build method differs
+
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass
 - CI is the enforcement gate (blocks merge if tests fail)
+
+**Known issue:**
+- Workspace scheme (`PulsePlate.xcworkspace`) needs TestAction reconfiguration in Xcode
+- Currently using `-project` as workaround for local testing
+- CI uses workspace successfully (different Xcode/scheme resolution)
