@@ -587,9 +587,9 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
       - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@60606e260d2db3a9d21f4a5cd8cbedb7fa2a5be2  # v1.6.0
         with:
-          xcode-version: "15.4"
+          xcode-version: "16.2"
 
       - name: Show Xcode version
         run: xcodebuild -version
@@ -603,7 +603,7 @@ jobs:
           set -euo pipefail
           xcodebuild test \
             -scheme PulsePlate \
-            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.5' \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
             -configuration Debug \
             -derivedDataPath ../.derivedData \
             -enableCodeCoverage NO \
