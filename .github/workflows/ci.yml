@@ -586,10 +586,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@60606e260d2db3a9d21f4a5cd8cbedb7fa2a5be2  # v1.6.0
-        with:
-          xcode-version: "16.2"
+      - name: Select Xcode (built-in)
+        run: |
+          set -euo pipefail
+          ls -la /Applications | grep -E '^d.*Xcode' || true
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s "/Applications/Xcode_16.2.app"
+          else
+            # Fallback: choose latest installed Xcode
+            sudo xcode-select -s "/Applications/Xcode.app"
+          fi
 
       - name: Show Xcode version
         run: xcodebuild -version
