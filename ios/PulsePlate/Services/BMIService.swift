@@ -98,7 +98,12 @@ private struct ValidationErrorResponse: Codable {
 
 /// Minimal AnyCodable for validation payloads.
 /// (Keeps tests deterministic; not intended for general use.)
-public struct AnyCodable: Codable, Sendable, Equatable {
+///
+/// NOTE:
+/// AnyCodable is @unchecked Sendable by design.
+/// Used only for decoding backend validation payloads in tests.
+/// Must not cross actor boundaries with non-primitive values.
+public struct AnyCodable: Codable, Equatable {
     public let value: Any
 
     public init(_ value: Any) { self.value = value }
@@ -127,3 +132,6 @@ public struct AnyCodable: Codable, Sendable, Equatable {
         String(describing: lhs.value) == String(describing: rhs.value)
     }
 }
+
+// Explicitly mark as unchecked Sendable (used only for test payloads)
+extension AnyCodable: @unchecked Sendable {}
