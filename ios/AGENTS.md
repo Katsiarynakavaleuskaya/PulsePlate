@@ -23,3 +23,53 @@
   1) Verify the endpoint exists in backend OpenAPI.
   2) Check backend environment (TESTING / DEBUG / feature flags).
   3) Do NOT assume the issue is in iOS networking until backend routing is confirmed.
+
+## iOS Thin Client Policy (BMI)
+
+**Hard rule:** iOS thin client for BMI must NOT compute BMI logic.
+
+**Forbidden:**
+- ❌ Any BMI thresholds (18.5, 25, 30) in iOS code
+- ❌ Any group/category inference (`if bmi > ...`, `if age < 12`)
+- ❌ Any waist risk computation (thresholds, risk levels)
+- ❌ Any BMI math (only backend calculates)
+- ❌ Any enum with `from(bmi:)` or `categoryForBMI(_:)` methods
+- ❌ Any computation of `wht_ratio` or `waist_cm / height_cm` in Swift
+
+**Allowed:**
+- ✅ Render backend fields as-is (`bmi`, `category`, `groupDisplay`, `interpretation`)
+- ✅ Localize `visualization.ranges[].key` through iOS i18n table
+- ✅ Format numbers for UI display (rounding, not recalculation)
+- ✅ Handle `category == nil` for conditional UI rendering (UI logic, not computation)
+- ✅ Map backend token to UI label (e.g., `category` → "Normal" for display), **without computing from bmi**
+
+**Contract note:** `category` is treated as display string (may be localized or token). iOS does not infer thresholds.
+
+## Enforced CI Rules (Anti-Duplication)
+
+**Guard test:** `ThinClientGuardsTests` in `PulsePlate/Tests/Guards/`
+
+**What it enforces:**
+- No BMI threshold literals (`18.5`, `25`, `30`, `0.5`, `0.6`) in Swift source code
+- No BMI computation function patterns (`computeBMI`, `categoryForBMI`, `riskForBMI`)
+- No suspicious patterns (`whtRatio =`, `waistCm /`, `heightCm /`)
+- Fixtures must match backend contract (not invented)
+- Response DTOs are read-only (no computed properties with BMI logic)
+
+**CI enforcement:**
+- Guard test runs in CI (must pass)
+- If guard fails → PR blocked
+- Fixtures are the ONLY allowed place for threshold values (they're backend contract examples)
+
+**Architectural guard policy:**
+- `ThinClientGuardsTests.swift` is considered an **architectural guard**.
+- Removing or weakening it requires explicit ADR / audit.
+- This guard prevents "One BMI Engine" invariant violations.
+
+**Full enforcement (recommended):**
+- Add SwiftLint custom rule or build script to scan all `.swift` files for forbidden patterns
+- Guard test is a minimum; full source scanning provides stronger protection
+
+**Single source of truth:**
+- Backend contract → iOS fixtures → iOS DTOs → UI rendering
+- If contract changes → update fixtures first, no fallback logic in iOS
