@@ -139,10 +139,18 @@
 
 **Local vs CI differences:**
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
-- **CI:** Auto-selects destination (prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15`; pins iOS 18.6 runtime)
+- **CI:** Auto-selects destination using **UDID-only** format (`platform=iOS Simulator,id=<UDID>`)
+  - Prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` from available simulators
+  - Pins iOS 18.6 runtime (fallback to iOS 18.x if 18.6 unavailable)
+  - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
 - Both use `-only-testing:PulsePlateTests` + `-parallel-testing-enabled NO` (canonical pattern)
 - CI includes diagnostic steps: `xcodebuild -version`, `xcodebuild -list`, `xcodebuild -showdestinations`
+
+**CI destination policy (hard rule):**
+- **CI destination must be UDID-only:** `platform=iOS Simulator,id=<UDID>`
+- **`OS=latest` is forbidden:** Job fails if destination contains `latest` (anti-nondeterminism guard)
+- **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
 
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass

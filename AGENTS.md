@@ -1084,6 +1084,13 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
 
+**iOS CI destination policy (canonical):**
+- **CI destination MUST be UDID-only:** `platform=iOS Simulator,id=<UDID>`
+- **`OS=latest` is forbidden:** Job fails if destination contains `latest` (anti-nondeterminism guard)
+- **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
+- **Local runs:** May use friendly device name (e.g., `iPhone 16e`), but CI is UDID-only
+- **Hard rule:** Any CI flake related to destination/runtime must be resolved via UDID-only approach. No return to `OS=latest` or `name+OS` format.
+
 ---
 
 ## Links to module instructions

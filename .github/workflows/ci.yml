@@ -657,16 +657,16 @@ jobs:
           if device:
               device_udid = next((d["udid"] for d in available_devices if d["name"] == device), None)
 
-          if device:
-              dest = f"platform=iOS Simulator,name={device},OS={os_ver}"
-          else:
-              # Last resort: placeholder simulator device (rarely needed)
-              dest = f"platform=iOS Simulator,name=Any iOS Simulator Device,OS={os_ver}"
+          # Canonical: use UDID-only destination for determinism (kills latest ambiguity, name mismatch, OS version format issues)
+          if not device_udid:
+              print("::error::No UDID found for selected device", file=sys.stderr)
+              sys.exit(1)
+
+          dest = f"platform=iOS Simulator,id={device_udid}"
 
           print(f"Selected runtime: {runtime} (iOS {os_ver})")
           print(f"Selected device: {device or 'Any iOS Simulator Device'}")
-          if device_udid:
-              print(f"Device UDID: {device_udid}")
+          print(f"Device UDID: {device_udid}")
           print(f"Selected destination: {dest}")
           with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
               print(f"destination={dest}", file=f)
@@ -680,6 +680,13 @@ jobs:
           DESTINATION="${{ steps.select-destination.outputs.destination }}"
           if [ -z "$DESTINATION" ]; then
             echo "::error::IOS_DESTINATION is empty"
+            exit 1
+          fi
+
+          # Anti-nondeterminism guard: OS=latest is forbidden in CI
+          if echo "$DESTINATION" | grep -E -q 'OS=latest|(^|,)latest($|,)'; then
+            echo "::error::CI destination must not contain 'latest'. Use UDID-based destination only."
+            echo "::error::Got destination: $DESTINATION"
             exit 1
           fi
 
