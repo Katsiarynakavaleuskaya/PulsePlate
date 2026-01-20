@@ -14,15 +14,16 @@ final class BMIRequestEncodingTests: XCTestCase {
             lang: "en"
         )
         let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(req)
-        let json = String(data: data, encoding: .utf8) ?? ""
+        let obj = try JSONSerialization.jsonObject(with: data, options: [])
+        let dict = obj as? [String: Any]
 
-        XCTAssertTrue(json.contains("\"weight_kg\""))
-        XCTAssertTrue(json.contains("\"height_cm\""))
-        XCTAssertTrue(json.contains("\"age\""))
-        XCTAssertTrue(json.contains("\"gender\""))
-        XCTAssertTrue(json.contains("\"waist_cm\""))
-        XCTAssertTrue(json.contains("\"lang\""))
+        XCTAssertNotNil(dict)
+        XCTAssertNotNil(dict?["weight_kg"])
+        XCTAssertNotNil(dict?["height_cm"])
+        XCTAssertNotNil(dict?["age"])
+        XCTAssertNotNil(dict?["gender"])
+        XCTAssertNotNil(dict?["waist_cm"])
+        XCTAssertNotNil(dict?["lang"])
     }
 }
