@@ -1047,6 +1047,31 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 ---
 
+## Backlog Ledger Policy (Canonical)
+
+**Canonical backlog lives in `docs/roadmap/BACKLOG_LEDGER.md`.**
+
+**Rules (non-negotiable):**
+1. Any postponed / deferred work MUST be recorded in the ledger immediately.
+2. Each ledger item MUST include:
+   - Owner
+   - Priority (P0/P1/P2)
+   - Target PR (number or placeholder)
+   - Reason for deferral
+   - Links to relevant audit/docs
+   - DoD (acceptance criteria)
+3. Every PR description MUST include a "Deferred / Follow-ups" section with links to ledger items (and GitHub issues if present).
+4. Closing a ledger item requires:
+   - PR merged OR explicit "won't do" decision recorded (with reason).
+
+**Agent enforcement:**
+- Agents must refuse to mark work as "done" if deferred items were mentioned but not recorded in the ledger.
+- If it is not in the ledger — it does not exist.
+
+**Rationale:** Prevents "deferred → forgotten → resurfaces later" anti-pattern. Single source of truth for follow-up work.
+
+---
+
 ## Links to module instructions
 
 - `app/AGENTS.md`

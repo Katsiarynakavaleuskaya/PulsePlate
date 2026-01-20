@@ -1,0 +1,67 @@
+# Backlog Ledger (Canonical)
+
+**Purpose:** single source of truth for postponed / follow-up work.
+If it is not recorded here — it does not exist.
+
+## Rules (non-negotiable)
+1) Any postponed work MUST be recorded here immediately.
+2) Each item MUST include:
+   - Owner
+   - Priority (P0/P1/P2)
+   - Target PR (number or placeholder)
+   - Reason for deferral
+   - Links to relevant audit/docs
+   - DoD (acceptance criteria)
+3) Every PR description MUST include a "Deferred / Follow-ups" section with links to items here.
+4) Closing an item requires:
+   - PR merged OR explicit "won't do" decision recorded (with reason).
+
+---
+
+## P0 — Next (Must happen)
+- [ ] PR-560 Web Thin Client (BMI)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-560
+  - Reason: separated scope; iOS PR-559 must merge first
+  - Links:
+    - docs/audit/IOS_WEB_THIN_CLIENT_AUDIT.md
+  - DoD:
+    - Web calls POST `/api/v1/bmi/calculate` only
+    - No BMI math / thresholds / inference in web client
+    - Contract-driven UI only
+    - Add web anti-duplication guard (equivalent to iOS guard concept)
+    - CI green
+
+---
+
+## P1 — Improvements (Optional / polish)
+- [ ] Optional: CI script guard for iOS (repo-wide scan)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Reason: current Swift Testing guard is sufficient; script is hardening
+  - Links:
+    - docs/audit/PR_559_ANTI_DUPLICATION_GUARDS.md
+  - DoD:
+    - GH Actions step scans iOS app Swift sources for forbidden patterns
+    - Excludes fixtures/mocks
+    - Documented in ios/AGENTS.md
+
+- [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Reason: avoid guard flakiness if comments include examples
+  - Links:
+    - ios/PulsePlate/Tests/Guards/ThinClientGuardsTests.swift
+  - DoD:
+    - Guard remains strict but avoids comment-only hits
+    - CI remains deterministic
+
+---
+
+## P2 — Future (Low priority / research)
+- (None currently)
+
+---
+
+**Last updated:** 2026-01-19
+**Maintainer:** @katsiaryna_kavaleuskaya
