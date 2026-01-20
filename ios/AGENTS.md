@@ -47,7 +47,7 @@
 
 ## Enforced CI Rules (Anti-Duplication)
 
-**Guard test:** `ThinClientGuardsTests` in `PulsePlate/Tests/Guards/`
+**Guard test:** `ThinClientGuardsTests` in `PulsePlateTests/Guards/`
 
 **What it enforces:**
 - No BMI threshold literals (`18.5`, `25`, `30`, `0.5`, `0.6`) in Swift source code

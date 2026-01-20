@@ -65,16 +65,10 @@ public struct BMIScaleV1Spec: Codable, Sendable {
 }
 
 public struct BMIRange: Codable, Sendable {
-    /// i18n key; iOS локализует key по своей таблице
+    /// i18n key; iOS localizes this key using its table.
     public let key: String
     public let from: Double
     public let to: Double
-
-    enum CodingKeys: String, CodingKey {
-        case key
-        case from
-        case to
-    }
 }
 
 public struct BMIMarker: Codable, Sendable {

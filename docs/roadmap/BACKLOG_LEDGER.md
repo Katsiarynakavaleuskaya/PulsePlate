@@ -62,7 +62,7 @@ If it is not recorded here — it does not exist.
   - Target PR: TBD
   - Reason: avoid guard flakiness if comments include examples
   - Links:
-    - ios/PulsePlate/Tests/Guards/ThinClientGuardsTests.swift
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
   - DoD:
     - Guard remains strict but avoids comment-only hits
     - CI remains deterministic

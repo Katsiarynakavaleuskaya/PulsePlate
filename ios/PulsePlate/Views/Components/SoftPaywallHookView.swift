@@ -12,6 +12,7 @@ struct SoftPaywallHookView: View {
             Text(hook.message.defaultTitle).font(.headline)
             Text(hook.message.defaultBody).font(.subheadline)
             Button(hook.message.defaultCta) { onCtaTap() }
+                .buttonStyle(.borderedProminent)
         }
         .padding()
         .background(.thinMaterial)

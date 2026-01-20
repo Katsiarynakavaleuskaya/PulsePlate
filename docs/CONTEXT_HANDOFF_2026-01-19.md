@@ -255,16 +255,18 @@ POST /api/v1/bmi/calculate
   "notes": list[str],                              # Aggregated notes (from waist_risk)
   "age_band": str,                                 # "too_young" | "child" | "teen" | "adult" | "elderly"
   "visualization": {                               # BMI scale visualization spec (v1)
-    "available": bool,
+    "kind": str,                                   # "bmi_scale_v1"
+    "bmi": float,                                  # Rounded BMI (1 decimal)
+    "min": float,
+    "max": float,
     "ranges": [
       {
         "from": float,
         "to": float,
-        "label": str,                               # i18n key (e.g., "bmi.category.underweight")
-        "color": str                                # Hex color
+        "key": str                                  # i18n key (e.g., "bmi.underweight")
       }
     ],
-    "marker": float                                 # Current BMI value
+    "marker": {"value": float}                      # Current BMI marker (must equal bmi)
   } | None,
   "interpretation_v1": {                           # Structured interpretation (v1)
     "goal_direction": str,                         # "maintain" | "increase" | "decrease"
@@ -298,14 +300,17 @@ POST /api/v1/bmi/calculate
   "notes": [],
   "age_band": "adult",
   "visualization": {
-    "available": true,
+    "kind": "bmi_scale_v1",
+    "bmi": 22.9,
+    "min": 0.0,
+    "max": 60.0,
     "ranges": [
-      {"from": 0, "to": 18.5, "label": "bmi.category.underweight", "color": "#FFE5B4"},
-      {"from": 18.5, "to": 25.0, "label": "bmi.category.normal", "color": "#90EE90"},
-      {"from": 25.0, "to": 30.0, "label": "bmi.category.overweight", "color": "#FFD700"},
-      {"from": 30.0, "to": 100, "label": "bmi.category.obese", "color": "#FF6B6B"}
+      {"key": "bmi.underweight", "from": 0, "to": 18.5},
+      {"key": "bmi.normal", "from": 18.5, "to": 25.0},
+      {"key": "bmi.overweight", "from": 25.0, "to": 30.0},
+      {"key": "bmi.obesity", "from": 30.0, "to": 60.0}
     ],
-    "marker": 22.86
+    "marker": {"value": 22.9}
   },
   "interpretation_v1": {
     "goal_direction": "maintain",
