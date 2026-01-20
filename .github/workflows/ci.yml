@@ -589,13 +589,21 @@ jobs:
       - name: Select Xcode (built-in)
         run: |
           set -euo pipefail
-          ls -la /Applications | grep -E '^d.*Xcode' || true
+          # List available Xcode installations (debug info)
+          for xcode in /Applications/Xcode*.app; do
+            [ -d "$xcode" ] && echo "Found: $xcode" || true
+          done
           if [ -d "/Applications/Xcode_16.2.app" ]; then
             sudo xcode-select -s "/Applications/Xcode_16.2.app"
           else
             # Fallback: choose latest installed Xcode
             sudo xcode-select -s "/Applications/Xcode.app"
           fi
+          # Verify selection
+          echo "Selected Xcode path:"
+          xcode-select -p
+          echo "Xcode version:"
+          xcodebuild -version
 
       - name: Show Xcode version
         run: xcodebuild -version
