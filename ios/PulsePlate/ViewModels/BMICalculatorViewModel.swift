@@ -15,6 +15,7 @@ final class BMICalculatorViewModel: ObservableObject {
     func calculateBMI(request: BMIRequest) async {
         isLoading = true
         error = nil
+        result = nil
         defer { isLoading = false }
 
         do {
