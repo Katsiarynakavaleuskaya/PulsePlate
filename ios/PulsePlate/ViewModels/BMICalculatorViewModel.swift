@@ -24,7 +24,7 @@ final class BMICalculatorViewModel: ObservableObject {
         } catch let e as BMIServiceError {
             error = e
         } catch {
-            error = .transport(error.localizedDescription)
+            self.error = .transport(error.localizedDescription)
         }
     }
 }

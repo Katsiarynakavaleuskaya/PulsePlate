@@ -2,6 +2,7 @@ import Testing
 import Foundation
 @testable import PulsePlate
 
+@Suite(.serialized)
 struct BMIServiceTests {
     @Test func service_returnsSuccess() async throws {
         MockURLProtocol.reset() // Clean state before test
@@ -51,7 +52,11 @@ struct BMIServiceTests {
             switch error {
             case .validation(let errors):
                 #expect(!errors.isEmpty)
-                #expect(errors[0].msg.contains("greater than 0"))
+                guard let first = errors.first else {
+                    Issue.record("Expected validation errors")
+                    return
+                }
+                #expect(first.msg.contains("greater than 0"))
             default:
                 Issue.record("Expected validation error, got: \(error)")
             }

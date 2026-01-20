@@ -133,7 +133,14 @@ public struct AnyCodable: Codable, Equatable {
     }
 
     public static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
-        String(describing: lhs.value) == String(describing: rhs.value)
+        // Type-safe equality: only compare values of the same type
+        switch (lhs.value, rhs.value) {
+        case (let l as Bool, let r as Bool): return l == r
+        case (let l as Int, let r as Int): return l == r
+        case (let l as Double, let r as Double): return l == r
+        case (let l as String, let r as String): return l == r
+        default: return false
+        }
     }
 }
 

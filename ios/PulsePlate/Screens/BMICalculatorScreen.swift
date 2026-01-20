@@ -8,6 +8,7 @@ struct BMICalculatorScreen: View {
     @State private var age = "30"
     @State private var gender: String? = nil
     @State private var lang: String? = "en"
+    @State private var validationMessage: String? = nil
 
     var body: some View {
         ScrollView {
@@ -46,6 +47,12 @@ struct BMICalculatorScreen: View {
                 }
                 .disabled(vm.isLoading)
 
+                if let validationMessage {
+                    Text(validationMessage)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+
                 if let err = vm.error {
                     ValidationErrorsView(error: err)
                 }
@@ -65,9 +72,11 @@ struct BMICalculatorScreen: View {
                                 Text("Ranges: \(vis.ranges.count)")
                             }
 
+                            // Soft paywall hook: only render if navigation handler is available
+                            // Deferred: wire to real paywall router (see BACKLOG_LEDGER.md)
                             if let hook = res.softPaywall {
                                 SoftPaywallHookView(hook: hook) {
-                                    // TODO: Navigate to Pro Paywall (client routing)
+                                    // Navigation deferred until paywall router is available
                                 }
                             }
                         }
@@ -80,11 +89,16 @@ struct BMICalculatorScreen: View {
     }
 
     private func onCalculate() async {
+        validationMessage = nil
+
         guard
             let w = parseDouble(weightKg),
             let h = parseDouble(heightCm),
             let a = Int(age)
-        else { return }
+        else {
+            validationMessage = "Invalid input. Please check weight, height, and age."
+            return
+        }
 
         let req = BMIRequest(
             weightKg: w,

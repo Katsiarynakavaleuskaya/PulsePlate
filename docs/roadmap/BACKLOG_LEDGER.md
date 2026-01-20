@@ -35,6 +35,19 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [ ] Wire soft paywall CTA to real paywall router (iOS)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Reason: paywall navigation infrastructure not yet available; hook is rendered but CTA is no-op
+  - Links:
+    - ios/PulsePlate/Screens/BMICalculatorScreen.swift (line ~73)
+  - DoD:
+    - Paywall router/navigation handler implemented
+    - SoftPaywallHookView CTA wired to navigation
+    - No TODO comments in production code
+
+## P1 — Improvements (Optional / polish)
 - [ ] Optional: CI script guard for iOS (repo-wide scan)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
