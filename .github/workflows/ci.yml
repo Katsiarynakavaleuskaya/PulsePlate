@@ -618,43 +618,50 @@ jobs:
           set -euo pipefail
 
           python3 - << 'PY'
-          import json, subprocess, re, sys
+          import json, os, re, subprocess, sys
 
-          # Prefer stable iOS 18.x to avoid "latest" resolving to iOS 26.x betas.
+          # Pin to stable iOS 18.6 to avoid "latest" resolving to iOS 26.x betas.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
 
-          def parse_ver(s: str):
-              m = re.search(r"iOS\s+(\d+)\.(\d+)", s)
+          def parse_ios_ver(runtime_id: str) -> tuple[int, int]:
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime_id)
               return (int(m.group(1)), int(m.group(2))) if m else (-1, -1)
 
-          runtimes = sorted(devices.keys(), key=parse_ver, reverse=True)
-
-          # Prefer iOS 18.x runtime if present.
-          preferred = [r for r in runtimes if re.search(r"iOS\s+18\.\d+", r)]
-          runtime = preferred[0] if preferred else (runtimes[0] if runtimes else None)
-          if not runtime:
+          ios_runtimes = [r for r in devices.keys() if re.search(r"SimRuntime\.iOS-\d+-\d+\b", r)]
+          if not ios_runtimes:
               print("::error::No iOS Simulator runtimes found", file=sys.stderr)
               sys.exit(1)
 
+          pinned = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-6\b", r)]
+          if pinned:
+              runtime = pinned[0]
+          else:
+              ios18 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-\d+\b", r)]
+              runtime_pool = ios18 if ios18 else ios_runtimes
+              runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+
+          major, minor = parse_ios_ver(runtime)
+          if major < 0 or minor < 0:
+              print(f"::error::Cannot parse iOS runtime version from: {runtime}", file=sys.stderr)
+              sys.exit(1)
+
+          os_ver = f"{major}.{minor}"
           available_names = [d["name"] for d in devices.get(runtime, []) if d.get("isAvailable", True)]
 
           pref_devices = ["iPhone 16e", "iPhone 16", "iPhone 16 Pro", "iPhone 15", "iPhone 14"]
           device = next((n for n in pref_devices if n in available_names), None)
 
-          # Extract version like "18.6" from runtime label "iOS 18.6"
-          m = re.search(r"iOS\s+(\d+\.\d+)", runtime)
-          os_ver = m.group(1) if m else "latest"
-
           if device:
-              dest = f'platform=iOS Simulator,name={device},OS={os_ver}'
+              dest = f"platform=iOS Simulator,name={device},OS={os_ver}"
           else:
               # Last resort: placeholder simulator device (rarely needed)
-              dest = 'platform=iOS Simulator,name=Any iOS Simulator Device,OS=latest'
+              dest = f"platform=iOS Simulator,name=Any iOS Simulator Device,OS={os_ver}"
 
-          print(f"Selected destination: {dest}")
-          print(f"::set-output name=destination::{dest}")
+          print(f"Selected destination: {dest} (runtime={runtime})")
+          with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
+              print(f"destination={dest}", file=f)
           PY
 
       - name: iOS tests (project-based, app scheme)
