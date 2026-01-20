@@ -24,21 +24,22 @@ public struct ShoppingListRequestPayload: Encodable {
         if let preferences {
             // Encode as untyped JSON dictionary
             let prefsData = try JSONSerialization.data(withJSONObject: preferences)
-            let prefsDecoded = try JSONDecoder().decode(AnyCodable.self, from: prefsData)
+            let prefsDecoded = try JSONDecoder().decode(ShoppingListAnyCodable.self, from: prefsData)
             try container.encode(prefsDecoded, forKey: .preferences)
         }
     }
 }
 
 // Helper for encoding untyped dictionaries
-private struct AnyCodable: Codable {
+// NOTE: Renamed to avoid conflict with BMIService.AnyCodable
+private struct ShoppingListAnyCodable: Codable {
     let value: Any
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let dict = try? container.decode([String: AnyCodable].self) {
+        if let dict = try? container.decode([String: ShoppingListAnyCodable].self) {
             value = dict.mapValues { $0.value }
-        } else if let array = try? container.decode([AnyCodable].self) {
+        } else if let array = try? container.decode([ShoppingListAnyCodable].self) {
             value = array.map { $0.value }
         } else if let string = try? container.decode(String.self) {
             value = string
@@ -56,9 +57,9 @@ private struct AnyCodable: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         if let dict = value as? [String: Any] {
-            try container.encode(dict.mapValues { AnyCodable(value: $0) } as [String: AnyCodable])
+            try container.encode(dict.mapValues { ShoppingListAnyCodable(value: $0) } as [String: ShoppingListAnyCodable])
         } else if let array = value as? [Any] {
-            try container.encode(array.map { AnyCodable(value: $0) } as [AnyCodable])
+            try container.encode(array.map { ShoppingListAnyCodable(value: $0) } as [ShoppingListAnyCodable])
         } else if let string = value as? String {
             try container.encode(string)
         } else if let bool = value as? Bool {
@@ -72,7 +73,7 @@ private struct AnyCodable: Codable {
         }
     }
 
-    private init(value: Any) {
+    init(value: Any) {
         self.value = value
     }
 }
