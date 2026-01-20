@@ -46,8 +46,6 @@ If it is not recorded here — it does not exist.
     - Paywall router/navigation handler implemented
     - SoftPaywallHookView CTA wired to navigation
     - No TODO comments in production code
-
-## P1 — Improvements (Optional / polish)
 - [ ] Optional: CI script guard for iOS (repo-wide scan)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD

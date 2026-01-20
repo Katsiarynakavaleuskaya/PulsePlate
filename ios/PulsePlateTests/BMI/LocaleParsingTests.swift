@@ -41,6 +41,9 @@ struct LocaleParsingTests {
         #expect(parseDouble("invalid", locale: locale) == nil)
         #expect(parseDouble("", locale: locale) == nil)
         #expect(parseDouble("abc123", locale: locale) == nil)
+        #expect(parseDouble(" 70.5 ", locale: locale) == 70.5)
+        #expect(parseDouble("-70.5", locale: locale) == -70.5)
+        #expect(parseDouble("1,000.5", locale: locale) == 1000.5)
     }
 
     @Test("Handles integer input")
