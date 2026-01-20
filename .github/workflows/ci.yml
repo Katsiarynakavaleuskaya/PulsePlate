@@ -586,12 +586,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Show Xcode version
+      - name: Select newest Xcode (built-in)
+        shell: bash
         run: |
-          echo "Default Xcode path:"
+          set -euo pipefail
+
+          # Prefer a specific version if present; otherwise pick the newest Xcode_*.app.
+          preferred="/Applications/Xcode_26.2.app"
+
+          if [ -d "$preferred" ]; then
+            sudo xcode-select -s "$preferred/Contents/Developer"
+          else
+            newest=""
+            for app in /Applications/Xcode_*.app; do
+              if [ -d "$app" ]; then
+                newest="$app"
+              fi
+            done
+
+            if [ -n "$newest" ]; then
+              sudo xcode-select -s "$newest/Contents/Developer"
+            else
+              sudo xcode-select -s "/Applications/Xcode.app/Contents/Developer"
+            fi
+          fi
+
+          echo "Selected Xcode:"
           xcode-select -p
-          echo "Xcode version:"
           xcodebuild -version
+
+      - name: Verify project can be read
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          xcodebuild -list -project PulsePlate.xcodeproj >/dev/null
 
       - name: List available simulators
         run: xcrun simctl list devices available
