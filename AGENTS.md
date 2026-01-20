@@ -1090,6 +1090,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
 - **Local runs:** May use friendly device name (e.g., `iPhone 16e`), but CI is UDID-only
 - **Hard rule:** Any CI flake related to destination/runtime must be resolved via UDID-only approach. No return to `OS=latest` or `name+OS` format.
+- **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
 
 ---
 

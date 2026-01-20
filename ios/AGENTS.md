@@ -151,6 +151,7 @@
 - **CI destination must be UDID-only:** `platform=iOS Simulator,id=<UDID>`
 - **`OS=latest` is forbidden:** Job fails if destination contains `latest` (anti-nondeterminism guard)
 - **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
+- **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
 
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass
