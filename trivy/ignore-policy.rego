@@ -24,23 +24,3 @@ ignore if {
 	input.InstalledVersion == "2.36-9+deb12u13"
 	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
 }
-
-# CVE-2025-15281 (glibc) - upstream unfixed in GitHub runner base image
-# Suppression expires: 2026-04-01 (manual removal)
-# Rationale: Upstream unfixed; GitHub runner base image (deb12u13); no actionable remediation in repo
-# Monitor: https://security-tracker.debian.org/tracker/CVE-2025-15281
-# Documented in: docs/security/CVE-2025-15281-glibc.md (if created)
-
-ignore if {
-	input.VulnerabilityID == "CVE-2025-15281"
-	input.PkgName == "libc6"
-	input.InstalledVersion == "2.36-9+deb12u13"
-	startswith(input.PkgID, "libc6@2.36-9+deb12u13")
-}
-
-ignore if {
-	input.VulnerabilityID == "CVE-2025-15281"
-	input.PkgName == "libc-bin"
-	input.InstalledVersion == "2.36-9+deb12u13"
-	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
-}
