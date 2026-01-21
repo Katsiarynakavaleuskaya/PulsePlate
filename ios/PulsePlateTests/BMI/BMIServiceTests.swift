@@ -112,6 +112,27 @@ final class BMIServiceTests: XCTestCase {
             }
         }
     }
+
+    func test_serviceMapsRequestEncodingError() async throws {
+        let service = DefaultBMIService(
+            baseURL: URL(string: "https://example.com")!,
+            session: URLSession(configuration: .ephemeral)
+        )
+
+        let request = BMIRequest(weightKg: Double.nan, heightCm: 175, age: 30)
+
+        do {
+            _ = try await service.calculateBMI(request: request)
+            XCTFail("Expected BMIServiceError.encoding")
+        } catch let error as BMIServiceError {
+            switch error {
+            case .encoding(let message):
+                XCTAssertFalse(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            default:
+                XCTFail("Expected encoding error, got: \(error)")
+            }
+        }
+    }
 }
 
 // MARK: - Test URLProtocols
@@ -155,7 +176,7 @@ final class MockURLProtocol: URLProtocol {
     }
 }
 
-final class FailingURLProtocol: URLProtocol {
+private final class FailingURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 

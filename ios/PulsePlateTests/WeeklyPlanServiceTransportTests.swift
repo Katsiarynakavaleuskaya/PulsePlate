@@ -69,7 +69,7 @@ struct WeeklyPlanServiceTransportTests {
 
 // MARK: - Test URLProtocols
 
-final class FailingURLProtocol: URLProtocol {
+private final class FailingURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {

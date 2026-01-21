@@ -39,16 +39,24 @@
 		B6169A882E893FEF00B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"Info-Debug.plist",
+				"Info-Release.plist",
 				Info.plist,
-				Info-Debug.plist,
-				Info-Release.plist,
 			);
 			target = B6169A322E893CF100B218D8 /* PulsePlate */;
+		};
+		B6169A8A2E893CF200B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AnimationTests.swift,
+			);
+			target = B6169A412E893CF200B218D8 /* PulsePlateTests */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B6169A352E893CF100B218D8 /* PulsePlate */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B6169A882E893FEF00B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = PulsePlate; sourceTree = "<group>"; };
+		B6169A892E893CF200B218D8 /* PulsePlateTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B6169A8A2E893CF200B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = PulsePlateTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -88,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				B6169A352E893CF100B218D8 /* PulsePlate */,
+				B6169A892E893CF200B218D8 /* PulsePlateTests */,
 				B6169A342E893CF100B218D8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -147,6 +156,9 @@
 			);
 			dependencies = (
 				B6169A442E893CF200B218D8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B6169A892E893CF200B218D8 /* PulsePlateTests */,
 			);
 			name = PulsePlateTests;
 			productName = PulsePlateTests;
