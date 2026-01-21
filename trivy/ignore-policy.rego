@@ -8,8 +8,8 @@ default ignore := false
 # - Limit to the specific OS packages observed (libc6 + libc-bin)
 # - Limit to the installed versions reported at time of suppression
 #
-# Suppression expires: 2026-03-01 (manual removal)
-# Documented in: docs/security/CVE-2026-0915-glibc.md
+# Suppression expires: 2026-04-01 (manual removal)
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md (if created)
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -26,7 +26,7 @@ ignore if {
 }
 
 # CVE-2025-15281 (glibc) - upstream unfixed in GitHub runner base image
-# Suppression expires: 2026-04-01 (manual removal)
+# Review-by: 2026-04-01 (manual removal)
 # Rationale: Upstream unfixed; GitHub runner base image (deb12u13); no actionable remediation in repo
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-15281
 # Documented in: docs/security/CVE-2025-15281-glibc.md (if created)
