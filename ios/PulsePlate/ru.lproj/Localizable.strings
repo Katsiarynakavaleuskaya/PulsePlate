@@ -50,3 +50,4 @@
 "shopping_list_warnings_title" = "Предупреждения";
 "shopping_list_total_items_fmt" = "%d продуктов";
 "shopping_list_source_fmt" = "Источник: %@";
+"Error" = "Ошибка";

@@ -12,4 +12,5 @@ final class MockBMIService: BMIServicing {
     }
 }
 
+// Test-only mock; used from a single thread in unit tests, so @unchecked Sendable is safe.
 extension MockBMIService: @unchecked Sendable {}

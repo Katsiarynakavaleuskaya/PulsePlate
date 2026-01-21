@@ -43,14 +43,13 @@ final class ThinClientGuardsTests: XCTestCase {
         ]
 
         // WHtR heuristic: only flag if waist/height division pattern appears (regex-based, precise).
+        let whtDivisionRegex = try NSRegularExpression(
+            pattern: #"\b(waist|wht|wthr|waisttoheight)\b\s*[/÷]\s*\b(height|wht|wthr|waisttoheight)\b"#,
+            options: [.caseInsensitive]
+        )
         let whtHeuristic: (String) -> Bool = { content in
-            let lowered = content.lowercased()
-            let divisionRegex = try? NSRegularExpression(
-                pattern: #"\b(waist|wht|wthr|waisttoheight)\b\s*[/÷]\s*\b(height|wht|wthr|waisttoheight)\b"#,
-                options: [.caseInsensitive]
-            )
-            let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
-            return divisionRegex?.firstMatch(in: lowered, options: [], range: range) != nil
+            let range = NSRange(content.startIndex..<content.endIndex, in: content)
+            return whtDivisionRegex.firstMatch(in: content, options: [], range: range) != nil
         }
 
         var hits: [String] = []

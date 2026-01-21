@@ -43,6 +43,10 @@ Xcode может показывать предупреждение "Copy Bundle 
 После сборки можно проверить, попал ли файл в bundle:
 
 ```bash
+# Получить UDID симулятора (используется в -destination "platform=iOS Simulator,id=<UDID>")
+xcrun simctl list devices available
+
+# Скопируйте UDID нужного устройства (например iPhone 16e) и подставьте в команду ниже.
 cd ios
 xcodebuild build \
   -project PulsePlate.xcodeproj \

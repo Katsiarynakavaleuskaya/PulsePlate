@@ -137,7 +137,7 @@ final class BMIServiceTests: XCTestCase {
 
 // MARK: - Test URLProtocols
 
-final class MockURLProtocol: URLProtocol {
+private final class MockURLProtocol: URLProtocol {
     static var responseData: Data?
     static var responseStatusCode: Int = 200
 

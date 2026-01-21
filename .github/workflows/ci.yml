@@ -799,7 +799,7 @@ jobs:
 
           # Diagnostic: verify simulator exists and is accessible
           echo "=== Simulator availability check ==="
-          xcrun simctl list devices | sed -n '1,200p' | head -n 50
+          xcrun simctl list devices | head -n 50
           if xcrun simctl list devices | grep -q "$UDID"; then
             echo "✓ Simulator UDID found in simctl list"
           else

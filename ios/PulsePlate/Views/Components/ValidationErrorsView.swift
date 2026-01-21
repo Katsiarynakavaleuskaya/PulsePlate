@@ -4,7 +4,7 @@ struct ValidationErrorsView: View {
     let error: BMIServiceError
 
     var body: some View {
-        GroupBox("Error") {
+        GroupBox {
             switch error {
             case .validation(let errors):
                 VStack(alignment: .leading, spacing: 6) {
@@ -15,6 +15,8 @@ struct ValidationErrorsView: View {
             default:
                 Text(error.localizedDescription)
             }
+        } label: {
+            Text(LocalizedStringKey("Error"))
         }
         .foregroundStyle(.red)
     }

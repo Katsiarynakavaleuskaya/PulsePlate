@@ -543,8 +543,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - `frontend/src/api/openapi.json`
 - `frontend/src/api/schema.ts` (if changed)
 
-1. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
-2. CI will fail if generated artifacts are out of sync (OpenAPI sync check).
+3. Verify locally: `make openapi-check` (fails if generated artifacts are not committed).
+4. CI will fail if generated artifacts are out of sync (OpenAPI sync check).
 
 **Hard rule:** Any PR that changes OpenAPI (including metadata-only changes via `openapi_extra`) **must** commit regenerated `frontend/src/api/openapi.json` and `frontend/src/api/schema.ts` (if changed) and pass `make openapi-check`.
 

@@ -6,6 +6,7 @@ public protocol BMIServicing: Sendable {
 
 public enum BMIServiceError: Error, LocalizedError, Sendable, Equatable {
     case http(Int, String?)
+    case encoding(String)
     case decoding(String)
     case transport(String)
     case validation([ValidationError])
@@ -21,6 +22,8 @@ public enum BMIServiceError: Error, LocalizedError, Sendable, Equatable {
         switch self {
         case .http(let code, let msg):
             return "Server error \(code)\(msg.map { ": \($0)" } ?? "")"
+        case .encoding(let msg):
+            return "Encode error: \(msg)"
         case .decoding(let msg):
             return "Decode error: \(msg)"
         case .transport(let msg):
@@ -60,7 +63,7 @@ public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
             encoder.keyEncodingStrategy = .convertToSnakeCase
             urlRequest.httpBody = try encoder.encode(request)
         } catch {
-            throw BMIServiceError.decoding(error.localizedDescription)
+            throw BMIServiceError.encoding(error.localizedDescription)
         }
 
         let data: Data

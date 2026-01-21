@@ -85,9 +85,10 @@
 **Runner:** macOS 15 (GitHub Actions)
 
 **Xcode selection:**
-- Preferred: Xcode 16.2 (`/Applications/Xcode_16.2.app`)
-- Fallback: newest available `Xcode_*.app` (sorted, deterministic)
-- Final fallback: `/Applications/Xcode.app` (default)
+- Preferred: Xcode 16.4 (`/Applications/Xcode_16.4.app`)
+- Fallback: Xcode 16.3 (`/Applications/Xcode_16.3.app`)
+- Fallback: Xcode 16.2 (`/Applications/Xcode_16.2.app`)
+- CI fails if no suitable Xcode 16.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
 
 **Simulator (CI):**
 - **Auto-selected** from available simulators at runtime (no hard-coded device)
@@ -226,10 +227,11 @@ cd ios
 xcrun simctl list devices
 
 # Run CI test suite (locally can use name, but UDID preferred)
+# Run `xcrun simctl list devices` to find a valid simulator name (e.g., "iPhone 14").
 xcodebuild test \
   -project PulsePlate.xcodeproj \
   -scheme PulsePlate \
-  -destination "platform=iOS Simulator,name=iPhone 17" \
+  -destination "platform=iOS Simulator,name=<SIMULATOR_NAME>" \
   -configuration Debug \
   -skip-testing:PulsePlateUITests \
   -only-testing:PulsePlateTests/ThinClientGuardsTests \
@@ -251,7 +253,8 @@ xcrun simctl shutdown all || true
 xcrun simctl erase all || true
 
 # 2) Find UDID of needed device
-xcrun simctl list devices | rg "iPhone 17" -n
+# Replace "iPhone 14" with a simulator name that exists on your machine (see `xcrun simctl list devices`).
+xcrun simctl list devices | rg "iPhone 14" -n
 
 # 3) Boot and wait for readiness
 xcrun simctl boot <UDID> || true
@@ -321,6 +324,22 @@ private final class FailingURLProtocol: URLProtocol { ... }
 - Reference exception set in `PBXFileSystemSynchronizedRootGroup.exceptions`
 
 **Example:** "AnimationTests.swift" (and similar UI-animation-only suites) must be excluded from CI compilation until stabilized and explicitly reintroduced via a dedicated PR.
+
+---
+
+## ATS (App Transport Security) policy
+
+**Debug builds:**
+- `NSAllowsArbitraryLoads = true` (allows HTTP for local/dev endpoints)
+- `NSAllowsLocalNetworking = true` (allows localhost/127.0.0.1)
+- Configured in `PulsePlate/Info-Debug.plist`
+
+**Release builds:**
+- Strict ATS: `NSAllowsArbitraryLoads = false` (HTTPS only)
+- `NSAllowsLocalNetworking = false`
+- Configured in `PulsePlate/Info-Release.plist`
+
+**Rationale:** Debug builds need HTTP access for local development and testing. Release builds must enforce HTTPS for App Store compliance.
 
 ---
 

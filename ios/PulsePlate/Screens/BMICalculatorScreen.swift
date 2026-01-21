@@ -114,13 +114,19 @@ struct BMICalculatorScreen: View {
         await vm.calculateBMI(request: req)
     }
 
-    /// Locale-aware parsing of decimal numbers.
-    /// Handles both dot (70.5) and comma (70,5) decimal separators.
-    /// This is UI normalization, not BMI logic.
-    private func parseDouble(_ text: String) -> Double? {
+    @MainActor
+    private static let numberFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.locale = .current
         formatter.numberStyle = .decimal
-        return formatter.number(from: text)?.doubleValue
+        return formatter
+    }()
+
+    /// Locale-aware parsing of decimal numbers.
+    /// Handles both dot (70.5) and comma (70,5) decimal separators.
+    /// This is UI normalization, not BMI logic.
+    @MainActor
+    private func parseDouble(_ text: String) -> Double? {
+        Self.numberFormatter.number(from: text)?.doubleValue
     }
 }

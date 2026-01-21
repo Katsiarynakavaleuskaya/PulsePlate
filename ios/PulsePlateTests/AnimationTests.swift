@@ -3,6 +3,7 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+@testable import PulsePlate
 
 class ProgressAnimationTests: XCTestCase {
 
