@@ -812,9 +812,23 @@ jobs:
             echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
-            echo "Waiting for simulator to be ready..."
-            xcrun simctl bootstatus "$UDID" -b || true
+
+            # Enforce bootstatus verification (hard rule: simulator must be ready)
+            # Timeout: 60 seconds (if simulator not ready within 60s, CI fails with diagnostic output)
+            echo "Waiting for simulator to be ready (timeout: 60s)..."
+            if ! python3 -c "import subprocess, sys; sys.exit(subprocess.run(['xcrun', 'simctl', 'bootstatus', '$UDID', '-b'], timeout=60).returncode)"; then
+              echo "::error::Simulator failed to become ready within 60 seconds"
+              echo "Simulator state:"
+              xcrun simctl list devices | grep "$UDID" || echo "UDID not found in simctl list"
+              exit 1
+            fi
             echo "✓ Simulator booted and ready"
+
+            # Warm up system services (best-effort, reduces flaky test failures)
+            echo "Warming up system services..."
+            xcrun simctl launch "$UDID" com.apple.springboard || true
+            sleep 2
+            echo "✓ System services ready"
           fi
 
           # Diagnostic: show destinations after boot
@@ -826,18 +840,51 @@ jobs:
           # Additional diagnostic: list project schemes
           xcodebuild -list -project PulsePlate.xcodeproj
 
-          # Run unit tests (UI tests excluded via -skip-testing)
-          xcodebuild test \
+          # Split build and test for better diagnostics and targeted retries
+          # Step 1: Build for testing
+          echo "=== Building for testing ==="
+          xcodebuild build-for-testing \
             -project PulsePlate.xcodeproj \
             -scheme PulsePlate \
-            -skip-testing:PulsePlateUITests \
-            -only-testing:PulsePlateTests/ThinClientGuardsTests \
-            -only-testing:PulsePlateTests/BMIServiceTests \
-            -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-            -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-            -only-testing:PulsePlateTests/LocaleParsingTests \
             -destination "$DESTINATION" \
             -configuration Debug \
             -derivedDataPath ../.derivedData \
-            -enableCodeCoverage NO \
-            -parallel-testing-enabled NO
+            -enableCodeCoverage NO
+
+          # Step 2: Run tests (without building)
+          # Timeout: 15 minutes (fail fast instead of consuming full job budget)
+          echo "=== Running tests (timeout: 15 minutes) ==="
+          python3 - << 'PY'
+          import subprocess
+          import sys
+          import os
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              "xcodebuild", "test-without-building",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-skip-testing:PulsePlateUITests",
+              "-only-testing:PulsePlateTests/ThinClientGuardsTests",
+              "-only-testing:PulsePlateTests/BMIServiceTests",
+              "-only-testing:PulsePlateTests/BMIResponseDecodingTests",
+              "-only-testing:PulsePlateTests/BMIRequestEncodingTests",
+              "-only-testing:PulsePlateTests/LocaleParsingTests",
+              "-destination", destination,
+              "-derivedDataPath", "../.derivedData",
+              "-enableCodeCoverage", "NO",
+              "-parallel-testing-enabled", "NO"
+          ]
+
+          try:
+              result = subprocess.run(cmd, timeout=900, check=True)  # 15 minutes
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild test timed out after 15 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY

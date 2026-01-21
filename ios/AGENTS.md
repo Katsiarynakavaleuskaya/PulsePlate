@@ -177,6 +177,35 @@
 - Step summary logs runtime, device, UDID, and destination for easy debugging
 - **Testing fallback:** Override `PREFERRED_DEVICES` env var (e.g., `PREFERRED_DEVICES="iPhone 99,iPhone 98"`) **only for testing** to force fallback behavior. Default preferred list remains unchanged for normal CI runs.
 
+## CI invariants (hard rules)
+
+**Boot verification:**
+- CI **must** run `xcrun simctl bootstatus "$UDID" -b` after boot
+- `bootstatus -b` **must** succeed (exit code 0); CI fails if simulator doesn't become ready
+- Timeout: 60 seconds (if simulator not ready within 60s, CI fails with diagnostic output)
+- Rationale: Deterministic boot verification prevents downstream "Unable to find a destination" errors
+
+**System services warmup:**
+- After bootstatus succeeds, CI runs `xcrun simctl launch "$UDID" com.apple.springboard` (best-effort)
+- Warmup reduces flaky test failures due to uninitialized SpringBoard
+- Rationale: Minimal overhead (2 seconds) with significant flakiness reduction
+
+**Test execution:**
+- CI **must** split build and test: `build-for-testing` → `test-without-building`
+- Rationale: Faster diagnosis (build failed vs test runtime failed), targeted retries (retry test without rebuilding), better observability (separate step durations)
+
+**Timeout policy:**
+- `xcodebuild test-without-building` **must** be wrapped in timeout (15 minutes)
+- Rationale: Fail fast instead of consuming full job budget (25 minutes)
+- Implementation: Python `subprocess.run(timeout=900)` (macOS doesn't have `timeout` by default)
+- If timeout triggers, error message is explicit ("xcodebuild test timed out after 15 minutes")
+
+**Debugging CI failures:**
+1. Check Step Summary for: runtime, device, UDID, destination
+2. Check logs for `bootstatus -b` exit code (must be 0)
+3. Check logs for build-for-testing vs test-without-building failures
+4. If timeout: check if 15-minute timeout triggered (vs job-level 25-minute timeout)
+
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass
 - CI is the enforcement gate (blocks merge if tests fail)
