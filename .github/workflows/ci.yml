@@ -819,13 +819,30 @@ jobs:
 
             # Enforce bootstatus verification (hard rule: simulator must be ready)
             # Timeout: 60 seconds (if simulator not ready within 60s, CI fails with diagnostic output)
+            # NOTE: Never interpolate shell vars into python code strings; pass via env + os.environ.get()
             echo "Waiting for simulator to be ready (timeout: 60s)..."
-            if ! python3 -c "import subprocess, sys; sys.exit(subprocess.run(['xcrun', 'simctl', 'bootstatus', '$UDID', '-b'], timeout=60).returncode)"; then
-              echo "::error::Simulator failed to become ready within 60 seconds"
-              echo "Simulator state:"
-              xcrun simctl list devices | grep "$UDID" || echo "UDID not found in simctl list"
-              exit 1
-            fi
+            python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          udid = os.environ.get("UDID", "")
+          if not udid:
+              print("::error::UDID is empty", file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=60, check=True)
+          except subprocess.TimeoutExpired:
+              print("::error::Simulator failed to become ready within 60 seconds", file=sys.stderr)
+              print("Simulator state:", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              print("::error::Simulator bootstatus failed", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              sys.exit(e.returncode)
+          PY
             echo "✓ Simulator booted and ready"
 
             # Warm up system services (best-effort, reduces flaky test failures)

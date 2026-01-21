@@ -34,12 +34,13 @@ final class ThinClientGuardsTests: XCTestCase {
 
         // Suspicious inference patterns (cheap heuristics).
         // Keep them tight to avoid false positives.
+        // NOTE: Case-sensitive by design (Swift identifiers are case-sensitive).
         let forbiddenRegex: [(String, NSRegularExpression)] = [
-            ("bmi-threshold-18.5", try NSRegularExpression(pattern: #"\bbmi\b.*\b18[.,]5\b"#, options: [.caseInsensitive])),
-            ("bmi-threshold-25", try NSRegularExpression(pattern: #"\bbmi\b.*\b25(\.0)?\b"#, options: [.caseInsensitive])),
-            ("bmi-threshold-30", try NSRegularExpression(pattern: #"\bbmi\b.*\b30(\.0)?\b"#, options: [.caseInsensitive])),
-            ("bmi-branch-if", try NSRegularExpression(pattern: #"\bif\s+.*\bbmi\b"#, options: [.caseInsensitive])),
-            ("bmi-branch-switch", try NSRegularExpression(pattern: #"\bswitch\s+.*\bbmi\b"#, options: [.caseInsensitive]))
+            ("bmi-threshold-18.5", try NSRegularExpression(pattern: #"\bbmi\b.*\b18[.,]5\b"#, options: [])),
+            ("bmi-threshold-25", try NSRegularExpression(pattern: #"\bbmi\b.*\b25(\.0)?\b"#, options: [])),
+            ("bmi-threshold-30", try NSRegularExpression(pattern: #"\bbmi\b.*\b30(\.0)?\b"#, options: [])),
+            ("bmi-branch-if", try NSRegularExpression(pattern: #"\bif\s+.*\bbmi\b"#, options: [])),
+            ("bmi-branch-switch", try NSRegularExpression(pattern: #"\bswitch\s+.*\bbmi\b"#, options: []))
         ]
 
         // WHtR heuristic: only flag if waist/height division pattern appears (regex-based, precise).

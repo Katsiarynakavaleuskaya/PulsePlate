@@ -56,6 +56,10 @@
 - Fixtures must match backend contract (not invented)
 - Response DTOs are read-only (no computed properties with BMI logic)
 
+**Regex policy:**
+- Regex for identifier detection (BMI thresholds, branches) is **case-sensitive by design** (Swift variable names are case-sensitive).
+- `whtDivisionRegex` uses case-insensitive matching for division patterns (`waist/height`), which is acceptable as it detects mathematical operations, not identifiers.
+
 **CI enforcement:**
 - Guard test runs in CI (must pass)
 - If guard fails → PR blocked
@@ -204,6 +208,8 @@
 **Environment variables (hard rule):**
 - Variables used in embedded Python scripts (heredoc) **must** be exported: `export DESTINATION`, `export UDID`
 - Rationale: Python `os.environ.get()` requires exported variables; shell variables are not visible to subprocesses
+- **Never interpolate shell vars into python code strings** (e.g., `python3 -c "... '$UDID' ..."`); always pass via env + `os.environ.get()`
+- Rationale: Shell interpolation in python strings is fragile and error-prone; env vars are the canonical approach
 
 **Debugging CI failures:**
 1. Check Step Summary for: runtime, device, UDID, destination
