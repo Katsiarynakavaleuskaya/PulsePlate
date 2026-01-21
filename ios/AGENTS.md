@@ -154,11 +154,13 @@
 - **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
 
 **Device fallback (hard rule):**
-- CI first attempts to select one of preferred devices (`iPhone 16e`, `iPhone 16`, `iPhone 16 Pro`, `iPhone 15`, `iPhone 14`)
-- If none found → fallback to **any available iPhone** (sorted deterministically by name, then UDID)
-- If no iPhone available → fallback to **any available iOS simulator** (iPad acceptable)
-- CI **must not fail** solely because preferred device models are unavailable on the runner
-- Fallback ensures determinism: same device selected on repeated runs when preferred devices are missing
+- Preferred devices: `iPhone 16e → iPhone 16 → iPhone 16 Pro → iPhone 15 → iPhone 14`
+- If none found: pick **any available iPhone** (sorted by name, then UDID)
+- If no iPhone: pick **any available iOS simulator** (iPad acceptable)
+- CI **must not fail** solely due to missing preferred simulators
+- Output must include: `ios_runtime_id`, `device_name`, `udid`, and `DESTINATION`
+- Step summary logs runtime, device, UDID, and destination for easy debugging
+- **Testing fallback:** Override `PREFERRED_DEVICES` env var (e.g., `PREFERRED_DEVICES="iPhone 99,iPhone 98"`) to force fallback behavior
 
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass

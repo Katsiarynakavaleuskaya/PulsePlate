@@ -637,6 +637,8 @@ jobs:
         id: select-destination
         env:
           DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          # Allow override for testing fallback logic (e.g., PREFERRED_DEVICES="iPhone 99,iPhone 98")
+          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14' }}
         run: |
           set -euo pipefail
 
@@ -645,6 +647,8 @@ jobs:
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
           xcode-select -p
           xcodebuild -version
+
+          echo "Preferred devices: ${PREFERRED_DEVICES}"
 
           python3 - << 'PY'
           import json, os, re, subprocess, sys
@@ -684,22 +688,25 @@ jobs:
               sys.exit(1)
 
           # Device selection with fallback:
-          # 1) Try preferred devices
+          # 1) Try preferred devices (from env or default)
           # 2) Fallback: any iPhone
           # 3) Fallback: any iOS simulator (iPad if no iPhone)
-          pref_devices = ["iPhone 16e", "iPhone 16", "iPhone 16 Pro", "iPhone 15", "iPhone 14"]
+          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14")
+          pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
           available_names = [d["name"] for d in available_devices]
 
           device = None
           device_udid = None
 
           # Step 1: Try preferred devices
+          preferred_found = False
           for pref_name in pref_devices:
               if pref_name in available_names:
                   device_obj = next((d for d in available_devices if d["name"] == pref_name), None)
                   if device_obj:
                       device = pref_name
                       device_udid = device_obj["udid"]
+                      preferred_found = True
                       break
 
           # Step 2: Fallback to any iPhone (deterministic: sort by name, then UDID)
@@ -710,6 +717,8 @@ jobs:
                   device_obj = iphones[0]
                   device = device_obj["name"]
                   device_udid = device_obj["udid"]
+                  if not preferred_found:
+                      print(f"Preferred devices not found, falling back to any iPhone: {device}", file=sys.stderr)
 
           # Step 3: Fallback to any iOS simulator (if no iPhone available)
           if not device_udid:
@@ -717,6 +726,7 @@ jobs:
               device_obj = available_devices[0]
               device = device_obj["name"]
               device_udid = device_obj["udid"]
+              print(f"No iPhone available, falling back to any iOS simulator: {device}", file=sys.stderr)
 
           # Canonical: use UDID-only destination for determinism (kills latest ambiguity, name mismatch, OS version format issues)
           if not device_udid:
@@ -735,6 +745,16 @@ jobs:
               print(f"udid={device_udid}", file=f)
               print(f"device_name={device}", file=f)
               print(f"ios_runtime_id={runtime}", file=f)
+
+          # Write step summary for easy debugging
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary_path:
+              with open(summary_path, "a", encoding="utf-8") as f:
+                  f.write("### iOS Destination Selection\n\n")
+                  f.write(f"- **Runtime:** `{runtime}` (iOS {os_ver})\n")
+                  f.write(f"- **Device:** `{device}`\n")
+                  f.write(f"- **UDID:** `{device_udid}`\n")
+                  f.write(f"- **Destination:** `{dest}`\n")
           PY
 
       - name: iOS tests (project-based, app scheme)
