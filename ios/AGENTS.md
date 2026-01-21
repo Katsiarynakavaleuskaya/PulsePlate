@@ -406,6 +406,16 @@ private final class FailingURLProtocol: URLProtocol { ... }
 
 **Example:** "AnimationTests.swift" (and similar UI-animation-only suites) must be excluded from CI compilation until stabilized and explicitly reintroduced via a dedicated PR.
 
+### CI anchor test file policy (hard rule)
+
+**Rule:** `__CIAnchorTests.swift` must be compiled **only** in `PulsePlateTests` target Sources build phase (`B6169A3E2E893CF200B218D8`); **never** in app target Sources build phase (`B6169A2F2E893CF100B218D8`).
+
+**Rationale:** Test files must never be compiled into the app bundle. Anchor file exists solely to ensure test bundle executable generation in CI when using File System Synchronized groups.
+
+**Verification:**
+- `__CIAnchorTests.swift` must appear in `PBXSourcesBuildPhase` for `PulsePlateTests` target only
+- App target Sources phase must not contain any test files
+
 ---
 
 ## ATS (App Transport Security) policy
