@@ -782,6 +782,10 @@ jobs:
           echo "DESTINATION=$DESTINATION"
           echo "UDID=$UDID"
 
+          # Export variables for embedded Python scripts (P0: required for os.environ.get())
+          export DESTINATION
+          export UDID
+
           # Verify Xcode pinning is applied (critical: ensure simctl and xcodebuild use same Xcode)
           echo "=== Xcode pinning verification ==="
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<not set>}"
@@ -812,9 +816,43 @@ jobs:
             echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
-            echo "Waiting for simulator to be ready..."
-            xcrun simctl bootstatus "$UDID" -b || true
+
+            # Enforce bootstatus verification (hard rule: simulator must be ready)
+            # Timeout: 180 seconds (GitHub runners may need 70-120s+ for data migrations)
+            # NOTE: Never interpolate shell vars into python code strings; pass via env + os.environ.get()
+            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-180}"
+            echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
+            python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          udid = os.environ.get("UDID", "")
+          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "180"))
+
+          if not udid:
+              print("::error::UDID is empty", file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=timeout_s, check=True)
+          except subprocess.TimeoutExpired:
+              print(f"::error::Simulator not ready after {timeout_s}s (bootstatus timeout)", file=sys.stderr)
+              print("Simulator state:", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              print("::error::Simulator bootstatus failed", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              sys.exit(e.returncode)
+          PY
             echo "✓ Simulator booted and ready"
+
+            # Warm up system services (best-effort, reduces flaky test failures)
+            echo "Warming up system services..."
+            xcrun simctl launch "$UDID" com.apple.springboard || true
+            sleep 2
+            echo "✓ System services ready"
           fi
 
           # Diagnostic: show destinations after boot
@@ -826,18 +864,72 @@ jobs:
           # Additional diagnostic: list project schemes
           xcodebuild -list -project PulsePlate.xcodeproj
 
-          # Run unit tests (UI tests excluded via -skip-testing)
-          xcodebuild test \
-            -project PulsePlate.xcodeproj \
-            -scheme PulsePlate \
-            -skip-testing:PulsePlateUITests \
-            -only-testing:PulsePlateTests/ThinClientGuardsTests \
-            -only-testing:PulsePlateTests/BMIServiceTests \
-            -only-testing:PulsePlateTests/BMIResponseDecodingTests \
-            -only-testing:PulsePlateTests/BMIRequestEncodingTests \
-            -only-testing:PulsePlateTests/LocaleParsingTests \
-            -destination "$DESTINATION" \
-            -configuration Debug \
-            -derivedDataPath ../.derivedData \
-            -enableCodeCoverage NO \
-            -parallel-testing-enabled NO
+          # Split build and test for better diagnostics and targeted retries
+          # Step 1: Build for testing (timeout: 10 minutes)
+          echo "=== Building for testing (timeout: 10 minutes) ==="
+          python3 - << 'PY'
+          import subprocess
+          import sys
+          import os
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              "xcodebuild", "build-for-testing",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-destination", destination,
+              "-configuration", "Debug",
+              "-derivedDataPath", "../.derivedData",
+              "-enableCodeCoverage", "NO"
+          ]
+
+          try:
+              result = subprocess.run(cmd, timeout=600, check=True)  # 10 minutes
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild build-for-testing timed out after 10 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY
+
+          # Step 2: Run tests (without building)
+          # Timeout: 15 minutes (fail fast instead of consuming full job budget)
+          echo "=== Running tests (timeout: 15 minutes) ==="
+          python3 - << 'PY'
+          import subprocess
+          import sys
+          import os
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              "xcodebuild", "test-without-building",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-skip-testing:PulsePlateUITests",
+              "-only-testing:PulsePlateTests/ThinClientGuardsTests",
+              "-only-testing:PulsePlateTests/BMIServiceTests",
+              "-only-testing:PulsePlateTests/BMIResponseDecodingTests",
+              "-only-testing:PulsePlateTests/BMIRequestEncodingTests",
+              "-only-testing:PulsePlateTests/LocaleParsingTests",
+              "-destination", destination,
+              "-derivedDataPath", "../.derivedData",
+              "-enableCodeCoverage", "NO",
+              "-parallel-testing-enabled", "NO"
+          ]
+
+          try:
+              result = subprocess.run(cmd, timeout=900, check=True)  # 15 minutes
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild test timed out after 15 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY

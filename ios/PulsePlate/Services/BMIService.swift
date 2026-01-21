@@ -111,11 +111,11 @@ private struct ValidationErrorResponse: Codable {
 /// Used only for decoding backend validation payloads in tests.
 /// Must not cross actor boundaries with non-primitive values.
 public struct AnyCodable: Codable, Equatable {
-    public let value: Any
+    public nonisolated(unsafe) let value: Any
 
-    public init(_ value: Any) { self.value = value }
+    public nonisolated init(_ value: Any) { self.value = value }
 
-    public init(from decoder: Decoder) throws {
+    public nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
         if let v = try? c.decode(Bool.self) { value = v; return }
         if let v = try? c.decode(Int.self) { value = v; return }
@@ -124,7 +124,7 @@ public struct AnyCodable: Codable, Equatable {
         value = "unsupported"
     }
 
-    public func encode(to encoder: Encoder) throws {
+    public nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer()
         switch value {
         case let v as Bool: try c.encode(v)
@@ -135,7 +135,7 @@ public struct AnyCodable: Codable, Equatable {
         }
     }
 
-    public static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
+    public nonisolated static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
         // Type-safe equality: only compare values of the same type
         switch (lhs.value, rhs.value) {
         case (let l as Bool, let r as Bool): return l == r

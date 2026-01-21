@@ -34,12 +34,13 @@ final class ThinClientGuardsTests: XCTestCase {
 
         // Suspicious inference patterns (cheap heuristics).
         // Keep them tight to avoid false positives.
+        // NOTE: Case-sensitive by design (Swift identifiers are case-sensitive).
         let forbiddenRegex: [(String, NSRegularExpression)] = [
-            ("bmi-threshold-18.5", try NSRegularExpression(pattern: #"\bbmi\b.*\b18[.,]5\b"#)),
-            ("bmi-threshold-25", try NSRegularExpression(pattern: #"\bbmi\b.*\b25(\.0)?\b"#)),
-            ("bmi-threshold-30", try NSRegularExpression(pattern: #"\bbmi\b.*\b30(\.0)?\b"#)),
-            ("bmi-branch-if", try NSRegularExpression(pattern: #"\bif\s+.*\bbmi\b"#)),
-            ("bmi-branch-switch", try NSRegularExpression(pattern: #"\bswitch\s+.*\bbmi\b"#))
+            ("bmi-threshold-18.5", try NSRegularExpression(pattern: #"\bbmi\b.*\b18[.,]5\b"#, options: [])),
+            ("bmi-threshold-25", try NSRegularExpression(pattern: #"\bbmi\b.*\b25(\.0)?\b"#, options: [])),
+            ("bmi-threshold-30", try NSRegularExpression(pattern: #"\bbmi\b.*\b30(\.0)?\b"#, options: [])),
+            ("bmi-branch-if", try NSRegularExpression(pattern: #"\bif\s+.*\bbmi\b"#, options: [])),
+            ("bmi-branch-switch", try NSRegularExpression(pattern: #"\bswitch\s+.*\bbmi\b"#, options: []))
         ]
 
         // WHtR heuristic: only flag if waist/height division pattern appears (regex-based, precise).
@@ -56,19 +57,23 @@ final class ThinClientGuardsTests: XCTestCase {
 
         for file in swiftFiles {
             let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = content
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
 
-            for pat in forbiddenExact where content.contains(pat) {
+            for pat in forbiddenExact where scanContent.contains(pat) {
                 hits.append("\(relativePath(file, root: root)): forbidden '\(pat)'")
             }
 
             for (name, rx) in forbiddenRegex {
-                let range = NSRange(content.startIndex..<content.endIndex, in: content)
-                if rx.firstMatch(in: content, options: [], range: range) != nil {
+                let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+                if rx.firstMatch(in: scanContent, options: [], range: range) != nil {
                     hits.append("\(relativePath(file, root: root)): forbidden regex '\(name)'")
                 }
             }
 
-            if whtHeuristic(content) {
+            if whtHeuristic(scanContent) {
                 hits.append("\(relativePath(file, root: root)): suspicious WHtR inference (waist/height division)")
             }
         }
