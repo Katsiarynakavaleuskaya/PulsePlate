@@ -212,8 +212,9 @@
 
 - CI **must** run `xcrun simctl bootstatus "$UDID" -b` after boot
 - `bootstatus -b` **must** succeed (exit code 0); CI fails if simulator doesn't become ready
-- Timeout: 180 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS`; GitHub runners may need 70-120s+ for data migrations)
-- Rationale: Deterministic boot verification prevents downstream "Unable to find a destination" errors; longer timeout accounts for runner data migrations
+- Timeout: 180 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS` env var; default 180)
+- Rationale: Deterministic boot verification prevents downstream "Unable to find a destination" errors; longer timeout accounts for runner data migrations (70-120s+)
+- **Timeout tuning:** If two consecutive failures due to data migrations, increase `SIM_BOOT_TIMEOUT_SECONDS` to 240s and consider adding retry logic (shutdown → boot → bootstatus)
 
 **System services warmup:**
 
