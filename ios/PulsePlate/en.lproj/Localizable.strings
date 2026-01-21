@@ -35,3 +35,4 @@
 "shopping_list_warnings_title" = "Warnings";
 "shopping_list_total_items_fmt" = "%d items";
 "shopping_list_source_fmt" = "Source: %@";
+"Error" = "Error";

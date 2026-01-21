@@ -23,3 +23,327 @@
   1) Verify the endpoint exists in backend OpenAPI.
   2) Check backend environment (TESTING / DEBUG / feature flags).
   3) Do NOT assume the issue is in iOS networking until backend routing is confirmed.
+
+## iOS Thin Client Policy (BMI)
+
+**Hard rule:** iOS thin client for BMI must NOT compute BMI logic.
+
+**Forbidden:**
+- ❌ Any BMI thresholds (18.5, 25, 30) in iOS code
+- ❌ Any group/category inference (`if bmi > ...`, `if age < 12`)
+- ❌ Any waist risk computation (thresholds, risk levels)
+- ❌ Any BMI math (only backend calculates)
+- ❌ Any enum with `from(bmi:)` or `categoryForBMI(_:)` methods
+- ❌ Any computation of `wht_ratio` or `waist_cm / height_cm` in Swift
+
+**Allowed:**
+- ✅ Render backend fields as-is (`bmi`, `category`, `groupDisplay`, `interpretation`)
+- ✅ Localize `visualization.ranges[].key` through iOS i18n table
+- ✅ Format numbers for UI display (rounding, not recalculation)
+- ✅ Handle `category == nil` for conditional UI rendering (UI logic, not computation)
+- ✅ Map backend token to UI label (e.g., `category` → "Normal" for display), **without computing from bmi**
+
+**Contract note:** `category` is treated as display string (may be localized or token). iOS does not infer thresholds.
+
+## Enforced CI Rules (Anti-Duplication)
+
+**Guard test:** `ThinClientGuardsTests` in `PulsePlateTests/Guards/`
+
+**What it enforces:**
+- No BMI threshold literals (`18.5`, `25`, `30`, `0.5`, `0.6`) in Swift source code
+- No BMI computation function patterns (`computeBMI`, `categoryForBMI`, `riskForBMI`)
+- No suspicious patterns (`whtRatio =`, `waistCm /`, `heightCm /`)
+- Fixtures must match backend contract (not invented)
+- Response DTOs are read-only (no computed properties with BMI logic)
+
+**CI enforcement:**
+- Guard test runs in CI (must pass)
+- If guard fails → PR blocked
+- Fixtures are the ONLY allowed place for threshold values (they're backend contract examples)
+
+**Architectural guard policy:**
+- `ThinClientGuardsTests.swift` is considered an **architectural guard**.
+- Removing or weakening it requires explicit ADR / audit.
+- This guard prevents "One BMI Engine" invariant violations.
+
+**Full enforcement (recommended):**
+- Add SwiftLint custom rule or build script to scan all `.swift` files for forbidden patterns
+- Guard test is a minimum; full source scanning provides stronger protection
+
+**Single source of truth:**
+- Backend contract → iOS fixtures → iOS DTOs → UI rendering
+- If contract changes → update fixtures first, no fallback logic in iOS
+
+## CI Integration — iOS Tests Workflow
+
+**Job:** `ios-tests` (GitHub Actions)
+
+**Triggers:**
+- `pull_request` events
+- `push` to `feat/*`, `fix/*`, `main` branches
+
+**Runner:** macOS 15 (GitHub Actions)
+
+**Xcode selection:**
+- Preferred: Xcode 16.4 (`/Applications/Xcode_16.4.app`)
+- Fallback: Xcode 16.3 (`/Applications/Xcode_16.3.app`)
+- Fallback: Xcode 16.2 (`/Applications/Xcode_16.2.app`)
+- CI fails if no suitable Xcode 16.x is found (see `.github/workflows/ci.yml` `select-xcode` step).
+
+**Simulator (CI):**
+- **Auto-selected** from available simulators at runtime (no hard-coded device)
+- **Runtime policy:** prefer iOS 18.6 → fallback to iOS 18.x → fallback to any iOS runtime (if needed)
+- **Device preference:** `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
+  - If none of the preferred devices exist on the runner, CI falls back to **any available iPhone**, then to **any iOS simulator** (deterministic sort)
+- **Destination:** **UDID-only** `platform=iOS Simulator,id=<UDID>`
+- **Hard rule:** CI must **never** use `OS=latest`. There is a guard that fails the job if `latest` appears in the destination spec.
+
+**Testing device fallback (CI):**
+- You can force fallback behavior by overriding:
+  - `PREFERRED_DEVICES="iPhone 99,iPhone 98"`
+- CI logs + Step Summary must show when fallback is used and which UDID/device were selected.
+
+**Test execution (project-based):**
+- **Hard rule:** App scheme tests in CI must use `xcodebuild test -project PulsePlate.xcodeproj` with explicit test targeting via one or more entries:
+  - `-only-testing:PulsePlateTests/ThinClientGuardsTests`
+  - `-only-testing:PulsePlateTests/BMIServiceTests`
+  - `-only-testing:PulsePlateTests/BMIResponseDecodingTests`
+  - `-only-testing:PulsePlateTests/BMIRequestEncodingTests`
+  - `-only-testing:PulsePlateTests/LocaleParsingTests`
+- **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
+- Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
+- Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
+- (Do not rely on `-only-testing:PulsePlateTests` blanket targeting in CI; keep it explicit and stable.)
+
+**Enforcement:**
+- XCTest unit tests (including guard tests)
+- Thin-client guard tests (anti-duplication)
+- Tests must pass before PR merge
+- CI failure blocks merge
+
+**Test scope policy (PR-559):**
+- **Unit tests (Guards + BMI)** — mandatory, block merge if failing
+  - `ThinClientGuardsTests` (anti-duplication guard)
+  - `BMIServiceTests`, `BMIResponseDecodingTests`, `BMIRequestEncodingTests`, `LocaleParsingTests`
+- **UI tests** — excluded from CI (do not block PR-559)
+  - `PulsePlateUITests` skipped via `-skip-testing:PulsePlateUITests`
+  - `PlateViewTests` excluded (unstable, needs stabilization/rewrite)
+  - **Backlog item:** Stabilize/rewrite `PlateViewTests` and restore to CI (see `docs/roadmap/BACKLOG_LEDGER.md`)
+
+**Destination policy (CI):**
+- CI **auto-selects** destination from available simulators dynamically
+- Prefers **iOS 18.x runtime** (avoids `OS=latest` resolving to iOS 26.x betas)
+- Preferred devices: `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
+- **Hard rule:** never pin a simulator that may not exist; CI must discover availability first
+- Never uses `OS=latest` for named devices (to avoid iOS 26.x beta runtimes)
+
+**Destination policy (Local):**
+- Local defaults to `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
+- Uses `OS=latest` locally (acceptable for development, not for CI)
+
+## Local iOS checks
+
+**Fast (pre-commit):**
+- Swift syntax/build checks (automatic via pre-commit hooks)
+- No full unit tests (too slow for every commit)
+
+**Recommended before pushing an iOS PR:**
+- Run `make ios-test` locally (xcodebuild test)
+- This runs all unit tests including guard tests
+- Catches issues before CI
+
+**Local vs CI differences:**
+- **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
+- **CI:** Auto-selects destination using **UDID-only** format (`platform=iOS Simulator,id=<UDID>`)
+  - Prefers `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` from available simulators
+  - Pins iOS 18.6 runtime (fallback to iOS 18.x if 18.6 unavailable)
+  - **Never uses `OS=latest`** (guard fails job if `latest` detected)
+- Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
+- Both use explicit `-only-testing:PulsePlateTests/ClassName` entries + `-parallel-testing-enabled NO` (canonical pattern)
+- CI includes diagnostic steps: `xcodebuild -version`, `xcodebuild -list`, `xcodebuild -showdestinations`
+
+**CI destination policy (hard rule):**
+- **CI destination must be UDID-only:** `platform=iOS Simulator,id=<UDID>`
+- **`OS=latest` is forbidden:** Job fails if destination contains `latest` (anti-nondeterminism guard)
+- **Rationale:** UDID-only kills `latest` ambiguity, name mismatch, and OS version format issues on multi-runtime runners
+- **Boot requirement:** If `xcodebuild test` cannot match UDID destination, boot + bootstatus is the first remediation step; keep UDID-only strategy. Some runners require simulator to be booted before `xcodebuild` can resolve destination by UDID.
+
+**Device fallback (hard rule):**
+- Preferred devices: `iPhone 16e → iPhone 16 → iPhone 16 Pro → iPhone 15 → iPhone 14`
+- If none found: pick **any available iPhone** (sorted by name, then UDID)
+- If no iPhone: pick **any available iOS simulator** (iPad acceptable)
+- CI **must not fail** solely due to missing preferred simulators
+- Output must include: `ios_runtime_id`, `device_name`, `udid`, and `DESTINATION`
+- Step summary logs runtime, device, UDID, and destination for easy debugging
+- **Testing fallback:** Override `PREFERRED_DEVICES` env var (e.g., `PREFERRED_DEVICES="iPhone 99,iPhone 98"`) **only for testing** to force fallback behavior. Default preferred list remains unchanged for normal CI runs.
+
+**Required (CI):**
+- `ios-tests` GitHub Actions job must pass
+- CI is the enforcement gate (blocks merge if tests fail)
+
+**Test execution (canonical):**
+- Use `xcodebuild test -project PulsePlate.xcodeproj -scheme PulsePlate` with explicit test targeting:
+  - `-only-testing:PulsePlateTests/ThinClientGuardsTests`
+  - `-only-testing:PulsePlateTests/BMIServiceTests`
+  - `-only-testing:PulsePlateTests/BMIResponseDecodingTests`
+  - `-only-testing:PulsePlateTests/BMIRequestEncodingTests`
+  - `-only-testing:PulsePlateTests/LocaleParsingTests`
+- Project-based approach avoids workspace TestAction requirement
+- Explicit test targeting ensures stable CI behavior
+- Without `-only-testing`, xcodebuild may return exit code 66 even if tests run
+- This is a known Xcode behavior when app scheme lacks TestAction in workspace context
+
+⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
+
+---
+
+## iOS workflow: Cursor-first (hard rule)
+
+**Default workflow:** 100% changes in Cursor (editor + terminal).
+**Xcode is allowed only for:**
+- Booting/running simulator
+- Visual UI smoke checks (manual)
+- Inspecting Build Phases when needed (rare)
+- Opening `.xcresult` if debugging requires it
+
+**Forbidden:**
+- ❌ Doing routine code edits in Xcode (use Cursor)
+- ❌ "Fix by clicking" without reflecting changes in repo files (pbxproj / sources)
+
+### Canonical working directory (hard rule)
+All iOS CLI commands must run from `ios/`:
+```bash
+cd ios
+```
+
+If `xcodebuild` says "does not contain an Xcode project" → you ran it from repo root.
+
+### Daily commands (reference)
+
+```bash
+cd ios
+
+# Show available devices (copy UDID for CI)
+xcrun simctl list devices
+
+# Run CI test suite (locally can use name, but UDID preferred)
+# Run `xcrun simctl list devices` to find a valid simulator name (e.g., "iPhone 14").
+xcodebuild test \
+  -project PulsePlate.xcodeproj \
+  -scheme PulsePlate \
+  -destination "platform=iOS Simulator,name=<SIMULATOR_NAME>" \
+  -configuration Debug \
+  -skip-testing:PulsePlateUITests \
+  -only-testing:PulsePlateTests/ThinClientGuardsTests \
+  -only-testing:PulsePlateTests/BMIServiceTests \
+  -only-testing:PulsePlateTests/BMIResponseDecodingTests \
+  -only-testing:PulsePlateTests/BMIRequestEncodingTests \
+  -only-testing:PulsePlateTests/LocaleParsingTests
+```
+
+### Simulator troubleshooting (runtime state issues)
+
+If `xcodebuild test` fails with "Invalid device state" or "No such process", reset simulators:
+
+```bash
+cd ios
+
+# 1) Shutdown and erase all simulators (most reliable)
+xcrun simctl shutdown all || true
+xcrun simctl erase all || true
+
+# 2) Find UDID of needed device
+# Replace "iPhone 14" with a simulator name that exists on your machine (see `xcrun simctl list devices`).
+xcrun simctl list devices | rg "iPhone 14" -n
+
+# 3) Boot and wait for readiness
+xcrun simctl boot <UDID> || true
+xcrun simctl bootstatus <UDID> -b || true
+```
+
+After reset, retry `xcodebuild test ... -destination "platform=iOS Simulator,id=<UDID>"`.
+
+---
+
+## Swift 6 / Concurrency policy for test mocks (hard rule)
+
+Swift 6 treats some warnings as errors.
+
+### Swift 6 concurrency for mocks
+
+**Rule:** Test mocks with mutable fields must be explicitly marked as `@unchecked Sendable` **with a comment**, or be immutable/actor isolated.
+
+**Goal:** Avoid accumulating "warning today → error tomorrow".
+
+**Example:**
+```swift
+final class MockShoppingListService: ShoppingListService, @unchecked Sendable {
+  // Test-only mock. Single-threaded by design.
+  var result: Result<ShoppingListDTO, Error> = .success(...)
+}
+```
+
+**Rule:** If CI emits "stored property of Sendable-conforming class is mutable" → fix it explicitly
+(`@unchecked Sendable` + comment, or make property immutable/actor isolated).
+
+---
+
+## XCTest helpers: avoid cross-file symbol collisions (hard rule)
+
+### Test helper scoping
+
+**Rule:** Any test helper type that may be repeated across multiple files (`FailingURLProtocol` and similar) **must be `private`/`fileprivate`** to avoid redeclaration errors when using FileSystemSynchronized build files.
+
+**Example:**
+```swift
+private final class FailingURLProtocol: URLProtocol { ... }
+```
+
+**Forbidden:**
+
+* ❌ Reusing the same `final class FailingURLProtocol` at module scope in multiple files
+  (causes `invalid redeclaration`)
+
+**Rationale:** File-private classes prevent symbol collisions across test files while keeping helpers local to their test suites.
+
+---
+
+## Animated/UI helper tests policy (hard rule)
+
+### Animation/UI-only tests CI policy
+
+**Rule:** UI/Animation-only tests must not block CI.
+
+**Mechanism:** Exclude such files via `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` (not via UI clicks).
+
+**Rationale:** If a test depends on UI animation utilities/components that are not part of the public API surface (or not available in the test target), it must not block CI compilation.
+
+**Implementation:**
+- Create `PBXFileSystemSynchronizedBuildFileExceptionSet` for test target
+- Add problematic test files to `membershipExceptions`
+- Reference exception set in `PBXFileSystemSynchronizedRootGroup.exceptions`
+
+**Example:** "AnimationTests.swift" (and similar UI-animation-only suites) must be excluded from CI compilation until stabilized and explicitly reintroduced via a dedicated PR.
+
+---
+
+## ATS (App Transport Security) policy
+
+**Debug builds:**
+- `NSAllowsArbitraryLoads = true` (allows HTTP for local/dev endpoints)
+- `NSAllowsLocalNetworking = true` (allows localhost/127.0.0.1)
+- Configured in `PulsePlate/Info-Debug.plist`
+
+**Release builds:**
+- Strict ATS: `NSAllowsArbitraryLoads = false` (HTTPS only)
+- `NSAllowsLocalNetworking = false`
+- Configured in `PulsePlate/Info-Release.plist`
+
+**Rationale:** Debug builds need HTTP access for local development and testing. Release builds must enforce HTTPS for App Store compliance.
+
+---
+
+## iOS Roadmap sync (reference)
+
+For iOS localization + navigation sync plan, use:
+`IOS_ROADMAP.md` (canonical).

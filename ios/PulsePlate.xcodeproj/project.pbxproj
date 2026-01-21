@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 90;
+		objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -36,55 +36,51 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		B6169A882E893FEF00B218D8 /* Exceptions for "PulsePlate" folder in "PulsePlate" target */ = {
+		B6169A882E893FEF00B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"Info-Debug.plist",
+				"Info-Release.plist",
 				Info.plist,
-				Tests/AnimationTests.swift,
-				Tests/APITests.swift,
-				Tests/PlateViewTests.swift,
 			);
 			target = B6169A322E893CF100B218D8 /* PulsePlate */;
 		};
-		B6169A892E893FEF00B218D8 /* Exceptions for "PulsePlate" folder in "PulsePlateTests" target */ = {
+		B6169A8A2E893CF200B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Tests/AnimationTests.swift,
-				Tests/APITests.swift,
-				Tests/PlateViewTests.swift,
+				AnimationTests.swift,
 			);
 			target = B6169A412E893CF200B218D8 /* PulsePlateTests */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		B6169A352E893CF100B218D8 /* PulsePlate */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				B6169A882E893FEF00B218D8 /* Exceptions for "PulsePlate" folder in "PulsePlate" target */,
-				B6169A892E893FEF00B218D8 /* Exceptions for "PulsePlate" folder in "PulsePlateTests" target */,
-			);
-			path = PulsePlate;
-			sourceTree = "<group>";
-		};
+		B6169A352E893CF100B218D8 /* PulsePlate */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B6169A882E893FEF00B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = PulsePlate; sourceTree = "<group>"; };
+		B6169A892E893CF200B218D8 /* PulsePlateTests */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (B6169A8A2E893CF200B218D8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = PulsePlateTests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		B6169A302E893CF100B218D8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 				B6B04C2D2EEF4BC4005E0955 /* Lottie in Frameworks */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B6169A3F2E893CF200B218D8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B6169A492E893CF200B218D8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -100,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				B6169A352E893CF100B218D8 /* PulsePlate */,
+				B6169A892E893CF200B218D8 /* PulsePlateTests */,
 				B6169A342E893CF100B218D8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -134,6 +131,8 @@
 			);
 			buildRules = (
 			);
+			dependencies = (
+			);
 			fileSystemSynchronizedGroups = (
 				B6169A352E893CF100B218D8 /* PulsePlate */,
 			);
@@ -157,6 +156,9 @@
 			);
 			dependencies = (
 				B6169A442E893CF200B218D8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B6169A892E893CF200B218D8 /* PulsePlateTests */,
 			);
 			name = PulsePlateTests;
 			productName = PulsePlateTests;
@@ -205,6 +207,7 @@
 				};
 			};
 			buildConfigurationList = B6169A2E2E893CF100B218D8 /* Build configuration list for PBXProject "PulsePlate" */;
+			compatibilityVersion = "Xcode 16.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -218,7 +221,6 @@
 			packageReferences = (
 				B6B04C2B2EEF4BC4005E0955 /* XCRemoteSwiftPackageReference "lottie-ios" */,
 			);
-			preferredProjectObjectVersion = 90;
 			productRefGroup = B6169A342E893CF100B218D8 /* Products */;
 			projectDirPath = "";
 			projectReferences = (
@@ -243,36 +245,48 @@
 /* Begin PBXResourcesBuildPhase section */
 		B6169A312E893CF100B218D8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B6169A402E893CF200B218D8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B6169A4A2E893CF200B218D8 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		B6169A2F2E893CF100B218D8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B6169A3E2E893CF200B218D8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B6169A482E893CF200B218D8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -290,7 +304,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		B6169A542E893CF200B218D8 /* Debug configuration for PBXProject "PulsePlate" */ = {
+		B6169A542E893CF200B218D8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -355,7 +369,7 @@
 			};
 			name = Debug;
 		};
-		B6169A552E893CF200B218D8 /* Release configuration for PBXProject "PulsePlate" */ = {
+		B6169A552E893CF200B218D8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -414,7 +428,7 @@
 			};
 			name = Release;
 		};
-		B6169A572E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlate" */ = {
+		B6169A572E893CF200B218D8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -462,7 +476,7 @@
 			};
 			name = Debug;
 		};
-		B6169A582E893CF200B218D8 /* Release configuration for PBXNativeTarget "PulsePlate" */ = {
+		B6169A582E893CF200B218D8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -510,7 +524,7 @@
 			};
 			name = Release;
 		};
-		B6169A5A2E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlateTests" */ = {
+		B6169A5A2E893CF200B218D8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -534,7 +548,7 @@
 			};
 			name = Debug;
 		};
-		B6169A5B2E893CF200B218D8 /* Release configuration for PBXNativeTarget "PulsePlateTests" */ = {
+		B6169A5B2E893CF200B218D8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -558,7 +572,7 @@
 			};
 			name = Release;
 		};
-		B6169A5D2E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlateUITests" */ = {
+		B6169A5D2E893CF200B218D8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -581,7 +595,7 @@
 			};
 			name = Debug;
 		};
-		B6169A5E2E893CF200B218D8 /* Release configuration for PBXNativeTarget "PulsePlateUITests" */ = {
+		B6169A5E2E893CF200B218D8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -610,33 +624,37 @@
 		B6169A2E2E893CF100B218D8 /* Build configuration list for PBXProject "PulsePlate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B6169A542E893CF200B218D8 /* Debug configuration for PBXProject "PulsePlate" */,
-				B6169A552E893CF200B218D8 /* Release configuration for PBXProject "PulsePlate" */,
+				B6169A542E893CF200B218D8 /* Debug */,
+				B6169A552E893CF200B218D8 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		B6169A562E893CF200B218D8 /* Build configuration list for PBXNativeTarget "PulsePlate" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B6169A572E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlate" */,
-				B6169A582E893CF200B218D8 /* Release configuration for PBXNativeTarget "PulsePlate" */,
+				B6169A572E893CF200B218D8 /* Debug */,
+				B6169A582E893CF200B218D8 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		B6169A592E893CF200B218D8 /* Build configuration list for PBXNativeTarget "PulsePlateTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B6169A5A2E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlateTests" */,
-				B6169A5B2E893CF200B218D8 /* Release configuration for PBXNativeTarget "PulsePlateTests" */,
+				B6169A5A2E893CF200B218D8 /* Debug */,
+				B6169A5B2E893CF200B218D8 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		B6169A5C2E893CF200B218D8 /* Build configuration list for PBXNativeTarget "PulsePlateUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				B6169A5D2E893CF200B218D8 /* Debug configuration for PBXNativeTarget "PulsePlateUITests" */,
-				B6169A5E2E893CF200B218D8 /* Release configuration for PBXNativeTarget "PulsePlateUITests" */,
+				B6169A5D2E893CF200B218D8 /* Debug */,
+				B6169A5E2E893CF200B218D8 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

@@ -375,3 +375,4 @@ coverage.json
 docs/audit/_local/**
 docs/audit/*.tmp.md
 docs/audit/*.draft.md
+.derivedData/
