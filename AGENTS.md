@@ -1115,6 +1115,8 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 ## iOS CI Policy (Hard Rule)
 
+**iOS rules and CI policy — canonical in `ios/AGENTS.md` (Cursor-first, Xcode pinning, membershipExceptions, guard tests).**
+
 **iOS PRs must run xcodebuild unit tests in GitHub Actions (macOS runner).**
 
 **Rules:**
