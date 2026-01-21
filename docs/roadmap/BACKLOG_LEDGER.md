@@ -50,18 +50,22 @@ If it is not recorded here — it does not exist.
     - `-skip-testing:PulsePlateUITests` removed from CI
     - CI green with UI tests included
 
-- [ ] Fix or restore AnimationTests.swift (iOS)
+- [ ] Stabilize AnimationTests.swift (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (separate from PR-559)
-  - Reason: pre-existing compilation failures (missing types: PulsingView, ShimmerEffect, SlideInTransition, FadeTransition, AnimatedProgressRing, NutritionSegment; internal access issues). Excluded from PulsePlateTests target to unblock PR-559 CI.
+  - Reason: pre-existing compilation failures (missing types: PulsingView, ShimmerEffect, SlideInTransition, FadeTransition, AnimatedProgressRing, NutritionSegment; internal access issues). Excluded from PulsePlateTests target via `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` to unblock PR-559 CI.
   - Links:
-    - ios/PulsePlate/Tests/AnimationTests.swift
-    - ios/PulsePlate.xcodeproj/project.pbxproj (line 52: removed from membershipExceptions)
+    - ios/PulsePlateTests/AnimationTests.swift
+    - ios/PulsePlate.xcodeproj/project.pbxproj (line 51: `AnimationTests.swift` in membershipExceptions)
+    - ios/AGENTS.md (Animated/UI helper tests policy)
   - DoD:
+    - Either rewrite using available public components
+    - Or extract to separate test target
+    - Or remove if dead test code (no longer needed)
     - AnimationTests.swift compiles without errors
     - All referenced types/modifiers are accessible (public/internal as needed)
-    - Tests restored to PulsePlateTests target
-    - CI green with AnimationTests included
+    - Tests restored to PulsePlateTests target (if kept)
+    - CI green with AnimationTests included (if restored)
 
 - [ ] Fix ShoppingPlan public API (make nested types public or narrow API surface)
   - Owner: @katsiaryna_kavaleuskaya
@@ -113,5 +117,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-20
+**Last updated:** 2026-01-21
 **Maintainer:** @katsiaryna_kavaleuskaya

@@ -165,3 +165,138 @@
 - This is a known Xcode behavior when app scheme lacks TestAction in workspace context
 
 ⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
+
+---
+
+## iOS workflow: Cursor-first (hard rule)
+
+**Default workflow:** 100% changes in Cursor (editor + terminal).
+**Xcode is allowed only for:**
+- Booting/running simulator
+- Visual UI smoke checks (manual)
+- Inspecting Build Phases when needed (rare)
+- Opening `.xcresult` if debugging requires it
+
+**Forbidden:**
+- ❌ Doing routine code edits in Xcode (use Cursor)
+- ❌ "Fix by clicking" without reflecting changes in repo files (pbxproj / sources)
+
+### Canonical working directory (hard rule)
+All iOS CLI commands must run from `ios/`:
+```bash
+cd ios
+```
+
+If `xcodebuild` says "does not contain an Xcode project" → you ran it from repo root.
+
+### Daily commands (reference)
+
+```bash
+cd ios
+
+# Show available devices (copy UDID for CI)
+xcrun simctl list devices
+
+# Run CI test suite (locally can use name, but UDID preferred)
+xcodebuild test \
+  -project PulsePlate.xcodeproj \
+  -scheme PulsePlate \
+  -destination "platform=iOS Simulator,name=iPhone 17" \
+  -configuration Debug \
+  -skip-testing:PulsePlateUITests \
+  -only-testing:PulsePlateTests/ThinClientGuardsTests \
+  -only-testing:PulsePlateTests/BMIServiceTests \
+  -only-testing:PulsePlateTests/BMIResponseDecodingTests \
+  -only-testing:PulsePlateTests/BMIRequestEncodingTests \
+  -only-testing:PulsePlateTests/LocaleParsingTests
+```
+
+### Simulator troubleshooting (runtime state issues)
+
+If `xcodebuild test` fails with "Invalid device state" or "No such process", reset simulators:
+
+```bash
+cd ios
+
+# 1) Shutdown and erase all simulators (most reliable)
+xcrun simctl shutdown all || true
+xcrun simctl erase all || true
+
+# 2) Find UDID of needed device
+xcrun simctl list devices | rg "iPhone 17" -n
+
+# 3) Boot and wait for readiness
+xcrun simctl boot <UDID> || true
+xcrun simctl bootstatus <UDID> -b || true
+```
+
+After reset, retry `xcodebuild test ... -destination "platform=iOS Simulator,id=<UDID>"`.
+
+---
+
+## Swift 6 / Concurrency policy for test mocks (hard rule)
+
+Swift 6 treats some warnings as errors.
+
+### Swift 6 concurrency for mocks
+
+**Rule:** Test mocks with mutable fields must be explicitly marked as `@unchecked Sendable` **with a comment**, or be immutable/actor isolated.
+
+**Goal:** Avoid accumulating "warning today → error tomorrow".
+
+**Example:**
+```swift
+final class MockShoppingListService: ShoppingListService, @unchecked Sendable {
+  // Test-only mock. Single-threaded by design.
+  var result: Result<ShoppingListDTO, Error> = .success(...)
+}
+```
+
+**Rule:** If CI emits "stored property of Sendable-conforming class is mutable" → fix it explicitly
+(`@unchecked Sendable` + comment, or make property immutable/actor isolated).
+
+---
+
+## XCTest helpers: avoid cross-file symbol collisions (hard rule)
+
+### Test helper scoping
+
+**Rule:** Any test helper type that may be repeated across multiple files (`FailingURLProtocol` and similar) **must be `private`/`fileprivate`** to avoid redeclaration errors when using FileSystemSynchronized build files.
+
+**Example:**
+```swift
+private final class FailingURLProtocol: URLProtocol { ... }
+```
+
+**Forbidden:**
+
+* ❌ Reusing the same `final class FailingURLProtocol` at module scope in multiple files
+  (causes `invalid redeclaration`)
+
+**Rationale:** File-private classes prevent symbol collisions across test files while keeping helpers local to their test suites.
+
+---
+
+## Animated/UI helper tests policy (hard rule)
+
+### Animation/UI-only tests CI policy
+
+**Rule:** UI/Animation-only tests must not block CI.
+
+**Mechanism:** Exclude such files via `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` (not via UI clicks).
+
+**Rationale:** If a test depends on UI animation utilities/components that are not part of the public API surface (or not available in the test target), it must not block CI compilation.
+
+**Implementation:**
+- Create `PBXFileSystemSynchronizedBuildFileExceptionSet` for test target
+- Add problematic test files to `membershipExceptions`
+- Reference exception set in `PBXFileSystemSynchronizedRootGroup.exceptions`
+
+**Example:** "AnimationTests.swift" (and similar UI-animation-only suites) must be excluded from CI compilation until stabilized and explicitly reintroduced via a dedicated PR.
+
+---
+
+## iOS Roadmap sync (reference)
+
+For iOS localization + navigation sync plan, use:
+`IOS_ROADMAP.md` (canonical).
