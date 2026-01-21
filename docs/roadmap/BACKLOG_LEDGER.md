@@ -19,20 +19,20 @@ If it is not recorded here — it does not exist.
 ---
 
 ## P0 — Next (Must happen)
-- [x] CI iOS stability hardening (PR-560)
+- [ ] CI iOS stability hardening (PR-560)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-560
-  - Status: Closed (merged PR-560)
+  - Status: In Progress (PR-560 — awaiting merge)
   - Reason: Enforce deterministic boot verification, split build/test, add timeout wrapper
   - Links:
     - docs/audit/PR_560_CI_IOS_STABILITY_AUDIT.md
   - DoD:
-    - [x] Enforce bootstatus -b verification (no `|| true`)
-    - [x] Add system services warmup
-    - [x] Split build-for-testing / test-without-building
-    - [x] Add timeout wrapper (15 minutes) for xcodebuild test
-    - [x] Update ios/AGENTS.md with canonical CI recipe
-    - [x] CI green on main-compatible workflow
+    - [ ] Enforce bootstatus -b verification (no `|| true`)
+    - [ ] Add system services warmup
+    - [ ] Split build-for-testing / test-without-building
+    - [ ] Add timeout wrapper (15 minutes) for xcodebuild test
+    - [ ] Update ios/AGENTS.md with canonical CI recipe
+    - [ ] CI green on main-compatible workflow
 
 - [ ] PR-560 Web Thin Client (BMI)
   - Owner: @katsiaryna_kavaleuskaya

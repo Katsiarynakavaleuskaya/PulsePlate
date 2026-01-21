@@ -87,7 +87,7 @@ xcodebuild test \
 
 **Rationale for change:**
 - Per-command timeout (15 minutes for `xcodebuild test`) provides faster feedback
-- Explicit timeout for `bootstatus -b` (e.g., 60 seconds) prevents indefinite waits
+- Explicit timeout for `bootstatus -b` (180 seconds, configurable via `SIM_BOOT_TIMEOUT_SECONDS`) prevents indefinite waits and accounts for GitHub runner data migrations (70-120s+)
 
 ---
 
@@ -121,14 +121,22 @@ xcodebuild test \
 # Before:
 xcrun simctl bootstatus "$UDID" -b || true
 
-# After:
-echo "Waiting for simulator to be ready (timeout: 60s)..."
-if ! timeout 60 xcrun simctl bootstatus "$UDID" -b; then
-  echo "::error::Simulator failed to become ready within 60 seconds"
-  echo "Simulator state:"
-  xcrun simctl list devices | grep "$UDID" || echo "UDID not found"
-  exit 1
-fi
+# After (illustrative snippet; actual implementation uses Python with os.environ.get("UDID")):
+# Timeout: 180 seconds (GitHub runners may need 70-120s+ for data migrations)
+echo "Waiting for simulator to be ready (timeout: 180s)..."
+python3 - << 'PY'
+import os, subprocess, sys
+udid = os.environ.get("UDID", "")
+timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "180"))
+if not udid:
+    print("::error::UDID is empty", file=sys.stderr)
+    sys.exit(1)
+try:
+    subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=timeout_s, check=True)
+except subprocess.TimeoutExpired:
+    print(f"::error::Simulator not ready after {timeout_s}s", file=sys.stderr)
+    sys.exit(1)
+PY
 echo "✓ Simulator booted and ready"
 ```
 
@@ -290,7 +298,7 @@ After implementation, PR must demonstrate:
 **Boot verification:**
 - CI **must** run `xcrun simctl bootstatus "$UDID" -b` after boot
 - `bootstatus -b` **must** succeed (exit code 0); CI fails if simulator doesn't become ready
-- Timeout: 60 seconds (if simulator not ready within 60s, CI fails with diagnostic output)
+- Timeout: 180 seconds (configurable via `SIM_BOOT_TIMEOUT_SECONDS`; GitHub runners may need 70-120s+ for data migrations)
 
 **System services warmup:**
 - After bootstatus succeeds, CI runs `xcrun simctl launch "$UDID" com.apple.springboard` (best-effort)
@@ -391,7 +399,7 @@ After implementation, PR must demonstrate:
 
 1. **`fix(ci-ios): enforce bootstatus verification + split build/test + timeout`**
    - Remove `|| true` from bootstatus
-   - Add timeout for bootstatus (60s)
+   - Add timeout for bootstatus (180s, configurable via env)
    - Add system services warmup
    - Split `xcodebuild test` into `build-for-testing` + `test-without-building`
    - Add timeout wrapper (15 min) for `test-without-building`

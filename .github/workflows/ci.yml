@@ -818,23 +818,26 @@ jobs:
             xcrun simctl boot "$UDID" || true
 
             # Enforce bootstatus verification (hard rule: simulator must be ready)
-            # Timeout: 60 seconds (if simulator not ready within 60s, CI fails with diagnostic output)
+            # Timeout: 180 seconds (GitHub runners may need 70-120s+ for data migrations)
             # NOTE: Never interpolate shell vars into python code strings; pass via env + os.environ.get()
-            echo "Waiting for simulator to be ready (timeout: 60s)..."
+            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-180}"
+            echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
             python3 - << 'PY'
           import os
           import subprocess
           import sys
 
           udid = os.environ.get("UDID", "")
+          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "180"))
+
           if not udid:
               print("::error::UDID is empty", file=sys.stderr)
               sys.exit(1)
 
           try:
-              subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=60, check=True)
+              subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=timeout_s, check=True)
           except subprocess.TimeoutExpired:
-              print("::error::Simulator failed to become ready within 60 seconds", file=sys.stderr)
+              print(f"::error::Simulator not ready after {timeout_s}s (bootstatus timeout)", file=sys.stderr)
               print("Simulator state:", file=sys.stderr)
               subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
               sys.exit(1)
