@@ -33,14 +33,8 @@ ignore if {
 
 ignore if {
 	input.VulnerabilityID == "CVE-2025-15281"
-	input.PkgName == "libc6"
+	allowed_packages := {"libc6", "libc-bin"}
+	allowed_packages[input.PkgName]
 	input.InstalledVersion == "2.36-9+deb12u13"
-	startswith(input.PkgID, "libc6@2.36-9+deb12u13")
-}
-
-ignore if {
-	input.VulnerabilityID == "CVE-2025-15281"
-	input.PkgName == "libc-bin"
-	input.InstalledVersion == "2.36-9+deb12u13"
-	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
+	startswith(input.PkgID, "libc6@2.36-9+deb12u13") or startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
 }
