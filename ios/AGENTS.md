@@ -122,14 +122,36 @@
   - `PREFERRED_DEVICES="iPhone 99,iPhone 98"`
 - CI logs + Step Summary must show when fallback is used and which UDID/device were selected.
 
-**Test execution (project-based):**
+**Test execution (project-based, split build/test):**
 
-- **Hard rule:** App scheme tests in CI must use `xcodebuild test -project PulsePlate.xcodeproj` with explicit test targeting via one or more entries:
-  - `-only-testing:PulsePlateTests/ThinClientGuardsTests`
-  - `-only-testing:PulsePlateTests/BMIServiceTests`
-  - `-only-testing:PulsePlateTests/BMIResponseDecodingTests`
-  - `-only-testing:PulsePlateTests/BMIRequestEncodingTests`
-  - `-only-testing:PulsePlateTests/LocaleParsingTests`
+- **Hard rule:** CI **must** split build and test: `build-for-testing` → `test-without-building`
+- **Rationale:** Faster diagnosis (build failed vs test runtime failed), targeted retries (retry test without rebuilding), better observability (separate step durations)
+- **Step 1: Build for testing** (timeout: 10 minutes):
+  ```bash
+  xcodebuild build-for-testing \
+    -project PulsePlate.xcodeproj \
+    -scheme PulsePlate \
+    -destination "$DESTINATION" \
+    -configuration Debug \
+    -derivedDataPath ../.derivedData \
+    -enableCodeCoverage NO
+  ```
+- **Step 2: Run tests** (timeout: 15 minutes):
+  ```bash
+  xcodebuild test-without-building \
+    -project PulsePlate.xcodeproj \
+    -scheme PulsePlate \
+    -skip-testing:PulsePlateUITests \
+    -only-testing:PulsePlateTests/ThinClientGuardsTests \
+    -only-testing:PulsePlateTests/BMIServiceTests \
+    -only-testing:PulsePlateTests/BMIResponseDecodingTests \
+    -only-testing:PulsePlateTests/BMIRequestEncodingTests \
+    -only-testing:PulsePlateTests/LocaleParsingTests \
+    -destination "$DESTINATION" \
+    -derivedDataPath ../.derivedData \
+    -enableCodeCoverage NO \
+    -parallel-testing-enabled NO
+  ```
 - **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
 - Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
 - Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
@@ -254,18 +276,38 @@
 - `ios-tests` GitHub Actions job must pass
 - CI is the enforcement gate (blocks merge if tests fail)
 
-**Test execution (canonical):**
+**Test execution (canonical, split build/test):**
 
-- Use `xcodebuild test -project PulsePlate.xcodeproj -scheme PulsePlate` with explicit test targeting:
-  - `-only-testing:PulsePlateTests/ThinClientGuardsTests`
-  - `-only-testing:PulsePlateTests/BMIServiceTests`
-  - `-only-testing:PulsePlateTests/BMIResponseDecodingTests`
-  - `-only-testing:PulsePlateTests/BMIRequestEncodingTests`
-  - `-only-testing:PulsePlateTests/LocaleParsingTests`
+- CI **must** split build and test: `build-for-testing` → `test-without-building`
+- **Step 1: Build for testing** (timeout: 10 minutes):
+  ```bash
+  xcodebuild build-for-testing \
+    -project PulsePlate.xcodeproj \
+    -scheme PulsePlate \
+    -destination "$DESTINATION" \
+    -configuration Debug \
+    -derivedDataPath ../.derivedData \
+    -enableCodeCoverage NO
+  ```
+- **Step 2: Run tests** (timeout: 15 minutes):
+  ```bash
+  xcodebuild test-without-building \
+    -project PulsePlate.xcodeproj \
+    -scheme PulsePlate \
+    -skip-testing:PulsePlateUITests \
+    -only-testing:PulsePlateTests/ThinClientGuardsTests \
+    -only-testing:PulsePlateTests/BMIServiceTests \
+    -only-testing:PulsePlateTests/BMIResponseDecodingTests \
+    -only-testing:PulsePlateTests/BMIRequestEncodingTests \
+    -only-testing:PulsePlateTests/LocaleParsingTests \
+    -destination "$DESTINATION" \
+    -derivedDataPath ../.derivedData \
+    -enableCodeCoverage NO \
+    -parallel-testing-enabled NO
+  ```
 - Project-based approach avoids workspace TestAction requirement
 - Explicit test targeting ensures stable CI behavior
-- Without `-only-testing`, xcodebuild may return exit code 66 even if tests run
-- This is a known Xcode behavior when app scheme lacks TestAction in workspace context
+- Split build/test enables faster diagnosis and targeted retries
 
 ⚠️ **Hard rule (PR-559):** App scheme tests in CI must use **project-based** approach (`-project`, not `-workspace`). Workspace-based tests require explicit TestAction configuration, which app scheme does not have.
 
