@@ -9,8 +9,8 @@ final class BMICalculatorViewModel: ObservableObject {
 
     private let service: BMIServicing
 
-    init(service: BMIServicing = DefaultBMIService()) {
-        self.service = service
+    nonisolated init(service: BMIServicing? = nil) {
+        self.service = service ?? DefaultBMIService()
     }
 
     func calculateBMI(request: BMIRequest) async {
