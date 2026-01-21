@@ -678,28 +678,63 @@ jobs:
 
           os_ver = f"{major}.{minor}"
           available_devices = [d for d in devices.get(runtime, []) if d.get("isAvailable", True)]
+
+          if not available_devices:
+              print(f"::error::No available devices found for runtime: {runtime}", file=sys.stderr)
+              sys.exit(1)
+
+          # Device selection with fallback:
+          # 1) Try preferred devices
+          # 2) Fallback: any iPhone
+          # 3) Fallback: any iOS simulator (iPad if no iPhone)
+          pref_devices = ["iPhone 16e", "iPhone 16", "iPhone 16 Pro", "iPhone 15", "iPhone 14"]
           available_names = [d["name"] for d in available_devices]
 
-          pref_devices = ["iPhone 16e", "iPhone 16", "iPhone 16 Pro", "iPhone 15", "iPhone 14"]
-          device = next((n for n in pref_devices if n in available_names), None)
+          device = None
           device_udid = None
-          if device:
-              device_udid = next((d["udid"] for d in available_devices if d["name"] == device), None)
+
+          # Step 1: Try preferred devices
+          for pref_name in pref_devices:
+              if pref_name in available_names:
+                  device_obj = next((d for d in available_devices if d["name"] == pref_name), None)
+                  if device_obj:
+                      device = pref_name
+                      device_udid = device_obj["udid"]
+                      break
+
+          # Step 2: Fallback to any iPhone (deterministic: sort by name, then UDID)
+          if not device_udid:
+              iphones = [d for d in available_devices if d["name"].startswith("iPhone")]
+              if iphones:
+                  iphones.sort(key=lambda d: (d["name"], d["udid"]))
+                  device_obj = iphones[0]
+                  device = device_obj["name"]
+                  device_udid = device_obj["udid"]
+
+          # Step 3: Fallback to any iOS simulator (if no iPhone available)
+          if not device_udid:
+              available_devices.sort(key=lambda d: (d["name"], d["udid"]))
+              device_obj = available_devices[0]
+              device = device_obj["name"]
+              device_udid = device_obj["udid"]
 
           # Canonical: use UDID-only destination for determinism (kills latest ambiguity, name mismatch, OS version format issues)
           if not device_udid:
-              print("::error::No UDID found for selected device", file=sys.stderr)
+              print("::error::No UDID found for selected device (fallback logic failed)", file=sys.stderr)
               sys.exit(1)
 
           dest = f"platform=iOS Simulator,id={device_udid}"
 
           print(f"Selected runtime: {runtime} (iOS {os_ver})")
-          print(f"Selected device: {device or 'Any iOS Simulator Device'}")
-          print(f"Device UDID: {device_udid}")
+          print(f"Selected device: {device} (UDID: {device_udid})")
           print(f"Selected destination: {dest}")
+
+          # Export runtime ID for potential future use
           with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
               print(f"destination={dest}", file=f)
               print(f"udid={device_udid}", file=f)
+              print(f"device_name={device}", file=f)
+              print(f"ios_runtime_id={runtime}", file=f)
           PY
 
       - name: iOS tests (project-based, app scheme)
