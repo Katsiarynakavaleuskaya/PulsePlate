@@ -9,7 +9,7 @@ default ignore := false
 # - Limit to the installed versions reported at time of suppression
 #
 # Suppression expires: 2026-03-01 (manual removal)
-# Documented in: docs/security/CVE-2026-0915-glibc.md
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2025-15281-glibc.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -23,4 +23,44 @@ ignore if {
 	input.PkgName == "libc-bin"
 	input.InstalledVersion == "2.36-9+deb12u13"
 	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
+}
+
+# CVE-2025-15281 (glibc) - upstream unfixed in GitHub runner base image
+# Review-by: 2026-03-01 (manual removal)
+# Rationale: Upstream unfixed; GitHub runner base image (deb12u10/deb12u13); no actionable remediation in repo
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2025-15281
+# Documented in: docs/security/CVE-2025-15281-glibc.md
+
+# Helper rule: check if InstalledVersion matches observed runner versions
+cve_2025_15281_version_match if {
+	input.InstalledVersion == "2.36-9+deb12u10"
+}
+
+cve_2025_15281_version_match if {
+	input.InstalledVersion == "2.36-9+deb12u13"
+}
+
+# Helper rule: check if PkgID matches allowed glibc packages (both u10 and u13)
+cve_2025_15281_pkgid_match if {
+	startswith(input.PkgID, "libc6@2.36-9+deb12u10")
+}
+
+cve_2025_15281_pkgid_match if {
+	startswith(input.PkgID, "libc6@2.36-9+deb12u13")
+}
+
+cve_2025_15281_pkgid_match if {
+	startswith(input.PkgID, "libc-bin@2.36-9+deb12u10")
+}
+
+cve_2025_15281_pkgid_match if {
+	startswith(input.PkgID, "libc-bin@2.36-9+deb12u13")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2025-15281"
+	allowed_packages := {"libc6", "libc-bin"}
+	allowed_packages[input.PkgName]
+	cve_2025_15281_version_match
+	cve_2025_15281_pkgid_match
 }
