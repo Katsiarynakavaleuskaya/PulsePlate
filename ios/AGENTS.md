@@ -89,16 +89,30 @@
 - Fallback: newest available `Xcode_*.app` (sorted, deterministic)
 - Final fallback: `/Applications/Xcode.app` (default)
 
-**Simulator:**
-- Device: `iPhone 16`
-- OS: `latest` (automatically matches runner image)
-- **Hard rule:** Never pin non-existent simulators (e.g., `iPhone 15` may not exist on runner)
+**Simulator (CI):**
+- **Auto-selected** from available simulators at runtime (no hard-coded device)
+- **Runtime policy:** prefer iOS 18.6 → fallback to iOS 18.x → fallback to any iOS runtime (if needed)
+- **Device preference:** `iPhone 16e` → `iPhone 16` → `iPhone 16 Pro` → `iPhone 15` → `iPhone 14`
+  - If none of the preferred devices exist on the runner, CI falls back to **any available iPhone**, then to **any iOS simulator** (deterministic sort)
+- **Destination:** **UDID-only** `platform=iOS Simulator,id=<UDID>`
+- **Hard rule:** CI must **never** use `OS=latest`. There is a guard that fails the job if `latest` appears in the destination spec.
+
+**Testing device fallback (CI):**
+- You can force fallback behavior by overriding:
+  - `PREFERRED_DEVICES="iPhone 99,iPhone 98"`
+- CI logs + Step Summary must show when fallback is used and which UDID/device were selected.
 
 **Test execution (project-based):**
-- **Hard rule:** App scheme tests in CI must use `xcodebuild test -project PulsePlate.xcodeproj -only-testing:PulsePlateTests`
+- **Hard rule:** App scheme tests in CI must use `xcodebuild test -project PulsePlate.xcodeproj` with explicit test targeting via one or more entries:
+  - `-only-testing:PulsePlateTests/ThinClientGuardsTests`
+  - `-only-testing:PulsePlateTests/BMIServiceTests`
+  - `-only-testing:PulsePlateTests/BMIResponseDecodingTests`
+  - `-only-testing:PulsePlateTests/BMIRequestEncodingTests`
+  - `-only-testing:PulsePlateTests/LocaleParsingTests`
 - **Do not use `-workspace` for tests unless scheme has explicit TestAction** (confirmed via separate PR)
 - Workspace (`PulsePlate.xcworkspace`) is used for building/running app (SPM dependencies), but tests run via project
 - Project-based approach avoids exit code 66 when app scheme lacks TestAction in workspace context
+- (Do not rely on `-only-testing:PulsePlateTests` blanket targeting in CI; keep it explicit and stable.)
 
 **Enforcement:**
 - XCTest unit tests (including guard tests)
@@ -144,7 +158,7 @@
   - Pins iOS 18.6 runtime (fallback to iOS 18.x if 18.6 unavailable)
   - **Never uses `OS=latest`** (guard fails job if `latest` detected)
 - Both use `-project PulsePlate.xcodeproj` (canonical: app scheme tests = project-based)
-- Both use `-only-testing:PulsePlateTests` + `-parallel-testing-enabled NO` (canonical pattern)
+- Both use explicit `-only-testing:PulsePlateTests/ClassName` entries + `-parallel-testing-enabled NO` (canonical pattern)
 - CI includes diagnostic steps: `xcodebuild -version`, `xcodebuild -list`, `xcodebuild -showdestinations`
 
 **CI destination policy (hard rule):**
@@ -160,16 +174,21 @@
 - CI **must not fail** solely due to missing preferred simulators
 - Output must include: `ios_runtime_id`, `device_name`, `udid`, and `DESTINATION`
 - Step summary logs runtime, device, UDID, and destination for easy debugging
-- **Testing fallback:** Override `PREFERRED_DEVICES` env var (e.g., `PREFERRED_DEVICES="iPhone 99,iPhone 98"`) to force fallback behavior
+- **Testing fallback:** Override `PREFERRED_DEVICES` env var (e.g., `PREFERRED_DEVICES="iPhone 99,iPhone 98"`) **only for testing** to force fallback behavior. Default preferred list remains unchanged for normal CI runs.
 
 **Required (CI):**
 - `ios-tests` GitHub Actions job must pass
 - CI is the enforcement gate (blocks merge if tests fail)
 
 **Test execution (canonical):**
-- Use `xcodebuild test -project PulsePlate.xcodeproj -scheme PulsePlate -only-testing:PulsePlateTests`
+- Use `xcodebuild test -project PulsePlate.xcodeproj -scheme PulsePlate` with explicit test targeting:
+  - `-only-testing:PulsePlateTests/ThinClientGuardsTests`
+  - `-only-testing:PulsePlateTests/BMIServiceTests`
+  - `-only-testing:PulsePlateTests/BMIResponseDecodingTests`
+  - `-only-testing:PulsePlateTests/BMIRequestEncodingTests`
+  - `-only-testing:PulsePlateTests/LocaleParsingTests`
 - Project-based approach avoids workspace TestAction requirement
-- `-only-testing:PulsePlateTests` explicitly targets test bundle
+- Explicit test targeting ensures stable CI behavior
 - Without `-only-testing`, xcodebuild may return exit code 66 even if tests run
 - This is a known Xcode behavior when app scheme lacks TestAction in workspace context
 
