@@ -996,6 +996,7 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - Prefer `trivy/ignore-policy.rego` (scoped by package + version + context fields where possible).
 - `.trivyignore` is for legacy/minimal ignores; do not rely on it for expiry monitoring.
 - CI uses `TRIVY_IGNORE_POLICY_PATH` to point to active policy file(s); expiry enforcement runs `scripts/ci/check_trivy_ignore_policy_expiry.py`.
+- **Runner version drift policy:** If base image/version varies across CI runners (e.g., `deb12u10` vs `deb12u13`), add **allowlist of observed versions** in suppression rules, not wildcards. Example: use helper rules matching `u10` and `u13` explicitly, not `deb12u*` pattern. Rationale: Prevents accidental suppression of future versions (u14/u15) that may have fixes available.
 
 **Security PR scoping:**
 
