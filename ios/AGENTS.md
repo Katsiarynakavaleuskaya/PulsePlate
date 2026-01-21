@@ -195,10 +195,15 @@
 - Rationale: Faster diagnosis (build failed vs test runtime failed), targeted retries (retry test without rebuilding), better observability (separate step durations)
 
 **Timeout policy:**
+- `xcodebuild build-for-testing` **must** be wrapped in timeout (10 minutes)
 - `xcodebuild test-without-building` **must** be wrapped in timeout (15 minutes)
 - Rationale: Fail fast instead of consuming full job budget (25 minutes)
-- Implementation: Python `subprocess.run(timeout=900)` (macOS doesn't have `timeout` by default)
-- If timeout triggers, error message is explicit ("xcodebuild test timed out after 15 minutes")
+- Implementation: Python `subprocess.run(timeout=...)` (macOS doesn't have `timeout` by default)
+- If timeout triggers, error message is explicit ("xcodebuild ... timed out after X minutes")
+
+**Environment variables (hard rule):**
+- Variables used in embedded Python scripts (heredoc) **must** be exported: `export DESTINATION`, `export UDID`
+- Rationale: Python `os.environ.get()` requires exported variables; shell variables are not visible to subprocesses
 
 **Debugging CI failures:**
 1. Check Step Summary for: runtime, device, UDID, destination

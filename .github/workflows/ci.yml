@@ -782,6 +782,10 @@ jobs:
           echo "DESTINATION=$DESTINATION"
           echo "UDID=$UDID"
 
+          # Export variables for embedded Python scripts (P0: required for os.environ.get())
+          export DESTINATION
+          export UDID
+
           # Verify Xcode pinning is applied (critical: ensure simctl and xcodebuild use same Xcode)
           echo "=== Xcode pinning verification ==="
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<not set>}"
@@ -841,15 +845,36 @@ jobs:
           xcodebuild -list -project PulsePlate.xcodeproj
 
           # Split build and test for better diagnostics and targeted retries
-          # Step 1: Build for testing
-          echo "=== Building for testing ==="
-          xcodebuild build-for-testing \
-            -project PulsePlate.xcodeproj \
-            -scheme PulsePlate \
-            -destination "$DESTINATION" \
-            -configuration Debug \
-            -derivedDataPath ../.derivedData \
-            -enableCodeCoverage NO
+          # Step 1: Build for testing (timeout: 10 minutes)
+          echo "=== Building for testing (timeout: 10 minutes) ==="
+          python3 - << 'PY'
+          import subprocess
+          import sys
+          import os
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              "xcodebuild", "build-for-testing",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-destination", destination,
+              "-configuration", "Debug",
+              "-derivedDataPath", "../.derivedData",
+              "-enableCodeCoverage", "NO"
+          ]
+
+          try:
+              result = subprocess.run(cmd, timeout=600, check=True)  # 10 minutes
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild build-for-testing timed out after 10 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY
 
           # Step 2: Run tests (without building)
           # Timeout: 15 minutes (fail fast instead of consuming full job budget)
