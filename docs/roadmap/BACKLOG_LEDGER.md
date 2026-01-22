@@ -34,21 +34,37 @@ If it is not recorded here — it does not exist.
     - docs/security/CVE-2025-15281-glibc.md
     - trivy/ignore-policy.rego
 
-- [ ] PR-XXX Thin HTTP Adapter (iOS + Web)
+- [ ] PR-562 Thin HTTP Adapter (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-XXX (TBD)
-  - Reason: unified thin transport layer for iOS and Web clients (no business logic)
+  - Target PR: PR-562 (in review)
+  - Status: 🔄 In Review (awaiting merge)
+  - Reason: unified thin transport layer for iOS client (no business logic)
+  - Links:
+    - docs/CONTEXT_HANDOFF_2026-01-21.md
+    - docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/562
+  - DoD:
+    - ✅ iOS: HTTPClient/APIClient/BMIService implemented (transport only)
+    - ✅ No BMI/waist/risk logic on clients (grep policy / guard tests)
+    - ✅ Unit tests green (10 tests: HTTPClient, APIClient, BMIService)
+    - ✅ DTOs aligned with backend OpenAPI schemas
+    - ✅ Error envelope mapping implemented (422 vs 400/500)
+    - ✅ AGENTS.md updated (thin client policy)
+    - ⏳ CI green (awaiting CI run)
+
+- [ ] PR-563 Thin HTTP Adapter (Web)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-563 (TBD, after PR-562 merge)
+  - Reason: unified thin transport layer for Web client (no business logic)
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md
     - docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
   - DoD:
-    - iOS: HTTPClient/APIClient/BMIService implemented (transport only)
     - Web: thin fetch wrapper + BMI API client (transport only)
     - No BMI/waist/risk logic on clients (grep policy / guard tests)
-    - Unit tests green (iOS + Web)
-    - DTOs aligned with backend OpenAPI schemas
-    - Error envelope mapping implemented
-    - AGENTS.md updated (thin client policy)
+    - Unit tests green (Web)
+    - DTOs aligned with backend OpenAPI schemas (openapi-typescript)
+    - Error envelope mapping implemented (422 vs 400/500)
     - CI green
 
 ---

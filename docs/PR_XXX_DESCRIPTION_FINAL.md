@@ -16,6 +16,7 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 **Effective date:** 2026-01-22
 
 **Frozen contracts:**
+
 - **Canonical endpoint:** `/api/v1/bmi/calculate`
 - **Error formats:**
   - `422`: `{"detail": [{"type": "...", "loc": [...], "msg": "...", "input": ...}]}` (plain English)
@@ -24,6 +25,7 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 - **i18n approach:** Mixed model (text fields vs i18n keys — see audit doc)
 
 **Enforcement:**
+
 - Client implementation matches frozen contracts exactly
 - Any deviation requires explicit backend PR to change contract first
 - See: `docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`
@@ -35,12 +37,14 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 ### Core Transport Layer
 
 **Files:**
+
 - `ios/PulsePlate/Networking/HTTPClient.swift` — low-level HTTP client with error mapping
 - `ios/PulsePlate/Networking/APIClient.swift` — request builder (URL, headers, JSON encoding)
 - `ios/PulsePlate/Networking/APIError.swift` — unified error model (422 vs 400/500)
 - `ios/PulsePlate/Networking/ErrorsDTO.swift` — error response DTOs
 
 **Responsibilities:**
+
 - Transport only (no business logic)
 - Error envelope mapping (422 `detail[]` vs 400/500 `detail: str`)
 - JSON encode/decode with `snake_case` conversion
@@ -48,6 +52,7 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 ### BMI Thin Adapter
 
 **Files:**
+
 - `ios/PulsePlate/Services/BMIService.swift` — thin wrapper over `APIClient` (lines 1-46)
 - `ios/PulsePlate/Models/BMI/BMICalculateRequestDTO.swift` — request DTO
 - `ios/PulsePlate/Models/BMI/BMICalculateResponseDTO.swift` — response DTO
@@ -57,6 +62,7 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 - `ios/PulsePlate/Models/BMI/SoftPaywallHookDTO.swift` — soft paywall DTO
 
 **Responsibilities:**
+
 - Call canonical endpoint only
 - Return DTOs as-is (no computation, no interpretation)
 - Forbidden: BMI math, thresholds, category inference
@@ -64,11 +70,13 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 ### Tests
 
 **Files:**
+
 - `ios/PulsePlateTests/Networking/HTTPClientTests.swift` — error mapping tests (422 vs 400/500)
 - `ios/PulsePlateTests/Networking/APIClientTests.swift` — request building tests (URL, headers, snake_case)
 - `ios/PulsePlateTests/Services/BMIServiceThinAdapterTests.swift` — thinness verification tests
 
 **Coverage:**
+
 - ✅ 10 tests passing
 - ✅ Contract boundary verified (422/400/500, snake_case, canonical path)
 - ✅ Anti-flake: `StubURLProtocol.handler` reset in `tearDown()`
@@ -78,6 +86,7 @@ Implements thin HTTP transport layer for iOS client, aligned with backend contra
 **Why:** To unblock compilation and tests without breaking existing UI code.
 
 **Files:**
+
 - `ios/PulsePlate/Models/NutritionData.swift` — renamed `APIError` → `NutritionAPIError` (naming conflict)
 - `ios/PulsePlate/Services/BMIService.swift` (lines 48-159) — legacy compatibility shims:
   - `LegacyBMIServicing` protocol (uses `BMIRequest`/`BMIResponse`)
@@ -137,6 +146,7 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 **Item:** "Migrate BMICalculatorViewModel + Screen to BMICalculate*DTO; delete legacy BMIRequest/BMIResponse (iOS)"
 
 **Scope:**
+
 - Migrate `BMICalculatorViewModel` to use `BMIServicing` + DTOs
 - Update `BMICalculatorScreen` to use new DTOs
 - Delete legacy types: `BMIRequest`, `BMIResponse`
@@ -153,6 +163,7 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 **Item:** "Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS)"
 
 **Scope:**
+
 - Migrate `ShoppingListService` to use `APIClient` (no direct `URLSession`)
 - Migrate `WeeklyPlanService` to use `APIClient` (no direct `URLSession`)
 - Replace custom error enums with `APIError` from Networking layer
@@ -162,17 +173,18 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 
 **Rationale:** Enforces "No dual-path networking" rule (see `AGENTS.md`)
 
-### P0 — Web Thin Adapter (Post PR-XXX)
+### P0 — Web Thin Adapter (Post PR-562)
 
-**Item:** "PR-XXX Thin HTTP Adapter (iOS + Web)" — Web part
+**Item:** "PR-563 Thin HTTP Adapter (Web)"
 
 **Scope:**
+
 - Implement thin fetch wrapper (TypeScript)
 - Generate types from OpenAPI (`openapi-typescript`)
 - Error envelope mapping (422 vs 400/500)
 - BMI API client (transport only)
 
-**DoD:** See `BACKLOG_LEDGER.md` (P0 item: "PR-XXX Thin HTTP Adapter (iOS + Web)")
+**DoD:** See `BACKLOG_LEDGER.md` (P0 item: "PR-563 Thin HTTP Adapter (Web)")
 
 ---
 
@@ -213,12 +225,14 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 ---
 
 **Related PRs:**
+
 - PR-560: CI iOS stability (merged 2026-01-21)
 - PR-561: Trivy suppression (merged 2026-01-21)
 
 ---
 
 **Reviewer notes:**
+
 - Focus on transport layer correctness (error mapping, URL building, snake_case)
 - Verify no BMI math in client code (grep for thresholds)
 - Check DTO alignment with backend schema (`app/schemas/bmi.py`)
