@@ -28,8 +28,8 @@ final class HTTPClientTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         StubURLProtocol.handler = nil
+        super.tearDown()
     }
 
     private func makeSession() -> URLSession {

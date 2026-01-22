@@ -34,16 +34,20 @@ public final class APIClient: APIClientProtocol, Sendable {
 
     private let baseURL: URL
     private let httpClient: HTTPClientProtocol
-    private let encoder: JSONEncoder
+    private let makeEncoder: () -> JSONEncoder
 
     public init(
         baseURL: URL,
         httpClient: HTTPClientProtocol = HTTPClient(),
-        encoder: JSONEncoder = JSONEncoder()
+        makeEncoder: @escaping () -> JSONEncoder = {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            return encoder
+        }
     ) {
         self.baseURL = baseURL
         self.httpClient = httpClient
-        self.encoder = encoder
+        self.makeEncoder = makeEncoder
     }
 
     public func post<Response: Decodable, Body: Encodable>(
@@ -65,7 +69,7 @@ public final class APIClient: APIClientProtocol, Sendable {
         }
 
         do {
-            request.httpBody = try encoder.encode(body)
+            request.httpBody = try makeEncoder().encode(body)
         } catch {
             throw APIError.encodingFailed("Failed to encode request body: \(error.localizedDescription)")
         }

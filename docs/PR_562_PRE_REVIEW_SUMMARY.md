@@ -44,15 +44,15 @@
 ### PR Links
 
 - **PR #563:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563
-- **DoD Checklist:** `docs/PR_XXX_DOD_CHECKLIST.md`
-- **Review Checklist:** `docs/PR_XXX_REVIEW_CHECKLIST.md`
+- **DoD Checklist:** `docs/PR_562_DOD_CHECKLIST.md`
+- **Review Checklist:** `docs/PR_562_REVIEW_CHECKLIST.md`
 - **Review Responses:** `docs/PR_562_REVIEW_RESPONSES.md`
 - **CI Checklist:** `docs/PR_562_CI_CHECKLIST.md`
 
 ### Key Documents
 
-- **Audit:** `docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`
-- **Technical Debt:** `docs/audit/PR_XXX_TECHNICAL_DEBT_REPORT.md`
+- **Audit:** `docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`
+- **Technical Debt:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md`
 - **Backlog Ledger:** `docs/roadmap/BACKLOG_LEDGER.md`
 
 ---

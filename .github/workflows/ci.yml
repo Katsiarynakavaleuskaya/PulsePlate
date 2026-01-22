@@ -57,7 +57,7 @@ jobs:
           fi
 
           # Check for unmerged paths in index (should be empty)
-          unmerged=$(git ls-files -u 2>/dev/null || true)
+          unmerged=$(git ls-files -u 2>/dev/null)
           if [ -n "$unmerged" ]; then
             echo "::error::Unmerged paths detected in git index"
             echo "::error::Unmerged files:"
@@ -615,6 +615,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
+      - name: Cache SwiftPM packages and DerivedData
+        uses: actions/cache@0c45773b623be3e1d6959e0e053df7203e9352e1 # v4.0.4
+        with:
+          path: |
+            ios/.derivedData/SourcePackages
+            ios/.derivedData/Build
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('ios/Package.resolved', 'ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
       - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
         id: select-xcode
         shell: bash
@@ -912,7 +922,8 @@ jobs:
               "-scheme", "PulsePlate",
               "-destination", destination,
               "-configuration", "Debug",
-              "-derivedDataPath", "../.derivedData",
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
               "-enableCodeCoverage", "NO"
           ]
 
@@ -952,7 +963,8 @@ jobs:
               "-only-testing:PulsePlateTests/APIClientTests",
               "-only-testing:PulsePlateTests/BMIServiceThinAdapterTests",
               "-destination", destination,
-              "-derivedDataPath", "../.derivedData",
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
               "-enableCodeCoverage", "NO",
               "-parallel-testing-enabled", "NO"
           ]

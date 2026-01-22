@@ -1,7 +1,7 @@
-# PR-XXX Review Checklist (Thin HTTP Adapter iOS)
+# PR-562 Review Checklist (Thin HTTP Adapter iOS)
 
 **Reviewer:** @katsiaryna_kavaleuskaya (or assigned reviewer)
-**PR:** PR-XXX
+**PR:** PR-562
 **Date:** 2026-01-22
 
 ---
@@ -152,13 +152,13 @@
 
 ### Audit Document
 
-- [ ] `PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md` exists
+- [ ] `PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md` exists
 - [ ] Contract freeze declaration included
 - [ ] All TODOs replaced with facts from code
 
 ### Technical Debt Report
 
-- [ ] `PR_XXX_TECHNICAL_DEBT_REPORT.md` exists
+- [ ] `PR_562_TECHNICAL_DEBT_REPORT.md` exists
 - [ ] Technical debt items listed with rationale
 - [ ] Follow-up plan specified
 - [ ] Risk assessment included

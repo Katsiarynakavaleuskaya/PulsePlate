@@ -1,6 +1,6 @@
-# PR-XXX DoD Checklist (Thin HTTP Adapter iOS)
+# PR-562 DoD Checklist (Thin HTTP Adapter iOS)
 
-**PR:** PR-XXX
+**PR:** PR-562
 **Date:** 2026-01-22
 **Status:** ✅ All checks passing
 
@@ -163,7 +163,7 @@
 
 ### Audit Document
 
-- [x] `PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md` exists
+- [x] `PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md` exists
   - **Evidence:** File exists in `docs/audit/`
 
 - [x] Contract freeze declaration included
@@ -174,7 +174,7 @@
 
 ### Technical Debt Report
 
-- [x] `PR_XXX_TECHNICAL_DEBT_REPORT.md` exists
+- [x] `PR_562_TECHNICAL_DEBT_REPORT.md` exists
   - **Evidence:** File exists in `docs/audit/`
 
 - [x] Technical debt items listed with rationale

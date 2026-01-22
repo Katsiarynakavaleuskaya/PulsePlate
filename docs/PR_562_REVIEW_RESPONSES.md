@@ -22,7 +22,7 @@
 > - `BMIServiceError` enum
 > - Legacy `BMIRequest`/`BMIResponse` types
 >
-> **See:** `docs/audit/PR_XXX_TECHNICAL_DEBT_REPORT.md` for detailed analysis.
+> **See:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md` for detailed analysis.
 
 **Rationale:** PR scope is transport layer only. UI migration is separate, larger scope (ViewModel + Screen + tests). Legacy shims ensure backward compatibility until migration.
 
@@ -48,7 +48,7 @@
 
 > This is **FastAPI standard** (`RequestValidationError` format: `{"detail": [{"type": "...", "loc": [...], "msg": "...", "input": ...}]}`).
 >
-> **Contract frozen:** Backend returns `msg` in plain English (not i18n keys) for 422 errors. This is documented in audit (`docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`).
+> **Contract frozen:** Backend returns `msg` in plain English (not i18n keys) for 422 errors. This is documented in audit (`docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`).
 >
 > **Client responsibility:** Map error format to UI-friendly messages (UI layer), not transport layer.
 >
@@ -70,7 +70,7 @@
 >
 > **Trade-off:** Code duplication accepted to keep PR scope focused (transport layer only). UI migration tracked in `BACKLOG_LEDGER.md` (P1 item).
 
-**See:** `docs/audit/PR_XXX_TECHNICAL_DEBT_REPORT.md` for detailed analysis and follow-up plan.
+**See:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md` for detailed analysis and follow-up plan.
 
 ---
 
@@ -86,7 +86,7 @@
 >
 > **Isolated:** Legacy error type only used by legacy shims (lines 48-159 in `BMIService.swift`).
 
-**See:** `docs/audit/PR_XXX_TECHNICAL_DEBT_REPORT.md` section "Technical Debt Created".
+**See:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md` section "Technical Debt Created".
 
 ---
 
@@ -118,7 +118,7 @@
 >
 > **Next PR:** Will migrate ViewModel + Screen to new DTOs and delete legacy types.
 
-**See:** `docs/audit/PR_XXX_TECHNICAL_DEBT_REPORT.md` section "ViewModel Still Uses Legacy Types".
+**See:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md` section "ViewModel Still Uses Legacy Types".
 
 ---
 
@@ -135,7 +135,7 @@
 > - Request building (URL, headers, snake_case)
 > - Thinness verification (canonical path, DTO passthrough)
 
-**See:** `docs/PR_XXX_DOD_CHECKLIST.md` section "Tests" for full test coverage details.
+**See:** `docs/PR_562_DOD_CHECKLIST.md` section "Tests" for full test coverage details.
 
 ---
 
@@ -189,10 +189,10 @@
 
 ## Quick Links for Reviewer
 
-- **DoD Checklist:** `docs/PR_XXX_DOD_CHECKLIST.md`
-- **Review Checklist:** `docs/PR_XXX_REVIEW_CHECKLIST.md`
-- **Technical Debt Report:** `docs/audit/PR_XXX_TECHNICAL_DEBT_REPORT.md`
-- **Audit Document:** `docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`
+- **DoD Checklist:** `docs/PR_562_DOD_CHECKLIST.md`
+- **Review Checklist:** `docs/PR_562_REVIEW_CHECKLIST.md`
+- **Technical Debt Report:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md`
+- **Audit Document:** `docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`
 - **Backlog Ledger:** `docs/roadmap/BACKLOG_LEDGER.md`
 
 ---

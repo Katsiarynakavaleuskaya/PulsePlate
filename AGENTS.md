@@ -1212,6 +1212,24 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 - **Forbidden patterns:** `ls | grep` (SC2010) — use glob + for loop or `find` instead.
 - **Rationale:** Prevents shell script bugs and ensures CI workflow reliability.
 
+**iOS CI debugging (finding real errors in logs):**
+
+- **SwiftPM compilation noise:** SPM packages (e.g., Lottie) produce verbose compilation logs. This is normal and not an error.
+- **Finding real errors:** In GitHub Actions logs, search for:
+  - `error:` (first occurrence is usually root cause)
+  - `Swift compiler error`
+  - `fatal error`
+  - `Command SwiftCompile failed with a nonzero exit code`
+  - `Ld ... failed`
+  - `Undefined symbols`
+- **Quick filter (if raw log available):**
+  ```bash
+  grep -nE "error:|fatal error|nonzero exit|Undefined symbols|Ld .* failed" build.log | head -n 50
+  ```
+- **In GitHub Actions UI:** Use Ctrl+F to search for `error:` — first match is usually root cause.
+- **SwiftPM caching:** CI caches `.derivedData/SourcePackages` and `.derivedData/Build` to speed up SPM resolution and compilation. Cache key includes `Package.resolved` hash.
+- **xcodebuild flags:** CI uses `-clonedSourcePackagesDirPath` and `-derivedDataPath` for deterministic package resolution and caching.
+
 ---
 
 ## Merge Conflict Safety (Hard Rule)
