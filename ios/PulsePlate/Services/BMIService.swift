@@ -28,7 +28,7 @@ public final class BMIService: BMIServicing, Sendable {
         request: BMICalculateRequestDTO
     ) async throws -> BMICalculateResponseDTO {
         try await apiClient.post(
-            path: "/api/v1/bmi/calculate",
+            path: "api/v1/bmi/calculate",
             body: request
         )
     }
