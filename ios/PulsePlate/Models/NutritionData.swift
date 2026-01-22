@@ -51,7 +51,7 @@ class NutritionService: ObservableObject {
 
       let baseURL = AppConfig.baseURL()
       guard let url = URL(string: "\(baseURL.absoluteString)/api/nutrition/\(dateString)") else {
-        throw APIError.invalidURL
+        throw NutritionAPIError.invalidURL
       }
 
       var request = URLRequest(url: url)
@@ -60,7 +60,7 @@ class NutritionService: ObservableObject {
       let (data, response) = try await URLSession.shared.data(for: request)
 
       guard let httpResponse = response as? HTTPURLResponse else {
-        throw APIError.invalidResponse
+        throw NutritionAPIError.invalidResponse
       }
 
       // Fallback to mock data if endpoint not implemented (404) or not ready (501)
@@ -73,7 +73,7 @@ class NutritionService: ObservableObject {
       }
 
       guard httpResponse.statusCode == 200 else {
-        throw APIError.serverError(statusCode: httpResponse.statusCode)
+        throw NutritionAPIError.serverError(statusCode: httpResponse.statusCode)
       }
 
       let nutritionData = try JSONDecoder().decode(NutritionData.self, from: data)
@@ -118,7 +118,8 @@ class NutritionService: ObservableObject {
 }
 
 // MARK: - API Errors
-enum APIError: Error, LocalizedError {
+// Note: Legacy APIError renamed to NutritionAPIError to avoid conflict with Networking/APIError
+enum NutritionAPIError: Error, LocalizedError {
   case invalidURL
   case invalidResponse
   case noData

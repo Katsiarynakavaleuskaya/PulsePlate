@@ -3,16 +3,20 @@ import Combine
 
 @MainActor
 final class BMICalculatorViewModel: ObservableObject {
+    // TODO: Migrate to BMICalculateResponseDTO (tracked in BACKLOG_LEDGER.md)
     @Published var result: BMIResponse?
     @Published var isLoading = false
+    // TODO: Migrate to APIError (tracked in BACKLOG_LEDGER.md)
     @Published var error: BMIServiceError?
 
-    private let service: BMIServicing
+    private let service: LegacyBMIServicing
 
-    nonisolated init(service: BMIServicing? = nil) {
-        self.service = service ?? DefaultBMIService()
+    // TODO: Update to use BMIService() after UI migration (tracked in BACKLOG_LEDGER.md)
+    init(service: LegacyBMIServicing = DefaultBMIService()) {
+        self.service = service
     }
 
+    // TODO: Migrate to BMICalculateRequestDTO (tracked in BACKLOG_LEDGER.md)
     func calculateBMI(request: BMIRequest) async {
         isLoading = true
         error = nil
