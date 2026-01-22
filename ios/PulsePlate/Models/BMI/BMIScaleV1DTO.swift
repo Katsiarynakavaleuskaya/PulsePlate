@@ -19,10 +19,4 @@ public struct BMIRangeDTO: Decodable, Sendable {
     public let key: String
     public let from: Double?
     public let to: Double?
-
-    enum CodingKeys: String, CodingKey {
-        case key
-        case from
-        case to
-    }
 }

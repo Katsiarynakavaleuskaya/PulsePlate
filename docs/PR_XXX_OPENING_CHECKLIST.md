@@ -130,7 +130,7 @@ grep -r "18\.5\|24\.9\|25\|30" ios/PulsePlate/Networking/ ios/PulsePlate/Service
 
 # 2. Verify tests pass
 cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
-  -destination 'platform=iOS Simulator,id=8B9BF341-A44D-4BB0-A898-EC8CFEE56B79' \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
   -only-testing:PulsePlateTests/HTTPClientTests \
   -only-testing:PulsePlateTests/APIClientTests \
   -only-testing:PulsePlateTests/BMIServiceThinAdapterTests test 2>&1 | grep -E "(passed|failed)" | tail -5
