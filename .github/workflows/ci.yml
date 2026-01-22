@@ -38,6 +38,31 @@ jobs:
       - name: PR Scope Guard
         run: bash scripts/ci/pr_scope_guard.sh
 
+      - name: Guard: fail on merge conflicts
+        run: |
+          set -euo pipefail
+
+          echo "Checking for merge conflict markers..."
+
+          # Check for conflict markers in all files
+          if git grep -n '<<<<<<< HEAD\|=======\|>>>>>>>' -- . 2>/dev/null; then
+            echo "::error::Merge conflict markers detected in committed files"
+            echo "::error::This should never happen — conflicts must be resolved before push"
+            echo "::error::See: AGENTS.md section 'Merge Conflict Safety (Hard Rule)'"
+            exit 1
+          fi
+
+          # Check for unmerged paths in index (should be empty)
+          unmerged=$(git ls-files -u 2>/dev/null || true)
+          if [ -n "$unmerged" ]; then
+            echo "::error::Unmerged paths detected in git index"
+            echo "::error::Unmerged files:"
+            echo "$unmerged" | awk '{print "  - " $4}'
+            exit 1
+          fi
+
+          echo "✅ No merge conflicts detected"
+
   trivy_ignore_policy_expiry:
     name: Trivy ignore-policy expiry
     runs-on: ubuntu-latest
