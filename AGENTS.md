@@ -1214,6 +1214,35 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 ---
 
+## Merge Conflict Safety (Hard Rule)
+
+**❌ AGENT MUST NEVER push or open a PR if the working tree contains:**
+- Unresolved merge conflicts
+- Conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`)
+- Partially resolved merges
+- Files in state: `both modified`, `unmerged`, `needs merge`
+
+**Mandatory checks before any push:**
+1. `git status` MUST show a clean working tree
+2. No files in state: `both modified`, `unmerged`, `needs merge`
+3. `git diff` MUST NOT contain conflict markers
+4. `git ls-files -u` MUST return empty (no unmerged paths)
+
+**Violation handling:**
+- If a merge conflict is detected, the agent MUST STOP.
+- The agent MUST report the conflict and request manual resolution.
+- No auto-resolution, no guessing, no push.
+- The agent MUST assume that unresolved merge conflicts are a **STOP condition**, not a warning. No recovery attempts are allowed.
+
+**Enforcement:**
+- Pre-push hook blocks pushes with conflicts (technical guard)
+- CI guard fails PR if conflict markers detected (last line of defense)
+- Code review: grep for conflict markers before merge
+
+**This rule is non-negotiable.**
+
+---
+
 ## Links to module instructions
 
 - `app/AGENTS.md`
