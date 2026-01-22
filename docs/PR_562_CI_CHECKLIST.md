@@ -28,7 +28,7 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 
 ### 2. CI Will Run New Tests
 
-**Current CI config:** `.github/workflows/ci.yml` line ~918
+**Current CI config:** `.github/workflows/ci.yml` lines 922-924
 
 **Check:** CI uses `-only-testing:PulsePlateTests/BMIServiceTests` (legacy), but new tests are:
 - `HTTPClientTests`
@@ -37,11 +37,11 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 
 **Options:**
 
-**A) CI runs all tests in PulsePlateTests target (default behavior)**
+#### A) CI runs all tests in PulsePlateTests target (default behavior)
 - ✅ New tests will run automatically
 - No CI changes needed
 
-**B) CI uses explicit `-only-testing` flags**
+#### B) CI uses explicit `-only-testing` flags
 - ⚠️ Need to add new test classes to CI config
 - Add: `-only-testing:PulsePlateTests/HTTPClientTests`
 - Add: `-only-testing:PulsePlateTests/APIClientTests`
@@ -118,12 +118,12 @@ cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
 ```bash
 # 1. Build project
 cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
-  -destination 'platform=iOS Simulator,id=8B9BF341-A44D-4BB0-A898-EC8CFEE56B79' \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
   build
 
 # 2. Run new tests only
 cd ios && xcodebuild -project PulsePlate.xcodeproj -scheme PulsePlate \
-  -destination 'platform=iOS Simulator,id=8B9BF341-A44D-4BB0-A898-EC8CFEE56B79' \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
   -only-testing:PulsePlateTests/HTTPClientTests \
   -only-testing:PulsePlateTests/APIClientTests \
   -only-testing:PulsePlateTests/BMIServiceThinAdapterTests \

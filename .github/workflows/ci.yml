@@ -36,7 +36,11 @@ jobs:
           fetch-depth: 0
 
       - name: PR Scope Guard
-        run: bash scripts/ci/pr_scope_guard.sh
+        run: |
+          set -euo pipefail
+
+          echo "Running PR Scope Guard script..."
+          bash scripts/ci/pr_scope_guard.sh
 
       - name: "Guard: fail on merge conflicts"
         run: |

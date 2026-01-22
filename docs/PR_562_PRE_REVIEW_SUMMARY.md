@@ -1,7 +1,7 @@
 # PR-562 Pre-Review Summary
 
 **PR:** PR-563 (Thin HTTP Adapter iOS)
-**URL:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563
+**URL:** <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
 **Status:** ✅ Ready for review (mergeable, no conflicts)
 
 ---

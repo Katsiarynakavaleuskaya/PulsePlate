@@ -42,7 +42,7 @@ If it is not recorded here — it does not exist.
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md
     - docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
   - DoD:
     - ✅ iOS: HTTPClient/APIClient/BMIService implemented (transport only)
     - ✅ No BMI/waist/risk logic on clients (grep policy / guard tests)
@@ -207,5 +207,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-21 (after PR-560 + PR-561 merge)
+**Last updated:** 2026-01-22 (after PR-560 + PR-561 merge)
 **Maintainer:** @katsiaryna_kavaleuskaya

@@ -35,10 +35,10 @@ fi
 # 2. Check for conflict markers in working tree (staged + unstaged)
 # Exclude files that contain conflict-checking code (false positives)
 exclude_files="\.github/workflows/ci\.yml|\.githooks/pre-push|docs/MERGE_CONFLICT_SAFETY_SETUP\.md|\.pre-commit-config\.yaml"
-staged_files=$(git diff --cached --name-only 2>/dev/null | grep -vE "$exclude_files" || true)
+staged_paths=$(git diff --cached --name-only 2>/dev/null | grep -vE "$exclude_files" || true)
 conflict_markers=""
-if [ -n "$staged_files" ]; then
-    conflict_markers=$(printf '%s\n' "$staged_files" | tr '\n' '\0' | xargs -0 git grep -l '<<<<<<< HEAD\|=======\|>>>>>>>' -- 2>/dev/null || true)
+if [ -n "$staged_paths" ]; then
+    conflict_markers=$(git diff --cached --name-only -z 2>/dev/null | grep -vE "$exclude_files" | tr '\n' '\0' | xargs -0 git grep -l '<<<<<<< HEAD\|=======\|>>>>>>>' -- 2>/dev/null || true)
 fi
 if [ -n "$conflict_markers" ]; then
     echo "${RED}❌ Push blocked: conflict markers found in staged files.${NC}"
@@ -51,10 +51,10 @@ if [ -n "$conflict_markers" ]; then
 fi
 
 # Check unstaged files too (exclude conflict-checking code files)
-unstaged_files=$(git diff --name-only 2>/dev/null | grep -vE "$exclude_files" || true)
+unstaged_paths=$(git diff --name-only 2>/dev/null | grep -vE "$exclude_files" || true)
 conflict_markers_unstaged=""
-if [ -n "$unstaged_files" ]; then
-    conflict_markers_unstaged=$(printf '%s\n' "$unstaged_files" | tr '\n' '\0' | xargs -0 git grep -l '<<<<<<< HEAD\|=======\|>>>>>>>' -- 2>/dev/null || true)
+if [ -n "$unstaged_paths" ]; then
+    conflict_markers_unstaged=$(git diff --name-only -z 2>/dev/null | grep -vE "$exclude_files" | tr '\n' '\0' | xargs -0 git grep -l '<<<<<<< HEAD\|=======\|>>>>>>>' -- 2>/dev/null || true)
 fi
 if [ -n "$conflict_markers_unstaged" ]; then
     echo "${YELLOW}⚠️  Warning: conflict markers found in unstaged files.${NC}"

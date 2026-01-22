@@ -93,6 +93,30 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
     }
 
+    func test_post_normalizes_leading_slash_in_path() async throws {
+        let http = CapturingHTTPClient()
+        let api = APIClient(
+            baseURL: URL(string: "https://example.com/base")!,
+            httpClient: http
+        )
+
+        struct DummyResponse: Decodable {
+            let ok: Bool?
+        }
+        struct DummyBody: Encodable {
+            let x: Int
+        }
+
+        _ = try await api.post(
+            path: "/api/v1/bmi/calculate",
+            body: DummyBody(x: 1),
+            headers: [:]
+        ) as DummyResponse
+
+        let url = try XCTUnwrap(http.lastRequest?.url)
+        XCTAssertEqual(url.absoluteString, "https://example.com/base/api/v1/bmi/calculate")
+    }
+
     func test_post_encodeFailure_throwsEncodingFailed() async throws {
         // Use a type that can't be encoded
         struct Unencodable: Encodable {
