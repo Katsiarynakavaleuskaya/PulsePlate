@@ -1,5 +1,38 @@
 import Foundation
 
+/// Component of FastAPI/Pydantic `loc` path.
+/// Can be a string ("body", "field") or an int (array index).
+public enum LocationComponent: Codable, Equatable, Sendable {
+    case string(String)
+    case int(Int)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let i = try? container.decode(Int.self) {
+            self = .int(i)
+            return
+        }
+        if let s = try? container.decode(String.self) {
+            self = .string(s)
+            return
+        }
+        throw DecodingError.typeMismatch(
+            LocationComponent.self,
+            DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or Int for loc component")
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let s):
+            try container.encode(s)
+        case .int(let i):
+            try container.encode(i)
+        }
+    }
+}
+
 /// FastAPI validation error response (422).
 ///
 /// Format: `{"detail": [{"type": "...", "loc": [...], "msg": "...", "input": ...}]}`
@@ -9,7 +42,7 @@ public struct ValidationErrorResponse: Decodable, Equatable, Sendable {
 }
 
 public struct ValidationErrorItem: Decodable, Equatable, Sendable {
-    public let loc: [String]
+    public let loc: [LocationComponent]
     public let msg: String
     public let type: String
     // Note: `input` field may be present but we don't decode it (not needed for client)

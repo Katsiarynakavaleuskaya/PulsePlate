@@ -11,6 +11,9 @@ public enum APIError: Error, Equatable, Sendable {
     /// API errors (400/401/403/500/501): localized detail string
     case api(statusCode: Int, message: String)
 
+    /// Request-body encoding failed (before the request was sent).
+    case encodingFailed(String)
+
     /// JSON decoding failed
     case decodingFailed(String)
 
@@ -28,6 +31,8 @@ extension APIError: LocalizedError {
             return response.detail.map(\.msg).joined(separator: "\n")
         case .api(let statusCode, let message):
             return "Server error \(statusCode): \(message)"
+        case .encodingFailed(let message):
+            return message
         case .decodingFailed(let message):
             return "Decoding failed: \(message)"
         case .invalidResponse:

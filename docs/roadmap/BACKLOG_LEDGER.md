@@ -34,15 +34,15 @@ If it is not recorded here — it does not exist.
     - docs/security/CVE-2025-15281-glibc.md
     - trivy/ignore-policy.rego
 
-- [ ] PR-562 Thin HTTP Adapter (iOS)
+- [ ] PR-563 Thin HTTP Adapter (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-562 (in review)
+  - Target PR: PR-563 (supersedes PR-562, which was closed due to merge conflicts)
   - Status: 🔄 In Review (awaiting merge)
   - Reason: unified thin transport layer for iOS client (no business logic)
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md
     - docs/audit/PR_XXX_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
-    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/562
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563
   - DoD:
     - ✅ iOS: HTTPClient/APIClient/BMIService implemented (transport only)
     - ✅ No BMI/waist/risk logic on clients (grep policy / guard tests)
@@ -50,11 +50,12 @@ If it is not recorded here — it does not exist.
     - ✅ DTOs aligned with backend OpenAPI schemas
     - ✅ Error envelope mapping implemented (422 vs 400/500)
     - ✅ AGENTS.md updated (thin client policy)
+    - ✅ Merge conflict safety guards added (3 levels)
     - ⏳ CI green (awaiting CI run)
 
-- [ ] PR-563 Thin HTTP Adapter (Web)
+- [ ] PR-564 Thin HTTP Adapter (Web)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-563 (TBD, after PR-562 merge)
+  - Target PR: PR-564 (TBD, after PR-563 merge)
   - Reason: unified thin transport layer for Web client (no business logic)
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md

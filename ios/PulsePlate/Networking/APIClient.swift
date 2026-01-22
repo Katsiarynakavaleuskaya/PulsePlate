@@ -55,6 +55,7 @@ public final class APIClient: APIClientProtocol, Sendable {
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         headers.forEach { key, value in
             request.setValue(value, forHTTPHeaderField: key)
@@ -63,7 +64,7 @@ public final class APIClient: APIClientProtocol, Sendable {
         do {
             request.httpBody = try encoder.encode(body)
         } catch {
-            throw APIError.decodingFailed("Failed to encode request body: \(error.localizedDescription)")
+            throw APIError.encodingFailed("Failed to encode request body: \(error.localizedDescription)")
         }
 
         return try await httpClient.send(request, responseType: Response.self)

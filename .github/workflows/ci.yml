@@ -38,7 +38,7 @@ jobs:
       - name: PR Scope Guard
         run: bash scripts/ci/pr_scope_guard.sh
 
-      - name: Guard: fail on merge conflicts
+      - name: "Guard: fail on merge conflicts"
         run: |
           set -euo pipefail
 

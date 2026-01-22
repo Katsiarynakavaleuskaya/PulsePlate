@@ -21,14 +21,13 @@ public protocol HTTPClientProtocol: Sendable {
 /// - No i18n localization (error messages are passed through as-is)
 public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
     private let session: URLSession
-    private let decoder: JSONDecoder
 
-    public init(
-        session: URLSession = .shared,
-        decoder: JSONDecoder = JSONDecoder()
-    ) {
+    public init(session: URLSession = .shared) {
         self.session = session
-        self.decoder = decoder
+    }
+
+    private func makeDecoder() -> JSONDecoder {
+        JSONDecoder()
     }
 
     public func send<T: Decodable>(
@@ -46,13 +45,14 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
             return try decode(data, as: T.self)
 
         case 422:
-            throw try decodeValidationError(from: data)
+            throw try decodeValidationError(from: data, statusCode: httpResponse.statusCode)
 
-        case 400, 401, 403, 500, 501:
+        case 400, 401, 403, 404, 409, 429, 500, 501, 502, 503, 504:
             throw try decodeAPIError(from: data, statusCode: httpResponse.statusCode)
 
         default:
-            throw APIError.unhandledStatusCode(httpResponse.statusCode)
+            // Best-effort: try to surface server body text for debugging even on non-standard codes.
+            throw try decodeAPIError(from: data, statusCode: httpResponse.statusCode)
         }
     }
 
@@ -60,26 +60,29 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
 
     private func decode<T: Decodable>(_ data: Data, as type: T.Type) throws -> T {
         do {
-            return try decoder.decode(T.self, from: data)
+            return try makeDecoder().decode(T.self, from: data)
         } catch {
             let message = error.localizedDescription
             throw APIError.decodingFailed(message)
         }
     }
 
-    private func decodeValidationError(from data: Data) throws -> APIError {
+    private func decodeValidationError(from data: Data, statusCode: Int) throws -> APIError {
         do {
-            let error = try decoder.decode(ValidationErrorResponse.self, from: data)
+            let error = try makeDecoder().decode(ValidationErrorResponse.self, from: data)
             return .validation(error)
         } catch {
-            // If validation error response itself fails to decode, treat as decoding error
-            throw APIError.decodingFailed("Failed to decode validation error: \(error.localizedDescription)")
+            // Keep 422 branch distinct, but don't lose server message if payload is malformed.
+            if let errorString = String(data: data, encoding: .utf8) {
+                return .api(statusCode: statusCode, message: errorString)
+            }
+            return .api(statusCode: statusCode, message: "Unknown error (unable to decode server response)")
         }
     }
 
     private func decodeAPIError(from data: Data, statusCode: Int) throws -> APIError {
         do {
-            let error = try decoder.decode(SimpleErrorResponse.self, from: data)
+            let error = try makeDecoder().decode(SimpleErrorResponse.self, from: data)
             return .api(statusCode: statusCode, message: error.detail)
         } catch {
             // If simple error response fails to decode, try to extract detail as plain string
@@ -87,7 +90,11 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
             if let errorString = String(data: data, encoding: .utf8) {
                 return .api(statusCode: statusCode, message: errorString)
             }
-            throw APIError.decodingFailed("Failed to decode API error: \(error.localizedDescription)")
+            // Preserve statusCode context even if payload is malformed/binary.
+            return .api(
+                statusCode: statusCode,
+                message: "Unknown error (unable to decode server response)"
+            )
         }
     }
 }

@@ -323,7 +323,7 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - ❌ Any BMI/waist/risk calculation formulas (thresholds, categories, interpretations)
 - ❌ Any business logic that duplicates backend domain rules
 - ❌ Any "smart" inference or computation from API responses (only display as-is)
-- ❌ Manual DTO types that duplicate backend schemas (use OpenAPI-generated types)
+- ❌ Hand-rolled DTOs that are not generated or kept in sync with backend schemas (avoid drift)
 
 **Allowed on clients:**
 

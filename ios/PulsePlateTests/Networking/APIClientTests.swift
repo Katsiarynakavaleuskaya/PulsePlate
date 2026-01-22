@@ -3,7 +3,8 @@ import XCTest
 
 final class APIClientTests: XCTestCase {
 
-    fileprivate final class CapturingHTTPClient: HTTPClientProtocol {
+    // Test double stores mutable state; safe in tests (single-threaded usage).
+    fileprivate final class CapturingHTTPClient: HTTPClientProtocol, @unchecked Sendable {
         var lastRequest: URLRequest?
 
         func send<T: Decodable>(
@@ -92,7 +93,7 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
     }
 
-    func test_post_encodeFailure_throwsDecodingFailed() async throws {
+    func test_post_encodeFailure_throwsEncodingFailed() async throws {
         // Use a type that can't be encoded
         struct Unencodable: Encodable {
             func encode(to encoder: Encoder) throws {
@@ -113,8 +114,8 @@ final class APIClientTests: XCTestCase {
             ) as DummyResponse
             XCTFail("Expected to throw")
         } catch let error as APIError {
-            guard case .decodingFailed = error else {
-                XCTFail("Expected .decodingFailed, got \(error)")
+            guard case .encodingFailed = error else {
+                XCTFail("Expected .encodingFailed, got \(error)")
                 return
             }
         }

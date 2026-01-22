@@ -4,7 +4,8 @@ import XCTest
 /// Tests for BMIService "thinness" — verifies no business logic, only transport.
 final class BMIServiceThinAdapterTests: XCTestCase {
 
-    fileprivate final class FakeAPIClient: APIClientProtocol {
+    // Test double stores mutable state; safe in tests (single-threaded usage).
+    fileprivate final class FakeAPIClient: APIClientProtocol, @unchecked Sendable {
         var lastPath: String?
         var lastBody: BMICalculateRequestDTO?
 
