@@ -314,6 +314,59 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Shared schemas: `app/schemas/` are the source of truth; coordinate breaking changes with clients.
 - Auth and tiers: API key + user sessions; VIP/Pro tier routing enforced in middleware.
 
+## Thin HTTP Adapter Policy (Hard Rule)
+
+**Invariant:** Clients (iOS/Web) must be **thin adapters only** — zero business logic, only transport/contract/UX.
+
+**Forbidden on clients:**
+
+- ❌ Any BMI/waist/risk calculation formulas (thresholds, categories, interpretations)
+- ❌ Any business logic that duplicates backend domain rules
+- ❌ Any "smart" inference or computation from API responses (only display as-is)
+- ❌ Manual DTO types that duplicate backend schemas (use OpenAPI-generated types)
+
+**Allowed on clients:**
+
+- ✅ HTTP transport layer (baseURL, headers, JSON encode/decode, timeouts, retries)
+- ✅ Error envelope mapping (422/400/5xx → UI-friendly messages)
+- ✅ i18n localization of backend-provided keys
+- ✅ UI formatting (rounding numbers for display, date formatting, not recalculation)
+- ✅ Conditional rendering based on API response fields (UI logic, not computation)
+- ✅ OpenAPI-generated types (`openapi-typescript` for Web, aligned DTOs for iOS)
+
+**Contract-first principle:**
+
+- Any DTO changes → update OpenAPI/contract docs first, then regenerate client types
+- Clients must follow canonical error envelope format (no "guessing" error structure)
+- Backend `app/schemas/` is the source of truth; clients are consumers only
+
+**Enforcement:**
+
+- iOS: `ThinClientGuardsTests` (scans for BMI thresholds/computation patterns)
+- Web: TypeScript types from OpenAPI (prevents manual DTO drift)
+- Code review: grep for forbidden patterns (BMI math, threshold literals, category inference)
+
+**DTO contract rules:**
+
+- SoftPaywall availability MUST include `reason_key` if present; never drop fields silently.
+- Legacy DTOs may remain temporarily, but must be tracked in BACKLOG_LEDGER with migration PR.
+- All DTO fields must match backend schema exactly (no "convenient" omissions).
+
+**No dual-path networking (hard rule):**
+
+- ❌ **Forbidden:** Any new network calls using direct `URLSession` or custom HTTP clients
+- ✅ **Required:** All new network calls MUST use `APIClient`/`HTTPClient` (iOS) or thin fetch wrapper (Web)
+- **Rationale:** Prevents code duplication, ensures consistent error handling, enforces thin client policy
+- **Enforcement:** Code review + grep for `URLSession.shared.data(for:)` or custom HTTP clients
+- **Migration:** Existing services (ShoppingListService, WeeklyPlanService) must migrate to `APIClient` — tracked in `BACKLOG_LEDGER.md` (P1 item)
+
+**See:**
+
+- `ios/AGENTS.md` — iOS Thin Client Policy (detailed)
+- `frontend/AGENTS.md` — Frontend conventions
+- `docs/BMI_CANONICAL_HANDOFF.md` — One BMI Engine invariant
+- `docs/CONTEXT_HANDOFF_2026-01-21.md` — Thin HTTP adapter PR plan
+
 ## Verification (preferred approach)
 
 - Run quiet first; re-run narrowed failures with verbose logs only when debugging.
