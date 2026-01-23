@@ -1227,8 +1227,37 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
   grep -nE "error:|fatal error|nonzero exit|Undefined symbols|Ld .* failed" build.log | head -n 50
   ```
 - **In GitHub Actions UI:** Use Ctrl+F to search for `error:` — first match is usually root cause.
-- **SwiftPM caching:** CI caches `.derivedData/SourcePackages` and `.derivedData/Build` to speed up SPM resolution and compilation. Cache key includes `Package.resolved` hash.
-- **xcodebuild flags:** CI uses `-clonedSourcePackagesDirPath` and `-derivedDataPath` for deterministic package resolution and caching.
+- **Always search for root cause before "last message":** Final message (e.g., "Exited with code 65") is often just the symptom. Real error is usually 2000+ lines above.
+- **Classify error types immediately:**
+  - `SwiftCompile failed` → Swift compilation error (check source code, imports, types)
+  - `Ld failed / Undefined symbols` → Linking error (frameworks, architectures, missing symbols)
+  - `PackageResolution` / `resolved to…` → SwiftPM dependency resolution issue
+  - `The bundle couldn't be loaded` → Test target/host app/signing/Build settings issue
+- **Clean run rule:** If error is strange and looks like cache/incremental build issue: run without cache (or clear `.derivedData`) as diagnostic step #1.
+- **SwiftPM caching:** CI caches `.derivedData/SourcePackages` only (not Build artifacts) to speed up SPM resolution. Cache key includes `runner.os`, Xcode version, and `Package.resolved` hash for determinism.
+- **Build cache policy:** `.derivedData/Build` is NOT cached (contains absolute paths, runner-specific artifacts, can cause flaky failures). If CI becomes unstable, first check: disable Build cache (already disabled).
+- **xcodebuild flags:** CI uses `-clonedSourcePackagesDirPath` and `-derivedDataPath` for deterministic package resolution. Both `build-for-testing` and `test-without-building` must use identical paths.
+
+**iOS Networking policy (hard rule):**
+
+- **No shared mutable JSONEncoder/Decoder:** `APIClient` and other networking classes must not store `JSONEncoder`/`JSONDecoder` as instance properties (mutable state + Sendable violation). Use factory closures: `makeEncoder: () -> JSONEncoder` / `makeDecoder: () -> JSONDecoder`.
+- **Default JSON key strategy:** All API requests/responses use `.convertToSnakeCase` by default. Any exceptions (camelCase or custom keys) must be handled via explicit `CodingKeys` in models, not by changing encoder strategy globally.
+- **Rationale:** Ensures Sendable compliance, deterministic serialization, and contract consistency with backend (backend expects snake_case).
+
+**Git hooks portability (hard rule):**
+
+- **NUL-safe pipelines required:** All git hooks that process file lists must use NUL-safe pipelines:
+  - `git diff --name-only -z` (not `--name-only` without `-z`)
+  - Portable NUL filtering via `perl` (not GNU-only `grep -z` which fails on macOS BSD grep)
+  - `xargs -0` (not `xargs` without `-0`)
+- **Rationale:** Prevents breakage on file paths with spaces, special characters, or newlines. Works correctly on macOS (BSD grep) and Linux (GNU grep).
+- **Never silence hook failures:** Do not use `|| true` to mask hook failures unless explicitly justified. Prefer fail-fast behavior to catch issues early.
+- **Merge conflict detection:** Conflict markers MUST be anchored to line start: `^(<<<<<<<|=======|>>>>>>>)` to avoid false positives from banner separators (e.g., `# ======` in code).
+
+**CI strictness (hard rule):**
+
+- **Forbidden:** Masking errors with `|| true` in guard/validation steps under `set -euo pipefail`. Errors must surface to fail the job.
+- **Rationale:** Prevents "false green" CI runs where real issues are hidden. If a step should be optional, use `continue-on-error: true` at job level, not `|| true` in shell.
 
 ---
 

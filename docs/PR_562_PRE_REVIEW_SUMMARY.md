@@ -43,7 +43,7 @@
 
 ### PR Links
 
-- **PR #563:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563
+- **PR #563:** <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
 - **DoD Checklist:** `docs/PR_562_DOD_CHECKLIST.md`
 - **Review Checklist:** `docs/PR_562_REVIEW_CHECKLIST.md`
 - **Review Responses:** `docs/PR_562_REVIEW_RESPONSES.md`

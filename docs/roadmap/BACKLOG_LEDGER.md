@@ -41,7 +41,7 @@ If it is not recorded here — it does not exist.
   - Reason: unified thin transport layer for iOS client (no business logic)
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
   - DoD:
     - ✅ iOS: HTTPClient/APIClient/BMIService implemented (transport only)
@@ -59,7 +59,7 @@ If it is not recorded here — it does not exist.
   - Reason: unified thin transport layer for Web client (no business logic)
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
   - DoD:
     - Web: thin fetch wrapper + BMI API client (transport only)
     - No BMI/waist/risk logic on clients (grep policy / guard tests)
@@ -148,13 +148,13 @@ If it is not recorded here — it does not exist.
 
 - [ ] Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (post PR-562)
-  - Reason: ShoppingListService and WeeklyPlanService currently use URLSession directly with custom error enums, not aligned with thin HTTP adapter policy established in PR-562. BMIService was refactored to use APIClient/HTTPClient; other services should follow same pattern for consistency.
+  - Target PR: TBD (post PR-563)
+  - Reason: ShoppingListService and WeeklyPlanService currently use URLSession directly with custom error enums, not aligned with thin HTTP adapter policy established in PR-563. BMIService was refactored to use APIClient/HTTPClient; other services should follow same pattern for consistency.
   - Links:
     - ios/PulsePlate/Services/ShoppingListService.swift
     - ios/PulsePlate/Services/WeeklyPlanService.swift
     - ios/PulsePlate/Networking/APIClient.swift (reference implementation)
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
   - DoD:
     - ShoppingListService uses APIClient (no direct URLSession)
     - WeeklyPlanService uses APIClient (no direct URLSession)
@@ -165,10 +165,10 @@ If it is not recorded here — it does not exist.
 
 - [ ] Migrate BMICalculatorViewModel + Screen to BMICalculate*DTO; delete legacy BMIRequest/BMIResponse (iOS)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (post PR-562)
-  - **Status:** 🔴 **Technical debt created in PR-562** — legacy compatibility shims added to unblock tests/compilation
-  - Reason: UI layer (BMICalculatorViewModel, BMICalculatorScreen) still uses legacy BMIRequest/BMIResponse types. New thin adapter uses BMICalculateRequestDTO/BMICalculateResponseDTO. Migration deferred to separate PR to keep PR-562 scope focused on transport layer only.
-  - **Technical debt details (created in PR-562):**
+  - Target PR: TBD (post PR-563)
+  - **Status:** 🔴 **Technical debt created in PR-563** — legacy compatibility shims added to unblock tests/compilation
+  - Reason: UI layer (BMICalculatorViewModel, BMICalculatorScreen) still uses legacy BMIRequest/BMIResponse types. New thin adapter uses BMICalculateRequestDTO/BMICalculateResponseDTO. Migration deferred to separate PR to keep PR-563 scope focused on transport layer only.
+  - **Technical debt details (created in PR-563):**
     - `LegacyBMIServicing` protocol (lines 53-55 in BMIService.swift) — uses BMIRequest/BMIResponse instead of DTOs
     - `DefaultBMIService` class (lines 91-159 in BMIService.swift) — legacy implementation with direct URLSession, duplicates HTTP logic from HTTPClient/APIClient
     - `BMIServiceError` enum (lines 59-87 in BMIService.swift) — legacy error type, duplicates APIError functionality from Networking/APIError.swift
