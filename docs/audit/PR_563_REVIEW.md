@@ -1,8 +1,8 @@
 # PR #563 — Audit Review (Thin HTTP Adapter iOS)
 
-**Date:** 2026-01-22  
-**Auditor:** @katsiaryna_kavaleuskaya  
-**PR:** #563 (Note: PR #593 does not exist; auditing PR #563 which is the active thin HTTP adapter PR)  
+**Date:** 2026-01-22
+**Auditor:** @katsiaryna_kavaleuskaya
+**PR:** #563 (Thin HTTP Adapter iOS)
 **Status:** ✅ Audit Complete
 
 ---
@@ -11,9 +11,9 @@
 
 ### PR Information
 
-**Branch:** `feat/ios-thin-http-adapter-v2`  
-**Base:** `main`  
-**Title:** `feat(ios): thin HTTP adapter for BMI (transport layer)`  
+**Branch:** `feat/ios-thin-http-adapter-v2`
+**Base:** `main`
+**Title:** `feat(ios): thin HTTP adapter for BMI (transport layer)`
 **URL:** <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
 
 ### Touch List

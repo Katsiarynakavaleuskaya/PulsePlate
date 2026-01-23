@@ -1256,8 +1256,10 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 **CI strictness (hard rule):**
 
-- **Forbidden:** Masking errors with `|| true` in guard/validation steps under `set -euo pipefail`. Errors must surface to fail the job.
-- **Rationale:** Prevents "false green" CI runs where real issues are hidden. If a step should be optional, use `continue-on-error: true` at job level, not `|| true` in shell.
+- **Forbidden:** Masking errors with shell hacks like `|| true` (or `; true`) inside `run:` steps under `set -euo pipefail`. Errors must surface to fail the job.
+- **Allowed:** `continue-on-error: true` **only** as metadata at job/step level in YAML, when the step is genuinely optional (e.g., non-blocking notifications, optional reports).
+- **Note:** `continue-on-error: true` is allowed only at YAML level (job/step), **not** inside shell commands.
+- **Rationale:** Prevents "false green" CI runs where real issues are hidden. Shell-level masking (`|| true`) breaks `set -euo pipefail` safety; YAML-level `continue-on-error` is explicit and auditable.
 
 ---
 
