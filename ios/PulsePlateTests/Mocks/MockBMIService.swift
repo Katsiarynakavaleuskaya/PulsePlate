@@ -1,7 +1,9 @@
 import Foundation
 @testable import PulsePlate
 
-final class MockBMIService: BMIServicing {
+/// Mock BMI service for testing (uses legacy types for backward compatibility with existing tests).
+/// TODO: Update to use BMICalculate*DTO after UI migration (tracked in BACKLOG_LEDGER.md)
+final class MockBMIService: LegacyBMIServicing {
     var result: Result<BMIResponse, Error> = .failure(BMIServiceError.transport("not set"))
 
     func calculateBMI(request: BMIRequest) async throws -> BMIResponse {

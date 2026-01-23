@@ -1,0 +1,79 @@
+import Foundation
+
+/// Protocol for API client (enables testing via dependency injection).
+public protocol APIClientProtocol: Sendable {
+    func post<Response: Decodable, Body: Encodable>(
+        path: String,
+        body: Body,
+        headers: [String: String]
+    ) async throws -> Response
+}
+
+extension APIClientProtocol {
+    /// Convenience method with default empty headers.
+    public func post<Response: Decodable, Body: Encodable>(
+        path: String,
+        body: Body
+    ) async throws -> Response {
+        try await post(path: path, body: body, headers: [:])
+    }
+}
+
+/// Base API client for PulsePlate backend.
+///
+/// Responsibilities:
+/// - Build URLRequest with baseURL
+/// - Set headers (Content-Type, X-API-Key if provided)
+/// - JSON encode request body
+/// - Delegate sending & error handling to HTTPClient
+///
+/// Forbidden:
+/// - No business logic
+/// - No endpoint-specific behavior
+public final class APIClient: APIClientProtocol, Sendable {
+
+    private let baseURL: URL
+    private let httpClient: HTTPClientProtocol
+    private let makeEncoder: @Sendable () -> JSONEncoder
+
+    public init(
+        baseURL: URL,
+        httpClient: HTTPClientProtocol = HTTPClient(),
+        makeEncoder: @escaping @Sendable () -> JSONEncoder = {
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            return encoder
+        }
+    ) {
+        self.baseURL = baseURL
+        self.httpClient = httpClient
+        self.makeEncoder = makeEncoder
+    }
+
+    public func post<Response: Decodable, Body: Encodable>(
+        path: String,
+        body: Body,
+        headers: [String: String] = [:]
+    ) async throws -> Response {
+        // IMPORTANT:
+        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
+        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
+        let normalizedPath = path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        headers.forEach { key, value in
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        do {
+            request.httpBody = try makeEncoder().encode(body)
+        } catch {
+            throw APIError.encodingFailed("Failed to encode request body: \(error.localizedDescription)")
+        }
+
+        return try await httpClient.send(request, responseType: Response.self)
+    }
+}

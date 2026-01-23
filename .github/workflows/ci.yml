@@ -36,7 +36,36 @@ jobs:
           fetch-depth: 0
 
       - name: PR Scope Guard
-        run: bash scripts/ci/pr_scope_guard.sh
+        run: |
+          set -euo pipefail
+
+          echo "Running PR Scope Guard script..."
+          bash scripts/ci/pr_scope_guard.sh
+
+      - name: "Guard: fail on merge conflicts"
+        run: |
+          set -euo pipefail
+
+          echo "Checking for merge conflict markers..."
+
+          # Check for conflict markers in all files (anchored to line start to avoid false positives)
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . 2>/dev/null; then
+            echo "::error::Merge conflict markers detected in committed files"
+            echo "::error::This should never happen — conflicts must be resolved before push"
+            echo "::error::See: AGENTS.md section 'Merge Conflict Safety (Hard Rule)'"
+            exit 1
+          fi
+
+          # Check for unmerged paths in index (should be empty)
+          unmerged=$(git ls-files -u 2>/dev/null)
+          if [ -n "$unmerged" ]; then
+            echo "::error::Unmerged paths detected in git index"
+            echo "::error::Unmerged files:"
+            echo "$unmerged" | awk '{print "  - " $4}'
+            exit 1
+          fi
+
+          echo "✅ No merge conflicts detected"
 
   trivy_ignore_policy_expiry:
     name: Trivy ignore-policy expiry
@@ -630,7 +659,26 @@ jobs:
           echo "Selected DEVELOPER_DIR: $SELECTED"
           echo "Verifying Xcode selection:"
           xcode-select -p
+
+          # Extract Xcode version for cache key
+          XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
+          echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
+
           xcodebuild -version
+          swift --version
+
+      - name: Cache SwiftPM packages (SourcePackages only, not Build)
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        id: cache-swiftpm
+        with:
+          path: |
+            ios/.derivedData/SourcePackages
+          key: ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-swiftpm-${{ hashFiles('ios/Package.resolved', 'ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-swiftpm-
+            ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-
+            ${{ runner.os }}-swiftpm-
 
       - name: Select iOS simulator destination (stable)
         working-directory: ios
@@ -647,6 +695,7 @@ jobs:
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
           xcode-select -p
           xcodebuild -version
+          swift --version
 
           echo "Preferred devices: ${PREFERRED_DEVICES}"
 
@@ -791,6 +840,7 @@ jobs:
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<not set>}"
           xcode-select -p
           xcodebuild -version
+          swift --version
 
           echo "=== Toolchain consistency check ==="
           echo "xcrun simctl path:"
@@ -800,6 +850,8 @@ jobs:
           echo "SDK check:"
           xcrun --sdk iphonesimulator --show-sdk-version || echo "SDK version check failed"
           xcrun --sdk iphonesimulator --show-sdk-platform-path || echo "SDK path check failed"
+          echo "Available SDKs:"
+          xcodebuild -showsdks 2>&1 | grep -i "iphonesimulator" || echo "SDK listing failed"
 
           # Diagnostic: verify simulator exists and is accessible
           echo "=== Simulator availability check ==="
@@ -883,7 +935,8 @@ jobs:
               "-scheme", "PulsePlate",
               "-destination", destination,
               "-configuration", "Debug",
-              "-derivedDataPath", "../.derivedData",
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
               "-enableCodeCoverage", "NO"
           ]
 
@@ -919,8 +972,12 @@ jobs:
               "-only-testing:PulsePlateTests/BMIResponseDecodingTests",
               "-only-testing:PulsePlateTests/BMIRequestEncodingTests",
               "-only-testing:PulsePlateTests/LocaleParsingTests",
+              "-only-testing:PulsePlateTests/HTTPClientTests",
+              "-only-testing:PulsePlateTests/APIClientTests",
+              "-only-testing:PulsePlateTests/BMIServiceThinAdapterTests",
               "-destination", destination,
-              "-derivedDataPath", "../.derivedData",
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
               "-enableCodeCoverage", "NO",
               "-parallel-testing-enabled", "NO"
           ]

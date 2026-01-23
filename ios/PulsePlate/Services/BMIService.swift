@@ -1,9 +1,61 @@
 import Foundation
 
+/// Protocol for BMI service (enables testing via dependency injection).
 public protocol BMIServicing: Sendable {
+    func calculateBMI(request: BMICalculateRequestDTO) async throws -> BMICalculateResponseDTO
+}
+
+/// BMI service — thin wrapper over APIClient.
+///
+/// Responsibilities:
+/// - Call canonical BMI calculate endpoint
+/// - Return response DTO as-is
+///
+/// Forbidden:
+/// - No BMI/waist/risk logic
+/// - No interpretation
+/// - No i18n
+/// - No soft paywall logic
+public final class BMIService: BMIServicing, Sendable {
+
+    private let apiClient: APIClientProtocol
+
+    public init(apiClient: APIClientProtocol) {
+        self.apiClient = apiClient
+    }
+
+    public func calculateBMI(
+        request: BMICalculateRequestDTO
+    ) async throws -> BMICalculateResponseDTO {
+        try await apiClient.post(
+            path: "/api/v1/bmi/calculate",
+            body: request
+        )
+    }
+}
+
+// MARK: - Convenience Initializer
+
+extension BMIService {
+    /// Convenience initializer using AppConfig.baseURL().
+    public convenience init(baseURL: URL? = nil) {
+        let url = baseURL ?? AppConfig.baseURL()
+        let client = APIClient(baseURL: url)
+        self.init(apiClient: client)
+    }
+}
+
+// MARK: - Legacy Compatibility (temporary, until UI migration)
+
+/// Legacy BMI service using old types (BMIRequest/BMIResponse).
+/// This is a compatibility shim for existing UI code.
+/// TODO: Remove after UI migration to BMICalculate*DTO (tracked in BACKLOG_LEDGER.md)
+public protocol LegacyBMIServicing: Sendable {
     func calculateBMI(request: BMIRequest) async throws -> BMIResponse
 }
 
+/// Legacy error type for backward compatibility with UI.
+/// TODO: Migrate UI to APIError (tracked in BACKLOG_LEDGER.md)
 public enum BMIServiceError: Error, LocalizedError, Sendable, Equatable {
     case http(Int, String?)
     case encoding(String)
@@ -34,7 +86,9 @@ public enum BMIServiceError: Error, LocalizedError, Sendable, Equatable {
     }
 }
 
-public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
+/// Legacy BMI service implementation (temporary compatibility shim).
+/// TODO: Remove after UI migration (tracked in BACKLOG_LEDGER.md)
+public final class DefaultBMIService: LegacyBMIServicing, @unchecked Sendable {
     private let baseURL: URL
     private let session: URLSession
 
@@ -80,7 +134,19 @@ public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
 
         if http.statusCode == 422 {
             if let parsed = try? JSONDecoder().decode(ValidationErrorResponse.self, from: data) {
-                throw BMIServiceError.validation(parsed.detail)
+                throw BMIServiceError.validation(parsed.detail.map { err in
+                    BMIServiceError.ValidationError(
+                        type: err.type,
+                        loc: err.loc.map { component in
+                            switch component {
+                            case .string(let s): return s
+                            case .int(let i): return String(i)
+                            }
+                        },
+                        msg: err.msg,
+                        input: nil // Legacy doesn't decode input
+                    )
+                })
             }
         }
 
@@ -90,8 +156,6 @@ public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
         }
 
         do {
-            // BMIResponse declares explicit CodingKeys for snake_case fields (e.g., group_display).
-            // Using .convertFromSnakeCase here could prevent those keys from matching.
             return try JSONDecoder().decode(BMIResponse.self, from: data)
         } catch {
             throw BMIServiceError.decoding(error.localizedDescription)
@@ -99,16 +163,14 @@ public final class DefaultBMIService: BMIServicing, @unchecked Sendable {
     }
 }
 
-private struct ValidationErrorResponse: Codable {
-    let detail: [BMIServiceError.ValidationError]
-}
+// Note: ValidationErrorResponse is imported from Networking/ErrorsDTO.swift
 
 /// Minimal AnyCodable for validation payloads.
-/// (Keeps tests deterministic; not intended for general use.)
+/// Runtime utility for decoding backend validation error payloads (422 responses).
 ///
 /// NOTE:
 /// AnyCodable is @unchecked Sendable by design.
-/// Used only for decoding backend validation payloads in tests.
+/// Used for decoding validation error `input` fields in runtime error handling.
 /// Must not cross actor boundaries with non-primitive values.
 public struct AnyCodable: Codable, Equatable {
     public nonisolated(unsafe) let value: Any

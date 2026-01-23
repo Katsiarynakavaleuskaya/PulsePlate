@@ -314,6 +314,59 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Shared schemas: `app/schemas/` are the source of truth; coordinate breaking changes with clients.
 - Auth and tiers: API key + user sessions; VIP/Pro tier routing enforced in middleware.
 
+## Thin HTTP Adapter Policy (Hard Rule)
+
+**Invariant:** Clients (iOS/Web) must be **thin adapters only** — zero business logic, only transport/contract/UX.
+
+**Forbidden on clients:**
+
+- ❌ Any BMI/waist/risk calculation formulas (thresholds, categories, interpretations)
+- ❌ Any business logic that duplicates backend domain rules
+- ❌ Any "smart" inference or computation from API responses (only display as-is)
+- ❌ Hand-rolled DTOs that are not generated or kept in sync with backend schemas (OpenAPI-generated types for Web; aligned DTOs for iOS are allowed)
+
+**Allowed on clients:**
+
+- ✅ HTTP transport layer (baseURL, headers, JSON encode/decode, timeouts, retries)
+- ✅ Error envelope mapping (422/400/5xx → UI-friendly messages)
+- ✅ i18n localization of backend-provided keys
+- ✅ UI formatting (rounding numbers for display, date formatting, not recalculation)
+- ✅ Conditional rendering based on API response fields (UI logic, not computation)
+- ✅ OpenAPI-generated types (`openapi-typescript` for Web, aligned DTOs for iOS)
+
+**Contract-first principle:**
+
+- Any DTO changes → update OpenAPI/contract docs first, then regenerate client types
+- Clients must follow canonical error envelope format (no "guessing" error structure)
+- Backend `app/schemas/` is the source of truth; clients are consumers only
+
+**Enforcement:**
+
+- iOS: `ThinClientGuardsTests` (scans for BMI thresholds/computation patterns)
+- Web: TypeScript types from OpenAPI (prevents manual DTO drift)
+- Code review: grep for forbidden patterns (BMI math, threshold literals, category inference)
+
+**DTO contract rules:**
+
+- SoftPaywall availability MUST include `reason_key` if present; never drop fields silently.
+- Legacy DTOs may remain temporarily, but must be tracked in BACKLOG_LEDGER with migration PR.
+- All DTO fields must match backend schema exactly (no "convenient" omissions).
+
+**No dual-path networking (hard rule):**
+
+- ❌ **Forbidden:** Any new network calls using direct `URLSession` or custom HTTP clients
+- ✅ **Required:** All new network calls MUST use `APIClient`/`HTTPClient` (iOS) or thin fetch wrapper (Web)
+- **Rationale:** Prevents code duplication, ensures consistent error handling, enforces thin client policy
+- **Enforcement:** Code review + grep for `URLSession.shared.data(for:)` or custom HTTP clients
+- **Migration:** Existing services (ShoppingListService, WeeklyPlanService) must migrate to `APIClient` — tracked in `BACKLOG_LEDGER.md` (P1 item)
+
+**See:**
+
+- `ios/AGENTS.md` — iOS Thin Client Policy (detailed)
+- `frontend/AGENTS.md` — Frontend conventions
+- `docs/BMI_CANONICAL_HANDOFF.md` — One BMI Engine invariant
+- `docs/CONTEXT_HANDOFF_2026-01-21.md` — Thin HTTP adapter PR plan
+
 ## Verification (preferred approach)
 
 - Run quiet first; re-run narrowed failures with verbose logs only when debugging.
@@ -1158,6 +1211,84 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 - **ShellCheck compliance required:** All shell scripts in `.github/workflows/*.yml` must pass `actionlint` (which enforces ShellCheck rules).
 - **Forbidden patterns:** `ls | grep` (SC2010) — use glob + for loop or `find` instead.
 - **Rationale:** Prevents shell script bugs and ensures CI workflow reliability.
+
+**iOS CI debugging (finding real errors in logs):**
+
+- **SwiftPM compilation noise:** SPM packages (e.g., Lottie) produce verbose compilation logs. This is normal and not an error.
+- **Finding real errors:** In GitHub Actions logs, search for:
+  - `error:` (first occurrence is usually root cause)
+  - `Swift compiler error`
+  - `fatal error`
+  - `Command SwiftCompile failed with a nonzero exit code`
+  - `Ld ... failed`
+  - `Undefined symbols`
+- **Quick filter (if raw log available):**
+  ```bash
+  grep -nE "error:|fatal error|nonzero exit|Undefined symbols|Ld .* failed" build.log | head -n 50
+  ```
+- **In GitHub Actions UI:** Use Ctrl+F to search for `error:` — first match is usually root cause.
+- **Always search for root cause before "last message":** Final message (e.g., "Exited with code 65") is often just the symptom. Real error is usually 2000+ lines above.
+- **Classify error types immediately:**
+  - `SwiftCompile failed` → Swift compilation error (check source code, imports, types)
+  - `Ld failed / Undefined symbols` → Linking error (frameworks, architectures, missing symbols)
+  - `PackageResolution` / `resolved to…` → SwiftPM dependency resolution issue
+  - `The bundle couldn't be loaded` → Test target/host app/signing/Build settings issue
+- **Clean run rule:** If error is strange and looks like cache/incremental build issue: run without cache (or clear `.derivedData`) as diagnostic step #1.
+- **SwiftPM caching:** CI caches `.derivedData/SourcePackages` only (not Build artifacts) to speed up SPM resolution. Cache key includes `runner.os`, Xcode version, and `Package.resolved` hash for determinism.
+- **Build cache policy:** `.derivedData/Build` is NOT cached (contains absolute paths, runner-specific artifacts, can cause flaky failures). If CI becomes unstable, first check: disable Build cache (already disabled).
+- **xcodebuild flags:** CI uses `-clonedSourcePackagesDirPath` and `-derivedDataPath` for deterministic package resolution. Both `build-for-testing` and `test-without-building` must use identical paths.
+
+**iOS Networking policy (hard rule):**
+
+- **No shared mutable JSONEncoder/Decoder:** `APIClient` and other networking classes must not store `JSONEncoder`/`JSONDecoder` as instance properties (mutable state + Sendable violation). Use factory closures: `makeEncoder: () -> JSONEncoder` / `makeDecoder: () -> JSONDecoder`.
+- **Default JSON key strategy:** All API requests/responses use `.convertToSnakeCase` by default. Any exceptions (camelCase or custom keys) must be handled via explicit `CodingKeys` in models, not by changing encoder strategy globally.
+- **Rationale:** Ensures Sendable compliance, deterministic serialization, and contract consistency with backend (backend expects snake_case).
+
+**Git hooks portability (hard rule):**
+
+- **NUL-safe pipelines required:** All git hooks that process file lists must use NUL-safe pipelines:
+  - `git diff --name-only -z` (not `--name-only` without `-z`)
+  - Portable NUL filtering via `perl` (not GNU-only `grep -z` which fails on macOS BSD grep)
+  - `xargs -0` (not `xargs` without `-0`)
+- **Rationale:** Prevents breakage on file paths with spaces, special characters, or newlines. Works correctly on macOS (BSD grep) and Linux (GNU grep).
+- **Never silence hook failures:** Do not use `|| true` to mask hook failures unless explicitly justified. Prefer fail-fast behavior to catch issues early.
+- **Merge conflict detection:** Conflict markers MUST be anchored to line start: `^(<<<<<<<|=======|>>>>>>>)` to avoid false positives from banner separators (e.g., `# ======` in code).
+
+**CI strictness (hard rule):**
+
+- **Forbidden:** Masking errors with shell hacks like `|| true` (or `; true`) inside `run:` steps under `set -euo pipefail`. Errors must surface to fail the job.
+- **Allowed:** `continue-on-error: true` **only** as metadata at job/step level in YAML, when the step is genuinely optional (e.g., non-blocking notifications, optional reports).
+- **Note:** `continue-on-error: true` is allowed only at YAML level (job/step), **not** inside shell commands.
+- **Rationale:** Prevents "false green" CI runs where real issues are hidden. Shell-level masking (`|| true`) breaks `set -euo pipefail` safety; YAML-level `continue-on-error` is explicit and auditable.
+
+---
+
+## Merge Conflict Safety (Hard Rule)
+
+**❌ AGENT MUST NEVER push or open a PR if the working tree contains:**
+- Unresolved merge conflicts
+- Conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`)
+- Partially resolved merges
+- Files in state: `both modified`, `unmerged`, `needs merge`
+
+**Mandatory checks before any push:**
+1. `git status` MUST show a clean working tree
+2. No files in state: `both modified`, `unmerged`, `needs merge`
+3. `git diff` MUST NOT contain conflict markers
+4. `git ls-files -u` MUST return empty (no unmerged paths)
+
+**Violation handling:**
+- If a merge conflict is detected, the agent MUST STOP.
+- The agent MUST report the conflict and request manual resolution.
+- No auto-resolution, no guessing, no push.
+- The agent MUST assume that unresolved merge conflicts are a **STOP condition**, not a warning. No recovery attempts are allowed.
+
+**Enforcement:**
+- Pre-push hook blocks pushes with conflicts (technical guard)
+- CI guard fails PR if conflict markers detected (last line of defense)
+- Code review: grep for conflict markers before merge
+
+**This rule is non-negotiable.**
 
 ---
 
