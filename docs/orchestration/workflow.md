@@ -6,6 +6,14 @@
 
 ---
 
+## Canonical References (single source of truth)
+
+- **Coordinator-first rule + definition of "task":** see `AGENTS.md` (Agent Coordination section)
+- **Quality gates / thresholds / required commands:** see `AGENTS.md` (Quality Gates section)
+- **Operational runbook:** see `RUNBOOK_AGENT.md` (Quality Gates section)
+
+---
+
 ## Workflow Overview
 
 ```text
