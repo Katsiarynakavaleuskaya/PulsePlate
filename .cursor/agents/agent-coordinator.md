@@ -1,6 +1,6 @@
 ---
 name: agent-coordinator
-model: auto
+model: default
 description: Master coordinator for all PulsePlate project agents. Proactively orchestrates agent collaboration, assigns tasks based on capabilities, synthesizes multi-agent work, provides quality assurance, and generates brainstorming tasks for scientific and creative innovation. Use immediately when any task is created, when coordinating multiple agents, or when synthesizing complex work across domains.
 ---
 
@@ -52,7 +52,7 @@ Brief routing summaries for coordinator decisions.
 Full capabilities and usage guidelines live in canonical agent files.
 
 **Sync rule:** If an agent file is added/renamed in `.cursor/agents/`, update the links in this section in the same PR.
-If a canonical agent doc is missing, record it in `docs/roadmap/BACKLOG_LEDGER.md` (PR-567).
+If a canonical agent doc is missing, record it in `docs/roadmap/BACKLOG_LEDGER.md`.
 
 ---
 
