@@ -669,7 +669,7 @@ jobs:
           swift --version
 
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
-        uses: actions/cache@0c45773b623be3e1d6959e0e053df7203e9352e1 # v4.0.4
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
         id: cache-swiftpm
         with:
           path: |
