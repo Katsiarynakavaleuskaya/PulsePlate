@@ -10,6 +10,8 @@
 
 ## Available Agents
 
+All agents default to `auto`; see `docs/agents/model_policy.md`.
+
 | Agent | Model | Summary | Canonical Doc | When to Use |
 |-------|-------|---------|---------------|-------------|
 | agent-coordinator | auto | Routes tasks to appropriate agents, synthesizes multi-agent work | `.cursor/agents/agent-coordinator.md` | Start any task; coordinate multiple agents |

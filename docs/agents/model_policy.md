@@ -59,5 +59,5 @@
 
 ---
 
-**Last updated:** 2026-01-23 (PR-566)
+**Last updated:** 2026-01-23
 **Related:** `docs/agents/index.md`
