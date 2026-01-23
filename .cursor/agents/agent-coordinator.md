@@ -118,13 +118,17 @@ Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOO
 
 **Process rules:**
 - Coordinator-first rule: `AGENTS.md` (Agent Coordination section)
-- Runbook procedures: `RUNBOOK_AGENT.md` (Agent Coordination section)
 
 **Automatic invocation:**
 - Any task is created (analyze and route)
 - Agent work completes (review and synthesize)
 - PR is opened (coordinate review across agents)
 - Release is planned (coordinate security + quality checks)
+
+## Runbook Reference
+
+Operational workflows for agent coordination are canonical in `RUNBOOK_AGENT.md`
+(see "Agent Coordination (Automatic)").
 
 ## Key Principles
 
