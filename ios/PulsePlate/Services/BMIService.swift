@@ -166,11 +166,11 @@ public final class DefaultBMIService: LegacyBMIServicing, @unchecked Sendable {
 // Note: ValidationErrorResponse is imported from Networking/ErrorsDTO.swift
 
 /// Minimal AnyCodable for validation payloads.
-/// (Keeps tests deterministic; not intended for general use.)
+/// Runtime utility for decoding backend validation error payloads (422 responses).
 ///
 /// NOTE:
 /// AnyCodable is @unchecked Sendable by design.
-/// Used only for decoding backend validation payloads in tests.
+/// Used for decoding validation error `input` fields in runtime error handling.
 /// Must not cross actor boundaries with non-primitive values.
 public struct AnyCodable: Codable, Equatable {
     public nonisolated(unsafe) let value: Any

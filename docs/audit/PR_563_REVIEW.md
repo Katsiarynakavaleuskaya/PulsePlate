@@ -34,7 +34,7 @@
 
 **Commits:**
 - `b474277a` - chore: minor cleanup (destination format + remove redundant CodingKeys)
-- `2d8f2d36` - fix(ios): remove leading slash from BMIService path
+- `2d8f2d36` - fix(ios): add leading slash to BMIService path
 - `afe7cdb9` - fix(ios): normalize APIClient path and add test
 - `98ef2669` - fix(ci): quote step name with colon (actionlint yaml)
 - `a4d52924` - ci: add merge conflict guard to CI workflow + fix pre-push hook
@@ -235,7 +235,7 @@ make verify
 ```
 
 **Results:**
-```
+```text
 ✅ All checks passed
 ✅ Diff-coverage соответствует требованиям
 🎉 Все проверки пройдены! Ready for push.

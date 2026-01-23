@@ -20,8 +20,8 @@
 
 - [x] **BACKLOG_LEDGER.md updated:** Split PR-562 (iOS) and PR-563 (Web)
 - [x] **PR description complete:** Contract Freeze, Compatibility Shims, Deferred/Follow-ups
-- [x] **Review responses prepared:** `docs/PR_562_REVIEW_RESPONSES.md`
-- [x] **CI checklist created:** `docs/PR_562_CI_CHECKLIST.md`
+- [x] **Review responses prepared:** `docs/PR_562_REVIEW_RESPONSES.md` (intentional reuse from PR-562)
+- [x] **CI checklist created:** `docs/PR_562_CI_CHECKLIST.md` (intentional reuse from PR-562)
 
 ### 3. Code Quality
 
@@ -44,22 +44,22 @@
 ### PR Links
 
 - **PR #563:** <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
-- **DoD Checklist:** `docs/PR_562_DOD_CHECKLIST.md`
-- **Review Checklist:** `docs/PR_562_REVIEW_CHECKLIST.md`
-- **Review Responses:** `docs/PR_562_REVIEW_RESPONSES.md`
-- **CI Checklist:** `docs/PR_562_CI_CHECKLIST.md`
+- **DoD Checklist:** `docs/PR_562_DOD_CHECKLIST.md` (intentional reuse from PR-562)
+- **Review Checklist:** `docs/PR_562_REVIEW_CHECKLIST.md` (intentional reuse from PR-562)
+- **Review Responses:** `docs/PR_562_REVIEW_RESPONSES.md` (intentional reuse from PR-562)
+- **CI Checklist:** `docs/PR_562_CI_CHECKLIST.md` (intentional reuse from PR-562)
 
 ### Key Documents
 
-- **Audit:** `docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md`
-- **Technical Debt:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md`
+- **Audit:** `docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md` (intentional reuse from PR-562)
+- **Technical Debt:** `docs/audit/PR_562_TECHNICAL_DEBT_REPORT.md` (intentional reuse from PR-562)
 - **Backlog Ledger:** `docs/roadmap/BACKLOG_LEDGER.md`
 
 ---
 
 ## 🎯 Expected Review Questions
 
-See `docs/PR_562_REVIEW_RESPONSES.md` for prepared answers to:
+See `docs/PR_562_REVIEW_RESPONSES.md` (intentional reuse from PR-562) for prepared answers to:
 
 1. Why legacy shims in transport PR?
 2. Why one commit?
