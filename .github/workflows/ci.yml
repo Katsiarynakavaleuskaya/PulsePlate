@@ -48,8 +48,8 @@ jobs:
 
           echo "Checking for merge conflict markers..."
 
-          # Check for conflict markers in all files
-          if git grep -n '<<<<<<< HEAD\|=======\|>>>>>>>' -- . 2>/dev/null; then
+          # Check for conflict markers in all files (anchored to line start to avoid false positives)
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . 2>/dev/null; then
             echo "::error::Merge conflict markers detected in committed files"
             echo "::error::This should never happen — conflicts must be resolved before push"
             echo "::error::See: AGENTS.md section 'Merge Conflict Safety (Hard Rule)'"
@@ -615,16 +615,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
 
-      - name: Cache SwiftPM packages and DerivedData
-        uses: actions/cache@0c45773b623be3e1d6959e0e053df7203e9352e1 # v4.0.4
-        with:
-          path: |
-            ios/.derivedData/SourcePackages
-            ios/.derivedData/Build
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('ios/Package.resolved', 'ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-swiftpm-
-
       - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
         id: select-xcode
         shell: bash
@@ -669,7 +659,36 @@ jobs:
           echo "Selected DEVELOPER_DIR: $SELECTED"
           echo "Verifying Xcode selection:"
           xcode-select -p
+
+          # Extract Xcode version for cache key
+          XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
+          echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_ENV"
+
           xcodebuild -version
+          swift --version
+
+      - name: Select iOS simulator destination (stable)
+        working-directory: ios
+        id: select-destination
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          # Allow override for testing fallback logic (e.g., PREFERRED_DEVICES="iPhone 99,iPhone 98")
+          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14' }}
+        run: |
+          set -euo pipefail
+
+      - name: Cache SwiftPM packages (SourcePackages only, not Build)
+        uses: actions/cache@0c45773b623be3e1d6959e0e053df7203e9352e1 # v4.0.4
+        id: cache-swiftpm
+        with:
+          path: |
+            ios/.derivedData/SourcePackages
+          key: ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-swiftpm-${{ hashFiles('ios/Package.resolved', 'ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-swiftpm-
+            ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-
+            ${{ runner.os }}-swiftpm-
 
       - name: Select iOS simulator destination (stable)
         working-directory: ios
@@ -686,6 +705,7 @@ jobs:
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
           xcode-select -p
           xcodebuild -version
+          swift --version
 
           echo "Preferred devices: ${PREFERRED_DEVICES}"
 
@@ -830,6 +850,7 @@ jobs:
           echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<not set>}"
           xcode-select -p
           xcodebuild -version
+          swift --version
 
           echo "=== Toolchain consistency check ==="
           echo "xcrun simctl path:"
@@ -839,6 +860,8 @@ jobs:
           echo "SDK check:"
           xcrun --sdk iphonesimulator --show-sdk-version || echo "SDK version check failed"
           xcrun --sdk iphonesimulator --show-sdk-platform-path || echo "SDK path check failed"
+          echo "Available SDKs:"
+          xcodebuild -showsdks 2>&1 | grep -i "iphonesimulator" || echo "SDK listing failed"
 
           # Diagnostic: verify simulator exists and is accessible
           echo "=== Simulator availability check ==="
