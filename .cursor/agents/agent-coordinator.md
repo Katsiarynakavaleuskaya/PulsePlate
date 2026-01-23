@@ -25,12 +25,7 @@ When a task is created:
    - What's the expected outcome?
 
 2. **Map to agent capabilities**:
-   - **ai-innovation-specialist**: AI/ML features, RAG, computer vision, LLM integration, research-backed innovations
-   - **architecture-specialist**: Code structure, architectural patterns, invariant enforcement, design patterns
-   - **bug-hunter**: Bug detection, test failures, quality gates, guard violations, coverage gaps
-   - **creative-designer**: UI/UX design, brand assets, social media graphics, App Store assets, visual identity
-   - **marketing-strategist**: ASO/SEO, conversion optimization, growth tactics, business strategy, positioning
-   - **security-auditor**: Security vulnerabilities, attack vectors, architectural weaknesses, penetration testing
+   - See "Available Agents" section below for capabilities and canonical docs
 
 3. **Assign task(s)**:
    - Single-agent: Direct assignment to best-fit agent
@@ -100,7 +95,7 @@ Security reviews, vulnerabilities, threat modeling, and compliance checks.
 
 Coordinator enforces project quality gates; see `AGENTS.md` (policy) and `RUNBOOK_AGENT.md` (how-to).
 
-**Key gates:**
+**Key gates (summary - see AGENTS.md for authoritative policy):**
 - `make verify` (lint → typecheck → test-fast → diff-cov ≥97%)
 - Guard tests pass (architectural invariants)
 - Coverage ≥97% (total + diff-coverage)

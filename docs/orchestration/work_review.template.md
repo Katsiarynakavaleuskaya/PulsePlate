@@ -29,11 +29,9 @@
 
 ### Quality Check
 
-- ✅/❌ `make verify`: [status]
-- ✅/❌ Guard tests: [status]
-- ✅/❌ Coverage: [status]
-- ✅/❌ Security: [status]
-- ✅/❌ Architecture: [status]
+See canonical Quality Gates: `RUNBOOK_AGENT.md` (Quality Gates section)
+
+- ✅/❌ Quality gates: [status - see RUNBOOK_AGENT.md for authoritative checklist]
 
 ### Requirements Met
 

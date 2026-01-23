@@ -62,7 +62,7 @@ Task
 **Checks:**
 - Requirements met
 - Project conventions followed (AGENTS.md, guard tests)
-- Quality gates pass (`make verify`)
+- Quality gates pass (see `RUNBOOK_AGENT.md` Quality Gates section)
 - No conflicts with other work
 
 ---
@@ -92,7 +92,7 @@ Task
 
 **Required:**
 - Scope respected
-- `make verify` green
+- Quality gates pass (see `RUNBOOK_AGENT.md` Quality Gates section)
 - Documentation updated (if needed)
 - Postponed items recorded in `BACKLOG_LEDGER.md`
 
@@ -101,12 +101,13 @@ Task
 ## Integration Points
 
 ### AGENTS.md
-- **Coordinator-first rule:** Any new task starts with coordinator analysis
-- See `AGENTS.md` section "Agent Coordination"
+- **Coordinator-first rule:** See canonical definition in `AGENTS.md` (Agent Coordination section)
+- This workflow assumes the canonical Coordinator-First Rule
 
 ### RUNBOOK_AGENT.md
 - Quick reference for starting tasks
 - Links to orchestration templates
+- Quality gates (canonical): See `RUNBOOK_AGENT.md` (Quality Gates section)
 
 ### BACKLOG_LEDGER.md
 - Postponed items must be recorded here
@@ -116,8 +117,8 @@ Task
 
 ## Key Principles
 
-1. **Coordinator-first:** Always start with coordinator analysis
-2. **Quality gates:** Never bypass `make verify` or guard tests
+1. **Coordinator-first:** See `AGENTS.md` (Agent Coordination section) for canonical rule
+2. **Quality gates:** See `RUNBOOK_AGENT.md` (Quality Gates section) for canonical checklist
 3. **Documentation:** Update AGENTS.md/RUNBOOK if workflow changes
 4. **Postponed items:** Always record in BACKLOG_LEDGER
 5. **Dev-only:** This workflow is for development, not runtime product

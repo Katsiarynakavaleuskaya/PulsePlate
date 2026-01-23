@@ -40,13 +40,22 @@ Use the agent-coordinator subagent to [task description]
 The coordinator will automatically delegate to specialized agents and synthesize their work.
 
 **Starting a new task:**
-1. Use coordinator for Task Analysis (template: `docs/orchestration/task_analysis.template.md`)
-2. Coordinator assigns agent(s) and routes work
-3. After work completes, coordinator reviews (template: `docs/orchestration/work_review.template.md`)
-4. For multi-agent tasks, coordinator synthesizes (template: `docs/orchestration/synthesis.template.md`)
-5. Before PR merge, verify DoD (template: `docs/orchestration/dod.template.md`)
+- See canonical definition: `AGENTS.md` (Agent Coordination section)
+- Templates: `docs/orchestration/*.template.md`
+- Full workflow: `docs/orchestration/workflow.md`
 
 **Postponed items:** Always record in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
+
+## Quality Gates (Canonical)
+
+**Before merge, verify:**
+- `make verify` green (lint → typecheck → test-fast → diff-cov)
+- diff-cov ≥ 97% (PR-touched lines)
+- Guard tests pass (architectural invariants)
+- Coverage ≥ 97% (total + diff-coverage)
+- Security scans pass (bandit/pip-audit if applicable)
+
+**This is the authoritative checklist.** All templates and workflows reference this section.
 
 ## 0) Golden Rule
 
