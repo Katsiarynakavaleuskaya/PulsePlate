@@ -1,10 +1,10 @@
-# PR-XXX — Priority Mapping (P0-A / P0-B / P1) — links-only
+# PR-573 — Priority Mapping (P0-A / P0-B / P1) — links-only
 
 ## Scope
 - Docs-only, dev-only.
 - Touch files:
   - `docs/orchestration/task_analysis.template.md`
-  - `docs/audit/PR_XXX_PRIORITY_MAPPING_AUDIT.md`
+  - `docs/audit/PR_573_PRIORITY_MAPPING_AUDIT.md`
 - No runtime changes (`app/`, `core/`, `ios/`, `frontend/` untouched).
 - No new definitions, thresholds, or examples.
 
