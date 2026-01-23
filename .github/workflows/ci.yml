@@ -662,8 +662,8 @@ jobs:
 
           # Extract Xcode version for cache key
           XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
-          echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_ENV"
+          echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
           xcodebuild -version
           swift --version
