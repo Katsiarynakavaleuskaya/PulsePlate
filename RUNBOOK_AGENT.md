@@ -33,7 +33,7 @@ The coordinator will:
 6. **Generate brainstorming tasks** for scientific and creative innovation
 
 **Usage:**
-```
+```text
 Use the agent-coordinator subagent to [task description]
 ```
 

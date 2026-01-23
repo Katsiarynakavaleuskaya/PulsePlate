@@ -8,7 +8,7 @@
 
 ## Workflow Overview
 
-```
+```text
 Task
  → Task Analysis
  → Agent Assignment
@@ -86,7 +86,7 @@ Task
 
 **When:** Before PR merge
 
-**Action:** Verify all DoD criteria met
+**Action:** Verify all DoD criteria are met
 
 **Template:** See `docs/orchestration/dod.template.md`
 

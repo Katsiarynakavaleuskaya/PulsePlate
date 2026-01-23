@@ -89,6 +89,8 @@ If your change conflicts with these docs, you must explain why and how risks are
 
 **Postponed items:** Any deferred work MUST be recorded in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
 
+**What counts as a "task":** Any change that may affect behavior, contracts, CI gates, infra, security posture, or process policy. **Trivial edits:** Pure typos/whitespace-only edits may skip coordinator. **Rule of thumb:** If unsure, treat it as a task and start with coordinator.
+
 **Rationale:** Ensures consistent task start, proper agent routing, quality gates, and systematic tracking of postponed work.
 
 ## If you feel lost
