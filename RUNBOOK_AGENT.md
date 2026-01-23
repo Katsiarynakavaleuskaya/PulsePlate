@@ -6,7 +6,17 @@
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
+## Canonical Policy Links
+
+- **Coordinator-first rule + definition of "task":** see `AGENTS.md` (Agent Coordination section)
+- **Quality gates (procedure):** see `RUNBOOK_AGENT.md` (`## Quality Gates (Canonical)`)
+- **Quality gate thresholds / policy:** see `AGENTS.md` (Hard Gates / Coverage rule sections)
+
+---
+
 ## Agent Coordination (Automatic)
+
+> Note: This section describes **operational** steps only. Policy/definitions live in `AGENTS.md`.
 
 **When creating any task, the agent-coordinator should be automatically invoked.**
 
@@ -50,12 +60,11 @@ The coordinator will automatically delegate to specialized agents and synthesize
 
 **Before merge, verify:**
 - `make verify` green (lint → typecheck → test-fast → diff-cov)
-- diff-cov ≥ 97% (PR-touched lines)
 - Guard tests pass (architectural invariants)
-- Coverage ≥ 97% (total + diff-coverage)
-- Security scans pass (bandit/pip-audit if applicable)
+- Coverage / diff-coverage gates pass (see `AGENTS.md` for thresholds)
+- Security scans pass when applicable (see `AGENTS.md` for policy and tools)
 
-**This is the authoritative checklist.** All templates and workflows reference this section.
+**This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
 ## 0) Golden Rule
 
