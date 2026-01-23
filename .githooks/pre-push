@@ -16,6 +16,12 @@ NC='\033[0m' # No Color
 
 echo "Checking for merge conflicts before push..."
 
+# NUL-safe exclude filter (portable across macOS/Linux, no GNU grep -z)
+filter_excluded_nul() {
+  local exclude_re="$1"
+  perl -0777 -pe 's/\0$//s; @f=split(/\0/, $_, -1); @f=grep { $_ !~ /'"$exclude_re"'/ } @f; $_=join("\0", @f)."\0";'
+}
+
 # 1. Check git index for unmerged paths
 unmerged=$(git ls-files -u)
 if [ -n "$unmerged" ]; then
@@ -35,18 +41,13 @@ fi
 # 2. Check for conflict markers in working tree (staged + unstaged)
 # Exclude files that contain conflict-checking code (false positives)
 exclude_files="\.github/workflows/ci\.yml|\.githooks/pre-push|docs/MERGE_CONFLICT_SAFETY_SETUP\.md|\.pre-commit-config\.yaml"
-# NUL-safe pipeline for staged files
-staged_paths="$(
-  git diff --cached --name-only -z 2>/dev/null \
-  | grep -z -vE "$exclude_files" \
-  | tr '\0' '\n' || true
-)"
-conflict_markers=""
-if [ -n "$staged_paths" ]; then
+# NUL-safe pipeline for staged files (portable, no GNU grep -z)
+staged_paths_nul="$(git diff --cached --name-only -z 2>/dev/null || true)"
+if [ -n "$staged_paths_nul" ]; then
     conflict_markers="$(
-      git diff --cached --name-only -z 2>/dev/null \
-      | grep -z -vE "$exclude_files" \
-      | xargs -0 git grep -l '<<<<<<< HEAD\|=======\|>>>>>>>' -- 2>/dev/null || true
+      echo "$staged_paths_nul" \
+      | filter_excluded_nul "$exclude_files" \
+      | xargs -0 git grep -l -E '^(<<<<<<<|=======|>>>>>>>)' -- 2>/dev/null || true
     )"
 fi
 if [ -n "$conflict_markers" ]; then
@@ -60,18 +61,14 @@ if [ -n "$conflict_markers" ]; then
 fi
 
 # Check unstaged files too (exclude conflict-checking code files)
-# NUL-safe pipeline for unstaged files
-unstaged_paths="$(
-  git diff --name-only -z 2>/dev/null \
-  | grep -z -vE "$exclude_files" \
-  | tr '\0' '\n' || true
-)"
+# NUL-safe pipeline for unstaged files (portable, no GNU grep -z)
+unstaged_paths_nul="$(git diff --name-only -z 2>/dev/null || true)"
 conflict_markers_unstaged=""
-if [ -n "$unstaged_paths" ]; then
+if [ -n "$unstaged_paths_nul" ]; then
     conflict_markers_unstaged="$(
-      git diff --name-only -z 2>/dev/null \
-      | grep -z -vE "$exclude_files" \
-      | xargs -0 git grep -l '<<<<<<< HEAD\|=======\|>>>>>>>' -- 2>/dev/null || true
+      echo "$unstaged_paths_nul" \
+      | filter_excluded_nul "$exclude_files" \
+      | xargs -0 git grep -l -E '^(<<<<<<<|=======|>>>>>>>)' -- 2>/dev/null || true
     )"
 fi
 if [ -n "$conflict_markers_unstaged" ]; then
