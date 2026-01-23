@@ -34,12 +34,12 @@ public final class APIClient: APIClientProtocol, Sendable {
 
     private let baseURL: URL
     private let httpClient: HTTPClientProtocol
-    private let makeEncoder: () -> JSONEncoder
+    private let makeEncoder: @Sendable () -> JSONEncoder
 
     public init(
         baseURL: URL,
         httpClient: HTTPClientProtocol = HTTPClient(),
-        makeEncoder: @escaping () -> JSONEncoder = {
+        makeEncoder: @escaping @Sendable () -> JSONEncoder = {
             let encoder = JSONEncoder()
             encoder.keyEncodingStrategy = .convertToSnakeCase
             return encoder
