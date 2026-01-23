@@ -14,7 +14,7 @@
 
 **Priority:** [P0 | P1 | P2]
 
-- **Priority track (P0-A / P0-B / P1):** ____ _(see `AGENTS.md` — Release readiness priorities)_
+- **Priority track (P0-A / P0-B / P1):** ____ _(see [AGENTS.md](../../AGENTS.md) — Release readiness priorities)_
 
 **Expected Outcome:** [What success looks like - specific, measurable]
 
