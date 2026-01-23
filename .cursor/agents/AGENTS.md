@@ -100,7 +100,7 @@ Coordinator enforces project quality gates; see root `AGENTS.md` (policy) and `R
 - Coordinator-first rule: Root `AGENTS.md` (Agent Coordination section)
 - Runbook procedures: `RUNBOOK_AGENT.md` (Agent Coordination section)
 
-**Agent index:** `docs/agents/index.md` (PR-567) - single entry point for agent discovery.
+**Agent index:** `docs/agents/index.md` - single entry point for agent discovery.
 
 ---
 
