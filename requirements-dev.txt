@@ -156,6 +156,7 @@ packaging==25.0
     #   pytest
     #   safety
     #   safety-schemas
+    #   wheel
 pathspec==1.0.3
     # via
     #   black
@@ -304,7 +305,7 @@ urllib3==2.6.3
     # via requests
 virtualenv==20.36.1
     # via pre-commit
-wheel==0.45.1
+wheel==0.46.2
     # via pip-tools
 yamllint==1.38.0
     # via -r requirements-dev.in
