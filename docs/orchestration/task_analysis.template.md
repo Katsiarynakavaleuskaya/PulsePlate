@@ -23,6 +23,12 @@
 - [ ] Contract-First
 - [ ] Other: [specify]
 
+**Domain hints (pick if relevant; links-only):**
+- `core/bmi/*`: One BMI Engine + guards-first (see `AGENTS.md`, `docs/BMI_CANONICAL_HANDOFF.md`)
+- `app/routers/*`: OpenAPI determinism + `response_model` hygiene + import hygiene (see `AGENTS.md`)
+- `frontend/` or `ios/`: thin-client only (no BMI logic on clients; DTO/contract-first) (see `frontend/AGENTS.md`,
+  `ios/AGENTS.md`)
+
 **Risks:**
 1. [Risk description and mitigation]
 
