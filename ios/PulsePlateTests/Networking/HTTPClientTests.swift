@@ -12,6 +12,7 @@ final class HTTPClientTests: XCTestCase {
         override func startLoading() {
             guard let handler = Self.handler else {
                 XCTFail("StubURLProtocol.handler not set")
+                client?.urlProtocol(self, didFailWithError: URLError(.unknown))
                 return
             }
             do {
@@ -75,6 +76,8 @@ final class HTTPClientTests: XCTestCase {
             XCTAssertEqual(detail.detail.count, 1)
             XCTAssertEqual(detail.detail.first?.msg, "Value must be positive")
             XCTAssertEqual(detail.detail.first?.loc, [.string("body"), .string("weight_kg")])
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
         }
     }
 
@@ -115,6 +118,8 @@ final class HTTPClientTests: XCTestCase {
             XCTAssertEqual(detail.detail.count, 1)
             XCTAssertEqual(detail.detail.first?.msg, "Value must be positive")
             XCTAssertEqual(detail.detail.first?.loc, [.string("body"), .string("items"), .int(0), .string("value")])
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
         }
     }
 
@@ -150,6 +155,8 @@ final class HTTPClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 400)
             XCTAssertEqual(message, "Invalid parameters")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
         }
     }
 
@@ -185,6 +192,8 @@ final class HTTPClientTests: XCTestCase {
             }
             XCTAssertEqual(statusCode, 500)
             XCTAssertEqual(message, "BMI calculation failed")
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
         }
     }
 
