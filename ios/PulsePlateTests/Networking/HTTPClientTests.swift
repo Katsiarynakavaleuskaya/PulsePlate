@@ -78,6 +78,46 @@ final class HTTPClientTests: XCTestCase {
         }
     }
 
+    func test_422_decodesValidationErrorResponse_locSupportsInt() async throws {
+        let session = makeSession()
+        let client = HTTPClient(session: session)
+
+        StubURLProtocol.handler = { request in
+            let body = """
+            {
+              "detail": [
+                { "type": "value_error", "loc": ["body","items",0,"value"], "msg": "Value must be positive", "input": -1 }
+              ]
+            }
+            """.data(using: .utf8)!
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 422,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, body)
+        }
+
+        var request = URLRequest(url: URL(string: "https://example.com/api/v1/bmi/calculate")!)
+        request.httpMethod = "POST"
+
+        do {
+            struct Dummy: Decodable {}
+            _ = try await client.send(request, responseType: Dummy.self)
+            XCTFail("Expected to throw")
+        } catch let error as APIError {
+            guard case .validation(let detail) = error else {
+                XCTFail("Expected .validation, got \(error)")
+                return
+            }
+            XCTAssertEqual(detail.detail.count, 1)
+            XCTAssertEqual(detail.detail.first?.msg, "Value must be positive")
+            XCTAssertEqual(detail.detail.first?.loc, [.string("body"), .string("items"), .int(0), .string("value")])
+        }
+    }
+
     func test_400_decodesSimpleErrorResponse() async throws {
         let session = makeSession()
         let client = HTTPClient(session: session)
