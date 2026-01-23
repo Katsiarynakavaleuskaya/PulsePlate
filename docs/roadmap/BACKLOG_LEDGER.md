@@ -200,12 +200,37 @@ If it is not recorded here — it does not exist.
     - Tests updated
     - No code duplication (single HTTP client path)
 
+- [ ] PR-566 (Phase 2): Coordinator cleanup and deduplication
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-566 (after PR-565 merge)
+  - Priority: P1
+  - Reason: agent-coordinator.md currently duplicates full capabilities description for each agent (lines 94-183). Should reference agent files instead of duplicating. Reduces maintenance burden and prevents drift.
+  - Links:
+    - docs/audit/PR_565_DEV_ORCHESTRATOR_AUDIT.md (Improvement 3)
+    - .cursor/agents/agent-coordinator.md
+  - DoD:
+    - Coordinator contains only brief description (1-2 lines) + link to agent file per agent
+    - Full capabilities description remains in agent files only
+    - Coordinator focuses on orchestration, not documentation duplication
+    - No information loss (all details still accessible via links)
+
 ---
 
 ## P2 — Future (Low priority / research)
-- (None currently)
+- [ ] PR-567 (Phase 3): Agent index + model selection rationale
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-567 (after PR-566 merge)
+  - Priority: P2
+  - Reason: No centralized index of all agents. Model selection rationale not documented (different models: gpt-5.2, gpt-5.2-codex, gemini-3-flash, claude-4.5-opus-high-thinking). Would improve discoverability and decision transparency.
+  - Links:
+    - docs/audit/PR_565_DEV_ORCHESTRATOR_AUDIT.md (Improvements 1, 6)
+    - .cursor/agents/*.md
+  - DoD:
+    - docs/agents/index.md created with table: Agent name, Model, Primary capabilities (1-2 lines), Link to .cursor/agents/*.md, When to use
+    - Each agent file contains "Model Selection Rationale" section explaining why that model was chosen
+    - Index linked from coordinator and AGENTS.md
 
 ---
 
-**Last updated:** 2026-01-22 (after PR-560 + PR-561 merge)
+**Last updated:** 2026-01-23 (PR-565: Dev Orchestrator Layer Phase 1)
 **Maintainer:** @katsiaryna_kavaleuskaya
