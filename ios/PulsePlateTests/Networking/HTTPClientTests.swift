@@ -74,7 +74,7 @@ final class HTTPClientTests: XCTestCase {
             }
             XCTAssertEqual(detail.detail.count, 1)
             XCTAssertEqual(detail.detail.first?.msg, "Value must be positive")
-            XCTAssertEqual(detail.detail.first?.loc, ["body", "weight_kg"])
+            XCTAssertEqual(detail.detail.first?.loc, [.string("body"), .string("weight_kg")])
         }
     }
 
