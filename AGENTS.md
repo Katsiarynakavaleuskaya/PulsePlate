@@ -70,7 +70,22 @@ If your change conflicts with these docs, you must explain why and how risks are
 
 **Hard rule:** Any new task MUST start with `agent-coordinator` for task analysis and agent routing.
 
-**Workflow:**
+### Definition of a Task (Canonical)
+
+A **task** is any unit of work that:
+- Affects code, documentation, architecture, security, or process; or
+- Requires a decision, trade-off, or coordination between domains; or
+- May impact quality gates, invariants, or downstream systems.
+
+**Non-tasks (explicitly excluded):**
+- Trivial typo fixes
+- Formatting-only edits (whitespace, line breaks)
+- Local experiments with no intent to commit
+
+**Rule of thumb:** If unsure, treat it as a task and start with coordinator.
+
+### Workflow
+
 1. **Task Analysis** → Coordinator analyzes task, identifies domains, assigns priority
 2. **Agent Assignment** → Coordinator routes to appropriate agent(s) based on capabilities
 3. **Work Review** → Coordinator reviews agent outputs, verifies quality gates
@@ -88,8 +103,6 @@ If your change conflicts with these docs, you must explain why and how risks are
 **Coordinator agent:** `.cursor/agents/agent-coordinator.md`
 
 **Postponed items:** Any deferred work MUST be recorded in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
-
-**What counts as a "task":** Any change that may affect behavior, contracts, CI gates, infra, security posture, or process policy. **Trivial edits:** Pure typos/whitespace-only edits may skip coordinator. **Rule of thumb:** If unsure, treat it as a task and start with coordinator.
 
 **Rationale:** Ensures consistent task start, proper agent routing, quality gates, and systematic tracking of postponed work.
 

@@ -17,9 +17,9 @@
 
 ### Code Quality
 
-- [ ] `make verify` green (lint → typecheck → test-fast → diff-cov ≥97%)
-- [ ] Guard tests pass (architectural invariants)
-- [ ] Coverage ≥97% (total + diff-coverage)
+See canonical Quality Gates: `RUNBOOK_AGENT.md` (Quality Gates section)
+
+- [ ] Quality gates pass (see RUNBOOK_AGENT.md for authoritative checklist)
 - [ ] No dead code added
 
 ### Documentation
