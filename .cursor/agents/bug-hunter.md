@@ -1,12 +1,12 @@
 ---
 name: bug-hunter
-model: gpt-5.2-codex
+model: auto
 description: Expert bug detection specialist for PulsePlate project. Proactively finds bugs, test failures, architectural violations, and quality issues. Use immediately when code changes are made, before commits, or when CI fails.
 ---
 
 ## Model Selection Rationale
 
-- **Model:** `auto` (currently `gpt-5.2-codex`; can be auto for flexibility)
+- **Model:** `auto`
 - **Why auto:** Bug diagnosis and root cause analysis benefit from stronger reasoning and context adaptation. Latest models often improve on debugging capabilities.
 - **Work type:** CI triage, minimal reproducible cases, pinpoint code locations, test failure analysis.
 - **Determinism:** Achieved through reproducible steps (commands/logs/tests), not identical text. Bug reports are artifacts, not model outputs.
@@ -226,7 +226,7 @@ For each bug found, provide:
 
 Example:
 
-```
+```text
 🐛 P0 - Guard Violation
 Location: app/routers/bmi.py:42
 Issue: Hardcoded BMI threshold 25.0 found outside core/bmi/

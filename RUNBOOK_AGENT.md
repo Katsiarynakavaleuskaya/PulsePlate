@@ -9,7 +9,8 @@
 ## Canonical Policy Links
 
 - **Coordinator-first rule + definition of "task":** see `AGENTS.md` (Agent Coordination section)
-- **Quality gates / thresholds (make targets, coverage rules):** see `AGENTS.md` (Quality Gates section)
+- **Quality gates (procedure):** see `RUNBOOK_AGENT.md` (`## Quality Gates (Canonical)`)
+- **Quality gate thresholds / policy:** see `AGENTS.md` (Hard Gates / Coverage rule sections)
 
 ---
 
@@ -59,12 +60,11 @@ The coordinator will automatically delegate to specialized agents and synthesize
 
 **Before merge, verify:**
 - `make verify` green (lint → typecheck → test-fast → diff-cov)
-- diff-cov ≥ 97% (PR-touched lines)
 - Guard tests pass (architectural invariants)
-- Coverage ≥ 97% (total + diff-coverage)
-- Security scans pass (bandit/pip-audit if applicable)
+- Coverage / diff-coverage gates pass (see `AGENTS.md` for thresholds)
+- Security scans pass when applicable (see `AGENTS.md` for policy and tools)
 
-**This is the authoritative checklist.** All templates and workflows reference this section.
+**This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
 ## 0) Golden Rule
 

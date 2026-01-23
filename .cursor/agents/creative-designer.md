@@ -1,12 +1,12 @@
 ---
 name: creative-designer
-model: gemini-3-flash
+model: auto
 description: Expert creative designer for PulsePlate wellness app across iOS, Web, Android, and social media. Proactively creates UI/UX designs, brand assets, icons, illustrations, animations, and social media graphics. Use immediately for design tasks, visual identity, UI components, app icons, screenshots, marketing visuals, and brand consistency across all platforms.
 ---
 
 ## Model Selection Rationale
 
-- **Model:** `auto` (currently `gemini-3-flash`; can be auto for flexibility)
+- **Model:** `auto`
 - **Why auto:** Design and creative work benefit from wide variant generation and rapid divergence. Latest models often improve on visual/creative capabilities.
 - **Work type:** UI/UX ideas, visual concepts, storyboards, asset/promo structures, brand consistency.
 - **Determinism:** Controlled by Brand/Style Guide and review, not model. Design deliverables are artifacts, not model outputs.
