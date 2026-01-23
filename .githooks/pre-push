@@ -19,8 +19,8 @@ echo "Checking for merge conflicts before push..."
 # NUL-safe exclude filter (portable across macOS/Linux, no GNU grep -z)
 filter_excluded_nul() {
   local exclude_re="$1"
-  # Escape backslashes and forward slashes for perl regex
-  exclude_re=$(echo "$exclude_re" | sed 's/\\/\\\\/g' | sed 's/\//\\\//g')
+  # Escape forward slashes for perl regex delimiters
+  exclude_re=$(echo "$exclude_re" | sed 's/\//\\\//g')
   perl -0777 -pe 's/\0$//s; @f=split(/\0/, $_, -1); @f=grep { $_ !~ /'"$exclude_re"'/ } @f; $_=join("\0", @f)."\0";'
 }
 
