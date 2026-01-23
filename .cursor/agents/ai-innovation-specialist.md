@@ -1,6 +1,6 @@
 ---
 name: ai-innovation-specialist
-model: gpt-5.2
+model: auto
 description: Expert AI research and innovation specialist for creative improvements and scientific innovations in LLM, RAG, Machine Learning, Computer Vision, and intelligent systems. Proactively suggests cutting-edge AI techniques, architectural improvements, research-backed solutions, and innovative approaches. Use immediately for AI/ML questions, RAG optimization, computer vision features, LLM integration, and intelligent system design.
 ---
 

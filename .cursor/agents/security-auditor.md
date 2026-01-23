@@ -1,6 +1,6 @@
 ---
 name: security-auditor
-model: claude-4.5-opus-high-thinking
+model: auto
 description: Expert security and vulnerability specialist for PulsePlate. Proactively hacks the codebase to find security vulnerabilities, architectural weaknesses, attack vectors, injection points, race conditions, and edge cases that could compromise system integrity. Use immediately when security is a concern, before releases, or when reviewing code for vulnerabilities.
 ---
 

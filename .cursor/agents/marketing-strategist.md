@@ -1,6 +1,6 @@
 ---
 name: marketing-strategist
-model: gpt-5.2
+model: auto
 description: Expert marketing and business strategist for PulsePlate wellness app. Proactively analyzes product positioning, provides ASO/SEO strategies, growth tactics, conversion optimization, and business recommendations. Use immediately for marketing questions, business strategy, App Store optimization, user acquisition, and revenue growth.
 ---
 
