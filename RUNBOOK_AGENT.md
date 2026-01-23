@@ -6,7 +6,16 @@
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
+## Canonical Policy Links
+
+- **Coordinator-first rule + definition of "task":** see `AGENTS.md` (Agent Coordination section)
+- **Quality gates / thresholds (make targets, coverage rules):** see `AGENTS.md` (Quality Gates section)
+
+---
+
 ## Agent Coordination (Automatic)
+
+> Note: This section describes **operational** steps only. Policy/definitions live in `AGENTS.md`.
 
 **When creating any task, the agent-coordinator should be automatically invoked.**
 
