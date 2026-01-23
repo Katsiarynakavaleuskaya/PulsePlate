@@ -66,6 +66,33 @@ If diff-cover shows uncovered helpers that have zero call sites → **delete the
 
 If your change conflicts with these docs, you must explain why and how risks are mitigated.
 
+## Agent Coordination (Coordinator-First Rule)
+
+**Hard rule:** Any new task MUST start with `agent-coordinator` for task analysis and agent routing.
+
+**Workflow:**
+1. **Task Analysis** → Coordinator analyzes task, identifies domains, assigns priority
+2. **Agent Assignment** → Coordinator routes to appropriate agent(s) based on capabilities
+3. **Work Review** → Coordinator reviews agent outputs, verifies quality gates
+4. **Synthesis** → Coordinator synthesizes multi-agent work into coherent solution
+5. **DoD** → Coordinator verifies Definition of Done before PR merge
+
+**Templates:**
+- Task Analysis: `docs/orchestration/task_analysis.template.md`
+- Work Review: `docs/orchestration/work_review.template.md`
+- Synthesis: `docs/orchestration/synthesis.template.md`
+- DoD: `docs/orchestration/dod.template.md`
+
+**Full workflow:** See `docs/orchestration/workflow.md`
+
+**Coordinator agent:** `.cursor/agents/agent-coordinator.md`
+
+**Postponed items:** Any deferred work MUST be recorded in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
+
+**What counts as a "task":** Any change that may affect behavior, contracts, CI gates, infra, security posture, or process policy. **Trivial edits:** Pure typos/whitespace-only edits may skip coordinator. **Rule of thumb:** If unsure, treat it as a task and start with coordinator.
+
+**Rationale:** Ensures consistent task start, proper agent routing, quality gates, and systematic tracking of postponed work.
+
 ## If you feel lost
 
 Run: `pytest -q tests/test_repo_policy_guards.py` and follow RUNBOOK_AGENT.md section "PR Specific Checks".

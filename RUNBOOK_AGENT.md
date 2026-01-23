@@ -6,6 +6,48 @@
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues.
 **Related:** See root `AGENTS.md` for fast triage commands, `tests/test_repo_policy_guards.py` for enforced rules.
 
+## Agent Coordination (Automatic)
+
+**When creating any task, the agent-coordinator should be automatically invoked.**
+
+**Canonical workflow:** See `docs/orchestration/workflow.md`
+
+**Templates (copy-paste ready):**
+- Task Analysis: `docs/orchestration/task_analysis.template.md`
+- Work Review: `docs/orchestration/work_review.template.md`
+- Synthesis: `docs/orchestration/synthesis.template.md`
+- DoD: `docs/orchestration/dod.template.md`
+
+The coordinator will:
+1. **Analyze the task** and identify which domain(s) it touches
+2. **Route to appropriate agent(s)** based on capabilities:
+   - `ai-innovation-specialist`: AI/ML, RAG, computer vision, research
+   - `architecture-specialist`: Code structure, patterns, invariants
+   - `bug-hunter`: Bugs, tests, quality gates, coverage
+   - `creative-designer`: UI/UX, brand assets, visuals
+   - `marketing-strategist`: ASO, growth, conversion, strategy
+   - `security-auditor`: Vulnerabilities, penetration testing
+3. **Coordinate multi-agent workflows** when tasks span domains
+4. **Synthesize outputs** from multiple agents into coherent solutions
+5. **Provide quality assurance** and final conclusions
+6. **Generate brainstorming tasks** for scientific and creative innovation
+
+**Usage:**
+```text
+Use the agent-coordinator subagent to [task description]
+```
+
+The coordinator will automatically delegate to specialized agents and synthesize their work.
+
+**Starting a new task:**
+1. Use coordinator for Task Analysis (template: `docs/orchestration/task_analysis.template.md`)
+2. Coordinator assigns agent(s) and routes work
+3. After work completes, coordinator reviews (template: `docs/orchestration/work_review.template.md`)
+4. For multi-agent tasks, coordinator synthesizes (template: `docs/orchestration/synthesis.template.md`)
+5. Before PR merge, verify DoD (template: `docs/orchestration/dod.template.md`)
+
+**Postponed items:** Always record in `docs/roadmap/BACKLOG_LEDGER.md` immediately.
+
 ## 0) Golden Rule
 
 Before editing imports / `__init__` / sys.path / sys.modules:
