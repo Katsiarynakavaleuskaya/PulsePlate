@@ -47,7 +47,7 @@ Task
 - **Multi-agent:** Sequential or parallel workflow
 - **Dependencies:** Clear handoff points
 
-**Reference:** See `.cursor/agents/agent-coordinator.md` for agent capabilities mapping
+**Reference:** See `AGENTS.md` for canonical agent coordination rules and links to orchestration templates.
 
 ---
 
@@ -126,4 +126,4 @@ Task
 ---
 
 **Last updated:** 2026-01-23 (PR-565)
-**Related:** `.cursor/agents/agent-coordinator.md`, `AGENTS.md`, `RUNBOOK_AGENT.md`
+**Related:** `AGENTS.md` (Agent Coordination section), `RUNBOOK_AGENT.md` (Quality Gates section)
