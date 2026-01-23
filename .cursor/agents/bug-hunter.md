@@ -72,7 +72,7 @@ pytest -q tests/test_vip_guard_order_403_vs_422.py
 pytest -q tests/test_vip_guard_consistency.py
 
 # All guards at once
-pytest -q tests/test_repo_policy_guards.py
+pytest -q tests/test_*guard*.py
 ```
 
 **If guards fail**: This indicates architectural violations. Fix the root cause, not just the test.
