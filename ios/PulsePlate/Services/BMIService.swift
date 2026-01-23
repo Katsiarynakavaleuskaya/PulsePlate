@@ -137,7 +137,12 @@ public final class DefaultBMIService: LegacyBMIServicing, @unchecked Sendable {
                 throw BMIServiceError.validation(parsed.detail.map { err in
                     BMIServiceError.ValidationError(
                         type: err.type,
-                        loc: err.loc,
+                        loc: err.loc.map { component in
+                            switch component {
+                            case .string(let s): return s
+                            case .int(let i): return String(i)
+                            }
+                        },
                         msg: err.msg,
                         input: nil // Legacy doesn't decode input
                     )
