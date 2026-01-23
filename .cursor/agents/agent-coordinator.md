@@ -1,6 +1,6 @@
 ---
 name: agent-coordinator
-model: gpt-5.2
+model: auto
 description: Master coordinator for all PulsePlate project agents. Proactively orchestrates agent collaboration, assigns tasks based on capabilities, synthesizes multi-agent work, provides quality assurance, and generates brainstorming tasks for scientific and creative innovation. Use immediately when any task is created, when coordinating multiple agents, or when synthesizing complex work across domains.
 ---
 
