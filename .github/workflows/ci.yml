@@ -668,16 +668,6 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Select iOS simulator destination (stable)
-        working-directory: ios
-        id: select-destination
-        env:
-          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
-          # Allow override for testing fallback logic (e.g., PREFERRED_DEVICES="iPhone 99,iPhone 98")
-          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14' }}
-        run: |
-          set -euo pipefail
-
       - name: Cache SwiftPM packages (SourcePackages only, not Build)
         uses: actions/cache@0c45773b623be3e1d6959e0e053df7203e9352e1 # v4.0.4
         id: cache-swiftpm
