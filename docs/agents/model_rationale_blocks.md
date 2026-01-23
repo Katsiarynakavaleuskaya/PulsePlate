@@ -1,10 +1,10 @@
 # Model Selection Rationale Blocks (Ready-to-Insert)
 
-**Purpose:** Copy-paste ready rationale blocks for each agent file.
+**Purpose:** Copy-paste-ready rationale blocks for each agent file.
 
 **Placement:** Insert after frontmatter (after `---`), before main content.
 
-**Format:** 2-4 bullets, no thresholds, no duplication of canonical docs.
+**Format:** 2-5 bullets, no thresholds, no duplication of canonical docs.
 
 ---
 

@@ -48,7 +48,7 @@ You are a senior software architect specializing in the PulsePlate codebase arch
 
 ### Layer Structure
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  Clients (iOS/Web)                                       │
 │  • Thin HTTP adapters only                              │
@@ -123,7 +123,7 @@ See: `docs/architecture/weekly-plan-reference.md`
 
 ### Pattern Structure
 
-```
+```text
 View (SwiftUI)
   ↓ observes @Observable
 ViewModel (@MainActor)
