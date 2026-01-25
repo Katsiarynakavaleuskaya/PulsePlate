@@ -90,6 +90,53 @@ const validateApiBase = () => {
   isApiBaseValidated = true;
 };
 
+/**
+ * Normalize API base + path join to avoid duplicate /api or /api/v1 segments.
+ *
+ * RU: Нормализация join base+path чтобы избежать дублирования /api или /api/v1.
+ * EN: Normalize join of base URL and path to avoid duplicate API segments.
+ *
+ * Examples:
+ * - base: "http://localhost:8000/api/v1", path: "/api/v1/x" => "http://localhost:8000/api/v1/x"
+ * - base: "http://localhost:8000/api", path: "/api/x" => "http://localhost:8000/api/x"
+ * - base: "https://api.test.com", path: "/api/v1/x" => "https://api.test.com/api/v1/x"
+ *
+ * @param base - API base URL (may include /api or /api/v1)
+ * @param apiPath - API path (must start with /api/...)
+ * @returns Normalized URL without duplicate segments
+ */
+export function normalizeApiUrl(base: string, apiPath: string): string {
+  // Ensure apiPath starts with /
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+
+  // Parse base URL to get pathname
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(base);
+  } catch {
+    // If base is not a valid URL, fall back to naive concat
+    return `${base}${path}`;
+  }
+
+  const basePath = baseUrl.pathname.replace(/\/+$/, ''); // Strip trailing slashes
+
+  // Deduplicate /api/v1 if both base and path contain it
+  if (basePath.endsWith('/api/v1') && path.startsWith('/api/v1/')) {
+    baseUrl.pathname = basePath + path.slice('/api/v1'.length);
+    return baseUrl.toString();
+  }
+
+  // Deduplicate /api if both base and path contain it (but not /api/v1)
+  if (basePath.endsWith('/api') && path.startsWith('/api/') && !path.startsWith('/api/v1/')) {
+    baseUrl.pathname = basePath + path.slice('/api'.length);
+    return baseUrl.toString();
+  }
+
+  // No duplication - simple concat (ensure no double slashes)
+  baseUrl.pathname = basePath + path;
+  return baseUrl.toString();
+}
+
 const searchParams = (() => {
   if (typeof window === "undefined" || typeof window.location?.search !== "string") {
     return new URLSearchParams();
