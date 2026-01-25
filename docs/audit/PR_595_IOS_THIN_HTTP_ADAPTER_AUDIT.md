@@ -94,8 +94,21 @@ rg "BMICalculateRequest|BMICalculateResult" ios/
 
 | File | Line | Type | Evidence | Notes |
 |------|------|------|----------|-------|
-| … | … | `URLSession` | `URLSession.shared...` | direct HTTP call |
-| … | … | `APIClient` | `apiClient.request(...)` | OK |
+| `ios/PulsePlate/Networking/APIClient.swift` | 62 | `APIClient` | `var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))` | request build (canonical candidate) |
+| `ios/PulsePlate/Networking/HTTPClient.swift` | 25 | `HTTPClient` | `public init(session: URLSession = .shared)` | URLSession wrapper |
+| `ios/PulsePlate/Models/NutritionData.swift` | 60 | `URLSession` | `try await URLSession.shared.data(for: request)` | direct HTTP call (model-layer) |
+| `ios/PulsePlate/Views/DebugToolsScreen.swift` | 97 | `URLSession` | `try await URLSession.shared.data(from: url)` | direct HTTP call (debug UI) |
+| `ios/PulsePlate/Services/BMIService.swift` | 93 | `URLSession` | `private let session: URLSession` | service owns URLSession |
+| `ios/PulsePlate/Services/BMIService.swift` | 110 | `URLRequest` | `var urlRequest = URLRequest(url: url)` | request build (service) |
+| `ios/PulsePlate/Services/ShoppingListService.swift` | 41 | `URLSession` | `private let session: URLSession` | service owns URLSession |
+| `ios/PulsePlate/Services/ShoppingListService.swift` | 63 | `URLRequest` | `var urlRequest = URLRequest(url: url)` | request build (service) |
+| `ios/PulsePlate/Services/WeeklyPlanService.swift` | 38 | `URLSession` | `private let session: URLSession` | service owns URLSession |
+| `ios/PulsePlate/Services/WeeklyPlanService.swift` | 60 | `URLRequest` | `var urlRequest = URLRequest(url: url)` | request build (service) |
+| `ios/PulsePlateTests/Networking/HTTPClientTests.swift` | 36 | `URLSession` | `private func makeSession() -> URLSession {` | tests create session (expected) |
+| `ios/PulsePlateTests/Networking/HTTPClientTests.swift` | 64 | `URLRequest` | `var request = URLRequest(url: URL(string: \"https://example.com/api/v1/bmi/calculate\")!)` | tests build requests |
+| `ios/PulsePlateTests/WeeklyPlanServiceTransportTests.swift` | 7 | `URLSession` | `let config = URLSessionConfiguration.ephemeral` | tests create session (expected) |
+| `ios/PulsePlateTests/BMI/BMIServiceTests.swift` | 10 | `URLSession` | `let config = URLSessionConfiguration.ephemeral` | tests create session (expected) |
+| `ios/ATS_FIX_GUIDE.md` | 82 | `URLSession` | `try await URLSession.shared.data(from: url)` | documentation example (non-runtime) |
 
 ### Q9. Dual-path networking: какие нарушения “One HTTP Path”?
 
@@ -108,7 +121,7 @@ rg "BMICalculateRequest|BMICalculateResult" ios/
 
 | Library | File(s) | Notes |
 |---------|---------|------|
-| … | … | … |
+| (none) | (n/a) | `rg "Alamofire|AF\." ios/` → **no matches** |
 
 ### Q11. DTO/contract drift (если есть)
 
