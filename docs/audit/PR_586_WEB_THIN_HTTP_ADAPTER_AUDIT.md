@@ -202,11 +202,13 @@ lib/shareFile.ts:108                       - direct fetch()
 lib/sharedLinks.ts:21                      - direct fetch()
 ```
 
-**Action needed:**
-- [ ] Migrate `WeeklyPlanViewer.tsx` to use `api()` or dedicated endpoint
+**Remediation (PR-587):**
+- [ ] Migrate `WeeklyPlanViewer.tsx` to use `api()`
 - [ ] Migrate `ShoplistPreview.tsx` to use `api()`
 - [ ] Migrate `shareFile.ts` to use `api()`
 - [ ] Migrate `sharedLinks.ts` to use `api()`
+
+**Note:** Migrations tracked in PR-587, not this PR (guards-first pattern)
 
 #### Q2.5 Can `rg fetch\(` return only one module?
 
@@ -227,19 +229,16 @@ lib/sharedLinks.ts:21                      - direct fetch()
 | Guard | Status | Location |
 |-------|--------|----------|
 | ESLint rule | ❌ Not implemented | — |
-| Grep-based test | ❌ Not implemented | — |
-| CI job | ❌ Not implemented | — |
+| Grep-based test | ✅ **Implemented** | `frontend/src/api/__tests__/thin-client-guards.test.ts` |
+| CI job | ⚠️ Runs via pre-commit | Pre-commit hook runs tests |
 
-**Action needed:**
-
-- [ ] Add guard test similar to iOS `ThinClientGuardsTests`
-- [ ] Add to CI pipeline
+**Status:** ✅ Guard tests implemented (expected-red due to 4 direct fetch violations)
 
 #### Q3.3 Forbidden patterns documented?
 
-**Answer:** ⚠️ Partially — in `AGENTS.md` but not in `frontend/AGENTS.md`
+**Answer:** ✅ Documented in both `AGENTS.md` and `frontend/AGENTS.md`
 
-**Action needed:** [ ] Update `frontend/AGENTS.md` with thin-client policy
+**Status:** ✅ `frontend/AGENTS.md` updated with thin-client policy (hard rule)
 
 ---
 
@@ -289,9 +288,14 @@ lib/sharedLinks.ts:21                      - direct fetch()
 
 #### Q6.2 Tests that forbid BMI logic?
 
-**Answer:** ❌ Not implemented
+**Answer:** ✅ **Implemented** — `thin-client-guards.test.ts`
 
-**Action needed:** [ ] Add guard tests (like iOS ThinClientGuardsTests)
+| Test | Status |
+|------|--------|
+| BMI thresholds/logic scan | ✅ PASS (no violations) |
+| Direct fetch scan | 🔴 FAIL (4 violations — expected) |
+
+**Status:** Guard tests work correctly — PR-587 will fix violations
 
 #### Q6.3 Tests don't "know" business meaning?
 
@@ -303,13 +307,15 @@ lib/sharedLinks.ts:21                      - direct fetch()
 
 #### Q7.1 CI step that fails on thin-policy violation?
 
-**Answer:** ❌ Not implemented
+**Answer:** ✅ Vitest runs guard tests → CI fails on violations
 
-**Action needed:** [ ] Add CI grep/lint step for forbidden patterns
+- Pre-commit hook runs `thin-client-guards.test.ts`
+- PR-586 is expected-red (guards detect violations)
+- PR-587 will make guards green
 
 #### Q7.2 Documented in frontend/AGENTS.md?
 
-**Answer:** ⚠️ Partial — needs update
+**Answer:** ✅ Updated — `frontend/AGENTS.md` contains thin-client policy (hard rule)
 
 ---
 
