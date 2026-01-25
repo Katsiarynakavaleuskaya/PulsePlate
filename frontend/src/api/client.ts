@@ -135,7 +135,7 @@ export function normalizeApiUrl(base: string, apiPath: string): string {
   if (
     basePath.endsWith("/api") &&
     !basePath.endsWith("/api/v1") &&
-    (path === "/api" || (path.startsWith("/api/") && !path.startsWith("/api/v1")))
+    (path === "/api" || (path.startsWith("/api/") && !path.startsWith("/api/v1/")))
   ) {
     baseUrl.pathname = basePath + path.slice("/api".length);
     return baseUrl.toString();

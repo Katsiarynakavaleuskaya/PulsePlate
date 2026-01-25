@@ -54,6 +54,15 @@ describe('normalizeApiUrl', () => {
         'http://localhost:8000/api/api/v1/files/x'
       );
     });
+
+    it('should deduplicate /api when path has /api/v10 (not /api/v1)', () => {
+      // Cubic fix: /api/v10 is NOT /api/v1, so dedup SHOULD happen
+      const base = 'http://localhost:8000/api';
+      const path = '/api/v10/users';
+      expect(normalizeApiUrl(base, path)).toBe(
+        'http://localhost:8000/api/v10/users'
+      );
+    });
   });
 
   describe('no deduplication when base does not contain /api', () => {
