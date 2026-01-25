@@ -2,6 +2,12 @@ import Foundation
 
 /// Protocol for API client (enables testing via dependency injection).
 public protocol APIClientProtocol: Sendable {
+    func postRaw<Response: Decodable>(
+        path: String,
+        body: Data,
+        headers: [String: String]
+    ) async throws -> Response
+
     func post<Response: Decodable, Body: Encodable>(
         path: String,
         body: Body,
@@ -15,6 +21,14 @@ public protocol APIClientProtocol: Sendable {
 }
 
 extension APIClientProtocol {
+    /// Convenience method with default empty headers.
+    public func postRaw<Response: Decodable>(
+        path: String,
+        body: Data
+    ) async throws -> Response {
+        try await postRaw(path: path, body: body, headers: [:])
+    }
+
     /// Convenience method with default empty headers.
     public func post<Response: Decodable, Body: Encodable>(
         path: String,
@@ -84,6 +98,28 @@ public final class APIClient: APIClientProtocol, Sendable {
             throw APIError.encodingFailed("Failed to encode request body: \(error.localizedDescription)")
         }
 
+        return try await httpClient.send(request, responseType: Response.self)
+    }
+
+    public func postRaw<Response: Decodable>(
+        path: String,
+        body: Data,
+        headers: [String: String]
+    ) async throws -> Response {
+        // IMPORTANT:
+        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
+        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
+        let normalizedPath = path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        headers.forEach { key, value in
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        request.httpBody = body
         return try await httpClient.send(request, responseType: Response.self)
     }
 

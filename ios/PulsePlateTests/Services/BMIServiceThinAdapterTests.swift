@@ -9,6 +9,15 @@ final class BMIServiceThinAdapterTests: XCTestCase {
         var lastPath: String?
         var lastBody: BMICalculateRequestDTO?
 
+        func postRaw<Response: Decodable>(
+            path: String,
+            body: Data,
+            headers: [String: String]
+        ) async throws -> Response {
+            // This fake is used only for BMIService POST tests.
+            throw APIError.api(statusCode: 500, message: "FakeAPIClient.postRaw not implemented")
+        }
+
         func post<Response: Decodable, Body: Encodable>(
             path: String,
             body: Body,
