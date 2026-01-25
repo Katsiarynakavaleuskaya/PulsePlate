@@ -140,7 +140,11 @@ describe("shareFile", () => {
 
     await shareFile("https://example.com/file.bin", "export.bin", "Native Share");
 
-    expect(global.fetch).toHaveBeenCalled();
+    // Security: verify external URL called with credentials: 'omit'
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://example.com/file.bin",
+      expect.objectContaining({ credentials: "omit" })
+    );
     expect(writeFileMock).toHaveBeenCalledWith({
       path: expectedPath,
       data: expect.any(String),

@@ -97,4 +97,22 @@ describe('normalizeApiUrl', () => {
       expect(normalizeApiUrl(base, path)).toBe('not-a-url/api/v1/test');
     });
   });
+
+  describe('Sourcery edge cases: bare /api and /api/v1 paths', () => {
+    it('should deduplicate when base has /api/v1/ and path is /api/v1', () => {
+      expect(normalizeApiUrl('http://x/api/v1/', '/api/v1')).toBe('http://x/api/v1/');
+    });
+
+    it('should deduplicate when base has /api/v1 and path is /api/v1', () => {
+      expect(normalizeApiUrl('http://x/api/v1', '/api/v1')).toBe('http://x/api/v1/');
+    });
+
+    it('should deduplicate when base has /api/ and path is /api', () => {
+      expect(normalizeApiUrl('http://x/api/', '/api')).toBe('http://x/api/');
+    });
+
+    it('should deduplicate when base has /api and path is /api', () => {
+      expect(normalizeApiUrl('http://x/api', '/api')).toBe('http://x/api/');
+    });
+  });
 });

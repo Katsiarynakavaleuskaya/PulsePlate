@@ -50,7 +50,8 @@ async function downloadSignedFile(url: string, filename: string): Promise<void> 
   anchor.click();
   anchor.remove();
   // Delay revocation to ensure download starts
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+  // Delay revocation to ensure download completes (consistent with ShoplistPreview)
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
 type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];

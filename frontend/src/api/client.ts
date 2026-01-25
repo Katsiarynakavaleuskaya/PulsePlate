@@ -107,7 +107,11 @@ const validateApiBase = () => {
  */
 export function normalizeApiUrl(base: string, apiPath: string): string {
   // Ensure apiPath starts with /
-  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+  const rawPath = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+
+  // Normalize bare /api and /api/v1 paths to have trailing slash
+  // This ensures deduplication works for edge cases like path="/api/v1" (no trailing content)
+  const path = (rawPath === '/api' || rawPath === '/api/v1') ? `${rawPath}/` : rawPath;
 
   // Parse base URL to get pathname
   let baseUrl: URL;

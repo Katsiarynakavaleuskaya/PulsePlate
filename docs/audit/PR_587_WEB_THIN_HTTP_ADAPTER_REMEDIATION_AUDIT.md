@@ -182,7 +182,7 @@ rg -n "\bfetch\s*\(" frontend/src --type ts | grep -v client.ts | grep -v .test.
 
 | File | Change |
 |------|--------|
-| `frontend/src/api/client.ts` | +`classifyUrl()`, +`fetchBlob()` |
+| `frontend/src/api/client.ts` | +`classifyUrl()`, +`normalizeApiUrl()`, +`fetchBlob()` |
 | `frontend/src/lib/sharedLinks.ts` | `fetch()` → `api()` |
 | `frontend/src/lib/shareFile.ts` | `fetch()` → `fetchBlob()` |
 | `frontend/src/features/shoplist/ShoplistPreview.tsx` | `fetch()` → `fetchBlob()` |
@@ -217,7 +217,7 @@ export async function fetchBlob(
 ### Tests & Verification
 - [x] `shareFile.test.ts` mocks updated
 - [x] `client.fetchBlob.test.ts` — security contract tests (4 tests)
-- [x] `npm test` passes (515 tests green)
+- [x] `npm test` passes (530 tests green)
 - [x] `rg fetch\(` → only `client.ts`
 - [ ] CI green (awaiting)
 
