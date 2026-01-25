@@ -27,7 +27,9 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
     }
 
     private func makeDecoder() -> JSONDecoder {
-        JSONDecoder()
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
     }
 
     public func send<T: Decodable>(
