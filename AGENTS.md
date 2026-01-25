@@ -400,6 +400,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - **Enforcement:** Code review + grep for `URLSession.shared.data(for:)` or custom HTTP clients
 - **Migration:** Existing services (ShoppingListService, WeeklyPlanService) must migrate to `APIClient` — tracked in `BACKLOG_LEDGER.md` (P1 item)
 
+**External URL security (hard rule):**
+
+- ❌ **Forbidden:** Sending API credentials (headers or cookies) to external URLs
+- ✅ **Required:** External fetch MUST omit credentials and strip auth headers
+- **Enforcement (Web):** Unit test `client.fetchBlob.test.ts` verifies `credentials: 'omit'` and header stripping
+- **Rationale:** Signed URLs contain auth token in query; sending API key to external domain = credential leak
+- **Implementation:** `fetchBlob()` in `frontend/src/api/client.ts` with URL classification (`/api/...` vs `https://...`)
+
 **See:**
 
 - `ios/AGENTS.md` — iOS Thin Client Policy (detailed)
