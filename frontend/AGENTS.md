@@ -17,6 +17,49 @@
 - OpenAPI types are generated from `src/api/openapi.json` into `src/api/schema.ts`.
 - Keep UI changes in sync with backend schema updates.
 
+## Thin HTTP Adapter Policy (Hard Rule)
+
+**Invariant:** Web client must be a **thin adapter only** — zero business logic, only transport/contract/UX.
+
+### Forbidden on Web client
+
+- ❌ Any BMI/waist/risk calculation formulas (thresholds, categories, interpretations)
+- ❌ Any business logic that duplicates backend domain rules
+- ❌ Any "smart" inference or computation from API responses (only display as-is)
+- ❌ Hand-written DTOs not aligned with OpenAPI schemas
+- ❌ Direct `fetch()` calls outside `src/api/client.ts`
+
+### Allowed on Web client
+
+- ✅ HTTP transport layer (`api()` function in `src/api/client.ts`)
+- ✅ Error envelope mapping (401/403 → redirect, pass through others)
+- ✅ i18n localization of backend-provided keys
+- ✅ UI formatting (number display, date formatting — not recalculation)
+- ✅ Conditional rendering based on API response fields (UI logic, not computation)
+- ✅ OpenAPI-generated types from `src/api/schema.ts`
+
+### Forbidden patterns (grep targets)
+
+```
+18.5, 24.9, 25.0, 30.0        # BMI thresholds
+if (bmi < ...), bmi > ...     # BMI comparisons
+category =, risk =            # Category/risk assignments
+calculateBMI, computeBMI      # Local BMI functions
+```
+
+### Enforcement
+
+- Guard tests: `src/api/__tests__/thin-client-guards.test.ts`
+- CI: Grep for forbidden patterns in `frontend/src/`
+- Code review: Check for BMI logic before merge
+
+**Links:**
+- Root policy: `AGENTS.md` (Thin HTTP Adapter Policy)
+- iOS equivalent: `ios/AGENTS.md` (iOS Thin Client Policy)
+- Audit: `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md`
+
+---
+
 ## Contracts & Types policy (OpenAPI)
 
 **Canonical source:** See root `AGENTS.md` section "OpenAPI generation (determinism requirement)" for full policy.
