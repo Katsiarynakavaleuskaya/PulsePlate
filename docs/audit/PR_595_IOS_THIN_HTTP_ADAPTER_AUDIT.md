@@ -112,10 +112,21 @@ rg "BMICalculateRequest|BMICalculateResult" ios/
 
 ### Q9. Dual-path networking: какие нарушения “One HTTP Path”?
 
-**Violations (examples; replace with facts):**
-- `ViewModel → URLSession` ❌
-- `Service → URLSession` ❌
-- `Service → APIClient` ✅
+**Observed transports (caller → transport):**
+- `ios/PulsePlate/Services/BMIService.swift:30 → APIClientProtocol.post(...)` ✅
+- `ios/PulsePlate/Services/BMIService.swift:126 → URLSession.data(for: urlRequest)` ❌ (`DefaultBMIService`, legacy shim)
+- `ios/PulsePlate/Services/ShoppingListService.swift:77 → URLSession.data(for: urlRequest)` ❌ (`DefaultShoppingListService`)
+- `ios/PulsePlate/Services/WeeklyPlanService.swift:74 → URLSession.data(for: urlRequest)` ❌ (`DefaultWeeklyPlanService`)
+- `ios/PulsePlate/Models/NutritionData.swift:60 → URLSession.shared.data(for: request)` ❌ (`NutritionService`)
+- `ios/PulsePlate/Views/DebugToolsScreen.swift:97 → URLSession.shared.data(from: url)` ❌
+- `ios/PulsePlate/Networking/APIClient.swift:77 → httpClient.send(request, responseType: ...)` ⚠️ (`APIClient` delegates transport)
+- `ios/PulsePlate/Networking/APIClient.swift:41 → HTTPClient()` ⚠️ (`APIClient` default transport dependency)
+- `ios/PulsePlate/Networking/HTTPClient.swift:25 → init(session: URLSession = .shared)` ⚠️ (`HTTPClient` wraps URLSession)
+
+**Dual-path факт (strict):**
+- В runtime коде одновременно присутствуют:
+  - путь **через `APIClient`** (delegates to `HTTPClient`)
+  - путь **в обход `APIClient`** (прямые вызовы `URLSession.shared` и `Default*Service` на `URLSession`)
 
 ### Q10. Third-party HTTP clients (если есть)
 
