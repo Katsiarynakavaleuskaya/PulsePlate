@@ -23,24 +23,30 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-560
   - Status: ✅ Merged
+  - Reason: iOS CI stability fixes (simulator selection, Xcode pinning)
   - Links:
     - docs/CONTEXT_HANDOFF_2026-01-21.md
+  - DoD: ✅ Completed (iOS CI stable)
 
 - [x] PR-561 Trivy suppression (CVE-2025-15281 glibc) (merged 2026-01-21)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-561
   - Status: ✅ Merged
+  - Reason: Security suppression for unfixed upstream glibc CVE
   - Links:
     - docs/security/CVE-2025-15281-glibc.md
     - trivy/ignore-policy.rego
+  - DoD: ✅ Completed (suppression with expiry date)
 
 - [x] PR-563 Thin HTTP Adapter (iOS) — merged 2026-01-21
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-563
   - Status: ✅ Merged
+  - Reason: unified thin transport layer for iOS client (no business logic)
   - Links:
     - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
+  - DoD: ✅ Completed (iOS HTTPClient/APIClient/BMIService implemented)
 
 - [ ] Thin HTTP Adapter (Web)
   - Owner: @katsiaryna_kavaleuskaya

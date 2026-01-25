@@ -1,8 +1,9 @@
 # PR-585 — Backlog Sweep Audit
 
 **Date:** 2026-01-25
-**Branch:** `main`
-**CI:** ✅ green
+**Target branch:** `main`
+**Source branch:** `docs/pr-585-backlog-sweep`
+**CI:** ✅ green (docs-only)
 **Author:** @katsiaryna_kavaleuskaya
 
 ## Purpose
@@ -38,7 +39,7 @@ Systematic inventory of all technical debt, skips, TODOs, policy exceptions, and
 
 ### A2. Tech Debt Markers (TODO/FIXME/HACK)
 
-**Backend (P1 — actionable):**
+**Backend (P1/P2 — mixed priorities):**
 
 | File:Line | Content | Priority | Target PR |
 |-----------|---------|----------|-----------|
@@ -125,7 +126,7 @@ Systematic inventory of all technical debt, skips, TODOs, policy exceptions, and
 
 | Category | Count | P0 | P1 | P2 |
 |----------|-------|----|----|----|
-| Test skips/xfail | 15 | 0 | 5 | 10 |
+| Test skips/xfails | 15 | 0 | 5 | 10 |
 | Tech debt TODOs | 12 | 0 | 4 | 8 |
 | Security suppressions | 27 | 0 | 2 (expiry) | 25 |
 | Deprecated endpoints | 4 | 0 | 0 | 4 |
@@ -145,7 +146,7 @@ Systematic inventory of all technical debt, skips, TODOs, policy exceptions, and
 ## Verification Commands
 
 ```bash
-# Test skips/xfail
+# Test skips/xfails
 rg -n "@pytest\.mark\.(skip|xfail)" tests/
 
 # TODO/FIXME
