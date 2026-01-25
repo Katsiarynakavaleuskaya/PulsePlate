@@ -34,32 +34,21 @@ If it is not recorded here — it does not exist.
     - docs/security/CVE-2025-15281-glibc.md
     - trivy/ignore-policy.rego
 
-- [ ] PR-563 Thin HTTP Adapter (iOS)
+- [x] PR-563 Thin HTTP Adapter (iOS) — merged 2026-01-21
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-563 (supersedes PR-562, which was closed due to merge conflicts)
-  - Status: 🔄 In Review (awaiting merge)
-  - Reason: unified thin transport layer for iOS client (no business logic)
+  - Target PR: PR-563
+  - Status: ✅ Merged
   - Links:
-    - docs/CONTEXT_HANDOFF_2026-01-21.md
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
-  - DoD:
-    - ✅ iOS: HTTPClient/APIClient/BMIService implemented (transport only)
-    - ✅ No BMI/waist/risk logic on clients (grep policy / guard tests)
-    - ✅ Unit tests green (10 tests: HTTPClient, APIClient, BMIService)
-    - ✅ DTOs aligned with backend OpenAPI schemas
-    - ✅ Error envelope mapping implemented (422 vs 400/500)
-    - ✅ AGENTS.md updated (thin client policy)
-    - ✅ Merge conflict safety guards added (3 levels)
-    - ⏳ CI green (awaiting CI run)
 
-- [ ] PR-564 Thin HTTP Adapter (Web)
+- [ ] Thin HTTP Adapter (Web)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-564 (TBD, after PR-563 merge)
+  - Target PR: TBD (PR-586+)
+  - Status: 🔴 Not started
   - Reason: unified thin transport layer for Web client (no business logic)
   - Links:
-    - docs/CONTEXT_HANDOFF_2026-01-21.md
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
   - DoD:
     - Web: thin fetch wrapper + BMI API client (transport only)
     - No BMI/waist/risk logic on clients (grep policy / guard tests)
@@ -200,37 +189,153 @@ If it is not recorded here — it does not exist.
     - Tests updated
     - No code duplication (single HTTP client path)
 
-- [ ] PR-566 (Phase 2): Coordinator cleanup and deduplication
+- [x] PR-566 (Phase 2): Coordinator cleanup and deduplication — merged
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-566 (after PR-565 merge)
-  - Priority: P1
-  - Reason: agent-coordinator.md currently duplicates full capabilities description for each agent (lines 94-183). Should reference agent files instead of duplicating. Reduces maintenance burden and prevents drift.
+  - Target PR: PR-566
+  - Status: ✅ Merged
   - Links:
-    - docs/audit/PR_565_DEV_ORCHESTRATOR_AUDIT.md (Improvement 3)
-    - .cursor/agents/agent-coordinator.md
+    - docs/audit/PR_566_COORDINATOR_CLEANUP_AUDIT.md
+
+- [ ] Fix test skips/xfails (batch)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (separate PRs per fix, post PR-585 inventory)
+  - Priority: P1
+  - Area: backend / tests
+  - Finding Type: skip/xfail
+  - Locations:
+    - `tests/test_bmi_visualization.py:523` — xfail (test isolation issue)
+    - `tests/test_app_branching_and_errors.py:185` — xfail (module reload)
+    - `tests/test_repo_policy_guards.py:85` — skip (sys.modules cleanup)
+  - Reason: Technical debt from remediation; tests disabled to unblock CI
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md
   - DoD:
-    - Coordinator contains only brief description (1-2 lines) + link to agent file per agent
-    - Full capabilities description remains in agent files only
-    - Coordinator focuses on orchestration, not documentation duplication
-    - No information loss (all details still accessible via links)
+    - Each xfail/skip either fixed or removed (if obsolete)
+    - Tests pass without xfail markers
+    - CI green
+
+- [ ] NutritionData.swift: migrate to APIClient (iOS thin-client violation)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (post PR-563)
+  - Priority: P1
+  - Area: iOS
+  - Finding Type: thin-client violation
+  - Location: `ios/PulsePlate/Models/NutritionData.swift:60`
+  - Reason: Uses `URLSession.shared.data` directly instead of APIClient
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+  - DoD:
+    - NutritionData uses APIClient (not direct URLSession)
+    - Consistent error handling via APIError
+    - No dual-path networking
+
+- [ ] API Tiers database lookup implementation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P1
+  - Area: backend
+  - Finding Type: TODO/FIXME
+  - Locations:
+    - `app/middleware/api_tiers.py:146` — TODO: Implement database lookup for production
+    - `app/middleware/api_tiers.py:284` — TODO: Implement database lookup
+  - Reason: Currently uses env-based tier detection; needs DB lookup for production
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+  - DoD:
+    - Database lookup implemented when SUBSCRIPTION_DB_ENABLED=true
+    - Fallback to env-based detection when DB unavailable
+    - Tests cover both paths
+
+- [ ] Security suppression expiry monitoring
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: N/A (ongoing)
+  - Priority: P1
+  - Area: security
+  - Finding Type: policy exception
+  - Locations:
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-03-01
+    - `.trivyignore` — CVE-2026-0861 expires: 2026-03-01
+  - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
+  - Links:
+    - docs/security/CVE-2026-0861-glibc.md
+    - docs/security/CVE-2025-15281-glibc.md
+  - DoD:
+    - Weekly monitoring for upstream fixes
+    - Remove suppressions when fixed versions available
+    - Update base image when fixes land
 
 ---
 
 ## P2 — Future (Low priority / research)
-- [ ] PR-567 (Phase 3): Agent index + model selection rationale
+
+- [ ] Test skips cleanup (low priority batch)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-567 (after PR-566 merge)
+  - Target PR: TBD
   - Priority: P2
-  - Reason: No centralized index of all agents. Model selection rationale not documented (different models: gpt-5.2, gpt-5.2-codex, gemini-3-flash, claude-4.5-opus-high-thinking). Would improve discoverability and decision transparency.
+  - Area: backend / tests
+  - Finding Type: skip/xfail
+  - Locations:
+    - `tests/test_level_es.py:13` — pytestmark skip (investigate)
+    - `tests/test_app_coverage_unit_combined.py:81,86` — skip (interpret_group/estimate_level removed)
+    - `tests/test_app_plate_helpers.py:145` — xfail (investigate)
+    - `tests/test_update_manager_fixed.py:129` — skip (path attribute issues)
+    - `tests/test_food_apis_coverage_errors.py:303,331,351,396,416,437` — 6x skip (mock issues)
+  - Reason: Lower priority; tests for removed/legacy functionality
   - Links:
-    - docs/audit/PR_565_DEV_ORCHESTRATOR_AUDIT.md (Improvements 1, 6)
-    - .cursor/agents/*.md
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
   - DoD:
-    - docs/agents/index.md created with table: Agent name, Model, Primary capabilities (1-2 lines), Link to .cursor/agents/*.md, When to use
-    - Each agent file contains "Model Selection Rationale" section explaining why that model was chosen
-    - Index linked from coordinator and AGENTS.md
+    - Each test either fixed, updated, or removed if obsolete
+    - No unexplained skips remain
+
+- [ ] Backend TODO cleanup (i18n, telemetry)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: backend
+  - Finding Type: TODO/FIXME
+  - Locations:
+    - `core/business_bayesian_analyzer.py:145,1067` — TODO: telemetry/metrics
+    - `legacy_app.py:1985` — TODO: Read version from pyproject.toml
+    - `app/routers/premium_week.py:97,127` — TODO: i18n support
+    - `app/routers/pro.py:152,182,529,537` — TODO: i18n, dedup, meal logging
+  - Reason: Polish/improvement items, not blocking
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+  - DoD:
+    - TODOs addressed or converted to tracked issues
+    - No stale TODOs without tracking
+
+- [ ] Deprecated endpoint cleanup (post-migration)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (v2.0 timeline)
+  - Priority: P2
+  - Area: backend / API
+  - Finding Type: deprecated/alias
+  - Locations:
+    - `app/routers/bmi_pro.py:158` — deprecated POST /api/v1/pro/bmi
+    - `app/routers/bmi_pro_legacy_alias.py` — deprecated /api/v1/bmi/pro
+    - `app/routers/premium_week.py:179` — deprecated /api/v1/premium/plan/week-flexible
+    - `app/routers/vip.py:706` — deprecated legacy VIP endpoint
+  - Reason: Legacy aliases; remove after client migration complete
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/contracts/PRODUCT_TIER_MAP.md
+  - DoD:
+    - All clients migrated to canonical endpoints
+    - Deprecated endpoints removed
+    - OpenAPI updated (no deprecated paths)
+
+- [x] PR-570 (Phase 3): Agent index + model selection rationale — merged
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-570
+  - Status: ✅ Merged
+  - Links:
+    - docs/audit/PR_567_AGENT_INDEX_AUDIT.md
+    - docs/agents/index.md
 
 ---
 
-**Last updated:** 2026-01-23 (PR-565: Dev Orchestrator Layer Phase 1)
+**Last updated:** 2026-01-25 (PR-585: Backlog Sweep Audit — inventory complete)
 **Maintainer:** @katsiaryna_kavaleuskaya
