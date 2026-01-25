@@ -22,6 +22,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isLineInComment, stripInlineComments } from '../thinClientGuardUtils';
 
 // Directories to scan (relative to frontend/src)
 const SCAN_DIRS = ['api', 'pages', 'components', 'features', 'hooks', 'lib'];
@@ -162,75 +163,8 @@ function collectSourceFiles(srcDir: string, scanDirs: string[]): SourceFile[] {
   return sourceFiles;
 }
 
-/**
- * Check if a line is inside a comment (handles block comments)
- * FIX A: Proper block comment handling
- */
-function isLineInComment(
-  line: string,
-  inBlockComment: boolean
-): { skip: boolean; newBlockCommentState: boolean } {
-  const trimmed = line.trim();
-
-  // If we're in a block comment, check if it ends on this line
-  if (inBlockComment) {
-    if (trimmed.includes('*/')) {
-      // Block comment ends on this line - check if there's code after
-      const afterClose = trimmed.substring(trimmed.indexOf('*/') + 2).trim();
-      // If there's no code after the close, skip this line
-      // Otherwise, we need to process the code after
-      if (!afterClose) {
-        return { skip: true, newBlockCommentState: false };
-      }
-      // There's code after - don't skip, but block comment is closed
-      return { skip: false, newBlockCommentState: false };
-    }
-    // Still in block comment
-    return { skip: true, newBlockCommentState: true };
-  }
-
-  // Not in block comment - check for new block comment start
-  if (trimmed.startsWith('/*')) {
-    // Check if block comment closes on same line
-    if (trimmed.includes('*/')) {
-      // Single-line block comment - skip this line
-      return { skip: true, newBlockCommentState: false };
-    }
-    // Block comment starts but doesn't close
-    return { skip: true, newBlockCommentState: true };
-  }
-
-  // Single-line comment
-  if (trimmed.startsWith('//')) {
-    return { skip: true, newBlockCommentState: false };
-  }
-
-  // JSDoc/block comment continuation: only skip `*` lines when INSIDE a block comment
-  // Cubic fix: `* height` in multiline expression should NOT be skipped
-  // Note: we're NOT in block comment here (handled above), so `*` is code, not comment
-
-  // Not a comment
-  return { skip: false, newBlockCommentState: false };
-}
-
-/**
- * Strip inline comments from a line for pattern matching
- * CodeRabbit fix: avoid false positives from comments after code
- */
-function stripInlineComments(line: string): string {
-  const lineCommentIdx = line.indexOf('//');
-  const blockCommentIdx = line.indexOf('/*');
-  let cutPoint = line.length;
-
-  if (lineCommentIdx !== -1) {
-    cutPoint = Math.min(cutPoint, lineCommentIdx);
-  }
-  if (blockCommentIdx !== -1) {
-    cutPoint = Math.min(cutPoint, blockCommentIdx);
-  }
-
-  return line.slice(0, cutPoint);
-}
+// Helper functions (isLineInComment, stripInlineComments) are imported from thinClientGuardUtils.ts
+// See thinClientGuardUtils.test.ts for unit tests on these helpers
 
 /**
  * Check if file is the canonical client.ts (allowed to use fetch)

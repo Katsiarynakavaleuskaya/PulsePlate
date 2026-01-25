@@ -30,13 +30,6 @@
 
 ### Quick checks
 
-```bash
-# All fetch() calls must be in client.ts only
-rg "fetch\(" frontend/src -g'*.ts' -g'*.tsx' | grep -v client.ts | grep -v __tests__
-
-# Run guard tests
-npm test -- --run src/api/__tests__/thin-client-guards.test.ts
-```
 
 **Links:**
 - Root policy: `AGENTS.md` (Thin HTTP Adapter Policy)
