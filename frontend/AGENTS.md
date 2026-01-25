@@ -40,7 +40,7 @@
 
 ### Forbidden patterns (grep targets)
 
-```
+```text
 18.5, 24.9, 25.0, 30.0        # BMI thresholds
 if (bmi < ...), bmi > ...     # BMI comparisons
 category =, risk =            # Category/risk assignments

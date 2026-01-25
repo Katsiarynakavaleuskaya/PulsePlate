@@ -387,10 +387,14 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 - Web: TypeScript types from OpenAPI (prevents manual DTO drift)
 - Code review: grep for forbidden patterns (BMI math, threshold literals, category inference)
 
-**Guard PRs:**
+**Guard PRs and expected-red workflow:**
 
-- PR-586: Web guards introduced (expected-red — violations detected)
-- PR-587: Web remediation (fixes 4 direct fetch violations)
+Some guard PRs are intentionally **expected-red** to expose real policy violations.
+Remediation must happen in a follow-up remediation PR.
+
+Source of truth:
+- Audit docs: `docs/audit/*`
+- Canonical backlog: `docs/roadmap/BACKLOG_LEDGER.md`
 
 **DTO contract rules:**
 

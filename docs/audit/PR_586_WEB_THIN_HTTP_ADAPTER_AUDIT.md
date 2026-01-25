@@ -12,11 +12,15 @@
 
 **This PR is intentionally expected-red.**
 
-- Guard tests (`thin-client-guards.test.ts`) detect **4 direct fetch() violations**
-- This is the "policy enforcement" pattern: guards first → remediation in PR-587
-- **Do not fix violations in this PR** — PR-587 handles remediation
+**Expected red reason:** Direct fetch guard only (4 violations detected by `thin-client-guards.test.ts`).
 
-**Decision:** PR-586 = policy+guards (expected-red), PR-587 = remediation (green)
+- Guard tests (`thin-client-guards.test.ts`) detect **4 direct fetch() violations**
+- This is the "policy enforcement" pattern: guards first → remediation follows
+- **Do not fix violations in this PR** — remediation is a separate PR
+
+All other checks (linting, markdownlint, BMI logic guard) must be **green**.
+
+**Decision:** This PR = policy+guards (expected-red), remediation PR = fixes violations (green)
 
 ---
 
@@ -30,14 +34,14 @@
 - ✅ Client parity required (iOS + Web must follow same thin-client policy)
 
 **Links:**
-- PR-563: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563
+- PR-563: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
 - Ledger item: `docs/roadmap/BACKLOG_LEDGER.md` (P0: Web Thin HTTP Adapter)
 
 ### Q0.2 Split decision
 
 **Answer:** ✅ Intentional split for policy enforcement pattern:
-- **PR-586:** Guards + policy documentation (expected-red)
-- **PR-587:** Remediation of 4 violations (expected-green)
+- **This PR:** Guards + policy documentation (expected-red)
+- **Remediation PR:** Fixes 4 violations (expected-green)
 
 **Rationale:** Guards must fail before remediation to prove they work.
 
@@ -91,7 +95,7 @@
 | `lib/shareFile.ts` | 108 | file download URL | direct `fetch(url)` |
 | `lib/sharedLinks.ts` | 21 | `/api/v1/export/sign` | direct `fetch()` |
 
-**Remediation:** PR-587 (tracked in BACKLOG_LEDGER)
+**Remediation:** Separate PR (tracked in `docs/roadmap/BACKLOG_LEDGER.md`)
 
 ---
 
@@ -104,7 +108,7 @@
 - [x] Consistent comment skip (D)
 - [x] `frontend/AGENTS.md` updated with thin-client policy
 - [x] `AGENTS.md` updated with guard references
-- [x] `BACKLOG_LEDGER.md` updated (PR-586 + PR-587 split)
+- [x] `BACKLOG_LEDGER.md` updated (guards + remediation split)
 - [x] Audit doc created
 - [x] CI expected RED (4 violations — this is correct)
 
@@ -122,7 +126,7 @@
 
 ---
 
-## 5. PR-587 Audit Questions (for remediation)
+## 5. Remediation Audit Questions (for follow-up PR)
 
 ### Scope
 1. Какие **точно файлы** устраняем? → 4 файла (см. таблицу выше)
@@ -141,16 +145,16 @@
 6. Сохраняем ли 401/403 через `api()`? → Да, `fetchBlob()` наследует auth handling
 
 ### Verification
-7. `npm test` зелёный + guard test зелёный? → DoD PR-587
+7. `npm test` зелёный + guard test зелёный? → DoD remediation PR
 8. `rg -n "\bfetch\s*\(" frontend/src` → только `client.ts`
 9. Новые hand-written DTO? → Нет
 
-### DoD PR-587
+### DoD Remediation PR
 10. Guards PASS
 11. Нет direct fetch вне client.ts
-12. PR body: ссылка на PR-586 как policy anchor
+12. PR body: ссылка на guards PR как policy anchor
 
 ---
 
 **Last updated:** 2026-01-25
-**Next step:** Merge PR-586 (expected-red), then PR-587 remediation
+**Next step:** Merge this PR (expected-red), then remediation PR
