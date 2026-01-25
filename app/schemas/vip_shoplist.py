@@ -15,7 +15,6 @@ from pydantic import BaseModel, Field
 
 from app.schemas.catalog import CatalogInfoDTO
 
-
 # RU: DTO слой — адаптер над core моделями. Здесь можно использовать Decimal.
 # EN: DTO layer — adapter over core models. Decimal is allowed.
 

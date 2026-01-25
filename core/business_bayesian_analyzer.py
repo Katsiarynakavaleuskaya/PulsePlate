@@ -22,7 +22,6 @@ from io import StringIO
 
 from core import i18n
 
-
 logger = logging.getLogger(__name__)
 
 

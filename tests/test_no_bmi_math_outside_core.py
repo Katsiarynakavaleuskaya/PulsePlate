@@ -17,7 +17,6 @@ from typing import Final
 
 import pytest
 
-
 _DEBUG_GUARD: Final[bool] = bool(os.environ.get("REPO_POLICY_GUARD_DEBUG"))
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

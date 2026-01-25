@@ -240,8 +240,7 @@ class FoodDatabaseBuilder:
             cursor = conn.cursor()
 
             # Create main table
-            cursor.execute(
-                """
+            cursor.execute("""
             CREATE TABLE foods (
                 id TEXT PRIMARY KEY,
                 canonical_name TEXT NOT NULL,
@@ -269,12 +268,10 @@ class FoodDatabaseBuilder:
                 version_date TEXT,
                 price_per_100g REAL
             )
-        """
-            )
+        """)
 
             # Create FTS table for search
-            cursor.execute(
-                """
+            cursor.execute("""
                 CREATE VIRTUAL TABLE foods_fts USING fts5(
                     canonical_name,
                     group_name,
@@ -283,8 +280,7 @@ class FoodDatabaseBuilder:
                     content='foods',
                     content_rowid='rowid'
                 )
-            """
-            )
+            """)
 
             # Insert data using executemany for better performance
             rows = []

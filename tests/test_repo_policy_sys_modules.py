@@ -14,7 +14,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 TESTS_DIR = Path(__file__).resolve().parent
 
 ENFORCED_GLOBS: tuple[str, ...] = (

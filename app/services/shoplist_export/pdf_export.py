@@ -27,7 +27,6 @@ from app.schemas.vip_shoplist import (
     UnpackedLineDTO,
 )
 
-
 ReportLabComponents: TypeAlias = tuple[
     Any,  # colors
     Any,  # A4

@@ -10,7 +10,6 @@ from unittest.mock import patch
 from starlette.types import ASGIApp
 from typing import cast
 
-
 # (Removed duplicate class definition for TestAppCriticalLines97)
 
 

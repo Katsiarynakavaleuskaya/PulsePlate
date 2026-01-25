@@ -16,7 +16,6 @@ from typing import Final, Literal
 
 from core.bmi.engine import _compute_wht_ratio
 
-
 RiskLevel = Literal["low", "moderate", "high"]
 
 # BMI thresholds (canonical source of truth)

@@ -31,8 +31,7 @@ def _init_sqlite_db(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(db_path)
     try:
-        con.execute(
-            """
+        con.execute("""
             CREATE TABLE recipes (
               rowid INTEGER PRIMARY KEY,
               recipe_id TEXT,
@@ -40,13 +39,10 @@ def _init_sqlite_db(db_path: Path) -> None:
               kcal_per_serv REAL,
               tags_json TEXT
             )
-            """
-        )
-        con.execute(
-            """
+            """)
+        con.execute("""
             CREATE VIRTUAL TABLE recipes_fts USING fts5(title)
-            """
-        )
+            """)
         con.execute(
             "INSERT INTO recipes (rowid, recipe_id, title, kcal_per_serv, tags_json) VALUES (1, ?, ?, ?, ?)",
             ("r1", "Oatmeal", 123.0, "[]"),

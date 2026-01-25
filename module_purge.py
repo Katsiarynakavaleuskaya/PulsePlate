@@ -10,7 +10,6 @@ This is an approved exception for CI stability; protected prefixes are excluded 
 import sys
 from collections.abc import Iterable
 
-
 # RU: Критичные модули, которые НИКОГДА нельзя purge-ить.
 # EN: Critical modules that must never be purged.
 _DEFAULT_EXCLUDE_PREFIXES: tuple[str, ...] = (

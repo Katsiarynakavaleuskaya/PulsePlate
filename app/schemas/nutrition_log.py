@@ -11,7 +11,6 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-
 # NOTE: This API exposes a simplified MealType subset for LOG0 MVP.
 # core.meal_types.MealType contains additional snack variants (second_snack, etc.)
 # that are not yet supported at the API boundary.

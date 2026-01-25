@@ -11,7 +11,6 @@ from starlette.types import ASGIApp
 import app
 from core import db as db_module
 
-
 # RU: /ready - alias для /health/db, тестируем оба пути.
 # EN: /ready is an alias for /health/db, test both paths.
 READINESS_PATHS: list[str] = ["/health/db", "/ready"]

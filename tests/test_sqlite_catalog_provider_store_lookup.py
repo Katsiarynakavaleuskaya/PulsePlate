@@ -24,8 +24,7 @@ def _mk_sqlite_catalog(path: Path) -> None:
     conn = sqlite3.connect(str(path))
     try:
         conn.execute("PRAGMA foreign_keys = ON;")
-        conn.executescript(
-            """
+        conn.executescript("""
             CREATE TABLE regions (
               region_id TEXT PRIMARY KEY,
               country TEXT NOT NULL,
@@ -69,8 +68,7 @@ def _mk_sqlite_catalog(path: Path) -> None:
 
             CREATE INDEX IF NOT EXISTS idx_stores_region_id ON stores(region_id);
             CREATE INDEX IF NOT EXISTS idx_skus_store_id ON skus(store_id);
-            """
-        )
+            """)
         conn.commit()
     finally:
         conn.close()
