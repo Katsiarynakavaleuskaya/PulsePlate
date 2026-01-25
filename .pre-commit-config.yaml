@@ -50,7 +50,7 @@ repos:
 
   # --- Code style: Black
   - repo: https://github.com/psf/black
-    rev: 24.8.0  # Pin to stable version (pre-25.x) to avoid breaking formatting changes
+    rev: 26.1.0
     hooks:
       - id: black
         name: black (format)
