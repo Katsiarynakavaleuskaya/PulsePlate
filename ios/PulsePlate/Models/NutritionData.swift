@@ -37,7 +37,7 @@ class NutritionService: ObservableObject {
 
   // TODO: Backend endpoint /api/nutrition/{date} not yet implemented (GitHub issue)
   // This method is ready for integration when the endpoint is available
-  // For now, falls back to mock data in DEBUG builds
+  // In DEBUG builds we fallback to mock data on network/decoding errors (dev convenience).
   init(apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL())) {
     self.apiClient = apiClient
   }

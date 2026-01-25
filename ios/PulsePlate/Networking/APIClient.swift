@@ -63,7 +63,7 @@ public final class APIClient: APIClientProtocol, Sendable {
     public func post<Response: Decodable, Body: Encodable>(
         path: String,
         body: Body,
-        headers: [String: String] = [:]
+        headers: [String: String]
     ) async throws -> Response {
         // IMPORTANT:
         // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
@@ -89,7 +89,7 @@ public final class APIClient: APIClientProtocol, Sendable {
 
     public func get<Response: Decodable>(
         path: String,
-        headers: [String: String] = [:]
+        headers: [String: String]
     ) async throws -> Response {
         // IMPORTANT:
         // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
