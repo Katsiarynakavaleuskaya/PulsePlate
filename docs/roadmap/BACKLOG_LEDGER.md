@@ -268,6 +268,31 @@ If it is not recorded here — it does not exist.
     - OpenAPI regenerated with proper schema
     - Frontend uses generated type from `schema.ts`
 
+- [ ] Web Guards: Extract config constants to shared module
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: frontend / guards
+  - Finding Type: improvement (Sourcery PR-592)
+  - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
+  - Reason: FORBIDDEN_PATTERNS/SCAN_DIRS/EXCLUDE_PATTERNS should be shared between guards and AGENTS.md to prevent policy drift
+  - DoD:
+    - Config extracted to shared module
+    - Guards import config
+    - AGENTS.md references canonical source
+
+- [ ] Web Guards: Improve inline block comment parsing
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: frontend / guards
+  - Finding Type: improvement (Sourcery PR-592)
+  - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
+  - Reason: Current `isLineInComment` may not handle inline `/* ... */` on same line correctly
+  - DoD:
+    - Stricter inline comment parsing
+    - Test cases for edge cases
+
 - [ ] API Tiers database lookup implementation
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD
