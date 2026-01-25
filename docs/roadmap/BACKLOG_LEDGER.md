@@ -62,16 +62,19 @@ If it is not recorded here — it does not exist.
     - 🔴 CI expected RED (guards expose 4 direct fetch violations)
     - Remediation tracked in PR-587
 
-- [ ] PR-587 Web Thin HTTP Adapter — Remediation (fix-green)
+- [x] PR-587 Web Thin HTTP Adapter — Remediation (fix-green)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-587 (after PR-586)
+  - Target PR: PR-590 (superseded PR-587/589)
+  - Status: ✅ Superseded by PR-590 (merged)
   - Reason: Fix 4 direct fetch() violations detected by guards
   - Links:
     - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md (violations list)
-  - DoD:
-    - Migrate `features/plan/WeeklyPlanViewer.tsx:39` to use `api()`
-    - Migrate `features/shoplist/ShoplistPreview.tsx:109` to use `api()`
-    - Migrate `lib/shareFile.ts:108` to use `api()`
+    - docs/audit/PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/590>
+  - DoD: ✅ Completed
+    - Migrate `features/plan/WeeklyPlanViewer.tsx:39` to use `fetchBlob()`
+    - Migrate `features/shoplist/ShoplistPreview.tsx:109` to use `fetchBlob()`
+    - Migrate `lib/shareFile.ts:108` to use `fetchBlob()`
     - Migrate `lib/sharedLinks.ts:21` to use `api()`
     - Guard tests pass (all 4 violations fixed)
     - CI green
@@ -276,6 +279,9 @@ If it is not recorded here — it does not exist.
   - Finding Type: improvement (Sourcery PR-592)
   - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
   - Reason: FORBIDDEN_PATTERNS/SCAN_DIRS/EXCLUDE_PATTERNS should be shared between guards and AGENTS.md to prevent policy drift
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/592> (source PR)
+    - Sourcery comment on PR-592
   - DoD:
     - Config extracted to shared module
     - Guards import config
@@ -289,6 +295,9 @@ If it is not recorded here — it does not exist.
   - Finding Type: improvement (Sourcery PR-592)
   - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
   - Reason: Current `isLineInComment` may not handle inline `/* ... */` on same line correctly
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/592> (source PR)
+    - Sourcery comment on PR-592
   - DoD:
     - Stricter inline comment parsing
     - Test cases for edge cases

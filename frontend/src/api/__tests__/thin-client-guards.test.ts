@@ -22,6 +22,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isLineInComment, stripInlineComments } from '../thinClientGuardUtils';
 
 // Directories to scan (relative to frontend/src)
 const SCAN_DIRS = ['api', 'pages', 'components', 'features', 'hooks', 'lib'];
@@ -51,12 +52,17 @@ const FORBIDDEN_PATTERNS: Array<{ name: string; pattern: RegExp; description: st
   },
   {
     name: 'bmi-threshold-25',
-    pattern: /(?<!['"`/])\b25\.0?\b(?!['"`])(?!\d)/,
+    // Match 25, 25.0, 25.00 but NOT 0.25 or percentage: 25
+    // Cubic fix: dot optional, but avoid false positives
+    // Lookbehind excludes: quotes, slash, dot, colon+space (age: 30)
+    pattern: /(?<!['"`/.])(?<!:\s)\b25(\.0{1,2})?\b(?!['"`])(?!\d)/,
     description: 'BMI threshold 25 (overweight boundary)',
   },
   {
     name: 'bmi-threshold-30',
-    pattern: /(?<!['"`/])\b30\.0?\b(?!['"`])(?!\d)/,
+    // Match 30, 30.0, 30.00 but NOT age: 30
+    // Cubic fix: dot optional, but avoid false positives
+    pattern: /(?<!['"`/.])(?<!:\s)\b30(\.0{1,2})?\b(?!['"`])(?!\d)/,
     description: 'BMI threshold 30 (obesity boundary)',
   },
   {
@@ -88,9 +94,6 @@ const FORBIDDEN_PATTERNS: Array<{ name: string; pattern: RegExp; description: st
     description: 'BMI formula implementation (should use backend)',
   },
 ];
-
-// Canonical path for the allowed fetch file
-const ALLOWED_FETCH_FILE = path.join('api', 'client.ts');
 
 /**
  * Source file with content for scanning
@@ -157,52 +160,8 @@ function collectSourceFiles(srcDir: string, scanDirs: string[]): SourceFile[] {
   return sourceFiles;
 }
 
-/**
- * Check if a line is inside a comment (handles block comments)
- * FIX A: Proper block comment handling
- */
-function isLineInComment(
-  line: string,
-  inBlockComment: boolean
-): { skip: boolean; newBlockCommentState: boolean } {
-  const trimmed = line.trim();
-
-  // If we're in a block comment, check if it ends on this line
-  if (inBlockComment) {
-    if (trimmed.includes('*/')) {
-      // Block comment ends on this line - check if there's code after
-      const afterClose = trimmed.substring(trimmed.indexOf('*/') + 2).trim();
-      // If there's no code after the close, skip this line
-      // Otherwise, we need to process the code after
-      if (!afterClose) {
-        return { skip: true, newBlockCommentState: false };
-      }
-      // There's code after - don't skip, but block comment is closed
-      return { skip: false, newBlockCommentState: false };
-    }
-    // Still in block comment
-    return { skip: true, newBlockCommentState: true };
-  }
-
-  // Not in block comment - check for new block comment start
-  if (trimmed.startsWith('/*')) {
-    // Check if block comment closes on same line
-    if (trimmed.includes('*/')) {
-      // Single-line block comment - skip this line
-      return { skip: true, newBlockCommentState: false };
-    }
-    // Block comment starts but doesn't close
-    return { skip: true, newBlockCommentState: true };
-  }
-
-  // Single-line comment or JSDoc continuation
-  if (trimmed.startsWith('//') || trimmed.startsWith('*')) {
-    return { skip: true, newBlockCommentState: false };
-  }
-
-  // Not a comment
-  return { skip: false, newBlockCommentState: false };
-}
+// Helper functions (isLineInComment, stripInlineComments) are imported from thinClientGuardUtils.ts
+// See thinClientGuardUtils.test.ts for unit tests on these helpers
 
 /**
  * Check if file is the canonical client.ts (allowed to use fetch)
@@ -247,8 +206,14 @@ describe('ThinClientGuards', () => {
           continue;
         }
 
+        // CodeRabbit fix: strip inline comments before pattern matching
+        const candidate = stripInlineComments(line);
+        if (!candidate.trim()) {
+          continue;
+        }
+
         for (const { name, pattern } of FORBIDDEN_PATTERNS) {
-          if (pattern.test(line)) {
+          if (pattern.test(candidate)) {
             allViolations.push({
               file: file.relativePath,
               pattern: name,
@@ -301,7 +266,13 @@ describe('ThinClientGuards', () => {
           continue;
         }
 
-        if (fetchPattern.test(line)) {
+        // CodeRabbit fix: strip inline comments before pattern matching
+        const candidate = stripInlineComments(line);
+        if (!candidate.trim()) {
+          continue;
+        }
+
+        if (fetchPattern.test(candidate)) {
           violations.push({
             file: file.relativePath,
             line: i + 1,
