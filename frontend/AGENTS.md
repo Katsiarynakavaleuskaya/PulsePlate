@@ -28,8 +28,18 @@
 - ✅ OpenAPI-generated types from `src/api/schema.ts`
 - ✅ Guards: `src/api/__tests__/thin-client-guards.test.ts` must stay green
 
-### Quick checks
+### Canonical local checks
 
+```bash
+# Run guard tests (thin-client policy enforcement)
+npm test -- --run src/api/__tests__/thin-client-guards.test.ts
+
+# Run all frontend tests
+npm test
+
+# Build (catches TS errors)
+npm run build
+```
 
 **Links:**
 - Root policy: `AGENTS.md` (Thin HTTP Adapter Policy)
