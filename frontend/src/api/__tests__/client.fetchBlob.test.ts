@@ -136,6 +136,35 @@ describe('fetchBlob security contract', () => {
     });
   });
 
+  describe('Test 2b: API path — URL normalization (no duplicate /api/v1)', () => {
+    it('should avoid duplicate /api/v1 when apiBase includes it', async () => {
+      // Re-inject with production-like apiBase that includes /api/v1
+      setApiClientDependencies({
+        getStoredApiKey: mockGetStoredApiKey,
+        clearStoredApiKey: mockClearStoredApiKey,
+        apiBase: 'http://localhost:8000/api/v1', // Production pattern
+      });
+
+      const mockBlob = new Blob(['data']);
+      vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+        capturedUrl = url;
+        capturedInit = init;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          blob: () => Promise.resolve(mockBlob),
+        } as Response);
+      }));
+
+      // Call with path that also has /api/v1 (like ShoplistPreview does)
+      await fetchBlob('/api/v1/shoplist/export.csv');
+
+      // Should NOT have duplicate /api/v1
+      expect(capturedUrl).toBe('http://localhost:8000/api/v1/shoplist/export.csv');
+      // Should NOT be: 'http://localhost:8000/api/v1/api/v1/shoplist/export.csv'
+    });
+  });
+
   describe('Test 3: 401/403 on API path — clear key + redirect', () => {
     it('should clear API key and redirect on 401 for API paths', async () => {
       // Stub fetch to return 401

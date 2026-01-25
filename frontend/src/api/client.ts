@@ -312,7 +312,7 @@ export async function api<T = unknown>(
       signal: init?.signal,
     };
 
-    const res = await fetch(`${getApiBase()}${path}`, requestInit);
+    const res = await fetch(normalizeApiUrl(getApiBase(), path), requestInit);
     if (!res.ok) {
       // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
       if (res.status === 401 || res.status === 403) {
@@ -407,7 +407,8 @@ export async function fetchBlob(
   const kind = classifyUrl(url);
 
   // Build final URL and headers based on classification
-  const finalUrl = kind === 'api' ? `${getApiBase()}${url}` : url;
+  // Use normalizeApiUrl to avoid duplicate /api or /api/v1 segments
+  const finalUrl = kind === 'api' ? normalizeApiUrl(getApiBase(), url) : url;
 
   // Only validate API base and add auth for API paths
   if (kind === 'api') {
