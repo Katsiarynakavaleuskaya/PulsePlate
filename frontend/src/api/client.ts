@@ -107,11 +107,7 @@ const validateApiBase = () => {
  */
 export function normalizeApiUrl(base: string, apiPath: string): string {
   // Ensure apiPath starts with /
-  const rawPath = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
-
-  // Normalize bare /api and /api/v1 paths to have trailing slash
-  // This ensures deduplication works for edge cases like path="/api/v1" (no trailing content)
-  const path = (rawPath === '/api' || rawPath === '/api/v1') ? `${rawPath}/` : rawPath;
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
 
   // Parse base URL to get pathname
   let baseUrl: URL;
@@ -125,14 +121,23 @@ export function normalizeApiUrl(base: string, apiPath: string): string {
   const basePath = baseUrl.pathname.replace(/\/+$/, ''); // Strip trailing slashes
 
   // Deduplicate /api/v1 if both base and path contain it
-  if (basePath.endsWith('/api/v1') && path.startsWith('/api/v1/')) {
-    baseUrl.pathname = basePath + path.slice('/api/v1'.length);
+  // Includes exact match (path === "/api/v1") to handle bare paths
+  if (
+    basePath.endsWith("/api/v1") &&
+    (path === "/api/v1" || path.startsWith("/api/v1/"))
+  ) {
+    baseUrl.pathname = basePath + path.slice("/api/v1".length);
     return baseUrl.toString();
   }
 
-  // Deduplicate /api if both base and path contain it (but not /api/v1)
-  if (basePath.endsWith('/api') && path.startsWith('/api/') && !path.startsWith('/api/v1/')) {
-    baseUrl.pathname = basePath + path.slice('/api'.length);
+  // Deduplicate /api if both base and path contain it (but NOT /api/v1 paths)
+  // Includes exact match (path === "/api") to handle bare paths
+  if (
+    basePath.endsWith("/api") &&
+    !basePath.endsWith("/api/v1") &&
+    (path === "/api" || (path.startsWith("/api/") && !path.startsWith("/api/v1")))
+  ) {
+    baseUrl.pathname = basePath + path.slice("/api".length);
     return baseUrl.toString();
   }
 

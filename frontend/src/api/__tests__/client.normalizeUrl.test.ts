@@ -99,20 +99,22 @@ describe('normalizeApiUrl', () => {
   });
 
   describe('Sourcery edge cases: bare /api and /api/v1 paths', () => {
+    // Cubic fix: exact path match deduplicates without trailing slash
     it('should deduplicate when base has /api/v1/ and path is /api/v1', () => {
-      expect(normalizeApiUrl('http://x/api/v1/', '/api/v1')).toBe('http://x/api/v1/');
+      // base trailing slash stripped, path exact match → no duplication
+      expect(normalizeApiUrl('http://x/api/v1/', '/api/v1')).toBe('http://x/api/v1');
     });
 
     it('should deduplicate when base has /api/v1 and path is /api/v1', () => {
-      expect(normalizeApiUrl('http://x/api/v1', '/api/v1')).toBe('http://x/api/v1/');
+      expect(normalizeApiUrl('http://x/api/v1', '/api/v1')).toBe('http://x/api/v1');
     });
 
     it('should deduplicate when base has /api/ and path is /api', () => {
-      expect(normalizeApiUrl('http://x/api/', '/api')).toBe('http://x/api/');
+      expect(normalizeApiUrl('http://x/api/', '/api')).toBe('http://x/api');
     });
 
     it('should deduplicate when base has /api and path is /api', () => {
-      expect(normalizeApiUrl('http://x/api', '/api')).toBe('http://x/api/');
+      expect(normalizeApiUrl('http://x/api', '/api')).toBe('http://x/api');
     });
   });
 });
