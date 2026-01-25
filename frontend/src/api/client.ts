@@ -90,6 +90,62 @@ const validateApiBase = () => {
   isApiBaseValidated = true;
 };
 
+/**
+ * Normalize API base + path join to avoid duplicate /api or /api/v1 segments.
+ *
+ * RU: Нормализация join base+path чтобы избежать дублирования /api или /api/v1.
+ * EN: Normalize join of base URL and path to avoid duplicate API segments.
+ *
+ * Examples:
+ * - base: "http://localhost:8000/api/v1", path: "/api/v1/x" => "http://localhost:8000/api/v1/x"
+ * - base: "http://localhost:8000/api", path: "/api/x" => "http://localhost:8000/api/x"
+ * - base: "https://api.test.com", path: "/api/v1/x" => "https://api.test.com/api/v1/x"
+ *
+ * @param base - API base URL (may include /api or /api/v1)
+ * @param apiPath - API path (must start with /api/...)
+ * @returns Normalized URL without duplicate segments
+ */
+export function normalizeApiUrl(base: string, apiPath: string): string {
+  // Ensure apiPath starts with /
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+
+  // Parse base URL to get pathname
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(base);
+  } catch {
+    // If base is not a valid URL, fall back to naive concat
+    return `${base}${path}`;
+  }
+
+  const basePath = baseUrl.pathname.replace(/\/+$/, ''); // Strip trailing slashes
+
+  // Deduplicate /api/v1 if both base and path contain it
+  // Includes exact match (path === "/api/v1") to handle bare paths
+  if (
+    basePath.endsWith("/api/v1") &&
+    (path === "/api/v1" || path.startsWith("/api/v1/"))
+  ) {
+    baseUrl.pathname = basePath + path.slice("/api/v1".length);
+    return baseUrl.toString();
+  }
+
+  // Deduplicate /api if both base and path contain it (but NOT /api/v1 paths)
+  // Includes exact match (path === "/api") to handle bare paths
+  if (
+    basePath.endsWith("/api") &&
+    !basePath.endsWith("/api/v1") &&
+    (path === "/api" || (path.startsWith("/api/") && !path.startsWith("/api/v1/")))
+  ) {
+    baseUrl.pathname = basePath + path.slice("/api".length);
+    return baseUrl.toString();
+  }
+
+  // No duplication - simple concat (ensure no double slashes)
+  baseUrl.pathname = basePath + path;
+  return baseUrl.toString();
+}
+
 const searchParams = (() => {
   if (typeof window === "undefined" || typeof window.location?.search !== "string") {
     return new URLSearchParams();
@@ -265,7 +321,7 @@ export async function api<T = unknown>(
       signal: init?.signal,
     };
 
-    const res = await fetch(`${getApiBase()}${path}`, requestInit);
+    const res = await fetch(normalizeApiUrl(getApiBase(), path), requestInit);
     if (!res.ok) {
       // Handle 401/403 Unauthorized - call onAuthError callback or fallback behavior
       if (res.status === 401 || res.status === 403) {
@@ -321,6 +377,96 @@ export async function api<T = unknown>(
 }
 
 export const fetchJson = api;
+
+/**
+ * Classify URL for fetchBlob() to determine auth behavior
+ * RU: Классификация URL для определения поведения аутентификации
+ * EN: URL classification to determine authentication behavior
+ *
+ * - 'api': Internal API path (/api/...) - requires auth headers, base URL prepend
+ * - 'absolute': External URL (https://...) - no auth, pass-through
+ *
+ * @throws Error if URL is invalid (not API path or absolute URL)
+ */
+function classifyUrl(url: string): 'api' | 'absolute' {
+  if (url.startsWith('/api/')) return 'api';
+  if (url.startsWith('http://') || url.startsWith('https://')) return 'absolute';
+  throw new Error(`Invalid URL for fetchBlob: ${url}. Must be /api/... or absolute URL.`);
+}
+
+/**
+ * Fetch binary data (Blob) from API or external URL.
+ * RU: Загрузка бинарных данных (Blob) из API или внешнего URL.
+ * EN: Fetch binary data (Blob) from API or external URL.
+ *
+ * URL Classification:
+ * - `/api/...` (API path): Prepends VITE_API_BASE, adds auth headers, handles 401/403
+ * - `https://...` (External): Pass-through fetch, NO auth headers (signed URLs have token in query)
+ *
+ * Security: API key is NEVER sent to external URLs to prevent credential leaks.
+ *
+ * @param url - API path (/api/v1/...) or absolute URL (https://...)
+ * @param init - Optional fetch init options
+ * @returns Promise<Blob> - Binary data as Blob
+ */
+export async function fetchBlob(
+  url: string,
+  init?: RequestInit
+): Promise<Blob> {
+  const kind = classifyUrl(url);
+
+  // Build final URL and headers based on classification
+  // Use normalizeApiUrl to avoid duplicate /api or /api/v1 segments
+  const finalUrl = kind === 'api' ? normalizeApiUrl(getApiBase(), url) : url;
+
+  // Only validate API base and add auth for API paths
+  if (kind === 'api') {
+    validateApiBase();
+  }
+
+  // For API paths: add auth headers; for external: strip auth and omit credentials
+  let finalInit: RequestInit;
+
+  if (kind === 'api') {
+    finalInit = {
+      ...init,
+      headers: mergeHeaders(init),
+      credentials: init?.credentials ?? 'include',
+    };
+  } else {
+    // Security: never leak auth to external domains
+    const sanitized = new Headers(init?.headers as HeadersInit | undefined);
+    sanitized.delete('authorization');
+    sanitized.delete('Authorization');
+    sanitized.delete('x-api-key');
+    sanitized.delete('X-API-Key');
+
+    finalInit = {
+      ...init,
+      headers: sanitized,
+      credentials: 'omit',
+    };
+  }
+
+  const res = await fetch(finalUrl, finalInit);
+
+  if (!res.ok) {
+    // Handle 401/403 ONLY for API paths (not external signed URLs)
+    if (kind === 'api' && (res.status === 401 || res.status === 403)) {
+      _clearStoredApiKey();
+      if (typeof window !== 'undefined') {
+        window.location.replace('/enter-key');
+      }
+      const authError = new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+      logError(authError);
+      throw authError;
+    }
+    throw new Error(`Fetch blob failed: HTTP ${res.status} for ${url}`);
+  }
+
+  return res.blob();
+}
+
 export { getBmr, getPlate, getTargets } from "./premium";
 export type {
   BmrRequest,

@@ -239,6 +239,22 @@ If it is not recorded here — it does not exist.
     - Consistent error handling via APIError
     - No dual-path networking
 
+- [ ] OpenAPI: Add response schema for `/api/v1/export/sign`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: backend / OpenAPI
+  - Finding Type: schema-debt
+  - Location: `app/routers/export.py` (sign_export_link endpoint)
+  - Reason: Response type is `{ [key: string]: unknown }` in generated schema. Frontend uses hand-written `SignedLinkResponse` type. Should define Pydantic response model for proper OpenAPI generation.
+  - Links:
+    - frontend/src/lib/sharedLinks.ts (hand-written type)
+    - frontend/src/api/schema.ts:4783 (generic dict response)
+  - DoD:
+    - Backend defines `SignedLinkResponse` Pydantic model
+    - OpenAPI regenerated with proper schema
+    - Frontend uses generated type from `schema.ts`
+
 - [ ] API Tiers database lookup implementation
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD

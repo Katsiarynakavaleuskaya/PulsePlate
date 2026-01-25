@@ -2,9 +2,9 @@
 
 **Date:** 2026-01-25
 **Target branch:** `main`
-**Source branch:** `fix/pr-587-web-thin-client-remediation`
+**Source branch:** `fix/pr-587-web-thin-remediation`
 **Author:** @katsiaryna_kavaleuskaya
-**Status:** 🟡 **Audit-first** (code not started)
+**Status:** ✅ **Code complete** (ready for review)
 
 ---
 
@@ -12,8 +12,8 @@
 
 ### Q1. Какие **точно 4 файла** сейчас нарушают policy (path + line)?
 
-| File | Line | Violation |
-|------|------|-----------|
+| File | Line | Violation (до фикса) |
+|------|------|----------------------|
 | `frontend/src/lib/sharedLinks.ts` | 21 | `await fetch("/api/v1/export/sign", {...})` |
 | `frontend/src/lib/shareFile.ts` | 108 | `await fetch(url)` |
 | `frontend/src/features/shoplist/ShoplistPreview.tsx` | 109 | `await fetch(\`/api/v1/shoplist/export.${kind}\`)` |
@@ -23,28 +23,28 @@
 
 | File | User Action |
 |------|-------------|
-| `sharedLinks.ts` | Request signed URL for secure file export |
-| `shareFile.ts` | Download blob from signed URL for native share |
-| `ShoplistPreview.tsx` | Download shopping list as CSV/PDF |
-| `WeeklyPlanViewer.tsx` | Download weekly plan PDF from signed URL |
+| `sharedLinks.ts` | Запрос подписанной ссылки для безопасного экспорта файла |
+| `shareFile.ts` | Скачивание blob с подписанного URL для native share |
+| `ShoplistPreview.tsx` | Скачивание списка покупок как CSV/PDF |
+| `WeeklyPlanViewer.tsx` | Скачивание PDF недельного плана с подписанного URL |
 
 ### Q3. Какие **backend endpoints** и методы реально вызываются?
 
 | File | URL | URL Type | Method | Response |
 |------|-----|----------|--------|----------|
-| `sharedLinks.ts` | `/api/v1/export/sign` | **API path** | POST | JSON |
+| `sharedLinks.ts` | `/api/v1/export/sign` | **API path** | POST | JSON `{url, ttl, exp}` |
 | `shareFile.ts` | `https://...` (signed URL) | **External** | GET | blob → arrayBuffer |
 | `ShoplistPreview.tsx` | `/api/v1/shoplist/export.{csv\|pdf}` | **API path** | GET | blob |
 | `WeeklyPlanViewer.tsx` | `https://...` (signed URL) | **External** | GET | blob |
 
 ### Q4. Есть ли уже **готовая обёртка** в `src/api/*` для каждого вызова?
 
-| File | Existing Wrapper | Notes |
-|------|-----------------|-------|
-| `sharedLinks.ts` | ✅ `api()` | Can use `api<{url: string, ttl?: number, exp?: number}>()` |
-| `shareFile.ts` | ❌ None | Needs new `fetchBlob()` for binary |
-| `ShoplistPreview.tsx` | ❌ None | Needs new `fetchBlob()` for binary |
-| `WeeklyPlanViewer.tsx` | ❌ None | Needs new `fetchBlob()` for binary |
+| File | До фикса | После фикса |
+|------|----------|-------------|
+| `sharedLinks.ts` | ❌ direct fetch | ✅ `api<SignedLinkResponse>()` |
+| `shareFile.ts` | ❌ direct fetch | ✅ `fetchBlob()` (NEW) |
+| `ShoplistPreview.tsx` | ❌ direct fetch | ✅ `fetchBlob()` (NEW) |
+| `WeeklyPlanViewer.tsx` | ❌ direct fetch | ✅ `fetchBlob()` (NEW) |
 
 ---
 
@@ -52,76 +52,62 @@
 
 ### Q5. Мы **не** создаём "локальные http helpers" в `features/*` или `lib/*`?
 
-**Answer:** ✅ Верно. Все новые http функции только в `src/api/client.ts`.
+**Answer:** ✅ Верно. Все http функции только в `src/api/client.ts`:
+- `api()` — существующая, для JSON
+- `fetchBlob()` — добавлена для бинарных данных
 
 ### Q6. Мы **не** добавляем новые hand-written DTO / не правим OpenAPI в этом PR?
 
-**Answer:** ✅ Верно. Используем существующие типы из `schema.ts` + inline types где нужно.
+**Answer:** ✅ Верно. Используем:
+- Существующие типы из `schema.ts`
+- Inline type `SignedLinkResponse` (локальный для sharedLinks.ts)
+- Никаких изменений OpenAPI
 
-### Q7. Мы **не** меняем UI поведение/тексты/flow, кроме транспорта?
+### Q7. Мы **не** меняем UI-поведение/тексты/flow, кроме транспорта?
 
-**Answer:** ✅ Верно. Только замена `fetch()` → `api()` / `fetchBlob()`.
+**Answer:** ✅ Верно. Только замена транспортного слоя:
+- `fetch()` → `api()` для JSON
+- `fetch()` → `fetchBlob()` для binary
+- UI/UX остаётся неизменным
 
 ---
 
 ## C. Transport design (как будет после)
 
-### Q8. Для каждого из 4 кейсов: какая **целевая API-функция** будет использована?
+### Q8. Для каждого из 4 кейсов: какая **целевая API-функция**?
 
 | File | Target Function | URL Type | Notes |
 |------|-----------------|----------|-------|
 | `sharedLinks.ts` | `api<SignedLinkResponse>()` | API path | Existing, POST JSON |
-| `shareFile.ts` | `fetchBlob()` | External | **NEW**, no auth headers |
-| `ShoplistPreview.tsx` | `fetchBlob()` | API path | **NEW**, with auth headers |
-| `WeeklyPlanViewer.tsx` | `fetchBlob()` | External | **NEW**, no auth headers |
-
-**New function signature:**
-
-```typescript
-// In src/api/client.ts
-export async function fetchBlob(
-  url: string,
-  init?: RequestInit
-): Promise<Blob>
-```
-
-**Internal logic:**
-- `classifyUrl(url)` → `'api' | 'absolute'`
-- API path: prepend base, add auth headers, handle 401/403
-- External: pass-through fetch, no auth modification
+| `shareFile.ts` | `fetchBlob()` | External | NEW, no auth headers |
+| `ShoplistPreview.tsx` | `fetchBlob()` | API path | NEW, with auth headers |
+| `WeeklyPlanViewer.tsx` | `fetchBlob()` | External | NEW, no auth headers |
 
 ### Q9. Будут ли какие-то вызовы требовать **blob/arrayBuffer**?
 
-**Answer:** Да, 3 из 4 кейсов требуют blob:
-- `shareFile.ts`: uses `arrayBuffer()` → need blob → arrayBuffer conversion
-- `ShoplistPreview.tsx`: uses `blob()` → direct return
-- `WeeklyPlanViewer.tsx`: uses `blob()` → direct return
+**Answer:** Да, 3 из 4:
+- `shareFile.ts`: `fetchBlob()` → `.arrayBuffer()` (для base64 encoding)
+- `ShoplistPreview.tsx`: `fetchBlob()` returns Blob directly
+- `WeeklyPlanViewer.tsx`: `fetchBlob()` returns Blob directly
 
-**Solution:** `fetchBlob()` returns `Blob`, caller can call `.arrayBuffer()` if needed.
+**Solution:** `fetchBlob()` returns `Blob`, caller calls `.arrayBuffer()` if needed.
 
 ### Q10. Как будет обрабатываться **401/403**?
 
-**Answer:** `fetchBlob()` inherits auth handling from `api()`:
-- Uses `mergeHeaders()` for API key
-- Handles 401/403 via `onAuthError` callback or default redirect
-- Consistent with existing `api()` behavior
-
-### Q10.1 URL Classification Rule (Critical)
-
-**Rule:** `fetchBlob()` must classify URLs and behave differently:
+**URL Classification Rule (Critical):**
 
 | URL Pattern | Classification | Behavior |
 |-------------|----------------|----------|
-| `/api/...` | **API path** | Prepend `VITE_API_BASE`, attach auth headers, apply `onAuthError` (401/403 → clear key + redirect) |
-| `http://...` or `https://...` | **External signed URL** | **NO** auth headers, **NO** api-base prepend, **NO** key clearing / redirect |
-| Other | **Error** | Throw immediately (prevent silent wrong requests) |
+| `/api/...` | **API path** | Auth headers, base URL, 401/403 → clear key + redirect |
+| `http(s)://...` | **External** | NO auth headers, NO key clearing, pass-through |
+| Other | **Error** | `throw new Error("Invalid URL for fetchBlob")` |
 
-**Security rationale:**
-- Signed URLs already contain auth token in query string
-- Sending API key to external domain = credential leak risk
-- External 401/403 should not trigger local auth state changes
+**Security:**
+- ✅ API key NEVER sent to external URLs (credential leak prevention)
+- ✅ External 401/403 does NOT trigger local auth state changes
+- ✅ Signed URLs already contain token in query string
 
-**Implementation sketch:**
+**Implementation:**
 
 ```typescript
 function classifyUrl(url: string): 'api' | 'absolute' {
@@ -137,23 +123,35 @@ function classifyUrl(url: string): 'api' | 'absolute' {
 
 ### Q11. `thin-client-guards.test.ts` должен стать **PASS**?
 
-**Answer:** ✅ Да, это главный критерий.
+**Answer:** ✅ Да — после PR-587 guards будут зелёными.
+- Guards из PR-586 ловили 4 нарушения
+- PR-587 исправляет все 4
+- Guards станут PASS
 
-### Q12. `rg -n "\\bfetch\\s*\\(" frontend/src` возвращает **только** `src/api/client.ts`?
+### Q12. `rg fetch\(` возвращает **только** `src/api/client.ts`?
 
-**Answer:** ✅ Да (и test files, которые excluded).
+**Answer:** ✅ Проверено:
 
-### Q13. Добавим ли мы regression test на каждый из 4 кейсов?
+```bash
+rg -n "\bfetch\s*\(" frontend/src --type ts | grep -v client.ts | grep -v .test.
+# Result: empty (only client.ts has fetch)
+```
+
+### Q13. Добавим ли мы regression test?
 
 **Answer:**
-- ✅ Unit test for `fetchBlob()` in `client.test.ts`
-- 🔄 Existing tests in `shareFile.test.ts` need mock updates (fetch → fetchBlob)
-- ⏭️ Component tests optional (transport layer tested)
+- ✅ `shareFile.test.ts` — моки обновлены для `blob()` response
+- ✅ `client.fetchBlob.test.ts` — **security contract tests** (4 tests):
+  - Test 1: External URL strips auth headers + `credentials: 'omit'`
+  - Test 2: API path uses `credentials: 'include'` by default
+  - Test 3: 401/403 on API path clears key + redirects
+  - Test 4: 401/403 on external URL does NOT affect app state
+- **Testing approach:** `vi.stubGlobal` + `setApiClientDependencies()` (no MSW conflicts)
 
-### Q14. Как мы проверим, что export/download всё ещё работает?
+### Q14. Как мы проверим, что export/download работает?
 
-**Local verification steps:**
-1. `npm test` — all tests pass
+**Local verification:**
+1. `npm test` — all tests pass ✅
 2. `npm run dev` — start dev server
 3. Test shopping list export (CSV/PDF download)
 4. Test weekly plan PDF download
@@ -165,7 +163,7 @@ function classifyUrl(url: string): 'api' | 'absolute' {
 
 ### Q15. Ссылка на policy anchor
 
-- PR-586: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586
+- **PR-586:** [Guards PR](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586) (expected-red)
 
 ### Q16. Ссылка на ledger item (P0)
 
@@ -173,62 +171,55 @@ function classifyUrl(url: string): 'api' | 'absolute' {
 
 ### Q17. Ссылка на конкретные строки нарушений
 
-- PR-586 audit: `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md` (Section 2)
+- Detected by guards in PR-586
+- Fixed in this PR (PR-587)
 
 ---
 
-## Implementation Plan (после утверждения audit)
+## F. Implementation Summary
 
-1. **Add `fetchBlob()` to `client.ts`**
-   - Copy auth handling from `api()`
-   - Return `Blob` instead of JSON
-   - Handle 401/403 consistently
+### Files changed
 
-2. **Migrate `sharedLinks.ts`**
-   - Replace `fetch()` with `api()`
-   - Import `api, getApiBase` from `../api/client`
+| File | Change |
+|------|--------|
+| `frontend/src/api/client.ts` | +`classifyUrl()`, +`normalizeApiUrl()`, +`fetchBlob()` |
+| `frontend/src/lib/sharedLinks.ts` | `fetch()` → `api()` |
+| `frontend/src/lib/shareFile.ts` | `fetch()` → `fetchBlob()` |
+| `frontend/src/features/shoplist/ShoplistPreview.tsx` | `fetch()` → `fetchBlob()` |
+| `frontend/src/features/plan/WeeklyPlanViewer.tsx` | `fetch()` → `fetchBlob()` |
+| `frontend/src/lib/shareFile.test.ts` | Mocks updated for `blob()` |
 
-3. **Migrate `shareFile.ts`**
-   - Replace `fetch()` with `fetchBlob()`
-   - Keep `.arrayBuffer()` call on result
+### `fetchBlob()` signature
 
-4. **Migrate `ShoplistPreview.tsx`**
-   - Replace `fetch()` with `fetchBlob()`
-   - Keep `.blob()` → `fetchBlob()` returns Blob directly
-
-5. **Migrate `WeeklyPlanViewer.tsx`**
-   - Replace `fetch()` with `fetchBlob()`
-   - Same pattern as ShoplistPreview
-
-6. **Update tests**
-   - Update `shareFile.test.ts` mocks
-
-7. **Verify**
-   - `npm test` — all pass
-   - Guard test PASS
-   - Manual verification of exports
+```typescript
+export async function fetchBlob(
+  url: string,
+  init?: RequestInit
+): Promise<Blob>
+```
 
 ---
 
-## DoD PR-587
+## G. DoD Checklist
 
 ### Transport layer
-- [ ] `fetchBlob()` added to `client.ts`
-- [ ] `fetchBlob()` must **NOT** send API key to external URLs (security)
-- [ ] `fetchBlob()` must **NOT** clear stored key / redirect on 401/403 for external URLs
-- [ ] URL classification: `/api/...` vs `http(s)://...` handled correctly
+- [x] `fetchBlob()` added to `client.ts`
+- [x] `fetchBlob()` does **NOT** send API key to external URLs
+- [x] `fetchBlob()` does **NOT** clear key on external 401/403
+- [x] URL classification: `/api/...` vs `http(s)://...` handled correctly
 
 ### Migrations
-- [ ] `sharedLinks.ts` migrated to `api()` (JSON, internal)
-- [ ] `shareFile.ts` migrated to `fetchBlob()` (blob, external signed URL)
-- [ ] `ShoplistPreview.tsx` migrated to `fetchBlob()` (blob, API path)
-- [ ] `WeeklyPlanViewer.tsx` migrated to `fetchBlob()` (blob, external signed URL)
+- [x] `sharedLinks.ts` migrated to `api()` (JSON, internal)
+- [x] `shareFile.ts` migrated to `fetchBlob()` (blob, external signed URL)
+- [x] `ShoplistPreview.tsx` migrated to `fetchBlob()` (blob, API path)
+- [x] `WeeklyPlanViewer.tsx` migrated to `fetchBlob()` (blob, external signed URL)
 
 ### Tests & Verification
-- [ ] `shareFile.test.ts` mocks updated
-- [ ] `thin-client-guards.test.ts` PASS
-- [ ] `rg -n "\\bfetch\\s*\\(" frontend/src` → only `src/api/client.ts`
-- [ ] CI green
+- [x] `shareFile.test.ts` mocks updated
+- [x] `client.fetchBlob.test.ts` — security contract tests (4 tests)
+- [x] `npm test` passes (530 tests green)
+- [x] `rg fetch\(` → only `client.ts`
+- [ ] CI green (awaiting)
 
 ---
 
