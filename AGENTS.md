@@ -1222,6 +1222,13 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 **Rationale:** Guard tests and architectural invariants are only enforced if tests actually run in CI. Syntax checks do not execute test code.
 
+**iOS CI job gating (paths-filter):**
+
+- `ios-tests` job is gated via `changes` job using `dorny/paths-filter`.
+- iOS tests run **only** when PR touches: `ios/**`, `.github/workflows/**`, or `.github/actions/**`.
+- Docs-only PRs (e.g., `docs/**/*.md`, `README*.md`, `AGENTS.md`, `.github/*.md`) **do not** run macOS iOS jobs.
+- **Rationale:** Reduces CI noise, prevents flaky iOS tests on unrelated PRs, speeds up docs-only PR cycle.
+
 **iOS CI destination policy (canonical):**
 
 - **CI destination MUST be UDID-only:** `platform=iOS Simulator,id=<UDID>`
