@@ -141,8 +141,12 @@ rg -n "\bfetch\s*\(" frontend/src --type ts | grep -v client.ts | grep -v .test.
 
 **Answer:**
 - ✅ `shareFile.test.ts` — моки обновлены для `blob()` response
-- ✅ Unit тест на `fetchBlob()` implicit (через shareFile tests)
-- ⏭️ Отдельный unit test на `fetchBlob()` — optional (можно добавить)
+- ✅ `client.fetchBlob.test.ts` — **security contract tests** (4 tests):
+  - Test 1: External URL strips auth headers + `credentials: 'omit'`
+  - Test 2: API path uses `credentials: 'include'` by default
+  - Test 3: 401/403 on API path clears key + redirects
+  - Test 4: 401/403 on external URL does NOT affect app state
+- **Testing approach:** `vi.stubGlobal` + `setApiClientDependencies()` (no MSW conflicts)
 
 ### Q14. Как мы проверим, что export/download работает?
 
@@ -212,7 +216,8 @@ export async function fetchBlob(
 
 ### Tests & Verification
 - [x] `shareFile.test.ts` mocks updated
-- [x] `npm test` passes
+- [x] `client.fetchBlob.test.ts` — security contract tests (4 tests)
+- [x] `npm test` passes (515 tests green)
 - [x] `rg fetch\(` → only `client.ts`
 - [ ] CI green (awaiting)
 
