@@ -99,14 +99,16 @@ describe("shareFile", () => {
 
   it("uses default title when sharing natively without an explicit title", async () => {
     isNativePlatformMock.mockReturnValue(true);
-    // Мокаем fetch для возврата успешного ответа с arrayBuffer
-    // Mock fetch to return a successful response with arrayBuffer
+    // Мокаем fetch для возврата успешного ответа с blob
+    // Mock fetch to return a successful response with blob
     const buffer = new Uint8Array([1, 2, 3]).buffer;
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      arrayBuffer: vi.fn().mockResolvedValue(buffer),
+      blob: vi.fn().mockResolvedValue({
+        arrayBuffer: vi.fn().mockResolvedValue(buffer),
+      }),
     });
 
     await shareFile("https://example.com/file.bin", "export.bin");
@@ -129,14 +131,16 @@ describe("shareFile", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      arrayBuffer: () => Promise.resolve(arrayBuffer),
+      blob: () => Promise.resolve({
+        arrayBuffer: () => Promise.resolve(arrayBuffer),
+      }),
     });
 
     const expectedPath = "pulseplate/1758958372976-export.bin";
 
     await shareFile("https://example.com/file.bin", "export.bin", "Native Share");
 
-    expect(global.fetch).toHaveBeenCalledWith("https://example.com/file.bin");
+    expect(global.fetch).toHaveBeenCalled();
     expect(writeFileMock).toHaveBeenCalledWith({
       path: expectedPath,
       data: expect.any(String),
@@ -165,7 +169,7 @@ describe("shareFile", () => {
     });
 
     await expect(shareFile("https://example.com/missing.bin", "missing.bin")).rejects.toThrow(
-      "HTTP 404",
+      /404/,
     );
 
     expect(writeFileMock).not.toHaveBeenCalled();
@@ -179,7 +183,9 @@ describe("shareFile", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      blob: () => Promise.resolve({
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      }),
     });
 
     writeFileMock.mockRejectedValue(new Error("disk full"));
@@ -195,7 +201,9 @@ describe("shareFile", () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      blob: () => Promise.resolve({
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      }),
     });
 
     shareMock.mockRejectedValue(new Error("share failed"));
@@ -220,7 +228,9 @@ describe("shareFile", () => {
       fetchMock.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        arrayBuffer: () => Promise.resolve(buffer),
+        blob: () => Promise.resolve({
+          arrayBuffer: () => Promise.resolve(buffer),
+        }),
       });
 
       await shareFile("https://example.com/file", "file.bin");

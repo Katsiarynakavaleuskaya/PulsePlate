@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { components } from "../../api/schema";
 import { getWeeklyPlan } from "../../api/premium/weekly-plan";
+import { fetchBlob } from "../../api/client";
 import GlassCard from "../../components/GlassCard";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import { requestSignedLink } from "../../lib/sharedLinks";
@@ -35,19 +36,21 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-async function downloadSignedFile(url: string, filename: string) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-  const blob = await res.blob();
+/**
+ * Downloads a file from signed URL using thin HTTP adapter
+ * Uses fetchBlob() for thin-client compliance (external signed URL, no auth headers)
+ */
+async function downloadSignedFile(url: string, filename: string): Promise<void> {
+  const blob = await fetchBlob(url);
+  const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = URL.createObjectURL(blob);
+  anchor.href = objectUrl;
   anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(anchor.href);
+  // Delay revocation to ensure download starts
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
 type WeekPlanRequest = components["schemas"]["WeekPlanRequest"];
