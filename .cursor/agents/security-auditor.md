@@ -333,7 +333,7 @@ For each vulnerability:
 
 ### Vulnerability Report
 
-```markdown
+````markdown
 ## Security Audit Report
 
 ### Critical Vulnerabilities (P0)
@@ -397,7 +397,7 @@ For each vulnerability:
 3. **Long-term (architectural):**
    - [ ] Security audit of all tier guards
    - [ ] Add security tests to CI pipeline
-```
+````
 
 ## Proactive Scanning Commands
 
