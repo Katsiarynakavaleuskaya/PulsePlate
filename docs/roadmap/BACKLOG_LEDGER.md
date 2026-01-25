@@ -53,19 +53,31 @@ If it is not recorded here — it does not exist.
     - ✅ Merge conflict safety guards added (3 levels)
     - ⏳ CI green (awaiting CI run)
 
-- [ ] PR-564 Thin HTTP Adapter (Web)
+- [ ] PR-586 Web Thin HTTP Adapter — Guards (expected-red)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-564 (TBD, after PR-563 merge)
-  - Reason: unified thin transport layer for Web client (no business logic)
+  - Target PR: PR-586 (after PR-563 merge)
+  - Reason: Policy enforcement — guard tests to detect thin-client violations
   - Links:
-    - docs/CONTEXT_HANDOFF_2026-01-21.md
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
+    - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586>
   - DoD:
-    - Web: thin fetch wrapper + BMI API client (transport only)
-    - No BMI/waist/risk logic on clients (grep policy / guard tests)
-    - Unit tests green (Web)
-    - DTOs aligned with backend OpenAPI schemas (openapi-typescript)
-    - Error envelope mapping implemented (422 vs 400/500)
+    - ✅ Guard tests created (`frontend/src/api/__tests__/thin-client-guards.test.ts`)
+    - ✅ `frontend/AGENTS.md` updated with thin-client policy
+    - 🔴 CI expected RED (guards expose 4 direct fetch violations)
+    - Remediation tracked in PR-587
+
+- [ ] PR-587 Web Thin HTTP Adapter — Remediation (fix-green)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-587 (after PR-586)
+  - Reason: Fix 4 direct fetch() violations detected by guards
+  - Links:
+    - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md (violations list)
+  - DoD:
+    - Migrate `features/plan/WeeklyPlanViewer.tsx:39` to use `api()`
+    - Migrate `features/shoplist/ShoplistPreview.tsx:109` to use `api()`
+    - Migrate `lib/shareFile.ts:108` to use `api()`
+    - Migrate `lib/sharedLinks.ts:21` to use `api()`
+    - Guard tests pass (all 4 violations fixed)
     - CI green
 
 ---
