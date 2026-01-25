@@ -4,7 +4,7 @@
 **Target branch:** `main`
 **Source branch:** `docs/pr-595-ios-thin-http-adapter-audit`
 **Author:** @katsiaryna_kavaleuskaya
-**Status:** 🟡 **Audit draft** (evidence pending)
+**Status:** 🟡 **In progress** (Q8/Q9 evidence captured; Q11/Q12 pending)
 
 ---
 
@@ -138,15 +138,19 @@ rg "BMICalculateRequest|BMICalculateResult" ios/
 
 | Area | AS-IS DTO | Canonical backend DTO | Impact |
 |------|-----------|-----------------------|--------|
-| BMI | `BMIResponse` | `BMICalculateResult` | drift / mapping risk |
-| … | … | … | … |
+| BMI | `BMIRequest` / `BMIResponse` | `ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift:7,20` | `BMICalculateRequest` / `BMICalculateResult` | UI/service drift (legacy types in use; migration TODOs present) |
+| BMI | `BMICalculateRequestDTO` / `BMICalculateResponseDTO` | `ios/PulsePlate/Services/BMIService.swift:5,27-34` | `BMICalculateRequest` / `BMICalculateResult` | canonical-candidate DTO path exists (thin adapter) |
+| BMI | `BMIRequest` / `BMIResponse` | `ios/PulsePlate/Services/BMIService.swift:50,54-55,107,159` | `BMICalculateRequest` / `BMICalculateResult` | legacy compatibility shim (`DefaultBMIService`) retains old DTO boundary |
 
 ### Q12. Error handling: какие error-типы и где живут?
 
 | Error Type | File | Usage |
 |------------|------|-------|
-| `BMIServiceError` | … | mapping/network layer |
-| … | … | … |
+| `APIError` | `ios/PulsePlate/Networking/APIError.swift:7` | canonical network error enum (used by `HTTPClient` / `APIClient`) |
+| `BMIServiceError` | `ios/PulsePlate/Services/BMIService.swift:59` | legacy UI/service error type (explicit TODO: migrate to `APIError`) |
+| `ShoppingListServiceError` | `ios/PulsePlate/Services/ShoppingListService.swift:19` | service-level error type for legacy `DefaultShoppingListService` |
+| `WeeklyPlanServiceError` | `ios/PulsePlate/Services/WeeklyPlanService.swift:19` | service-level error type for legacy `DefaultWeeklyPlanService` |
+| `NutritionAPIError` | `ios/PulsePlate/Models/NutritionData.swift:122` | local error type for `NutritionService` (direct URLSession path) |
 
 ---
 
