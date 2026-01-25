@@ -10,6 +10,11 @@ private enum Layout {
 
 struct DebugToolsScreen: View {
     @State private var networkTestResult: String = "Not tested"
+    private let apiClient: APIClientProtocol
+
+    init(apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL())) {
+        self.apiClient = apiClient
+    }
 
     var body: some View {
         List {
@@ -93,12 +98,23 @@ struct DebugToolsScreen: View {
     private func testBackendConnection() async {
         networkTestResult = "Testing..."
         do {
-            let url = AppConfig.baseURL().appendingPathComponent("docs")
-            let (_, response) = try await URLSession.shared.data(from: url)
-            if let http = response as? HTTPURLResponse {
-                networkTestResult = "✅ Connected: HTTP \(http.statusCode)"
-            } else {
+            // Transport-only probe via APIClient (no direct URLSession in UI).
+            // We intentionally keep this tolerant: decoding failures still confirm connectivity.
+            let _: DebugHealthProbe = try await apiClient.get(path: "health")
+            networkTestResult = "✅ Connected: /health"
+        } catch let apiError as APIError {
+            switch apiError {
+            case .decodingFailed:
+                // Response is reachable but not JSON in expected shape (still confirms connectivity).
+                networkTestResult = "✅ Connected (unexpected payload): /health"
+            case .api(let statusCode, _):
+                networkTestResult = "✅ Connected: HTTP \(statusCode)"
+            case .validation:
+                networkTestResult = "✅ Connected: HTTP 422"
+            case .invalidResponse:
                 networkTestResult = "⚠️ Invalid response type"
+            default:
+                networkTestResult = "⚠️ Error: \(String(describing: apiError).prefix(Layout.maxMessageLength))..."
             }
         } catch let error as NSError {
             let msg = error.localizedDescription
@@ -111,6 +127,13 @@ struct DebugToolsScreen: View {
             }
         }
     }
+}
+
+/// Minimal probe DTO for `/health`.
+/// We accept any JSON object; extra keys are ignored.
+private struct DebugHealthProbe: Decodable {
+    let status: String?
+    let ok: Bool?
 }
 
 #Preview {
