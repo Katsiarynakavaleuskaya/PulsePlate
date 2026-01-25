@@ -13,12 +13,13 @@
  * - BMI comparisons (if bmi <, bmi >, etc.)
  * - Category/risk assignments
  * - Local BMI calculation functions
+ * - Direct fetch() calls outside client.ts
  *
  * @see docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md
  * @see frontend/AGENTS.md (Thin HTTP Adapter Policy)
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -88,10 +89,23 @@ const FORBIDDEN_PATTERNS: Array<{ name: string; pattern: RegExp; description: st
   },
 ];
 
+// Canonical path for the allowed fetch file
+const ALLOWED_FETCH_FILE = path.join('api', 'client.ts');
+
+/**
+ * Source file with content for scanning
+ */
+interface SourceFile {
+  path: string;
+  relativePath: string;
+  content: string;
+  lines: string[];
+}
+
 /**
  * Recursively get all TypeScript/TSX files in a directory
  */
-function getSourceFiles(dir: string): string[] {
+function getSourceFilePaths(dir: string): string[] {
   const files: string[] = [];
 
   if (!fs.existsSync(dir)) {
@@ -109,7 +123,7 @@ function getSourceFiles(dir: string): string[] {
     }
 
     if (entry.isDirectory()) {
-      files.push(...getSourceFiles(fullPath));
+      files.push(...getSourceFilePaths(fullPath));
     } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
       files.push(fullPath);
     }
@@ -119,41 +133,96 @@ function getSourceFiles(dir: string): string[] {
 }
 
 /**
- * Scan a file for forbidden patterns
+ * Load source files with content (shared helper to avoid duplicate FS reads)
+ * FIX B: Shared helper for file collection
  */
-function scanFile(
-  filePath: string
-): Array<{ pattern: string; line: number; content: string }> {
-  const violations: Array<{ pattern: string; line: number; content: string }> = [];
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n');
+function collectSourceFiles(srcDir: string, scanDirs: string[]): SourceFile[] {
+  const sourceFiles: SourceFile[] = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineNum = i + 1;
+  for (const subDir of scanDirs) {
+    const dirPath = path.join(srcDir, subDir);
+    const filePaths = getSourceFilePaths(dirPath);
 
-    // Skip comments
-    const trimmed = line.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
-      continue;
-    }
-
-    for (const { name, pattern } of FORBIDDEN_PATTERNS) {
-      if (pattern.test(line)) {
-        violations.push({
-          pattern: name,
-          line: lineNum,
-          content: line.trim().substring(0, 100),
-        });
-      }
+    for (const filePath of filePaths) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      sourceFiles.push({
+        path: filePath,
+        relativePath: path.relative(srcDir, filePath),
+        content,
+        lines: content.split('\n'),
+      });
     }
   }
 
-  return violations;
+  return sourceFiles;
+}
+
+/**
+ * Check if a line is inside a comment (handles block comments)
+ * FIX A: Proper block comment handling
+ */
+function isLineInComment(
+  line: string,
+  inBlockComment: boolean
+): { skip: boolean; newBlockCommentState: boolean } {
+  const trimmed = line.trim();
+
+  // If we're in a block comment, check if it ends on this line
+  if (inBlockComment) {
+    if (trimmed.includes('*/')) {
+      // Block comment ends on this line - check if there's code after
+      const afterClose = trimmed.substring(trimmed.indexOf('*/') + 2).trim();
+      // If there's no code after the close, skip this line
+      // Otherwise, we need to process the code after
+      if (!afterClose) {
+        return { skip: true, newBlockCommentState: false };
+      }
+      // There's code after - don't skip, but block comment is closed
+      return { skip: false, newBlockCommentState: false };
+    }
+    // Still in block comment
+    return { skip: true, newBlockCommentState: true };
+  }
+
+  // Not in block comment - check for new block comment start
+  if (trimmed.startsWith('/*')) {
+    // Check if block comment closes on same line
+    if (trimmed.includes('*/')) {
+      // Single-line block comment - skip this line
+      return { skip: true, newBlockCommentState: false };
+    }
+    // Block comment starts but doesn't close
+    return { skip: true, newBlockCommentState: true };
+  }
+
+  // Single-line comment or JSDoc continuation
+  if (trimmed.startsWith('//') || trimmed.startsWith('*')) {
+    return { skip: true, newBlockCommentState: false };
+  }
+
+  // Not a comment
+  return { skip: false, newBlockCommentState: false };
+}
+
+/**
+ * Check if file is the canonical client.ts (allowed to use fetch)
+ * FIX C: Stricter client.ts skip condition using exact path
+ */
+function isAllowedFetchFile(relativePath: string): boolean {
+  // Normalize path separators for cross-platform compatibility
+  const normalized = relativePath.replace(/\\/g, '/');
+  return normalized === 'api/client.ts' || normalized.endsWith('/api/client.ts');
 }
 
 describe('ThinClientGuards', () => {
   const srcDir = path.resolve(__dirname, '../..');
+
+  // FIX B: Collect files once, share between tests
+  let sourceFiles: SourceFile[];
+
+  beforeAll(() => {
+    sourceFiles = collectSourceFiles(srcDir, SCAN_DIRS);
+  });
 
   it('should not contain BMI thresholds or business logic in frontend code', () => {
     const allViolations: Array<{
@@ -163,17 +232,30 @@ describe('ThinClientGuards', () => {
       content: string;
     }> = [];
 
-    for (const subDir of SCAN_DIRS) {
-      const dirPath = path.join(srcDir, subDir);
-      const files = getSourceFiles(dirPath);
+    for (const file of sourceFiles) {
+      let inBlockComment = false;
 
-      for (const file of files) {
-        const violations = scanFile(file);
-        for (const v of violations) {
-          allViolations.push({
-            file: path.relative(srcDir, file),
-            ...v,
-          });
+      for (let i = 0; i < file.lines.length; i++) {
+        const line = file.lines[i];
+        const lineNum = i + 1;
+
+        // FIX A/D: Consistent comment handling with block comment support
+        const commentCheck = isLineInComment(line, inBlockComment);
+        inBlockComment = commentCheck.newBlockCommentState;
+
+        if (commentCheck.skip) {
+          continue;
+        }
+
+        for (const { name, pattern } of FORBIDDEN_PATTERNS) {
+          if (pattern.test(line)) {
+            allViolations.push({
+              file: file.relativePath,
+              pattern: name,
+              line: lineNum,
+              content: line.trim().substring(0, 100),
+            });
+          }
         }
       }
     }
@@ -200,35 +282,31 @@ describe('ThinClientGuards', () => {
     const violations: Array<{ file: string; line: number; content: string }> = [];
     const fetchPattern = /\bfetch\s*\(/;
 
-    for (const subDir of SCAN_DIRS) {
-      const dirPath = path.join(srcDir, subDir);
-      const files = getSourceFiles(dirPath);
+    for (const file of sourceFiles) {
+      // FIX C: Use exact path check for client.ts
+      if (isAllowedFetchFile(file.relativePath)) {
+        continue;
+      }
 
-      for (const file of files) {
-        // Skip the client.ts file (it's allowed to use fetch)
-        if (file.includes('client.ts')) {
+      let inBlockComment = false;
+
+      for (let i = 0; i < file.lines.length; i++) {
+        const line = file.lines[i];
+
+        // FIX A/D: Consistent comment handling with block comment support
+        const commentCheck = isLineInComment(line, inBlockComment);
+        inBlockComment = commentCheck.newBlockCommentState;
+
+        if (commentCheck.skip) {
           continue;
         }
 
-        const content = fs.readFileSync(file, 'utf-8');
-        const lines = content.split('\n');
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          const trimmed = line.trim();
-
-          // Skip comments
-          if (trimmed.startsWith('//') || trimmed.startsWith('*')) {
-            continue;
-          }
-
-          if (fetchPattern.test(line)) {
-            violations.push({
-              file: path.relative(srcDir, file),
-              line: i + 1,
-              content: trimmed.substring(0, 100),
-            });
-          }
+        if (fetchPattern.test(line)) {
+          violations.push({
+            file: file.relativePath,
+            line: i + 1,
+            content: line.trim().substring(0, 100),
+          });
         }
       }
     }
