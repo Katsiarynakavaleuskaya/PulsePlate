@@ -74,16 +74,19 @@ public final class APIClient: APIClientProtocol, Sendable {
         self.makeEncoder = makeEncoder
     }
 
+    private func normalizePath(_ path: String) -> String {
+        // IMPORTANT:
+        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
+        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
+        return path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
+    }
+
     public func post<Response: Decodable, Body: Encodable>(
         path: String,
         body: Body,
         headers: [String: String]
     ) async throws -> Response {
-        // IMPORTANT:
-        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
-        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
-        let normalizedPath = path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
-        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizePath(path)))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -106,11 +109,7 @@ public final class APIClient: APIClientProtocol, Sendable {
         body: Data,
         headers: [String: String]
     ) async throws -> Response {
-        // IMPORTANT:
-        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
-        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
-        let normalizedPath = path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
-        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizePath(path)))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -127,11 +126,7 @@ public final class APIClient: APIClientProtocol, Sendable {
         path: String,
         headers: [String: String]
     ) async throws -> Response {
-        // IMPORTANT:
-        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
-        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
-        let normalizedPath = path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
-        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizePath(path)))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
