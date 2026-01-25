@@ -383,8 +383,18 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 **Enforcement:**
 
 - iOS: `ThinClientGuardsTests` (scans for BMI thresholds/computation patterns)
+- Web: `thin-client-guards.test.ts` (scans for BMI thresholds + direct fetch violations)
 - Web: TypeScript types from OpenAPI (prevents manual DTO drift)
 - Code review: grep for forbidden patterns (BMI math, threshold literals, category inference)
+
+**Guard PRs and expected-red workflow:**
+
+Some guard PRs are intentionally **expected-red** to expose real policy violations.
+Remediation must happen in a follow-up remediation PR.
+
+Source of truth:
+- Audit docs: `docs/audit/*`
+- Canonical backlog: `docs/roadmap/BACKLOG_LEDGER.md`
 
 **DTO contract rules:**
 
@@ -411,7 +421,8 @@ Backend spans `app/` + `core/` (unified API + domain logic).
 **See:**
 
 - `ios/AGENTS.md` — iOS Thin Client Policy (detailed)
-- `frontend/AGENTS.md` — Frontend conventions
+- `frontend/AGENTS.md` — Frontend Thin Client Policy (detailed)
+- `docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md` — Web adapter audit
 - `docs/BMI_CANONICAL_HANDOFF.md` — One BMI Engine invariant
 - `docs/CONTEXT_HANDOFF_2026-01-21.md` — Thin HTTP adapter PR plan
 
