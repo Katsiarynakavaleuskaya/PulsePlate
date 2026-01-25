@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { Share } from "@capacitor/share";
 import { Filesystem, Directory } from "@capacitor/filesystem";
+import { fetchBlob } from "../api/client";
 import type { SignedLink, SignedLinkOptions } from "./sharedLinks";
 import { requestSignedLink } from "./sharedLinks";
 
@@ -105,12 +106,9 @@ export async function shareFile(url: string, filename: string, title = "PulsePla
     return;
   }
 
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
-  }
-
-  const buf = await res.arrayBuffer();
+  // Use fetchBlob for thin-client compliance (no direct fetch outside client.ts)
+  const blob = await fetchBlob(url);
+  const buf = await blob.arrayBuffer();
   const base64Data = await arrayBufferToBase64(buf);
 
   const safeFilename =

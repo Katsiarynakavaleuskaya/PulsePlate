@@ -321,6 +321,56 @@ export async function api<T = unknown>(
 }
 
 export const fetchJson = api;
+
+/**
+ * Fetch binary data (blob) from API or external URL.
+ * Uses same auth/headers as api() but returns Blob instead of JSON.
+ *
+ * @param url - Full URL or API path (e.g., "/api/v1/shoplist/export.pdf")
+ * @param init - Optional fetch init options
+ * @param options - Optional API options for auth error handling
+ * @returns Promise<Blob> - Binary data as Blob
+ */
+export async function fetchBlob(
+  url: string,
+  init?: RequestInit,
+  options?: ApiOptions
+): Promise<Blob> {
+  // Determine if this is an API path or full URL
+  const isApiPath = url.startsWith("/api/") || url.startsWith("/plan/") || url.startsWith("/export/");
+  const fullUrl = isApiPath ? `${getApiBase()}${url}` : url;
+
+  // Only validate API base for API paths
+  if (isApiPath) {
+    validateApiBase();
+  }
+
+  const res = await fetch(fullUrl, {
+    ...init,
+    headers: mergeHeaders(init),
+    credentials: init?.credentials ?? "include",
+  });
+
+  if (!res.ok) {
+    // Handle 401/403 Unauthorized
+    if (res.status === 401 || res.status === 403) {
+      const errorCode = (res.status === 401 ? 401 : 403) as 401 | 403;
+      if (options?.onAuthError) {
+        options.onAuthError(errorCode, { clearApiKey: _clearStoredApiKey });
+      } else {
+        _clearStoredApiKey();
+        if (typeof window !== "undefined") {
+          window.location.replace("/enter-key");
+        }
+      }
+      throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+    }
+    throw new Error(`Fetch blob failed: HTTP ${res.status}`);
+  }
+
+  return res.blob();
+}
+
 export { getBmr, getPlate, getTargets } from "./premium";
 export type {
   BmrRequest,
