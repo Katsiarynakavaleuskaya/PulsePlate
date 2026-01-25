@@ -47,7 +47,7 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
             // Treat empty successful responses as "no content" for callers that want `.empty` UX.
             // This keeps transport semantics centralized and avoids ad-hoc URLSession handling in services/VMs.
             if httpResponse.statusCode == 204 || data.isEmpty {
-                throw APIError.api(statusCode: 204, message: "No Content")
+                throw APIError.api(statusCode: httpResponse.statusCode, message: "Empty response body")
             }
             return try decode(data, as: T.self)
 

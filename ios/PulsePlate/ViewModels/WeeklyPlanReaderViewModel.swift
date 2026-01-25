@@ -94,7 +94,7 @@ public final class WeeklyPlanReaderViewModel {
             return
         } catch let error as APIError {
             // Preserve old UX: 204 / empty response => .empty
-            if case .api(let statusCode, _) = error, statusCode == 204 {
+            if case .api(let statusCode, _) = error, statusCode == 200 || statusCode == 204 {
                 state = .empty
                 return
             }
