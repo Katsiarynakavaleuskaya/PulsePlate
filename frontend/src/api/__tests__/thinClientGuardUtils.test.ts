@@ -157,6 +157,13 @@ describe('isLineInComment()', () => {
       expect(res.skip).toBe(false);
       expect(res.newBlockCommentState).toBe(false);
     });
+
+    it('does not skip line with code between block comments (regression)', () => {
+      const line = '/* closed */ code /* unclosed';
+      const res = isLineInComment(line, false);
+      expect(res.skip).toBe(false);
+      expect(res.newBlockCommentState).toBe(true);
+    });
   });
 
   describe('inside block comment (inBlockComment=true)', () => {

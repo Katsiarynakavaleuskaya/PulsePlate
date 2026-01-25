@@ -120,49 +120,85 @@ export function isLineInComment(
   line: string,
   inBlockComment: boolean
 ): CommentState {
-  const trimmed = line.trim();
+  // We use a small quote-aware scanner to decide whether the line contains any code outside
+  // comments, and to update block-comment state.
+  //
+  // Key bug fixed: don't mix lastIndexOf('/*') state detection with indexOf('/*') skip decision.
+  // Lines like `/* closed */ code /* unclosed` MUST NOT be skipped (code exists), but must set
+  // newBlockCommentState=true (unclosed block at end).
+  let inBlock = inBlockComment;
+  let inSingle = false;
+  let inDouble = false;
+  let inBacktick = false;
+  let escaped = false;
 
-  // If we're in a block comment, check if it ends on this line
-  if (inBlockComment) {
-    if (trimmed.includes('*/')) {
-      // Block comment ends on this line - check if there's code after
-      const afterClose = trimmed.substring(trimmed.indexOf('*/') + 2).trim();
-      // If there's no code after the close, skip this line
-      // Otherwise, we need to process the code after
-      if (!afterClose) {
-        return { skip: true, newBlockCommentState: false };
+  let hasCodeOutsideComments = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    const next = i + 1 < line.length ? line[i + 1] : '';
+
+    // Inside block comment: scan until close.
+    if (inBlock) {
+      if (ch === '*' && next === '/') {
+        inBlock = false;
+        i += 1; // skip '/'
       }
-      // There's code after - don't skip, but block comment is closed
-      return { skip: false, newBlockCommentState: false };
+      continue;
     }
-    // Still in block comment - skip any line including JSDoc "*" continuations
-    return { skip: true, newBlockCommentState: true };
-  }
 
-  // Not in block comment - check for new block comment start
-  // Check for block comment start anywhere in the line
-  const blockStartIdx = trimmed.lastIndexOf('/*');
-  if (blockStartIdx !== -1) {
-    // Check if block comment closes on same line
-    const closeIdx = trimmed.indexOf('*/', blockStartIdx + 2);
-    if (closeIdx !== -1) {
-      // Block comment closes after the last open - no ongoing block
-      return { skip: trimmed.indexOf('/*') === 0, newBlockCommentState: false };
+    // Inside string literal (quote-aware)
+    if (inSingle || inDouble || inBacktick) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (inSingle && ch === "'") {
+        inSingle = false;
+      } else if (inDouble && ch === '"') {
+        inDouble = false;
+      } else if (inBacktick && ch === '`') {
+        inBacktick = false;
+      }
+      continue;
     }
-    // Block comment starts but doesn't close on this line
-    return { skip: trimmed.indexOf('/*') === 0, newBlockCommentState: true };
+
+    // Not in block comment & not in string: detect comment starts
+    if (ch === '/' && next === '/') {
+      break; // rest of line is a comment
+    }
+    if (ch === '/' && next === '*') {
+      inBlock = true;
+      i += 1; // skip '*'
+      continue;
+    }
+
+    // Enter string literal (counts as code)
+    if (ch === "'") {
+      inSingle = true;
+      hasCodeOutsideComments = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      hasCodeOutsideComments = true;
+      continue;
+    }
+    if (ch === '`') {
+      inBacktick = true;
+      hasCodeOutsideComments = true;
+      continue;
+    }
+
+    // Any non-whitespace char outside comments => this line has code.
+    if (ch.trim() !== '') {
+      hasCodeOutsideComments = true;
+    }
   }
 
-  // Single-line comment
-  if (trimmed.startsWith('//')) {
-    return { skip: true, newBlockCommentState: false };
-  }
-
-  // IMPORTANT: Do NOT treat "*" as comment outside block comment.
-  // This prevents skipping valid multiline math like:
-  // width
-  //   * height
-
-  // Not a comment
-  return { skip: false, newBlockCommentState: false };
+  return { skip: !hasCodeOutsideComments, newBlockCommentState: inBlock };
 }
