@@ -478,7 +478,8 @@ export type {
 } from "./premium";
 
 // OpenAPI generated types
-export type WeekPlanResponse = components["schemas"]["WeekPlanResponse"];
+// NOTE: OpenAPI schema name is WeeklyPlanResponse; keep WeekPlanResponse as a local alias.
+export type WeekPlanResponse = components["schemas"]["WeeklyPlanResponse"];
 
 // Endpoints
 
