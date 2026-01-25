@@ -31,7 +31,6 @@ from core.business_bayesian_analyzer import (
 )
 from core.integrated_bayesian_analyzer import IntegratedBayesianAnalyzer, IntegratedTestResult
 
-
 # --- bayesian_recommendations -------------------------------------------------
 
 

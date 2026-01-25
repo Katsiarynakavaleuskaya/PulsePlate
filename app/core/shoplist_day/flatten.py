@@ -4,7 +4,6 @@ import math
 
 from app.schemas.shopping_list import ShopAisle, ShopUnit, ShoplistDayItemDTO, ShoppingListDTO
 
-
 _CATEGORY_TO_AISLE: dict[str, ShopAisle] = {
     # Fresh produce
     "produce": ShopAisle.produce,

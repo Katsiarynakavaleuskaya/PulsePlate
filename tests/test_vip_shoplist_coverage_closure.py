@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 from core.shoplist_engine.models import FoodRef, PackPlan, Quantity, Unit
 from core.shoplist_engine.packager import PackagingResult
 
-
 # --- Mapper functions: direct exception handler coverage ---
 
 

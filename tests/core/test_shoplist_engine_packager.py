@@ -32,7 +32,6 @@ from core.shoplist_engine.packager import (
     compute_packs,
 )
 
-
 # --- compute_packs tests ---
 
 

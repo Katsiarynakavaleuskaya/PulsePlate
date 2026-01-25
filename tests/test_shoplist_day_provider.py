@@ -11,7 +11,6 @@ import pytest
 import core.db as db
 from app.core.shoplist_day import provider as provider_module
 
-
 DayPlanT = TypeVar("DayPlanT")
 
 

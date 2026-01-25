@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 import app
 
-
 # Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
 
 
