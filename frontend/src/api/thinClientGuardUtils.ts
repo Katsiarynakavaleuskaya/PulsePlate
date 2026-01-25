@@ -35,18 +35,33 @@ export function stripInlineComments(line: string): string {
   let inDouble = false;
   let inBacktick = false;
   let escaped = false;
+  let inBlockComment = false;
+
+  const out: string[] = [];
 
   for (let i = 0; i < line.length; i += 1) {
     const ch = line[i];
     const next = i + 1 < line.length ? line[i + 1] : '';
 
+    // If we're inside a block comment, skip content until we find the close.
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1; // skip '/'
+      }
+      continue;
+    }
+
     if (escaped) {
+      // Keep escaped character in output and clear escape state.
+      out.push(ch);
       escaped = false;
       continue;
     }
 
     if (ch === '\\') {
       // escape only matters inside strings
+      out.push(ch);
       if (inSingle || inDouble || inBacktick) {
         escaped = true;
       }
@@ -56,29 +71,36 @@ export function stripInlineComments(line: string): string {
     // Toggle quote states (only when not inside another quote type)
     if (!inDouble && !inBacktick && ch === "'") {
       inSingle = !inSingle;
+      out.push(ch);
       continue;
     }
     if (!inSingle && !inBacktick && ch === '"') {
       inDouble = !inDouble;
+      out.push(ch);
       continue;
     }
     if (!inSingle && !inDouble && ch === '`') {
       inBacktick = !inBacktick;
+      out.push(ch);
       continue;
     }
 
     // Detect comment starts only when NOT in any string literal
     if (!inSingle && !inDouble && !inBacktick) {
       if (ch === '/' && next === '/') {
-        return line.slice(0, i);
+        break; // rest of the line is a comment
       }
       if (ch === '/' && next === '*') {
-        return line.slice(0, i);
+        inBlockComment = true;
+        i += 1; // skip '*'
+        continue;
       }
     }
+
+    out.push(ch);
   }
 
-  return line;
+  return out.join('');
 }
 
 /**
@@ -119,15 +141,16 @@ export function isLineInComment(
 
   // Not in block comment - check for new block comment start
   // Check for block comment start anywhere in the line
-  const blockStartIdx = trimmed.indexOf('/*');
+  const blockStartIdx = trimmed.lastIndexOf('/*');
   if (blockStartIdx !== -1) {
     // Check if block comment closes on same line
-    if (trimmed.includes('*/')) {
-      // Single-line block comment - don't skip if there's code before it
-      return { skip: blockStartIdx === 0, newBlockCommentState: false };
+    const closeIdx = trimmed.indexOf('*/', blockStartIdx + 2);
+    if (closeIdx !== -1) {
+      // Block comment closes after the last open - no ongoing block
+      return { skip: trimmed.indexOf('/*') === 0, newBlockCommentState: false };
     }
-    // Block comment starts but doesn't close - set state, skip only if at start
-    return { skip: blockStartIdx === 0, newBlockCommentState: true };
+    // Block comment starts but doesn't close on this line
+    return { skip: trimmed.indexOf('/*') === 0, newBlockCommentState: true };
   }
 
   // Single-line comment

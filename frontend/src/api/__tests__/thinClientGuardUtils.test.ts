@@ -79,6 +79,26 @@ describe('stripInlineComments()', () => {
       expect(stripped).toContain('const bmi = 30');
     });
 
+    it('removes /* ... */ but keeps code after */ (prevents guard blind spot)', () => {
+      const line = 'const a = 1; /* bmi >= 25 */ const b = 25;';
+      const stripped = stripInlineComments(line);
+      expect(stripped).toContain('const b = 25;');
+      expect(stripped).not.toContain('bmi >= 25');
+    });
+
+    it('keeps URL strings and keeps code after */', () => {
+      const line = 'const url = "http://x"; /* c */ const b = 25;';
+      const stripped = stripInlineComments(line);
+      expect(stripped).toContain('"http://x"');
+      expect(stripped).toContain('const b = 25;');
+    });
+
+    it('unterminated /* removes rest of line', () => {
+      const line = 'const a = 1; /* unterminated bmi >= 25';
+      const stripped = stripInlineComments(line);
+      expect(stripped).toBe('const a = 1; ');
+    });
+
     it('cuts at // outside strings after string ends', () => {
       const line = 'const url = "http://example.com"; // real comment with 25';
       const stripped = stripInlineComments(line);
