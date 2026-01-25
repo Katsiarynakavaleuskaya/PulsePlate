@@ -83,6 +83,35 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] PR-595 iOS Thin HTTP Adapter Audit
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-595
+  - Status: 🟡 In progress (draft)
+  - Reason: CodeRabbit actionable — if not recorded in ledger, it does not exist. Audit-first for iOS networking layer (dual-path HTTP, legacy services, DTO drift) and deterministic remediation plan.
+  - Links:
+    - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/595>
+  - DoD:
+    - Evidence captured for dual-path networking (`file:line → transport`)
+    - Legacy services and direct HTTP entry points enumerated
+    - DTO/contract drift documented at network boundary
+    - Remediation plan defined (PR-596 scope)
+
+- [ ] PR-596 iOS Thin HTTP Adapter Remediation (placeholder)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-596
+  - Status: 🟡 Planned (awaits PR-595 audit)
+  - Reason: Consolidate iOS networking under a single thin transport (`APIClient`) and eliminate direct HTTP calls outside transport layer.
+  - Links:
+    - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
+  - DoD:
+    - All services use `APIClient` (no direct `URLSession` outside transport layer)
+    - No direct HTTP in non-transport layers (models/view models/views/services)
+    - DTO boundary aligned with canonical backend contracts
+    - Tests/guards pass
+
 - [ ] Stabilize/restore PlateViewTests and UI tests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (separate from PR-559)

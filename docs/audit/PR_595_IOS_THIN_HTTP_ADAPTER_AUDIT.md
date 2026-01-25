@@ -1,0 +1,223 @@
+# PR-595 — iOS Thin HTTP Adapter Audit
+
+**Date:** 2026-01-26
+**Target branch:** `main`
+**Source branch:** `docs/pr-595-ios-thin-http-adapter-audit`
+**Author:** @katsiaryna_kavaleuskaya
+**Status:** 🟡 **In progress** (Q8/Q9 evidence captured; Q11/Q12 pending)
+
+---
+
+## A. Scope (факты)
+
+### Q1. Какая цель аудита?
+
+Зафиксировать **фактическое состояние iOS networking слоя**, выявить:
+- **dual-path HTTP** (прямые вызовы vs `APIClient`)
+- legacy сервисы / “локальные клиенты”
+- DTO/contract drift (ручные модели, рассинхрон с backend schema)
+
+и подготовить **детерминированный remediation план** для перехода на **one thin HTTP adapter (`APIClient`)**.
+
+### Q2. Что в scope / out of scope?
+
+**In-scope (только факты transport/contract/wiring):**
+- Где выполняются HTTP запросы (entry points)
+- Как формируются `URLRequest`, где лежит base URL, заголовки, креды
+- Какие сервисы/клиенты владеют сетевыми вызовами
+- Какие DTO используются на границе сети (request/response/error envelopes)
+- Где и как тестируется networking слой (URLProtocol stubs и т.п.)
+
+**Out-of-scope (жёстко):**
+- Backend изменения
+- UI/UX / ViewModel архитектура (кроме факта: “делает ли ViewModel HTTP напрямую”)
+- Любые вычисления/интерпретации (BMI/категории/решения) — только фиксация нарушений thin-client policy
+
+### Q3. Канонические инварианты (re-statement)
+
+- **One HTTP Path (iOS):** один транспортный слой как SoT
+- **Thin client:** iOS не интерпретирует данные и не делает бизнес-решений (не считает BMI/risks и т.п.)
+- **`APIClient`:** единственная точка HTTP (никакого `URLSession` снаружи)
+
+---
+
+## B. Инвентаризация: текущие HTTP пути (AS-IS)
+
+> Ниже — команды для сбора фактов. В этот PR **не добавляем решения** — только наблюдения.
+
+### Q4. Где выполняются сетевые запросы?
+
+```bash
+# Все прямые URLSession / dataTask
+rg "URLSession|dataTask|uploadTask|downloadTask" ios/
+
+# Любые URLRequest / HTTPURLResponse
+rg "URLRequest|HTTPURLResponse" ios/
+
+# Alamofire / сторонние клиенты (если есть)
+rg "Alamofire|AF\." ios/
+```
+
+### Q5. Где используется `APIClient`?
+
+```bash
+rg "APIClient" ios/
+```
+
+### Q6. Где потенциальные legacy сервисы / адаптеры?
+
+```bash
+# Типичные legacy паттерны
+rg "Service$|Client$|Networking|NetworkService" ios/
+
+# Известные legacy из backlog (если присутствуют)
+rg "LegacyBMIServicing|DefaultBMIService|BMIServiceError" ios/
+```
+
+### Q7. Где возможный DTO/contract drift (ручные модели)?
+
+```bash
+# Старые BMI модели / naming drift
+rg "BMIRequest|BMIResponse|BMICalculate" ios/
+
+# Новые канонические DTO (если уже заведены)
+rg "BMICalculateRequest|BMICalculateResult" ios/
+```
+
+---
+
+## C. Факты (заполняется по результатам `rg`)
+
+> ⚠️ В этом разделе — только наблюдения: `path + line + what`. **Без “как надо”**.
+
+### Q8. Обнаруженные HTTP entry points (таблица)
+
+| File | Line | Type | Evidence | Notes |
+|------|------|------|----------|-------|
+| `ios/PulsePlate/Networking/APIClient.swift` | 62 | `APIClient` | `var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))` | request build (canonical candidate) |
+| `ios/PulsePlate/Networking/HTTPClient.swift` | 25 | `HTTPClient` | `public init(session: URLSession = .shared)` | URLSession wrapper |
+| `ios/PulsePlate/Models/NutritionData.swift` | 60 | `URLSession` | `try await URLSession.shared.data(for: request)` | direct HTTP call (model-layer) |
+| `ios/PulsePlate/Views/DebugToolsScreen.swift` | 97 | `URLSession` | `try await URLSession.shared.data(from: url)` | direct HTTP call (debug UI) |
+| `ios/PulsePlate/Services/BMIService.swift` | 93 | `URLSession` | `private let session: URLSession` | service owns URLSession |
+| `ios/PulsePlate/Services/BMIService.swift` | 110 | `URLRequest` | `var urlRequest = URLRequest(url: url)` | request build (service) |
+| `ios/PulsePlate/Services/ShoppingListService.swift` | 41 | `URLSession` | `private let session: URLSession` | service owns URLSession |
+| `ios/PulsePlate/Services/ShoppingListService.swift` | 63 | `URLRequest` | `var urlRequest = URLRequest(url: url)` | request build (service) |
+| `ios/PulsePlate/Services/WeeklyPlanService.swift` | 38 | `URLSession` | `private let session: URLSession` | service owns URLSession |
+| `ios/PulsePlate/Services/WeeklyPlanService.swift` | 60 | `URLRequest` | `var urlRequest = URLRequest(url: url)` | request build (service) |
+| `ios/PulsePlateTests/Networking/HTTPClientTests.swift` | 36 | `URLSession` | `private func makeSession() -> URLSession {` | tests create session (expected) |
+| `ios/PulsePlateTests/Networking/HTTPClientTests.swift` | 64 | `URLRequest` | `var request = URLRequest(url: URL(string: \"https://example.com/api/v1/bmi/calculate\")!)` | tests build requests |
+| `ios/PulsePlateTests/WeeklyPlanServiceTransportTests.swift` | 7 | `URLSession` | `let config = URLSessionConfiguration.ephemeral` | tests create session (expected) |
+| `ios/PulsePlateTests/BMI/BMIServiceTests.swift` | 10 | `URLSession` | `let config = URLSessionConfiguration.ephemeral` | tests create session (expected) |
+| `ios/ATS_FIX_GUIDE.md` | 82 | `URLSession` | `try await URLSession.shared.data(from: url)` | documentation example (non-runtime) |
+
+### Q9. Dual-path networking: какие нарушения “One HTTP Path”?
+
+**Observed transports (caller → transport):**
+- `ios/PulsePlate/Services/BMIService.swift:30 → APIClientProtocol.post(...)` ✅
+- `ios/PulsePlate/Services/BMIService.swift:126 → URLSession.data(for: urlRequest)` ❌ (`DefaultBMIService`, legacy shim)
+- `ios/PulsePlate/Services/ShoppingListService.swift:77 → URLSession.data(for: urlRequest)` ❌ (`DefaultShoppingListService`)
+- `ios/PulsePlate/Services/WeeklyPlanService.swift:74 → URLSession.data(for: urlRequest)` ❌ (`DefaultWeeklyPlanService`)
+- `ios/PulsePlate/Models/NutritionData.swift:60 → URLSession.shared.data(for: request)` ❌ (`NutritionService`)
+- `ios/PulsePlate/Views/DebugToolsScreen.swift:97 → URLSession.shared.data(from: url)` ❌
+- `ios/PulsePlate/Networking/APIClient.swift:77 → httpClient.send(request, responseType: ...)` ⚠️ (`APIClient` delegates transport)
+- `ios/PulsePlate/Networking/APIClient.swift:41 → HTTPClient()` ⚠️ (`APIClient` default transport dependency)
+- `ios/PulsePlate/Networking/HTTPClient.swift:25 → init(session: URLSession = .shared)` ⚠️ (`HTTPClient` wraps URLSession)
+
+**Dual-path факт (strict):**
+- В runtime коде одновременно присутствуют:
+  - путь **через `APIClient`** (delegates to `HTTPClient`)
+  - путь **в обход `APIClient`** (прямые вызовы `URLSession.shared` и `Default*Service` на `URLSession`)
+
+### Q10. Third-party HTTP clients (если есть)
+
+| Library | File(s) | Notes |
+|---------|---------|------|
+| (none) | (n/a) | `rg "Alamofire|AF\." ios/` → **no matches** |
+
+### Q11. DTO/contract drift (если есть)
+
+| Area | AS-IS DTO | Canonical backend DTO | Impact |
+|------|-----------|-----------------------|--------|
+| BMI | `BMIRequest` / `BMIResponse` | `ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift:7,20` | `BMICalculateRequest` / `BMICalculateResult` | UI/service drift (legacy types in use; migration TODOs present) |
+| BMI | `BMICalculateRequestDTO` / `BMICalculateResponseDTO` | `ios/PulsePlate/Services/BMIService.swift:5,27-34` | `BMICalculateRequest` / `BMICalculateResult` | canonical-candidate DTO path exists (thin adapter) |
+| BMI | `BMIRequest` / `BMIResponse` | `ios/PulsePlate/Services/BMIService.swift:50,54-55,107,159` | `BMICalculateRequest` / `BMICalculateResult` | legacy compatibility shim (`DefaultBMIService`) retains old DTO boundary |
+
+### Q12. Error handling: какие error-типы и где живут?
+
+| Error Type | File | Usage |
+|------------|------|-------|
+| `APIError` | `ios/PulsePlate/Networking/APIError.swift:7` | canonical network error enum (used by `HTTPClient` / `APIClient`) |
+| `BMIServiceError` | `ios/PulsePlate/Services/BMIService.swift:59` | legacy UI/service error type (explicit TODO: migrate to `APIError`) |
+| `ShoppingListServiceError` | `ios/PulsePlate/Services/ShoppingListService.swift:19` | service-level error type for legacy `DefaultShoppingListService` |
+| `WeeklyPlanServiceError` | `ios/PulsePlate/Services/WeeklyPlanService.swift:19` | service-level error type for legacy `DefaultWeeklyPlanService` |
+| `NutritionAPIError` | `ios/PulsePlate/Models/NutritionData.swift:122` | local error type for `NutritionService` (direct URLSession path) |
+
+---
+
+## D. Таблица миграции: AS-IS → TO-BE (контрактно)
+
+> Здесь фиксируем “что есть” vs “что будет” на уровне **архитектуры**, без кода в этом PR.
+
+| Area | AS-IS | TO-BE |
+|------|------|-------|
+| HTTP transport | `URLSession` + `APIClient` | **`APIClient` only** |
+| Direct networking in VM | possible | **forbidden** |
+| Legacy services | `*Service` with own HTTP | ❌ removed / migrated |
+| DTO | `BMIRequest`/`BMIResponse` | **canonical DTO aligned with backend** |
+| Error handling | scattered (`*ServiceError`) | **shared `APIError`/canonical error envelope** |
+| Test doubles | ad-hoc mocks | **URLProtocol / APIClient stubs (single seam)** |
+| Entry point | scattered | **single `APIClient`** |
+
+---
+
+## E. Remediation plan (следующий PR-596; НЕ в этом PR)
+
+> ⚠️ Этот PR = audit-only. Remediation делаем отдельным PR.
+
+1. Удалить / изолировать legacy HTTP сервисы и прямые `URLSession` entry points
+2. Перевести все сетевые вызовы на `APIClient` (единственный транспорт)
+3. Выровнять DTO на канонические backend контракты (без ручного drift)
+4. Обновить тесты (единая стратегия: URLProtocol/stubs на уровне `APIClient`)
+5. Закрыть долги через `docs/roadmap/BACKLOG_LEDGER.md` (если что-то откладываем)
+
+---
+
+## F. DoD / Merge gates
+
+### PR-595 (Audit PR) — Definition of Done
+
+- [ ] Все HTTP пути перечислены: `file:line:evidence`
+- [ ] Dual-path задокументирован (список нарушений + таблица entry points)
+- [ ] DTO/contract drift зафиксирован (если присутствует)
+- [ ] AS-IS → TO-BE таблица заполнена фактами
+- [ ] План remediation для PR-596 описан (high-level, без кода)
+- [ ] PR остаётся **docs-only** (только `*.md`)
+
+### PR-596 (Remediation PR) — Definition of Done (для следующего шага)
+
+- [ ] **Один HTTP слой (`APIClient`)**
+- [ ] Нет `URLSession` / прямых сетевых вызовов вне `APIClient`
+- [ ] DTO на границе сети = backend canonical (или адаптация строго в transport layer)
+- [ ] Тесты green (локально + CI)
+- [ ] Новые timeless-правила — только при необходимости в `AGENTS.md`
+- [ ] Любые deferred items записаны в `docs/roadmap/BACKLOG_LEDGER.md`
+
+---
+
+## G. Links (заполнить)
+
+- **Policy anchor:** `ios/AGENTS.md` (Thin Client + One HTTP Path)
+- **Backlog ledger:** `docs/roadmap/BACKLOG_LEDGER.md` (items: PR-595 audit, PR-596 remediation placeholder)
+- **Related audits:** (если есть) `docs/audit/PR_559_IOS_*`, `docs/audit/PR_560_*`
+
+---
+
+## H. Deferred / Follow-ups
+
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md` — item **PR-595 iOS Thin HTTP Adapter Audit**
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md` — item **PR-596 iOS Thin HTTP Adapter Remediation (placeholder)**
+
+---
+
+**Last updated:** 2026-01-26
+**Maintainer:** @katsiaryna_kavaleuskaya
