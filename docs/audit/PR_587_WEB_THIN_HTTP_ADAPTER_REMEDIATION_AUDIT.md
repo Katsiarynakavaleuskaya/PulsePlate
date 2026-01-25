@@ -159,7 +159,7 @@ rg -n "\bfetch\s*\(" frontend/src --type ts | grep -v client.ts | grep -v .test.
 
 ### Q15. Ссылка на policy anchor
 
-- **PR-586:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586 (guards, expected-red)
+- **PR-586:** [Guards PR](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586) (expected-red)
 
 ### Q16. Ссылка на ledger item (P0)
 

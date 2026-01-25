@@ -367,14 +367,29 @@ export async function fetchBlob(
     validateApiBase();
   }
 
-  // For API paths: add auth headers; for external: pass-through
-  const finalInit: RequestInit = kind === 'api'
-    ? {
-        ...init,
-        headers: mergeHeaders(init),
-        credentials: init?.credentials ?? 'include',
-      }
-    : init ?? {};
+  // For API paths: add auth headers; for external: strip auth and omit credentials
+  let finalInit: RequestInit;
+
+  if (kind === 'api') {
+    finalInit = {
+      ...init,
+      headers: mergeHeaders(init),
+      credentials: init?.credentials ?? 'include',
+    };
+  } else {
+    // Security: never leak auth to external domains
+    const sanitized = new Headers(init?.headers as HeadersInit | undefined);
+    sanitized.delete('authorization');
+    sanitized.delete('Authorization');
+    sanitized.delete('x-api-key');
+    sanitized.delete('X-API-Key');
+
+    finalInit = {
+      ...init,
+      headers: sanitized,
+      credentials: 'omit',
+    };
+  }
 
   const res = await fetch(finalUrl, finalInit);
 
@@ -385,7 +400,9 @@ export async function fetchBlob(
       if (typeof window !== 'undefined') {
         window.location.replace('/enter-key');
       }
-      throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+      const authError = new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+      logError(authError);
+      throw authError;
     }
     throw new Error(`Fetch blob failed: HTTP ${res.status} for ${url}`);
   }
