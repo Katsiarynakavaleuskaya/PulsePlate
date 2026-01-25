@@ -28,6 +28,6 @@ cryptography>=46.0.3,<47.0.0
 # Runtime-guarded via _require_nh3(); raises clear error if missing.
 nh3>=0.3.2,<1.0.0
 # PyArrow wheels for Python 3.13+ (using 20.0.0 for stability)
-pyarrow>=20.0.0,<23.0.0
+pyarrow>=20.0.0,<24.0.0
 # Security: setuptools>=78.1.1 includes patched jaraco.context>=6.1.0 (GHSA-58pv-8j8x-9vj2)
 setuptools>=78.1.1,<79.0.0
