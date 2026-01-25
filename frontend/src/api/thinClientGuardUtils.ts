@@ -118,14 +118,16 @@ export function isLineInComment(
   }
 
   // Not in block comment - check for new block comment start
-  if (trimmed.startsWith('/*')) {
+  // Check for block comment start anywhere in the line
+  const blockStartIdx = trimmed.indexOf('/*');
+  if (blockStartIdx !== -1) {
     // Check if block comment closes on same line
     if (trimmed.includes('*/')) {
-      // Single-line block comment - skip this line
-      return { skip: true, newBlockCommentState: false };
+      // Single-line block comment - don't skip if there's code before it
+      return { skip: blockStartIdx === 0, newBlockCommentState: false };
     }
-    // Block comment starts but doesn't close
-    return { skip: true, newBlockCommentState: true };
+    // Block comment starts but doesn't close - set state, skip only if at start
+    return { skip: blockStartIdx === 0, newBlockCommentState: true };
   }
 
   // Single-line comment
