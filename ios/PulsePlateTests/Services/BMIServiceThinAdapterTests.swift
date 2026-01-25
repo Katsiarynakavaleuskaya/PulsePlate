@@ -39,6 +39,14 @@ final class BMIServiceThinAdapterTests: XCTestCase {
 
             return try JSONDecoder().decode(Response.self, from: json)
         }
+
+        func get<Response: Decodable>(
+            path: String,
+            headers: [String: String]
+        ) async throws -> Response {
+            // This fake is used only for BMIService POST tests.
+            throw APIError.api(statusCode: 500, message: "FakeAPIClient.get not implemented")
+        }
     }
 
     func test_calculate_callsCanonicalEndpoint() async throws {

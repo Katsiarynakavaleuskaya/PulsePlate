@@ -33,10 +33,15 @@ class NutritionService: ObservableObject {
   @Published var error: String?
 
   private let healthKitManager = HealthKitManager()
+  private let apiClient: APIClientProtocol
 
   // TODO: Backend endpoint /api/nutrition/{date} not yet implemented (GitHub issue)
   // This method is ready for integration when the endpoint is available
-  // For now, falls back to mock data if endpoint returns 404/501
+  // For now, falls back to mock data in DEBUG builds
+  init(apiClient: APIClientProtocol = APIClient(baseURL: AppConfig.baseURL())) {
+    self.apiClient = apiClient
+  }
+
   func fetchNutritionData(for date: Date = Date()) async {
     await MainActor.run {
       isLoading = true
@@ -49,34 +54,8 @@ class NutritionService: ObservableObject {
       dateFormatter.timeZone = TimeZone(identifier: "UTC")
       let dateString = dateFormatter.string(from: date)
 
-      let baseURL = AppConfig.baseURL()
-      guard let url = URL(string: "\(baseURL.absoluteString)/api/nutrition/\(dateString)") else {
-        throw NutritionAPIError.invalidURL
-      }
-
-      var request = URLRequest(url: url)
-      request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-      let (data, response) = try await URLSession.shared.data(for: request)
-
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw NutritionAPIError.invalidResponse
-      }
-
-      // Fallback to mock data if endpoint not implemented (404) or not ready (501)
-      if httpResponse.statusCode == 404 || httpResponse.statusCode == 501 {
-        await MainActor.run {
-          self.loadMockData()
-          self.isLoading = false
-        }
-        return
-      }
-
-      guard httpResponse.statusCode == 200 else {
-        throw NutritionAPIError.serverError(statusCode: httpResponse.statusCode)
-      }
-
-      let nutritionData = try JSONDecoder().decode(NutritionData.self, from: data)
+      let path = "api/nutrition/\(dateString)"
+      let nutritionData: NutritionData = try await apiClient.get(path: path)
 
       await MainActor.run {
         self.nutritionData = nutritionData
@@ -114,28 +93,6 @@ class NutritionService: ObservableObject {
   func updateSegmentValue(_ segmentName: String, newValue: Double) async {
     // TODO: Implement API call to update segment value
     print("Updating \(segmentName) to \(newValue)")
-  }
-}
-
-// MARK: - API Errors
-// Note: Legacy APIError renamed to NutritionAPIError to avoid conflict with Networking/APIError
-enum NutritionAPIError: Error, LocalizedError {
-  case invalidURL
-  case invalidResponse
-  case noData
-  case serverError(statusCode: Int)
-
-  var errorDescription: String? {
-    switch self {
-    case .invalidURL:
-      return "Invalid URL"
-    case .invalidResponse:
-      return "Invalid response from server"
-    case .noData:
-      return "No data received"
-    case .serverError(let code):
-      return "Server error (HTTP \(code))"
-    }
   }
 }
 

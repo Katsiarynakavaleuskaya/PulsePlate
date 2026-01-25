@@ -7,6 +7,11 @@ public protocol APIClientProtocol: Sendable {
         body: Body,
         headers: [String: String]
     ) async throws -> Response
+
+    func get<Response: Decodable>(
+        path: String,
+        headers: [String: String]
+    ) async throws -> Response
 }
 
 extension APIClientProtocol {
@@ -16,6 +21,11 @@ extension APIClientProtocol {
         body: Body
     ) async throws -> Response {
         try await post(path: path, body: body, headers: [:])
+    }
+
+    /// Convenience method with default empty headers.
+    public func get<Response: Decodable>(path: String) async throws -> Response {
+        try await get(path: path, headers: [:])
     }
 }
 
@@ -72,6 +82,25 @@ public final class APIClient: APIClientProtocol, Sendable {
             request.httpBody = try makeEncoder().encode(body)
         } catch {
             throw APIError.encodingFailed("Failed to encode request body: \(error.localizedDescription)")
+        }
+
+        return try await httpClient.send(request, responseType: Response.self)
+    }
+
+    public func get<Response: Decodable>(
+        path: String,
+        headers: [String: String] = [:]
+    ) async throws -> Response {
+        // IMPORTANT:
+        // `URL.appendingPathComponent()` expects a *path component*, not an absolute path.
+        // Leading "/" can cause incorrect URL construction (drops existing path / normalizes unexpectedly).
+        let normalizedPath = path.hasPrefix("/") ? String(path.drop(while: { $0 == "/" })) : path
+        var request = URLRequest(url: baseURL.appendingPathComponent(normalizedPath))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        headers.forEach { key, value in
+            request.setValue(value, forHTTPHeaderField: key)
         }
 
         return try await httpClient.send(request, responseType: Response.self)
