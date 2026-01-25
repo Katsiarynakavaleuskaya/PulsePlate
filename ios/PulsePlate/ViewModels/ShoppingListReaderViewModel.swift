@@ -37,14 +37,13 @@ final class ShoppingListReaderViewModel: ObservableObject {
             let dto = try await service.fetchShoppingList(request: request)
             let viewData = ShoppingListAdapter.adapt(dto: dto)
             state = .loaded(viewData)
-        } catch let error as ShoppingListServiceError {
-            // Handle service-specific errors with explicit states
-            switch error {
-            case .noContent:
+        } catch let error as APIError {
+            // Preserve old UX: 204 / empty response => .empty
+            if case .api(let statusCode, _) = error, statusCode == 204 {
                 state = .empty
-            default:
-                handleError("Failed to fetch shopping list.", underlying: error)
+                return
             }
+            handleError("Failed to fetch shopping list.", underlying: error)
         } catch {
             handleError("Failed to build request or load shopping list.", underlying: error)
         }

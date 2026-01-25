@@ -92,6 +92,13 @@ public final class WeeklyPlanReaderViewModel {
         } catch is CancellationError {
             // Ignore cancellation - don't set failed state
             return
+        } catch let error as APIError {
+            // Preserve old UX: 204 / empty response => .empty
+            if case .api(let statusCode, _) = error, statusCode == 204 {
+                state = .empty
+                return
+            }
+            state = .failed(error.localizedDescription)
         } catch {
             state = .failed(error.localizedDescription)
         }
