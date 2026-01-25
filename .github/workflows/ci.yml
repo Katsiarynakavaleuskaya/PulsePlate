@@ -25,6 +25,30 @@ defaults:
     shell: bash
 
 jobs:
+  changes:
+    name: Determine changed paths (for conditional jobs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      ios: ${{ steps.filter.outputs.ios }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          fetch-depth: 0
+
+      - name: Determine changes
+        id: filter
+        # Keep consistent with other workflows in this repo.
+        uses: dorny/paths-filter@v3.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            ios:
+              - 'ios/**'
+              - '.github/workflows/**'
+              - '.github/actions/**'
+
   pr_scope_guard:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -609,8 +633,11 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     if: |
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+      needs.changes.outputs.ios == 'true' && (
+        github.event_name == 'pull_request' ||
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+      )
+    needs: [changes]
     steps:
       - name: Checkout
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
