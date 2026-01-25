@@ -321,6 +321,78 @@ export async function api<T = unknown>(
 }
 
 export const fetchJson = api;
+
+/**
+ * Classify URL for fetchBlob() to determine auth behavior
+ * RU: Классификация URL для определения поведения аутентификации
+ * EN: URL classification to determine authentication behavior
+ *
+ * - 'api': Internal API path (/api/...) - requires auth headers, base URL prepend
+ * - 'absolute': External URL (https://...) - no auth, pass-through
+ *
+ * @throws Error if URL is invalid (not API path or absolute URL)
+ */
+function classifyUrl(url: string): 'api' | 'absolute' {
+  if (url.startsWith('/api/')) return 'api';
+  if (url.startsWith('http://') || url.startsWith('https://')) return 'absolute';
+  throw new Error(`Invalid URL for fetchBlob: ${url}. Must be /api/... or absolute URL.`);
+}
+
+/**
+ * Fetch binary data (Blob) from API or external URL.
+ * RU: Загрузка бинарных данных (Blob) из API или внешнего URL.
+ * EN: Fetch binary data (Blob) from API or external URL.
+ *
+ * URL Classification:
+ * - `/api/...` (API path): Prepends VITE_API_BASE, adds auth headers, handles 401/403
+ * - `https://...` (External): Pass-through fetch, NO auth headers (signed URLs have token in query)
+ *
+ * Security: API key is NEVER sent to external URLs to prevent credential leaks.
+ *
+ * @param url - API path (/api/v1/...) or absolute URL (https://...)
+ * @param init - Optional fetch init options
+ * @returns Promise<Blob> - Binary data as Blob
+ */
+export async function fetchBlob(
+  url: string,
+  init?: RequestInit
+): Promise<Blob> {
+  const kind = classifyUrl(url);
+
+  // Build final URL and headers based on classification
+  const finalUrl = kind === 'api' ? `${getApiBase()}${url}` : url;
+
+  // Only validate API base and add auth for API paths
+  if (kind === 'api') {
+    validateApiBase();
+  }
+
+  // For API paths: add auth headers; for external: pass-through
+  const finalInit: RequestInit = kind === 'api'
+    ? {
+        ...init,
+        headers: mergeHeaders(init),
+        credentials: init?.credentials ?? 'include',
+      }
+    : init ?? {};
+
+  const res = await fetch(finalUrl, finalInit);
+
+  if (!res.ok) {
+    // Handle 401/403 ONLY for API paths (not external signed URLs)
+    if (kind === 'api' && (res.status === 401 || res.status === 403)) {
+      _clearStoredApiKey();
+      if (typeof window !== 'undefined') {
+        window.location.replace('/enter-key');
+      }
+      throw new UnauthorizedError(`API key invalid or expired (${res.status}).`);
+    }
+    throw new Error(`Fetch blob failed: HTTP ${res.status} for ${url}`);
+  }
+
+  return res.blob();
+}
+
 export { getBmr, getPlate, getTargets } from "./premium";
 export type {
   BmrRequest,

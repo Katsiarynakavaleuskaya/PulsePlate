@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchJson } from "../../api/client";
+import { fetchJson, fetchBlob } from "../../api/client";
 import { shareSignedExport, formatShareErrorMessage } from "../../lib/shareFile";
 import GlassCard from "../../components/GlassCard";
 
@@ -100,18 +100,14 @@ export default function ShoplistPreview() {
 
   /**
    * Downloads a file of specified type (CSV or PDF) by creating a blob URL and anchor element
+   * Uses fetchBlob() for thin-client compliance (no direct fetch outside client.ts)
    *
    * @param kind - File type to download ("csv" or "pdf")
    * @throws Error if fetch fails or response is not ok
    */
   const downloadFile = useCallback(async (kind: "csv" | "pdf") => {
     const filename = `shoplist.${kind}`;
-    const res = await fetch(`/api/v1/shoplist/export.${kind}`);
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const blob = await res.blob();
+    const blob = await fetchBlob(`/api/v1/shoplist/export.${kind}`);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
