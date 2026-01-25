@@ -207,8 +207,15 @@ rg "BMICalculateRequest|BMICalculateResult" ios/
 ## G. Links (заполнить)
 
 - **Policy anchor:** `ios/AGENTS.md` (Thin Client + One HTTP Path)
-- **Backlog ledger:** `docs/roadmap/BACKLOG_LEDGER.md` (item TBD)
+- **Backlog ledger:** `docs/roadmap/BACKLOG_LEDGER.md` (items: PR-595 audit, PR-596 remediation placeholder)
 - **Related audits:** (если есть) `docs/audit/PR_559_IOS_*`, `docs/audit/PR_560_*`
+
+---
+
+## H. Deferred / Follow-ups
+
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md` — item **PR-595 iOS Thin HTTP Adapter Audit**
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md` — item **PR-596 iOS Thin HTTP Adapter Remediation (placeholder)**
 
 ---
 
