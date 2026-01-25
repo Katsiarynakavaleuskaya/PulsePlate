@@ -61,21 +61,38 @@ class NutritionService: ObservableObject {
         self.nutritionData = nutritionData
         self.isLoading = false
       }
-    } catch let decodingError as DecodingError {
-      // In DEBUG, fallback to mock data on decoding errors
-      #if DEBUG
-      await MainActor.run {
-        self.loadMockData()
-        self.isLoading = false
+    } catch let apiError as APIError {
+      switch apiError {
+      case .decodingFailed(let message):
+        // In DEBUG, fallback to mock data on decoding errors
+        #if DEBUG
+        await MainActor.run {
+          self.loadMockData()
+          self.isLoading = false
+        }
+        #else
+        await MainActor.run {
+          self.error = "Decoding failed: \(message)"
+          self.isLoading = false
+        }
+        #endif
+
+      default:
+        // In DEBUG, fallback to mock data on network/server errors
+        #if DEBUG
+        await MainActor.run {
+          self.loadMockData()
+          self.isLoading = false
+        }
+        #else
+        await MainActor.run {
+          self.error = apiError.localizedDescription
+          self.isLoading = false
+        }
+        #endif
       }
-      #else
-      await MainActor.run {
-        self.error = "Decoding failed: \(decodingError.localizedDescription)"
-        self.isLoading = false
-      }
-      #endif
     } catch {
-      // In DEBUG, fallback to mock data on network/server errors
+      // Unexpected non-APIError (should be rare).
       #if DEBUG
       await MainActor.run {
         self.loadMockData()
