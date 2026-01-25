@@ -339,9 +339,11 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-570
   - Status: ✅ Merged
+  - Reason: Documented agent index and model selection rationale to reduce orchestration ambiguity and keep agent usage auditable.
   - Links:
     - docs/audit/PR_567_AGENT_INDEX_AUDIT.md
     - docs/agents/index.md
+  - DoD: ✅ Completed (agent index added; model selection rationale documented; references wired from orchestration docs where applicable)
 
 ---
 
