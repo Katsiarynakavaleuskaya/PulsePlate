@@ -95,9 +95,6 @@ const FORBIDDEN_PATTERNS: Array<{ name: string; pattern: RegExp; description: st
   },
 ];
 
-// Canonical path for the allowed fetch file
-const ALLOWED_FETCH_FILE = path.join('api', 'client.ts');
-
 /**
  * Source file with content for scanning
  */
