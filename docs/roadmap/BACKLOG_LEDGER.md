@@ -199,8 +199,10 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: PR-566
   - Status: ✅ Merged
+  - Reason: Agent coordinator deduplication (removed capability duplication)
   - Links:
     - docs/audit/PR_566_COORDINATOR_CLEANUP_AUDIT.md
+  - DoD: ✅ Completed (coordinator references agent files instead of duplicating)
 
 - [ ] Fix test skips/xfails (batch)
   - Owner: @katsiaryna_kavaleuskaya
