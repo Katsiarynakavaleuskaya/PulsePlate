@@ -51,12 +51,17 @@ const FORBIDDEN_PATTERNS: Array<{ name: string; pattern: RegExp; description: st
   },
   {
     name: 'bmi-threshold-25',
-    pattern: /(?<!['"`/])\b25\.0?\b(?!['"`])(?!\d)/,
+    // Match 25, 25.0, 25.00 but NOT 0.25 or percentage: 25
+    // Cubic fix: dot optional, but avoid false positives
+    // Lookbehind excludes: quotes, slash, dot, colon+space (age: 30)
+    pattern: /(?<!['"`/.])(?<!:\s)\b25(\.0{1,2})?\b(?!['"`])(?!\d)/,
     description: 'BMI threshold 25 (overweight boundary)',
   },
   {
     name: 'bmi-threshold-30',
-    pattern: /(?<!['"`/])\b30\.0?\b(?!['"`])(?!\d)/,
+    // Match 30, 30.0, 30.00 but NOT age: 30
+    // Cubic fix: dot optional, but avoid false positives
+    pattern: /(?<!['"`/.])(?<!:\s)\b30(\.0{1,2})?\b(?!['"`])(?!\d)/,
     description: 'BMI threshold 30 (obesity boundary)',
   },
   {
@@ -195,13 +200,36 @@ function isLineInComment(
     return { skip: true, newBlockCommentState: true };
   }
 
-  // Single-line comment or JSDoc continuation
-  if (trimmed.startsWith('//') || trimmed.startsWith('*')) {
+  // Single-line comment
+  if (trimmed.startsWith('//')) {
     return { skip: true, newBlockCommentState: false };
   }
 
+  // JSDoc/block comment continuation: only skip `*` lines when INSIDE a block comment
+  // Cubic fix: `* height` in multiline expression should NOT be skipped
+  // Note: we're NOT in block comment here (handled above), so `*` is code, not comment
+
   // Not a comment
   return { skip: false, newBlockCommentState: false };
+}
+
+/**
+ * Strip inline comments from a line for pattern matching
+ * CodeRabbit fix: avoid false positives from comments after code
+ */
+function stripInlineComments(line: string): string {
+  const lineCommentIdx = line.indexOf('//');
+  const blockCommentIdx = line.indexOf('/*');
+  let cutPoint = line.length;
+
+  if (lineCommentIdx !== -1) {
+    cutPoint = Math.min(cutPoint, lineCommentIdx);
+  }
+  if (blockCommentIdx !== -1) {
+    cutPoint = Math.min(cutPoint, blockCommentIdx);
+  }
+
+  return line.slice(0, cutPoint);
 }
 
 /**
@@ -247,8 +275,14 @@ describe('ThinClientGuards', () => {
           continue;
         }
 
+        // CodeRabbit fix: strip inline comments before pattern matching
+        const candidate = stripInlineComments(line);
+        if (!candidate.trim()) {
+          continue;
+        }
+
         for (const { name, pattern } of FORBIDDEN_PATTERNS) {
-          if (pattern.test(line)) {
+          if (pattern.test(candidate)) {
             allViolations.push({
               file: file.relativePath,
               pattern: name,
@@ -301,7 +335,13 @@ describe('ThinClientGuards', () => {
           continue;
         }
 
-        if (fetchPattern.test(line)) {
+        // CodeRabbit fix: strip inline comments before pattern matching
+        const candidate = stripInlineComments(line);
+        if (!candidate.trim()) {
+          continue;
+        }
+
+        if (fetchPattern.test(candidate)) {
           violations.push({
             file: file.relativePath,
             line: i + 1,
