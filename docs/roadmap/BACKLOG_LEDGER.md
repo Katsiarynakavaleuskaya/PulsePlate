@@ -98,19 +98,26 @@ If it is not recorded here — it does not exist.
     - DTO/contract drift documented at network boundary
     - Remediation plan defined (PR-596 scope)
 
-- [ ] PR-596 iOS Thin HTTP Adapter Remediation (placeholder)
+- [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-596
-  - Status: 🟡 Planned (awaits PR-595 audit)
+  - Status: ✅ Merged
   - Reason: Consolidate iOS networking under a single thin transport (`APIClient`) and eliminate direct HTTP calls outside transport layer.
   - Links:
     - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
   - DoD:
     - All services use `APIClient` (no direct `URLSession` outside transport layer)
     - No direct HTTP in non-transport layers (models/view models/views/services)
     - DTO boundary aligned with canonical backend contracts
     - Tests/guards pass
+  - Notes (post-merge):
+    - Services/UI: no direct URLSession
+    - APIError: transport vs http
+    - snake_case decoder parity
+    - emptyResponse semantics
+    - unknown vs transport
 
 - [ ] Stabilize/restore PlateViewTests and UI tests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
