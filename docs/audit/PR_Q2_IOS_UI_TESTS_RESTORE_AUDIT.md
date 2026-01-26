@@ -1,7 +1,7 @@
 # PR-603 (PR-Q2) — iOS UI tests restore audit (PlateViewTests + PulsePlateUITests)
 
-**Date:** 26 января 2026 года
-**Date (ISO):** 2026-01-26 (America/New_York)
+**Date:** 2026-01-26 (UTC)
+**Revision:** v2
 **Owner:** @katsiaryna_kavaleuskaya
 **Track:** Quality / CI Trust (iOS)
 
@@ -35,7 +35,7 @@ rg -n "skip-testing:PulsePlateUITests|only-testing|xcodebuild (test|test-without
 
 ```text
 .github/workflows/ci.yml:999:              "-skip-testing:PulsePlateUITests",
-Makefile:322:			-skip-testing:PulsePlateUITests \
+Makefile:322:            -skip-testing:PulsePlateUITests \
 ios/AGENTS.md:144:    -skip-testing:PulsePlateUITests \
 ```
 
@@ -45,19 +45,23 @@ ios/AGENTS.md:144:    -skip-testing:PulsePlateUITests \
 
 ### A2) What fails when we try to run UI tests (UI-only)?
 
-**Evidence command (local, UDID destination):**
+**Evidence command (local):**
 
 ```bash
 xcodebuild test \
   -project PulsePlate.xcodeproj \
   -scheme PulsePlate \
-  -destination "platform=iOS Simulator,id=E9439FE9-610A-4BC8-A93C-D36D6603D8E7" \
+  -destination "platform=iOS Simulator,name=iPhone 15" \
   -configuration Debug \
   -derivedDataPath ../.derivedData \
   -enableCodeCoverage NO \
   -parallel-testing-enabled NO \
   -only-testing:PulsePlateUITests/PulsePlateUITests/testExample
 ```
+
+NOTE: Simulator destination intentionally uses a generic form
+(`platform=iOS Simulator,name=iPhone 15`) to keep the audit durable.
+The observed failure is independent of a specific simulator UDID.
 
 **Observed output (raw excerpt; first failure):**
 
@@ -114,13 +118,13 @@ Remediation required.
 
 ### A3) PlateViewTests (unit) — flake or real crash?
 
-**Evidence command (local, UDID destination):**
+**Evidence command (local):**
 
 ```bash
 xcodebuild test \
   -project PulsePlate.xcodeproj \
   -scheme PulsePlate \
-  -destination "platform=iOS Simulator,id=E9439FE9-610A-4BC8-A93C-D36D6603D8E7" \
+  -destination "platform=iOS Simulator,name=iPhone 15" \
   -configuration Debug \
   -derivedDataPath ../.derivedData \
   -enableCodeCoverage NO \
