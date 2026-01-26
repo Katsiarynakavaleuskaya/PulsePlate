@@ -33,10 +33,18 @@ public struct BMIMarkerDTO: Decodable, Sendable {
 
         // Legacy format: 12.3
         let single = try decoder.singleValueContainer()
-        if let v = try? single.decode(Double.self) {
-            value = v
-        } else {
+        if single.decodeNil() {
             value = nil
+            return
+        }
+
+        do {
+            value = try single.decode(Double.self)
+        } catch {
+            throw DecodingError.dataCorruptedError(
+                in: single,
+                debugDescription: "BMIMarkerDTO legacy marker must be Double or null."
+            )
         }
     }
 }
