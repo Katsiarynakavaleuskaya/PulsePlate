@@ -98,19 +98,26 @@ If it is not recorded here — it does not exist.
     - DTO/contract drift documented at network boundary
     - Remediation plan defined (PR-596 scope)
 
-- [ ] PR-596 iOS Thin HTTP Adapter Remediation (placeholder)
+- [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-596
-  - Status: 🟡 Planned (awaits PR-595 audit)
+  - Status: ✅ Merged
   - Reason: Consolidate iOS networking under a single thin transport (`APIClient`) and eliminate direct HTTP calls outside transport layer.
   - Links:
     - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
   - DoD:
     - All services use `APIClient` (no direct `URLSession` outside transport layer)
     - No direct HTTP in non-transport layers (models/view models/views/services)
     - DTO boundary aligned with canonical backend contracts
     - Tests/guards pass
+  - Notes (post-merge):
+    - Services/UI: no direct URLSession
+    - APIError: transport vs HTTP
+    - snake_case decoder parity
+    - emptyResponse semantics
+    - unknown vs transport
 
 - [ ] Stabilize/restore PlateViewTests and UI tests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
@@ -186,15 +193,17 @@ If it is not recorded here — it does not exist.
     - Guard remains strict but avoids comment-only hits
     - CI remains deterministic
 
-- [ ] Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS)
+- [x] Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (post PR-563)
-  - Reason: ShoppingListService and WeeklyPlanService currently use URLSession directly with custom error enums, not aligned with thin HTTP adapter policy established in PR-563. BMIService was refactored to use APIClient/HTTPClient; other services should follow same pattern for consistency.
+  - Priority: P1
+  - Target PR: PR-596
+  - Status: ✅ Merged
+  - Reason: Remove direct URLSession usage from services; consolidate under APIClient/HTTPClient seam.
   - Links:
     - ios/PulsePlate/Services/ShoppingListService.swift
     - ios/PulsePlate/Services/WeeklyPlanService.swift
     - ios/PulsePlate/Networking/APIClient.swift (reference implementation)
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md (originally for PR-562, applies to PR-563)
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
   - DoD:
     - ShoppingListService uses APIClient (no direct URLSession)
     - WeeklyPlanService uses APIClient (no direct URLSession)
@@ -203,42 +212,28 @@ If it is not recorded here — it does not exist.
     - Tests updated to use HTTPClientProtocol stubs
     - No breaking changes to public APIs
 
-- [ ] Migrate BMICalculatorViewModel + Screen to BMICalculate*DTO; delete legacy BMIRequest/BMIResponse (iOS)
+- [x] Migrate BMICalculatorViewModel + Screen to BMICalculate*DTO; delete legacy BMIRequest/BMIResponse (iOS) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (post PR-563)
-  - **Status:** 🔴 **Technical debt created in PR-563** — legacy compatibility shims added to unblock tests/compilation
-  - Reason: UI layer (BMICalculatorViewModel, BMICalculatorScreen) still uses legacy BMIRequest/BMIResponse types. New thin adapter uses BMICalculateRequestDTO/BMICalculateResponseDTO. Migration deferred to separate PR to keep PR-563 scope focused on transport layer only.
-  - **Technical debt details (created in PR-563):**
-    - `LegacyBMIServicing` protocol (lines 53-55 in BMIService.swift) — uses BMIRequest/BMIResponse instead of DTOs
-    - `DefaultBMIService` class (lines 91-159 in BMIService.swift) — legacy implementation with direct URLSession, duplicates HTTP logic from HTTPClient/APIClient
-    - `BMIServiceError` enum (lines 59-87 in BMIService.swift) — legacy error type, duplicates APIError functionality from Networking/APIError.swift
-    - `BMICalculatorViewModel` (lines 6-35) — still uses LegacyBMIServicing, BMIRequest, BMIResponse, BMIServiceError
-    - `MockBMIService` — updated to LegacyBMIServicing for test compatibility (should be BMIServicing after migration)
-  - **Why deferred:** To avoid breaking existing UI code in transport-layer PR. UI migration is separate scope. Tests needed to compile/run, so legacy shims were added as temporary compatibility layer.
-  - **Risk:** Code duplication (DefaultBMIService vs BMIService), two error types (BMIServiceError vs APIError), maintenance burden, potential confusion about which service to use.
+  - Priority: P1
+  - Target PR: PR-596
+  - Status: ✅ Merged
+  - Reason: Align iOS BMI UI/service to canonical BMICalculate*DTO contract and APIError.
   - Links:
     - ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift
     - ios/PulsePlate/Screens/BMICalculatorScreen.swift
-    - ios/PulsePlate/Models/BMI/BMIRequest.swift (legacy, to be deleted)
-    - ios/PulsePlate/Models/BMI/BMIResponse.swift (legacy, to be deleted)
     - ios/PulsePlate/Models/BMI/BMICalculateRequestDTO.swift (new)
     - ios/PulsePlate/Models/BMI/BMICalculateResponseDTO.swift (new)
-    - ios/PulsePlate/Services/BMIService.swift (lines 48-159: legacy compatibility shims)
-    - ios/PulsePlate/Networking/APIError.swift (canonical error type)
+    - ios/PulsePlate/Services/BMIService.swift
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
   - DoD:
     - BMICalculatorViewModel uses BMICalculateRequestDTO/BMICalculateResponseDTO
     - BMICalculatorViewModel uses APIError (not BMIServiceError)
     - BMICalculatorScreen uses new DTO types
     - Legacy BMIRequest.swift deleted
     - Legacy BMIResponse.swift deleted
-    - LegacyBMIServicing protocol removed
-    - DefaultBMIService class removed (replaced by BMIService)
-    - BMIServiceError enum removed (replaced by APIError from Networking/)
-    - MockBMIService updated to BMIServicing (not LegacyBMIServicing)
-    - Error handling updated to use APIError (not BMIServiceError)
-    - No breaking changes to public ViewModel API
+    - BMI service is BMIServicing (thin adapter over APIClient)
+    - Error handling updated to use APIError (incl. unknown vs transport)
     - Tests updated
-    - No code duplication (single HTTP client path)
 
 - [x] PR-566 (Phase 2): Coordinator cleanup and deduplication — merged
   - Owner: @katsiaryna_kavaleuskaya
@@ -268,17 +263,18 @@ If it is not recorded here — it does not exist.
     - Tests pass without xfail markers
     - CI green
 
-- [ ] NutritionData.swift: migrate to APIClient (iOS thin-client violation)
+- [x] NutritionData.swift: migrate to APIClient (iOS thin-client violation) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (post PR-563)
+  - Target PR: PR-596
+  - Status: ✅ Merged
   - Priority: P1
   - Area: iOS
   - Finding Type: thin-client violation
   - Location: `ios/PulsePlate/Models/NutritionData.swift:60`
-  - Reason: Uses `URLSession.shared.data` directly instead of APIClient
+  - Reason: Direct URLSession usage in model layer violated thin-client transport policy.
   - Links:
-    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+    - ios/PulsePlate/Models/NutritionData.swift
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
   - DoD:
     - NutritionData uses APIClient (not direct URLSession)
     - Consistent error handling via APIError
@@ -437,5 +433,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-25 (PR-585: Backlog Sweep Audit — inventory complete)
+**Last updated:** 2026-01-26 (PR-597: Post-merge hygiene for PR-596)
 **Maintainer:** @katsiaryna_kavaleuskaya

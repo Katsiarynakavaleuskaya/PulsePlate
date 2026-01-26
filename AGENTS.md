@@ -710,6 +710,11 @@ git diff --name-only origin/main...HEAD \
 **Rationale:**
 This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
 
+### Verification-audit rule (docs/audit/*)
+
+- Any audit labeled **"Verified"** MUST include minimal **observed output** (1–3 lines) for each key evidence command.
+- If observed output is missing, the audit is an **Opinion**, not **Evidence** (must not be treated as verified).
+
 **Canonical policy:** This section in `AGENTS.md` is the source of truth.
 **Last updated:** 2026-01-11
 
@@ -1308,6 +1313,7 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 - **No shared mutable JSONEncoder/Decoder:** `APIClient` and other networking classes must not store `JSONEncoder`/`JSONDecoder` as instance properties (mutable state + Sendable violation). Use factory closures: `makeEncoder: () -> JSONEncoder` / `makeDecoder: () -> JSONDecoder`.
 - **Default JSON key strategy:** All API requests/responses use `.convertToSnakeCase` by default. Any exceptions (camelCase or custom keys) must be handled via explicit `CodingKeys` in models, not by changing encoder strategy globally.
+- **Error mapping policy:** Network/transport failures MUST be `APIError.transport` (never `statusCode: 0`); unexpected non-`APIError` failures MUST map to `APIError.unknown` (not `.transport`).
 - **Rationale:** Ensures Sendable compliance, deterministic serialization, and contract consistency with backend (backend expects snake_case).
 
 **Git hooks portability (hard rule):**
