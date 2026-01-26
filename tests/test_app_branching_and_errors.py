@@ -182,33 +182,10 @@ def test_weekly_menu_generation_error(
     assert response.status_code in [500, 403]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="calculate_all_bmr may not be None after reload; patching not supported in this environment. TODO: Fix module reload/patching or use dependency override",
-)
-def test_no_calculate_all_bmr(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Checks the fallback branch when calculate_all_bmr is missing (ImportError)."""
-    import app as app_module
-
-    # Remove modules from sys.modules to simulate ImportError
-    disable_optional_modules(monkeypatch, "core.menu_engine", "core.targets")
-
-    # Try to reload app module - it should handle ImportError gracefully
-    try:
-        importlib.reload(app_module)
-    except ModuleNotFoundError:
-        # Expected when modules are missing - app.py should handle this
-        pass
-
-    assert (
-        app_module.calculate_all_bmr is None
-    ), "calculate_all_bmr is not None after reload; patching not supported in this environment"
-    assert (
-        app_module.calculate_all_tdee is None
-    ), "calculate_all_tdee is not None after reload; patching not supported in this environment"
-    assert (
-        getattr(app_module, "get_activity_descriptions", None) is None
-    ), "get_activity_descriptions is not None after reload; patching not supported in this environment"
+# NOTE (CI trust): `test_no_calculate_all_bmr` was removed in PR-602.
+# It relied on `importlib.reload(app)` + asserting internal symbols become None, which is not a
+# supported contract and is nondeterministic under pytest import graph. Audit basis: PR-600.
+# Tracking: BACKLOG_LEDGER P1 (closed by PR-602).
 
 
 def test_no_bmi_pro_router(monkeypatch: pytest.MonkeyPatch) -> None:

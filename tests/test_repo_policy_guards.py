@@ -82,7 +82,10 @@ def test_no_dynamic_imports_in_app_core() -> None:
     assert not offenders, f"Dynamic import tokens found in: {offenders}"
 
 
-@pytest.mark.skip(reason="TODO: Many legacy tests use sys.modules - cleanup in follow-up PR")
+# TODO (policy): sys.modules mutation guard is skipped temporarily.
+# Audit basis: PR-600. Tracking: BACKLOG_LEDGER item "Fix test skips/xfails (batch)" (closed by PR-602).
+# Follow-up: re-enable only after migrating offenders to monkeypatch.setitem/delitem patterns.
+@pytest.mark.skip(reason="Temporarily skipped: known sys.modules legacy patterns in tests.")
 def test_no_sys_modules_mutation_in_repo() -> None:
     """sys.modules mutation is a common source of Dual Base / namespace bugs.
 

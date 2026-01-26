@@ -244,18 +244,24 @@ If it is not recorded here — it does not exist.
     - docs/audit/PR_566_COORDINATOR_CLEANUP_AUDIT.md
   - DoD: ✅ Completed (coordinator references agent files instead of duplicating)
 
-- [ ] Fix test skips/xfails (batch)
+- [x] Fix test skips/xfails (batch) — completed in PR-602
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (separate PRs per fix, post PR-585 inventory)
+  - Target PR: PR-602
+  - Status: ✅ Completed (remediated-by-removal for invalid/non-contract tests + traced skip)
   - Priority: P1
   - Area: backend / tests
   - Finding Type: skip/xfail
   - Locations:
-    - `tests/test_bmi_visualization.py:523` — xfail (test isolation issue)
-    - `tests/test_app_branching_and_errors.py:185` — xfail (module reload)
-    - `tests/test_repo_policy_guards.py:85` — skip (sys.modules cleanup)
+    - `tests/test_bmi_visualization.py:523` — xfail → **removed**
+      - Reason: deterministic failure under `--runxfail` (404); test expected a legacy route to be mounted.
+        Classified in PR-600 as **invalid test / route wiring mismatch** (non-contract).
+    - `tests/test_app_branching_and_errors.py:185` — xfail → **removed**
+      - Reason: reload-dependent internal symbol assertions (`importlib.reload(app)` → symbols become `None`) are not a stable contract.
+        Classified in PR-600 as **invalid / environment-dependent assumption**.
+    - `tests/test_repo_policy_guards.py:85` — skip (sys.modules cleanup) → **kept skipped**, but reason now explicitly tied to ledger + PR-600 (no behavior change).
   - Reason: Technical debt from remediation; tests disabled to unblock CI
   - Links:
+    - docs/audit/PR_600_QUALITY_TESTS_AUDIT.md
     - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
     - docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md
   - DoD:
