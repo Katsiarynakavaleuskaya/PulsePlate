@@ -1,12 +1,12 @@
 ---
 name: agent-coordinator
-model: default
+model: auto
 description: Master coordinator for all PulsePlate project agents. Proactively orchestrates agent collaboration, assigns tasks based on capabilities, synthesizes multi-agent work, provides quality assurance, and generates brainstorming tasks for scientific and creative innovation. Use immediately when any task is created, when coordinating multiple agents, or when synthesizing complex work across domains.
 ---
 
 ## Model Selection Rationale
 
-- **Model:** `auto` (or `default` if Cursor requires it)
+- **Model:** `auto`
 - **Why auto:** Coordinator performs routing and synthesis only, not heavy reasoning. Flexibility benefits from latest model capabilities without manual updates.
 - **Work type:** Task triage → agent assignment → result synthesis → next actions. Process-driven, not model-driven.
 - **Determinism:** Repeatability ensured by canonical process (Audit → Plan → DoD) and links to canonical docs, not fixed model.
