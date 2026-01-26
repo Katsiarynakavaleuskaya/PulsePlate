@@ -84,7 +84,6 @@ struct DebugToolsScreen: View {
     }
 
     private func makeShoppingListScreen() -> some View {
-        let apiClient = APIClient(baseURL: AppConfig.baseURL())
         let service = DefaultShoppingListService(apiClient: apiClient)
         let vm = ShoppingListReaderViewModel(
             service: service,

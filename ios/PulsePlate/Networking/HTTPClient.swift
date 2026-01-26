@@ -36,7 +36,14 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
         _ request: URLRequest,
         responseType: T.Type
     ) async throws -> T {
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            // Transport-only mapping: callers should not reason about URLSession/URLError directly.
+            throw APIError.api(statusCode: 0, message: error.localizedDescription)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
@@ -44,10 +51,10 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
 
         switch httpResponse.statusCode {
         case 200...299:
-            // Treat empty successful responses as "no content" for callers that want `.empty` UX.
-            // This keeps transport semantics centralized and avoids ad-hoc URLSession handling in services/VMs.
+            // Contract: 2xx with an empty body is signaled explicitly as `.emptyResponse`.
+            // Callers can map this to an "empty" UX state (as opposed to an API error or decoding failure).
             if httpResponse.statusCode == 204 || data.isEmpty {
-                throw APIError.api(statusCode: httpResponse.statusCode, message: "Empty response body")
+                throw APIError.emptyResponse(statusCode: httpResponse.statusCode)
             }
             return try decode(data, as: T.self)
 

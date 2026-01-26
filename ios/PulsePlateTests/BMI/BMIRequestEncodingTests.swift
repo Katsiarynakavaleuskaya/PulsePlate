@@ -5,7 +5,7 @@ import Foundation
 
 final class BMIRequestEncodingTests: XCTestCase {
     func test_encodesSnakeCaseKeys() throws {
-        let req = BMIRequest(
+        let req = BMICalculateRequestDTO(
             weightKg: 70,
             heightCm: 175,
             age: 30,

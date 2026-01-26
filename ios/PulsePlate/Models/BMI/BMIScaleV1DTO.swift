@@ -9,8 +9,12 @@ public struct BMIScaleV1DTO: Decodable, Sendable {
     public let bmi: Double?
     public let min: Double?
     public let max: Double?
-    public let marker: Double?
+    public let marker: BMIMarkerDTO?
     public let ranges: [BMIRangeDTO]
+}
+
+public struct BMIMarkerDTO: Decodable, Sendable {
+    public let value: Double?
 }
 
 public struct BMIRangeDTO: Decodable, Sendable {
