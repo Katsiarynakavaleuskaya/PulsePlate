@@ -31,7 +31,7 @@ public struct ShoppingListRequestPayload: Encodable {
 }
 
 // Helper for encoding untyped dictionaries
-// NOTE: Renamed to avoid conflict with BMIService.AnyCodable
+// NOTE: Intentionally local to ShoppingList to avoid name clashes.
 private struct ShoppingListAnyCodable: Codable {
     let value: Any
 
