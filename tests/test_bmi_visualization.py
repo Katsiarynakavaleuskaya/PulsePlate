@@ -408,6 +408,12 @@ class TestBMIVisualizationAPI:
     def teardown_method(self) -> None:
         self.client.close()
 
+    # NOTE (CI trust): a deterministic xfail around legacy `/api/v1/bmi/visualize` was removed in PR-602.
+    # It masked a deterministic 404 under `--runxfail` (non-contract). Canonical visualization is the
+    # JSON spec v1 returned by `/api/v1/bmi/calculate` (see `tests/test_bmi_visualization_spec.py` and
+    # `tests/test_bmi_contract_visualization.py`). Audit basis: PR-600. Tracking: BACKLOG_LEDGER P1
+    # (closed by PR-602).
+
     def test_bmi_endpoint_with_visualization_request(self) -> None:
         """Test BMI endpoint with include_chart parameter."""
         payload = {

@@ -182,6 +182,12 @@ def test_weekly_menu_generation_error(
     assert response.status_code in [500, 403]
 
 
+# NOTE (CI trust): `test_no_calculate_all_bmr` was removed in PR-602.
+# It relied on `importlib.reload(app)` + asserting internal symbols become None, which is not a
+# supported contract and is nondeterministic under pytest import graph. Audit basis: PR-600.
+# Tracking: BACKLOG_LEDGER P1 (closed by PR-602).
+
+
 def test_no_bmi_pro_router(monkeypatch: pytest.MonkeyPatch) -> None:
     """Проверяет fallback-ветку при отсутствии bmi_pro_router (ImportError)."""
     import app as app_module
