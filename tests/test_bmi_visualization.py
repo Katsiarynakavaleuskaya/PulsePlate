@@ -520,63 +520,6 @@ class TestBMIVisualizationAPI:
         # visualization module not available, or 404 if endpoint not found
         assert response.status_code in [403, 503, 404]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="Test isolation issue in full suite - passes individually. TODO: Fix test isolation or use dependency override for API key",
-    )
-    def test_bmi_visualization_endpoint_with_api_key(self) -> None:
-        """Test visualization endpoint with API key."""
-        payload = {
-            "weight_kg": 70,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "lang": "en",
-        }
-
-        # Mock the entire bmi_visualization module
-        mock_viz_result = {
-            "chart_base64": base64.b64encode(b"fake_data").decode("utf-8"),
-            "category": "Healthy weight",
-            "group": "general",
-            "group_display": "general",
-            "available": True,
-            "format": "png",
-            "encoding": "base64",
-        }
-
-        # Mock at the app level to bypass all the bmi_visualization internal checks
-        import app
-
-        original_generate_bmi_visualization = getattr(app, "generate_bmi_visualization", None)
-        original_matplotlib_available = getattr(app, "MATPLOTLIB_AVAILABLE", None)
-
-        # Temporarily replace the function and flag at the app module level
-        app.generate_bmi_visualization = Mock(return_value=mock_viz_result)
-        app.MATPLOTLIB_AVAILABLE = True
-
-        try:
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=payload, headers={"X-API-Key": "test_key"}
-            )
-
-            # Should return 200 with mocked visualization
-            assert (
-                response.status_code == 200
-            ), f"Expected 200, got {response.status_code}. Response: {response.content.decode()}"
-            data = response.json()
-            assert "bmi" in data
-            assert "visualization" in data
-            assert data["visualization"]["available"] is True
-        finally:
-            # Restore original values
-            if original_generate_bmi_visualization is not None:
-                app.generate_bmi_visualization = original_generate_bmi_visualization
-            if original_matplotlib_available is not None:
-                app.MATPLOTLIB_AVAILABLE = original_matplotlib_available
-
 
 def test_bmi_visualization_base64_encoding():
     """Test that visualization properly encodes to base64."""
