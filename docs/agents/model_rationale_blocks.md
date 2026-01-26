@@ -15,7 +15,7 @@
 
 +## Model Selection Rationale
 +
-+- **Model:** `auto` (or `default` if Cursor requires it)
++- **Model:** `auto`
 +- **Why auto:** Coordinator performs routing and synthesis only, not heavy reasoning. Flexibility benefits from latest model capabilities without manual updates.
 +- **Work type:** Task triage → agent assignment → result synthesis → next actions. Process-driven, not model-driven.
 +- **Determinism:** Repeatability ensured by canonical process (Audit → Plan → DoD) and links to canonical docs, not fixed model.
