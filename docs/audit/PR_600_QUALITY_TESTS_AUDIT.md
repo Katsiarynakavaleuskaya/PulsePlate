@@ -74,11 +74,10 @@ sss..............................................................        [100%]
 pytest -q -rsk -rsx tests/test_bmi_visualization.py tests/test_app_branching_and_errors.py tests/test_repo_policy_guards.py
 ```
 
-**Observed output (raw):**
+**Observed output (raw excerpt; separator lines removed to avoid CI false-positive “merge conflict markers”):**
 
 ```text
 .................x.....................x..........s..........            [100%]
-=========================== short test summary info ============================
 SKIPPED [1] tests/test_repo_policy_guards.py:85: TODO: Many legacy tests use sys.modules - cleanup in follow-up PR
 XFAIL tests/test_bmi_visualization.py::TestBMIVisualizationAPI::test_bmi_visualization_endpoint_with_api_key - Test isolation issue in full suite - passes individually. TODO: Fix test isolation or use dependency override for API key
 XFAIL tests/test_app_branching_and_errors.py::test_no_calculate_all_bmr - calculate_all_bmr may not be None after reload; patching not supported in this environment. TODO: Fix module reload/patching or use dependency override
@@ -105,18 +104,16 @@ executed with `--runxfail`. This means current CI green does **not** reflect cor
 pytest -q --runxfail tests/test_bmi_visualization.py::TestBMIVisualizationAPI::test_bmi_visualization_endpoint_with_api_key
 ```
 
-**Observed output (raw):**
+**Observed output (raw excerpt; separator lines removed to avoid CI false-positive “merge conflict markers”):**
 
 ```text
 F                                                                        [100%]
-=================================== FAILURES ===================================
 _____ TestBMIVisualizationAPI.test_bmi_visualization_endpoint_with_api_key _____
 tests/test_bmi_visualization.py:566: in test_bmi_visualization_endpoint_with_api_key
     assert (
 E   AssertionError: Expected 200, got 404. Response: {"detail":"Not Found"}
 E   assert 404 == 200
 E    +  where 404 = <Response [404 Not Found]>.status_code
-=========================== short test summary info ============================
 FAILED tests/test_bmi_visualization.py::TestBMIVisualizationAPI::test_bmi_visualization_endpoint_with_api_key
 ```
 
@@ -138,18 +135,16 @@ actual mounted FastAPI router set.
 pytest -q --runxfail tests/test_app_branching_and_errors.py::test_no_calculate_all_bmr
 ```
 
-**Observed output (raw):**
+**Observed output (raw excerpt; separator lines removed to avoid CI false-positive “merge conflict markers”):**
 
 ```text
 F                                                                        [100%]
-=================================== FAILURES ===================================
 __________________________ test_no_calculate_all_bmr ___________________________
 tests/test_app_branching_and_errors.py:203: in test_no_calculate_all_bmr
     assert (
 E   AssertionError: calculate_all_bmr is not None after reload; patching not supported in this environment
 E   assert <function calculate_all_bmr at 0x10cbc42c0> is None
 E    +  where <function calculate_all_bmr at 0x10cbc42c0> = <module 'app' from '/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/app/__init__.py'>.calculate_all_bmr
-=========================== short test summary info ============================
 FAILED tests/test_app_branching_and_errors.py::test_no_calculate_all_bmr - As...
 ```
 
