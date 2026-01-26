@@ -195,6 +195,7 @@ If it is not recorded here — it does not exist.
 
 - [x] Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: PR-596
   - Status: ✅ Merged
   - Reason: Remove direct URLSession usage from services; consolidate under APIClient/HTTPClient seam.
@@ -213,6 +214,7 @@ If it is not recorded here — it does not exist.
 
 - [x] Migrate BMICalculatorViewModel + Screen to BMICalculate*DTO; delete legacy BMIRequest/BMIResponse (iOS) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: PR-596
   - Status: ✅ Merged
   - Reason: Align iOS BMI UI/service to canonical BMICalculate*DTO contract and APIError.
@@ -431,5 +433,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-25 (PR-585: Backlog Sweep Audit — inventory complete)
+**Last updated:** 2026-01-26 (PR-597: Post-merge hygiene for PR-596)
 **Maintainer:** @katsiaryna_kavaleuskaya
