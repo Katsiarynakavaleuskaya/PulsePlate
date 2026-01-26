@@ -33,7 +33,11 @@ final class BMIServiceTests: XCTestCase {
             guard let data = nextResponseData else {
                 throw APIError.api(statusCode: 500, message: "FakeAPIClient response not set")
             }
-            return try JSONDecoder().decode(Response.self, from: data)
+            let decoder = JSONDecoder()
+            // Use default keys: Response DTOs define explicit CodingKeys for snake_case fields.
+            // Setting `.convertFromSnakeCase` here would break those DTOs (e.g., "group_display").
+            decoder.keyDecodingStrategy = .useDefaultKeys
+            return try decoder.decode(Response.self, from: data)
         }
 
         func get<Response: Decodable>(
