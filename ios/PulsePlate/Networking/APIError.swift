@@ -17,6 +17,9 @@ public enum APIError: Error, Equatable, Sendable {
     /// UX state without conflating it with API failures or JSON decoding errors.
     case emptyResponse(statusCode: Int)
 
+    /// Transport/network failure (URLSession/URLError/etc.).
+    case transport(String)
+
     /// Request-body encoding failed (before the request was sent).
     case encodingFailed(String)
 
@@ -39,6 +42,8 @@ extension APIError: LocalizedError {
             return "Server error \(statusCode): \(message)"
         case .emptyResponse(let statusCode):
             return "Empty response (HTTP \(statusCode))"
+        case .transport(let message):
+            return "Network error: \(message)"
         case .encodingFailed(let message):
             return message
         case .decodingFailed(let message):

@@ -41,8 +41,8 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            // Transport-only mapping: callers should not reason about URLSession/URLError directly.
-            throw APIError.api(statusCode: 0, message: error.localizedDescription)
+            // Transport-only: keep separate from HTTP status-based API errors.
+            throw APIError.transport((error as NSError).localizedDescription)
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {

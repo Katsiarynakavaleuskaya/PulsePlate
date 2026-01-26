@@ -28,7 +28,7 @@ final class BMICalculatorViewModel: ObservableObject {
             error = e
         } catch let unknownError {
             // Unexpected non-APIError (should be rare).
-            self.error = APIError.api(statusCode: 0, message: unknownError.localizedDescription)
+            self.error = APIError.transport(unknownError.localizedDescription)
         }
     }
 }
