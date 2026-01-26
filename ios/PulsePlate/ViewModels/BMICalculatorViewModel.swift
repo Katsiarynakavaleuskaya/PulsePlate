@@ -3,21 +3,19 @@ import Combine
 
 @MainActor
 final class BMICalculatorViewModel: ObservableObject {
-    // TODO: Migrate to BMICalculateResponseDTO (tracked in BACKLOG_LEDGER.md)
-    @Published var result: BMIResponse?
+    @Published var result: BMICalculateResponseDTO?
     @Published var isLoading = false
-    // TODO: Migrate to APIError (tracked in BACKLOG_LEDGER.md)
-    @Published var error: BMIServiceError?
+    @Published var error: APIError?
 
-    private let service: LegacyBMIServicing
+    private let service: BMIServicing
 
-    // TODO: Update to use BMIService() after UI migration (tracked in BACKLOG_LEDGER.md)
-    init(service: LegacyBMIServicing = DefaultBMIService()) {
+    init(
+        service: BMIServicing = BMIService(apiClient: APIClient(baseURL: AppConfig.baseURL()))
+    ) {
         self.service = service
     }
 
-    // TODO: Migrate to BMICalculateRequestDTO (tracked in BACKLOG_LEDGER.md)
-    func calculateBMI(request: BMIRequest) async {
+    func calculateBMI(request: BMICalculateRequestDTO) async {
         isLoading = true
         error = nil
         result = nil
@@ -26,10 +24,11 @@ final class BMICalculatorViewModel: ObservableObject {
         do {
             let res = try await service.calculateBMI(request: request)
             result = res
-        } catch let e as BMIServiceError {
+        } catch let e as APIError {
             error = e
-        } catch {
-            self.error = .transport(error.localizedDescription)
+        } catch let unknownError {
+            // Unexpected non-APIError (should be rare).
+            self.error = APIError.api(statusCode: 0, message: unknownError.localizedDescription)
         }
     }
 }
