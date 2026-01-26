@@ -340,7 +340,6 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		if [ -n "$$SKIP_ITEMS" ]; then \
 			IFS=','; for t in $$SKIP_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && SKIP_FLAGS="$$SKIP_FLAGS -skip-testing:$$t"; done; unset IFS; \
 		fi; \
-		echo "xcodebuild test $$SKIP_FLAGS $$ONLY_FLAGS -destination \"$$DESTINATION\""; \
 		cd ios && xcodebuild test \
 			-project PulsePlate.xcodeproj \
 			-scheme PulsePlate \
