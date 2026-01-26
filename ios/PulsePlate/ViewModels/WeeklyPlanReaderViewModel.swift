@@ -93,8 +93,8 @@ public final class WeeklyPlanReaderViewModel {
             // Ignore cancellation - don't set failed state
             return
         } catch let error as APIError {
-            // Preserve old UX: 204 / empty response => .empty
-            if case .api(let statusCode, _) = error, statusCode == 200 || statusCode == 204 {
+            // Transport contract: 2xx empty body is signaled as `.emptyResponse`.
+            if case .emptyResponse = error {
                 state = .empty
                 return
             }
