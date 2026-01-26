@@ -114,7 +114,7 @@ If it is not recorded here — it does not exist.
     - Tests/guards pass
   - Notes (post-merge):
     - Services/UI: no direct URLSession
-    - APIError: transport vs http
+    - APIError: transport vs HTTP
     - snake_case decoder parity
     - emptyResponse semantics
     - unknown vs transport
