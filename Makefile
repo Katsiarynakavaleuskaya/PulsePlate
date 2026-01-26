@@ -309,23 +309,40 @@ openapi-check: openapi ## Verify OpenAPI + generated FE types are committed (fai
 
 ## Run iOS unit tests (xcodebuild test)
 ## Usage: make ios-test [IOS_SIM_NAME="iPhone 16e"] [IOS_SIM_OS=latest]
+## Optional:
+## - IOS_ONLY_TESTING="Target[/Class[/test]],..." (comma-separated)
+## - IOS_SKIP_TESTING="Target[/Class[/test]],..." (comma-separated)
+## - IOS_DESTINATION="platform=iOS Simulator,id=<UDID>" (overrides name/OS destination)
 ## Default: iPhone 16e (local development). CI uses UDID-only destination (see ios/AGENTS.md).
 ## NOTE: Uses -project (workspace scheme has test action issue).
 ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
 	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16e)"; \
 		SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
-		echo "Using simulator: $$SIM_NAME, OS: $$SIM_OS"; \
+		DESTINATION="$(IOS_DESTINATION)"; \
+		if [ -z "$$DESTINATION" ]; then DESTINATION="platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS"; fi; \
+		echo "Using destination: $$DESTINATION"; \
+		ONLY_ITEMS="$$IOS_ONLY_TESTING"; \
+		SKIP_ITEMS="$$IOS_SKIP_TESTING"; \
+		ONLY_FLAGS=""; \
+		SKIP_FLAGS=""; \
+		if [ -n "$$ONLY_ITEMS" ]; then \
+			IFS=','; for t in $$ONLY_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && ONLY_FLAGS="$$ONLY_FLAGS -only-testing:$$t"; done; unset IFS; \
+		else \
+			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests"; \
+		fi; \
+		if [ -z "$$ONLY_ITEMS" ] && [ -z "$$SKIP_ITEMS" ]; then \
+			SKIP_FLAGS="-skip-testing:PulsePlateUITests"; \
+		fi; \
+		if [ -n "$$SKIP_ITEMS" ]; then \
+			IFS=','; for t in $$SKIP_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && SKIP_FLAGS="$$SKIP_FLAGS -skip-testing:$$t"; done; unset IFS; \
+		fi; \
 		cd ios && xcodebuild test \
 			-project PulsePlate.xcodeproj \
 			-scheme PulsePlate \
-			-skip-testing:PulsePlateUITests \
-			-only-testing:PulsePlateTests/ThinClientGuardsTests \
-			-only-testing:PulsePlateTests/BMIServiceTests \
-			-only-testing:PulsePlateTests/BMIResponseDecodingTests \
-			-only-testing:PulsePlateTests/BMIRequestEncodingTests \
-			-only-testing:PulsePlateTests/LocaleParsingTests \
-			-destination "platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS" \
+			$$SKIP_FLAGS \
+			$$ONLY_FLAGS \
+			-destination "$$DESTINATION" \
 			-configuration Debug \
 			-derivedDataPath ../.derivedData \
 			-enableCodeCoverage NO \

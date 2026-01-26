@@ -200,6 +200,13 @@
 - This runs all unit tests including guard tests
 - Catches issues before CI
 
+**Local iOS test targeting (Makefile):**
+
+- `make ios-test IOS_ONLY_TESTING="PulsePlateTests/PlateViewTests"`
+- `make ios-test IOS_ONLY_TESTING="PulsePlateUITests"`
+- `make ios-test IOS_ONLY_TESTING="PulsePlateUITests" IOS_SKIP_TESTING=""` (override default skip behavior)
+- Optional deterministic destination: `IOS_DESTINATION="platform=iOS Simulator,id=<UDID>"`
+
 **Local vs CI differences:**
 
 - **Local:** Default `iPhone 16e` (can be overridden via `IOS_SIM_NAME`/`IOS_SIM_OS`)
