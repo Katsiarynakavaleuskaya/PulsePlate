@@ -20,6 +20,9 @@ public enum APIError: Error, Equatable, Sendable {
     /// Transport/network failure (URLSession/URLError/etc.).
     case transport(String)
 
+    /// Unexpected non-APIError failure (should be rare).
+    case unknown(String)
+
     /// Request-body encoding failed (before the request was sent).
     case encodingFailed(String)
 
@@ -44,6 +47,8 @@ extension APIError: LocalizedError {
             return "Empty response (HTTP \(statusCode))"
         case .transport(let message):
             return "Network error: \(message)"
+        case .unknown(let message):
+            return "Unknown error: \(message)"
         case .encodingFailed(let message):
             return message
         case .decodingFailed(let message):
