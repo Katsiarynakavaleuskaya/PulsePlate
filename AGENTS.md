@@ -710,6 +710,11 @@ git diff --name-only origin/main...HEAD \
 **Rationale:**
 This rule exists to prevent accidental regressions, keep PR reviews focused and safe, avoid CI failures caused by unrelated changes, and enforce clean separation between **documentation governance** and **runtime evolution**.
 
+### Verification-audit rule (docs/audit/*)
+
+- Any audit labeled **"Verified"** MUST include minimal **observed output** (1–3 lines) for each key evidence command.
+- If observed output is missing, the audit is an **Opinion**, not **Evidence** (must not be treated as verified).
+
 **Canonical policy:** This section in `AGENTS.md` is the source of truth.
 **Last updated:** 2026-01-11
 
