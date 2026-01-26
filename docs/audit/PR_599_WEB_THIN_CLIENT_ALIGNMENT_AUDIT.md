@@ -43,6 +43,9 @@ Verify that Web client is a **thin client**:
 - **External URL security**: never send API credentials to external (signed) URLs.
 - **Contract-first**: DTOs come from generated OpenAPI types.
 
+> Note: This audit follows the same invariant framework as `PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md` / `PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md`.
+> Any future consolidation into a shared audit template is out of scope for PR-599.
+
 ---
 
 ## 3) Evidence commands (copy/paste)
@@ -63,7 +66,8 @@ rg -n "from\\s+['\"].*/api/schema['\"]|/api/schema" frontend/src
 rg -n "(\\bbmi\\b|body\\s*mass\\s*index|\\bwhr\\b|\\bwht\\b|waist\\s*to\\s*height|waist\\s*hip|body\\s*fat|\\bffmi\\b)" frontend/src
 
 # E) Threshold literals guard (spot-check; canonical hard thresholds must not exist outside core/bmi/)
-rg -n "(18\\.5|24\\.9|\\b25\\b|\\b30\\b|\\b0\\.9\\b|\\b0\\.85\\b|\\b0\\.95\\b|\\b0\\.8\\b)" frontend/src
+# Prefer a narrower grep to reduce false positives from OpenAPI examples and non-BMI numbers.
+rg -n "(bmi|whr|wht|ffmi).*(18\\.5|25|30|0\\.8|0\\.85|0\\.9|0\\.95)" frontend/src
 
 # F) Paywall copy surface scan
 rg -n "(upgrade|subscribe|premium|pro\\b|vip\\b)" frontend/src
@@ -111,7 +115,7 @@ rg -n "(upgrade|subscribe|premium|pro\\b|vip\\b)" frontend/src
 
 #### C1. Any BMI-related `if/logic` exists?
 
-- **Question:** Does Web contain any BMI/WHR/WHtR/bodyfat interpretation logic?
+- **Question:** Is there any BMI/WHR/WHtR/bodyfat interpretation logic in Web?
 - **Evidence:** inspect grep matches for comparisons/thresholds/category inference (not UI copy).
 - **Decision:** ✅ UI-only / ❌ Logic detected (blocker)
 
