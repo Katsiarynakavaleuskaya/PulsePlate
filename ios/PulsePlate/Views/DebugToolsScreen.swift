@@ -107,10 +107,21 @@ struct DebugToolsScreen: View {
             case .decodingFailed:
                 // Response is reachable but not JSON in expected shape (still confirms connectivity).
                 networkTestResult = "✅ Connected (unexpected payload): /health"
+            case .emptyResponse:
+                networkTestResult = "✅ Connected (empty/unexpected payload): /health"
             case .api(let statusCode, _):
                 networkTestResult = "✅ Connected: HTTP \(statusCode)"
             case .validation:
                 networkTestResult = "✅ Connected: HTTP 422"
+            case .transport(let message):
+                // Preserve legacy heuristics (ATS/offline/refused) but keep it transport-scoped.
+                if message.contains("App Transport Security") {
+                    networkTestResult = "❌ ATS BLOCKED: \(message.prefix(Layout.maxMessageLength))..."
+                } else if message.contains("refused") || message.contains("offline") {
+                    networkTestResult = "✅ ATS OK (backend not running): \(message.prefix(Layout.maxMessageLength))..."
+                } else {
+                    networkTestResult = "❌ Network error: \(message.prefix(Layout.maxMessageLength))..."
+                }
             case .invalidResponse:
                 networkTestResult = "⚠️ Invalid response type"
             default:
