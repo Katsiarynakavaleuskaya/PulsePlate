@@ -324,6 +324,9 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		echo "Using destination: $$DESTINATION"; \
 		ONLY_ITEMS="$${IOS_ONLY_TESTING:-$(IOS_ONLY_TESTING)}"; \
 		SKIP_ITEMS="$${IOS_SKIP_TESTING:-$(IOS_SKIP_TESTING)}"; \
+		SKIP_PROVIDED=""; \
+		if [ -n "$${IOS_SKIP_TESTING+x}" ]; then SKIP_PROVIDED="1"; fi; \
+		if [ "$(origin IOS_SKIP_TESTING)" != "undefined" ]; then SKIP_PROVIDED="1"; fi; \
 		ONLY_FLAGS=""; \
 		SKIP_FLAGS=""; \
 		if [ -n "$$ONLY_ITEMS" ]; then \
@@ -331,12 +334,13 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 		else \
 			ONLY_FLAGS="-only-testing:PulsePlateTests/ThinClientGuardsTests -only-testing:PulsePlateTests/BMIServiceTests -only-testing:PulsePlateTests/BMIResponseDecodingTests -only-testing:PulsePlateTests/BMIRequestEncodingTests -only-testing:PulsePlateTests/LocaleParsingTests"; \
 		fi; \
-		if [ -z "$$ONLY_ITEMS" ] && [ -z "$$SKIP_ITEMS" ]; then \
+		if [ -z "$$ONLY_ITEMS" ] && [ -z "$$SKIP_PROVIDED" ]; then \
 			SKIP_FLAGS="-skip-testing:PulsePlateUITests"; \
 		fi; \
 		if [ -n "$$SKIP_ITEMS" ]; then \
 			IFS=','; for t in $$SKIP_ITEMS; do t=$${t# }; t=$${t% }; [ -n "$$t" ] && SKIP_FLAGS="$$SKIP_FLAGS -skip-testing:$$t"; done; unset IFS; \
 		fi; \
+		echo "xcodebuild test $$SKIP_FLAGS $$ONLY_FLAGS -destination \"$$DESTINATION\""; \
 		cd ios && xcodebuild test \
 			-project PulsePlate.xcodeproj \
 			-scheme PulsePlate \
