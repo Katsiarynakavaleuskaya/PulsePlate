@@ -42,7 +42,8 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
             (data, response) = try await session.data(for: request)
         } catch {
             // Transport-only: keep separate from HTTP status-based API errors.
-            throw APIError.transport((error as NSError).localizedDescription)
+            let nsError = error as NSError
+            throw APIError.transport("\(nsError.localizedDescription) (code: \(nsError.code))")
         }
 
         guard let httpResponse = response as? HTTPURLResponse else {
