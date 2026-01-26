@@ -100,7 +100,7 @@ struct BMICalculatorScreen: View {
             return
         }
 
-        let req = BMIRequest(
+        let req = BMICalculateRequestDTO(
             weightKg: w,
             heightCm: h,
             age: a,

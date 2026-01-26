@@ -27,14 +27,24 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
     }
 
     private func makeDecoder() -> JSONDecoder {
-        JSONDecoder()
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
     }
 
     public func send<T: Decodable>(
         _ request: URLRequest,
         responseType: T.Type
     ) async throws -> T {
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            // Transport-only: keep separate from HTTP status-based API errors.
+            let nsError = error as NSError
+            throw APIError.transport("\(nsError.localizedDescription) (code: \(nsError.code))")
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
@@ -42,6 +52,11 @@ public final class HTTPClient: HTTPClientProtocol, @unchecked Sendable {
 
         switch httpResponse.statusCode {
         case 200...299:
+            // Contract: 2xx with an empty body is signaled explicitly as `.emptyResponse`.
+            // Callers can map this to an "empty" UX state (as opposed to an API error or decoding failure).
+            if httpResponse.statusCode == 204 || data.isEmpty {
+                throw APIError.emptyResponse(statusCode: httpResponse.statusCode)
+            }
             return try decode(data, as: T.self)
 
         case 422:

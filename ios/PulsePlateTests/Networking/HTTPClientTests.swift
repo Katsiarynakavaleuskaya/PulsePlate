@@ -226,6 +226,62 @@ final class HTTPClientTests: XCTestCase {
         XCTAssertEqual(result.bmi, 22.5)
     }
 
+    func test_204_throwsEmptyResponse() async throws {
+        let session = makeSession()
+        let client = HTTPClient(session: session)
+
+        StubURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 204,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data())
+        }
+
+        var request = URLRequest(url: URL(string: "https://example.com/api/v1/pro/meal/weekly")!)
+        request.httpMethod = "POST"
+
+        do {
+            struct Dummy: Decodable {}
+            _ = try await client.send(request, responseType: Dummy.self)
+            XCTFail("Expected to throw")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .emptyResponse(statusCode: 204))
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func test_200_withEmptyBody_throwsEmptyResponse() async throws {
+        let session = makeSession()
+        let client = HTTPClient(session: session)
+
+        StubURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (response, Data())
+        }
+
+        var request = URLRequest(url: URL(string: "https://example.com/api/v1/pro/meal/shopping-list")!)
+        request.httpMethod = "POST"
+
+        do {
+            struct Dummy: Decodable {}
+            _ = try await client.send(request, responseType: Dummy.self)
+            XCTFail("Expected to throw")
+        } catch let error as APIError {
+            XCTAssertEqual(error, .emptyResponse(statusCode: 200))
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
     // Note: test_invalidResponse is skipped because URLSession.data(for:) always returns
     // HTTPURLResponse for HTTP/HTTPS requests. The guard clause in HTTPClient is defensive
     // programming but difficult to test without mocking URLSession internals.

@@ -92,6 +92,13 @@ public final class WeeklyPlanReaderViewModel {
         } catch is CancellationError {
             // Ignore cancellation - don't set failed state
             return
+        } catch let error as APIError {
+            // Transport contract: 2xx empty body is signaled as `.emptyResponse`.
+            if case .emptyResponse = error {
+                state = .empty
+                return
+            }
+            state = .failed(error.localizedDescription)
         } catch {
             state = .failed(error.localizedDescription)
         }

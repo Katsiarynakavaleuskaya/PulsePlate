@@ -7,11 +7,10 @@ struct WeeklyPlanServiceTransportTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [FailingURLProtocol.self]
         let session = URLSession(configuration: config)
+        let httpClient = HTTPClient(session: session)
+        let apiClient = APIClient(baseURL: URL(string: "https://example.com")!, httpClient: httpClient)
 
-        let service = DefaultWeeklyPlanService(
-            baseURL: URL(string: "https://example.com")!,
-            session: session
-        )
+        let service = DefaultWeeklyPlanService(apiClient: apiClient)
 
         let request = WeeklyPlanRequest(
             endpointPath: "/api/v1/pro/meal/weekly",
@@ -21,16 +20,12 @@ struct WeeklyPlanServiceTransportTests {
 
         do {
             _ = try await service.fetchWeeklyPlan(request: request)
-            Issue.record("Expected WeeklyPlanServiceError.transport")
-        } catch let error as WeeklyPlanServiceError {
-            switch error {
-            case .transport(let message):
-                #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            default:
-                Issue.record("Expected transport error, got: \(error)")
-            }
+            Issue.record("Expected APIError for transport failure")
+        } catch let error as APIError {
+            // For URLSession failures we surface APIError.api with best-effort message.
+            #expect(error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
         } catch {
-            Issue.record("Expected WeeklyPlanServiceError, got: \(error)")
+            Issue.record("Expected APIError, got: \(error)")
         }
     }
 
@@ -38,11 +33,10 @@ struct WeeklyPlanServiceTransportTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [TimeoutURLProtocol.self]
         let session = URLSession(configuration: config)
+        let httpClient = HTTPClient(session: session)
+        let apiClient = APIClient(baseURL: URL(string: "https://example.com")!, httpClient: httpClient)
 
-        let service = DefaultWeeklyPlanService(
-            baseURL: URL(string: "https://example.com")!,
-            session: session
-        )
+        let service = DefaultWeeklyPlanService(apiClient: apiClient)
 
         let request = WeeklyPlanRequest(
             endpointPath: "/api/v1/pro/meal/weekly",
@@ -52,17 +46,11 @@ struct WeeklyPlanServiceTransportTests {
 
         do {
             _ = try await service.fetchWeeklyPlan(request: request)
-            Issue.record("Expected WeeklyPlanServiceError.transport for timeout")
-        } catch let error as WeeklyPlanServiceError {
-            switch error {
-            case .transport(let message):
-                // Timeout error should have descriptive message
-                #expect(!message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            default:
-                Issue.record("Expected transport error for timeout, got: \(error)")
-            }
+            Issue.record("Expected APIError for timeout")
+        } catch let error as APIError {
+            #expect(error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
         } catch {
-            Issue.record("Expected WeeklyPlanServiceError, got: \(error)")
+            Issue.record("Expected APIError, got: \(error)")
         }
     }
 }

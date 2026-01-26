@@ -11,6 +11,18 @@ public enum APIError: Error, Equatable, Sendable {
     /// API errors (400/401/403/500/501): localized detail string
     case api(statusCode: Int, message: String)
 
+    /// Transport succeeded (2xx) but the server returned no body (204 or empty data).
+    ///
+    /// Contract: `HTTPClient.send(_:responseType:)` throws this so callers can present an explicit "empty"
+    /// UX state without conflating it with API failures or JSON decoding errors.
+    case emptyResponse(statusCode: Int)
+
+    /// Transport/network failure (URLSession/URLError/etc.).
+    case transport(String)
+
+    /// Unexpected non-APIError failure (should be rare).
+    case unknown(String)
+
     /// Request-body encoding failed (before the request was sent).
     case encodingFailed(String)
 
@@ -31,6 +43,12 @@ extension APIError: LocalizedError {
             return response.detail.map(\.msg).joined(separator: "\n")
         case .api(let statusCode, let message):
             return "Server error \(statusCode): \(message)"
+        case .emptyResponse(let statusCode):
+            return "Empty response (HTTP \(statusCode))"
+        case .transport(let message):
+            return "Network error: \(message)"
+        case .unknown(let message):
+            return "Unknown error: \(message)"
         case .encodingFailed(let message):
             return message
         case .decodingFailed(let message):
