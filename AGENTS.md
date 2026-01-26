@@ -1308,6 +1308,8 @@ This section complements the earlier **"Docs-only PR Rule"** and clarifies the *
 
 - **No shared mutable JSONEncoder/Decoder:** `APIClient` and other networking classes must not store `JSONEncoder`/`JSONDecoder` as instance properties (mutable state + Sendable violation). Use factory closures: `makeEncoder: () -> JSONEncoder` / `makeDecoder: () -> JSONDecoder`.
 - **Default JSON key strategy:** All API requests/responses use `.convertToSnakeCase` by default. Any exceptions (camelCase or custom keys) must be handled via explicit `CodingKeys` in models, not by changing encoder strategy globally.
+- **Error mapping policy:** Network/transport failures MUST be `APIError.transport` (never `statusCode: 0`).
+- **Error mapping policy:** Unexpected non-`APIError` failures MUST map to `APIError.unknown` (not `.transport`).
 - **Rationale:** Ensures Sendable compliance, deterministic serialization, and contract consistency with backend (backend expects snake_case).
 
 **Git hooks portability (hard rule):**
