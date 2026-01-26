@@ -1,6 +1,6 @@
 # PR-603 (PR-Q2) — iOS UI tests restore audit (PlateViewTests + PulsePlateUITests)
 
-**Date:** 2026-01-26 (UTC)
+**Date (ISO 8601):** 2026-01-26Z
 **Revision:** v2
 **Owner:** @katsiaryna_kavaleuskaya
 **Track:** Quality / CI Trust (iOS)
@@ -15,9 +15,9 @@
 
 ### Non-goals
 
-- No product/UX changes.
-- No new features.
-- No “green because skipped”.
+- Product/UX changes are out of scope.
+- New features are out of scope.
+- “Green because skipped” is not acceptable.
 
 ---
 
@@ -59,9 +59,7 @@ xcodebuild test \
   -only-testing:PulsePlateUITests/PulsePlateUITests/testExample
 ```
 
-NOTE: Simulator destination intentionally uses a generic form
-(`platform=iOS Simulator,name=iPhone 15`) to keep the audit durable.
-The observed failure is independent of a specific simulator UDID.
+> NOTE: UDID intentionally not pinned in docs to keep evidence durable across machines/CI runners.
 
 **Observed output (raw excerpt; first failure):**
 
