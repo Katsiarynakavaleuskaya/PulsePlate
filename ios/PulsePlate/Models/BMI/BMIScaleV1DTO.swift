@@ -15,6 +15,30 @@ public struct BMIScaleV1DTO: Decodable, Sendable {
 
 public struct BMIMarkerDTO: Decodable, Sendable {
     public let value: Double?
+
+    private enum CodingKeys: String, CodingKey {
+        case value
+    }
+
+    public init(value: Double?) {
+        self.value = value
+    }
+
+    public init(from decoder: Decoder) throws {
+        // New format: { "value": 12.3 }
+        if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+            value = try container.decodeIfPresent(Double.self, forKey: .value)
+            return
+        }
+
+        // Legacy format: 12.3
+        let single = try decoder.singleValueContainer()
+        if let v = try? single.decode(Double.self) {
+            value = v
+        } else {
+            value = nil
+        }
+    }
 }
 
 public struct BMIRangeDTO: Decodable, Sendable {
