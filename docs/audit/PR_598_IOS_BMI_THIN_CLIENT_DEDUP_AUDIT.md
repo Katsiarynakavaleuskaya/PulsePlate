@@ -45,6 +45,28 @@ rg -n "/api/v1/bmi/calculate" ios/PulsePlate
 rg -n "APIClient\\(|HTTPClient\\(|URLSession\\.shared|URLSession\\(" ios/PulsePlate
 ```
 
+### 3.1 Observed output (key checks)
+
+**Legacy shims/types grep (expected: 0 matches):**
+
+```text
+No matches found
+```
+
+**Canonical DTO grep (sample):**
+
+```text
+ios/PulsePlate/ViewModels/BMICalculatorViewModel.swift:6
+ios/PulsePlate/Services/BMIService.swift:5
+ios/PulsePlate/Screens/BMICalculatorScreen.swift:103
+```
+
+**Endpoint grep (sample):**
+
+```text
+ios/PulsePlate/Services/BMIService.swift:31:            path: "/api/v1/bmi/calculate",
+```
+
 ## 4) Findings (AS-IS, verified)
 
 ### 4.1 Canonical DTOs used by UI/service
@@ -85,3 +107,5 @@ Verified: no matches for `LegacyBMIServicing`, `DefaultBMIService`, `BMIServiceE
 ## 7) Links
 
 - PR-596 (remediation): `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596`
+- PR-596 merge commit: `e0eea0bb0ae987876ade13518222c65d8c21ec8e`
+- PR-597 (post-merge hygiene): `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/597`
