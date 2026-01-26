@@ -11,8 +11,10 @@ struct SoftPaywallHookView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(hook.message.defaultTitle ?? "").font(.headline)
             Text(hook.message.defaultBody ?? "").font(.subheadline)
-            Button(hook.message.defaultCta ?? "", action: onCtaTap)
-                .buttonStyle(.borderedProminent)
+            if let cta = hook.message.defaultCta, !cta.isEmpty {
+                Button(cta, action: onCtaTap)
+                    .buttonStyle(.borderedProminent)
+            }
         }
         .padding()
         .background(.thinMaterial)
