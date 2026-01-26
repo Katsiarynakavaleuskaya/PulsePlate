@@ -319,11 +319,11 @@ ios-test: ## Run iOS unit tests (recommended before pushing iOS PR)
 	@echo "$(YELLOW)🧪 Запуск iOS unit tests...$(NC)"
 	@SIM_NAME="$(or $(IOS_SIM_NAME),iPhone 16e)"; \
 		SIM_OS="$(or $(IOS_SIM_OS),latest)"; \
-		DESTINATION="$(IOS_DESTINATION)"; \
+		DESTINATION="$${IOS_DESTINATION:-$(IOS_DESTINATION)}"; \
 		if [ -z "$$DESTINATION" ]; then DESTINATION="platform=iOS Simulator,name=$$SIM_NAME,OS=$$SIM_OS"; fi; \
 		echo "Using destination: $$DESTINATION"; \
-		ONLY_ITEMS="$$IOS_ONLY_TESTING"; \
-		SKIP_ITEMS="$$IOS_SKIP_TESTING"; \
+		ONLY_ITEMS="$${IOS_ONLY_TESTING:-$(IOS_ONLY_TESTING)}"; \
+		SKIP_ITEMS="$${IOS_SKIP_TESTING:-$(IOS_SKIP_TESTING)}"; \
 		ONLY_FLAGS=""; \
 		SKIP_FLAGS=""; \
 		if [ -n "$$ONLY_ITEMS" ]; then \
