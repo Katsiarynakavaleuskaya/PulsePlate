@@ -288,14 +288,15 @@ class TestInsightEndpoints:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(cast(ASGIApp, app))
 
-    def test_insight_endpoint_disabled_explicitly(self):
+    def test_insight_endpoint_disabled_explicitly(self) -> None:
         """Test insight endpoint when explicitly disabled."""
         with patch.dict(os.environ, {"FEATURE_INSIGHT": "false"}):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
+            assert response.headers["content-type"].startswith("application/json")
             assert "disabled" in response.json()["detail"]
 
-    def test_insight_endpoint_no_provider(self):
+    def test_insight_endpoint_no_provider(self) -> None:
         """Test insight endpoint with no provider configured."""
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
@@ -303,9 +304,10 @@ class TestInsightEndpoints:
         ):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
+            assert response.headers["content-type"].startswith("application/json")
             assert "No LLM provider configured" in response.json()["detail"]
 
-    def test_insight_endpoint_provider_unavailable(self):
+    def test_insight_endpoint_provider_unavailable(self) -> None:
         """Test insight endpoint with provider unavailable."""
         mock_provider = Mock()
         mock_provider.generate.side_effect = Exception("Provider error")
@@ -317,6 +319,7 @@ class TestInsightEndpoints:
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
             # Privacy/safety: do not leak provider exception details.
+            assert response.headers["content-type"].startswith("application/json")
             assert "Provider error" not in response.json()["detail"]
 
     def test_insight_endpoint_success(self):

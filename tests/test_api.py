@@ -4,7 +4,7 @@ import sys
 from collections.abc import Callable
 from types import ModuleType
 from typing import cast
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -212,7 +212,7 @@ def test_bodyfat_import_failure(client):
         _test_app_import_with_assertions(original_app, test_assertions)
 
 
-def test_insight_import_failure(client, monkeypatch):
+def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test coverage for llm import exception in main.py."""
     import sys
     from unittest.mock import MagicMock, patch
@@ -231,7 +231,7 @@ def test_insight_import_failure(client, monkeypatch):
         if name == "llm" or name.startswith("llm."):
             monkeypatch.delitem(sys.modules, name, raising=False)
 
-    def test_assertions(app):
+    def test_assertions(app: ModuleType) -> None:
         client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
@@ -240,6 +240,7 @@ def test_insight_import_failure(client, monkeypatch):
             headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 503
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         # Backward-compatible shape: `detail` exists, but must not leak internals.
         assert "No LLM provider configured" in data["detail"]
@@ -248,7 +249,7 @@ def test_insight_import_failure(client, monkeypatch):
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_generate_failure(mock_get_provider, client):
+def test_api_insight_provider_generate_failure(mock_get_provider: Mock, client: TestClient) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
     from unittest.mock import MagicMock
 
@@ -267,6 +268,7 @@ def test_api_insight_provider_generate_failure(mock_get_provider, client):
         "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     # Privacy/safety: never leak raw exception details to the client.
     assert "Generate failed" not in data.get("detail", "")
@@ -279,7 +281,7 @@ def test_api_insight_provider_generate_failure(mock_get_provider, client):
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_none(mock_get_provider, client):
+def test_api_insight_provider_none(mock_get_provider: Mock, client: TestClient) -> None:
     """Test coverage for provider is None in insight endpoint."""
     mock_get_provider.return_value = None
 
@@ -293,6 +295,7 @@ def test_api_insight_provider_none(mock_get_provider, client):
         "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     assert "No LLM provider configured" in data["detail"]
 

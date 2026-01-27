@@ -20,6 +20,7 @@ def test_insight_legacy_does_not_leak_provider_exception(
 
     resp = client.post("/insight", json={"text": "hello"})
     assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
     assert "SENSITIVE" not in data.get("detail", "")
     assert "/tmp/internal" not in data.get("detail", "")
@@ -48,6 +49,7 @@ def test_insight_v1_does_not_leak_provider_exception(
         headers={"X-API-Key": "test_key"},
     )
     assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
     assert "SENSITIVE" not in data.get("detail", "")
     assert "/tmp/internal" not in data.get("detail", "")
@@ -81,6 +83,7 @@ def test_insight_redacts_rag_source_headers(
 
     resp = client.post("/insight", json={"text": "What is BMI?"})
     assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
     data = resp.json()
     assert "insight" in data
     assert "Source:" not in data["insight"]

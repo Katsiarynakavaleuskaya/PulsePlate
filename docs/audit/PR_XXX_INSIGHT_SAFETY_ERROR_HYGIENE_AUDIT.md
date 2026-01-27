@@ -51,7 +51,7 @@ These are **canonical decisions** for this PR scope. Do not override without an 
 
 3) Do legacy and v1 paths differ in contract (keys/status)?
 
-### B) Current leaks (fact finding)
+### B) Current leaks (fact-finding)
 4) Where is `str(exc)` used today?
    - ✅ `legacy_app.py:2490-2494` (`/api/v1/insight`)
    - ✅ `legacy_app.py:2533-2534` (`/insight`)
@@ -86,27 +86,27 @@ These are **canonical decisions** for this PR scope. Do not override without an 
 11) Where do we write tests (unit + API)?
 
 12) Minimal tests:
-   - provider failure → response does **not** contain `str(exc)`
-   - stable keys
-   - expected status code
+- provider failure → response does **not** contain `str(exc)`
+- stable keys
+- expected status code
 
 ### F) Telemetry (scope check)
 13) Confirm scope:
-   - backend-only event emit (no frontend changes)
-   - no aggregation
+- backend-only event emit (no frontend changes)
+- no aggregation
 
 14) Minimal event (if included in this PR):
-   - name: `insight_used`
-   - attrs: `result=success|failure`, `provider`, `latency_bucket`
+- name: `insight_used`
+- attrs: `result=success|failure`, `provider`, `latency_bucket`
 
 If this expands scope → defer to next PR and record in ledger.
 
 ### G) Scope guard (hard)
 15) This PR must **NOT**:
-   - change tier access
-   - refactor RAG (except no-leak safety constraints)
-   - change UX/copy
-   - change provider selection logic (except error hygiene needed for tests)
+- change tier access
+- refactor RAG (except no-leak safety constraints)
+- change UX/copy
+- change provider selection logic (except error hygiene needed for tests)
 
 ---
 
