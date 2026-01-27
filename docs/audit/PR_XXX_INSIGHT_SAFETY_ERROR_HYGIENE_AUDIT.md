@@ -149,7 +149,10 @@ If this expands scope → defer to next PR and record in ledger.
 
 ## Implementation verification
 
-**SHA:** `c9f8aff0`
+**SHA:** `0cda88d5`
+
+**Note:** moved RAG redaction helper out of `legacy_app.py` into a canonical helper
+(`core/insight/safety.py`) to keep legacy layer thin (AGENTS invariant).
 
 ### Commands
 
