@@ -1407,6 +1407,17 @@ class InsightRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=INSIGHT_TEXT_MAX_LENGTH)
 
 
+class InsightResponse(BaseModel):
+    """Insight response payload.
+
+    RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
+    EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
+    """
+
+    provider: str = Field(..., min_length=1)
+    insight: str = Field(..., min_length=1)
+
+
 class BMIRequest(BaseModel):
     weight_kg: float = Field(..., gt=0)
     height_m: float = Field(..., gt=0)
@@ -2475,7 +2486,7 @@ def _redact_rag_context_for_insight(ctx: str) -> str:
 @app.post(
     "/api/v1/insight",
     dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=None,  # avoid FastAPI inferring model from return annotation
+    response_model=InsightResponse,
 )
 async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (v1 with API key).
@@ -2523,7 +2534,7 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
 # Backward-compatible simple insight endpoint (no API key)
 @app.post(
     "/insight",
-    response_model=None,  # avoid FastAPI inferring model from return annotation
+    response_model=InsightResponse,
 )
 async def insight(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (legacy path without API key).
