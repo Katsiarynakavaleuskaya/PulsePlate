@@ -690,8 +690,11 @@ jobs:
           echo "Verifying Xcode selection:"
           xcode-select -p
 
-          # Extract Xcode version for cache key
-          XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
+          # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
+          XCODEBUILD_VERSION="$(xcodebuild -version)"
+          # First line is like: "Xcode 16.4"
+          XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
+          XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
@@ -1036,7 +1039,11 @@ jobs:
           echo "developer_dir=$SELECTED" >> "$GITHUB_OUTPUT"
           sudo xcode-select -s "$SELECTED"
 
-          XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
+          # Extract Xcode version for cache key (avoid broken pipe from pipe consumers like head/sed)
+          XCODEBUILD_VERSION="$(xcodebuild -version)"
+          # First line is like: "Xcode 16.4"
+          XCODE_VERSION="${XCODEBUILD_VERSION#Xcode }"
+          XCODE_VERSION="${XCODE_VERSION%%$'\n'*}"
           echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
           echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
 
