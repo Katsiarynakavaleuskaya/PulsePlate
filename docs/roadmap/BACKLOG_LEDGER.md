@@ -122,6 +122,7 @@ If it is not recorded here — it does not exist.
 - [ ] Stabilize/restore PlateViewTests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (separate from PR-559)
+  - Priority: P1
   - Reason: PlateViewTests were unstable historically; UI tests bundle-load is now fixed, but PlateViewTests stability + CI inclusion remains open.
   - Links:
     - ios/PulsePlateTests/PlateViewTests.swift
@@ -487,5 +488,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-26 (PR-597: Post-merge hygiene for PR-596)
+**Last updated:** 2026-01-27 (PR-597: Post-merge hygiene for PR-596)
 **Maintainer:** @katsiaryna_kavaleuskaya
