@@ -488,5 +488,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-27 (PR-597: Post-merge hygiene for PR-596)
+**Last updated:** 2026-01-27 (PR-609: Post-merge hygiene for PR-596)
 **Maintainer:** @katsiaryna_kavaleuskaya
