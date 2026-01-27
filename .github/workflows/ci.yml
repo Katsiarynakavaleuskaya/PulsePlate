@@ -853,7 +853,7 @@ jobs:
           UDID="${{ steps.select-destination.outputs.udid }}"
 
           if [ -z "$DESTINATION" ]; then
-            echo "::error::IOS_DESTINATION is empty"
+            echo "::error::DESTINATION is empty"
             exit 1
           fi
 
@@ -1188,6 +1188,7 @@ jobs:
 
           # Boot simulator and enforce bootstatus readiness
           if [ -n "$UDID" ]; then
+            echo "=== Booting simulator ==="
             echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
             export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-180}"
@@ -1215,6 +1216,14 @@ jobs:
               subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
               sys.exit(e.returncode)
           PY
+
+            echo "✓ Simulator booted and ready"
+
+            # Warm up system services (best-effort, reduces flaky UI test failures)
+            echo "Warming up system services..."
+            xcrun simctl launch "$UDID" com.apple.springboard || true
+            sleep 2
+            echo "✓ System services ready"
           fi
 
           echo "=== Building for testing (timeout: 10 minutes) ==="
