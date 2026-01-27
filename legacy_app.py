@@ -2467,20 +2467,9 @@ INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
 INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
 
 
-def _redact_rag_context_for_insight(ctx: str) -> str:
-    """Redact internal source metadata from RAG context before sending to LLM.
-
-    RU: Удаляем строки с источниками/именами файлов, чтобы не утекала внутренняя
-    структура проекта в LLM prompt (и затем потенциально к пользователю).
-    EN: Remove source/filename lines to avoid leaking internal project structure into prompts.
-    """
-
-    lines = []
-    for line in ctx.splitlines():
-        if line.lstrip().startswith("# Source:"):
-            continue
-        lines.append(line)
-    return "\n".join(lines).strip()
+from core.insight.safety import (  # noqa: E402
+    redact_rag_context_for_insight as _redact_rag_context_for_insight,
+)
 
 
 @app.post(
