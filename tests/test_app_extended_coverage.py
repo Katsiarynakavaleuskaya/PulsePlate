@@ -13,9 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-# Import the FastAPI app from app.py file
-import importlib.util
-from app import app
+# Import the canonical FastAPI app (registers metrics, etc.)
+from app.main import app
 
 
 @pytest.mark.slow
@@ -322,10 +321,12 @@ class TestInsightEndpoints:
             assert response.headers["content-type"].startswith("application/json")
             assert "Provider error" not in response.json()["detail"]
 
-    def test_insight_endpoint_success(self):
+    def test_insight_endpoint_success(self) -> None:
         """Test successful insight endpoint."""
+        from unittest.mock import AsyncMock
+
         mock_provider = Mock()
-        mock_provider.generate.return_value = "Generated insight"
+        mock_provider.generate = AsyncMock(return_value="Generated insight")
         mock_provider.name = "test_provider"
 
         with (
@@ -333,23 +334,33 @@ class TestInsightEndpoints:
             patch("llm.get_provider", return_value=mock_provider),
         ):
             response = self.client.post("/insight", json={"text": "test query"})
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
+            data = response.json()
+            assert data["provider"] == "test_provider"
+            assert data["insight"] == "Generated insight"
 
-    def test_api_v1_insight_success(self):
+    def test_api_v1_insight_success(self) -> None:
         """Test API v1 insight endpoint with API key."""
+        from unittest.mock import AsyncMock
+
         mock_provider = Mock()
-        mock_provider.generate.return_value = "Generated insight"
+        mock_provider.generate = AsyncMock(return_value="Generated insight")
         mock_provider.name = "test_provider"
 
         with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch.dict(os.environ, {"API_KEY": "test_key", "FEATURE_INSIGHT": "true"}),
             patch("llm.get_provider", return_value=mock_provider),
         ):
             headers = {"X-API-Key": "test_key"}
             response = self.client.post(
                 "/api/v1/insight", json={"text": "test query"}, headers=headers
             )
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
+            data = response.json()
+            assert data["provider"] == "test_provider"
+            assert data["insight"] == "Generated insight"
 
     def test_api_v1_insight_no_llm_module(self):
         """Test API v1 insight when LLM module not available."""
