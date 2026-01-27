@@ -3,7 +3,7 @@ import os
 import sys
 from collections.abc import Callable
 from types import ModuleType
-from typing import cast
+from typing import NoReturn, cast
 from unittest.mock import Mock, patch
 
 import pytest
@@ -214,7 +214,6 @@ def test_bodyfat_import_failure(client):
 
 def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test coverage for llm import exception in main.py."""
-    from collections.abc import Callable
 
     # Save original app module if it exists
     original_app = sys.modules.get("app")
@@ -222,7 +221,7 @@ def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPa
     def test_assertions(app: ModuleType) -> None:
         import legacy_app
 
-        def _raise_import_error() -> Callable[[], object]:
+        def _raise_import_error() -> NoReturn:
             raise ImportError("boom")
 
         # Deterministic import-failure branch without sys.modules mutation.

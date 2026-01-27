@@ -1,9 +1,9 @@
-## PR-XXX — Insight Safety & Error Hygiene (P0)
+## PR-0 — Insight Safety & Error Hygiene (P0)
 
 **Status:** Draft (audit-first)
 **Type:** Runtime PR (security/privacy fix)
 **Owner:** @katsiaryna_kavaleuskaya
-**Related ledger item:** `docs/roadmap/BACKLOG_LEDGER.md` → “P0 Audit Sweep: AI Insight — stop leaking provider exception details”
+**Related ledger item:** `docs/roadmap/BACKLOG_LEDGER.md` → "P0 Audit Sweep: AI Insight — stop leaking provider exception details"
 
 ---
 
