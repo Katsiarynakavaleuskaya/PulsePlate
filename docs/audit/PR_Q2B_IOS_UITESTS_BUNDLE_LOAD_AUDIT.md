@@ -117,6 +117,19 @@ DoD gates (all required):
   without `-skip-testing:PulsePlateUITests`.
 - **G4:** UI-smoke job is green for ≥2 consecutive runs (PR checks / reruns).
 
+## F) Post-merge verification (main)
+
+Observed on `main` after remediation was merged:
+
+```bash
+make ios-test IOS_ONLY_TESTING="PulsePlateUITests/UISmokeTests/testLaunch" IOS_SKIP_TESTING=""
+```
+
+Observed result:
+
+- Exit: `0`
+- `Cannot find executable … PulsePlateUITests.xctest`: **absent**
+
 ## Security Notes
 
 - UI tests must not send real credentials or hit real endpoints.
