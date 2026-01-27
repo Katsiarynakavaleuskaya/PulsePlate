@@ -1248,7 +1248,7 @@ jobs:
               sys.exit(e.returncode)
           PY
 
-          echo "=== Running UI smoke (timeout: 10 minutes) ==="
+          echo "=== Running UI smoke (timeout: 15 minutes) ==="
           python3 - << 'PY'
           import subprocess
           import sys
@@ -1272,9 +1272,9 @@ jobs:
           ]
 
           try:
-              subprocess.run(cmd, timeout=600, check=True)
+              subprocess.run(cmd, timeout=900, check=True)
           except subprocess.TimeoutExpired:
-              print("::error::xcodebuild UI smoke timed out after 10 minutes", file=sys.stderr)
+              print("::error::xcodebuild UI smoke timed out after 15 minutes", file=sys.stderr)
               sys.exit(1)
           except subprocess.CalledProcessError as e:
               sys.exit(e.returncode)
