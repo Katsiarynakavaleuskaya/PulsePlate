@@ -770,7 +770,13 @@ jobs:
           # 1) Try preferred devices (from env or default)
           # 2) Fallback: any iPhone
           # 3) Fallback: any iOS simulator (iPad if no iPhone)
-          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14")
+          # Source of truth: PREFERRED_DEVICES must be provided via workflow env.
+          # This avoids duplicated defaults between YAML and Python.
+          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "")
+          if not pref_devices_str:
+              print("::error::PREFERRED_DEVICES is empty", file=sys.stderr)
+              sys.exit(1)
+
           pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
           available_names = [d["name"] for d in available_devices]
 
