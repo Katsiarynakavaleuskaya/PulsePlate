@@ -2472,25 +2472,12 @@ def _redact_rag_context_for_insight(ctx: str) -> str:
     return "\n".join(lines).strip()
 
 
-def _insight_error_payload() -> Dict[str, str]:
-    """Return privacy-safe error payload for insight failures.
-
-    Backward compatibility: include `detail` for callers that expect FastAPI-like shape.
-    """
-
-    return {
-        "error": INSIGHT_TEMP_UNAVAILABLE_CODE,
-        "message": INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
-        "detail": INSIGHT_TEMP_UNAVAILABLE_MESSAGE,
-    }
-
-
 @app.post(
     "/api/v1/insight",
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=None,  # avoid FastAPI inferring model from return annotation
 )
-async def insight_v1(req: InsightRequest) -> Response:
+async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (v1 with API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2526,11 +2513,11 @@ async def insight_v1(req: InsightRequest) -> Response:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return JSONResponse(content={"provider": provider.name, "insight": insight_text})
+        return {"provider": provider.name, "insight": insight_text}
     except Exception:
         # Log server-side only; never return exception details to client (privacy/safety).
         logger.exception("Insight provider call failed (/api/v1/insight)")
-        return JSONResponse(status_code=503, content=_insight_error_payload())
+        raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
 # Backward-compatible simple insight endpoint (no API key)
@@ -2538,7 +2525,7 @@ async def insight_v1(req: InsightRequest) -> Response:
     "/insight",
     response_model=None,  # avoid FastAPI inferring model from return annotation
 )
-async def insight(req: InsightRequest) -> Response:
+async def insight(req: InsightRequest) -> Dict[str, Any]:
     """Generate insight using LLM provider (legacy path without API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2574,10 +2561,10 @@ async def insight(req: InsightRequest) -> Response:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return JSONResponse(content={"provider": provider.name, "insight": insight_text})
+        return {"provider": provider.name, "insight": insight_text}
     except Exception:
         logger.exception("Insight provider call failed (/insight)")
-        return JSONResponse(status_code=503, content=_insight_error_payload())
+        raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
 MenuEngineCallable = Callable[..., Any]

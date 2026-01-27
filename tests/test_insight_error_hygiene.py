@@ -21,7 +21,6 @@ def test_insight_legacy_does_not_leak_provider_exception(
     resp = client.post("/insight", json={"text": "hello"})
     assert resp.status_code == 503
     data = resp.json()
-    assert data["error"] == "INSIGHT_TEMPORARILY_UNAVAILABLE"
     assert "SENSITIVE" not in data.get("detail", "")
     assert "/tmp/internal" not in data.get("detail", "")
 
@@ -50,7 +49,6 @@ def test_insight_v1_does_not_leak_provider_exception(
     )
     assert resp.status_code == 503
     data = resp.json()
-    assert data["error"] == "INSIGHT_TEMPORARILY_UNAVAILABLE"
     assert "SENSITIVE" not in data.get("detail", "")
     assert "/tmp/internal" not in data.get("detail", "")
 

@@ -316,7 +316,8 @@ class TestInsightEndpoints:
         ):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
-            assert "LLM provider error" in response.json()["detail"]
+            # Privacy/safety: do not leak provider exception details.
+            assert "Provider error" not in response.json()["detail"]
 
     def test_insight_endpoint_success(self):
         """Test successful insight endpoint."""
