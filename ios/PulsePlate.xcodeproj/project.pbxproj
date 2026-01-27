@@ -11,6 +11,7 @@
 		B63DC54A60CDD04447BE2DD1 /* __CIAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6AAD8EE46580D4F79A394FC /* __CIAnchorTests.swift */; };
 		B6F5B1E4A0C840D5A8C7A9B1 /* PulsePlateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */; };
 		B6F5B1E5A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F5B1E3A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift */; };
+		B6F5B1E7A0C840D5A8C7A9B1 /* UISmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6F5B1E6A0C840D5A8C7A9B1 /* UISmokeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +39,7 @@
 		B6AAD8EE46580D4F79A394FC /* __CIAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateTests/__CIAnchorTests.swift; sourceTree = SOURCE_ROOT; };
 		B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/PulsePlateUITests.swift; sourceTree = SOURCE_ROOT; };
 		B6F5B1E3A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/PulsePlateUITestsLaunchTests.swift; sourceTree = SOURCE_ROOT; };
+		B6F5B1E6A0C840D5A8C7A9B1 /* UISmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulsePlateUITests/UISmokeTests.swift; sourceTree = SOURCE_ROOT; };
 		B65BE4EE2E89AFCA0033BEDF /* PulsePlate.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = PulsePlate.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -104,6 +106,7 @@
 			children = (
 				B6F5B1E2A0C840D5A8C7A9B1 /* PulsePlateUITests.swift */,
 				B6F5B1E3A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift */,
+				B6F5B1E6A0C840D5A8C7A9B1 /* UISmokeTests.swift */,
 			);
 			path = PulsePlateUITests;
 			sourceTree = "<group>";
@@ -305,6 +308,7 @@
 			files = (
 				B6F5B1E4A0C840D5A8C7A9B1 /* PulsePlateUITests.swift in Sources */,
 				B6F5B1E5A0C840D5A8C7A9B1 /* PulsePlateUITestsLaunchTests.swift in Sources */,
+				B6F5B1E7A0C840D5A8C7A9B1 /* UISmokeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

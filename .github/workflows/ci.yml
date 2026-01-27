@@ -1019,6 +1019,10 @@ jobs:
 
           if [ -z "$SELECTED" ]; then
             echo "::error::No suitable Xcode 16.x found in /Applications."
+            echo "::error::Available Xcode apps:"
+            for app in /Applications/Xcode*.app; do
+              [ -e "$app" ] && echo " - $app"
+            done
             exit 1
           fi
 
@@ -1054,9 +1058,19 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Ensure simctl uses the pinned Xcode
+          echo "=== Xcode pinning verification (select-destination) ==="
+          echo "DEVELOPER_DIR: ${DEVELOPER_DIR:-<empty>}"
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+
+          echo "Preferred devices: ${PREFERRED_DEVICES}"
+
           python3 - << 'PY'
           import json, os, re, subprocess, sys
 
+          # Pin to stable iOS 18.6 to avoid "latest" resolving to iOS 26.x betas.
           out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
           data = json.loads(out)
           devices = data.get("devices", {})
@@ -1078,7 +1092,14 @@ jobs:
               runtime_pool = ios18 if ios18 else ios_runtimes
               runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
 
+          major, minor = parse_ios_ver(runtime)
+          if major < 0 or minor < 0:
+              print(f"::error::Cannot parse iOS runtime version from: {runtime}", file=sys.stderr)
+              sys.exit(1)
+
+          os_ver = f"{major}.{minor}"
           available_devices = [d for d in devices.get(runtime, []) if d.get("isAvailable", True)]
+
           if not available_devices:
               print(f"::error::No available devices found for runtime: {runtime}", file=sys.stderr)
               sys.exit(1)
@@ -1087,24 +1108,51 @@ jobs:
           pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
           available_names = [d["name"] for d in available_devices]
 
+          device = None
           device_udid = None
+
+          preferred_found = False
           for pref_name in pref_devices:
               if pref_name in available_names:
                   device_obj = next((d for d in available_devices if d["name"] == pref_name), None)
                   if device_obj:
+                      device = pref_name
                       device_udid = device_obj["udid"]
+                      preferred_found = True
                       break
 
           if not device_udid:
               iphones = [d for d in available_devices if d["name"].startswith("iPhone")]
-              iphones.sort(key=lambda d: (d["name"], d["udid"]))
-              device_udid = iphones[0]["udid"] if iphones else available_devices[0]["udid"]
+              if iphones:
+                  iphones.sort(key=lambda d: (d["name"], d["udid"]))
+                  device_obj = iphones[0]
+                  device = device_obj["name"]
+                  device_udid = device_obj["udid"]
+                  if not preferred_found:
+                      print(f"Preferred devices not found, falling back to any iPhone: {device}", file=sys.stderr)
+
+          if not device_udid:
+              available_devices.sort(key=lambda d: (d["name"], d["udid"]))
+              device_obj = available_devices[0]
+              device = device_obj["name"]
+              device_udid = device_obj["udid"]
+              print(f"No iPhone available, falling back to any iOS simulator: {device}", file=sys.stderr)
+
+          if not device_udid:
+              print("::error::No UDID found for selected device (fallback logic failed)", file=sys.stderr)
+              sys.exit(1)
 
           dest = f"platform=iOS Simulator,id={device_udid}"
+
+          print(f"Selected runtime: {runtime} (iOS {os_ver})")
+          print(f"Selected device: {device} (UDID: {device_udid})")
+          print(f"Selected destination: {dest}")
 
           with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
               print(f"destination={dest}", file=f)
               print(f"udid={device_udid}", file=f)
+              print(f"device_name={device}", file=f)
+              print(f"ios_runtime_id={runtime}", file=f)
           PY
 
       - name: iOS UI smoke (build-for-testing + test-without-building)
@@ -1132,17 +1180,42 @@ jobs:
           export DESTINATION
           export UDID
 
-          # Boot simulator (best-effort) to avoid destination resolution flakes
+          # Boot simulator and enforce bootstatus readiness
           if [ -n "$UDID" ]; then
+            echo "Booting simulator: $UDID"
             xcrun simctl boot "$UDID" || true
-            xcrun simctl bootstatus "$UDID" -b || true
+            export SIM_BOOT_TIMEOUT_SECONDS="${SIM_BOOT_TIMEOUT_SECONDS:-180}"
+            echo "Waiting for simulator to be ready (timeout: ${SIM_BOOT_TIMEOUT_SECONDS}s)..."
+            python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          udid = os.environ.get("UDID", "")
+          timeout_s = int(os.environ.get("SIM_BOOT_TIMEOUT_SECONDS", "180"))
+
+          if not udid:
+              print("::error::UDID is empty", file=sys.stderr)
+              sys.exit(1)
+
+          try:
+              subprocess.run(["xcrun", "simctl", "bootstatus", udid, "-b"], timeout=timeout_s, check=True)
+          except subprocess.TimeoutExpired:
+              print(f"::error::Simulator not ready after {timeout_s}s (bootstatus timeout)", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              print("::error::Simulator bootstatus failed", file=sys.stderr)
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              sys.exit(e.returncode)
+          PY
           fi
 
           echo "=== Building for testing (timeout: 10 minutes) ==="
           python3 - << 'PY'
-          import os
           import subprocess
           import sys
+          import os
 
           destination = os.environ.get("DESTINATION", "")
           if not destination:
@@ -1171,9 +1244,9 @@ jobs:
 
           echo "=== Running UI smoke (timeout: 10 minutes) ==="
           python3 - << 'PY'
-          import os
           import subprocess
           import sys
+          import os
 
           destination = os.environ.get("DESTINATION", "")
           if not destination:
@@ -1184,7 +1257,7 @@ jobs:
               "xcodebuild", "test-without-building",
               "-project", "PulsePlate.xcodeproj",
               "-scheme", "PulsePlate",
-              "-only-testing:PulsePlateUITests/PulsePlateUITests/testExample",
+              "-only-testing:PulsePlateUITests/UISmokeTests/testLaunch",
               "-destination", destination,
               "-derivedDataPath", ".derivedData",
               "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
