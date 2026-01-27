@@ -226,6 +226,8 @@ def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPa
 
         # Deterministic import-failure branch without sys.modules mutation.
         monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+        # Force feature enabled to prevent early-return bypass via disabled check.
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
 
         client = TestClient(cast(ASGIApp, app.app))
 
