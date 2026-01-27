@@ -62,17 +62,23 @@ make: *** [ios-test] Error 65
 
 ## B) Inspection commands (for audit completeness)
 
-Run these locally to confirm whether the `.xctest` bundle contains an executable:
+Run these locally to confirm whether the `.xctest` bundle contains an executable.
+Repo default uses `.derivedData` (see `Makefile` iOS `-derivedDataPath`), but you can override with
+`DD=DerivedData ...` if you built via Xcode defaults.
 
 ```bash
+# PulsePlate uses a custom DerivedData path via Makefile:
+# xcodebuild ... -derivedDataPath ../.derivedData
+DD="${DD:-.derivedData}"
+
 # 1) Locate UI test bundle in DerivedData (path varies by build)
-ls -la .derivedData/Build/Products/Debug-iphonesimulator/PulsePlateUITests-Runner.app/PlugIns/PulsePlateUITests.xctest || true
+ls -la "$DD/Build/Products/Debug-iphonesimulator/PulsePlateUITests-Runner.app/PlugIns/PulsePlateUITests.xctest" || true
 
 # 2) Confirm bundle Info.plist and the expected executable name
-plutil -p .derivedData/Build/Products/Debug-iphonesimulator/PulsePlateUITests-Runner.app/PlugIns/PulsePlateUITests.xctest/Info.plist || true
+plutil -p "$DD/Build/Products/Debug-iphonesimulator/PulsePlateUITests-Runner.app/PlugIns/PulsePlateUITests.xctest/Info.plist" || true
 
 # 3) Check if the bundle executable exists (usually same as CFBundleExecutable)
-ls -la .derivedData/Build/Products/Debug-iphonesimulator/PulsePlateUITests-Runner.app/PlugIns/PulsePlateUITests.xctest/* || true
+ls -la "$DD/Build/Products/Debug-iphonesimulator/PulsePlateUITests-Runner.app/PlugIns/PulsePlateUITests.xctest/"* || true
 
 # 4) Build settings that commonly explain “no executable in xctest”
 cd ios
