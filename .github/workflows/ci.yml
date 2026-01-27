@@ -979,6 +979,228 @@ jobs:
               sys.exit(e.returncode)
           PY
 
+  # iOS UI smoke (minimal, separate signal from unit tests)
+  ios-ui-smoke:
+    name: iOS UI smoke (xcodebuild)
+    runs-on: macos-15
+    timeout-minutes: 25
+    if: |
+      needs.changes.outputs.ios == 'true' && (
+        github.event_name == 'pull_request' ||
+        (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || github.ref == 'refs/heads/main'))
+      )
+    needs: [changes]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Select Xcode (pin 16.x compatible with iOS 18.5/18.6 runtimes)
+        id: select-xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CANDIDATES=(
+            "/Applications/Xcode_16.4.app/Contents/Developer"
+            "/Applications/Xcode_16.4.0.app/Contents/Developer"
+            "/Applications/Xcode_16.3.app/Contents/Developer"
+            "/Applications/Xcode_16.3.0.app/Contents/Developer"
+            "/Applications/Xcode_16.2.app/Contents/Developer"
+            "/Applications/Xcode_16.2.0.app/Contents/Developer"
+          )
+
+          SELECTED=""
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ]; then
+              SELECTED="$d"
+              break
+            fi
+          done
+
+          if [ -z "$SELECTED" ]; then
+            echo "::error::No suitable Xcode 16.x found in /Applications."
+            exit 1
+          fi
+
+          echo "DEVELOPER_DIR=$SELECTED" >> "$GITHUB_ENV"
+          echo "developer_dir=$SELECTED" >> "$GITHUB_OUTPUT"
+          sudo xcode-select -s "$SELECTED"
+
+          XCODE_VERSION=$(xcodebuild -version | head -n 1 | sed 's/Xcode //')
+          echo "xcode_version=$XCODE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "XCODE_VERSION=$XCODE_VERSION" >> "$GITHUB_ENV"
+
+          xcodebuild -version
+          swift --version
+
+      - name: Cache SwiftPM packages (SourcePackages only, not Build)
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.1.0
+        id: cache-swiftpm
+        with:
+          path: |
+            ios/.derivedData/SourcePackages
+          key: ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-swiftpm-${{ hashFiles('ios/Package.resolved', 'ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-swiftpm-
+            ${{ runner.os }}-xcode-${{ steps.select-xcode.outputs.xcode_version }}-
+            ${{ runner.os }}-swiftpm-
+
+      - name: Select iOS simulator destination (stable)
+        working-directory: ios
+        id: select-destination
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+          PREFERRED_DEVICES: ${{ env.PREFERRED_DEVICES || 'iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14' }}
+        run: |
+          set -euo pipefail
+
+          python3 - << 'PY'
+          import json, os, re, subprocess, sys
+
+          out = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
+          data = json.loads(out)
+          devices = data.get("devices", {})
+
+          def parse_ios_ver(runtime_id: str) -> tuple[int, int]:
+              m = re.search(r"iOS-(\d+)-(\d+)", runtime_id)
+              return (int(m.group(1)), int(m.group(2))) if m else (-1, -1)
+
+          ios_runtimes = [r for r in devices.keys() if re.search(r"SimRuntime\.iOS-\d+-\d+\b", r)]
+          if not ios_runtimes:
+              print("::error::No iOS Simulator runtimes found", file=sys.stderr)
+              sys.exit(1)
+
+          pinned = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-6\b", r)]
+          if pinned:
+              runtime = pinned[0]
+          else:
+              ios18 = [r for r in ios_runtimes if re.search(r"SimRuntime\.iOS-18-\d+\b", r)]
+              runtime_pool = ios18 if ios18 else ios_runtimes
+              runtime = sorted(runtime_pool, key=parse_ios_ver, reverse=True)[0]
+
+          available_devices = [d for d in devices.get(runtime, []) if d.get("isAvailable", True)]
+          if not available_devices:
+              print(f"::error::No available devices found for runtime: {runtime}", file=sys.stderr)
+              sys.exit(1)
+
+          pref_devices_str = os.environ.get("PREFERRED_DEVICES", "iPhone 16e,iPhone 16,iPhone 16 Pro,iPhone 15,iPhone 14")
+          pref_devices = [name.strip() for name in pref_devices_str.split(",") if name.strip()]
+          available_names = [d["name"] for d in available_devices]
+
+          device_udid = None
+          for pref_name in pref_devices:
+              if pref_name in available_names:
+                  device_obj = next((d for d in available_devices if d["name"] == pref_name), None)
+                  if device_obj:
+                      device_udid = device_obj["udid"]
+                      break
+
+          if not device_udid:
+              iphones = [d for d in available_devices if d["name"].startswith("iPhone")]
+              iphones.sort(key=lambda d: (d["name"], d["udid"]))
+              device_udid = iphones[0]["udid"] if iphones else available_devices[0]["udid"]
+
+          dest = f"platform=iOS Simulator,id={device_udid}"
+
+          with open(os.environ.get("GITHUB_OUTPUT", "/dev/stdout"), "a", encoding="utf-8") as f:
+              print(f"destination={dest}", file=f)
+              print(f"udid={device_udid}", file=f)
+          PY
+
+      - name: iOS UI smoke (build-for-testing + test-without-building)
+        working-directory: ios
+        env:
+          DEVELOPER_DIR: ${{ steps.select-xcode.outputs.developer_dir }}
+        run: |
+          set -euo pipefail
+
+          DESTINATION="${{ steps.select-destination.outputs.destination }}"
+          UDID="${{ steps.select-destination.outputs.udid }}"
+
+          if [ -z "$DESTINATION" ]; then
+            echo "::error::IOS_DESTINATION is empty"
+            exit 1
+          fi
+
+          # Anti-nondeterminism guard: OS=latest is forbidden in CI
+          if echo "$DESTINATION" | grep -E -q 'OS=latest|(^|,)latest($|,)'; then
+            echo "::error::CI destination must not contain 'latest'. Use UDID-based destination only."
+            echo "::error::Got destination: $DESTINATION"
+            exit 1
+          fi
+
+          export DESTINATION
+          export UDID
+
+          # Boot simulator (best-effort) to avoid destination resolution flakes
+          if [ -n "$UDID" ]; then
+            xcrun simctl boot "$UDID" || true
+            xcrun simctl bootstatus "$UDID" -b || true
+          fi
+
+          echo "=== Building for testing (timeout: 10 minutes) ==="
+          python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              "xcodebuild", "build-for-testing",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-destination", destination,
+              "-configuration", "Debug",
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
+              "-enableCodeCoverage", "NO",
+          ]
+
+          try:
+              subprocess.run(cmd, timeout=600, check=True)
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild build-for-testing timed out after 10 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY
+
+          echo "=== Running UI smoke (timeout: 10 minutes) ==="
+          python3 - << 'PY'
+          import os
+          import subprocess
+          import sys
+
+          destination = os.environ.get("DESTINATION", "")
+          if not destination:
+              print("::error::DESTINATION is empty", file=sys.stderr)
+              sys.exit(1)
+
+          cmd = [
+              "xcodebuild", "test-without-building",
+              "-project", "PulsePlate.xcodeproj",
+              "-scheme", "PulsePlate",
+              "-only-testing:PulsePlateUITests/PulsePlateUITests/testExample",
+              "-destination", destination,
+              "-derivedDataPath", ".derivedData",
+              "-clonedSourcePackagesDirPath", ".derivedData/SourcePackages",
+              "-enableCodeCoverage", "NO",
+              "-parallel-testing-enabled", "NO",
+          ]
+
+          try:
+              subprocess.run(cmd, timeout=600, check=True)
+          except subprocess.TimeoutExpired:
+              print("::error::xcodebuild UI smoke timed out after 10 minutes", file=sys.stderr)
+              sys.exit(1)
+          except subprocess.CalledProcessError as e:
+              sys.exit(e.returncode)
+          PY
+
           # Step 2: Run tests (without building)
           # Timeout: 15 minutes (fail fast instead of consuming full job budget)
           echo "=== Running tests (timeout: 15 minutes) ==="
