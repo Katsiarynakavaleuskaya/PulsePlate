@@ -149,18 +149,18 @@ If this expands scope → defer to next PR and record in ledger.
 
 ## Implementation verification
 
-**SHA:** `e7d01b8e`
+**SHA:** `c9f8aff0`
 
 ### Commands
 
 ```bash
 python -c "import legacy_app"
 pytest -q tests/test_insight_error_hygiene.py
-pytest -q tests/test_api.py -k "insight_import_failure or api_insight_provider_generate_failure or api_insight_provider_none"
+pytest -q tests/test_api.py -k "insight"
 ```
 
 ### Observed output (excerpt)
 
 - `python -c "import legacy_app"` → exit 0
 - `pytest -q tests/test_insight_error_hygiene.py` → passed
-- `pytest -q tests/test_api.py -k ...` → `s..` (skip + passes)
+- `pytest -q tests/test_api.py -k "insight"` → `s...` (skip + passes)
