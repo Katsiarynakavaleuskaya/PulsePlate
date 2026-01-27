@@ -133,6 +133,19 @@ If it is not recorded here — it does not exist.
     - `-skip-testing:PulsePlateUITests` removed from CI
     - CI green with UI tests included
 
+- [ ] P1 (postponed): CI iOS workflow dedup (extract shared helpers / composite action)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Reason: Avoid drift between `ios-tests` and `ios-ui-smoke` jobs (Xcode pinning, destination selection, boot logic, xcodebuild wrapper). Requested in PR-607 review; deferred to keep remediation PR scope tight.
+  - Links:
+    - .github/workflows/ci.yml
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+  - DoD:
+    - One shared implementation for destination selection + bootstatus gating + xcodebuild wrapper (script or composite action)
+    - Both iOS jobs reuse the same logic (no duplicated Python snippets)
+    - CI remains deterministic (UDID-only destination, no `OS=latest`)
+
 - [ ] Stabilize AnimationTests.swift (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (separate from PR-559)
