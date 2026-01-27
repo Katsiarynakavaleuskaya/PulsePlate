@@ -117,6 +117,31 @@ DoD gates (all required):
   without `-skip-testing:PulsePlateUITests`.
 - **G4:** UI-smoke job is green for ≥2 consecutive runs (PR checks / reruns).
 
+## F) Post-merge verification (main)
+
+Observed on `main` at commit:
+
+- **Commit:** `179eb94c9b18e9889d7f0a735df472408bff0228` (main)
+
+Environment:
+- Xcode: local `/Applications/Xcode.app`
+- Simulator destination: `platform=iOS Simulator,name=iPhone 16e,OS=latest`
+
+```bash
+make ios-test IOS_ONLY_TESTING="PulsePlateUITests/UISmokeTests/testLaunch" IOS_SKIP_TESTING=""
+```
+
+Observed results:
+
+```text
+Test Suite 'UISmokeTests' passed at 2026-01-27 10:54:51.234.
+** TEST SUCCEEDED **
+exit=0
+```
+
+- Exit: `0`
+- `Cannot find executable … PulsePlateUITests.xctest`: **absent**
+
 ## Security Notes
 
 - UI tests must not send real credentials or hit real endpoints.
