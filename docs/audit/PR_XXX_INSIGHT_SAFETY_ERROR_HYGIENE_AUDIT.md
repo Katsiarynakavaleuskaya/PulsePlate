@@ -149,7 +149,7 @@ If this expands scope → defer to next PR and record in ledger.
 
 ## Implementation verification
 
-**SHA:** `3ecf4a8e` (HEAD PR-611)
+**SHA:** `38f99e14` (HEAD PR-611)
 
 **Environment:** Python 3.13.6
 
