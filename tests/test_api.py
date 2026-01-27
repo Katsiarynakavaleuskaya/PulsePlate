@@ -214,17 +214,20 @@ def test_bodyfat_import_failure(client):
 
 def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test coverage for llm import exception in main.py."""
-    import sys
-    from types import ModuleType
+    from collections.abc import Callable
 
     # Save original app module if it exists
     original_app = sys.modules.get("app")
 
-    # Force `from llm import get_provider` to fail deterministically by injecting
-    # a module without `get_provider`.
-    monkeypatch.setitem(sys.modules, "llm", ModuleType("llm"))
-
     def test_assertions(app: ModuleType) -> None:
+        import legacy_app
+
+        def _raise_import_error() -> Callable[[], object]:
+            raise ImportError("boom")
+
+        # Deterministic import-failure branch without sys.modules mutation.
+        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+
         client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
@@ -237,6 +240,7 @@ def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPa
         data = response.json()
         # Backward-compatible shape: `detail` exists, but must not leak internals.
         assert "LLM module is not available" in data["detail"]
+        assert "boom" not in data.get("detail", "")
 
     _test_app_import_with_assertions(original_app, test_assertions)
 
