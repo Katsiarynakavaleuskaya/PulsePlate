@@ -113,7 +113,7 @@ python-dateutil==2.9.0.post0
     # via matplotlib
 python-dotenv==1.2.1
     # via -r requirements.in
-python-multipart==0.0.21
+python-multipart==0.0.22
     # via -r requirements.in
 reportlab==4.4.9
     # via -r requirements.in
