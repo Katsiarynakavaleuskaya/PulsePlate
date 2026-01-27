@@ -241,7 +241,8 @@ def test_insight_import_failure(client, monkeypatch):
         )
         assert response.status_code == 503
         data = response.json()
-        assert "insight provider not configured" in data["detail"]
+        # Backward-compatible shape: `detail` exists, but must not leak internals.
+        assert "No LLM provider configured" in data["detail"]
 
     _test_app_import_with_assertions(original_app, test_assertions)
 
@@ -267,7 +268,9 @@ def test_api_insight_provider_generate_failure(mock_get_provider, client):
     )
     assert response.status_code == 503
     data = response.json()
-    assert "LLM provider error" in data["detail"]
+    # Privacy/safety: never leak raw exception details to the client.
+    assert data["error"] == "INSIGHT_TEMPORARILY_UNAVAILABLE"
+    assert "Generate failed" not in data.get("detail", "")
 
     # Восстанавливаем переменные окружения
     if original_feature is not None:
