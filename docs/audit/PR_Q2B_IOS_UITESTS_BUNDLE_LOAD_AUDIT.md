@@ -49,7 +49,7 @@ Testing failed:
 make: *** [ios-test] Error 65
 ```
 
-**Observed exit:** non-zero (`xcodebuild` failed; exit code 65).
+**Observed exit:** `xcodebuild` failed (exit code 65); `make` wraps this as exit 2.
 
 ### A3) Classification
 
