@@ -215,21 +215,14 @@ def test_bodyfat_import_failure(client):
 def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test coverage for llm import exception in main.py."""
     import sys
-    from unittest.mock import MagicMock, patch
+    from types import ModuleType
 
     # Save original app module if it exists
     original_app = sys.modules.get("app")
 
-    # Create a failing mock module (used by patched __import__ below).
-    failing_llm_module = MagicMock()
-    failing_llm_module.__name__ = "llm"
-
-    # Remove module from sys.modules to make llm import fail.
-    # IMPORTANT: do not mutate sys.modules directly; use monkeypatch so pytest
-    # automatically restores state after the test.
-    for name in list(sys.modules.keys()):
-        if name == "llm" or name.startswith("llm."):
-            monkeypatch.delitem(sys.modules, name, raising=False)
+    # Force `from llm import get_provider` to fail deterministically by injecting
+    # a module without `get_provider`.
+    monkeypatch.setitem(sys.modules, "llm", ModuleType("llm"))
 
     def test_assertions(app: ModuleType) -> None:
         client = TestClient(cast(ASGIApp, app.app))
@@ -243,7 +236,7 @@ def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPa
         assert response.headers["content-type"].startswith("application/json")
         data = response.json()
         # Backward-compatible shape: `detail` exists, but must not leak internals.
-        assert "No LLM provider configured" in data["detail"]
+        assert "LLM module is not available" in data["detail"]
 
     _test_app_import_with_assertions(original_app, test_assertions)
 

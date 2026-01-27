@@ -2477,7 +2477,7 @@ from core.insight.safety import (  # noqa: E402
     dependencies=[Depends(_get_api_key_dynamic)],
     response_model=InsightResponse,
 )
-async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
+async def insight_v1(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2513,7 +2513,7 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return {"provider": provider.name, "insight": insight_text}
+        return InsightResponse(provider=provider.name, insight=insight_text)
     except Exception:
         # Log server-side only; never return exception details to client (privacy/safety).
         logger.exception("Insight provider call failed (/api/v1/insight)")
@@ -2525,7 +2525,7 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
     "/insight",
     response_model=InsightResponse,
 )
-async def insight(req: InsightRequest) -> Dict[str, Any]:
+async def insight(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (legacy path without API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2561,7 +2561,7 @@ async def insight(req: InsightRequest) -> Dict[str, Any]:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return {"provider": provider.name, "insight": insight_text}
+        return InsightResponse(provider=provider.name, insight=insight_text)
     except Exception:
         logger.exception("Insight provider call failed (/insight)")
         raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
