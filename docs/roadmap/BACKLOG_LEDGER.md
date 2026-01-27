@@ -119,19 +119,42 @@ If it is not recorded here — it does not exist.
     - emptyResponse semantics
     - unknown vs transport
 
-- [ ] Stabilize/restore PlateViewTests and UI tests in CI (iOS)
+- [ ] Stabilize/restore PlateViewTests in CI (iOS)
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (separate from PR-559)
-  - Reason: PlateViewTests unstable; UI tests excluded from PR-559 CI to unblock merge. Needs stabilization/rewrite before restoring to CI.
+  - Reason: PlateViewTests were unstable historically; UI tests bundle-load is now fixed, but PlateViewTests stability + CI inclusion remains open.
   - Links:
-    - ios/PulsePlate/Tests/PlateViewTests.swift
-    - .github/workflows/ci.yml (line 633: `-skip-testing:PulsePlateUITests`)
-    - ios/AGENTS.md (Test scope policy)
+    - ios/PulsePlateTests/PlateViewTests.swift
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
   - DoD:
     - PlateViewTests stabilized (no flaky failures)
-    - UI tests (`PulsePlateUITests`) pass consistently
-    - `-skip-testing:PulsePlateUITests` removed from CI
-    - CI green with UI tests included
+    - PlateViewTests included in CI signal (job or explicit `-only-testing` list)
+    - CI green with PlateViewTests included
+
+- [x] PR-607 merged: iOS UITests bundle load fix + CI UI smoke (merged 2026-01-27)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-607
+  - Status: ✅ Merged
+  - Reason: Restore UI tests build-product correctness (bundle contains executable) and add dedicated `ios-ui-smoke` CI signal.
+  - Links:
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
+  - DoD: ✅ Completed
+    - `PulsePlateUITests.xctest` contains executable (no Code=4 / exit 65 before tests execute)
+    - CI `ios-ui-smoke` job runs minimal UI smoke
+
+- [x] PR-608 merged: audit post-merge evidence stamp (merged 2026-01-27)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-608
+  - Status: ✅ Merged
+  - Reason: Record post-merge verification evidence (main SHA + minimal stdout excerpt) for Q2b DoD closure.
+  - Links:
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/608>
+  - DoD: ✅ Completed
 
 - [ ] P1 (postponed): CI iOS workflow dedup (extract shared helpers / composite action)
   - Owner: @katsiaryna_kavaleuskaya
@@ -145,6 +168,18 @@ If it is not recorded here — it does not exist.
     - One shared implementation for destination selection + bootstatus gating + xcodebuild wrapper (script or composite action)
     - Both iOS jobs reuse the same logic (no duplicated Python snippets)
     - CI remains deterministic (UDID-only destination, no `OS=latest`)
+
+- [ ] Standardize audit verification blocks (require minimal stdout excerpt)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: TBD
+  - Reason: Audit items labeled “Verified” must include minimal observed stdout evidence (1–3 lines) to remain reproducible and reviewable.
+  - Links:
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md (section F)
+    - AGENTS.md (Verification-audit rule)
+  - DoD:
+    - Add a short, canonical checklist line for audit PRs: include 1–3 raw stdout lines + exit code for each key verification command
+    - No scope creep into runbook-level detail
 
 - [ ] Stabilize AnimationTests.swift (iOS)
   - Owner: @katsiaryna_kavaleuskaya
