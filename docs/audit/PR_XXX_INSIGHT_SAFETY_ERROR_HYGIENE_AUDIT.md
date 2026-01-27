@@ -179,4 +179,5 @@ make openapi-check
 - lint: ✅ SUCCESS
 - diff-coverage: ✅ SUCCESS
 - OpenAPI sync: ✅ SUCCESS
-- tests: ✅ IN_PROGRESS → SUCCESS (expected)
+- tests: ✅ SUCCESS
+- dependency submission: ✅ SUCCESS (initial failure was GitHub API flake, not related to PR changes; check is not required)
