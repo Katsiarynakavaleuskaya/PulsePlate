@@ -52,6 +52,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         libc6 \
+        libssl3 \
+        openssl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 

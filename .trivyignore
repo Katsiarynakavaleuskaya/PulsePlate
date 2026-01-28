@@ -1,12 +1,12 @@
 ## Trivy vulnerability ignore list
 ##
-## Last reviewed: 2025-12-30
+## Last reviewed: 2026-01-28
 ## Base image: python:3.13.6-slim (Debian 12 bookworm)
-## Next review: 2026-03-30
+## Next review: 2026-04-28
 ## Review process: Re-verify versions when base image updates or quarterly
 ##
 ## IMPORTANT: Container uses python:3.13.6-slim based on Debian bookworm.
-## Actual versions: Python 3.13.6, pip 25.1.1, glibc 2.36-9+deb12u10,
+## Actual versions: Python 3.13.6, pip 25.1.1, glibc 2.36-9+deb12u13,
 ## PAM 1.5.2-6+deb12u1. Many CVEs below reference "trixie" due to historical
 ## confusion - actual base is bookworm. Verify versions before trusting comments.
 ##
@@ -50,6 +50,28 @@ CVE-2025-68972
 ## We accept this risk as documented and will monitor for upstream fixes.
 
 CVE-2025-68973
+
+## CVE-2026-24882 – gpgv (GnuPG) buffer overflow in TPM2 code path
+##
+## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
+## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
+## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
+##
+## Trivy currently reports no fixed version (as of 2026-01-28). We will revisit when Debian bookworm
+## publishes a patched package or when Trivy metadata is updated with a fixed version.
+
+CVE-2026-24882
+
+## CVE-2026-24883 – gpgv (GnuPG) parse_sig DoS / memory safety issue
+##
+## Trivy reports this against Debian's `gpgv` package. On Debian-based images, `apt` depends on
+## `gpgv` and removing it can break the base system. Our runtime image does not invoke `apt`/`gpgv`
+## (no package installs at runtime), so we document this as an accepted risk pending upstream fixes.
+##
+## Trivy currently reports no fixed version (as of 2026-01-28). We will revisit when Debian bookworm
+## publishes a patched package or when Trivy metadata is updated with a fixed version.
+
+CVE-2026-24883
 
 ## CVE-2023-45853 – MiniZip in zlib through 1.3
 ##
