@@ -120,7 +120,7 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
   - Target PR: PR-TP2 (branch: TBD)
-  - Status: 📋 Planned (blocked by TP1 merge)
+  - Status: 📋 Ready to start (TP1 merged)
   - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Requires careful testing of DB connection fallback logic. Deferred from TP1 to keep scope manageable.
   - Links:
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md (Step 5)
