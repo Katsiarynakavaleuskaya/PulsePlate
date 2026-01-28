@@ -834,5 +834,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-28 (Add comprehensive philosophy + logic + math + CBT analysis document, update backlog items with unified analysis links)
+**Last updated:** 2026-01-28 (Add peer review analysis document, validate scientific claims against peer-reviewed sources)
 **Maintainer:** @katsiaryna_kavaleuskaya
