@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 import app
+from app.utils import nutrition_wrappers as nw
 
 
 def test_background_updates_wrappers_force_sync_under_pytest(
@@ -35,6 +36,12 @@ def test_background_updates_wrappers_force_sync_under_pytest(
 
 def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure wrappers raise ImportError when their dependencies are missing."""
+
+    # Create a mock module that raises ImportError when trying to import calculate_all_bmr
+    class MockModule:
+        def __getattr__(self, name: str) -> None:
+            raise ImportError(f"cannot import name '{name}' from 'nutrition_core'")
+
     # Null out all visible locations so wrappers raise ImportError deterministically
     for module in (
         app,
@@ -43,9 +50,18 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
     ):
         if module is not None:
             monkeypatch.setattr(module, "calculate_all_bmr", None, raising=False)
-    monkeypatch.setitem(app._calculate_all_bmr_wrapper.__globals__, "calculate_all_bmr", None)
-    with pytest.raises(ImportError):
-        app._calculate_all_bmr_wrapper(70, 175, 30, "male")
+    monkeypatch.setitem(nw._calculate_all_bmr_wrapper.__globals__, "calculate_all_bmr", None)
+    # Block nutrition_core import (wrapper's fallback) by replacing it with mock that raises ImportError
+    original_nutrition_core = sys.modules.get("nutrition_core")
+    monkeypatch.setitem(sys.modules, "nutrition_core", MockModule())
+    try:
+        with pytest.raises(ImportError):
+            nw._calculate_all_bmr_wrapper(70, 175, 30, "male")
+    finally:
+        if original_nutrition_core is not None:
+            monkeypatch.setitem(sys.modules, "nutrition_core", original_nutrition_core)
+        else:
+            monkeypatch.delitem(sys.modules, "nutrition_core", raising=False)
 
     for module in (
         app,
@@ -54,9 +70,18 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
     ):
         if module is not None:
             monkeypatch.setattr(module, "calculate_all_tdee", None, raising=False)
-    monkeypatch.setitem(app._calculate_all_tdee_wrapper.__globals__, "calculate_all_tdee", None)
-    with pytest.raises(ImportError):
-        app._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
+    monkeypatch.setitem(nw._calculate_all_tdee_wrapper.__globals__, "calculate_all_tdee", None)
+    # Block nutrition_core import (wrapper's fallback) by replacing it with mock that raises ImportError
+    original_nutrition_core = sys.modules.get("nutrition_core")
+    monkeypatch.setitem(sys.modules, "nutrition_core", MockModule())
+    try:
+        with pytest.raises(ImportError):
+            nw._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
+    finally:
+        if original_nutrition_core is not None:
+            monkeypatch.setitem(sys.modules, "nutrition_core", original_nutrition_core)
+        else:
+            monkeypatch.delitem(sys.modules, "nutrition_core", raising=False)
 
 
 def test_targets_disabled_container_override(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -14,8 +14,6 @@ def test_app_public_surface_smoke() -> None:
 
     # Key legacy functions used across test suite
     assert hasattr(app, "get_api_key"), "app.get_api_key must be exported"
-    assert hasattr(app, "calc_bmi"), "app.calc_bmi must be exported"
-    assert hasattr(app, "normalize_flags"), "app.normalize_flags must be exported"
     assert hasattr(app, "lifespan"), "app.lifespan must be exported"
 
     # Schemas commonly imported by tests

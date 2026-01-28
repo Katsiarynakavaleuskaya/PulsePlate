@@ -64,7 +64,14 @@ async def test_aggregate_day_micros_accepts_sync_callable() -> None:
 
 def test_legacy_scheduler_stop_wrapper_executes() -> None:
     """Covers the wrapper that delegates to app.scheduler_helpers.resolve_stop_callable."""
-    stopper = legacy_app._resolve_stop_callable(pkg=None, alias_pkg=None)
+    from app.scheduler_helpers import resolve_stop_callable
+
+    stopper = resolve_stop_callable(
+        pkg=None,
+        alias_pkg=None,
+        globs=legacy_app.__dict__,
+        default_stopper=legacy_app._scheduler_stop_background_updates,
+    )
     assert callable(stopper)
 
 

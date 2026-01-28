@@ -83,7 +83,7 @@ from decimal import Decimal
 from core.bmi.compat_plan import legacy_plan_category
 from core.bmi.engine import _normalize_bool_flag
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
-from core.fingerprint_security import compute_fingerprint
+from core.fingerprint_security import _client_fingerprint, compute_fingerprint
 from core.log_retention import (
     DATA_CLASS_PSEUDONYMOUS,
     DataClass,
@@ -103,6 +103,12 @@ from app.scheduler_helpers import (
     handle_sync_test_mode,
     execute_async_starter,
     safe_stop_with_cleanup,
+)
+from app.utils.helpers import _resolve_app_callable, _short_git_sha
+from app.utils.feature_flags import _is_truthy
+from app.utils.nutrition_wrappers import (
+    _calculate_all_bmr_wrapper,
+    _calculate_all_tdee_wrapper,
 )
 
 # PRO router registration (explicit, no import-side-effects)
@@ -181,30 +187,6 @@ if VIP_MODULE_ENABLED:
         vip_router = None
 
 
-def _resolve_scheduler_starter(  # noqa: ANN401
-    pkg: Any, alias_pkg: Any, globs: dict[str, Any]  # noqa: ANN401
-) -> Callable[[int], Any]:
-    """
-    Backward-compatible wrapper for scheduler starter resolution.
-
-    NOTE: Legacy infra glue; uses Any for dynamic module/package resolution.
-    Type hints intentionally relaxed to support runtime introspection.
-    """
-    return resolve_scheduler_starter(pkg, alias_pkg, globs, _scheduler_start_background_updates)
-
-
-def _resolve_stop_callable(  # noqa: ANN401
-    pkg: Any, alias_pkg: Any  # noqa: ANN401
-) -> Callable[[], Any]:
-    """
-    Backward-compatible wrapper for scheduler stop callable resolution.
-
-    NOTE: Legacy infra glue; uses Any for dynamic module/package resolution.
-    Type hints intentionally relaxed to support runtime introspection.
-    """
-    return resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
-
-
 def start_background_updates(update_interval_hours: int = 24) -> None:
     """Start background updates in the current or a new event loop (sync wrapper).
 
@@ -260,7 +242,9 @@ def start_background_updates(update_interval_hours: int = 24) -> None:
         return None
 
     # Normal mode: resolve starter and execute
-    starter = _resolve_scheduler_starter(pkg, alias_pkg, globals())
+    starter = resolve_scheduler_starter(
+        pkg, alias_pkg, globals(), _scheduler_start_background_updates
+    )
     execute_async_starter(starter, update_interval_hours, _asyncio)
     return None
 
@@ -313,7 +297,7 @@ def stop_background_updates() -> None:
         return None
 
     # Normal mode: resolve stopper and execute
-    stopper = _resolve_stop_callable(pkg, alias_pkg)
+    stopper = resolve_stop_callable(pkg, alias_pkg, globals(), _scheduler_stop_background_updates)
 
     # Detect running loop
     event_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -331,22 +315,6 @@ def stop_background_updates() -> None:
     return None
 
 
-def _resolve_app_callable(
-    attr_name: str, default: Optional[Callable[..., Any]] = None
-) -> Optional[Callable[..., Any]]:
-    """Return callable attribute from app_module or app package if available."""
-    import sys as _sys
-
-    for module_name in ("app", "app_module"):
-        module = _sys.modules.get(module_name)
-        if module is None:
-            continue
-        candidate = getattr(module, attr_name, None)
-        if callable(candidate):
-            return cast(Optional[Callable[..., Any]], candidate)
-    return default
-
-
 GetRouterCallable = Callable[[], APIRouter]
 get_bodyfat_router: Optional[GetRouterCallable]
 try:
@@ -360,57 +328,6 @@ _app_env = (os.getenv("APP_ENV", "") or "").strip().lower()
 _should_load_local_env = _app_env in {"", "local", "dev", "development"}
 if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRENT_TEST") is None:
     dotenv.load_dotenv()
-
-
-# Create wrapper functions for easier mocking in tests
-def _calculate_all_bmr_wrapper(
-    weight_kg: float, height_cm: float, age: int, sex: str, bodyfat: float | None = None
-) -> dict[str, float]:
-    """Wrapper for calculate_all_bmr to support mocking in tests"""
-    import sys as _sys
-
-    pkg = _sys.modules.get("app")
-    alias = _sys.modules.get("app_module")
-    pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-
-    calc_bmr = None
-    if pkg is not None:
-        calc_bmr = getattr(pkg, "calculate_all_bmr", None)
-    if calc_bmr is None and pkg_appmod is not None:
-        calc_bmr = getattr(pkg_appmod, "calculate_all_bmr", None)
-    if calc_bmr is None and alias is not None:
-        calc_bmr = getattr(alias, "calculate_all_bmr", None)
-    if calc_bmr is None:
-        calc_bmr = globals().get("calculate_all_bmr", None)
-    if calc_bmr is None:
-        raise ImportError("nutrition_core module not available")
-    result = calc_bmr(weight_kg, height_cm, age, sex, bodyfat)
-    return cast(Dict[str, float], result)
-
-
-def _calculate_all_tdee_wrapper(
-    bmr_results: dict[str, float], activity: str
-) -> dict[str, int | float]:
-    """Wrapper for calculate_all_tdee to support mocking in tests"""
-    import sys as _sys
-
-    pkg = _sys.modules.get("app")
-    alias = _sys.modules.get("app_module")
-    pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
-
-    calc_tdee = None
-    if pkg is not None:
-        calc_tdee = getattr(pkg, "calculate_all_tdee", None)
-    if calc_tdee is None and pkg_appmod is not None:
-        calc_tdee = getattr(pkg_appmod, "calculate_all_tdee", None)
-    if calc_tdee is None and alias is not None:
-        calc_tdee = getattr(alias, "calculate_all_tdee", None)
-    if calc_tdee is None:
-        calc_tdee = globals().get("calculate_all_tdee", None)
-    if calc_tdee is None:
-        raise ImportError("nutrition_core module not available")
-    result = calc_tdee(bmr_results, activity)
-    return cast(Dict[str, Union[int, float]], result)
 
 
 # Test hook for overriding get_update_scheduler (used by rollback endpoint tests)
@@ -952,10 +869,6 @@ app = FastAPI(
 
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
-def _is_truthy(value: Optional[str]) -> bool:
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
 def get_api_key(api_key: str = Depends(api_key_header)) -> str:
     """API key guard with optional strict mode.
 
@@ -1220,46 +1133,6 @@ async def csp_nonce_middleware(request: Request, call_next: CallNextHandler) -> 
     response.headers["Content-Security-Policy"] = csp_header
 
     return response
-
-
-def _client_fingerprint(request: Request) -> str | None:
-    """Return a stable, non-PII identifier for the requesting client.
-
-    RU: Возвращает стабильный, не-ПДН идентификатор для запрашивающего клиента.
-    EN: Returns a stable, non-PII identifier for the requesting client.
-
-    This function produces pseudonymous identifiers (hashed+truncated IPs)
-    that must be treated as pseudonymous data per GDPR and privacy regulations.
-    """
-    # Load trusted proxies from config/env
-    trusted_proxies_str = os.getenv("TRUSTED_PROXIES", "")
-    trusted_proxies = {proxy.strip() for proxy in trusted_proxies_str.split(",") if proxy.strip()}
-
-    # Get the immediate remote host
-    remote_host = request.client.host if request.client else ""
-
-    # Determine the source IP based on trusted proxy configuration
-    source = remote_host
-    if remote_host in trusted_proxies:
-        # Only trust X-Forwarded-For when the immediate remote host is a trusted proxy
-        forwarded_for = request.headers.get("x-forwarded-for", "")
-        if forwarded_for:
-            # Split and strip the X-Forwarded-For header to get the client IP
-            forwarded_ips = [ip.strip() for ip in forwarded_for.split(",")]
-            if forwarded_ips:
-                # Validate the first IP syntactically
-                try:
-                    ipaddress.ip_address(forwarded_ips[0])
-                    source = forwarded_ips[0]
-                except ValueError:
-                    # Ignore malformed IP addresses
-                    pass
-
-    if not source:
-        return None
-    # Hash with salt so raw IP is never logged while keeping ability to correlate requests.
-    # Uses secure salt storage - see core.fingerprint_security for details
-    return compute_fingerprint(source)
 
 
 # Add logging middleware with data classification
@@ -1631,69 +1504,6 @@ def add_visualization_if_requested(result: Dict[str, Any], req: BMIRequest) -> N
 # ---------- Core logic ----------
 
 
-def calc_bmi(weight_kg: StrictFloat, height_m: float) -> float:
-    """
-    COMPAT: legacy public API.
-    Kept for backward compatibility (import surface), not used in request-path.
-
-    Uses canonical engine for calculation (policy-compliant: no duplicate BMI math).
-    """
-    # Import here to avoid circular dependencies
-    from core.bmi.engine import _compute_bmi  # compat import (core-only)
-
-    # Legacy contract: float rounded to 1 decimal (guarded explicitly).
-    bmi = _compute_bmi(weight_kg=weight_kg, height_m=height_m)
-    return round(bmi, 1)
-
-
-def normalize_flags(
-    gender: str, pregnant: Union[str, bool], athlete: Union[str, bool]
-) -> Dict[str, bool]:
-    """
-    COMPAT: legacy public API.
-    Kept for backward compatibility (import surface), not used in request-path.
-
-    Normalizes gender, pregnant, and athlete flags to boolean dict.
-    Uses canonical normalization logic (policy-compliant: no duplicate logic).
-    """
-    # Import here to avoid circular dependencies
-    from core.bmi.engine import _normalize_gender, _normalize_bool_flag
-
-    gender_norm = _normalize_gender(gender)
-    gender_male = gender_norm == "male"
-
-    # Legacy policy: pregnant applies to female only.
-    is_pregnant = _normalize_bool_flag(pregnant, yes_values=_YES_VALUES_PREGNANT) and (
-        gender_norm == "female"
-    )
-
-    # Athlete has no gender-gate (male/female allowed).
-    is_athlete = _normalize_bool_flag(athlete, yes_values=_YES_VALUES_ATHLETE)
-
-    return {
-        "gender_male": gender_male,
-        "is_pregnant": is_pregnant,
-        "is_athlete": is_athlete,
-    }
-
-
-def waist_risk(waist_cm: Optional[float], gender_male: bool, lang: Language) -> str:
-    """
-    COMPAT: legacy wrapper for waist risk note.
-    Delegates to core/bmi/risk (waist-only, no WHtR).
-
-    RU: Совместимая обёртка для строки риска по талии.
-    EN: Compatibility wrapper for waist risk note string.
-    """
-    from core.bmi.risk import get_waist_risk_note
-
-    return get_waist_risk_note(
-        waist_cm=waist_cm,
-        gender="male" if gender_male else "female",
-        lang=lang,
-    )
-
-
 # ---------- Misc routes ----------
 
 
@@ -1929,46 +1739,6 @@ async def root(request: Request) -> HTMLResponse:
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
-
-
-# Regex for validating hex digest
-_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
-
-
-def _short_git_sha(raw: str | None) -> str:
-    """
-    RU: Нормализует git SHA / image digest для /health.
-    EN: Normalize git sha / image digest for /health.
-
-    Accepts:
-      - "sha256:<digest>"
-      - "ghcr.io/...@sha256:<digest>"
-      - "<sha>"
-    Returns:
-      - first 12 hex chars when possible, "unknown" if empty/invalid
-    """
-    if not raw:
-        return "unknown"
-
-    s = raw.strip()
-    if not s:
-        return "unknown"
-
-    # If this is a repo digest, keep only the digest part after '@'
-    if "@sha256:" in s:
-        s = s.split("@sha256:", 1)[1]
-    elif s.startswith("sha256:"):
-        s = s.split("sha256:", 1)[1]
-
-    s = s.strip()
-    if not s:
-        return "unknown"
-
-    # Validate hex digest (reasonable minimum length)
-    if len(s) < 12 or not _HEX_RE.fullmatch(s):
-        return "unknown"
-
-    return s[:12]
 
 
 @app.get("/health")

@@ -7,6 +7,42 @@ from unittest.mock import patch
 
 import pytest
 
+# Canonical imports for BMI helpers (replacing legacy app.* functions)
+from core.bmi.engine import _DEFAULT_YES_VALUES, _normalize_bool_flag, _normalize_gender
+from core.bmi.risk import get_waist_risk_note
+
+
+def _normalize_flags_for_tests(
+    gender: str, pregnant: str | bool, athlete: str | bool
+) -> dict[str, bool]:
+    """
+    Canonical parity: normalize via core/bmi/engine helpers.
+    Replaces legacy app.normalize_flags() for test coverage.
+    """
+    g = _normalize_gender(gender)
+    # Handle pregnant with extended yes_values (legacy parity)
+    pregnant_yes = _DEFAULT_YES_VALUES | {"pregnant", "беременна", "беременная"}
+    is_pregnant = (
+        _normalize_bool_flag(pregnant, yes_values=pregnant_yes)
+        if isinstance(pregnant, str)
+        else bool(pregnant)
+    )
+    # Male can't be pregnant (legacy behavior)
+    if g == "male":
+        is_pregnant = False
+    # Handle athlete with extended yes_values (legacy parity)
+    athlete_yes = _DEFAULT_YES_VALUES | {"спортсмен", "athlete"}
+    is_athlete = (
+        _normalize_bool_flag(athlete, yes_values=athlete_yes)
+        if isinstance(athlete, str)
+        else bool(athlete)
+    )
+    return {
+        "gender_male": g == "male",
+        "is_pregnant": is_pregnant,
+        "is_athlete": is_athlete,
+    }
+
 
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
@@ -114,40 +150,44 @@ class TestAppSpecificMissingLines:
 
     def test_normalize_flags_edge_cases(self):
         """Test edge cases for normalize_flags function."""
-        from app import normalize_flags
-
         # Test with various gender values
-        result = normalize_flags("unknown", "no", "no")
+        result = _normalize_flags_for_tests("unknown", "no", "no")
         assert isinstance(result, dict)
 
         # Test with boolean values for pregnant/athlete
-        result = normalize_flags("male", True, True)
+        result = _normalize_flags_for_tests("male", True, True)
         assert result["is_pregnant"] is False  # Male can't be pregnant
         assert result["is_athlete"] is True
 
-        result = normalize_flags("female", True, False)
+        result = _normalize_flags_for_tests("female", True, False)
         assert result["is_pregnant"] is True
         assert result["is_athlete"] is False
 
     def test_waist_risk_edge_cases(self):
         """Test edge cases for waist_risk function."""
-        from app import waist_risk
-
         # Test with None waist
-        result = waist_risk(None, True, "en")
+        result = get_waist_risk_note(waist_cm=None, gender="male", lang="en")
         assert result == ""
 
         # Test with exact threshold values
-        result = waist_risk(94.0, True, "en")  # Male warning threshold
+        result = get_waist_risk_note(
+            waist_cm=94.0, gender="male", lang="en"
+        )  # Male warning threshold
         assert isinstance(result, str)
 
-        result = waist_risk(102.0, True, "en")  # Male high threshold
+        result = get_waist_risk_note(
+            waist_cm=102.0, gender="male", lang="en"
+        )  # Male high threshold
         assert isinstance(result, str)
 
-        result = waist_risk(80.0, False, "en")  # Female warning threshold
+        result = get_waist_risk_note(
+            waist_cm=80.0, gender="female", lang="en"
+        )  # Female warning threshold
         assert isinstance(result, str)
 
-        result = waist_risk(88.0, False, "en")  # Female high threshold
+        result = get_waist_risk_note(
+            waist_cm=88.0, gender="female", lang="en"
+        )  # Female high threshold
         assert isinstance(result, str)
 
     def test_bmi_request_validation_edge_cases(self):

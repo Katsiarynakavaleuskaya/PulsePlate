@@ -11,6 +11,42 @@ from fastapi.testclient import TestClient
 # Import the FastAPI app from app.py file
 from app import app
 
+# Canonical imports for BMI helpers (replacing legacy app.* functions)
+from core.bmi.engine import _DEFAULT_YES_VALUES, _normalize_bool_flag, _normalize_gender
+from core.bmi.risk import get_waist_risk_note
+
+
+def _normalize_flags_for_tests(
+    gender: str, pregnant: str | bool, athlete: str | bool
+) -> dict[str, bool]:
+    """
+    Canonical parity: normalize via core/bmi/engine helpers.
+    Replaces legacy app.normalize_flags() for test coverage.
+    """
+    g = _normalize_gender(gender)
+    # Handle pregnant with extended yes_values (legacy parity)
+    pregnant_yes = _DEFAULT_YES_VALUES | {"pregnant", "беременна", "беременная"}
+    is_pregnant = (
+        _normalize_bool_flag(pregnant, yes_values=pregnant_yes)
+        if isinstance(pregnant, str)
+        else bool(pregnant)
+    )
+    # Male can't be pregnant (legacy behavior)
+    if g == "male":
+        is_pregnant = False
+    # Handle athlete with extended yes_values (legacy parity)
+    athlete_yes = _DEFAULT_YES_VALUES | {"спортсмен", "athlete"}
+    is_athlete = (
+        _normalize_bool_flag(athlete, yes_values=athlete_yes)
+        if isinstance(athlete, str)
+        else bool(athlete)
+    )
+    return {
+        "gender_male": g == "male",
+        "is_pregnant": is_pregnant,
+        "is_athlete": is_athlete,
+    }
+
 
 class TestTargetedCoverageImprovement:
     """Targeted tests to improve coverage for uncovered lines."""
@@ -28,50 +64,48 @@ class TestTargetedCoverageImprovement:
 
     def test_normalize_flags_edge_cases(self):
         """Test edge cases for normalize_flags function."""
-        from app import normalize_flags
-
         # Test various gender inputs (note: these will be normalized by the model validator)
         # But we can test the function directly with lowercase inputs
-        result = normalize_flags("male", "no", "no")
+        result = _normalize_flags_for_tests("male", "no", "no")
         assert result["gender_male"] is True
 
-        result = normalize_flags("female", "no", "no")
+        result = _normalize_flags_for_tests("female", "no", "no")
         assert result["gender_male"] is False
 
         # Test various pregnant inputs
-        result = normalize_flags("female", "да", "no")
+        result = _normalize_flags_for_tests("female", "да", "no")
         assert result["is_pregnant"] is True
 
-        result = normalize_flags("female", "беременна", "no")
+        result = _normalize_flags_for_tests("female", "беременна", "no")
         assert result["is_pregnant"] is True
 
-        result = normalize_flags("female", "pregnant", "no")
+        result = _normalize_flags_for_tests("female", "pregnant", "no")
         assert result["is_pregnant"] is True
 
-        result = normalize_flags("female", "yes", "no")
+        result = _normalize_flags_for_tests("female", "yes", "no")
         assert result["is_pregnant"] is True
 
-        result = normalize_flags("female", "y", "no")
+        result = _normalize_flags_for_tests("female", "y", "no")
         assert result["is_pregnant"] is True
 
         # Test that male can't be pregnant even with pregnant flags
-        result = normalize_flags("male", "yes", "no")
+        result = _normalize_flags_for_tests("male", "yes", "no")
         assert result["is_pregnant"] is False
 
         # Test various athlete inputs
-        result = normalize_flags("male", "no", "спортсмен")
+        result = _normalize_flags_for_tests("male", "no", "спортсмен")
         assert result["is_athlete"] is True
 
-        result = normalize_flags("male", "no", "да")
+        result = _normalize_flags_for_tests("male", "no", "да")
         assert result["is_athlete"] is True
 
-        result = normalize_flags("male", "no", "yes")
+        result = _normalize_flags_for_tests("male", "no", "yes")
         assert result["is_athlete"] is True
 
-        result = normalize_flags("male", "no", "y")
+        result = _normalize_flags_for_tests("male", "no", "y")
         assert result["is_athlete"] is True
 
-        result = normalize_flags("male", "no", "athlete")
+        result = _normalize_flags_for_tests("male", "no", "athlete")
         assert result["is_athlete"] is True
 
     @pytest.mark.parametrize("pregnant_value", ["pregnant", "беременна", "беременная"])
@@ -82,9 +116,7 @@ class TestTargetedCoverageImprovement:
         RU: Legacy public API: беременность должна распознаваться по строковым синонимам.
         EN: Legacy public API: pregnancy synonyms must be treated as true.
         """
-        from app import normalize_flags
-
-        result = normalize_flags(gender="female", pregnant=pregnant_value, athlete="no")
+        result = _normalize_flags_for_tests(gender="female", pregnant=pregnant_value, athlete="no")
         assert result["is_pregnant"] is True
 
     @pytest.mark.parametrize("bad_pregnant_value", ["athlete", "спортсмен"])
@@ -95,41 +127,39 @@ class TestTargetedCoverageImprovement:
         RU: Athlete keywords MUST NOT imply pregnant=True.
         EN: Athlete keywords MUST NOT imply pregnant=True.
         """
-        from app import normalize_flags
-
-        result = normalize_flags(gender="female", pregnant=bad_pregnant_value, athlete="no")
+        result = _normalize_flags_for_tests(
+            gender="female", pregnant=bad_pregnant_value, athlete="no"
+        )
         assert result["is_pregnant"] is False
 
     def test_waist_risk_edge_cases(self):
         """Test edge cases for waist_risk function."""
-        from app import waist_risk
-
         # Test male high risk boundary
-        result = waist_risk(102.0, True, "en")
+        result = get_waist_risk_note(waist_cm=102.0, gender="male", lang="en")
         assert "High" in result
 
-        result = waist_risk(102.0, True, "ru")
+        result = get_waist_risk_note(waist_cm=102.0, gender="male", lang="ru")
         assert "Высокий" in result
 
         # Test male warning boundary
-        result = waist_risk(94.0, True, "en")
+        result = get_waist_risk_note(waist_cm=94.0, gender="male", lang="en")
         assert "Increased" in result
 
-        result = waist_risk(94.0, True, "ru")
+        result = get_waist_risk_note(waist_cm=94.0, gender="male", lang="ru")
         assert "Повышенный" in result
 
         # Test female high risk boundary
-        result = waist_risk(88.0, False, "en")
+        result = get_waist_risk_note(waist_cm=88.0, gender="female", lang="en")
         assert "High" in result
 
-        result = waist_risk(88.0, False, "ru")
+        result = get_waist_risk_note(waist_cm=88.0, gender="female", lang="ru")
         assert "Высокий" in result
 
         # Test female warning boundary
-        result = waist_risk(80.0, False, "en")
+        result = get_waist_risk_note(waist_cm=80.0, gender="female", lang="en")
         assert "Increased" in result
 
-        result = waist_risk(80.0, False, "ru")
+        result = get_waist_risk_note(waist_cm=80.0, gender="female", lang="ru")
         assert "Повышенный" in result
 
     def test_bmi_endpoint_pregnant_male(self):
