@@ -100,6 +100,21 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
+- [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports `gpgv` vulnerability (CVE-2026-24883) with no fixed version available as of 2026-01-28; we suppress via `trivy/ignore-policy.rego` with expiry enforcement to keep Trivy's signal actionable. Should remove when Debian publishes a patched package / Trivy metadata updates.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-24883)
+    - `docs/security/CVE-2026-24883-gpgv.md`
+    - `.github/workflows/trivy.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `gpgv` package (or Trivy publishes fixed-version metadata)
+    - Remove CVE-2026-24883 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
+    - Trivy Code Scanning alerts remain closed on `main`
+
 - [ ] Move insight redaction/import helpers out of legacy_app.py
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
