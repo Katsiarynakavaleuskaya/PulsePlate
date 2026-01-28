@@ -1,5 +1,4 @@
 import sys
-import types
 from typing import Any
 from unittest.mock import patch
 
@@ -39,11 +38,6 @@ def test_background_updates_wrappers_force_sync_under_pytest(
 def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure wrappers raise ImportError when their dependencies are missing."""
 
-    # Create a mock module that raises ImportError when trying to import calculate_all_bmr
-    class MockModule:
-        def __getattr__(self, name: str) -> None:
-            raise ImportError(f"cannot import name '{name}' from 'nutrition_core'")
-
     # Null out all visible locations so wrappers raise ImportError deterministically
     for module in (
         app,
@@ -52,38 +46,17 @@ def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> Non
     ):
         if module is not None:
             monkeypatch.setattr(module, "calculate_all_bmr", None, raising=False)
-    monkeypatch.setitem(nw._calculate_all_bmr_wrapper.__globals__, "calculate_all_bmr", None)
-    # Block nutrition_core import (wrapper's fallback) by replacing it with mock that raises ImportError
-    original_nutrition_core = sys.modules.get("nutrition_core")
-    monkeypatch.setitem(sys.modules, "nutrition_core", MockModule())
-    try:
-        with pytest.raises(ImportError):
-            nw._calculate_all_bmr_wrapper(70, 175, 30, "male")
-    finally:
-        if original_nutrition_core is not None:
-            monkeypatch.setitem(sys.modules, "nutrition_core", original_nutrition_core)
-        else:
-            monkeypatch.delitem(sys.modules, "nutrition_core", raising=False)
-
-    for module in (
-        app,
-        getattr(app, "app_module", None),
-        sys.modules.get("app_module"),
-    ):
-        if module is not None:
             monkeypatch.setattr(module, "calculate_all_tdee", None, raising=False)
-    monkeypatch.setitem(nw._calculate_all_tdee_wrapper.__globals__, "calculate_all_tdee", None)
-    # Block nutrition_core import (wrapper's fallback) by replacing it with mock that raises ImportError
-    original_nutrition_core = sys.modules.get("nutrition_core")
-    monkeypatch.setitem(sys.modules, "nutrition_core", MockModule())
-    try:
-        with pytest.raises(ImportError):
-            nw._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
-    finally:
-        if original_nutrition_core is not None:
-            monkeypatch.setitem(sys.modules, "nutrition_core", original_nutrition_core)
-        else:
-            monkeypatch.delitem(sys.modules, "nutrition_core", raising=False)
+
+    # Block nutrition_core import seams (wrapper's fallback) by patching import functions
+    monkeypatch.setattr(nw, "_import_nutrition_core_bmr", lambda: None, raising=False)
+    monkeypatch.setattr(nw, "_import_nutrition_core_tdee", lambda: None, raising=False)
+
+    with pytest.raises(ImportError):
+        nw._calculate_all_bmr_wrapper(70, 175, 30, "male")
+
+    with pytest.raises(ImportError):
+        nw._calculate_all_tdee_wrapper({"mifflin": 1500}, "moderate")
 
 
 def test_targets_disabled_container_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -119,16 +92,13 @@ def test_calculate_all_bmr_wrapper_happy_path_nutrition_core(
         calls["kwargs"] = kwargs
         return {"mifflin": 1500.0, "harris": 1600.0}
 
-    nutrition_core = types.SimpleNamespace(
-        calculate_all_bmr=fake_bmr,
-        calculate_all_tdee=lambda *a, **k: {"ok": "tdee"},  # для resolver mapping
-    )
-    monkeypatch.setitem(sys.modules, "nutrition_core", nutrition_core)
-
     # Null out app/app_module paths to force nutrition_core fallback
     for module in (app, getattr(app, "app_module", None), sys.modules.get("app_module")):
         if module is not None:
             monkeypatch.setattr(module, "calculate_all_bmr", None, raising=False)
+
+    # Patch import seam to return fake function
+    monkeypatch.setattr(nw, "_import_nutrition_core_bmr", lambda: fake_bmr, raising=False)
 
     res = nw._calculate_all_bmr_wrapper(70.0, 175.0, 30, "male", bodyfat=None)
     assert res == {"mifflin": 1500.0, "harris": 1600.0}
@@ -147,16 +117,13 @@ def test_calculate_all_tdee_wrapper_happy_path_nutrition_core(
         calls["kwargs"] = kwargs
         return {"mifflin": 2000.0, "harris": 2100.0}
 
-    nutrition_core = types.SimpleNamespace(
-        calculate_all_bmr=lambda *a, **k: {"ok": "bmr"},  # для resolver mapping
-        calculate_all_tdee=fake_tdee,
-    )
-    monkeypatch.setitem(sys.modules, "nutrition_core", nutrition_core)
-
     # Null out app/app_module paths to force nutrition_core fallback
     for module in (app, getattr(app, "app_module", None), sys.modules.get("app_module")):
         if module is not None:
             monkeypatch.setattr(module, "calculate_all_tdee", None, raising=False)
+
+    # Patch import seam to return fake function
+    monkeypatch.setattr(nw, "_import_nutrition_core_tdee", lambda: fake_tdee, raising=False)
 
     res = nw._calculate_all_tdee_wrapper({"mifflin": 1500.0}, "moderate")
     assert res == {"mifflin": 2000.0, "harris": 2100.0}

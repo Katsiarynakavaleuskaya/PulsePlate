@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app import app
 
 # Canonical imports for BMI helpers (replacing legacy app.* functions)
-from core.bmi.risk import get_waist_risk_note
+from core.bmi.risk import _waist_thresholds, get_waist_risk_note
 from tests._helpers.bmi_flags import _normalize_flags_for_tests
 
 
@@ -102,32 +102,36 @@ class TestTargetedCoverageImprovement:
 
     def test_waist_risk_edge_cases(self):
         """Test edge cases for waist_risk function."""
+        # Get canonical thresholds (no hardcoded values)
+        male_warn, male_high = _waist_thresholds("male")
+        female_warn, female_high = _waist_thresholds("female")
+
         # Test male high risk boundary
-        result = get_waist_risk_note(waist_cm=102.0, gender="male", lang="en")
+        result = get_waist_risk_note(waist_cm=male_high, gender="male", lang="en")
         assert "High" in result
 
-        result = get_waist_risk_note(waist_cm=102.0, gender="male", lang="ru")
+        result = get_waist_risk_note(waist_cm=male_high, gender="male", lang="ru")
         assert "Высокий" in result
 
         # Test male warning boundary
-        result = get_waist_risk_note(waist_cm=94.0, gender="male", lang="en")
+        result = get_waist_risk_note(waist_cm=male_warn, gender="male", lang="en")
         assert "Increased" in result
 
-        result = get_waist_risk_note(waist_cm=94.0, gender="male", lang="ru")
+        result = get_waist_risk_note(waist_cm=male_warn, gender="male", lang="ru")
         assert "Повышенный" in result
 
         # Test female high risk boundary
-        result = get_waist_risk_note(waist_cm=88.0, gender="female", lang="en")
+        result = get_waist_risk_note(waist_cm=female_high, gender="female", lang="en")
         assert "High" in result
 
-        result = get_waist_risk_note(waist_cm=88.0, gender="female", lang="ru")
+        result = get_waist_risk_note(waist_cm=female_high, gender="female", lang="ru")
         assert "Высокий" in result
 
         # Test female warning boundary
-        result = get_waist_risk_note(waist_cm=80.0, gender="female", lang="en")
+        result = get_waist_risk_note(waist_cm=female_warn, gender="female", lang="en")
         assert "Increased" in result
 
-        result = get_waist_risk_note(waist_cm=80.0, gender="female", lang="ru")
+        result = get_waist_risk_note(waist_cm=female_warn, gender="female", lang="ru")
         assert "Повышенный" in result
 
     def test_bmi_endpoint_pregnant_male(self):

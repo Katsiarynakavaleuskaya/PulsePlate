@@ -83,7 +83,7 @@ from decimal import Decimal
 from core.bmi.compat_plan import legacy_plan_category
 from core.bmi.engine import _normalize_bool_flag
 from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
-from core.fingerprint_security import _client_fingerprint, compute_fingerprint
+from core.fingerprint_security import _client_fingerprint
 from core.log_retention import (
     DATA_CLASS_PSEUDONYMOUS,
     DataClass,

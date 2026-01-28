@@ -10,6 +10,32 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, Union, cast
 
 
+def _import_nutrition_core_bmr() -> Callable[..., Any] | None:
+    """
+    Import seam for tests. Never patch sys.modules; patch this function instead.
+    Returns calculate_all_bmr callable or None if unavailable.
+    """
+    try:
+        from nutrition_core import calculate_all_bmr  # type: ignore[import-untyped]
+
+        return cast(Callable[..., Any], calculate_all_bmr)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _import_nutrition_core_tdee() -> Callable[..., Any] | None:
+    """
+    Import seam for tests. Never patch sys.modules; patch this function instead.
+    Returns calculate_all_tdee callable or None if unavailable.
+    """
+    try:
+        from nutrition_core import calculate_all_tdee  # type: ignore[import-untyped]
+
+        return cast(Callable[..., Any], calculate_all_tdee)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     """Resolve nutrition calculation callable from module hierarchy.
 
@@ -43,20 +69,17 @@ def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     if calc_fn is None and alias is not None:
         calc_fn = getattr(alias, name, None)
     if calc_fn is None:
-        # Fallback: try to import from nutrition_core directly
+        # Fallback: try to import from nutrition_core using import seams
         # This preserves original behavior where functions were available in legacy_app globals
-        try:
-            if name == "calculate_all_bmr":
-                from nutrition_core import calculate_all_bmr as calc_fn  # type: ignore[assignment]
-            elif name == "calculate_all_tdee":
-                from nutrition_core import calculate_all_tdee as calc_fn  # type: ignore[assignment]
-            else:
-                raise ImportError(f"unknown nutrition callable '{name}'")
-        except ImportError as e:
-            raise ImportError(f"cannot import '{name}' (nutrition_core missing)") from e
+        if name == "calculate_all_bmr":
+            calc_fn = _import_nutrition_core_bmr()
+        elif name == "calculate_all_tdee":
+            calc_fn = _import_nutrition_core_tdee()
+        else:
+            raise ImportError(f"unknown nutrition callable '{name}'")
 
     if calc_fn is None:
-        raise ImportError(f"nutrition callable '{name}' not available")
+        raise ImportError(f"nutrition callable '{name}' not available (nutrition_core missing)")
     return calc_fn
 
 

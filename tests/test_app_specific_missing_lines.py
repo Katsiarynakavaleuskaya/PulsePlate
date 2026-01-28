@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 # Canonical imports for BMI helpers (replacing legacy app.* functions)
-from core.bmi.risk import get_waist_risk_note
+from core.bmi.risk import _waist_thresholds, get_waist_risk_note
 from tests._helpers.bmi_flags import _normalize_flags_for_tests
 
 
@@ -137,25 +137,21 @@ class TestAppSpecificMissingLines:
         result = get_waist_risk_note(waist_cm=None, gender="male", lang="en")
         assert result == ""
 
+        # Get canonical thresholds (no hardcoded values)
+        male_warn, male_high = _waist_thresholds("male")
+        female_warn, female_high = _waist_thresholds("female")
+
         # Test with exact threshold values
-        result = get_waist_risk_note(
-            waist_cm=94.0, gender="male", lang="en"
-        )  # Male warning threshold
+        result = get_waist_risk_note(waist_cm=male_warn, gender="male", lang="en")
         assert isinstance(result, str)
 
-        result = get_waist_risk_note(
-            waist_cm=102.0, gender="male", lang="en"
-        )  # Male high threshold
+        result = get_waist_risk_note(waist_cm=male_high, gender="male", lang="en")
         assert isinstance(result, str)
 
-        result = get_waist_risk_note(
-            waist_cm=80.0, gender="female", lang="en"
-        )  # Female warning threshold
+        result = get_waist_risk_note(waist_cm=female_warn, gender="female", lang="en")
         assert isinstance(result, str)
 
-        result = get_waist_risk_note(
-            waist_cm=88.0, gender="female", lang="en"
-        )  # Female high threshold
+        result = get_waist_risk_note(waist_cm=female_high, gender="female", lang="en")
         assert isinstance(result, str)
 
     def test_bmi_request_validation_edge_cases(self):
