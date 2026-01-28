@@ -64,3 +64,15 @@ ignore if {
 	cve_2025_15281_version_match
 	cve_2025_15281_pkgid_match
 }
+
+# CVE-2026-24883 (gpgv) - upstream unfixed in Debian bookworm
+# Review-by: 2026-04-28 (manual removal)
+# Rationale: Unfixed distro CVE; runtime does not invoke apt/gpgv; no attack surface
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-24883
+# Documented in: docs/security/CVE-2026-24883-gpgv.md
+# Removal condition: Remove when Debian bookworm publishes patched gpgv package or Trivy metadata includes fixed version
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-24883"
+	input.PkgName == "gpgv"
+}

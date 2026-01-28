@@ -48,6 +48,10 @@ ENV PYTHONUNBUFFERED=1 \
 # CVE-2025-13151 is NOT fixed in Debian bookworm as of 2026-01 (no patched version available).
 # Tracking: https://security-tracker.debian.org/tracker/CVE-2025-13151
 # Revisit when bookworm publishes a fixed package.
+#
+# Security hardening:
+# Explicitly install openssl/libssl3 to ensure patched versions are pulled from bookworm-security.
+# Do not remove unless Trivy alerts are resolved and base image consistently ships patched OpenSSL.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
