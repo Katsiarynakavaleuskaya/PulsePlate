@@ -85,7 +85,7 @@ If it is not recorded here — it does not exist.
   - Status: ✅ Merged
   - Reason: P0 safety — ensure insight endpoints never leak internal errors (ImportError, provider.generate exceptions) and return safe 503 responses with sanitized detail messages. Also enforce `response_model=InsightResponse` contract.
   - Links:
-    - docs/audit/PR_XXX_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
+    - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
     - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/611>
   - DoD: ✅ Completed
     - ✅ Import-failure returns 503 with safe detail (no "boom" leak)
@@ -100,18 +100,19 @@ If it is not recorded here — it does not exist.
 
 ## P1 — Improvements (Optional / polish)
 
-- [ ] Move insight redaction/import helper out of legacy_app.py
+- [ ] Move insight redaction/import helpers out of legacy_app.py
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: TBD
   - Reason: Codex actionable — keep legacy_app thin proxy only. Move `_redact_rag_context_for_insight` and `_load_llm_get_provider` to canonical module (`core/insight/`) to maintain AGENTS invariant. Follow-up from PR-611.
   - Links:
-    - docs/audit/PR_XXX_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
+    - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
     - PR-611 (merged 2026-01-28)
+  - Preconditions (already true as of PR-611):
+    - `_redact_rag_context_for_insight` lives in `core/insight/safety.py`
   - DoD:
-    - Redaction helper already moved to `core/insight/safety.py` (done in PR-611)
-    - Import helper (`_load_llm_get_provider`) moved to canonical module (not `legacy_app.py`)
-    - `legacy_app.py` contains only thin proxies (no business logic)
+    - Move `_load_llm_get_provider` to canonical module (not `legacy_app.py`)
+    - `legacy_app.py` contains only thin proxies (no business/import helpers)
     - Tests pass
     - OpenAPI unchanged
 
@@ -520,5 +521,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-27 (PR-609: Post-merge hygiene for PR-596)
+**Last updated:** 2026-01-28 (PR-612: Mark PR-611 merged, add P1 thin-proxy follow-up)
 **Maintainer:** @katsiaryna_kavaleuskaya
