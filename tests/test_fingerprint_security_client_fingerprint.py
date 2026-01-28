@@ -10,9 +10,6 @@ Covers all branches:
 
 from __future__ import annotations
 
-import os
-from typing import Any
-
 import pytest
 
 from core.fingerprint_security import _client_fingerprint

@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import sys
+import types
 from typing import Any
 from unittest.mock import patch
 
@@ -33,6 +35,174 @@ def test_background_updates_wrappers_force_sync_under_pytest(
 
     assert 12 in called
     assert "stop" in called
+
+
+def test_background_updates_wrappers_normal_mode_calls_resolvers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover start/stop wrappers in normal (non-pytest-sync) mode."""
+    import legacy_app
+
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+
+    executed: list[tuple[Callable[..., Any], int, object]] = []
+    safe_stops: list[Callable[..., Any]] = []
+
+    async def fake_starter(update_interval_hours: int = 24) -> None:
+        _ = update_interval_hours
+
+    async def fake_stopper() -> None:
+        return None
+
+    def resolve_scheduler_starter(*_args: object, **_kwargs: object) -> Callable[..., Any]:
+        return fake_starter
+
+    def execute_async_starter(starter: Callable[..., Any], hours: int, _asyncio: object) -> None:
+        executed.append((starter, hours, _asyncio))
+
+    def resolve_stop_callable(*_args: object, **_kwargs: object) -> Callable[..., Any]:
+        return fake_stopper
+
+    def safe_stop_with_cleanup(stopper: Callable[..., Any]) -> None:
+        safe_stops.append(stopper)
+
+    def _no_running_loop() -> None:
+        raise RuntimeError("no running loop")
+
+    monkeypatch.setattr(legacy_app, "resolve_scheduler_starter", resolve_scheduler_starter)
+    monkeypatch.setattr(legacy_app, "execute_async_starter", execute_async_starter)
+    monkeypatch.setattr(legacy_app, "resolve_stop_callable", resolve_stop_callable)
+    monkeypatch.setattr(legacy_app, "safe_stop_with_cleanup", safe_stop_with_cleanup)
+    monkeypatch.setattr(legacy_app.asyncio, "get_running_loop", _no_running_loop)
+
+    legacy_app.start_background_updates(update_interval_hours=7)
+    assert executed[0][0] is fake_starter
+    assert executed[0][1] == 7
+
+    legacy_app.stop_background_updates()
+    assert safe_stops == [fake_stopper]
+
+
+def test_resolve_app_callable_returns_default_when_modules_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover _resolve_app_callable when sys.modules lacks app/app_module."""
+    from app.utils.helpers import _resolve_app_callable
+
+    def _default() -> str:
+        return "ok"
+
+    monkeypatch.delitem(sys.modules, "app", raising=False)
+    monkeypatch.delitem(sys.modules, "app_module", raising=False)
+
+    resolved = _resolve_app_callable("nonexistent", default=_default)
+    assert resolved is _default
+
+
+def test_import_nutrition_core_import_seams(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover _import_nutrition_core_* implementations (ImportError + happy paths)."""
+
+    def _boom(_name: str) -> types.ModuleType:
+        raise ImportError("boom")
+
+    monkeypatch.setattr(nw.importlib, "import_module", _boom)
+    assert nw._import_nutrition_core_bmr() is None
+    assert nw._import_nutrition_core_tdee() is None
+
+    mod = types.ModuleType("nutrition_core")
+
+    def calculate_all_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
+        return {"mifflin": 1500.0}
+
+    def calculate_all_tdee(*_args: Any, **_kwargs: Any) -> dict[str, int | float]:
+        return {"mifflin": 2000.0}
+
+    setattr(mod, "calculate_all_bmr", calculate_all_bmr)
+    setattr(mod, "calculate_all_tdee", calculate_all_tdee)
+
+    def _import_module(name: str) -> types.ModuleType:
+        assert name == "nutrition_core"
+        return mod
+
+    monkeypatch.setattr(nw.importlib, "import_module", _import_module)
+    assert nw._import_nutrition_core_bmr() is calculate_all_bmr
+    assert nw._import_nutrition_core_tdee() is calculate_all_tdee
+
+
+def test_resolve_nutrition_callable_prefers_app_app_module_over_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover resolution order: app.app_module wins over sys.modules['app_module']."""
+    pkg = types.ModuleType("app")
+    pkg_appmod = types.ModuleType("app.app_module")
+    alias_pkg = types.ModuleType("app_module")
+
+    def appmod_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
+        return {"mifflin": 1500.0}
+
+    def alias_bmr(*_args: Any, **_kwargs: Any) -> dict[str, float]:
+        return {"mifflin": 1400.0}
+
+    setattr(pkg_appmod, "calculate_all_bmr", appmod_bmr)
+    setattr(alias_pkg, "calculate_all_bmr", alias_bmr)
+    setattr(pkg, "app_module", pkg_appmod)
+
+    monkeypatch.setitem(sys.modules, "app", pkg)
+    monkeypatch.setitem(sys.modules, "app_module", alias_pkg)
+
+    resolved = nw._resolve_nutrition_callable("calculate_all_bmr")
+    assert resolved is appmod_bmr
+
+
+def test_resolve_nutrition_callable_unknown_name_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover unknown callable name branch."""
+    monkeypatch.setitem(sys.modules, "app", types.ModuleType("app"))
+    monkeypatch.setitem(sys.modules, "app_module", types.ModuleType("app_module"))
+
+    with pytest.raises(ImportError, match="unknown nutrition callable"):
+        nw._resolve_nutrition_callable("unknown")
+
+
+def test_calculate_wrappers_fallback_to_nutrition_core_real_import_seams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover wrapper fallback to nutrition_core via real import seams."""
+    mod = types.ModuleType("nutrition_core")
+
+    def calculate_all_bmr(
+        weight_kg: float,
+        height_cm: float,
+        age: int,
+        sex: str,
+        bodyfat: float | None,
+    ) -> dict[str, float]:
+        assert (weight_kg, height_cm, age, sex, bodyfat) == (70.0, 175.0, 30, "male", None)
+        return {"mifflin": 1500.0}
+
+    def calculate_all_tdee(bmr_results: dict[str, float], activity: str) -> dict[str, int | float]:
+        assert bmr_results == {"mifflin": 1500.0}
+        assert activity == "moderate"
+        return {"mifflin": 2000.0}
+
+    setattr(mod, "calculate_all_bmr", calculate_all_bmr)
+    setattr(mod, "calculate_all_tdee", calculate_all_tdee)
+
+    def _import_module(name: str) -> types.ModuleType:
+        assert name == "nutrition_core"
+        return mod
+
+    # Ensure wrappers don't resolve from app/app_module so fallback is exercised
+    monkeypatch.setitem(sys.modules, "app", types.ModuleType("app"))
+    monkeypatch.delitem(sys.modules, "app_module", raising=False)
+    monkeypatch.setattr(nw.importlib, "import_module", _import_module)
+
+    bmr = nw._calculate_all_bmr_wrapper(70.0, 175.0, 30, "male", bodyfat=None)
+    assert bmr == {"mifflin": 1500.0}
+
+    tdee = nw._calculate_all_tdee_wrapper({"mifflin": 1500.0}, "moderate")
+    assert tdee == {"mifflin": 2000.0}
 
 
 def test_calculate_wrappers_import_error(monkeypatch: pytest.MonkeyPatch) -> None:

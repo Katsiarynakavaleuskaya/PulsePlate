@@ -19,7 +19,7 @@ from tests._helpers.bmi_flags import _normalize_flags_for_tests
 class TestTargetedCoverageImprovement:
     """Targeted tests to improve coverage for uncovered lines."""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Set up test environment."""
         os.environ["API_KEY"] = "test-key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
