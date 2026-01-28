@@ -149,8 +149,8 @@ If this expands scope → defer to next PR and record in ledger.
 
 ## Implementation verification
 
-**SHA:** `38f99e14` (HEAD PR-611)
-
+**PR-611 Merged SHA:** `e675c48225a8d2cf2669b0e34528d8296af08e26`
+**Merge commit:** `e675c482`
 **Environment:** Python 3.13.6
 
 **Note:** moved RAG redaction helper out of `legacy_app.py` into a canonical helper
@@ -181,3 +181,9 @@ make openapi-check
 - OpenAPI sync: ✅ SUCCESS
 - tests: ✅ SUCCESS
 - dependency submission: ✅ SUCCESS (initial failure was GitHub API flake, not related to PR changes; check is not required)
+
+**Post-merge verification (main branch):**
+- ✅ All insight tests passed (13 total: 4 + 3 + 6)
+- ✅ OpenAPI sync: no diff
+- ✅ Import verification: success
+- **Status:** PR-611 officially closed and verified on main
