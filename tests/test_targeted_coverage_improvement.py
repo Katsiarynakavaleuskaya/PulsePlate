@@ -30,7 +30,7 @@ class TestTargetedCoverageImprovement:
         if "API_KEY" in os.environ:
             del os.environ["API_KEY"]
 
-    def test_normalize_flags_edge_cases(self):
+    def test_normalize_flags_edge_cases(self) -> None:
         """Test edge cases for normalize_flags function."""
         # Test various gender inputs (note: these will be normalized by the model validator)
         # But we can test the function directly with lowercase inputs
@@ -100,7 +100,7 @@ class TestTargetedCoverageImprovement:
         )
         assert result["is_pregnant"] is False
 
-    def test_waist_risk_edge_cases(self):
+    def test_waist_risk_edge_cases(self) -> None:
         """Test edge cases for waist_risk function."""
         # Get canonical thresholds (no hardcoded values)
         male_warn, male_high = _waist_thresholds("male")

@@ -7,43 +7,47 @@ resolution and delegation.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Union, cast
+import importlib
+from collections.abc import Callable
+from typing import Any, cast
 
 
 def _import_nutrition_core_bmr() -> Callable[..., Any] | None:
-    """
-    Import seam for tests. Never patch sys.modules; patch this function instead.
+    """Import seam for tests. Patch this function; do not touch sys.modules.
+
     Returns calculate_all_bmr callable or None if unavailable.
     """
     try:
-        from nutrition_core import calculate_all_bmr  # type: ignore[import-untyped]
-
-        return cast(Callable[..., Any], calculate_all_bmr)
-    except Exception:  # noqa: BLE001
+        mod = importlib.import_module("nutrition_core")
+    except ImportError:
         return None
+
+    calc = getattr(mod, "calculate_all_bmr", None)
+    return cast(Callable[..., Any], calc) if callable(calc) else None
 
 
 def _import_nutrition_core_tdee() -> Callable[..., Any] | None:
-    """
-    Import seam for tests. Never patch sys.modules; patch this function instead.
+    """Import seam for tests. Patch this function; do not touch sys.modules.
+
     Returns calculate_all_tdee callable or None if unavailable.
     """
     try:
-        from nutrition_core import calculate_all_tdee  # type: ignore[import-untyped]
-
-        return cast(Callable[..., Any], calculate_all_tdee)
-    except Exception:  # noqa: BLE001
+        mod = importlib.import_module("nutrition_core")
+    except ImportError:
         return None
+
+    calc = getattr(mod, "calculate_all_tdee", None)
+    return cast(Callable[..., Any], calc) if callable(calc) else None
 
 
 def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     """Resolve nutrition calculation callable from module hierarchy.
 
-    Resolution order:
-    1. app.app_module.<name> (if present)
-    2. app.<name>
-    3. app_module.<name>
-    4. nutrition_core.<name> (fallback)
+    Resolution order (legacy parity):
+    1. app.<name>
+    2. app.app_module.<name> (if present)
+    3. sys.modules["app_module"].<name> (if present)
+    4. nutrition_core.<name> via import seams (fallback)
 
     Args:
         name: Name of the callable to resolve ("calculate_all_bmr" or "calculate_all_tdee")
@@ -60,14 +64,17 @@ def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     alias = _sys.modules.get("app_module")
     pkg_appmod = getattr(pkg, "app_module", None) if pkg else None
 
-    # Try resolution order: app.app_module -> app -> app_module -> nutrition_core
+    # Resolution order: app -> app.app_module -> app_module -> nutrition_core
     calc_fn = None
-    if pkg_appmod is not None:
-        calc_fn = getattr(pkg_appmod, name, None)
-    if calc_fn is None and pkg is not None:
+    if pkg is not None:
         calc_fn = getattr(pkg, name, None)
+
+    if calc_fn is None and pkg_appmod is not None:
+        calc_fn = getattr(pkg_appmod, name, None)
+
     if calc_fn is None and alias is not None:
         calc_fn = getattr(alias, name, None)
+
     if calc_fn is None:
         # Fallback: try to import from nutrition_core using import seams
         # This preserves original behavior where functions were available in legacy_app globals
@@ -89,7 +96,7 @@ def _calculate_all_bmr_wrapper(
     """Wrapper for calculate_all_bmr to support mocking in tests"""
     calc_bmr = _resolve_nutrition_callable("calculate_all_bmr")
     result = calc_bmr(weight_kg, height_cm, age, sex, bodyfat)
-    return cast(Dict[str, float], result)
+    return cast(dict[str, float], result)
 
 
 def _calculate_all_tdee_wrapper(
@@ -98,4 +105,4 @@ def _calculate_all_tdee_wrapper(
     """Wrapper for calculate_all_tdee to support mocking in tests"""
     calc_tdee = _resolve_nutrition_callable("calculate_all_tdee")
     result = calc_tdee(bmr_results, activity)
-    return cast(Dict[str, Union[int, float]], result)
+    return cast(dict[str, int | float], result)

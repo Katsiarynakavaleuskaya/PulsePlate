@@ -15,57 +15,43 @@ from tests._helpers.bmi_flags import _normalize_flags_for_tests
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
 
-    def test_slowapi_import_error(self):
+    def test_slowapi_import_error(self) -> None:
         """Test slowapi import error handling."""
-        # Temporarily remove slowapi from sys.modules to simulate import error
-        import sys
+        import importlib
 
-        original_slowapi = sys.modules.get("slowapi")
-        try:
-            if "slowapi" in sys.modules:
-                del sys.modules["slowapi"]
+        # Patch importlib.import_module to raise ImportError for slowapi
+        real_import = importlib.import_module
 
-            # Reload app module to trigger import error handling
-            import importlib
+        def _import_module(name: str, *args: object, **kwargs: object) -> object:
+            if name == "slowapi":
+                raise ImportError("slowapi not found")
+            return real_import(name, *args, **kwargs)
 
+        with patch("importlib.import_module", side_effect=_import_module):
             import app
 
             importlib.reload(app)
-        finally:
-            # Restore original slowapi if it existed
-            if original_slowapi is not None:
-                sys.modules["slowapi"] = original_slowapi
-            elif "slowapi" in sys.modules:
-                del sys.modules["slowapi"]
 
         # The test passes if no exception is raised during reload
 
-    def test_vip_module_import_error(self):
+    def test_vip_module_import_error(self) -> None:
         """Test VIP module import error handling."""
-        # Temporarily remove app.routers.vip from sys.modules
-        import sys
+        import importlib
 
-        original_vip = sys.modules.get("app.routers.vip")
-        try:
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
+        # Patch importlib.import_module to raise ImportError for app.routers.vip
+        real_import = importlib.import_module
 
-            # Mock the import to raise ImportError
-            with patch("importlib.import_module", side_effect=ImportError("VIP module not found")):
-                # Reload app module to trigger import error handling
-                import importlib
+        def _import_module(name: str, *args: object, **kwargs: object) -> object:
+            if name == "app.routers.vip":
+                raise ImportError("VIP module not found")
+            return real_import(name, *args, **kwargs)
 
-                import app
+        with patch("importlib.import_module", side_effect=_import_module):
+            import app
 
-                importlib.reload(app)
-        finally:
-            # Restore original vip module if it existed
-            if original_vip is not None:
-                sys.modules["app.routers.vip"] = original_vip
-            elif "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
+            importlib.reload(app)
 
-    def test_bodyfat_import_error(self):
+    def test_bodyfat_import_error(self) -> None:
         """Test bodyfat import error handling."""
         # Mock the import to raise ImportError
         with patch("importlib.import_module", side_effect=ImportError("Bodyfat module not found")):
@@ -76,7 +62,7 @@ class TestAppSpecificMissingLines:
 
             importlib.reload(app)
 
-    def test_env_loading_logic(self):
+    def test_env_loading_logic(self) -> None:
         """Test environment loading logic."""
         # Test with sanitized environment
         with patch.dict(os.environ, {"PATH": "test"}, clear=True):
@@ -102,7 +88,7 @@ class TestAppSpecificMissingLines:
 
             importlib.reload(app)
 
-    def test_legacy_category_label_edge_cases(self):
+    def test_legacy_category_label_edge_cases(self) -> None:
         """Test edge cases for legacy_category_label function."""
         from app import legacy_category_label
 
@@ -116,7 +102,7 @@ class TestAppSpecificMissingLines:
         result = legacy_category_label("Normal weight", "en")
         assert result == "Healthy weight"  # Expected mapping
 
-    def test_normalize_flags_edge_cases(self):
+    def test_normalize_flags_edge_cases(self) -> None:
         """Test edge cases for normalize_flags function."""
         # Test with various gender values
         result = _normalize_flags_for_tests("unknown", "no", "no")
@@ -131,7 +117,7 @@ class TestAppSpecificMissingLines:
         assert result["is_pregnant"] is True
         assert result["is_athlete"] is False
 
-    def test_waist_risk_edge_cases(self):
+    def test_waist_risk_edge_cases(self) -> None:
         """Test edge cases for waist_risk function."""
         # Test with None waist
         result = get_waist_risk_note(waist_cm=None, gender="male", lang="en")
@@ -154,7 +140,7 @@ class TestAppSpecificMissingLines:
         result = get_waist_risk_note(waist_cm=female_high, gender="female", lang="en")
         assert isinstance(result, str)
 
-    def test_bmi_request_validation_edge_cases(self):
+    def test_bmi_request_validation_edge_cases(self) -> None:
         """Test edge cases for BMIRequest validation."""
         from app import BMIRequest
 
@@ -180,7 +166,7 @@ class TestAppSpecificMissingLines:
         assert req.height_m == 2.5
         assert req.age == 120
 
-    def test_bmi_request_v1_validation_edge_cases(self):
+    def test_bmi_request_v1_validation_edge_cases(self) -> None:
         """Test edge cases for BMIRequestV1 validation."""
         from app import BMIRequestV1
 
