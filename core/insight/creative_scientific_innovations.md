@@ -511,7 +511,7 @@
 2. **Create Symbolic Validator:**
    ```python
    # core/recipes/neural_symbolic/symbolic_validator.py
-   from z3 import Solver, Real, And, Or, Not
+   from z3 import Solver, Real, And, Or, Not, sat
 
    class SymbolicConstraintValidator:
        """Symbolic logic validator для dietary constraints."""
@@ -675,7 +675,7 @@
                                current_diet: Dict[str, float],
                                alternative_diet: Dict[str, float],
                                current_health: Dict[str, float]) -> CounterfactualResult:
-       """Counterfactual: "What if user ate X instead of Y?""""
+       """Counterfactual: What if user ate X instead of Y?""""
 
        # Current outcome
        current_outcome = self.predict_health_outcome(current_diet, current_health)

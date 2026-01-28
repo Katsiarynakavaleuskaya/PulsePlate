@@ -198,7 +198,8 @@ def _score(query: str, text: str) -> float:
     # Simple Jaccard on word sets
     q = set(_tokenize(query))
     t = set(_tokenize(text))
-    base = len(q & t) / len(q | t) if union else 0.0
+    union = q | t
+    base = len(q & t) / len(union) if union else 0.0
     if query.lower() in text.lower():
         base += 0.1  # Bonus for exact substring
     return base
@@ -571,7 +572,7 @@ class InsightResponse(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     domain: str = Field(..., pattern="^(bmi|nutrition|meal_planning|sports)$")
 
-def generate_structured_insight(
+async def generate_structured_insight(
     provider: ProviderBase,
     prompt: str,
     response_schema: type[BaseModel]
