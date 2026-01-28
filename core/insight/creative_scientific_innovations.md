@@ -46,7 +46,11 @@
        async def recognize_food(self, image: bytes) -> str:
            """Распознать еду и дать персональный комментарий."""
            # 1. CV recognition (inject cv_module e.g. BayesianFoodVision when available)
-           food = await self.cv_module.recognize(image) if self.cv_module else {"name": "unknown"}
+           if self.cv_module:
+               food = await self.cv_module.recognize(image)
+           else:
+               from types import SimpleNamespace
+               food = SimpleNamespace(name="unknown")
 
            # 2. RAG context (nutrition education)
            context = self.rag.retrieve(f"nutrition facts {food.name}")
@@ -563,6 +567,13 @@
            prompt = f"Generate {num} {cuisine} recipes"
            recipes = await self.llm.generate(prompt)
            return parse_recipes(recipes)
+
+       async def rank_by_preferences(
+           self, recipes: List[Recipe], preferences: Optional[Dict] = None
+       ) -> List[Recipe]:
+           """Rank recipes by user preferences (e.g. LLM-based or score). Placeholder: sort by score."""
+           # TODO: Implement preference-based ranking via LLM when preferences provided
+           return sorted(recipes, key=lambda r: getattr(r, "score", 0.0), reverse=True)
    ```
 
 2. **Create Symbolic Validator:**
@@ -599,7 +610,7 @@
    class NeuralSymbolicMealPlanner:
        """Hybrid planner: neural generation + symbolic validation."""
 
-       def __init__(self):
+       def __init__(self, llm_provider: ProviderBase):
            self.neural = NeuralRecipeGenerator(llm_provider)
            self.symbolic = SymbolicConstraintValidator()
 
@@ -635,12 +646,17 @@
    ```python
    # app/routers/meal_planning.py
    from fastapi import Depends
-   from app.dependencies import rate_limit_llm
+   from app.dependencies import get_llm_provider, rate_limit_llm
 
    @app.post("/api/v1/vip/meal/plan", dependencies=[Depends(rate_limit_llm)])
-   async def plan_meal(cuisine: str, constraints: Set[str], kcal_target: float):
+   async def plan_meal(
+       cuisine: str,
+       constraints: Set[str],
+       kcal_target: float,
+       provider: ProviderBase = Depends(get_llm_provider),
+   ):
        """Plan meal с guaranteed constraints."""
-       planner = NeuralSymbolicMealPlanner()
+       planner = NeuralSymbolicMealPlanner(llm_provider=provider)
        meal = await planner.plan_meal(cuisine, constraints, kcal_target)
        return meal
    ```
@@ -830,7 +846,7 @@
 ## 📊 Сводная таблица путей применения
 
 | Инновация | Этап 1 | Этап 2 | Этап 3 | Общее время | Приоритет |
-|-----------|--------|--------|--------|-------------|-----------|
+| --------- | ------ | ------ | ------ | ----------- | --------- |
 | **FitChef AI Companion** | Базовая интеграция (2 недели) | Multi-Modal (2 недели) | Personalization (2 недели) | 6 недель | P1 |
 | **Pulse Visualization** | Базовая визуализация (2 недели) | Real-Time Pulse (2 недели) | - | 4 недели | P1 |
 | **Cuisine Journey** | Cuisine Database (2 недели) | Achievement System (2 недели) | - | 4 недели | P1 |
