@@ -3,6 +3,8 @@
 **Purpose:** single source of truth for postponed / follow-up work.
 If it is not recorded here — it does not exist.
 
+**Language policy:** Primary language: English. Russian details allowed in linked design/analysis docs for clarity, but backlog entries must include English summary/translation for maintainability and tooling compatibility.
+
 ## Rules (non-negotiable)
 1) Any postponed work MUST be recorded here immediately.
 2) Each item MUST include:
@@ -594,85 +596,47 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (product/feature design first)
   - Priority: P2 (product direction; preferred over ML training platform for current scope)
-  - Reason: Product differentiation via cognitive-behavioral psychology in nutrition: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя.
+  - Reason (EN): Product differentiation via cognitive-behavioral psychology in nutrition: goals, reflection, habits, support for slips/weight gain. Does not require ML training platform; leverages LLM/RAG and existing user data. (RU: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя.)
   - Links:
+    - docs/design/NUTRITION_COACHING_DESIGN.md (component links, implementation approach)
     - core/insight/creative_scientific_innovations.md (FitChef, AI companion)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (insight, RAG)
   - DoD:
-    - Product spec: сценарии коучинга (цели, недельные рефлексии, поведенческие шаги)
-    - Связь с существующими компонентами зафиксирована (см. Vision & links ниже)
-    - Реализация — отдельные PR после стабилизации backend/VIP
+    - Product spec: coaching scenarios (goals, weekly reflections, behavioral steps) — EN: structured scenarios (goal-setting dialogues, weekly reflections, slip analysis)
+    - Component links documented in design doc (see NUTRITION_COACHING_DESIGN.md)
+    - Implementation — separate PRs after backend/VIP stabilization
 
 - [ ] P2 Vision: Future — social network for nutrition/weight/support
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: N/A (отдельный продукт/проект в перспективе)
+  - Target PR: N/A (separate product/project in perspective)
   - Priority: P2 (long-term vision)
-  - Reason: Возможный отдельный продукт: комьюнити вокруг питания, целей по весу, взаимоподдержка. Не входит в текущий scope PulsePlate; рассматривается как перспектива после укрепления коучинга и ядра приложения.
+  - Reason (EN): Possible separate product: community around nutrition, weight goals, mutual support. Not in current PulsePlate scope; considered as prospect after strengthening coaching and core app. (RU: Возможный отдельный продукт: комьюнити вокруг питания, целей по весу, взаимоподдержка. Не входит в текущий scope PulsePlate; рассматривается как перспектива после укрепления коучинга и ядра приложения.)
   - Links:
-    - BACKLOG_LEDGER (Nutrition coaching — естественный предшественник)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (Future social network — links section)
+    - BACKLOG_LEDGER (Nutrition coaching — natural predecessor)
   - DoD:
-    - Решение «делать / не делать» и границы продукта (отдельное приложение vs раздел в PulsePlate) — после запуска коучинга
+    - Decision "do / don't do" and product boundaries (separate app vs section in PulsePlate) — after coaching launch
 
 - [ ] P2 Vision: Restaurant/chef integration (partners accept menus from our products, cook for users)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (отдельный блок продукта; после стабилизации VIP/export)
+  - Target PR: TBD (separate product block; after VIP/export stabilization)
   - Priority: P2 (long-term product direction)
-  - Reason: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе (см. Vision & links: Restaurant/chef).
+  - Reason (EN): Restaurants and individual chefs accept menus from our products (weekly plan, recipes, constraints) and cook food for users. Separate block from coaching and social network; requires clear "menu → partner" contract and technical prerequisites in program (see RESTAURANT_INTEGRATION_SPEC.md). (RU: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе.)
   - Links:
-    - BACKLOG_LEDGER (Vision & links to components — Restaurant/chef)
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md (technical prerequisites, contract schema, implementation plan)
     - app/routers/plan_export.py, vip.py (weekly plan, recipes, export)
     - core/dietary_constraints.py, core/targets.py
+  - Prerequisites:
+    - ✅ VIP weekly plan stable (`vip.py`, `premium_week.py`)
+    - ✅ Export infrastructure exists (`plan_export.py`, `shoplist_export.py`)
+    - ✅ Dietary constraints module stable (`core/dietary_constraints.py`)
+    - ⏳ Backend/VIP stabilization complete (P0)
   - DoD:
-    - Product spec: сценарий «пользователь отправляет меню ресторану/повару» (что видит партнёр, как подтверждает)
-    - Технические предпосылки в программе зафиксированы (формат экспорта, консенс, контракт)
-    - Реализация — отдельные PR (export format, partner API или signed link, опционально каталог партнёров)
+    - Product spec: scenario "user sends menu to restaurant/chef" (what partner sees, how confirms) — EN: documented user flow and partner UX
+    - Technical prerequisites documented in design spec (export format, consent, contract schema)
+    - Implementation — separate PRs (export format, partner API or signed link, optionally partner directory)
 
 ---
 
-## Vision & links to components (Nutrition coaching, future social, restaurant/chef)
-
-**Назначение:** пути взаимосвязи и реализации коучинга питания, соцсети и интеграции с ресторанами/поварами — с существующими компонентами проекта.
-
-### Nutrition coaching — связи с компонентами
-
-| Компонент | Связь с коучингом | Вариант реализации |
-| --------- | ----------------- | ------------------- |
-| **VIP / insight** (`/api/v1/insight`, `app/routers`, legacy_app) | Текущий insight — разовый ответ LLM. Коучинг = структурированные сценарии (диалог по целям, рефлексия недели, разбор срыва). | Новый слой: «coaching flows» поверх того же `get_llm_provider` + RAG; отдельные эндпоинты или режимы (например `/api/v1/vip/insight/coach/reflection`). |
-| **Bayes adherence** (`core/bayes/adherence_model.py`, `bayes_adherence` router) | Уже есть модель соблюдения (meal_logged, slip), риск срыва. КПТ-коучинг может использовать эти данные для рефлексии и формулирования шагов. | Чтение adherence state через существующий API; в промптах коучинга — «на этой неделе было N срывов, риск X»; не менять core, только потреблять. |
-| **FitChef / AI companion** (core/insight/creative_scientific_innovations.md) | FitChef как «дружелюбный эксперт» — естественный голос для коучинга (поддержка, без осуждения, образовательные подсказки). | Расширить persona и сценарии в FitChef: не только nutrition facts, но и цели, рефлексия, поведенческие советы. |
-| **RAG** (`core/rag/simple_rag.py`) | RAG даёт образовательный контекст. Для КПТ полезно добавить контент по когнитивным искажениям, привычкам, целям SMART. | Отдельный индекс/документы под coaching (или теги в существующем RAG); те же вызовы `retrieve()` в промптах коучинга. |
-| **Меню, цели, таргеты** (VIP menu, `core/targets.py`, nutrition targets) | Цели по калориям/макро уже есть. Коучинг привязывает поведенческие шаги к этим целям (например «на этой неделе фокус — завтраки»). | Чтение целей пользователя через существующие API; в сценариях коучинга — ссылка на цель и предложение маленьких шагов. |
-| **Цифровая платформа (DigitalOcean)** | Инференс LLM (Ollama или облачный провайдер) уже планируется на DO. Коучинг — ещё один потребитель того же LLM/RAG; отдельная платформа для обучения моделей не нужна. | Без изменений инфраструктуры; rate limiting и лимиты для insight/coaching — общие (P0). |
-
-### Future social network — связи (перспектива)
-
-- **Общая база пользователей и целей:** если соцсеть — отдельное приложение, возможна общая идентификация (OAuth/аккаунт) и экспорт целей/достижений из PulsePlate в «профиль в комьюнити».
-- **Контент и модерация:** образовательный контент и правила (в т.ч. из RAG и коучинга) могут быть переиспользованы для гайдов комьюнити.
-- **Не в текущем scope:** реализация соцсети (лента, подписки, чаты) не затрагивает текущие компоненты PulsePlate; фиксируется как долгосрочная возможность после коучинга.
-
-### Restaurant/chef integration — отдельный блок, что должно быть в программе
-
-**Идея:** Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Это отдельный продуктовый блок (не коучинг, не соцсеть); технически опирается на экспорт плана и контракт с партнёром.
-
-**Что технически должно быть в нашей программе:**
-
-| Требование | Назначение | Что уже есть / что добавить |
-| ---------- | ---------- | --------------------------- |
-| **Структурированный экспорт меню** | Машиночитаемый «пакет меню» для партнёра: дни, приёмы пищи, блюда, порции, ограничения. | Есть: VIP weekly plan (`vip.py`, `premium_week.py`), рецепты (`recipes`, `recipe_synth`), экспорт PDF/другое (`plan_export.py`, `shoplist_export.py`). Добавить: **формат «меню для партнёра»** (JSON/PDF): неделя по дням, список блюд, ингредиенты, порции, теги диет/аллергенов. |
-| **Диетические ограничения и аллергены** | Партнёр должен видеть: VEG/KETO/GF, без орехов, без глютена и т.д. | Есть: `core/dietary_constraints.py` (DIET_FLAGS), ограничения в меню/рецептах. Добавить: **единый экспорт ограничений и аллергенов** в контракте меню (поля в схеме экспорта для партнёра). |
-| **Консенс и шаринг** | Пользователь явно «отправляет меню ресторану X» или «генерирует ссылку для повара». | Нет. Добавить: **механизм шаринга** — либо подписанная ссылка с истечением (signed URL, как в export/sign), либо **Partner API** (партнёр по ключу запрашивает план пользователя по consent token). Плюс аудит: кто, когда, кому отдал план. |
-| **Контракт-схема для партнёра** | Документированный формат: что получает ресторан/повар (поля, примеры). | Нет. Добавить: **схема «Menu for partner»** (OpenAPI/JSON Schema): даты, приёмы пищи, название блюда, рецепт/ингредиенты, порции, dietary_tags, allergens, опционально калории/макросы. Стабильный контракт — основа интеграции. |
-| **Идентификация партнёра (опционально)** | Каталог ресторанов/поваров, выбор «отправить меню в ресторан X». | Нет. Долгосрочно: **справочник партнёров** (название, кухня, зона доставки, API или приём ссылок). Не блокер для первого сценария «ссылка на меню». |
-| **Заказ/оплата/доставка** | Если нужен полный цикл «заказал в приложении — привезли». | Вне текущего scope. Это уже партнёрский продукт (агрегатор/маркетплейс). Наша программа даёт только **меню и контракт**; заказ и fulfillment — на стороне партнёра или отдельного сервиса. |
-
-**Минимальный первый шаг в программе:**
-1) Формат экспорта «меню для партнёра» (JSON + опционально PDF) на базе существующего weekly plan + recipes + dietary_constraints.
-2) Механизм шаринга: подписанная ссылка с expiry (переиспользовать идею из export/sign) или отдельный endpoint «generate partner link» с consent.
-3) Документированная схема контракта (что в JSON, какие поля обязательны) для ресторанов/поваров.
-
-**Не в текущем scope:** приём заказов, оплата, доставка, каталог партнёров с бронированием — фиксируется как возможное развитие после появления формата и шаринга.
-
----
-
-**Last updated:** 2026-01-28 (Vision: nutrition coaching, future social, restaurant/chef integration, technical prerequisites)
+**Last updated:** 2026-01-28 (CodeRabbit: move vision details to design docs, add English summaries, language policy)
 **Maintainer:** @katsiaryna_kavaleuskaya
