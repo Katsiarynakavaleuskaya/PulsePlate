@@ -2,103 +2,73 @@
 Test coverage for specific missing lines in app.py to improve coverage to 97%.
 """
 
+import importlib
 import os
+import sys
+import types
 from unittest.mock import patch
 
 import pytest
+
+# Canonical imports for BMI helpers (replacing legacy app.* functions)
+from core.bmi.risk import _waist_thresholds, get_waist_risk_note
+from tests._helpers.bmi_flags import _normalize_flags_for_tests
 
 
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
 
-    def test_slowapi_import_error(self):
+    def test_slowapi_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test slowapi import error handling."""
-        # Temporarily remove slowapi from sys.modules to simulate import error
-        import sys
+        import legacy_app
 
-        original_slowapi = sys.modules.get("slowapi")
-        try:
-            if "slowapi" in sys.modules:
-                del sys.modules["slowapi"]
-
-            # Reload app module to trigger import error handling
-            import importlib
-
-            import app
-
-            importlib.reload(app)
-        finally:
-            # Restore original slowapi if it existed
-            if original_slowapi is not None:
-                sys.modules["slowapi"] = original_slowapi
-            elif "slowapi" in sys.modules:
-                del sys.modules["slowapi"]
+        # Force deterministic ImportError even if slowapi is installed.
+        # "None in sys.modules" halts import with ModuleNotFoundError (ImportError subclass).
+        monkeypatch.setitem(sys.modules, "slowapi", None)
+        importlib.reload(legacy_app)
 
         # The test passes if no exception is raised during reload
+        # Limiter should be None when slowapi import fails
+        assert legacy_app.Limiter is None
 
-    def test_vip_module_import_error(self):
+    def test_vip_module_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP module import error handling."""
-        # Temporarily remove app.routers.vip from sys.modules
-        import sys
+        import app
 
-        original_vip = sys.modules.get("app.routers.vip")
-        try:
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
+        # Force deterministic ImportError even if VIP module is installed.
+        # "None in sys.modules" halts import with ModuleNotFoundError (ImportError subclass).
+        monkeypatch.setitem(sys.modules, "app.routers.vip_registration", None)
+        if "app.routers.vip" in sys.modules:
+            monkeypatch.delitem(sys.modules, "app.routers.vip", raising=False)
 
-            # Mock the import to raise ImportError
-            with patch("importlib.import_module", side_effect=ImportError("VIP module not found")):
-                # Reload app module to trigger import error handling
-                import importlib
+        importlib.reload(app)
 
-                import app
-
-                importlib.reload(app)
-        finally:
-            # Restore original vip module if it existed
-            if original_vip is not None:
-                sys.modules["app.routers.vip"] = original_vip
-            elif "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
-    def test_bodyfat_import_error(self):
+    def test_bodyfat_import_error(self) -> None:
         """Test bodyfat import error handling."""
         # Mock the import to raise ImportError
         with patch("importlib.import_module", side_effect=ImportError("Bodyfat module not found")):
             # Reload app module to trigger import error handling
-            import importlib
-
             import app
 
             importlib.reload(app)
 
-    def test_env_loading_logic(self):
+    def test_env_loading_logic(self) -> None:
         """Test environment loading logic."""
+        import app
+
         # Test with sanitized environment
         with patch.dict(os.environ, {"PATH": "test"}, clear=True):
-            import importlib
-
-            import app
-
             importlib.reload(app)
 
         # Test with local environment
         with patch.dict(os.environ, {"APP_ENV": "local"}):
-            import importlib
-
-            import app
-
             importlib.reload(app)
 
         # Test with pytest environment
         with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "test"}):
-            import importlib
-
-            import app
-
             importlib.reload(app)
 
-    def test_legacy_category_label_edge_cases(self):
+    def test_legacy_category_label_edge_cases(self) -> None:
         """Test edge cases for legacy_category_label function."""
         from app import legacy_category_label
 
@@ -112,45 +82,45 @@ class TestAppSpecificMissingLines:
         result = legacy_category_label("Normal weight", "en")
         assert result == "Healthy weight"  # Expected mapping
 
-    def test_normalize_flags_edge_cases(self):
+    def test_normalize_flags_edge_cases(self) -> None:
         """Test edge cases for normalize_flags function."""
-        from app import normalize_flags
-
         # Test with various gender values
-        result = normalize_flags("unknown", "no", "no")
+        result = _normalize_flags_for_tests("unknown", "no", "no")
         assert isinstance(result, dict)
 
         # Test with boolean values for pregnant/athlete
-        result = normalize_flags("male", True, True)
+        result = _normalize_flags_for_tests("male", True, True)
         assert result["is_pregnant"] is False  # Male can't be pregnant
         assert result["is_athlete"] is True
 
-        result = normalize_flags("female", True, False)
+        result = _normalize_flags_for_tests("female", True, False)
         assert result["is_pregnant"] is True
         assert result["is_athlete"] is False
 
-    def test_waist_risk_edge_cases(self):
+    def test_waist_risk_edge_cases(self) -> None:
         """Test edge cases for waist_risk function."""
-        from app import waist_risk
-
         # Test with None waist
-        result = waist_risk(None, True, "en")
+        result = get_waist_risk_note(waist_cm=None, gender="male", lang="en")
         assert result == ""
 
+        # Get canonical thresholds (no hardcoded values)
+        male_warn, male_high = _waist_thresholds("male")
+        female_warn, female_high = _waist_thresholds("female")
+
         # Test with exact threshold values
-        result = waist_risk(94.0, True, "en")  # Male warning threshold
+        result = get_waist_risk_note(waist_cm=male_warn, gender="male", lang="en")
         assert isinstance(result, str)
 
-        result = waist_risk(102.0, True, "en")  # Male high threshold
+        result = get_waist_risk_note(waist_cm=male_high, gender="male", lang="en")
         assert isinstance(result, str)
 
-        result = waist_risk(80.0, False, "en")  # Female warning threshold
+        result = get_waist_risk_note(waist_cm=female_warn, gender="female", lang="en")
         assert isinstance(result, str)
 
-        result = waist_risk(88.0, False, "en")  # Female high threshold
+        result = get_waist_risk_note(waist_cm=female_high, gender="female", lang="en")
         assert isinstance(result, str)
 
-    def test_bmi_request_validation_edge_cases(self):
+    def test_bmi_request_validation_edge_cases(self) -> None:
         """Test edge cases for BMIRequest validation."""
         from app import BMIRequest
 
@@ -176,7 +146,7 @@ class TestAppSpecificMissingLines:
         assert req.height_m == 2.5
         assert req.age == 120
 
-    def test_bmi_request_v1_validation_edge_cases(self):
+    def test_bmi_request_v1_validation_edge_cases(self) -> None:
         """Test edge cases for BMIRequestV1 validation."""
         from app import BMIRequestV1
 

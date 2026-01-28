@@ -935,6 +935,7 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 **Hard rules:**
 
 - ❌ **Never use `git push --force` or `git push --force-with-lease`** on any branch (including PR branches). Force push is forbidden in this repository.
+- ❌ **Never push directly to `main`** — always use feature branches and PRs.
 - ❌ **Never merge no-op PRs** (branches identical to main after conflict resolution). Close as duplicate instead.
 - ❌ Never rewrite branch history (no rebase of published branches).
 - ❌ Never use `git pull` (without rebase) unless you explicitly want a merge-commit (usually not)
@@ -942,6 +943,17 @@ If the repo becomes multi-maintainer again, revisit this policy in a dedicated P
 - ✅ **Update PRs by adding new commits only.** If you need to undo something, use `git revert`.
 - ✅ **History cleanup happens only at merge time via GitHub "Squash and merge"**, not by rewriting branch history.
 - ✅ If CI is red → PR does not exist. Any work except fixing CI is forbidden.
+
+**Incident response (if force-push to main occurred):**
+
+If a force-push to `main` happened (even for recovery purposes):
+
+1. **Document immediately:** Create incident note in `docs/incidents/INCIDENT_YYYY-MM-DD_FORCE_PUSH_MAIN.md`
+2. **Verify recovery:** Confirm `main` is restored to correct state (`git log origin/main`)
+3. **Move changes:** Transfer any work to proper feature branch and open PR
+4. **Prevention:** Review process gaps (pre-push hooks, branch checks)
+
+See: `docs/incidents/INCIDENT_2026-01-28_FORCE_PUSH_MAIN.md` for example.
 
 **Required steps (in order):**
 

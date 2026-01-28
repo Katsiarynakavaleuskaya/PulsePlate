@@ -11,70 +11,27 @@ import pytest
 class TestAppRemainingCoverage:
     """Tests for remaining missing lines in app.py."""
 
-    def test_calc_bmi_function(self):
-        """Test the calc_bmi function."""
-        from app import calc_bmi
+    def test_short_git_sha_function(self) -> None:
+        """Test the _short_git_sha function from app.utils.helpers."""
+        from app.utils.helpers import _short_git_sha
 
-        # Test normal calculation
-        result = calc_bmi(70.0, 1.75)
-        assert result == 22.9
+        assert _short_git_sha(None) == "unknown"
+        assert _short_git_sha("") == "unknown"
+        assert _short_git_sha("not-a-sha") == "unknown"
+        assert _short_git_sha("a" * 40) == "a" * 12
 
-        # Test with different values
-        result = calc_bmi(80.0, 1.80)
-        assert result == 24.7
+    def test_is_truthy_function(self) -> None:
+        """Test the _is_truthy function from app.utils.feature_flags."""
+        from app.utils.feature_flags import _is_truthy
 
-    def test_normalize_flags_function(self):
-        """Test the normalize_flags function."""
-        from app import normalize_flags
+        assert _is_truthy("true") is True
+        assert _is_truthy("  YES ") is True
+        assert _is_truthy("1") is True
+        assert _is_truthy("on") is True
 
-        # Test male gender normalization
-        result = normalize_flags("male", "no", "no")
-        assert result["gender_male"] is True
-        assert result["is_pregnant"] is False
-        assert result["is_athlete"] is False
-
-        # Test female gender normalization
-        result = normalize_flags("female", "yes", "yes")
-        assert result["gender_male"] is False
-        assert result["is_pregnant"] is True
-        assert result["is_athlete"] is True
-
-        # Test various string synonyms
-        result = normalize_flags("муж", "нет", "нет")
-        assert result["gender_male"] is True
-
-        result = normalize_flags("жен", "да", "да")
-        assert result["gender_male"] is False
-        assert result["is_pregnant"] is True
-        assert result["is_athlete"] is True
-
-    def test_waist_risk_function(self):
-        """Test the waist_risk function."""
-        from app import waist_risk
-
-        # Test male waist risk levels
-        result = waist_risk(90.0, True, "en")
-        assert result == ""
-
-        result = waist_risk(95.0, True, "en")
-        assert "Increased" in result
-
-        result = waist_risk(105.0, True, "en")
-        assert "High" in result
-
-        # Test female waist risk levels
-        result = waist_risk(75.0, False, "en")
-        assert result == ""
-
-        result = waist_risk(85.0, False, "en")
-        assert "Increased" in result
-
-        result = waist_risk(95.0, False, "en")
-        assert "High" in result
-
-        # Test Russian language
-        result = waist_risk(95.0, True, "ru")
-        assert "Повышенный" in result or "Высокий" in result
+        assert _is_truthy("false") is False
+        assert _is_truthy("0") is False
+        assert _is_truthy(None) is False
 
     def test_add_visualization_if_requested_function(self, test_client):
         """Test the add_visualization_if_requested function."""

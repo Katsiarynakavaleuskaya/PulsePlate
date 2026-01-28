@@ -96,6 +96,44 @@ If it is not recorded here — it does not exist.
     - ✅ CI green (all checks pass)
     - ✅ Post-merge verification passed (13 tests, OpenAPI sync)
 
+- [x] PR-616 Thin-proxy cleanup (helpers-1) — merged
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-616
+  - Status: ✅ Merged
+  - Priority: P0
+  - Branch: `chore/p1-thin-proxy-cleanup-helpers-1-new`
+  - Reason: Architectural cleanup — move helpers out of `legacy_app.py` to restore "thin proxy only" invariant. Steps 1/2/3/4/6/7 complete (scheduler wrappers, utility helpers, feature flags, nutrition wrappers, fingerprint, dead BMI helpers). Step 5 (DB fallback) deferred to TP2.
+  - Links:
+    - docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md
+    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+  - DoD:
+    - ✅ Steps 1/2/3/4/6/7 complete (helpers moved to canonical modules)
+    - ✅ Step 5 explicitly deferred to TP2 (DB fallback helpers remain in `legacy_app.py`)
+    - ✅ `pytest -q` green (0 FAILED/ERROR)
+    - ✅ Guard tests pass (`test_repo_policy_guards.py`, `test_no_legacy_bmi_helpers_request_path.py`)
+    - ✅ No "tail" imports (`from app import normalize_flags|waist_risk` removed from tests)
+    - ✅ Tests updated to use canonical functions (`core.bmi.engine`, `core.bmi.risk`)
+    - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
+    - ✅ PR merged
+
+- [ ] PR-TP2 Thin-proxy cleanup (DB fallback) — next
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TP2 (branch: TBD)
+  - Status: 📋 Ready to start (TP1 merged)
+  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Requires careful testing of DB connection fallback logic. Deferred from TP1 to keep scope manageable.
+  - Links:
+    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md (Step 5)
+    - docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md
+  - Preconditions:
+    - ✅ TP1 merged (helpers-1 cleanup complete)
+  - DoD:
+    - DB fallback helpers moved to canonical module (TBD: `core/db/fallback.py` or `app/utils/db_fallback.py`)
+    - `legacy_app.py` contains only thin proxies (no DB fallback logic)
+    - Tests pass (DB fallback behavior preserved)
+    - OpenAPI unchanged
+    - Guard tests pass
+
 ---
 
 ## P1 — Improvements (Optional / polish)
@@ -554,5 +592,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-28 (PR-612: Mark PR-611 merged, add P1 thin-proxy follow-up)
+**Last updated:** 2026-01-28 (PR-TP1: Add thin-proxy cleanup TP1/TP2 ledger entries)
 **Maintainer:** @katsiaryna_kavaleuskaya
