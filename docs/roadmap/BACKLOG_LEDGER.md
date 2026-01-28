@@ -708,8 +708,9 @@ If it is not recorded here — it does not exist.
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (product/feature design first)
   - Priority: P2 (product direction; preferred over ML training platform for current scope)
-  - Reason (EN): Product differentiation via cognitive-behavioral psychology in nutrition: goals, reflection, habits, support for slips/weight gain. Does not require ML training platform; leverages LLM/RAG and existing user data. (RU: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя.)
+  - Reason (EN): Product differentiation via cognitive-behavioral psychology in nutrition: goals, reflection, habits, support for slips/weight gain. Does not require ML training platform; leverages LLM/RAG and existing user data. **Integration with philosophy and math:** CBT coaching flows can be validated through philosophical principles (syllogisms, verification) and enhanced with Bayesian predictions for proactive intervention. (RU: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя. **Интеграция с философией и математикой:** CBT coaching flows могут быть валидированы через философские принципы (силлогизмы, верификация) и улучшены байесовскими предсказаниями для проактивного вмешательства.)
   - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: CBT + philosophy + Bayesian integration, structured coaching flows)
     - docs/design/NUTRITION_COACHING_DESIGN.md (component links, implementation approach)
     - core/insight/creative_scientific_innovations.md (FitChef, AI companion)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (insight, RAG)
@@ -780,6 +781,7 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Design Complete
   - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Expected impact: reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Ожидаемый эффект: снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
   - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
     - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
     - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (speed optimization using philosophical principles: speech acts, language games, early stopping, adaptive depth)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current LLM/RAG implementation)
@@ -806,6 +808,7 @@ If it is not recorded here — it does not exist.
   - Status: 📋 Design Complete
   - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Expected overall impact: retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
   - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration, recursive methods with philosophical validation)
     - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
     - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies: parallelization, caching, batching, open-source libraries)
     - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current RAG implementation: `core/rag/simple_rag.py`)
@@ -831,5 +834,5 @@ If it is not recorded here — it does not exist.
 
 ---
 
-**Last updated:** 2026-01-28 (Add philosophical logic principles and recursive methods backlog items, links to PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md and RECURSIVE_METHODS_LLM_RAG.md)
+**Last updated:** 2026-01-28 (Add comprehensive philosophy + logic + math + CBT analysis document, update backlog items with unified analysis links)
 **Maintainer:** @katsiaryna_kavaleuskaya
