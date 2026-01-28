@@ -536,6 +536,10 @@
 
 ---
 
+**Примечание по roadmap (AGENTS.md):** Фронтенд-аудит и масштабные фронтенд/iOS работы планируются **после стабилизации бэкенда**. Roadmap: PR-A (post-remediation cleanup), PR-B (product contract / soft paywall — docs only), PR-C (legal/compliance), PR-D (frontend audit — only after backend stable). Рекомендации ниже задают направление; приоритизация должна согласовываться с этим порядком.
+
+---
+
 ## 🎯 Критические рекомендации
 
 ### P0 — Critical (Blocking Launch)

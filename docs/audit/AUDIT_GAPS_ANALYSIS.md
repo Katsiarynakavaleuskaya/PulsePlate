@@ -414,6 +414,12 @@
 - [ ] Auto-start for background services (scheduler)
 - [ ] Disk space checks before updates
 - [ ] Graceful shutdown handling
+
+### Dependency Security
+- [ ] All dependencies up to date (or explicitly pinned with justification)
+- [ ] No known CVEs in dependencies
+- [ ] License compliance verified (no unexpected copyleft)
+- [ ] Supply chain security (checksums, verified sources)
 ```
 
 ### 2. Добавить проверку реального использования

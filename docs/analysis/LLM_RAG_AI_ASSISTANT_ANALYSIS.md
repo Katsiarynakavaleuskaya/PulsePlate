@@ -64,7 +64,7 @@ class ProviderBase(Protocol):
 - ✅ Fallback: `GrokLiteProvider` (если API key отсутствует)
 
 **Проблемы:**
-- ❌ Нет rate limiting (может привести к $72k/month abuse)
+- ❌ Нет rate limiting (риск abuse; грубая оценка: ~1M req/month × ~2k tokens × $0.03/1k ≈ $60k–72k/month при облачном провайдере; см. цену за 1k tokens у xAI/Grok)
 - ❌ Нет cost tracking (невозможно отследить расходы)
 - ❌ Нет токен-лимитов (может превысить budget)
 

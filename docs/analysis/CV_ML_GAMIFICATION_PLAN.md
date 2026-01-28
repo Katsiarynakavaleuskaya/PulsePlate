@@ -45,16 +45,14 @@
 
 ### Open-Source проекты для интеграции
 
-#### 1. **Food-Vision-AI** (Рекомендуется)
+#### 1. **Food-Vision-101** (проверенная модель)
 
-**GitHub:** `Asnanp/Food-Vision-AI`
-**Лицензия:** MIT
+**Hugging Face:** `mhamza-007/Food-Vision-101` (EfficientNetB4 на Food-101)
+**Лицензия:** проверьте карточку модели
 **Особенности:**
-- ✅ 101 категория продуктов
-- ✅ 81.10% accuracy
-- ✅ Nutrition information
-- ✅ Health ratings
-- ✅ Explainable AI visualizations
+- ✅ 101 категория (Food-101 dataset)
+- ✅ ~79% test accuracy (документировано на HF)
+- ✅ Готовый AutoImageProcessor + AutoModelForImageClassification
 
 **Интеграция:**
 ```python
@@ -62,39 +60,33 @@
 from transformers import AutoImageProcessor, AutoModelForImageClassification
 import torch
 
+MODEL_ID = "mhamza-007/Food-Vision-101"  # Verified public model
+
 class FoodVisionAI:
-    """Food recognition using Food-Vision-AI model."""
+    """Food recognition using Food-Vision-101 (EfficientNetB4 on Food-101)."""
 
     def __init__(self):
-        self.processor = AutoImageProcessor.from_pretrained("food-vision-ai/model")
-        self.model = AutoModelForImageClassification.from_pretrained("food-vision-ai/model")
+        self.processor = AutoImageProcessor.from_pretrained(MODEL_ID)
+        self.model = AutoModelForImageClassification.from_pretrained(MODEL_ID)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
 
     def recognize(self, image: bytes) -> FoodRecognitionResult:
         """Recognize food from image."""
-        # Preprocess image
         inputs = self.processor(image, return_tensors="pt").to(self.device)
-
-        # Predict
         with torch.no_grad():
             outputs = self.model(**inputs)
             probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
             top_probs, top_indices = torch.topk(probs, k=5)
-
-        # Map to food database
         foods = []
+        id2label = self.model.config.id2label
         for idx, prob in zip(top_indices[0], top_probs[0]):
-            food_name = self.model.config.id2label[idx.item()]
-            foods.append({
-                "name": food_name,
-                "confidence": prob.item(),
-            })
-
+            food_name = id2label.get(str(idx.item()), "unknown")
+            foods.append({"name": food_name, "confidence": prob.item()})
         return FoodRecognitionResult(foods=foods)
 ```
 
-**Оценка:** ⭐⭐⭐⭐⭐ (5/5) — лучший вариант для начала
+**Оценка:** проверенная публичная модель; точность и лицензия — см. карточку на Hugging Face.
 
 ---
 
@@ -187,16 +179,30 @@ class FoodVision:
    - Создать wrapper (`FoodVisionAI`)
    - Добавить mapping к food database
 
-3. **Создать API endpoint**
+3. **Создать API endpoint (с проверками безопасности и rate limiting)**
    ```python
    # app/routers/cv.py
-   @router.post("/api/v1/pro/cv/food-recognition", dependencies=[Depends(require_pro_tier)])
+   from fastapi import HTTPException
+   from PIL import Image
+   import io
+
+   MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+   ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
+   @router.post("/api/v1/pro/cv/food-recognition", dependencies=[Depends(require_pro_tier), Depends(rate_limit_llm)])
    async def recognize_food(image: UploadFile) -> FoodRecognitionResponse:
-       """Recognize food from image."""
-       # 1. Validate image (size, format)
-       # 2. Call FoodVisionAI
-       # 3. Map to food database
-       # 4. Return nutrition info
+       """Recognize food from image. Validates type, size, integrity."""
+       if image.content_type not in ALLOWED_TYPES:
+           raise HTTPException(400, f"Invalid content type: {image.content_type}")
+       contents = await image.read()
+       if len(contents) > MAX_IMAGE_SIZE:
+           raise HTTPException(413, "Image too large")
+       try:
+           img = Image.open(io.BytesIO(contents))
+           img.verify()
+       except Exception as e:
+           raise HTTPException(400, f"Invalid image: {e}")
+       # Call FoodVisionAI, map to food database, return nutrition info
    ```
 
 4. **Добавить calorie estimation**

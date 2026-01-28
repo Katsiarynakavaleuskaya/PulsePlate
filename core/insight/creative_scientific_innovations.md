@@ -37,15 +37,16 @@
    class FitChefCompanion:
        """FitChef AI Companion для персональной помощи."""
 
-       def __init__(self, llm_provider: ProviderBase, rag_system: RAGSystem):
+       def __init__(self, llm_provider: ProviderBase, rag_system: RAGSystem, cv_module=None):
            self.llm = llm_provider
            self.rag = rag_system
+           self.cv_module = cv_module  # Optional: inject BayesianFoodVision when available
            self.personality = "friendly, encouraging, educational"
 
        async def recognize_food(self, image: bytes) -> str:
            """Распознать еду и дать персональный комментарий."""
-           # 1. CV recognition (future: Bayesian Neural Network)
-           food = await self.cv_recognize(image)
+           # 1. CV recognition (inject cv_module e.g. BayesianFoodVision when available)
+           food = await self.cv_module.recognize(image) if self.cv_module else {"name": "unknown"}
 
            # 2. RAG context (nutrition education)
            context = self.rag.retrieve(f"nutrition facts {food.name}")
@@ -57,10 +58,17 @@
            return comment
    ```
 
-2. Интегрировать в `/api/v1/vip/insight`:
+2. Интегрировать в `/api/v1/vip/insight` (with Depends and rate limiting per P0):
    ```python
-   @app.post("/api/v1/vip/insight/fitchef")
-   async def fitchef_insight(image: UploadFile):
+   from fastapi import Depends
+   from app.dependencies import get_llm_provider, get_rag_system, rate_limit_llm
+
+   @app.post("/api/v1/vip/insight/fitchef", dependencies=[Depends(rate_limit_llm)])
+   async def fitchef_insight(
+       image: UploadFile,
+       provider: ProviderBase = Depends(get_llm_provider),
+       rag: RAGSystem = Depends(get_rag_system),
+   ):
        companion = FitChefCompanion(provider, rag)
        comment = await companion.recognize_food(await image.read())
        return {"fitchef_comment": comment}
@@ -364,6 +372,17 @@
            self.conv2 = BayesianConv2d(64, 128, 3)
            self.fc = BayesianLinear(128, num_classes)
 
+       def _forward_sample(self, x):
+           """Single forward pass through Bayesian layers."""
+           x = torch.relu(self.conv1(x))
+           x = torch.relu(self.conv2(x))
+           x = x.view(x.size(0), -1)
+           return self.fc(x)
+
+       def _estimate_aleatoric(self, x):
+           """Estimate aleatoric (data) uncertainty. TODO: heteroscedastic (Kendall & Gal 2017)."""
+           return torch.zeros(x.size(0), device=x.device)
+
        def forward(self, x, num_samples=10):
            """Forward pass с Monte Carlo sampling."""
            predictions = []
@@ -382,17 +401,20 @@
            }
    ```
 
-3. **Implement BALI training:**
+3. **Implement BALI training (conceptual pseudocode only):**
    ```python
    # core/cv/bayesian_food_vision/training.py
+   # CONCEPTUAL PSEUDOCODE — full implementation requires BALI paper and reference code.
+   # See: "BALI: Learning Neural Networks via Bayesian Layerwise Inference" (Khan et al., 2024)
+   # Reference implementations: search for "BALI BNN" or "Bayesian Layerwise Inference" on GitHub.
    def train_bali(model, dataloader, epochs=10):
-       """Train BNN using BALI (Bayesian Layerwise Inference)."""
+       """Conceptual only: train BNN using BALI. Implement infer_layer_posterior and
+       update_layer_parameters per BALI paper; include forward pass, loss, optimizer."""
        for epoch in range(epochs):
            for layer in model.layers:
-               # Layerwise posterior inference
-               layer_posterior = infer_layer_posterior(layer, dataloader)
-               # Update layer parameters
-               update_layer_parameters(layer, layer_posterior)
+               # TODO: infer_layer_posterior(layer, dataloader) — layerwise posterior
+               # TODO: update_layer_parameters(layer, posterior) — Kronecker-factorized update
+               pass
    ```
 
 **Доказательная аргументация:**
@@ -410,31 +432,31 @@
 **Цель:** Интегрировать BNN в production endpoints
 
 **Шаги:**
-1. **Create API endpoint:**
+1. **Create API endpoint (aligned with BayesianFoodVision.forward() return dict):**
    ```python
    # app/routers/food_vision.py
+   # BNN returns dict: mean, epistemic_uncertainty, aleatoric_uncertainty, total_uncertainty
    @app.post("/api/v1/vip/food/recognize")
    async def recognize_food(image: UploadFile):
        """Recognize food с uncertainty quantification."""
-       bnn = load_bayesian_food_vision_model()
-       result = bnn.predict_with_confidence(await image.read())
+       bnn = get_bayesian_food_vision_model()  # Cached/singleton
+       image_tensor = preprocess_image(await image.read())
+       result = bnn.forward(image_tensor, num_samples=10)
+
+       probs = torch.softmax(result["mean"], dim=-1)
+       top_prob = probs.max().item()
+       if top_prob < 0.7:
+           return {"error": "Low confidence prediction. Please try another photo."}
 
        return {
-           "foods": result.foods,
-           "confidence": result.overall_confidence,
+           "food": FOOD_CLASSES[probs.argmax().item()],
+           "confidence": top_prob,
            "uncertainty": {
-               "epistemic": result.uncertainty_breakdown["epistemic"],
-               "aleatoric": result.uncertainty_breakdown["aleatoric"],
-               "total": result.uncertainty_breakdown["total"]
-           }
+               "epistemic": result["epistemic_uncertainty"].mean().item(),
+               "aleatoric": result["aleatoric_uncertainty"].mean().item(),
+               "total": result["total_uncertainty"].mean().item(),
+           },
        }
-   ```
-
-2. **Add confidence threshold:**
-   ```python
-   # Reject low-confidence predictions
-   if result.overall_confidence < 0.7:
-       return {"error": "Low confidence prediction. Please try another photo."}
    ```
 
 **Доказательная аргументация:**
@@ -516,18 +538,19 @@
    class SymbolicConstraintValidator:
        """Symbolic logic validator для dietary constraints."""
 
+       VEGETARIAN_CATEGORIES = {"vegetables", "fruits", "grains", "dairy", "legumes"}
+       NON_VEGETARIAN = {"meat", "poultry", "fish", "seafood"}
+
        def satisfies_constraints(self, recipe: Recipe, constraints: Set[str]) -> bool:
            """Validate recipe через first-order logic."""
+           if "VEG" in constraints:
+               for ing in recipe.ingredients:
+                   if getattr(ing, "category", "") in self.NON_VEGETARIAN:
+                       return False
            solver = Solver()
-
-           # Variables
            ingredients = {ing.name: Real(ing.name) for ing in recipe.ingredients}
            total_kcal = Real("total_kcal")
            total_carbs = Real("total_carbs")
-
-           # Constraints
-           if "VEG" in constraints:
-               solver.add(And([is_vegetarian(ing) for ing in ingredients.values()]))
 
            if "KETO" in constraints:
                solver.add(total_carbs / total_kcal < 0.05)
@@ -545,7 +568,7 @@
            self.neural = NeuralRecipeGenerator(llm_provider)
            self.symbolic = SymbolicConstraintValidator()
 
-       async def plan_meal(self, constraints: Set[str], kcal_target: float):
+       async def plan_meal(self, cuisine: str, constraints: Set[str], kcal_target: float):
            # 1. Neural: Generate candidates
            candidates = await self.neural.generate_candidates(cuisine, constraints, num=10)
 
@@ -573,14 +596,17 @@
 **Цель:** Интегрировать в production endpoints
 
 **Шаги:**
-1. **Create API endpoint:**
+1. **Create API endpoint (cuisine + rate limiting per P0):**
    ```python
    # app/routers/meal_planning.py
-   @app.post("/api/v1/vip/meal/plan")
-   async def plan_meal(constraints: Set[str], kcal_target: float):
+   from fastapi import Depends
+   from app.dependencies import rate_limit_llm
+
+   @app.post("/api/v1/vip/meal/plan", dependencies=[Depends(rate_limit_llm)])
+   async def plan_meal(cuisine: str, constraints: Set[str], kcal_target: float):
        """Plan meal с guaranteed constraints."""
        planner = NeuralSymbolicMealPlanner()
-       meal = await planner.plan_meal(constraints, kcal_target)
+       meal = await planner.plan_meal(cuisine, constraints, kcal_target)
        return meal
    ```
 
@@ -650,17 +676,22 @@
                ("metabolism", "health_score"),
            ])
 
-           # CPDs (Conditional Probability Distributions)
-           self._add_cpds()
+           # CPDs: require explicit data source, identification, validation (see below)
+           # Data source: e.g. NHANES, UK Biobank; estimand: diet_component -> health_score
+           # CPD construction: condition on confounders, measurement-error models
+           # Validation: held-out log score/Brier, posterior predictive checks, SBC
+           # Sensitivity: unmeasured confounding, measurement error, multicollinearity
+           self._add_cpds()  # TODO: implement with above; see Hernán et al. 2017
    ```
 
 **Доказательная аргументация:**
-- **Causal Inference:** "Causal Inference in Statistics: A Primer" (Pearl et al., 2016) — canonical source для causal inference
-- **Nutrition Research:** "Causal Inference for Nutrition Research" (Hernán et al., 2017) — causal inference critical для nutrition
+- **Causal Inference:** "Causal Inference in Statistics: A Primer" (Pearl et al., 2016)
+- **Nutrition Research:** "Causal Inference for Nutrition Research" (Hernán et al., 2017)
+- **CPD validation:** Held-out scoring, simulation-based calibration, sensitivity analyses required before causal claims.
 
 **Метрики успеха:**
 - ✅ Causal graph complete: All relationships defined
-- ✅ CPDs calibrated: Based on nutrition research data
+- ✅ CPDs calibrated and validated per dataset (NHANES/UK Biobank etc.)
 
 ---
 
@@ -675,15 +706,11 @@
                                current_diet: Dict[str, float],
                                alternative_diet: Dict[str, float],
                                current_health: Dict[str, float]) -> CounterfactualResult:
-       """Counterfactual: What if user ate X instead of Y?""""
+       """Counterfactual: What if user ate X instead of Y?"""
 
-       # Current outcome
+       # Current outcome (requires predict_health_outcome stub with expected_health_score)
        current_outcome = self.predict_health_outcome(current_diet, current_health)
-
-       # Alternative outcome (intervention)
        alternative_outcome = self.predict_health_outcome(alternative_diet, current_health)
-
-       # Causal effect
        causal_effect = alternative_outcome.expected_health_score - current_outcome.expected_health_score
 
        return CounterfactualResult(
@@ -692,6 +719,17 @@
            causal_effect=causal_effect,
            recommendation=self._generate_recommendation(causal_effect)
        )
+
+   def predict_health_outcome(self, diet: Dict, health: Dict):
+       """TODO: pgmpy inference; return object with .expected_health_score."""
+       return type("Outcome", (), {"expected_health_score": 0.0})()
+
+   def _generate_recommendation(self, causal_effect: float) -> str:
+       if causal_effect > 0:
+           return "This dietary change is predicted to improve your health score."
+       elif causal_effect < -0.05:
+           return "This dietary change may negatively impact your health score."
+       return "This dietary change is predicted to have minimal impact."
    ```
 
 **Доказательная аргументация:**
@@ -708,32 +746,31 @@
 **Цель:** Интегрировать в AI Health Coach
 
 **Шаги:**
-1. **Integrate with AI Coach:**
+1. **Integrate with AI Coach (inject causal_analyzer, rate-limit LLM):**
    ```python
-   # core/coach/ai_coach.py
-   async def get_personalized_advice(self, user_id: str):
-       """Get personalized advice с causal inference."""
-       # 1. Get user diet and health
-       diet = await self.get_user_diet(user_id)
-       health = await self.get_user_health(user_id)
+   # core/coach/ai_coach.py — causal_analyzer injected; LLM calls behind rate_limit_llm
+   class AICoach:
+       def __init__(self, llm_provider, causal_analyzer: CausalHealthAnalyzer):
+           self.llm = llm_provider
+           self.causal_analyzer = causal_analyzer  # Shared/cached instance
 
-       # 2. Causal inference
-       causal_analyzer = CausalHealthAnalyzer()
-       counterfactual = causal_analyzer.counterfactual_analysis(
-           current_diet=diet,
-           alternative_diet=self._suggest_alternative(diet),
-           current_health=health
-       )
+       async def get_user_diet(self, user_id: str): ...
+       async def get_user_health(self, user_id: str): ...
+       def _suggest_alternative(self, diet: Dict): ...
 
-       # 3. LLM explanation
-       prompt = f"Explain causal effect: {counterfactual.causal_effect}"
-       explanation = await self.llm.generate(prompt)
-
-       return {
-           "advice": explanation,
-           "causal_effect": counterfactual.causal_effect,
-           "recommendation": counterfactual.recommendation
-       }
+       async def get_personalized_advice(self, user_id: str):
+           """Get personalized advice с causal inference. Route must use Depends(rate_limit_llm)."""
+           diet = await self.get_user_diet(user_id)
+           health = await self.get_user_health(user_id)
+           counterfactual = self.causal_analyzer.counterfactual_analysis(
+               current_diet=diet,
+               alternative_diet=self._suggest_alternative(diet),
+               current_health=health
+           )
+           prompt = f"Explain causal effect: {counterfactual.causal_effect}"
+           explanation = await self.llm.generate(prompt)  # Throttled by endpoint Depends
+           return {"advice": explanation, "causal_effect": counterfactual.causal_effect,
+                   "recommendation": counterfactual.recommendation}
    ```
 
 **Доказательная аргументация:**
@@ -754,9 +791,9 @@
 | **FitChef AI Companion** | Базовая интеграция (2 недели) | Multi-Modal (2 недели) | Personalization (2 недели) | 6 недель | P1 |
 | **Pulse Visualization** | Базовая визуализация (2 недели) | Real-Time Pulse (2 недели) | - | 4 недели | P1 |
 | **Cuisine Journey** | Cuisine Database (2 недели) | Achievement System (2 недели) | - | 4 недели | P1 |
-| **Bayesian Neural Networks** | Research & Setup (2 недели) | Implementation (4 недели) | Integration (2 недели) | 8 недель | P1 |
-| **Neural-Symbolic Reasoning** | Research & Setup (2 недели) | Implementation (4 недели) | Integration (2 недели) | 8 недель | P1 |
-| **Causal Inference** | Causal Graph (3 недели) | Counterfactual (3 недели) | Integration (2 недели) | 8 недель | P1 |
+| **Bayesian Neural Networks** | Research & Setup (2–4 нед) | Implementation (4–6 нед) | Integration (1–2 нед) | 12–16 нед | P1 |
+| **Neural-Symbolic Reasoning** | Research & Setup (2–3 нед) | Implementation (4–6 нед) | Integration (1–2 нед) | 10–12 нед | P1 |
+| **Causal Inference** | Research & CPD data (4–8 нед) | Implementation & validation (3–4 нед) | Integration (1–2 нед) | 12–20 нед | P1 |
 
 **Общее время (параллельная работа):** 8-10 недель (2-2.5 месяца)
 
