@@ -170,20 +170,22 @@ If it is not recorded here — it does not exist.
     - Tests verify FREE/PRO users get 403, VIP users get 200
     - Update OpenAPI schema (insight endpoints require VIP tier)
 
-- [ ] P1: Verify and secure WebSocket endpoint (if exists)
+- [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security)
-  - Target PR: TBD
-  - Status: 📋 Needs investigation
-  - Reason: Original analysis mentioned `/ws` endpoint without authentication. Current codebase search found no WebSocket endpoints in `legacy_app.py`. Need to verify if WebSocket exists elsewhere or was removed.
+  - Target PR: N/A (investigation only)
+  - Status: ✅ Resolved — No WebSocket endpoints found
+  - Reason: Comprehensive codebase search found no WebSocket endpoints (`@app.websocket`, `/ws` path, WebSocket imports). Original analysis was false positive — WebSocket never existed or was removed. Security gap does not exist (no endpoint to secure).
   - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap)
+    - docs/audit/WEBSOCKET_ANALYSIS.md (investigation results)
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section — updated)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap — false positive)
   - DoD:
-    - Search entire codebase for WebSocket endpoints
-    - If exists → add token authentication + rate limiting
-    - If removed → mark as resolved, update docs
-    - Tests verify WebSocket requires auth (connection rejected without token)
+    - ✅ Searched entire codebase for WebSocket endpoints (no matches found)
+    - ✅ Verified no WebSocket routes in `legacy_app.py`, `app/routers/*`, `app/main.py`
+    - ✅ Checked OpenAPI schema (no WebSocket paths)
+    - ✅ Identified false positives (test fixes, frontend dependency, docs references)
+    - ✅ Marked as resolved — security gap does not exist
 
 - [ ] P1: Extract hardcoded constants (BMR, export formats)
   - Owner: @katsiaryna_kavaleuskaya

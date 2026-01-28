@@ -132,25 +132,32 @@ bmi = _compute_bmi(weight_kg=self.weight_kg, height_m=self.height_m)
 
 ---
 
-### 5. ❓ WebSocket Authentication (Status Unknown)
+### 5. ✅ WebSocket Authentication (RESOLVED — No WebSocket Found)
 
 **Original Analysis:**
 - `/ws` endpoint accepts connections without token verification
 - No rate limiting on WebSocket messages
 
 **Current State:**
-- ❓ **WebSocket not found in `legacy_app.py`:** Grep for `@app.websocket` or `/ws` returns no results
-- ❓ **Possible scenarios:**
-  1. WebSocket removed (fixed)
-  2. WebSocket moved to separate router (not checked)
-  3. WebSocket never existed (false positive in analysis)
+- ✅ **WebSocket NOT FOUND in codebase:** Comprehensive search found no WebSocket endpoints
+  - No `@app.websocket` or `@router.websocket` decorators
+  - No `/ws` path registered in FastAPI app
+  - No WebSocket imports in any router or main entry point
+  - OpenAPI schema contains no WebSocket paths
+- ✅ **False positives identified:**
+  - `fix_failing_tests.py` — test fixes only (not actual WebSocket code)
+  - `frontend/package-lock.json` — frontend dependency (not backend server)
+  - Documentation references — RFC/analysis mentions, not implementation
 
-**Progress:** ❓ **Unknown** (needs verification)
+**Progress:** ✅ **RESOLVED** — WebSocket endpoint does not exist (security gap does not exist)
 
-**Required Actions:**
-1. Search entire codebase for WebSocket endpoints
-2. If exists → add authentication + rate limiting
-3. If removed → mark as resolved
+**Conclusion:**
+- WebSocket never existed OR was removed before current snapshot
+- No security vulnerability (no endpoint to secure)
+- If WebSocket is added in future → require auth + rate limiting
+
+**References:**
+- `docs/audit/WEBSOCKET_ANALYSIS.md` — detailed investigation results
 
 ---
 
@@ -244,12 +251,10 @@ bmi = _compute_bmi(weight_kg=self.weight_kg, height_m=self.height_m)
    - **Risk:** FREE users accessing expensive LLM API
    - **Time:** 1 day
 
-3. **WebSocket Authentication (if exists)**
-   - Search codebase for WebSocket endpoints
-   - Add token verification
-   - Add rate limiting
-   - **Risk:** Unauthorized access, message spam
-   - **Time:** 1 day
+3. ~~**WebSocket Authentication (if exists)**~~ ✅ **RESOLVED**
+   - ✅ Searched codebase — no WebSocket endpoints found
+   - ✅ Security gap does not exist (no endpoint to secure)
+   - **Status:** Resolved (see `docs/audit/WEBSOCKET_ANALYSIS.md`)
 
 ### P1 — API Cleanup (Week 2-3)
 
@@ -292,7 +297,7 @@ bmi = _compute_bmi(weight_kg=self.weight_kg, height_m=self.height_m)
 **Critical Gaps:**
 - ❌ Rate limiting: 0% (code commented out)
 - ❌ LLM tier guard: 0% (still accessible to FREE)
-- ⚠️ WebSocket auth: Unknown (needs verification)
+- ✅ WebSocket auth: Resolved (no WebSocket endpoints found)
 
 ---
 
@@ -306,5 +311,5 @@ bmi = _compute_bmi(weight_kg=self.weight_kg, height_m=self.height_m)
 
 ---
 
-**Last updated:** 2026-01-28
+**Last updated:** 2026-01-28 (WebSocket analysis complete — no endpoints found)
 **Next review:** After P0 security fixes (rate limiting, tier guards)
