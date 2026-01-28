@@ -15,40 +15,31 @@ from tests._helpers.bmi_flags import _normalize_flags_for_tests
 class TestAppSpecificMissingLines:
     """Tests for specific missing lines in app.py."""
 
-    def test_slowapi_import_error(self) -> None:
+    def test_slowapi_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test slowapi import error handling."""
         import importlib
+        import sys
 
-        # Patch importlib.import_module to raise ImportError for slowapi
-        real_import = importlib.import_module
+        import app
 
-        def _import_module(name: str, *args: object, **kwargs: object) -> object:
-            if name == "slowapi":
-                raise ImportError("slowapi not found")
-            return real_import(name, *args, **kwargs)
+        if "slowapi" in sys.modules:
+            monkeypatch.delitem(sys.modules, "slowapi")
 
-        with patch("importlib.import_module", side_effect=_import_module):
-            import app
-
-            importlib.reload(app)
+        importlib.reload(app)
 
         # The test passes if no exception is raised during reload
 
-    def test_vip_module_import_error(self) -> None:
+    def test_vip_module_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test VIP module import error handling."""
         import importlib
+        import sys
 
-        # Patch importlib.import_module to raise ImportError for app.routers.vip
-        real_import = importlib.import_module
+        import app
 
-        def _import_module(name: str, *args: object, **kwargs: object) -> object:
-            if name == "app.routers.vip":
-                raise ImportError("VIP module not found")
-            return real_import(name, *args, **kwargs)
+        if "app.routers.vip" in sys.modules:
+            monkeypatch.delitem(sys.modules, "app.routers.vip")
 
-        with patch("importlib.import_module", side_effect=_import_module):
-            import app
-
+        with patch("importlib.import_module", side_effect=ImportError("VIP module not found")):
             importlib.reload(app)
 
     def test_bodyfat_import_error(self) -> None:
