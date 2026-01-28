@@ -79,9 +79,41 @@ If it is not recorded here — it does not exist.
     - Guard tests pass (all 4 violations fixed)
     - CI green
 
+- [x] PR-611 AI Insight Safety & Error Hygiene (merged 2026-01-28)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-611
+  - Status: ✅ Merged
+  - Reason: P0 safety — ensure insight endpoints never leak internal errors (ImportError, provider.generate exceptions) and return safe 503 responses with sanitized detail messages. Also enforce `response_model=InsightResponse` contract.
+  - Links:
+    - docs/audit/PR_XXX_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/611>
+  - DoD: ✅ Completed
+    - ✅ Import-failure returns 503 with safe detail (no "boom" leak)
+    - ✅ Provider.generate exceptions return 503 with safe detail (no raw exception leak)
+    - ✅ All insight endpoints use `response_model=InsightResponse`
+    - ✅ Tests use attribute access (`out.provider`, `out.insight`) not dict keys
+    - ✅ Import-failure test is deterministic (`FEATURE_INSIGHT=true` enforced)
+    - ✅ CI green (all checks pass)
+    - ✅ Post-merge verification passed (13 tests, OpenAPI sync)
+
 ---
 
 ## P1 — Improvements (Optional / polish)
+
+- [ ] Move insight redaction/import helper out of legacy_app.py
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Reason: Codex actionable — keep legacy_app thin proxy only. Move `_redact_rag_context_for_insight` and `_load_llm_get_provider` to canonical module (`core/insight/`) to maintain AGENTS invariant. Follow-up from PR-611.
+  - Links:
+    - docs/audit/PR_XXX_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
+    - PR-611 (merged 2026-01-28)
+  - DoD:
+    - Redaction helper already moved to `core/insight/safety.py` (done in PR-611)
+    - Import helper (`_load_llm_get_provider`) moved to canonical module (not `legacy_app.py`)
+    - `legacy_app.py` contains only thin proxies (no business logic)
+    - Tests pass
+    - OpenAPI unchanged
 
 - [ ] PR-595 iOS Thin HTTP Adapter Audit
   - Owner: @katsiaryna_kavaleuskaya
