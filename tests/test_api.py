@@ -3,8 +3,8 @@ import os
 import sys
 from collections.abc import Callable
 from types import ModuleType
-from typing import cast
-from unittest.mock import patch
+from typing import NoReturn, cast
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -212,26 +212,23 @@ def test_bodyfat_import_failure(client):
         _test_app_import_with_assertions(original_app, test_assertions)
 
 
-def test_insight_import_failure(client, monkeypatch):
+def test_insight_import_failure(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test coverage for llm import exception in main.py."""
-    import sys
-    from unittest.mock import MagicMock, patch
 
     # Save original app module if it exists
     original_app = sys.modules.get("app")
 
-    # Create a failing mock module (used by patched __import__ below).
-    failing_llm_module = MagicMock()
-    failing_llm_module.__name__ = "llm"
+    def test_assertions(app: ModuleType) -> None:
+        import legacy_app
 
-    # Remove module from sys.modules to make llm import fail.
-    # IMPORTANT: do not mutate sys.modules directly; use monkeypatch so pytest
-    # automatically restores state after the test.
-    for name in list(sys.modules.keys()):
-        if name == "llm" or name.startswith("llm."):
-            monkeypatch.delitem(sys.modules, name, raising=False)
+        def _raise_import_error() -> NoReturn:
+            raise ImportError("boom")
 
-    def test_assertions(app):
+        # Deterministic import-failure branch without sys.modules mutation.
+        monkeypatch.setattr(legacy_app, "_load_llm_get_provider", _raise_import_error, raising=True)
+        # Force feature enabled to prevent early-return bypass via disabled check.
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+
         client = TestClient(cast(ASGIApp, app.app))
 
         response = client.post(
@@ -240,14 +237,17 @@ def test_insight_import_failure(client, monkeypatch):
             headers={"X-API-Key": "test_key"},
         )
         assert response.status_code == 503
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
-        assert "insight provider not configured" in data["detail"]
+        # Backward-compatible shape: `detail` exists, but must not leak internals.
+        assert "LLM module is not available" in data["detail"]
+        assert "boom" not in data.get("detail", "")
 
     _test_app_import_with_assertions(original_app, test_assertions)
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_generate_failure(mock_get_provider, client):
+def test_api_insight_provider_generate_failure(mock_get_provider: Mock, client: TestClient) -> None:
     """Test coverage for provider.generate exception in insight endpoint."""
     from unittest.mock import MagicMock
 
@@ -266,8 +266,10 @@ def test_api_insight_provider_generate_failure(mock_get_provider, client):
         "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
-    assert "LLM provider error" in data["detail"]
+    # Privacy/safety: never leak raw exception details to the client.
+    assert "Generate failed" not in data.get("detail", "")
 
     # Восстанавливаем переменные окружения
     if original_feature is not None:
@@ -277,7 +279,7 @@ def test_api_insight_provider_generate_failure(mock_get_provider, client):
 
 
 @patch("llm.get_provider")
-def test_api_insight_provider_none(mock_get_provider, client):
+def test_api_insight_provider_none(mock_get_provider: Mock, client: TestClient) -> None:
     """Test coverage for provider is None in insight endpoint."""
     mock_get_provider.return_value = None
 
@@ -291,6 +293,7 @@ def test_api_insight_provider_none(mock_get_provider, client):
         "/api/v1/insight", json={"text": "test"}, headers={"X-API-Key": "test_key"}
     )
     assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
     data = response.json()
     assert "No LLM provider configured" in data["detail"]
 

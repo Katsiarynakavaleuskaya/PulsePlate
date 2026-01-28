@@ -3001,6 +3001,19 @@ export interface components {
             text: string;
         };
         /**
+         * InsightResponse
+         * @description Insight response payload.
+         *
+         *     RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
+         *     EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
+         */
+        InsightResponse: {
+            /** Insight */
+            insight: string;
+            /** Provider */
+            provider: string;
+        };
+        /**
          * MealLogRequest
          * @description Log a meal-related event.
          *
@@ -4934,9 +4947,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["InsightResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6772,9 +6783,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["InsightResponse"];
                 };
             };
             /** @description Validation Error */

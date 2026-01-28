@@ -253,8 +253,8 @@ async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch
 
     req = legacy_app.InsightRequest(text="question")
     out = await legacy_app.insight_v1(req)
-    assert out["provider"] == "stub"
-    assert "Context:" in out["insight"]
+    assert out.provider == "stub"
+    assert "Context:" in out.insight
 
 
 @pytest.mark.asyncio
@@ -283,7 +283,7 @@ async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     out = await legacy_app.insight_v1(legacy_app.InsightRequest(text="q"))
-    assert len(out["insight"]) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+    assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
 
 
 @pytest.mark.asyncio
@@ -312,8 +312,8 @@ async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) ->
 
     req = legacy_app.InsightRequest(text="q")
     out = await legacy_app.insight(req)
-    assert out["provider"] == "stub"
-    assert len(out["insight"]) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
+    assert out.provider == "stub"
+    assert len(out.insight) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
 
 
 @pytest.mark.asyncio
@@ -341,7 +341,7 @@ async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch)
         raising=False,
     )
     out = await legacy_app.insight(legacy_app.InsightRequest(text="q"))
-    assert len(out["insight"]) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+    assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
 
 
 @pytest.mark.asyncio

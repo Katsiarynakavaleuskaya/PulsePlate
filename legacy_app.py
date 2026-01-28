@@ -1407,6 +1407,17 @@ class InsightRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=INSIGHT_TEXT_MAX_LENGTH)
 
 
+class InsightResponse(BaseModel):
+    """Insight response payload.
+
+    RU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.
+    EN: Explicit response model keeps OpenAPI stable and enables TS type generation.
+    """
+
+    provider: str = Field(..., min_length=1)
+    insight: str = Field(..., min_length=1)
+
+
 class BMIRequest(BaseModel):
     weight_kg: float = Field(..., gt=0)
     height_m: float = Field(..., gt=0)
@@ -2452,8 +2463,34 @@ def _build_insight_prompt(text: str, context: Optional[str]) -> str:
     return prompt_text
 
 
-@app.post("/api/v1/insight", dependencies=[Depends(_get_api_key_dynamic)])
-async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
+INSIGHT_TEMP_UNAVAILABLE_CODE = "INSIGHT_TEMPORARILY_UNAVAILABLE"
+INSIGHT_TEMP_UNAVAILABLE_MESSAGE = "Insight is temporarily unavailable. Please try again later."
+
+
+from core.insight.safety import (  # noqa: E402
+    redact_rag_context_for_insight as _redact_rag_context_for_insight,
+)
+
+
+def _load_llm_get_provider() -> Callable[[], Any]:
+    """Load llm.get_provider lazily.
+
+    RU: Вынесено в helper для детерминированного тестирования ветки import-failure
+    без мутаций sys.modules и без патча builtins.__import__.
+    EN: Extracted for deterministic import-failure testing without sys.modules mutation.
+    """
+
+    from llm import get_provider
+
+    return get_provider
+
+
+@app.post(
+    "/api/v1/insight",
+    dependencies=[Depends(_get_api_key_dynamic)],
+    response_model=InsightResponse,
+)
+async def insight_v1(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (v1 with API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2466,7 +2503,7 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
 
     # отложенный импорт, чтобы не падать, если файла нет
     try:
-        from llm import get_provider
+        get_provider = _load_llm_get_provider()
     except Exception as e:
         raise HTTPException(status_code=503, detail="LLM module is not available") from e
 
@@ -2481,22 +2518,27 @@ async def insight_v1(req: InsightRequest) -> Dict[str, Any]:
             from core.rag.simple_rag import retrieve_context as _rag_retrieve
 
             if ctx := _rag_retrieve(prompt_input, max_chunks=3):
-                prompt_text = _build_insight_prompt(prompt_input, ctx)
+                prompt_text = _build_insight_prompt(
+                    prompt_input,
+                    _redact_rag_context_for_insight(ctx),
+                )
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return {"provider": provider.name, "insight": insight_text}
-    except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"LLM provider error: {str(e)}",
-        ) from e
+        return InsightResponse(provider=provider.name, insight=insight_text)
+    except Exception:
+        # Log server-side only; never return exception details to client (privacy/safety).
+        logger.exception("Insight provider call failed (/api/v1/insight)")
+        raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
 # Backward-compatible simple insight endpoint (no API key)
-@app.post("/insight")
-async def insight(req: InsightRequest) -> Dict[str, Any]:
+@app.post(
+    "/insight",
+    response_model=InsightResponse,
+)
+async def insight(req: InsightRequest) -> InsightResponse:
     """Generate insight using LLM provider (legacy path without API key).
 
     Privacy: user text may be sent to external providers; see /privacy.
@@ -2509,7 +2551,7 @@ async def insight(req: InsightRequest) -> Dict[str, Any]:
     prompt_input = _ensure_insight_text_length(req.text)
 
     try:
-        from llm import get_provider
+        get_provider = _load_llm_get_provider()
     except Exception as e:
         raise HTTPException(status_code=503, detail="LLM module is not available") from e
 
@@ -2524,14 +2566,18 @@ async def insight(req: InsightRequest) -> Dict[str, Any]:
             from core.rag.simple_rag import retrieve_context as _rag_retrieve
 
             if ctx := _rag_retrieve(prompt_input, max_chunks=3):
-                prompt_text = _build_insight_prompt(prompt_input, ctx)
+                prompt_text = _build_insight_prompt(
+                    prompt_input,
+                    _redact_rag_context_for_insight(ctx),
+                )
     if len(prompt_text) > INSIGHT_TEXT_MAX_LENGTH:
         prompt_text = prompt_text[:INSIGHT_TEXT_MAX_LENGTH]
     try:
         insight_text = await provider.generate(prompt_text)
-        return {"provider": provider.name, "insight": insight_text}
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"LLM provider error: {str(e)}") from e
+        return InsightResponse(provider=provider.name, insight=insight_text)
+    except Exception:
+        logger.exception("Insight provider call failed (/insight)")
+        raise HTTPException(status_code=503, detail=INSIGHT_TEMP_UNAVAILABLE_MESSAGE) from None
 
 
 MenuEngineCallable = Callable[..., Any]

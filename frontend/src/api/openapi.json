@@ -1737,6 +1737,27 @@
         "title": "InsightRequest",
         "type": "object"
       },
+      "InsightResponse": {
+        "description": "Insight response payload.\n\nRU: Явная модель ответа нужна для стабильного OpenAPI и генерации типов фронтенда.\nEN: Explicit response model keeps OpenAPI stable and enables TS type generation.",
+        "properties": {
+          "insight": {
+            "minLength": 1,
+            "title": "Insight",
+            "type": "string"
+          },
+          "provider": {
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "insight"
+        ],
+        "title": "InsightResponse",
+        "type": "object"
+      },
       "MealLogRequest": {
         "description": "Log a meal-related event.\n\nRU: Логировать событие приёма пищи.\nEN: Log a meal event.",
         "properties": {
@@ -5267,9 +5288,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Insight V1 Api V1 Insight Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InsightResponse"
                 }
               }
             },
@@ -7840,9 +7859,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Insight Insight Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InsightResponse"
                 }
               }
             },

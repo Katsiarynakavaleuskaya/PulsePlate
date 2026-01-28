@@ -13,9 +13,8 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
-# Import the FastAPI app from app.py file
-import importlib.util
-from app import app
+# Import the canonical FastAPI app (registers metrics, etc.)
+from app.main import app
 
 
 @pytest.mark.slow
@@ -288,14 +287,15 @@ class TestInsightEndpoints:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(cast(ASGIApp, app))
 
-    def test_insight_endpoint_disabled_explicitly(self):
+    def test_insight_endpoint_disabled_explicitly(self) -> None:
         """Test insight endpoint when explicitly disabled."""
         with patch.dict(os.environ, {"FEATURE_INSIGHT": "false"}):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
+            assert response.headers["content-type"].startswith("application/json")
             assert "disabled" in response.json()["detail"]
 
-    def test_insight_endpoint_no_provider(self):
+    def test_insight_endpoint_no_provider(self) -> None:
         """Test insight endpoint with no provider configured."""
         with (
             patch.dict(os.environ, {"FEATURE_INSIGHT": "true"}),
@@ -303,9 +303,10 @@ class TestInsightEndpoints:
         ):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
+            assert response.headers["content-type"].startswith("application/json")
             assert "No LLM provider configured" in response.json()["detail"]
 
-    def test_insight_endpoint_provider_unavailable(self):
+    def test_insight_endpoint_provider_unavailable(self) -> None:
         """Test insight endpoint with provider unavailable."""
         mock_provider = Mock()
         mock_provider.generate.side_effect = Exception("Provider error")
@@ -316,12 +317,16 @@ class TestInsightEndpoints:
         ):
             response = self.client.post("/insight", json={"text": "test"})
             assert response.status_code == 503
-            assert "LLM provider error" in response.json()["detail"]
+            # Privacy/safety: do not leak provider exception details.
+            assert response.headers["content-type"].startswith("application/json")
+            assert "Provider error" not in response.json()["detail"]
 
-    def test_insight_endpoint_success(self):
+    def test_insight_endpoint_success(self) -> None:
         """Test successful insight endpoint."""
+        from unittest.mock import AsyncMock
+
         mock_provider = Mock()
-        mock_provider.generate.return_value = "Generated insight"
+        mock_provider.generate = AsyncMock(return_value="Generated insight")
         mock_provider.name = "test_provider"
 
         with (
@@ -329,23 +334,33 @@ class TestInsightEndpoints:
             patch("llm.get_provider", return_value=mock_provider),
         ):
             response = self.client.post("/insight", json={"text": "test query"})
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
+            data = response.json()
+            assert data["provider"] == "test_provider"
+            assert data["insight"] == "Generated insight"
 
-    def test_api_v1_insight_success(self):
+    def test_api_v1_insight_success(self) -> None:
         """Test API v1 insight endpoint with API key."""
+        from unittest.mock import AsyncMock
+
         mock_provider = Mock()
-        mock_provider.generate.return_value = "Generated insight"
+        mock_provider.generate = AsyncMock(return_value="Generated insight")
         mock_provider.name = "test_provider"
 
         with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch.dict(os.environ, {"API_KEY": "test_key", "FEATURE_INSIGHT": "true"}),
             patch("llm.get_provider", return_value=mock_provider),
         ):
             headers = {"X-API-Key": "test_key"}
             response = self.client.post(
                 "/api/v1/insight", json={"text": "test query"}, headers=headers
             )
-            assert response.status_code == 503
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
+            data = response.json()
+            assert data["provider"] == "test_provider"
+            assert data["insight"] == "Generated insight"
 
     def test_api_v1_insight_no_llm_module(self):
         """Test API v1 insight when LLM module not available."""
