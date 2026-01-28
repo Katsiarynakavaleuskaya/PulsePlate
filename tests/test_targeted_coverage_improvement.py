@@ -27,10 +27,8 @@ class TestTargetedCoverageImprovement:
 
     def teardown_method(self) -> None:
         """Clean up test environment."""
-        if "API_KEY" in os.environ:
-            del os.environ["API_KEY"]
-        if "FEATURE_PREMIUM_NUTRITION" in os.environ:
-            del os.environ["FEATURE_PREMIUM_NUTRITION"]
+        os.environ.pop("API_KEY", None)
+        os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
 
     def test_normalize_flags_edge_cases(self) -> None:
         """Test edge cases for normalize_flags function."""
