@@ -50,8 +50,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Revisit when bookworm publishes a fixed package.
 #
 # Security hardening:
-# Explicitly install openssl/libssl3 to ensure patched versions are pulled from bookworm-security.
-# Do not remove unless Trivy alerts are resolved and base image consistently ships patched OpenSSL.
+# Explicitly install openssl/libssl3 to pull the latest available versions from bookworm-security.
+# Do not remove unless Trivy alerts are resolved and the base image consistently ships updated OpenSSL.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \

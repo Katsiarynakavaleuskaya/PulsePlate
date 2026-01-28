@@ -72,7 +72,19 @@ ignore if {
 # Documented in: docs/security/CVE-2026-24883-gpgv.md
 # Removal condition: Remove when Debian bookworm publishes patched gpgv package or Trivy metadata includes fixed version
 
+# Helper rule: check if InstalledVersion matches observed version
+cve_2026_24883_version_match if {
+	input.InstalledVersion == "2.2.40-1.1"
+}
+
+# Helper rule: check if PkgID matches observed gpgv package
+cve_2026_24883_pkgid_match if {
+	startswith(input.PkgID, "gpgv@2.2.40-1.1")
+}
+
 ignore if {
 	input.VulnerabilityID == "CVE-2026-24883"
 	input.PkgName == "gpgv"
+	cve_2026_24883_version_match
+	cve_2026_24883_pkgid_match
 }
