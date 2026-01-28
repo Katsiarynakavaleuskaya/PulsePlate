@@ -82,13 +82,16 @@ def _resolve_nutrition_callable(name: str) -> Callable[..., Any]:
     # Resolution order: app -> app.app_module -> app_module -> nutrition_core
     calc_fn = None
     if pkg is not None:
-        calc_fn = getattr(pkg, name, None)
+        candidate = getattr(pkg, name, None)
+        calc_fn = candidate if callable(candidate) else None
 
     if calc_fn is None and pkg_appmod is not None:
-        calc_fn = getattr(pkg_appmod, name, None)
+        candidate = getattr(pkg_appmod, name, None)
+        calc_fn = candidate if callable(candidate) else None
 
     if calc_fn is None and alias is not None:
-        calc_fn = getattr(alias, name, None)
+        candidate = getattr(alias, name, None)
+        calc_fn = candidate if callable(candidate) else None
 
     if calc_fn is None:
         # Fallback: try to import from nutrition_core using import seams

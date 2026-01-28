@@ -121,3 +121,28 @@ def test_resolve_tdee_uses_seam(monkeypatch: pytest.MonkeyPatch) -> None:
     fn = nw._resolve_nutrition_callable("calculate_all_tdee")
     assert fn is seam_fn
     assert fn({"mifflin": 1500.0}, "moderate") == {"mifflin": 456.0}
+
+
+def test_resolve_skips_non_callable_attr_and_falls_back_to_seam(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that non-callable attributes are skipped and fallback to seam is used."""
+    # pkg exposes the "right" name but it's NOT callable
+    fake_pkg = types.SimpleNamespace(calculate_all_bmr="not-a-function")
+    fake_alias = None
+    fake_pkg_appmod = None
+
+    def seam_fn(*a: object, **k: object) -> dict[str, float]:
+        return {"mifflin": 123.0}
+
+    monkeypatch.setattr(
+        nw,
+        "_get_candidate_modules",
+        lambda: (fake_pkg, fake_alias, fake_pkg_appmod),
+        raising=True,
+    )
+    monkeypatch.setattr(nw, "_import_nutrition_core_bmr", lambda: seam_fn, raising=True)
+
+    fn = nw._resolve_nutrition_callable("calculate_all_bmr")
+    assert fn is seam_fn
+    assert fn() == {"mifflin": 123.0}
