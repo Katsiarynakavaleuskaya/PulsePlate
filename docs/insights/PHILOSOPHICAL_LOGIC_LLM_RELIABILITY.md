@@ -86,7 +86,7 @@ Requirements:
 ```
 
 **Example Prompt:**
-```
+```text
 Query: "Is a BMI of 25.5 considered overweight?"
 
 MAJOR PREMISE: According to WHO guidelines, BMI 25.0-29.9 is classified as overweight.
@@ -269,7 +269,7 @@ CLAIM 2: ...
 ```
 
 **Example:**
-```
+```text
 Query: "What is the recommended daily protein intake?"
 
 CLAIM 1: The RDA for protein is 0.8g per kg body weight per day.
@@ -350,7 +350,7 @@ TESTABLE: Yes/No
 ```
 
 **Example:**
-```
+```text
 CLAIM: "A calorie deficit of 500 kcal/day leads to 0.5 kg weight loss per week."
 FALSIFICATION CONDITION: "If a person maintains a 500 kcal/day deficit but loses less than 0.4 kg/week over 4 weeks, the claim is falsified."
 TESTABLE: Yes (can be tested in controlled studies)
@@ -468,7 +468,7 @@ Query: {query}
 ```
 
 **Example:**
-```
+```text
 Query: "How can I lose weight?"
 
 BAD (theoretical): "Weight loss requires a calorie deficit, which can be achieved through diet and exercise."
@@ -516,7 +516,7 @@ Requirements:
 ```
 
 **Example:**
-```
+```text
 User history: Previously asked about BMI calculation, mentioned goal to lose weight.
 Current query: "What should I eat?"
 
@@ -556,7 +556,7 @@ class ContextualResolver:
 ```
 
 **Example:**
-```
+```text
 Query: "Is this good?"
 Context: Previous message about "keto diet"
 
@@ -762,7 +762,7 @@ Use the resolved meanings, not dictionary definitions.
 ```
 
 **Example:**
-```
+```text
 Term: "diet"
 Previous uses: "I'm on a diet to lose weight" (restriction)
 Resolved meaning: "calorie-restricted eating pattern for weight loss"

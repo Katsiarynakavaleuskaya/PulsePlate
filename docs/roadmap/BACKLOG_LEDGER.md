@@ -407,6 +407,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] Wire soft paywall CTA to real paywall router (iOS)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Reason: paywall navigation infrastructure not yet available; hook is rendered but CTA is no-op
   - Links:
@@ -417,6 +418,7 @@ If it is not recorded here — it does not exist.
     - No TODO comments in production code
 - [ ] Optional: CI script guard for iOS (repo-wide scan)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Reason: current Swift Testing guard is sufficient; script is hardening
   - Links:
@@ -428,6 +430,7 @@ If it is not recorded here — it does not exist.
 
 - [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)
   - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: TBD
   - Reason: avoid guard flakiness if comments include examples
   - Links:

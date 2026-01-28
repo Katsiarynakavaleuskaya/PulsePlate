@@ -85,7 +85,7 @@ ctx = _rag_retrieve(prompt_input, max_chunks=3)  # Single-pass retrieval
 ### 1.3 Total Endpoint Latency
 
 **Current `/api/v1/insight` endpoint:**
-```
+```text
 Request → RAG (50-100ms) → LLM (500-5000ms) → Response
 Total: ~550-5100ms (0.5-5s)
 ```
@@ -152,7 +152,7 @@ Total: ~550-5100ms (0.5-5s)
 ### 2.5 Combined Recursive Framework Impact
 
 **Full Pipeline (`RecursiveAIAssistant`):**
-```
+```text
 1. Recursive RAG: ~250-400ms
 2. Recursive Reasoning: ~2000-25000ms (parallelizable → ~1000-15000ms)
 3. Recursive Refinement: ~1500-15000ms (early stopping → ~1000-10000ms)
@@ -513,19 +513,19 @@ class SynergisticAIAssistant:
 ### 6.1 Latency Breakdown (Optimized)
 
 **Simple Query (depth=1):**
-```
+```text
 RAG (50ms) → LLM (500ms) → Response
 Total: ~550ms (0.5s)
 ```
 
 **Medium Query (depth=2, parallelized):**
-```
+```text
 RAG (100ms) → Decomposition (500ms) → Subproblems (parallel, 500ms) → Synthesis (500ms) → Response
 Total: ~1600ms (1.6s)
 ```
 
 **Complex Query (depth=3, optimized):**
-```
+```text
 RAG (150ms) → Decomposition (500ms) → Subproblems (parallel, 1000ms) → Synthesis (500ms) → Refinement (early stop, 500ms) → Verification (batched, 500ms) → Response
 Total: ~3150ms (3.2s)
 ```

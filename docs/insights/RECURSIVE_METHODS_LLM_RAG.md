@@ -160,7 +160,7 @@ Refined query:"""
 ```
 
 **Example Usage:**
-```python
+```text
 # Initial query: "How do I calculate BMI for athletes?"
 # Hop 1: Retrieve chunks about BMI calculation
 # Hop 2: Refined query: "BMI calculation adjustments for high muscle mass"
@@ -326,7 +326,7 @@ Synthesized answer:"""
 ```
 
 **Example:**
-```
+```text
 Query: "How do I create a meal plan for weight loss while maintaining muscle mass?"
 
 Decomposition:
@@ -549,7 +549,7 @@ Refined answer:"""
 ```
 
 **Example:**
-```
+```text
 Iteration 1:
 Answer: "BMI is weight divided by height."
 Critique: Missing units (kg, m), no mention of categories.
@@ -675,7 +675,7 @@ CLAIM 2: ...
 ```
 
 **Example:**
-```
+```text
 Answer: "BMI 25 is overweight according to WHO guidelines."
 Claims:
 - "BMI 25 is overweight"
@@ -782,7 +782,7 @@ Apply these lessons to improve your answer.
 ```
 
 **Example:**
-```
+```text
 User feedback: "Answer was too technical, needed simpler explanation."
 Lesson: "Use simpler language for general wellness queries."
 Future query: "What is BMI?"
