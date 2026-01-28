@@ -832,7 +832,35 @@ If it is not recorded here — it does not exist.
     - Cost optimization: caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
     - Integration tests pass (end-to-end recursive pipeline)
 
+- [ ] P2: Unified Framework implementation (UnifiedAICoach: Philosophy + Math + CBT integration)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (integration of all components after individual implementations)
+  - Target PR: TBD (implementation after Phase 1-4 components are complete)
+  - Status: 📋 Planned (depends on Philosophical logic + Recursive methods + CBT coaching)
+  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Expected impact: multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Ожидаемый эффект: мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (production-ready architecture blueprint, implementation details, risk mitigations)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (philosophical validation components)
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (recursive methods components)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (CBT coaching flows)
+  - Prerequisites:
+    - ✅ Phase 1: Philosophical validation implemented (P1 backlog item)
+    - ✅ Phase 2: Speed optimization implemented (LinguisticOptimizer, caching)
+    - ✅ Phase 3: Recursive methods implemented (P1 backlog item)
+    - ✅ Phase 4: CBT coaching implemented (P2 backlog item)
+    - ⏳ All individual components tested and stable
+  - DoD:
+    - Phase 5: UnifiedAICoach class implemented (orchestrates all components)
+    - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
+    - Production-ready features: rate limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
+    - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
+    - Performance metrics: latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
+    - Cost optimization: ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
+    - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
+
 ---
 
-**Last updated:** 2026-01-28 (Add peer review analysis document, validate scientific claims against peer-reviewed sources)
+**Last updated:** 2026-01-28 (Add Unified Framework backlog item for production integration)
 **Maintainer:** @katsiaryna_kavaleuskaya
