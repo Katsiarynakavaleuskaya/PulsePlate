@@ -20,6 +20,7 @@ import hashlib
 import logging
 import os
 import secrets
+from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Final, Protocol, runtime_checkable
@@ -157,16 +158,8 @@ def compute_fingerprint(source: str, *, truncate: int = 12) -> str:
 class _ClientLike(Protocol):
     """Protocol for request.client attribute."""
 
-    host: str | None
-
-
-@runtime_checkable
-class _HeadersLike(Protocol):
-    """Protocol for request.headers attribute."""
-
-    def get(self, key: str, default: str | None = None) -> str | None:
-        """Get header value by key."""
-        ...
+    @property
+    def host(self) -> str | None: ...  # pragma: no cover
 
 
 @runtime_checkable
@@ -176,8 +169,11 @@ class ClientFingerprintRequest(Protocol):
     Avoids FastAPI dependency in core module while providing type safety.
     """
 
-    client: _ClientLike | None
-    headers: _HeadersLike
+    @property
+    def client(self) -> _ClientLike | None: ...  # pragma: no cover
+
+    @property
+    def headers(self) -> Mapping[str, str]: ...  # pragma: no cover
 
 
 def _client_fingerprint(request: ClientFingerprintRequest) -> str | None:
@@ -197,7 +193,6 @@ def _client_fingerprint(request: ClientFingerprintRequest) -> str | None:
         Pseudonymous fingerprint string or None if source IP cannot be determined.
     """
     import ipaddress
-    import os
 
     # Load trusted proxies from config/env
     trusted_proxies_str = os.getenv("TRUSTED_PROXIES", "")
